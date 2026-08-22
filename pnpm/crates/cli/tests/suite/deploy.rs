@@ -934,3 +934,36 @@ fn write_project(workspace: &Path, dirname: &str, manifest: &serde_json::Value) 
     fs::write(dir.join("index.js"), "").unwrap();
     fs::write(dir.join("test.js"), "").unwrap();
 }
+
+/// A deploy install resolves the deployed project, not the workspace, and
+/// never saves the workspace lockfile — so it has not merged the branch
+/// lockfiles and must not delete them.
+#[test]
+fn legacy_deploy_keeps_the_workspace_branch_lockfiles() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_reachability_workspace(&workspace);
+
+    pacquet.with_arg("install").assert().success();
+
+    fs::create_dir(workspace.join(".git")).unwrap();
+    fs::write(workspace.join(".git/HEAD"), "ref: refs/heads/feature\n").unwrap();
+    let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
+    workspace_yaml.push_str("mergeGitBranchLockfiles: true\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+    let branch_lockfile = workspace.join("pnpm-lock.other.yaml");
+    fs::write(&branch_lockfile, "lockfileVersion: '9.0'\n").unwrap();
+
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "deploy"])
+        .assert()
+        .success();
+
+    assert!(
+        branch_lockfile.exists(),
+        "a deploy install never saves the workspace lockfile, so it cannot have merged them",
+    );
+
+    drop((root, mock_instance));
+}

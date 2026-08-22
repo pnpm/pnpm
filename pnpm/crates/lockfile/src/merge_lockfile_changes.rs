@@ -201,7 +201,18 @@ fn merge_snapshot_dep_ref(ours: &SnapshotDepRef, theirs: &SnapshotDepRef) -> Sna
 /// `theirs` records wins, and a field only `ours` records survives. pnpm
 /// merges its package entries with that spread; a field-by-field port
 /// would have to be revisited every time a lockfile entry grows a key.
-fn spread<Entry: Serialize + DeserializeOwned>(ours: &Entry, theirs: &Entry) -> Entry {
+///
+/// Two entries under the same key describe one published version, so they
+/// almost always already agree — and a spread of equal entries is one of
+/// them. Taking that shortcut keeps the serialization round-trip off the
+/// merge of two lockfiles that only differ in a handful of packages.
+fn spread<Entry: Serialize + DeserializeOwned + Clone + PartialEq>(
+    ours: &Entry,
+    theirs: &Entry,
+) -> Entry {
+    if ours == theirs {
+        return ours.clone();
+    }
     let mut merged = to_object(ours);
     merged.extend(to_object(theirs));
     serde_json::from_value(serde_json::Value::Object(merged))

@@ -424,6 +424,14 @@ fn create_deploy_install_config(
     deploy_config.dedupe_peer_dependents = false;
     deploy_config.dedupe_injected_deps = false;
     deploy_config.node_linker = node_linker;
+    // The deployed lockfile is a fresh artifact describing one project, not
+    // the workspace resolution the branch settings apply to — pnpm's deploy
+    // likewise reads and writes plain `pnpm-lock.yaml`.
+    // The deployed lockfile is a fresh artifact describing one project, not
+    // the workspace resolution the branch settings apply to — pnpm's deploy
+    // likewise reads and writes plain `pnpm-lock.yaml`. Left set, they would
+    // name the deployed lockfile after the branch, and merging would fold
+    // and delete the workspace's branch lockfiles from inside a deploy.
     deploy_config
 }
 

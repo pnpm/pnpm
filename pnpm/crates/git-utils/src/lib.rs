@@ -71,7 +71,7 @@ fn read_branch_from_head_file(cwd: &Path) -> HeadBranch {
     let git_dir = if metadata.is_dir() {
         dot_git
     } else if metadata.is_file() {
-        let Ok(content) = fs::read_to_string(&dot_git) else {
+        let Some(content) = read_git_metadata_file(&dot_git) else {
             return HeadBranch::Unknown;
         };
         match content.trim().strip_prefix("gitdir:").map(str::trim) {
@@ -83,16 +83,38 @@ fn read_branch_from_head_file(cwd: &Path) -> HeadBranch {
         return HeadBranch::Unknown;
     };
 
-    match fs::read_to_string(git_dir.join("HEAD")) {
-        Ok(head) => match head.trim().strip_prefix("ref:").map(str::trim) {
+    match read_git_metadata_file(&git_dir.join("HEAD")) {
+        Some(head) => match head.trim().strip_prefix("ref:").map(str::trim) {
             Some(reference) => match reference.strip_prefix("refs/heads/") {
                 Some(branch) => HeadBranch::Branch(branch.to_owned()),
                 None => HeadBranch::Detached,
             },
             None => HeadBranch::Detached,
         },
-        Err(_) => HeadBranch::Unknown,
+        None => HeadBranch::Unknown,
     }
+}
+
+/// Both files this reads — the `gitdir:` pointer and a `HEAD` ref — are a
+/// single short line. The cap sits far above either and far below a size
+/// worth reading into memory.
+const MAX_GIT_METADATA_BYTES: u64 = 8 * 1024;
+
+/// Read one small git metadata file, or `None` when it is absent, is not a
+/// regular file, or is larger than [`MAX_GIT_METADATA_BYTES`].
+///
+/// A repository is untrusted input, and the per-branch lockfile settings
+/// let it decide whether this runs at all, so neither the size nor the
+/// kind of what `.git` names may be assumed. The kind is checked through
+/// [`fs::symlink_metadata`], before an open that a FIFO would block on
+/// forever; anything rejected here leaves the caller falling back to `git
+/// symbolic-ref`, which answers such a repository correctly anyway.
+fn read_git_metadata_file(path: &Path) -> Option<String> {
+    let metadata = fs::symlink_metadata(path).ok()?;
+    if !metadata.file_type().is_file() || metadata.len() > MAX_GIT_METADATA_BYTES {
+        return None;
+    }
+    fs::read_to_string(path).ok()
 }
 
 fn git_ok<Sys: RunCommand>(args: &[&str], cwd: &Path) -> bool {

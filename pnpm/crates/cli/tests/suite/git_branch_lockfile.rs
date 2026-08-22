@@ -145,3 +145,35 @@ fn the_branch_pattern_merges_without_the_flag() {
 
     drop((root, mock_instance));
 }
+
+/// Merging is what makes the branch lockfiles disposable, and it needs a
+/// lockfile to merge into. With lockfile handling off nothing reads them,
+/// so deleting them would drop resolutions no file is left holding.
+#[test]
+fn merging_keeps_the_branch_lockfiles_when_lockfiles_are_disabled() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    set_branch(&workspace, "other");
+    append_workspace_yaml_key(&workspace, "gitBranchLockfile", true);
+    write_dependencies(&workspace, &serde_json::json!({ "@pnpm.e2e/foo": "1.0.0" }));
+    pacquet.with_arg("install").assert().success();
+    let branch_lockfile = workspace.join("pnpm-lock.other.yaml");
+    let before = fs::read_to_string(&branch_lockfile).expect("read branch lockfile");
+
+    set_branch(&workspace, "main");
+    append_workspace_yaml_key(&workspace, "lockfile", false);
+    pacquet_in(&workspace)
+        .with_args(["install", "--merge-git-branch-lockfiles"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        fs::read_to_string(&branch_lockfile).expect("re-read branch lockfile"),
+        before,
+        "an install that never reads a lockfile must not delete the branch lockfiles",
+    );
+
+    drop((root, mock_instance));
+}

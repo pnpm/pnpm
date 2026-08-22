@@ -428,7 +428,7 @@ fn regenerate_wanted_lockfile_if_missing(
     };
     current
         .save_to_path(&check.workspace_root.join(check.config.wanted_lockfile_name()))
-        .map_err(|_| "failed to regenerate pnpm-lock.yaml from the current lockfile")
+        .map_err(|_| "failed to regenerate the wanted lockfile from the current lockfile")
 }
 
 impl<'a> LinkedPackagesContext<'a> {

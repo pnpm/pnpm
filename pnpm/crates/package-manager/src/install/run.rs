@@ -34,7 +34,15 @@ where
         self,
         options: InstallRunOptions<'a, '_>,
     ) -> Result<(), InstallError> {
-        let branch_lockfiles_to_clean = (self.config.merge_git_branch_lockfiles && !self.dry_run)
+        // The branch lockfiles become disposable only once the merge has
+        // been written somewhere. An install that neither reads nor saves
+        // a lockfile never merged them, and deleting them there would drop
+        // resolutions no file is left holding.
+        let merge_will_be_saved = self.config.merge_git_branch_lockfiles
+            && self.config.lockfile
+            && options.save_lockfile
+            && !self.dry_run;
+        let branch_lockfiles_to_clean = merge_will_be_saved
             .then(|| {
                 let manifest_dir =
                     self.manifest.path().parent().expect("manifest path always has a parent dir");

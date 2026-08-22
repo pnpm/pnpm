@@ -12,6 +12,16 @@ impl RunCommand for NoGit {
     }
 }
 
+/// A provider whose `git symbolic-ref` fails, which is what a repository
+/// the `.git/HEAD` read declined to answer for looks like.
+struct GitFails;
+
+impl RunCommand for GitFails {
+    fn run(_: &str, _: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
+        Ok(CommandOutput { success: false, stdout: String::new(), stderr: String::new() })
+    }
+}
+
 fn repo_with_head(head: &str) -> TempDir {
     let dir = TempDir::new().unwrap();
     fs::create_dir(dir.path().join(".git")).unwrap();
@@ -58,14 +68,42 @@ fn falls_back_to_the_git_subprocess() {
             Ok(CommandOutput { success: true, stdout: "main\n".to_string(), stderr: String::new() })
         }
     }
-    struct GitFails;
-    impl RunCommand for GitFails {
-        fn run(_: &str, _: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
-            Ok(CommandOutput { success: false, stdout: String::new(), stderr: String::new() })
-        }
-    }
-
     let dir = TempDir::new().unwrap();
     assert_eq!(get_current_branch::<GitSaysMain>(dir.path()).as_deref(), Some("main"));
     assert_eq!(get_current_branch::<GitFails>(dir.path()), None);
+}
+
+/// The repository is untrusted input, so `HEAD` is read only when it is a
+/// plain file of a plausible size. Anything else falls back to `git
+/// symbolic-ref` rather than being read.
+#[test]
+fn oversized_git_metadata_is_not_read() {
+    let repo = repo_with_head(&"ref: refs/heads/main\n".repeat(1024));
+    assert_eq!(get_current_branch::<GitFails>(repo.path()), None);
+
+    let dir = TempDir::new().unwrap();
+    let git_dir = dir.path().join("real-git-dir");
+    fs::create_dir(&git_dir).unwrap();
+    fs::write(git_dir.join("HEAD"), "ref: refs/heads/linked\n").unwrap();
+    let worktree = dir.path().join("worktree");
+    fs::create_dir(&worktree).unwrap();
+    fs::write(worktree.join(".git"), format!("gitdir: {}\n", "x".repeat(9000))).unwrap();
+    assert_eq!(get_current_branch::<GitFails>(&worktree), None);
+}
+
+/// A `HEAD` that is not a plain file — a symlink here, a FIFO or a device
+/// in the cases this stands in for — is never opened, so a repository
+/// cannot make the read block or balloon.
+#[cfg(unix)]
+#[test]
+fn a_head_that_is_not_a_plain_file_is_not_read() {
+    let dir = TempDir::new().unwrap();
+    let target = dir.path().join("elsewhere");
+    fs::write(&target, "ref: refs/heads/sneaky\n").unwrap();
+    let repo = dir.path().join("repo");
+    fs::create_dir(&repo).unwrap();
+    fs::create_dir(repo.join(".git")).unwrap();
+    std::os::unix::fs::symlink(&target, repo.join(".git/HEAD")).unwrap();
+
+    assert_eq!(get_current_branch::<GitFails>(&repo), None);
 }

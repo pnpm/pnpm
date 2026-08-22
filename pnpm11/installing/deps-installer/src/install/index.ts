@@ -554,7 +554,11 @@ export async function mutateModules (
 
   reportVerifiedFileIntegrity(verifiedFileIntegritySince(verifiedFileIntegrityBaseline))
 
-  if (opts.mergeGitBranchLockfiles) {
+  // The same trio that gates the `writeLockfiles` above: the branch lockfiles
+  // become disposable only once the merge has been written somewhere. An
+  // install that never saves a lockfile did not merge them, and deleting them
+  // there would drop resolutions no file is left holding.
+  if (opts.mergeGitBranchLockfiles && opts.useLockfile && opts.saveLockfile) {
     await cleanGitBranchLockfiles(ctx.lockfileDir)
   }
 

@@ -46,7 +46,7 @@ pub(crate) fn modified_manifests_match_lockfile(
     let (wanted, wanted_mtime): (&Lockfile, FileMtime) = if let Some(wanted) = lockfile {
         let Some(mtime) = file_mtime(&workspace_root.join(config.wanted_lockfile_name())) else {
             return Err(
-                "a manifest is newer than the last validation and pnpm-lock.yaml cannot be stat'd",
+                "a manifest is newer than the last validation and the wanted lockfile cannot be stat'd",
             );
         };
         (wanted, mtime)

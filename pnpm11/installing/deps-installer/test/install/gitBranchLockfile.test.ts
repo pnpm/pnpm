@@ -272,3 +272,30 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
   const wantedLockfileAfterMergeOther = project.readLockfile()
   expect(wantedLockfileAfterMergeOther).toEqual(otherLockfileContent)
 })
+
+test('--merge-git-branch-lockfiles keeps the branch lockfiles when lockfile handling is off', async () => {
+  prepareEmpty()
+
+  const branchName: string = 'main-branch'
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+
+  const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
+  writeYamlFileSync(otherLockfilePath, {
+    importers: { '.': {} },
+    lockfileVersion: LOCKFILE_VERSION,
+  })
+
+  await install({
+    dependencies: {
+      'is-positive': '^3.0.0',
+    },
+  }, testDefaults({
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+    useLockfile: false,
+  }))
+
+  // Nothing read them, so nothing may delete them.
+  expect(fs.existsSync(otherLockfilePath)).toBe(true)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
+})
