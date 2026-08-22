@@ -195,7 +195,15 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
             .map(|path| pnpm_crypto_hash::create_hash_from_file(path).ok())
             .collect();
         let hashes = hashes?;
-        Some(pnpm_crypto_hash::create_hash(&hashes.join(",")))
+        Some(match hashes.as_slice() {
+            // `createHashFromMultipleFiles` answers with the file's own hash
+            // when the set holds exactly one, rather than hashing a list of
+            // one hash. Excluding the global pnpmfile can leave a single
+            // project file behind, so the shortcut is reachable here and the
+            // two implementations have to agree on the value they record.
+            [only] => only.clone(),
+            _ => pnpm_crypto_hash::create_hash(&hashes.join(",")),
+        })
     }
 
     async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn CustomResolver>>, HookError> {

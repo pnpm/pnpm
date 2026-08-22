@@ -2346,6 +2346,56 @@ fn a_global_pnpmfile_runs_for_a_project_without_one() {
     drop((root, mock_instance));
 }
 
+/// The global pnpmfile loads ahead of the project's, so `readPackage` reaches
+/// it first and the project's hook sees what it returned. Chaining is the whole
+/// point of the order pnpm fixes by pushing the global entry first, and nothing
+/// else in this file would notice if the two swapped.
+#[test]
+fn a_global_pnpmfile_runs_before_the_project_pnpmfile() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let global_pnpmfile = root.path().join("global-pnpmfile.cjs");
+    fs::write(
+        &global_pnpmfile,
+        r"module.exports = { hooks: { readPackage: (pkg) => {
+            pkg.greetedByGlobalPnpmfile = true;
+            return pkg;
+        } } }",
+    )
+    .expect("write global pnpmfile");
+    // Injects only what the global hook already put on the manifest, so the
+    // dependency appears if and only if the global hook ran first.
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"module.exports = { hooks: { readPackage: (pkg) => {
+            if (pkg.greetedByGlobalPnpmfile && pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
+                pkg.dependencies['is-positive'] = '1.0.0';
+            }
+            return pkg;
+        } } }",
+    )
+    .expect("write project pnpmfile");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .expect("write package.json");
+
+    pacquet_in(&workspace)
+        .with_env("PNPM_CONFIG_GLOBAL_PNPMFILE", &global_pnpmfile)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    assert!(
+        read_package_hook_applied(&workspace),
+        "the project hook saw the global hook's manifest",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// The global pnpmfile is excluded from `pnpmfileChecksum`, matching the
 /// `includeInChecksum: false` entry pnpm's `requireHooks` pushes for it.
 /// Editing it must therefore leave the lockfile's checksum alone — the field
@@ -2379,15 +2429,27 @@ fn a_global_pnpmfile_stays_out_of_the_pnpmfile_checksum() {
             .pnpmfile_checksum
     };
 
-    let before = install();
-    assert!(before.is_some(), "the project pnpmfile is checksummed");
+    let with_global = install();
+    assert!(with_global.is_some(), "the project pnpmfile is checksummed");
 
     fs::write(
         &global_pnpmfile,
         "module.exports = { hooks: { readPackage: (pkg) => { void 0; return pkg } } }",
     )
     .expect("rewrite global pnpmfile");
-    assert_eq!(install(), before, "editing the global pnpmfile leaves the checksum alone");
+    assert_eq!(install(), with_global, "editing the global pnpmfile leaves the checksum alone");
+
+    // The value itself has to match what the project alone records, not merely
+    // stay stable: `pnpmfileChecksum` is shared with pnpm, so a project that
+    // happens to have a global pnpmfile must not hash to something pnpm would
+    // disagree with.
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
+    pacquet_in(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    let without_global = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile")
+        .pnpmfile_checksum;
+    assert_eq!(with_global, without_global, "a global pnpmfile does not alter the recorded value");
 
     drop((root, mock_instance));
 }
