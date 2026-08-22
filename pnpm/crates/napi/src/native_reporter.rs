@@ -39,7 +39,7 @@ use pnpm_reporter::{FetchingProgressMessage, LogEvent};
 pub type OutputSink = ThreadsafeFunction<String, UnknownReturnValue, String, Status, false>;
 
 /// pnpm's default terminal output, rendered by the engine. Mirrors
-/// `ReporterOptions` in `index.d.ts`; every field maps onto the option of
+/// [`ReporterOptions`] in `index.d.ts`; every field maps onto the option of
 /// the same name in `@pnpm/cli.default-reporter`'s `reportingOptions`.
 #[napi(object)]
 #[derive(Default)]
@@ -93,7 +93,7 @@ enum Destination {
     /// saturated queue drops the chunk rather than blocking an engine
     /// worker thread, exactly like the log sink.
     Callback(OutputSink),
-    /// Collects the chunks in memory. Test-only: a `ThreadsafeFunction`
+    /// Collects the chunks in memory. Test-only: a [`ThreadsafeFunction`]
     /// needs a live napi environment, which the unit-test binary has none
     /// of.
     #[cfg(test)]

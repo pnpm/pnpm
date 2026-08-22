@@ -22,9 +22,9 @@ use pnpm_diagnostics::miette::{self, Diagnostic};
 
 use crate::{Lockfile, PackageKey, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap};
 
-/// Dependency groups a filter keeps. Structurally pnpm's
-/// `IncludedDependencies`, declared here so the lockfile crate does not
-/// depend on the modules-manifest crate for three booleans.
+/// Dependency groups a filter keeps — the same three flags the modules
+/// manifest records, redeclared here so the lockfile crate does not depend
+/// on the modules-manifest crate for three booleans.
 #[derive(Debug, Clone, Copy)]
 pub struct IncludedDependencies {
     pub dependencies: bool,

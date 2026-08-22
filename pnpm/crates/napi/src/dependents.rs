@@ -38,7 +38,7 @@ use pnpm_modules_yaml::{DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, IncludedDependenci
 
 use crate::error::report_to_napi_error;
 
-/// Inputs for [`get_dependents`]. Mirrors `DependentsOptions` in `index.d.ts`.
+/// Inputs for [`get_dependents`]. Mirrors [`DependentsOptions`] in `index.d.ts`.
 #[napi(object)]
 pub struct DependentsOptions {
     /// Lockfile / workspace root directory.
@@ -73,7 +73,7 @@ pub struct DependentsOptions {
     pub manifest_fields: Option<Vec<String>>,
 }
 
-/// Inputs for [`render_dependents`]. Mirrors `RenderDependentsOptions`
+/// Inputs for [`render_dependents`]. Mirrors [`RenderDependentsOptions`]
 /// in `index.d.ts`.
 #[napi(object)]
 pub struct RenderDependentsInput {
@@ -130,7 +130,7 @@ pub fn render_dependents(
         Some("json") => render_dependents_json(&trees, &render_opts),
         Some(other) => {
             return Err(napi::Error::from_reason(format!(
-                "unknown dependents render format {other:?}; expected \"tree\", \"parseable\", or \"json\"",
+                r#"unknown dependents render format {other:?}; expected "tree", "parseable", or "json""#,
             )));
         }
     })

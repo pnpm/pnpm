@@ -42,13 +42,13 @@ impl LockfileKind {
             None | Some("wanted") => Ok(LockfileKind::Wanted),
             Some("current") => Ok(LockfileKind::Current),
             Some(other) => Err(napi::Error::from_reason(format!(
-                "unknown lockfile kind {other:?}; expected \"wanted\" or \"current\"",
+                r#"unknown lockfile kind {other:?}; expected "wanted" or "current""#,
             ))),
         }
     }
 }
 
-/// Inputs for [`read_lockfile`]. Mirrors `ReadLockfileOptions` in
+/// Inputs for [`read_lockfile`]. Mirrors [`ReadLockfileOptions`] in
 /// `index.d.ts`.
 #[napi(object)]
 pub struct ReadLockfileOptions {
@@ -61,7 +61,7 @@ pub struct ReadLockfileOptions {
     pub modules_dir: Option<String>,
 }
 
-/// Inputs for [`write_lockfile`]. Mirrors `WriteLockfileOptions` in
+/// Inputs for [`write_lockfile`]. Mirrors [`WriteLockfileOptions`] in
 /// `index.d.ts`.
 #[napi(object)]
 pub struct WriteLockfileOptions {
@@ -76,7 +76,7 @@ pub struct WriteLockfileOptions {
 }
 
 /// Inputs for [`filter_lockfile_by_importers`]. Mirrors
-/// `FilterLockfileOptions` in `index.d.ts`.
+/// [`FilterLockfileOptions`] in `index.d.ts`.
 #[napi(object)]
 pub struct FilterLockfileOptions {
     /// Whether the listed importers keep their `dependencies`. Defaults to
