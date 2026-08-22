@@ -18,8 +18,9 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_cmd_shim::{
-    Host as CmdShimHost, get_bins_from_package_manifest, is_virtual_shim_for, link_virtual_shims,
-    remove_bin,
+    Host as CmdShimHost, generate_virtual_cmd_shim, generate_virtual_pwsh_shim,
+    get_bins_from_package_manifest, is_virtual_shim_for, link_virtual_shims, remove_bin,
+    with_extension_appended,
 };
 use pnpm_config::{Config, NamedShimPolicy, ShimPolicyValue};
 use pnpm_global::bin_slot_exists;
@@ -251,11 +252,31 @@ async fn bins_of(config: &'static Config, package: &str) -> miette::Result<Vec<S
 /// Whether `bin` is occupied in `bin_dir` by anything other than
 /// `package`'s own shim, which [`add`] rewrites freely.
 fn taken_by_another(bin_dir: &Path, bin: &str, package: &str) -> bool {
-    bin_slot_exists(bin_dir, bin)
+    let shim_path = bin_dir.join(bin);
+    let primary_taken = bin_slot_exists(bin_dir, bin)
         && fs::read_to_string(bin_dir.join(bin))
             .ok()
             .and_then(|content| virtual_shim_package(&content))
-            .is_none_or(|owner| owner != package)
+            .is_none_or(|owner| owner != package);
+    primary_taken
+        || (cfg!(windows)
+            && (with_extension_appended(&shim_path, "exe").exists()
+                || windows_flavor_taken(&shim_path, package)))
+}
+
+fn windows_flavor_taken(shim_path: &Path, package: &str) -> bool {
+    [
+        ("cmd", generate_virtual_cmd_shim as fn(&str, &Path) -> String),
+        ("ps1", generate_virtual_pwsh_shim as fn(&str, &Path) -> String),
+    ]
+    .into_iter()
+    .any(|(extension, generate)| {
+        let path = with_extension_appended(shim_path, extension);
+        match fs::read_to_string(&path) {
+            Ok(body) => body != generate(package, &path),
+            Err(error) => error.kind() != std::io::ErrorKind::NotFound,
+        }
+    })
 }
 
 /// The bins in `bin_dir` whose shim stands for `package`.

@@ -2,7 +2,7 @@ use crate::{
     bin_resolver::{Command, get_bins_from_package_manifest, pkg_owns_bin},
     capabilities::{
         FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-        FsSetExecutable, FsWalkFiles, FsWrite,
+        FsSetExecutable, FsWalkFiles, FsWrite, FsWriteAtomic,
     },
     shim::{
         ShimStyle, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
@@ -1031,7 +1031,8 @@ fn remove_stale_bin(path: &Path) -> Result<(), LinkBinsError> {
 /// would *replace* the existing extension, which is wrong for our case.
 /// The bin name `tsc` keeps its own `tsc` and gains a sibling `tsc.cmd`,
 /// rather than turning into `tsc.cmd` and losing the original `.sh` flavor.
-fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
+#[must_use]
+pub fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
     let mut result = path.as_os_str().to_owned();
     result.push(".");
     result.push(ext);
@@ -1050,7 +1051,7 @@ pub fn link_virtual_shims<Sys>(
     bins_dir: &Path,
 ) -> Result<Vec<PathBuf>, LinkBinsError>
 where
-    Sys: FsCreateDirAll + FsWrite + FsSetExecutable,
+    Sys: FsCreateDirAll + FsWriteAtomic + FsSetExecutable,
 {
     Sys::create_dir_all(bins_dir)
         .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?;
@@ -1065,11 +1066,7 @@ where
             flavors.push((ps1_path.clone(), generate_virtual_pwsh_shim(package, &ps1_path)));
         }
         for (path, body) in flavors {
-            // Unlink first for the same reason [`write_shim`] does: a
-            // symlink planted at the bin path would otherwise redirect
-            // the write.
-            remove_stale_bin(&path)?;
-            Sys::write(&path, body.as_bytes())
+            Sys::write_atomic(&path, body.as_bytes())
                 .map_err(|error| LinkBinsError::WriteShim { path: path.clone(), error })?;
             written.push(path);
         }
