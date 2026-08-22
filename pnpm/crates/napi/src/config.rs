@@ -94,7 +94,11 @@ pub struct ConfigOverlay {
     pub fetch_retry_mintimeout: Option<u64>,
     pub fetch_retry_maxtimeout: Option<u64>,
     pub fetch_timeout: Option<u64>,
+    /// Slow metadata-request threshold in milliseconds. [`None`] keeps the
+    /// value resolved by [`Config::current`].
     pub fetch_warn_timeout_ms: Option<u64>,
+    /// Minimum average tarball speed in KiB/s. [`None`] keeps the value
+    /// resolved by [`Config::current`].
     pub fetch_min_speed_ki_bps: Option<u64>,
     pub user_agent: Option<String>,
     /// When `false` (the embedder default), an install that blocks dependency

@@ -362,6 +362,8 @@ where
             supported_architectures,
             lockfile_only,
         } = self;
+        http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let dependency_groups: Option<Vec<DependencyGroup>> =
             dependency_groups.map(|groups| groups.into_iter().collect());
         let selected_indices = selected_project_indices(projects, ordered_dirs, selected_dirs);

@@ -1,19 +1,18 @@
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use std::{sync::Mutex, time::Duration};
+use std::time::Duration;
 
 use super::{
     ABBREVIATED_META_CONTENT_TYPE, ACCEPT_ABBREVIATED_DOC, FetchFullMetadataOptions,
     FetchFullMetadataOutcome, fetch_full_metadata, warn_if_request_is_slow,
 };
 
-static WARNINGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
-
-fn record_warning(message: &str) {
-    WARNINGS.lock().expect("warning recorder lock poisoned").push(message.to_string());
-}
-
 #[test]
 fn warns_when_metadata_request_exceeds_configured_timeout() {
+    static WARNINGS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+    fn record_warning(message: &str) {
+        WARNINGS.lock().expect("warning recorder lock poisoned").push(message.to_string());
+    }
+
     let http_client = ThrottledClient::default();
     http_client.set_warning_handler(record_warning);
     WARNINGS.lock().expect("warning recorder lock poisoned").clear();

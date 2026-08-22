@@ -337,9 +337,6 @@ fn parses_git_checks_from_yaml_and_applies() {
     assert!(!config.git_checks);
 }
 
-/// Network settings parse from
-/// `pnpm-workspace.yaml` as camelCase keys and `apply_to` pushes them
-/// onto the `Config`, matching pnpm.
 #[test]
 fn parses_network_settings_from_yaml_and_applies() {
     let yaml = r"

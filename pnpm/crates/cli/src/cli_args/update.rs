@@ -273,6 +273,7 @@ impl UpdateArgs {
         mut state: State,
         selection: InstallFamilySelection,
     ) -> miette::Result<()> {
+        state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let workspace_packages = self
             .check_workspace_option(state.config.workspace_dir.as_deref())?
             .and_then(|_| build_workspace_packages_map(Some(&selection.projects)));

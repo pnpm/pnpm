@@ -119,6 +119,10 @@ export interface InstallOptions extends SharedEngineOptions {
   dir: string
   projects: NodeApiProject[]
   storeDir?: string
+  /** Slow metadata-request warning threshold in milliseconds. Overrides `networkConfig`. */
+  fetchWarnTimeoutMs?: number
+  /** Minimum average tarball download speed in KiB/s. Overrides `networkConfig`. */
+  fetchMinSpeedKiBps?: number
   nodeLinker?: 'hoisted' | 'isolated'
   /**
    * pnpm's `linkWorkspacePackages`. When `true`/`'deep'`, a bare-semver

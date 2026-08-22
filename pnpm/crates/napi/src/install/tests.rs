@@ -114,6 +114,22 @@ fn build_overlay_maps_supported_install_options() {
 }
 
 #[test]
+fn top_level_fetch_warning_options_override_network_config() {
+    let mut options = install_options();
+    options.fetch_warn_timeout_ms = Some(1_234);
+    options.fetch_min_speed_ki_bps = Some(12);
+    options.network_config = Some(NetworkConfigInput {
+        fetch_warn_timeout_ms: Some(5_678),
+        fetch_min_speed_ki_bps: Some(56),
+        ..network_config()
+    });
+
+    let overlay = build_overlay(&options).expect("overlay");
+    assert_eq!(overlay.fetch_warn_timeout_ms, Some(1_234));
+    assert_eq!(overlay.fetch_min_speed_ki_bps, Some(12));
+}
+
+#[test]
 fn resolved_config_applies_trust_lockfile() {
     let dir = tempfile::tempdir().expect("tempdir");
 

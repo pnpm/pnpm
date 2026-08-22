@@ -131,7 +131,11 @@ pub struct InstallOptions {
     pub fetch_retry_mintimeout: Option<u32>,
     pub fetch_retry_maxtimeout: Option<u32>,
     pub fetch_timeout: Option<u32>,
+    /// Slow metadata-request threshold in milliseconds. When set, this takes
+    /// precedence over the same field in `networkConfig`.
     pub fetch_warn_timeout_ms: Option<u32>,
+    /// Minimum average tarball speed in KiB/s. When set, this takes precedence
+    /// over the same field in `networkConfig`.
     pub fetch_min_speed_ki_bps: Option<u32>,
     pub user_agent: Option<String>,
     /// Fail the install with `ERR_PNPM_IGNORED_BUILDS` when a dependency build
@@ -183,7 +187,11 @@ pub struct NetworkConfigInput {
     pub fetch_retry_mintimeout: Option<u32>,
     pub fetch_retry_maxtimeout: Option<u32>,
     pub fetch_timeout: Option<u32>,
+    /// Slow metadata-request threshold in milliseconds. Used when the
+    /// corresponding top-level install option is omitted.
     pub fetch_warn_timeout_ms: Option<u32>,
+    /// Minimum average tarball speed in KiB/s. Used when the corresponding
+    /// top-level install option is omitted.
     pub fetch_min_speed_ki_bps: Option<u32>,
     pub user_agent: Option<String>,
 }

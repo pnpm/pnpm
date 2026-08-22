@@ -311,6 +311,23 @@ pub fn network_settings_defaults_match_pnpm() {
 }
 
 #[test]
+pub fn network_settings_maps_custom_config_values() {
+    let mut config = Config::new();
+    config.network_concurrency = 8;
+    config.fetch_timeout = 120_000;
+    config.fetch_warn_timeout_ms = 2_345;
+    config.fetch_min_speed_ki_bps = 12;
+    config.user_agent = "pnpm-test".to_string();
+
+    let settings = config.network_settings();
+    assert_eq!(settings.network_concurrency, 8);
+    assert_eq!(settings.fetch_timeout, std::time::Duration::from_mins(2));
+    assert_eq!(settings.fetch_warn_timeout, std::time::Duration::from_millis(2_345));
+    assert_eq!(settings.fetch_min_speed_ki_bps, 12);
+    assert_eq!(settings.user_agent, "pnpm-test");
+}
+
+#[test]
 pub fn npmrc_auth_file_override_supplies_auth() {
     let project = tempdir().expect("project tempdir");
     let auth = tempdir().expect("auth tempdir");
