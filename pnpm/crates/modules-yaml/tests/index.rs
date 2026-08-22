@@ -265,7 +265,8 @@ fn incompatible_layout_versions_read_as_no_layout_version() {
         (json!(5.0), Some(LayoutVersion)),
         (json!(4), None),
         (json!(-1), None),
-        (json!(1e9), None),
+        (json!(5.5), None),
+        (json!(4_294_967_296.0), None),
     ] {
         eprintln!("CASE: layoutVersion {recorded}");
         fs::write(
