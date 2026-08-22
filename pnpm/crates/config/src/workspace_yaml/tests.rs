@@ -337,7 +337,7 @@ fn parses_git_checks_from_yaml_and_applies() {
     assert!(!config.git_checks);
 }
 
-/// `networkConcurrency` / `fetchTimeout` / `userAgent` parse from
+/// Network settings parse from
 /// `pnpm-workspace.yaml` as camelCase keys and `apply_to` pushes them
 /// onto the `Config`, matching pnpm.
 #[test]
@@ -345,17 +345,23 @@ fn parses_network_settings_from_yaml_and_applies() {
     let yaml = r"
 networkConcurrency: 8
 fetchTimeout: 120000
+fetchWarnTimeoutMs: 20000
+fetchMinSpeedKiBps: 100
 userAgent: my-agent/2.0
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(settings.network_concurrency, Some(8));
     assert_eq!(settings.fetch_timeout, Some(120_000));
+    assert_eq!(settings.fetch_warn_timeout_ms, Some(20_000));
+    assert_eq!(settings.fetch_min_speed_ki_bps, Some(100));
     assert_eq!(settings.user_agent.as_deref(), Some("my-agent/2.0"));
 
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.network_concurrency, 8);
     assert_eq!(config.fetch_timeout, 120_000);
+    assert_eq!(config.fetch_warn_timeout_ms, 20_000);
+    assert_eq!(config.fetch_min_speed_ki_bps, 100);
     assert_eq!(config.user_agent, "my-agent/2.0");
 }
 

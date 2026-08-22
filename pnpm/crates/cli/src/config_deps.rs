@@ -17,7 +17,7 @@ use pnpm_env_installer::{
 };
 use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
-use pnpm_network::{NetworkSettings, RetryOpts, ThrottledClient};
+use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
 use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
@@ -266,6 +266,7 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     frozen_lockfile: bool,
 ) -> Result<()> {
     let context = EnvInstallerContext::new(config)?;
+    context.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
     let options = context.options(root_dir, frozen_lockfile);
 
     resolve_and_install_config_deps::<Reporter>(config_dependencies, &context.resolver, &options)
@@ -327,19 +328,10 @@ impl EnvInstallerContext {
         auth_headers: Arc<pnpm_network::AuthHeaders>,
     ) -> Result<Self> {
         let http_client = Arc::new(
-            ThrottledClient::for_installs(
-                proxy,
-                tls,
-                tls_by_uri,
-                &NetworkSettings {
-                    network_concurrency: config.network_concurrency,
-                    fetch_timeout: Duration::from_millis(config.fetch_timeout),
-                    user_agent: config.user_agent.clone(),
-                },
-            )
-            .into_diagnostic()
-            .wrap_err("create the network client for env-installer dependencies")?
-            .with_max_sockets_per_host(config.max_sockets),
+            ThrottledClient::for_installs(proxy, tls, tls_by_uri, &config.network_settings())
+                .into_diagnostic()
+                .wrap_err("create the network client for env-installer dependencies")?
+                .with_max_sockets_per_host(config.max_sockets),
         );
 
         let registries: HashMap<String, String> = registries.into_iter().collect();

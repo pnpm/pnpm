@@ -94,6 +94,8 @@ pub struct ConfigOverlay {
     pub fetch_retry_mintimeout: Option<u64>,
     pub fetch_retry_maxtimeout: Option<u64>,
     pub fetch_timeout: Option<u64>,
+    pub fetch_warn_timeout_ms: Option<u64>,
+    pub fetch_min_speed_ki_bps: Option<u64>,
     pub user_agent: Option<String>,
     /// When `false` (the embedder default), an install that blocks dependency
     /// build scripts reports them via `depsRequiringBuild` instead of failing
@@ -383,6 +385,12 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     }
     if let Some(value) = overlay.fetch_timeout {
         config.fetch_timeout = value;
+    }
+    if let Some(value) = overlay.fetch_warn_timeout_ms {
+        config.fetch_warn_timeout_ms = value;
+    }
+    if let Some(value) = overlay.fetch_min_speed_ki_bps {
+        config.fetch_min_speed_ki_bps = value;
     }
     if let Some(user_agent) = &overlay.user_agent {
         config.user_agent.clone_from(user_agent);

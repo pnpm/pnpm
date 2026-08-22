@@ -188,6 +188,7 @@ impl WritePackageForPatch<'_> {
             target,
             dest,
         } = self;
+        http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let metadata = current_lockfile
             .packages
             .as_ref()

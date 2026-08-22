@@ -65,6 +65,8 @@ export interface NetworkConfig {
   fetchRetryMintimeout?: number
   fetchRetryMaxtimeout?: number
   fetchTimeout?: number
+  fetchWarnTimeoutMs?: number
+  fetchMinSpeedKiBps?: number
   userAgent?: string
 }
 
@@ -423,6 +425,8 @@ export interface ResolvedConfig {
   fetchRetryMintimeout: number
   fetchRetryMaxtimeout: number
   fetchTimeout: number
+  fetchWarnTimeoutMs: number
+  fetchMinSpeedKiBps: number
   /**
    * The explicitly configured user agent, when the cascade set one. The
    * engine's own computed default is omitted — an embedder that passes

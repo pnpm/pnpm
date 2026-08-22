@@ -147,6 +147,21 @@ fn frozen_store_flag_parses() {
     assert!(parsed.args.frozen_store, "flag present → true");
 }
 
+#[test]
+fn slow_fetch_warning_flags_parse() {
+    let parsed = InstallArgsHarness::try_parse_from([
+        "pacquet-test",
+        "--fetch-warn-timeout-ms",
+        "2500",
+        "--fetch-min-speed-ki-bps",
+        "125",
+    ])
+    .expect("slow-fetch warning flags parse");
+
+    assert_eq!(parsed.args.fetch_warn_timeout_ms, Some(2_500));
+    assert_eq!(parsed.args.fetch_min_speed_ki_bps, Some(125));
+}
+
 /// `NodeLinkerArg::into_config` maps every variant 1:1 to the
 /// canonical `pnpm_config::NodeLinker` enum. Tied to the
 /// `ValueEnum` derive's kebab-case rename — if a future variant

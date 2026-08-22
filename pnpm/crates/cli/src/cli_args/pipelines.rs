@@ -684,6 +684,12 @@ pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
     if let Some(fetch_timeout) = args.fetch_timeout {
         cfg.fetch_timeout = fetch_timeout;
     }
+    if let Some(fetch_warn_timeout_ms) = args.fetch_warn_timeout_ms {
+        cfg.fetch_warn_timeout_ms = fetch_warn_timeout_ms;
+    }
+    if let Some(fetch_min_speed_ki_bps) = args.fetch_min_speed_ki_bps {
+        cfg.fetch_min_speed_ki_bps = fetch_min_speed_ki_bps;
+    }
     if let Some(user_agent) = args.user_agent.clone() {
         cfg.user_agent = user_agent;
     }

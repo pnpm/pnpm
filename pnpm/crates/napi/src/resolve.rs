@@ -35,7 +35,7 @@ use pnpm_engine_pm_yarn_resolver::YarnResolver;
 use pnpm_engine_runtime_bun_resolver::BunResolver;
 use pnpm_engine_runtime_deno_resolver::DenoResolver;
 use pnpm_engine_runtime_node_resolver::NodeResolver;
-use pnpm_network::{NetworkSettings, RetryOpts, ThrottledClient};
+use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
 use pnpm_resolving_local_resolver::{LocalPathResolver, LocalResolverContext, LocalSchemeResolver};
@@ -49,6 +49,7 @@ use pnpm_resolving_tarball_resolver::TarballResolver;
 use crate::{
     config::{ConfigOverlay, resolve_config},
     error::to_napi_error,
+    reporter_bridge::NodeBridgeReporter,
 };
 
 /// The `(alias, bareSpecifier)` a resolve is requested for. Mirrors
@@ -125,14 +126,11 @@ fn run_resolve_blocking(
             &config.proxy,
             &config.tls,
             &config.tls_by_uri,
-            &NetworkSettings {
-                network_concurrency: config.network_concurrency,
-                fetch_timeout: std::time::Duration::from_millis(config.fetch_timeout),
-                user_agent: config.user_agent.clone(),
-            },
+            &config.network_settings(),
         )
         .map_err(|error| to_napi_error(&error))?,
     );
+    http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<NodeBridgeReporter>);
 
     let full_metadata = options.full_metadata.unwrap_or(false);
     // `filter_metadata` stays off even under `full_metadata`, unlike the

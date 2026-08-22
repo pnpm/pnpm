@@ -304,6 +304,8 @@ pub fn network_settings_defaults_match_pnpm() {
     let value = Config::new();
     assert_eq!(value.network_concurrency, pnpm_network::default_network_concurrency());
     assert_eq!(value.fetch_timeout, 60_000);
+    assert_eq!(value.fetch_warn_timeout_ms, 10_000);
+    assert_eq!(value.fetch_min_speed_ki_bps, 50);
     assert!(value.user_agent.starts_with("pnpm/"), "user-agent: {:?}", value.user_agent);
     assert_eq!(value.npmrc_auth_file, None);
 }

@@ -300,6 +300,14 @@ pub fn default_fetch_timeout() -> u64 {
     pnpm_network::DEFAULT_FETCH_TIMEOUT_MS
 }
 
+pub fn default_fetch_warn_timeout_ms() -> u64 {
+    pnpm_network::DEFAULT_FETCH_WARN_TIMEOUT_MS
+}
+
+pub fn default_fetch_min_speed_ki_bps() -> u64 {
+    pnpm_network::DEFAULT_FETCH_MIN_SPEED_KI_BPS
+}
+
 /// Default `User-Agent`, in the format
 /// `${name}/${version} npm/? node/${nodeVersion} ${platform} ${arch}`.
 /// The `name/version` segment is `pnpm/<version>`. There is no embedded
