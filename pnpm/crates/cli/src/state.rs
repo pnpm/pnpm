@@ -103,9 +103,14 @@ impl State {
         })
     }
 
+    /// The directory of the project the command runs in — where its
+    /// `package.json` lives.
+    pub fn project_dir(&self) -> &Path {
+        self.manifest.path().parent().expect("manifest path always has a parent dir")
+    }
+
     pub fn lockfile_dir(&self) -> &Path {
-        let manifest_dir =
-            self.manifest.path().parent().expect("manifest path always has a parent dir");
+        let manifest_dir = self.project_dir();
         if self.config.shared_workspace_lockfile {
             self.config.workspace_dir.as_deref().unwrap_or(manifest_dir)
         } else {
@@ -118,9 +123,7 @@ impl State {
     }
 
     pub fn active_importer_id(&self) -> String {
-        let project_dir =
-            self.manifest.path().parent().expect("manifest path always has a parent dir");
-        pnpm_workspace::importer_id_from_root_dir(self.lockfile_dir(), project_dir)
+        pnpm_workspace::importer_id_from_root_dir(self.lockfile_dir(), self.project_dir())
     }
 }
 

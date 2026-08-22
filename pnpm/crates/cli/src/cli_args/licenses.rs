@@ -3,7 +3,10 @@ use crate::cli_args::{
         dep_types::{DepType, detect_dep_types},
         pkg_info::is_unsafe_path_component,
     },
-    recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+    recursive::{
+        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
+        selected_importer_ids,
+    },
     sanitize::{sanitize, sanitize_inline},
 };
 use clap::Args;
@@ -151,25 +154,11 @@ impl LicensesArgs {
         };
 
         let importer_ids = if recursive {
-            let mut importer_ids = Vec::new();
             let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
             let (projects, _) = discover_workspace_projects(workspace_root)?;
             let selection =
                 select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
-            for project_dir in selection.selected.keys() {
-                let id = if project_dir == lockfile_dir {
-                    ".".to_string()
-                } else {
-                    project_dir
-                        .strip_prefix(lockfile_dir)
-                        .ok()
-                        .map(|rel| rel.to_string_lossy().replace('\\', "/"))
-                        .filter(|id| !id.is_empty())
-                        .unwrap_or_else(|| ".".to_string())
-                };
-                importer_ids.push(id);
-            }
-            importer_ids
+            selected_importer_ids(&selection, lockfile_dir)
         } else {
             lockfile.importers.keys().cloned().collect()
         };

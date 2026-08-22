@@ -80,6 +80,37 @@ fn recursive_list_depth_minus_one_json_lists_workspace_projects() {
     drop(root);
 }
 
+/// `--fail-if-no-match` is a universal flag, not an `sbom` one: any
+/// filtered command ends with exit code 1 when its selectors select no
+/// workspace project. Port of upstream's `no projects matched the
+/// filters` (`pnpm/test/monorepo/index.ts`).
+#[test]
+fn fail_if_no_match_exits_non_zero_when_the_filter_matches_nothing() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("project-1", json!({ "name": "project-1", "version": "1.0.0" }))],
+    );
+
+    let output = pacquet
+        .with_arg("list")
+        .with_arg("--filter=not-exists")
+        .with_arg("--fail-if-no-match")
+        .output()
+        .expect("spawn pacquet list");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.starts_with("No projects matched the filters in"), "stdout:\n{stdout}");
+
+    drop(root);
+}
+
 #[test]
 fn list_is_recursive_by_default_inside_workspace() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

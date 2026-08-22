@@ -3,9 +3,17 @@
 //! Ports pnpm's `sbom` command
 //! (`pnpm11/deps/compliance/commands/src/sbom/sbom.ts`).
 
-use crate::{State, cli_args::recursive::RecursiveSharedLockfileUnsupported};
+use crate::{
+    State,
+    cli_args::recursive::{
+        AutoExcludeRoot, RecursiveSharedLockfileUnsupported, discover_workspace_projects,
+        no_projects_matched_message, notice_workspace_dir, select_recursive_projects,
+        selected_importer_ids,
+    },
+};
 use clap::Args;
 use indexmap::IndexMap;
+use pnpm_config::Config;
 use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry,
 };
@@ -767,10 +775,28 @@ fn walk_snapshot(
     }
 }
 
+/// Whether the run asked for a subset of the workspace: any `--filter` /
+/// `--filter-prod` selector, or `--workspace-root`. Without one, every
+/// importer in the lockfile is in scope.
+fn selectors_narrow_the_run(config: &Config) -> bool {
+    !config.filter.is_empty() || !config.filter_prod.is_empty() || config.workspace_root
+}
+
+/// The lockfile importer ids of the workspace projects the run's selectors
+/// selected.
+fn selected_workspace_importer_ids(state: &State) -> miette::Result<HashSet<String>> {
+    let project_dir = state.project_dir();
+    let workspace_root = state.config.workspace_dir.as_deref().unwrap_or(project_dir);
+    let (projects, _) = discover_workspace_projects(workspace_root)?;
+    let selection =
+        select_recursive_projects(&projects, state.config, project_dir, AutoExcludeRoot::Disabled)?;
+    Ok(selected_importer_ids(&selection, state.lockfile_dir()).into_iter().collect())
+}
+
 impl SbomArgs {
     pub async fn run(self, state: State) -> miette::Result<()> {
         if !state.config.shared_workspace_lockfile
-            && (state.config.recursive || self.split || !state.config.filter.is_empty())
+            && (state.config.recursive || self.split || selectors_narrow_the_run(state.config))
         {
             return Err(
                 RecursiveSharedLockfileUnsupported::new("Filtered and split `pnpm sbom`").into()
@@ -807,30 +833,31 @@ impl SbomArgs {
             .lockfile
             .get()
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-        let all_importer_ids: Vec<String> =
+        // The lockfile's `importers` is a `HashMap`, so its iteration order
+        // is arbitrary; sorting restores the order the ids appear in the
+        // file, which is the order `--split` emits its SBOMs in.
+        let mut all_importer_ids: Vec<String> =
             lockfile.as_ref().map(|lf| lf.importers.keys().cloned().collect()).unwrap_or_default();
+        all_importer_ids.sort_unstable();
 
         let all_count = all_importer_ids.len();
-        let importer_ids = if state.config.filter.is_empty() {
-            all_importer_ids
+        // The selectors run through the same workspace-filtering machinery
+        // every other filterable command uses, so `sbom` honours the full
+        // selector syntax — dependency queries, `[since]`, globs — and
+        // `--filter-prod`'s production-only walk. Lockfile order is kept,
+        // and an importer the workspace no longer contains is dropped.
+        let importer_ids: Vec<String> = if selectors_narrow_the_run(state.config) {
+            let selected = selected_workspace_importer_ids(&state)?;
+            if selected.is_empty() {
+                // pnpm skips a command whose selectors selected nothing, so
+                // an SBOM of no project is never written.
+                let workspace_dir = notice_workspace_dir(state.config, state.project_dir());
+                println!("{}", no_projects_matched_message(workspace_dir));
+                return Ok(());
+            }
+            all_importer_ids.into_iter().filter(|id| selected.contains(id)).collect()
         } else {
-            let project_root = state.lockfile_dir();
             all_importer_ids
-                .into_iter()
-                .filter(|id| {
-                    let importer_dir = if id == "." {
-                        project_root.to_string_lossy().to_string()
-                    } else {
-                        project_root.join(id).to_string_lossy().to_string()
-                    };
-                    state.config.filter.iter().any(|f| {
-                        let pattern = f.strip_prefix("./").unwrap_or(f);
-                        id == pattern
-                            || id.starts_with(&format!("{pattern}/"))
-                            || importer_dir.ends_with(pattern)
-                    })
-                })
-                .collect()
         };
 
         let should_split = self.split

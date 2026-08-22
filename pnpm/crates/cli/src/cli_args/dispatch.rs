@@ -177,6 +177,7 @@ impl CliArgs {
             filter,
             filter_prod,
             workspace_root,
+            fail_if_no_match,
             test_pattern,
             changed_files_ignore_pattern,
             version: _,
@@ -258,14 +259,16 @@ impl CliArgs {
                     apply_store_dir_override::<Host>(&mut cfg, store_dir, anchor)?;
                 }
                 // `--recursive` / `--filter` / `--filter-prod` /
-                // `--workspace-root` are CLI-only upstream (not `.npmrc` /
-                // yaml keys), so the global flags are threaded in here.
-                // Mirrors pnpm's `Config.recursive` / `.filter` /
-                // `.filterProd` / `.workspaceRoot`.
+                // `--workspace-root` / `--fail-if-no-match` are CLI-only
+                // upstream (not `.npmrc` / yaml keys), so the global flags
+                // are threaded in here. Mirrors pnpm's `Config.recursive` /
+                // `.filter` / `.filterProd` / `.workspaceRoot` /
+                // `.failIfNoMatch`.
                 cfg.recursive = recursive;
                 cfg.filter.clone_from(&filter);
                 cfg.filter_prod.clone_from(&filter_prod);
                 cfg.workspace_root = workspace_root;
+                cfg.fail_if_no_match = fail_if_no_match;
                 // Unlike the CLI-only selectors above, these two are
                 // genuine config keys — the flag overrides yaml / env
                 // only when actually given.

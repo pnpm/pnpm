@@ -137,6 +137,7 @@ fn create_config(
         filter: Vec::new(),
         filter_prod: Vec::new(),
         workspace_root: false,
+        fail_if_no_match: false,
         test_pattern: Vec::new(),
         sync_injected_deps_after_scripts: Vec::new(),
         changed_files_ignore_pattern: Vec::new(),
