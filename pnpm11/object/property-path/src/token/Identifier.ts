@@ -15,8 +15,8 @@ export const parseIdentifier: Tokenize<Identifier> = source => {
   source = source.slice(1)
   while (source !== '') {
     const char = source[0]
-    // Hyphens continue an identifier even though they are not `\w`. Package
-    // names are full of them, and `npm pkg` accepts `dependencies.foo-bar`.
+    // Hyphens are in because package names are full of them and `npm pkg`
+    // reads `dependencies.foo-bar`.
     if (!/[\w-]/.test(char)) break
     source = source.slice(1)
     content += char

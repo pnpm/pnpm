@@ -102,6 +102,13 @@ test('invalid property path', () => {
       content: ']',
     },
   } as Partial<UnexpectedTokenError<ExactToken<']'>>>))
+  expect(() => Array.from(parsePropertyPath('dependencies.-foo'))).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_UNEXPECTED_TOKEN_IN_PROPERTY_PATH',
+    token: {
+      type: 'unexpected',
+      content: '-',
+    },
+  } as Partial<UnexpectedTokenError<UnexpectedToken>>))
   expect(() => Array.from(parsePropertyPath('foo.bar?.baz'))).toThrow(expect.objectContaining({
     code: 'ERR_PNPM_UNEXPECTED_TOKEN_IN_PROPERTY_PATH',
     token: {

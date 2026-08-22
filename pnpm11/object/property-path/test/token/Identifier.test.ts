@@ -5,6 +5,7 @@ import { type Identifier, parseIdentifier } from '../../src/index.js'
 test('not an identifier', () => {
   expect(parseIdentifier('')).toBeUndefined()
   expect(parseIdentifier('-')).toBeUndefined()
+  expect(parseIdentifier('-foo')).toBeUndefined()
   expect(parseIdentifier('+a')).toBeUndefined()
   expect(parseIdentifier('7z')).toBeUndefined()
 })

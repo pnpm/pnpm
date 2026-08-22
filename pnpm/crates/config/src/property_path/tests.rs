@@ -68,6 +68,11 @@ fn parse_errors() {
         Err(ParsePropertyPathError::UnexpectedToken { token: ".".into() }),
     );
     assert_eq!(parse_property_path("foo["), Err(ParsePropertyPathError::UnexpectedEndOfInput));
+    // A hyphen still cannot start an identifier.
+    assert_eq!(
+        parse_property_path("dependencies.-foo"),
+        Err(ParsePropertyPathError::UnexpectedToken { token: "-".into() }),
+    );
 }
 
 #[test]
