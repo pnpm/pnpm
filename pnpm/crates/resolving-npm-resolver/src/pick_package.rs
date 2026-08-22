@@ -1005,7 +1005,7 @@ fn pick_matching_version_final(
         Err(PickPackageFromMetaError::MissingTime { pkg_name })
             if picker_opts.ignore_missing_time_field =>
         {
-            warn_missing_time_once(&pkg_name);
+            warn_missing_time_once(&pkg_name, SkippedTimeCheck::MinimumReleaseAge);
             let fallback = PickerOpts {
                 preferred_version_selectors: picker_opts.preferred_version_selectors,
                 published_by: None,
@@ -1178,19 +1178,39 @@ fn get_file_mtime(path: &Path) -> Option<DateTime<Utc>> {
     Some(mtime)
 }
 
-/// Bounded set of package names we've already warned about for the
-/// missing-`time` field. Capped at 1024 entries to keep long-lived
-/// processes (daemons, store servers) from leaking memory through it.
+/// Time-dependent check a packument with no per-version `time` map
+/// takes down. `minimumReleaseAge` and `trustPolicy` both read that one
+/// field, so a registry that strips it disables both, and each names
+/// itself in the warning it emits.
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum SkippedTimeCheck {
+    #[display("minimumReleaseAge")]
+    MinimumReleaseAge,
+    #[display("trustPolicy")]
+    TrustPolicy,
+}
+
+/// Bounded set of `(package name, skipped check)` pairs we've already
+/// warned about for the missing-`time` field. Capped at 1024 entries to
+/// keep long-lived processes (daemons, store servers) from leaking
+/// memory through it.
+///
+/// Keyed by the pair rather than the package name alone: when both
+/// checks are configured they go dark together, and a package-only key
+/// would let whichever check ran first silence the other's warning,
+/// leaving the user told about only one of the two skips.
 ///
 /// `IndexSet` (not `Vec`) gives O(1) `contains` + cheap insertion-
 /// ordered eviction via `shift_remove_index(0)`.
 const MAX_WARNED_MISSING_TIME: usize = 1024;
-static WARNED_MISSING_TIME: std::sync::LazyLock<Mutex<indexmap::IndexSet<String>>> =
-    std::sync::LazyLock::new(|| Mutex::new(indexmap::IndexSet::new()));
+static WARNED_MISSING_TIME: std::sync::LazyLock<
+    Mutex<indexmap::IndexSet<(String, SkippedTimeCheck)>>,
+> = std::sync::LazyLock::new(|| Mutex::new(indexmap::IndexSet::new()));
 
-fn warn_missing_time_once(pkg_name: &str) {
+pub(crate) fn warn_missing_time_once(pkg_name: &str, skipped_check: SkippedTimeCheck) {
     let mut warned = WARNED_MISSING_TIME.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    if warned.contains(pkg_name) {
+    let key = (pkg_name.to_string(), skipped_check);
+    if warned.contains(&key) {
         return;
     }
     if warned.len() >= MAX_WARNED_MISSING_TIME {
@@ -1198,11 +1218,11 @@ fn warn_missing_time_once(pkg_name: &str) {
         // (index 0) so the bound stays at MAX_WARNED_MISSING_TIME.
         warned.shift_remove_index(0);
     }
-    warned.insert(pkg_name.to_string());
+    warned.insert(key);
     tracing::warn!(
         target: "pnpm_resolving_npm_resolver::pick_package",
         pkg_name,
-        r#"The metadata of {pkg_name} is missing the "time" field; skipping the minimumReleaseAge check for this package."#,
+        r#"The metadata of {pkg_name} is missing the "time" field; skipping the {skipped_check} check for this package."#,
     );
 }
 

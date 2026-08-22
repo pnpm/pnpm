@@ -281,7 +281,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             }
         };
 
-        fail_if_trust_downgraded_for_pick(opts, &picked)?;
+        fail_if_trust_downgraded_for_pick(opts, &picked, self.ignore_missing_time_field)?;
 
         if let Some(workspace_packages) = workspace_packages_active
             && let Some(mut result) = try_workspace_shadow(
@@ -948,6 +948,7 @@ pub(crate) fn calc_specifier_from<'a>(
 fn fail_if_trust_downgraded_for_pick(
     opts: &ResolveOptions,
     picked: &PickedFromRegistry,
+    ignore_missing_time_field: bool,
 ) -> Result<(), ResolveError> {
     if opts.trust_policy != Some(TrustPolicy::NoDowngrade) {
         return Ok(());
@@ -956,6 +957,7 @@ fn fail_if_trust_downgraded_for_pick(
         trust_policy_exclude: opts.trust_policy_exclude.as_ref(),
         trust_policy_ignore_after_minutes: opts.trust_policy_ignore_after,
         now: None,
+        ignore_missing_time_field,
     };
     fail_if_trust_downgraded(&picked.meta, &picked.version.version.to_string(), &trust_opts)
         .map_err(|err| Box::new(err) as ResolveError)

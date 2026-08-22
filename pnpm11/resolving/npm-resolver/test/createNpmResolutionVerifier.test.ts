@@ -321,6 +321,172 @@ test('createNpmResolutionVerifier() ignoreMissingTimeField passes the entry when
   expect(result).toEqual({ ok: true })
 })
 
+test('createNpmResolutionVerifier() ignoreMissingTimeField still rejects a version the registry does not list', async () => {
+  // The opt-in speaks for a registry that cannot date its releases, not for
+  // a pin the registry has never heard of. The packument dates every version
+  // it lists, so the absent timestamp says the version is not there — the
+  // same reading the unpublished-pin case gets without the flag.
+  const meta = {
+    name: 'listed-time-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'listed-time-pkg',
+        version: '1.0.0',
+        dist: { tarball: 'https://registry.npmjs.org/listed-time-pkg/-/listed-time-pkg-1.0.0.tgz', shasum: 'aa' },
+      },
+    },
+    time: { '1.0.0': '2010-01-01T00:00:00.000Z' },
+    modified: '2010-01-01T00:00:00.000Z',
+  }
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  pool.intercept({ path: '/listed-time-pkg', method: 'GET' }).reply(200, meta).persist()
+  pool.intercept({ path: '/-/npm/v1/attestations/listed-time-pkg@1.0.1', method: 'GET' }).reply(404, {}).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    minimumReleaseAge: 1440,
+    ignoreMissingTimeField: true,
+  }))
+  // Registry-style resolution (no explicit tarball URL) so the entry reaches
+  // the age check instead of failing the tarball-URL binding first.
+  const result = await verifier.verify(
+    { integrity: FAKE_INTEGRITY } as unknown as Resolution,
+    { name: 'listed-time-pkg', version: '1.0.1' }
+  )
+  expect(result).toMatchObject({
+    ok: false,
+    code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+  })
+})
+
+const TRUST_TIME_FREE_META = {
+  name: 'trust-time-free-pkg',
+  'dist-tags': { latest: '2.0.0' },
+  versions: {
+    '1.0.0': {
+      name: 'trust-time-free-pkg',
+      version: '1.0.0',
+      dist: {
+        tarball: 'https://registry.npmjs.org/trust-time-free-pkg/-/trust-time-free-pkg-1.0.0.tgz',
+        shasum: 'aa',
+        attestations: { provenance: { predicateType: 'https://slsa.dev/provenance/v1' } },
+      },
+    },
+    '2.0.0': {
+      name: 'trust-time-free-pkg',
+      version: '2.0.0',
+      dist: {
+        tarball: 'https://registry.npmjs.org/trust-time-free-pkg/-/trust-time-free-pkg-2.0.0.tgz',
+        shasum: 'bb',
+      },
+    },
+  },
+  modified: '2010-01-01T00:00:00.000Z',
+}
+
+function interceptTrustTimeFreeMeta (): void {
+  getMockAgent().get('https://registry.npmjs.org')
+    .intercept({ path: '/trust-time-free-pkg', method: 'GET' })
+    .reply(200, TRUST_TIME_FREE_META)
+    .persist()
+}
+
+test('createNpmResolutionVerifier() trustPolicy rejects a time-free packument without ignoreMissingTimeField', async () => {
+  interceptTrustTimeFreeMeta()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    trustPolicy: 'no-downgrade',
+  }))
+  const result = await verifier.verify(
+    makeTarballResolution('trust-time-free-pkg', '2.0.0'),
+    { name: 'trust-time-free-pkg', version: '2.0.0' }
+  )
+  expect(result).toMatchObject({
+    ok: false,
+    code: 'TRUST_DOWNGRADE',
+    reason: expect.stringContaining('missing the "time" field'),
+  })
+})
+
+test('createNpmResolutionVerifier() ignoreMissingTimeField passes the trust check on a time-free packument', async () => {
+  // Same registry deficiency the age check already tolerates under this
+  // opt-in: with no `time` map there is no publish order for the downgrade
+  // walk to read, so the verifier warns and skips rather than locking the
+  // user out of a registry that never serves the field.
+  interceptTrustTimeFreeMeta()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    trustPolicy: 'no-downgrade',
+    ignoreMissingTimeField: true,
+  }))
+  const result = await verifier.verify(
+    makeTarballResolution('trust-time-free-pkg', '2.0.0'),
+    { name: 'trust-time-free-pkg', version: '2.0.0' }
+  )
+  expect(result).toEqual({ ok: true })
+})
+
+test('createNpmResolutionVerifier() ignoreMissingTimeField still reports a downgrade when the registry serves time', async () => {
+  getMockAgent().get('https://registry.npmjs.org')
+    .intercept({ path: '/dated-pkg', method: 'GET' })
+    .reply(200, {
+      ...TRUST_TIME_FREE_META,
+      name: 'dated-pkg',
+      versions: {
+        '1.0.0': {
+          ...TRUST_TIME_FREE_META.versions['1.0.0'],
+          name: 'dated-pkg',
+          dist: {
+            ...TRUST_TIME_FREE_META.versions['1.0.0'].dist,
+            tarball: 'https://registry.npmjs.org/dated-pkg/-/dated-pkg-1.0.0.tgz',
+          },
+        },
+        '2.0.0': {
+          ...TRUST_TIME_FREE_META.versions['2.0.0'],
+          name: 'dated-pkg',
+          dist: {
+            ...TRUST_TIME_FREE_META.versions['2.0.0'].dist,
+            tarball: 'https://registry.npmjs.org/dated-pkg/-/dated-pkg-2.0.0.tgz',
+          },
+        },
+      },
+      time: {
+        '1.0.0': '2025-01-01T00:00:00.000Z',
+        '2.0.0': '2025-02-01T00:00:00.000Z',
+      },
+    })
+    .persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    trustPolicy: 'no-downgrade',
+    ignoreMissingTimeField: true,
+  }))
+  const result = await verifier.verify(
+    makeTarballResolution('dated-pkg', '2.0.0'),
+    { name: 'dated-pkg', version: '2.0.0' }
+  )
+  expect(result).toMatchObject({
+    ok: false,
+    code: 'TRUST_DOWNGRADE',
+    reason: expect.stringContaining('High-risk trust downgrade'),
+  })
+})
+
+test('createNpmResolutionVerifier() cache identity tracks ignoreMissingTimeField', async () => {
+  const tolerant = createNpmResolutionVerifier(makeVerifierOpts({
+    trustPolicy: 'no-downgrade',
+    ignoreMissingTimeField: true,
+  }))
+  const strict = createNpmResolutionVerifier(makeVerifierOpts({
+    trustPolicy: 'no-downgrade',
+  }))
+
+  // Dropping the tolerance invalidates a run that may have waved entries
+  // through on it; adding the tolerance keeps the stricter run trustworthy.
+  expect(strict.canTrustPastCheck(tolerant.policy)).toBe(false)
+  expect(tolerant.canTrustPastCheck(strict.policy)).toBe(true)
+})
+
 test('createNpmResolutionVerifier() skips file: tarball resolutions', async () => {
   const verifier = createNpmResolutionVerifier(makeVerifierOpts({
     minimumReleaseAge: 1440,

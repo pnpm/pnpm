@@ -46,7 +46,7 @@ use crate::{
     fetch_attestation_published_at, fetch_full_metadata_cached,
     lookup_context::{PublishedAtLookupContext, PublishedAtTimeMap, package_key, version_key},
     named_registry::{named_registry_tarball_prefixes, pick_registry_for_package},
-    pick_package::PackageMetaCache,
+    pick_package::{PackageMetaCache, SkippedTimeCheck, warn_missing_time_once},
     registry_url::to_registry_url,
     trust_checks::fail_if_trust_downgraded,
     violation_codes::{
@@ -99,7 +99,12 @@ pub struct CreateNpmResolutionVerifierOptions {
     pub minimum_release_age_exclude_patterns: Vec<String>,
     /// Backs the `minimumReleaseAgeIgnoreMissingTime` opt-in: when
     /// `true` and the registry strips per-version `time`, the verifier
-    /// passes the entry instead of failing closed. Default `false`.
+    /// passes the entry instead of failing closed. Applies to the
+    /// maturity cutoff and to the trust check, which has no publish
+    /// order to walk without the field either. Scoped to a packument
+    /// with no usable `time` map: one that dates every version it lists
+    /// is saying it never published this pin, which fails closed either
+    /// way. Default `false`.
     pub ignore_missing_time_field: bool,
     /// Backs `registrySupportsTimeField`: the registry serves the
     /// per-version `time` map in abbreviated metadata (Verdaccio
@@ -257,14 +262,15 @@ pub fn create_npm_resolution_verifier(
     let sorted_trust_excludes = sorted_unique(&opts.trust_policy_exclude_patterns);
     let named_registries_routing = named_registries_routing_digest(&registries_by_prefix);
 
-    let policy_snapshot = build_policy_snapshot(
-        opts.minimum_release_age.unwrap_or(0),
-        &sorted_min_age_excludes,
-        opts.trust_policy,
-        &sorted_trust_excludes,
-        opts.trust_policy_ignore_after,
-        &named_registries_routing,
-    );
+    let policy_snapshot = build_policy_snapshot(&BuildPolicySnapshot {
+        minimum_release_age: opts.minimum_release_age.unwrap_or(0),
+        sorted_min_age_excludes: &sorted_min_age_excludes,
+        ignore_missing_time_field: opts.ignore_missing_time_field,
+        trust_policy: opts.trust_policy,
+        sorted_trust_excludes: &sorted_trust_excludes,
+        trust_policy_ignore_after: opts.trust_policy_ignore_after,
+        named_registries_routing: &named_registries_routing,
+    });
 
     NpmResolutionVerifier {
         minimum_release_age_minutes: opts.minimum_release_age,
@@ -385,6 +391,20 @@ impl ResolutionVerifier for NpmResolutionVerifier {
         let past_ignore_after =
             cached_policy.get("trustPolicyIgnoreAfter").and_then(JsonValue::as_u64);
         if past_ignore_after != self.trust_policy_ignore_after {
+            return false;
+        }
+
+        // Missing-time tolerance: a cached run that failed closed on an
+        // absent `time` field accepted a subset of what today's tolerant
+        // policy accepts, so it stays trustworthy. Turning the tolerance
+        // off invalidates it — entries the past run waved through are the
+        // ones today's policy exists to reject. Older records (no field)
+        // read as intolerant, which is the safe direction.
+        let past_ignore_missing_time = cached_policy
+            .get("minimumReleaseAgeIgnoreMissingTime")
+            .and_then(JsonValue::as_bool)
+            .unwrap_or(false);
+        if past_ignore_missing_time && !self.ignore_missing_time_field {
             return false;
         }
 
@@ -600,9 +620,23 @@ impl NpmResolutionVerifier {
             Err(message) => return Some(ResolutionVerification::FetchFailed { message }),
         };
         let Some(published) = published else {
-            // No source surfaced a publish timestamp; mirror the
-            // resolver's `minimumReleaseAgeIgnoreMissingTime` opt-in.
-            if self.ignore_missing_time_field {
+            // No source surfaced a publish timestamp. What
+            // `minimumReleaseAgeIgnoreMissingTime` opts out of is a
+            // registry that cannot date its releases, so the skip is
+            // granted only when the packument carries no usable `time`
+            // map at all — the same shape the picker warns and skips on,
+            // so the verifier can't be stricter than fresh resolution. A
+            // packument that does date every version it lists is instead
+            // telling us this pin is not one of them
+            // (`Package::drop_incomplete_publish_times` leaves no partial
+            // maps for that to be ambiguous), and an unpublished
+            // or never-published pin must fail closed however the flag is
+            // set.
+            if self.ignore_missing_time_field
+                // Already awaited by the lookup above, so this is a cache hit.
+                && matches!(self.fetch_full_meta_time(registry, name).await, Ok(None))
+            {
+                warn_missing_time_once(&name.to_string(), SkippedTimeCheck::MinimumReleaseAge);
                 return None;
             }
             return Some(ResolutionVerification::Err {
@@ -650,6 +684,7 @@ impl NpmResolutionVerifier {
             trust_policy_exclude: self.trust_policy_exclude.as_ref(),
             trust_policy_ignore_after_minutes: self.trust_policy_ignore_after,
             now: self.now,
+            ignore_missing_time_field: self.ignore_missing_time_field,
         };
         match fail_if_trust_downgraded(&meta, version, &trust_opts) {
             Ok(()) => None,
@@ -1158,14 +1193,28 @@ fn named_registries_routing_digest(registries_by_prefix: &HashMap<String, String
     format!("{:x}", Sha256::digest(encoded))
 }
 
-fn build_policy_snapshot(
+/// Argument bundle for [`build_policy_snapshot`].
+#[derive(Clone, Copy)]
+struct BuildPolicySnapshot<'a> {
     minimum_release_age: u64,
-    sorted_min_age_excludes: &[String],
+    sorted_min_age_excludes: &'a [String],
+    ignore_missing_time_field: bool,
     trust_policy: Option<TrustPolicy>,
-    sorted_trust_excludes: &[String],
+    sorted_trust_excludes: &'a [String],
     trust_policy_ignore_after: Option<u64>,
-    named_registries_routing: &str,
-) -> serde_json::Map<String, JsonValue> {
+    named_registries_routing: &'a str,
+}
+
+fn build_policy_snapshot(opts: &BuildPolicySnapshot<'_>) -> serde_json::Map<String, JsonValue> {
+    let &BuildPolicySnapshot {
+        minimum_release_age,
+        sorted_min_age_excludes,
+        ignore_missing_time_field,
+        trust_policy,
+        sorted_trust_excludes,
+        trust_policy_ignore_after,
+        named_registries_routing,
+    } = opts;
     let mut map = serde_json::Map::new();
     // Marks runs that enforced the (unconditional) tarball-URL binding so
     // `can_trust_past_check` rejects pre-rule cache records and re-verifies.
@@ -1202,6 +1251,10 @@ fn build_policy_snapshot(
             Some(value) => JsonValue::from(value),
             None => JsonValue::Null,
         },
+    );
+    map.insert(
+        "minimumReleaseAgeIgnoreMissingTime".to_string(),
+        JsonValue::Bool(ignore_missing_time_field),
     );
     map
 }

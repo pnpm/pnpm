@@ -290,6 +290,7 @@ export function createNpmResolver (
     registriesByPrefix,
     namedRegistryNames,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+    ignoreMissingTimeField: opts.ignoreMissingTimeField,
     peekManifestFromStore,
     warnedHeldBackUpdates: new Set(),
   }
@@ -489,6 +490,12 @@ export interface ResolveFromNpmContext {
   registriesByPrefix: Record<string, string>
   namedRegistryNames: ReadonlySet<string>
   saveWorkspaceProtocol?: boolean | 'rolling'
+  /**
+   * The `minimumReleaseAgeIgnoreMissingTime` opt-in, reaching the trust
+   * check as well as the version pick: both read the same per-version
+   * `time`, so a registry that strips it takes both down together.
+   */
+  ignoreMissingTimeField?: boolean
   peekManifestFromStore?: (opts: {
     id: PkgResolutionId
     integrity: string
@@ -716,7 +723,11 @@ async function resolveNpm (
 
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   } else if (opts.trustPolicy === 'no-downgrade') {
-    failIfTrustDowngraded(meta, pickedPackage.version, opts)
+    failIfTrustDowngraded(meta, pickedPackage.version, {
+      trustPolicyExclude: opts.trustPolicyExclude,
+      trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+      ignoreMissingTimeField: ctx.ignoreMissingTimeField,
+    })
   }
 
   const latest = latestAllowedByPolicy(meta, opts)
