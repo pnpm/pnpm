@@ -17,11 +17,13 @@ use pnpm_lockfile::{
     ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
     TarballResolution, VersionPart,
 };
+use pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
 use pnpm_package_manager::{
     ImportIndexedDirOpts, Install, ProjectMutation, UpdateSeedPolicy, import_indexed_dir,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_resolving_resolver_base::PreferredVersions;
 use pnpm_workspace::{Project, WORKSPACE_MANIFEST_FILENAME, importer_id_from_root_dir};
 use serde_json::{Map, Value, json};
 use std::{
@@ -211,6 +213,13 @@ impl DeployArgs {
         }
 
         apply_deploy_hook(&deploy_dir.join("package.json"))?;
+        let source_lockfile_dir = if config.shared_workspace_lockfile {
+            workspace_dir
+        } else {
+            &selected.project.root_dir
+        };
+        let preferred_versions_override =
+            legacy_deploy_preferred_versions::<ReporterT>(source_lockfile_dir, config.lockfile);
         // Boxed: the install future exceeds clippy's large-future threshold
         // (the captured `Config` is large).
         Box::pin(self.run_install_in_deploy_dir::<ReporterT>(
@@ -218,6 +227,7 @@ impl DeployArgs {
             &deploy_dir,
             DeployInstallMode::Legacy,
             false,
+            preferred_versions_override,
         ))
         .await
     }
@@ -261,6 +271,7 @@ impl DeployArgs {
             deploy_dir,
             DeployInstallMode::Shared { workspace_config: deploy_files.workspace_config },
             true,
+            None,
         ))
         .await?;
         Ok(SharedDeployOutcome::Deployed)
@@ -272,6 +283,7 @@ impl DeployArgs {
         deploy_dir: &Path,
         mode: DeployInstallMode,
         frozen_lockfile: bool,
+        preferred_versions_override: Option<PreferredVersions>,
     ) -> miette::Result<()> {
         let node_linker = self
             .install_args
@@ -303,10 +315,9 @@ impl DeployArgs {
             State::init(deploy_dir.join("package.json"), deploy_config, frozen_lockfile)
                 .wrap_err("initialize the deploy install state")?;
         if legacy {
-            // The deployed project is not one of the source workspace's
-            // importers — the deploy hook rewrites the copied manifest —
-            // so its resolution must not be seeded from the workspace
-            // lockfile.
+            // The target wanted lockfile remains independent from the source
+            // workspace. Source snapshots influence version selection only
+            // through `preferred_versions_override` below.
             state.lockfile = if state.config.lockfile || frozen_lockfile {
                 LazyLockfile::deferred(deploy_dir.to_path_buf())
             } else {
@@ -368,7 +379,7 @@ impl DeployArgs {
             dry_run: false,
             persist_policy_excludes: false,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
-            preferred_versions_override: None,
+            preferred_versions_override,
             auth_override: None,
             resolution_observer: None,
             peer_issues_sink: None,
@@ -384,6 +395,30 @@ impl DeployArgs {
             install.run::<ReporterT>().await
         }
         .wrap_err("installing deployed dependencies")
+    }
+}
+
+fn legacy_deploy_preferred_versions<ReporterT: Reporter>(
+    source_lockfile_dir: &Path,
+    use_lockfile: bool,
+) -> Option<PreferredVersions> {
+    if !use_lockfile {
+        return None;
+    }
+    match Lockfile::load_wanted_from_dir(source_lockfile_dir) {
+        Ok(Some(lockfile)) => Some(get_preferred_versions_from_lockfile_and_manifests(
+            lockfile.snapshots.as_ref(),
+            &[],
+        )),
+        Ok(None) => None,
+        Err(error) => {
+            let path = source_lockfile_dir.display();
+            warn::<ReporterT>(
+                source_lockfile_dir,
+                format!("Ignoring broken lockfile at {path}: {error}"),
+            );
+            None
+        }
     }
 }
 

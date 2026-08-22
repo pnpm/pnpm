@@ -4337,6 +4337,7 @@ dependencies = [
  "pnpm-hooks",
  "pnpm-injected-deps-syncer",
  "pnpm-lockfile",
+ "pnpm-lockfile-preferred-versions",
  "pnpm-lockfile-verification",
  "pnpm-modules-yaml",
  "pnpm-network",

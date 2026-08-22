@@ -254,10 +254,14 @@ where
             None if manifest_is_root_importer => build_root_importer_project_manifests_list(
                 &workspace_root,
                 manifest,
-                // Dedicated per-project lockfiles record a single "."
-                // importer per project; sibling projects only feed the
-                // `workspace:` resolver, never the importer list.
-                config.shared_workspace_lockfile.then_some(workspace_projects).flatten(),
+                // A legacy deploy uses the copied, post-hook manifest as
+                // its sole root importer while workspace discovery still
+                // supplies source packages and pnpmfile hooks. Dedicated
+                // per-project lockfiles likewise keep sibling projects out
+                // of the importer list.
+                (!root_manifest_as_workspace_root && config.shared_workspace_lockfile)
+                    .then_some(workspace_projects)
+                    .flatten(),
             ),
             None => build_project_manifests_list(&workspace_root, manifest, workspace_projects),
         };
