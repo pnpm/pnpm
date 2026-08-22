@@ -792,7 +792,8 @@ describe('failIfTrustDowngraded with ignoreMissingTimeField', () => {
         },
       },
     },
-    // Note: no 'time' field, as served by a registry that strips it
+    // Note: no 'time' field — a registry that strips it, or one whose
+    // partial map `dropIncompletePublishTimes` normalized away.
   }
 
   test('fails with ERR_PNPM_MISSING_TIME when the flag is off', () => {
@@ -808,8 +809,8 @@ describe('failIfTrustDowngraded with ignoreMissingTimeField', () => {
   })
 
   test('still fails when the time map is present but omits the version', () => {
-    // A registry that dates its other versions is not a registry that strips
-    // `time`, so the gap stays a hard failure no matter how the flag is set.
+    // A packument that dates the versions it lists is saying it does not have
+    // this one, so the gap stays a hard failure no matter how the flag is set.
     const meta: PackageMetaWithTime = {
       ...metaWithoutTime,
       time: {

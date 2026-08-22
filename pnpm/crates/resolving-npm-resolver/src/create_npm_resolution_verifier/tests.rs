@@ -883,6 +883,42 @@ async fn min_age_missing_time_passes_when_ignored() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
+/// The opt-in speaks for a registry that cannot date its releases, not
+/// for a pin it has never heard of: a packument that dates every version
+/// it lists is saying this one is not among them.
+#[tokio::test]
+async fn min_age_unlisted_version_fails_when_missing_time_is_ignored() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _attestation_mock = server
+        .mock("GET", "/-/npm/v1/attestations/acme@1.0.1")
+        .with_status(404)
+        .create_async()
+        .await;
+    let _full_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(min_age_packument_json("acme", "1.0.0", "2025-01-01T00:00:00.000Z").to_string())
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(60 * 24);
+    opts.ignore_missing_time_field = true;
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.1"))
+        .await;
+    let ResolutionVerification::Err { code, reason } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "MINIMUM_RELEASE_AGE_VIOLATION");
+    assert!(
+        reason.contains("could not be checked against minimumReleaseAge"),
+        "got reason: {reason}",
+    );
+}
+
 #[tokio::test]
 async fn trust_downgrade_publisher_to_provenance_fails() {
     let mut server = mockito::Server::new_async().await;

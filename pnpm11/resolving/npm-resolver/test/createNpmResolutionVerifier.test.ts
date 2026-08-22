@@ -321,6 +321,44 @@ test('createNpmResolutionVerifier() ignoreMissingTimeField passes the entry when
   expect(result).toEqual({ ok: true })
 })
 
+test('createNpmResolutionVerifier() ignoreMissingTimeField still rejects a version the registry does not list', async () => {
+  // The opt-in speaks for a registry that cannot date its releases, not for
+  // a pin the registry has never heard of. The packument dates every version
+  // it lists, so the absent timestamp says the version is not there — the
+  // same reading the unpublished-pin case gets without the flag.
+  const meta = {
+    name: 'listed-time-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'listed-time-pkg',
+        version: '1.0.0',
+        dist: { tarball: 'https://registry.npmjs.org/listed-time-pkg/-/listed-time-pkg-1.0.0.tgz', shasum: 'aa' },
+      },
+    },
+    time: { '1.0.0': '2010-01-01T00:00:00.000Z' },
+    modified: '2010-01-01T00:00:00.000Z',
+  }
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  pool.intercept({ path: '/listed-time-pkg', method: 'GET' }).reply(200, meta).persist()
+  pool.intercept({ path: '/-/npm/v1/attestations/listed-time-pkg@1.0.1', method: 'GET' }).reply(404, {}).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    minimumReleaseAge: 1440,
+    ignoreMissingTimeField: true,
+  }))
+  // Registry-style resolution (no explicit tarball URL) so the entry reaches
+  // the age check instead of failing the tarball-URL binding first.
+  const result = await verifier.verify(
+    { integrity: FAKE_INTEGRITY } as unknown as Resolution,
+    { name: 'listed-time-pkg', version: '1.0.1' }
+  )
+  expect(result).toMatchObject({
+    ok: false,
+    code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+  })
+})
+
 const TRUST_TIME_FREE_META = {
   name: 'trust-time-free-pkg',
   'dist-tags': { latest: '2.0.0' },

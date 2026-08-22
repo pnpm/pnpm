@@ -94,15 +94,19 @@ pub struct TrustCheckOptions<'a> {
     pub now: Option<DateTime<Utc>>,
 
     /// The `minimumReleaseAgeIgnoreMissingTime` opt-in, which declares
-    /// that the registry serves no per-version `time` at all. The
-    /// downgrade check orders history by publish date, so a packument
-    /// with no `time` map leaves it nothing to order and the check is
-    /// skipped with a warning rather than aborting the install.
+    /// that the registry cannot date its releases. The downgrade check
+    /// orders history by publish date, so a packument with no `time`
+    /// map leaves it nothing to order and the check is skipped with a
+    /// warning rather than aborting the install.
     ///
-    /// Scoped to the whole map being absent. A `time` map that dates
-    /// other versions but not this one is not a registry that omits the
-    /// field, it is a packument that lost one entry, so that shape keeps
-    /// failing closed however this flag is set.
+    /// Scoped to the whole map being absent, which
+    /// [`Package::drop_incomplete_publish_times`] makes the only shape a
+    /// registry that dates some of its versions can reach here in. A
+    /// packument that dates every version it lists is instead saying it
+    /// does not have this one, so that shape keeps failing closed
+    /// however this flag is set.
+    ///
+    /// [`Package::drop_incomplete_publish_times`]: pnpm_registry::Package::drop_incomplete_publish_times
     pub ignore_missing_time_field: bool,
 }
 
@@ -127,11 +131,6 @@ pub fn fail_if_trust_downgraded(
         }
     }
 
-    // A packument with no `time` map at all is the shape a registry that
-    // strips the field produces, and is what the opt-in tolerates. A map
-    // that dates other versions but not this one is a gap in the
-    // metadata rather than a registry policy, so it stays a hard failure
-    // below however the flag is set.
     if meta.time.is_none() {
         if opts.ignore_missing_time_field {
             warn_missing_time_once(&meta.name, SkippedTimeCheck::TrustPolicy);

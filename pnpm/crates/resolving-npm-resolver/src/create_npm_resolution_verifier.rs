@@ -46,7 +46,7 @@ use crate::{
     fetch_attestation_published_at, fetch_full_metadata_cached,
     lookup_context::{PublishedAtLookupContext, PublishedAtTimeMap, package_key, version_key},
     named_registry::{named_registry_tarball_prefixes, pick_registry_for_package},
-    pick_package::PackageMetaCache,
+    pick_package::{PackageMetaCache, SkippedTimeCheck, warn_missing_time_once},
     registry_url::to_registry_url,
     trust_checks::fail_if_trust_downgraded,
     violation_codes::{
@@ -101,7 +101,10 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// `true` and the registry strips per-version `time`, the verifier
     /// passes the entry instead of failing closed. Applies to the
     /// maturity cutoff and to the trust check, which has no publish
-    /// order to walk without the field either. Default `false`.
+    /// order to walk without the field either. Scoped to a packument
+    /// with no usable `time` map: one that dates every version it lists
+    /// is saying it never published this pin, which fails closed either
+    /// way. Default `false`.
     pub ignore_missing_time_field: bool,
     /// Backs `registrySupportsTimeField`: the registry serves the
     /// per-version `time` map in abbreviated metadata (Verdaccio
@@ -617,9 +620,23 @@ impl NpmResolutionVerifier {
             Err(message) => return Some(ResolutionVerification::FetchFailed { message }),
         };
         let Some(published) = published else {
-            // No source surfaced a publish timestamp; mirror the
-            // resolver's `minimumReleaseAgeIgnoreMissingTime` opt-in.
-            if self.ignore_missing_time_field {
+            // No source surfaced a publish timestamp. What
+            // `minimumReleaseAgeIgnoreMissingTime` opts out of is a
+            // registry that cannot date its releases, so the skip is
+            // granted only when the packument carries no usable `time`
+            // map at all — the same shape the picker warns and skips on,
+            // so the verifier can't be stricter than fresh resolution. A
+            // packument that does date every version it lists is instead
+            // telling us this pin is not one of them
+            // (`Package::drop_incomplete_publish_times` leaves no partial
+            // maps for that to be ambiguous), and an unpublished
+            // or never-published pin must fail closed however the flag is
+            // set.
+            if self.ignore_missing_time_field
+                // Already awaited by the lookup above, so this is a cache hit.
+                && matches!(self.fetch_full_meta_time(registry, name).await, Ok(None))
+            {
+                warn_missing_time_once(&name.to_string(), SkippedTimeCheck::MinimumReleaseAge);
                 return None;
             }
             return Some(ResolutionVerification::Err {

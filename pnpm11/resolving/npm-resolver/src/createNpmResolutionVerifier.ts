@@ -58,7 +58,10 @@ export interface CreateNpmResolutionVerifierOptions {
    * behavior for both — the verifier passes the entry with a one-time
    * `globalWarn`, instead of failing closed. Defaults to `false` so
    * the verifier stays stricter than the resolver only when the user
-   * has explicitly opted in to the skip on the resolver side.
+   * has explicitly opted in to the skip on the resolver side. Scoped
+   * to a packument with no usable `time` map: one that dates every
+   * version it lists is saying it never published this pin, which
+   * fails closed either way.
    */
   ignoreMissingTimeField?: boolean
   /**
@@ -369,15 +372,23 @@ async function runAgeCheck (
   const published = await fetchPublishedAt(context, registry, name, version)
   if (!published) {
     // No source — attestation, local mirror, or full metadata —
-    // surfaced a publish timestamp for this version. The resolver's
-    // pickMatchingVersionFinal honors `minimumReleaseAgeIgnoreMissingTime`
-    // for the same shape (some self-hosted registries strip per-version
-    // `time`); the verifier mirrors that so it can't be stricter than
-    // fresh resolution. Without the flag we still fail closed — better
-    // a false reject than silent bypass when the user hasn't opted in.
+    // surfaced a publish timestamp for this version. What
+    // `minimumReleaseAgeIgnoreMissingTime` opts out of is a registry that
+    // cannot date its releases, so the skip is granted only when the
+    // packument carries no usable `time` map at all — the same shape the
+    // resolver's `pickMatchingVersionFinal` warns and skips on, so the
+    // verifier can't be stricter than fresh resolution. A packument that
+    // does date every version it lists is instead telling us this pin is
+    // not one of them (`dropIncompletePublishTimes` leaves no partial maps
+    // for that to be ambiguous), and an unpublished or never-published pin
+    // must fail closed however the flag is set.
     if (ignoreMissingTimeField) {
-      warnMissingTimeFieldOnce(name, 'minimumReleaseAge')
-      return undefined
+      // Already awaited by the lookup above, so this is a cache hit.
+      const timeMap = await fetchFullMetaTime(context, registry, name)
+      if (timeMap == null) {
+        warnMissingTimeFieldOnce(name, 'minimumReleaseAge')
+        return undefined
+      }
     }
     return {
       ok: false,

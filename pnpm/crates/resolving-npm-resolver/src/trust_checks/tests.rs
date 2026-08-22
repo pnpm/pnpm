@@ -388,8 +388,9 @@ mod ignore_missing_time_field {
     };
 
     /// A downgrade candidate (provenance → nothing) whose `time` map is
-    /// absent as a whole, the shape a registry that strips the field
-    /// serves.
+    /// absent as a whole: a registry that strips the field, or one whose
+    /// partial map `Package::drop_incomplete_publish_times` normalized
+    /// away.
     fn time_free_package() -> Package {
         let mut meta = make_package(
             "timeless",
@@ -421,9 +422,9 @@ mod ignore_missing_time_field {
             .expect("the opt-in skips the check on a packument with no time map");
     }
 
-    /// A registry that dates its other versions is not a registry that
-    /// strips `time`, so the gap stays a hard failure no matter how the
-    /// flag is set.
+    /// A packument that dates the versions it lists is saying it does
+    /// not have this one, so the gap stays a hard failure no matter how
+    /// the flag is set.
     #[test]
     fn still_fails_when_the_time_map_omits_the_version() {
         let mut meta = make_package(
