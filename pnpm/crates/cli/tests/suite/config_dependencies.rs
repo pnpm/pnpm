@@ -114,7 +114,6 @@ fn update_config_hook_mutates_config_before_install() {
     drop((root, mock_instance));
 }
 
-/// CLI options (like `--registry`) take precedence over `updateConfig` hook overrides.
 #[test]
 fn update_config_hook_cli_registry_option_wins() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =

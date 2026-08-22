@@ -671,6 +671,7 @@ fn reapply_explicit_settings(config: &mut Config) {
                 };
                 if key == "default" {
                     config.registry.clone_from(&normalized);
+                    config.package_manager_bootstrap.registry.clone_from(&normalized);
                 }
                 config.registries_by_scope.insert(key.clone(), normalized.clone());
                 config.package_manager_bootstrap.registries.insert(key.clone(), normalized);

@@ -144,6 +144,9 @@ function reapplyExplicitCliOptions (config: Config, context: ConfigContext): voi
       if (config.registriesByScope) {
         config.registriesByScope[scope] = normalized
       }
+      if (config.packageManagerRegistries) {
+        config.packageManagerRegistries[scope] = normalized
+      }
       if ((config as Record<string, any>).registries) { // eslint-disable-line @typescript-eslint/no-explicit-any
         (config as Record<string, any>).registries[scope] = normalized // eslint-disable-line @typescript-eslint/no-explicit-any
       }
@@ -151,8 +154,15 @@ function reapplyExplicitCliOptions (config: Config, context: ConfigContext): voi
   }
   if (context.explicitlySetKeys) {
     for (const key of context.explicitlySetKeys) {
-      if (key !== 'registry' && key in cliOptions && cliOptions[key] !== undefined) {
-        (config as unknown as Record<string, unknown>)[key] = cliOptions[key]
+      if (key === 'registry') continue
+      const camelKey = key.replace(/-([a-z])/g, (_, g: string) => g.toUpperCase())
+      const kebabKey = key.replace(/([A-Z])/g, '-$1').toLowerCase()
+      const val = cliOptions[key] ?? cliOptions[camelKey] ?? cliOptions[kebabKey]
+      if (val !== undefined) {
+        (config as unknown as Record<string, unknown>)[key] = val
+        if (key !== camelKey) {
+          (config as unknown as Record<string, unknown>)[camelKey] = val
+        }
       }
     }
   }
