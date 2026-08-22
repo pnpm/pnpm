@@ -914,15 +914,14 @@ async fn prepare_manifest<Reporter: self::Reporter>(
             }
             for selector in &selectors {
                 let Some(version) = selector.version.as_deref() else { continue };
-                tracing::warn!(
-                    target: "pnpm_package_manager::update",
-                    pattern = selector.pattern,
-                    version,
-                    r#""{}" is not a direct dependency, so the requested version "{version}" is ignored — "{}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare to pnpm-workspace.yaml, e.g.: overrides: {{ "{}@<declared range>": "{version}" }}"#,
-                    selector.pattern,
-                    selector.pattern,
-                    selector.pattern,
-                );
+                let pattern = &selector.pattern;
+                Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                    level: LogLevel::Warn,
+                    message: format!(
+                        r#""{pattern}" is not a direct dependency, so the requested version "{version}" is ignored — "{pattern}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare to pnpm-workspace.yaml, e.g.: overrides: {{ "{pattern}@<declared range>": "{version}" }}"#,
+                    ),
+                    prefix: package_manifest_prefix(rewrite_ctx.manifest),
+                }));
             }
         } else {
             if latest && !save {

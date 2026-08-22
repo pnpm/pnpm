@@ -1,10 +1,6 @@
 import { expect, test } from '@jest/globals'
-import { DIRECT_DEP_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
 
-import {
-  createPreferredVersionsFromPinnedUpdateSpecs,
-  createUpdateMatching,
-} from '../lib/recursive.js'
+import { createUpdateMatching } from '../lib/recursive.js'
 
 test('createUpdateMatching() does not match other major versions for pinned selectors', () => {
   const updateMatching = createUpdateMatching(['js-yaml@3.15.1'])
@@ -63,35 +59,4 @@ test('createUpdateMatching() scopes exact alias selectors by version line', () =
   // Unrelated packages are not matched at all
   expect(updateMatching('other-pkg', '100.0.0')).toBeFalsy()
   expect(updateMatching('other-pkg', '1.0.0')).toBeFalsy()
-})
-
-test('createPreferredVersionsFromPinnedUpdateSpecs() seeds exact and cap selectors', () => {
-  const preferredVersions = createPreferredVersionsFromPinnedUpdateSpecs(['js-yaml@3.15.1'])
-
-  expect(preferredVersions).toBeTruthy()
-  expect(preferredVersions?.['js-yaml']?.['3.15.1']).toStrictEqual({
-    selectorType: 'version',
-    weight: DIRECT_DEP_SELECTOR_WEIGHT + 1,
-  })
-  expect(preferredVersions?.['js-yaml']?.['<=3.15.1']).toStrictEqual({
-    selectorType: 'range',
-    weight: DIRECT_DEP_SELECTOR_WEIGHT + 1,
-  })
-})
-
-test('createPreferredVersionsFromPinnedUpdateSpecs() normalizes loose exact selectors', () => {
-  const preferredVersions = createPreferredVersionsFromPinnedUpdateSpecs(['js-yaml@v3.15.1'])
-
-  expect(Object.keys(preferredVersions?.['js-yaml'] ?? {})).toStrictEqual(['3.15.1', '<=3.15.1'])
-})
-
-test('createPreferredVersionsFromPinnedUpdateSpecs() ignores non-exact and negated patterns', () => {
-  const preferredVersions = createPreferredVersionsFromPinnedUpdateSpecs([
-    '!js-yaml@3.15.1',
-    'js-yaml@^3.15.1',
-    'js-yaml@latest',
-    'js-yaml*',
-  ])
-
-  expect(preferredVersions).toBeUndefined()
 })

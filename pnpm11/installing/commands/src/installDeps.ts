@@ -22,7 +22,7 @@ import {
 } from '@pnpm/installing.deps-installer'
 import { writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { globalInfo, globalWarn, logger } from '@pnpm/logger'
+import { globalInfo, logger } from '@pnpm/logger'
 import { applyRuntimeOnFailOverride, filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
@@ -50,10 +50,10 @@ import {
   createMatcher,
   makeIgnorePatterns,
   matchDependencies,
-  parseUpdateParam,
   recursive,
   type RecursiveOptions,
   type UpdateDepsMatcher,
+  warnAboutIgnoredVersionsOfIndirectUpdateSpecs,
 } from './recursive.js'
 import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
 import { makeRunPacquet } from './runPacquet.js'
@@ -596,25 +596,6 @@ function getVulnerabilityPenalty (severity: VulnerabilitySeverity): number {
     case 'critical': return -4000
       // Treat unrecognized severity as the lowest severity
     default: return -1100
-  }
-}
-
-/**
- * `pnpm update <dep>@<version>` where `<dep>` matches only transitive
- * dependencies has no manifest entry to write the version into, and an
- * update resolves the target the same way a fresh install would — which a
- * command-line version cannot influence. Tell the user the version part is
- * ignored, and that an override is the mechanism that does pin a
- * transitive dependency. The recommended override is scoped to the
- * dependents' declared range so it cannot violate any consumer's range;
- * the range itself is not known at this layer (it lives in the dependents'
- * manifests), hence the placeholder.
- */
-function warnAboutIgnoredVersionsOfIndirectUpdateSpecs (updateSpecs: string[]): void {
-  for (const spec of updateSpecs) {
-    const { pattern, versionSpec } = parseUpdateParam(spec)
-    if (versionSpec == null) continue
-    globalWarn(`"${pattern}" is not a direct dependency, so the requested version "${versionSpec}" is ignored — "${pattern}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare to pnpm-workspace.yaml, e.g.: overrides: { "${pattern}@<declared range>": "${versionSpec}" }`)
   }
 }
 

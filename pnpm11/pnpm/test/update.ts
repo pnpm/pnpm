@@ -190,14 +190,50 @@ test('recursive update <pkg>@<version> --lockfile-only --no-save does not leak a
   const lockfileBefore = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
   const project2VersionBefore = lockfileBefore.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version
 
-  await execPnpm(['recursive', 'update', '--lockfile-only', '--no-save', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  const result = execPnpmSync(['recursive', 'update', '--lockfile-only', '--no-save', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(result.status).toBe(0)
+
+  // project-2 declares the package at 101.0.0, which `--no-save` keeps, so the
+  // requested version is rejected there rather than dragging that line down.
+  expect(result.stdout.toString()).toContain('Skipping "@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0": it doesn\'t satisfy "101.0.0"')
 
   const lockfile = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
   const depKeys = Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@'))
 
   expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe(project2VersionBefore)
   expect(depKeys.filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@101.'))).toStrictEqual([`@pnpm.e2e/dep-of-pkg-with-1-dep@${project2VersionBefore}`])
-  expect(depKeys).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+  // project-1's transitive copy resolves to what a fresh install would pick
+  // within `^100.0.0`, and the 101.x line stays out of it.
+  expect(depKeys).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0')
+})
+
+test('recursive update <pkg>@<version> reports that a transitive-only version is ignored', async () => {
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        // Depends on `@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0` transitively;
+        // no project in the workspace declares it directly.
+        '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['recursive', 'install', '--lockfile-only'])
+
+  const result = execPnpmSync(['recursive', 'update', '--lockfile-only', '--no-save', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).toContain('"@pnpm.e2e/dep-of-pkg-with-1-dep" is not a direct dependency, so the requested version "100.1.0" is ignored')
+
+  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
+  const depKeys = Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@'))
+
+  // Resolved the way a fresh install would, not to the version that was asked for.
+  expect(depKeys).toStrictEqual(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 })
 
 test('recursive update alias@npm:<pkg>@<version> --lockfile-only --no-save scopes by version line', async () => {
@@ -226,17 +262,20 @@ test('recursive update alias@npm:<pkg>@<version> --lockfile-only --no-save scope
   const lockfileBefore = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
   const project2VersionBefore = lockfileBefore.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version
 
-  await execPnpm(['recursive', 'update', '--lockfile-only', '--no-save', 'alias@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  const result = execPnpmSync(['recursive', 'update', '--lockfile-only', '--no-save', 'alias@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(result.status).toBe(0)
+
+  // `alias` is a direct dependency, so the manifest — which `--no-save` keeps —
+  // decides: `^100.0.0` supersedes the requested 100.1.0.
+  expect(result.stdout.toString()).toContain('the manifest keeps "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0" when updating without saving')
 
   const lockfile = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
   const depKeys = Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@'))
 
-  expect(lockfile.importers['project-1'].dependencies['alias'].version).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+  expect(lockfile.importers['project-1'].dependencies['alias'].version).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0')
   // project-2's 101.x dependency must remain unchanged
   expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe(project2VersionBefore)
   expect(depKeys.filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@101.'))).toStrictEqual([`@pnpm.e2e/dep-of-pkg-with-1-dep@${project2VersionBefore}`])
-  // The alias expansion must have resolved 100.1.0 within the 100.x line
-  expect(depKeys).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
 
   const project1Manifest = await readPackageJsonFromDir(path.resolve('project-1'))
   expect(project1Manifest.dependencies?.['alias']).toBe('npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0')

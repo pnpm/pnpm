@@ -27,6 +27,8 @@ const PRINT_VERSION: &str = "@pnpm.e2e/print-version";
 /// package in the other project that the selectors also name. The
 /// fixture registry has no copy of that package.
 const MULTI_VERSION_B: &str = "@pnpm.e2e/multi-version-b";
+/// Depends on `@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0`.
+const PKG_WITH_DEP: &str = "@pnpm.e2e/pkg-with-1-dep";
 
 fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -273,6 +275,45 @@ fn recursive_update_prod_dependencies_only() {
             dev_dependencies: true,
             optional_dependencies: true,
         },
+    );
+
+    drop((root, anchor));
+}
+
+/// A versioned selector that matches no direct dependency reaches its target
+/// through the resolver alone, where the version has nowhere to be recorded.
+/// pnpm says so and points at overrides; the warning has to reach the user,
+/// not just a `TRACE` subscriber.
+#[test]
+fn recursive_update_reports_that_a_transitive_only_version_is_ignored() {
+    let (root, workspace, anchor) = setup();
+
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({ "name": "project-1", "version": "1.0.0",
+            "dependencies": { PKG_WITH_DEP: "100.0.0" } }),
+        )],
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["-r", "update", &format!("{DEP}@100.1.0")])
+        .output()
+        .expect("run pacquet update");
+
+    let rendered = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    eprintln!("STATUS: {}\nOUTPUT:\n{rendered}", output.status);
+    assert!(output.status.success(), "the update should succeed");
+    assert!(
+        rendered.contains(&format!(
+            r#""{DEP}" is not a direct dependency, so the requested version "100.1.0" is ignored"#
+        )),
+        "the ignored-version warning must reach the user",
     );
 
     drop((root, anchor));

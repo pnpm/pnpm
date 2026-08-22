@@ -31,14 +31,10 @@ import {
   type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/installing.deps-installer'
-import { logger } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
-import {
-  DIRECT_DEP_SELECTOR_WEIGHT,
-  type PreferredVersions,
-  type ResolutionVerifier,
-} from '@pnpm/resolving.resolver-base'
+import type { PreferredVersions, ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { StoreController } from '@pnpm/store.controller'
 import type {
@@ -249,9 +245,11 @@ export async function recursive (
   } else {
     updateMatch = null
   }
-  const preferredVersions = cmdFullName === 'update'
-    ? createPreferredVersionsFromPinnedUpdateSpecs(params.flatMap(expandUpdateSelectorsForMatching), opts.preferredVersions)
-    : opts.preferredVersions
+  if (updateMatch != null) {
+    warnAboutIgnoredVersionsOfIndirectUpdateSpecs(
+      params.filter((param) => !selectorMatchesADirectDependency(param, pkgs, includeDirect))
+    )
+  }
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
     let importers = getImporters(opts)
@@ -356,7 +354,6 @@ export async function recursive (
       dryRunResult,
     } = await mutateModules(mutatedImporters, {
       ...installOpts,
-      preferredVersions,
       storeController: store.ctrl,
       resolutionVerifiers: store.resolutionVerifiers,
     })
@@ -434,7 +431,7 @@ export async function recursive (
           & OptionsFromRootManifest
           & Project
           & Pick<Config, 'bin'>
-          & { preferredVersions?: PreferredVersions, rangeSpecStyle: RangeSpecStyle }
+          & { rangeSpecStyle: RangeSpecStyle }
 
         interface ActionResult {
           updatedCatalogs?: Catalogs
@@ -492,7 +489,6 @@ export async function recursive (
               savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
             }),
             configByUri: installOpts.configByUri,
-            preferredVersions,
             storeController: store.ctrl,
             resolutionVerifiers: store.resolutionVerifiers,
           }
@@ -660,36 +656,38 @@ function parseVersionLine (versionSpec: string): { major: number, minor: number 
 }
 
 /**
- * A selector that pins an exact version also steers the resolver towards it:
- * the pinned version, plus a cap so a dependent whose range excludes it still
- * stays below it. Both weigh just above `DIRECT_DEP_SELECTOR_WEIGHT`, so they
- * outrank the ranges the manifests declare but stay under the pins the
- * lockfile seeds — an edge outside the update keeps its locked version, while
- * an edge the update targets has had those pins stripped by then and follows
- * the request. Negated and glob patterns name no single package to prefer a
- * version for.
+ * `pnpm update <dep>@<version>` where `<dep>` matches only transitive
+ * dependencies has no manifest entry to write the version into, and an
+ * update resolves the target the same way a fresh install would — which a
+ * command-line version cannot influence. Tell the user the version part is
+ * ignored, and that an override is the mechanism that does pin a
+ * transitive dependency. The recommended override is scoped to the
+ * dependents' declared range so it cannot violate any consumer's range;
+ * the range itself is not known at this layer (it lives in the dependents'
+ * manifests), hence the placeholder.
  */
-export function createPreferredVersionsFromPinnedUpdateSpecs (
-  params: string[],
-  preferredVersions?: PreferredVersions
-): PreferredVersions | undefined {
-  const pinned: Array<{ pattern: string, version: string }> = []
-  for (const param of params) {
-    const { pattern, versionSpec } = parseUpdateParam(param)
-    if (versionSpec == null || pattern[0] === '!' || pattern.includes('*')) continue
-    const version = parseExactVersion(versionSpec)
-    if (version != null) pinned.push({ pattern, version })
+export function warnAboutIgnoredVersionsOfIndirectUpdateSpecs (updateSpecs: string[]): void {
+  for (const spec of updateSpecs) {
+    const { pattern, versionSpec } = parseUpdateParam(spec)
+    if (versionSpec == null) continue
+    globalWarn(`"${pattern}" is not a direct dependency, so the requested version "${versionSpec}" is ignored — "${pattern}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare to pnpm-workspace.yaml, e.g.: overrides: { "${pattern}@<declared range>": "${versionSpec}" }`)
   }
-  if (pinned.length === 0) return preferredVersions
-  // A null prototype keeps a package named `__proto__` out of the prototype chain.
-  const mergedPreferredVersions: PreferredVersions = Object.assign(Object.create(null), preferredVersions)
-  for (const { pattern, version } of pinned) {
-    mergedPreferredVersions[pattern] = Object.assign(Object.create(null), mergedPreferredVersions[pattern], {
-      [version]: { selectorType: 'version', weight: DIRECT_DEP_SELECTOR_WEIGHT + 1 },
-      [`<=${version}`]: { selectorType: 'range', weight: DIRECT_DEP_SELECTOR_WEIGHT + 1 },
-    })
-  }
-  return mergedPreferredVersions
+}
+
+/**
+ * Whether any selected project declares a dependency `selector` names, so the
+ * update has a manifest entry to write the requested version into. A selector
+ * that matches nothing directly reaches its target only through the resolver,
+ * which the version cannot steer — see
+ * {@link warnAboutIgnoredVersionsOfIndirectUpdateSpecs}.
+ */
+function selectorMatchesADirectDependency (
+  selector: string,
+  pkgs: Project[],
+  include: IncludedDependencies
+): boolean {
+  const match = createMatcher([parseUpdateParam(selector).pattern])
+  return pkgs.some(({ manifest }) => matchDependencies(match, manifest, include).length > 0)
 }
 
 export type UpdateDepsMatcher = (input: string) => string | null
