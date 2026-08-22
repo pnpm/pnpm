@@ -18,8 +18,8 @@
 //! demands it.
 
 use pnpm_network::{
-    AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, redact_url_credentials,
-    retry_async, send_with_retry_at_priority,
+    AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, redact_and_sanitize,
+    redact_url_credentials, retry_async, send_with_retry_at_priority,
 };
 use pnpm_registry::Package;
 use reqwest::{Response, StatusCode, header};
@@ -279,7 +279,7 @@ pub async fn fetch_full_metadata(
 pub(crate) fn warn_if_request_is_slow(http_client: &ThrottledClient, elapsed: Duration, url: &str) {
     let elapsed_ms = elapsed.as_millis();
     if elapsed_ms > http_client.fetch_warn_timeout().as_millis() {
-        http_client.warn(&format!("Request took {elapsed_ms}ms: {url}"));
+        http_client.warn(&format!("Request took {elapsed_ms}ms: {}", redact_and_sanitize(url)));
     }
 }
 
