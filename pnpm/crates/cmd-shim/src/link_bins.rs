@@ -2,7 +2,7 @@ use crate::{
     bin_resolver::{Command, get_bins_from_package_manifest, pkg_owns_bin},
     capabilities::{
         FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-        FsSetExecutable, FsWalkFiles, FsWrite,
+        FsSetExecutable, FsWalkFiles, FsWrite, FsWriteNewAtomic,
     },
     shim::{
         ShimStyle, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
@@ -160,6 +160,10 @@ pub enum LinkBinsError {
         #[error(source)]
         error: io::Error,
     },
+
+    #[display("Refusing to replace a command at {path:?} while linking virtual shims")]
+    #[diagnostic(code(ERR_PNPM_CMD_SHIM_BIN_CONFLICT))]
+    VirtualShimConflict { path: PathBuf },
 
     #[display("Failed to chmod {path:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_CMD_SHIM_CHMOD))]
@@ -1031,7 +1035,8 @@ fn remove_stale_bin(path: &Path) -> Result<(), LinkBinsError> {
 /// would *replace* the existing extension, which is wrong for our case.
 /// The bin name `tsc` keeps its own `tsc` and gains a sibling `tsc.cmd`,
 /// rather than turning into `tsc.cmd` and losing the original `.sh` flavor.
-fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
+#[must_use]
+pub fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
     let mut result = path.as_os_str().to_owned();
     result.push(".");
     result.push(ext);
@@ -1042,39 +1047,53 @@ fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
 ///
 /// Unlike [`link_bins_of_packages_context_aware`], nothing is installed
 /// behind these: the package is not in the global bin dir, and only the
-/// project a shim runs in can say what to execute. Returns the shim paths
-/// that now exist, in the order they were written.
+/// project a shim runs in can say what to execute. Returns only the shim paths
+/// created by this call, in the order they were written.
 pub fn link_virtual_shims<Sys>(
     package: &str,
     bins: &[&str],
     bins_dir: &Path,
 ) -> Result<Vec<PathBuf>, LinkBinsError>
 where
-    Sys: FsCreateDirAll + FsWrite + FsSetExecutable,
+    Sys: FsCreateDirAll + FsReadFile + FsWriteNewAtomic,
 {
     Sys::create_dir_all(bins_dir)
         .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?;
-    let mut written = Vec::new();
+    let mut flavors = Vec::new();
     for bin in bins {
         let shim_path = bins_dir.join(bin);
-        let mut flavors = vec![(shim_path.clone(), generate_virtual_sh_shim(package, &shim_path))];
+        flavors.push((shim_path.clone(), generate_virtual_sh_shim(package, &shim_path), true));
         if cfg!(windows) {
             let cmd_path = with_extension_appended(&shim_path, "cmd");
             let ps1_path = with_extension_appended(&shim_path, "ps1");
-            flavors.push((cmd_path.clone(), generate_virtual_cmd_shim(package, &cmd_path)));
-            flavors.push((ps1_path.clone(), generate_virtual_pwsh_shim(package, &ps1_path)));
+            flavors.push((cmd_path.clone(), generate_virtual_cmd_shim(package, &cmd_path), false));
+            flavors.push((ps1_path.clone(), generate_virtual_pwsh_shim(package, &ps1_path), false));
         }
-        for (path, body) in flavors {
-            // Unlink first for the same reason [`write_shim`] does: a
-            // symlink planted at the bin path would otherwise redirect
-            // the write.
-            remove_stale_bin(&path)?;
-            Sys::write(&path, body.as_bytes())
-                .map_err(|error| LinkBinsError::WriteShim { path: path.clone(), error })?;
-            written.push(path);
+    }
+    let mut missing = Vec::with_capacity(flavors.len());
+    for (path, body, _) in &flavors {
+        match Sys::read_file(path) {
+            Ok(existing) if existing == body.as_bytes() => missing.push(false),
+            Ok(_) => return Err(LinkBinsError::VirtualShimConflict { path: path.clone() }),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => missing.push(true),
+            Err(error) => {
+                return Err(LinkBinsError::ProbeShimSource { path: path.clone(), error });
+            }
         }
-        Sys::set_executable(&shim_path)
-            .map_err(|error| LinkBinsError::Chmod { path: shim_path.clone(), error })?;
+    }
+    let mut written = Vec::new();
+    for ((path, body, executable), missing) in flavors.iter().zip(missing) {
+        if !missing {
+            continue;
+        }
+        Sys::write_new_atomic(path, body.as_bytes(), *executable).map_err(|error| {
+            if error.kind() == io::ErrorKind::AlreadyExists {
+                LinkBinsError::VirtualShimConflict { path: path.clone() }
+            } else {
+                LinkBinsError::WriteShim { path: path.clone(), error }
+            }
+        })?;
+        written.push(path.clone());
     }
     Ok(written)
 }

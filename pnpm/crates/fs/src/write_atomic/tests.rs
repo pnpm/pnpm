@@ -1,4 +1,5 @@
-use super::write_atomic;
+use super::{write_atomic, write_new_atomic};
+use std::io;
 use tempfile::TempDir;
 
 #[test]
@@ -16,6 +17,32 @@ fn replaces_existing_content() {
     write_atomic(&path, b"old").unwrap();
     write_atomic(&path, b"new").unwrap();
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "new");
+}
+
+#[test]
+fn new_atomic_write_does_not_replace_an_occupied_path() {
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("bin/node");
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, "another command").unwrap();
+
+    let error = write_new_atomic(&path, b"pnpm shim", Some(0o755)).unwrap_err();
+
+    assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+    assert_eq!(std::fs::read_to_string(path).unwrap(), "another command");
+}
+
+#[cfg(unix)]
+#[test]
+fn new_atomic_write_publishes_the_requested_mode() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("bin/node");
+
+    write_new_atomic(&path, b"pnpm shim", Some(0o755)).unwrap();
+
+    let mode = std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o755);
 }
 
 #[cfg(unix)]

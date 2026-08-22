@@ -121,6 +121,13 @@ pub trait FsWrite {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()>;
 }
 
+/// Atomically publish a complete file without replacing an occupied path.
+/// Used for global virtual shims, whose bin directory may be shared with
+/// commands written by other tools.
+pub trait FsWriteNewAtomic {
+    fn write_new_atomic(path: &Path, bytes: &[u8], executable: bool) -> io::Result<()>;
+}
+
 /// Replace the permission bits at `path` with `0o755`. Used to chmod
 /// the freshly written shim file so it is executable.
 ///
@@ -205,6 +212,12 @@ impl FsCreateDirAll for Host {
 impl FsWrite for Host {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
         std::fs::write(path, bytes)
+    }
+}
+
+impl FsWriteNewAtomic for Host {
+    fn write_new_atomic(path: &Path, bytes: &[u8], executable: bool) -> io::Result<()> {
+        pnpm_fs::write_new_atomic(path, bytes, executable.then_some(0o755))
     }
 }
 

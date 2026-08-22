@@ -8,16 +8,19 @@
 //! machine that has only pnpm — the shim resolves the project's
 //! `packageManager` pin and provisions it.
 //!
-//! Creating one is deliberate. Nothing here happens as a side effect of
-//! `pnpm setup` or an install: a shim shadows whatever the user's `PATH`
-//! resolved before it, so it is added only when asked for.
+//! Creating one is deliberate. `pnpm shim add` creates it explicitly, and
+//! `pnpm runtime set` creates one for the runtime it pins. Nothing here
+//! happens as a side effect of `pnpm setup` or a plain install: a shim
+//! shadows whatever the user's `PATH` resolved before it, so it is added
+//! only when asked for.
 
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_cmd_shim::{
-    Host as CmdShimHost, get_bins_from_package_manifest, is_virtual_shim_for, link_virtual_shims,
-    remove_bin,
+    Host as CmdShimHost, generate_virtual_cmd_shim, generate_virtual_pwsh_shim,
+    get_bins_from_package_manifest, is_virtual_shim_for, link_virtual_shims, remove_bin,
+    with_extension_appended,
 };
 use pnpm_config::{Config, NamedShimPolicy, ShimPolicyValue};
 use pnpm_global::bin_slot_exists;
@@ -249,11 +252,31 @@ async fn bins_of(config: &'static Config, package: &str) -> miette::Result<Vec<S
 /// Whether `bin` is occupied in `bin_dir` by anything other than
 /// `package`'s own shim, which [`add`] rewrites freely.
 fn taken_by_another(bin_dir: &Path, bin: &str, package: &str) -> bool {
-    bin_slot_exists(bin_dir, bin)
+    let shim_path = bin_dir.join(bin);
+    let primary_taken = bin_slot_exists(bin_dir, bin)
         && fs::read_to_string(bin_dir.join(bin))
             .ok()
             .and_then(|content| virtual_shim_package(&content))
-            .is_none_or(|owner| owner != package)
+            .is_none_or(|owner| owner != package);
+    primary_taken
+        || (cfg!(windows)
+            && (with_extension_appended(&shim_path, "exe").exists()
+                || windows_flavor_taken(&shim_path, package)))
+}
+
+fn windows_flavor_taken(shim_path: &Path, package: &str) -> bool {
+    [
+        ("cmd", generate_virtual_cmd_shim as fn(&str, &Path) -> String),
+        ("ps1", generate_virtual_pwsh_shim as fn(&str, &Path) -> String),
+    ]
+    .into_iter()
+    .any(|(extension, generate)| {
+        let path = with_extension_appended(shim_path, extension);
+        match fs::read_to_string(&path) {
+            Ok(body) => body != generate(package, &path),
+            Err(error) => error.kind() != std::io::ErrorKind::NotFound,
+        }
+    })
 }
 
 /// The bins in `bin_dir` whose shim stands for `package`.
@@ -296,6 +319,31 @@ mod policy;
 
 pub(crate) use policy::record_package_manager_shims;
 use policy::{global_config_dir, set_policy, shims_disabled_globally, would_dispatch};
+
+pub(crate) fn ensure_runtime_shim(config: &Config, runtime_name: &str) -> miette::Result<()> {
+    let Some(bin_dir) = config.global_bin.as_deref() else {
+        return Ok(());
+    };
+    if !crate::shim_dispatch::global_shims_setting().is_enabled(runtime_name)
+        || taken_by_another(bin_dir, runtime_name, runtime_name)
+    {
+        return Ok(());
+    }
+    install_runtime_shim(bin_dir, runtime_name)
+}
+
+fn install_runtime_shim(bin_dir: &Path, runtime_name: &str) -> miette::Result<()> {
+    fs::create_dir_all(bin_dir)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("create {}", bin_dir.display()))?;
+    crate::shim_dispatch::install_dispatcher(bin_dir)
+        .into_diagnostic()
+        .wrap_err("install the runtime shim dispatcher")?;
+    link_virtual_shims::<CmdShimHost>(runtime_name, &[runtime_name], bin_dir)
+        .map_err(miette::Report::new)
+        .wrap_err_with(|| format!("link the {runtime_name} runtime shim"))?;
+    Ok(())
+}
 
 #[cfg(test)]
 mod tests;

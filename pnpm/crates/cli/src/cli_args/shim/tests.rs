@@ -1,5 +1,11 @@
-use super::{installed_shims, virtual_shim_package, virtual_shims};
-use pnpm_cmd_shim::{Host as CmdShimHost, link_virtual_shims};
+use super::{
+    install_runtime_shim, installed_shims, virtual_shim_package, virtual_shims,
+    windows_flavor_taken,
+};
+use pnpm_cmd_shim::{
+    CONTEXT_AWARE_DISPATCHER_NAME, Host as CmdShimHost, generate_virtual_cmd_shim,
+    link_virtual_shims,
+};
 use std::{collections::HashMap, fs};
 use tempfile::tempdir;
 
@@ -105,4 +111,32 @@ fn a_bin_name_with_an_extension_is_still_discovered() {
     link_virtual_shims::<CmdShimHost>("tool", &["tool.js"], dir.path()).expect("link the shim");
 
     assert_eq!(installed_shims(dir.path(), "tool"), ["tool.js"]);
+}
+
+#[test]
+fn setting_a_runtime_locally_creates_its_project_aware_shim() {
+    let dir = tempdir().unwrap();
+    let bin_dir = dir.path().join("bin");
+
+    install_runtime_shim(&bin_dir, "node").expect("create the runtime shim");
+
+    assert_eq!(installed_shims(&bin_dir, "node"), ["node"]);
+    assert!(
+        bin_dir
+            .join(format!("{CONTEXT_AWARE_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX))
+            .is_file(),
+    );
+}
+
+#[test]
+fn a_foreign_windows_flavor_is_taken() {
+    let dir = tempdir().unwrap();
+    let shim_path = dir.path().join("node");
+    let cmd_path = dir.path().join("node.cmd");
+    fs::write(&cmd_path, "another tool").unwrap();
+
+    assert!(windows_flavor_taken(&shim_path, "node"));
+
+    fs::write(&cmd_path, generate_virtual_cmd_shim("node", &cmd_path)).unwrap();
+    assert!(!windows_flavor_taken(&shim_path, "node"));
 }
