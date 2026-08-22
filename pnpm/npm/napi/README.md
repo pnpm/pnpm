@@ -26,6 +26,9 @@ See [`index.d.ts`](./index.d.ts) for the full typed contract.
 | `parseBareSpecifier(spec, alias?)` | Split/validate a dependency specifier; `null` when unparsable. |
 | `getDependents(options)` | Every package matching `packages`, each with the reverse tree of what depends on it — the engine side of `pnpm why`. |
 | `renderDependents(trees, options?)` | Return those trees rendered as `pnpm why` renders its own: `tree`, `parseable`, or `json`. |
+| `readLockfile(options)` / `writeLockfile(options)` | Read and write `pnpm-lock.yaml` (or the current lockfile under the virtual store) with the engine's own parser and emitter. |
+| `filterLockfileByImporters(lockfile, importerIds, options?)` | Narrow a lockfile to the transitive closure of what the named importers reach. |
+| `readModulesManifest(modulesDir)` | The `.modules.yaml` state of an installed `node_modules`. |
 | `engineVersion()` | Version string of the underlying Rust engine (pacquet). |
 | `getPeerDependencyIssues(options)` | **Not yet implemented** — throws `ERR_PNPM_NAPI_UNIMPLEMENTED`. Peer-issue reporting is not ported in pacquet's CLI either; consumers should degrade gracefully. |
 
@@ -43,6 +46,21 @@ level (a monkey-patched `process.stdout.write`, a stream forwarding to a
 remote terminal) where a write from Rust would bypass the redirection. Pass
 `reporter.width` alongside it: the engine cannot see where those chunks end
 up.
+
+### Lockfile
+
+`readLockfile` / `writeLockfile` hand the host the engine's own parser and
+emitter, so it does not carry a second implementation of a file both of them
+own. The JSON crossing the boundary is the file's own shape — `LockfileFile`
+in `@pnpm/lockfile.types` terms — and **top-level keys pnpm does not define
+round-trip untouched**, so a host that records its own state beside the
+lockfile can read it, edit its block, and write it back without losing the
+rest. (An install builds a fresh lockfile rather than rewriting the previous
+one, so a host re-asserts its block afterwards.)
+
+`filterLockfileByImporters` is the engine-side `@pnpm/lockfile.filtering`:
+the named importers keep only the dependency groups asked for, and
+`packages` / `snapshots` are pruned to what they still reach.
 
 ### Dependents (`pnpm why`)
 

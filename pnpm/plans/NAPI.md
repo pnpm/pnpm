@@ -180,6 +180,25 @@ Three reporting options were added to `pnpm-default-reporter` for this:
 stand-in for the TypeScript reporter's `filterPkgsDiff` callback, which cannot
 cross the addon boundary because `Reporter::emit` is synchronous.
 
+### Lockfile (`readLockfile` / `writeLockfile` / `filterLockfileByImporters`)
+
+The engine's own reader and emitter, so a consumer does not carry a second
+implementation of a file both stacks own. The JSON crossing the boundary is the
+file's own shape (`LockfileFile` in `@pnpm/lockfile.types` terms) — the Rust
+`Lockfile` is already that shape, so there is no object-vs-file conversion.
+
+`Lockfile` gained a `#[serde(flatten)]` `extra` map, closing the passthrough
+item below: top-level keys pnpm does not define now round-trip instead of being
+dropped, which is what makes a consumer's read-edit-write of its own block
+(Bit's `bit:`) lossless. An install still builds a fresh lockfile rather than
+rewriting the previous one, so the consumer re-asserts its block afterwards —
+it is writing that block's fresh contents anyway.
+
+`filterLockfileByImporters` is `@pnpm/lockfile.filtering` in
+`pnpm_lockfile::Lockfile::filter_by_importers`, mirroring the TypeScript
+`filterLockfileByImporters` + `@pnpm/lockfile.walker` traversal.
+`readModulesManifest` exposes the `.modules.yaml` reader alongside it.
+
 ### Dependents (`getDependents` / `renderDependents`)
 
 The reverse dependency tree behind `pnpm why`. `crates/cli/src/cli_args/deps_tree`
@@ -222,11 +241,9 @@ surface as generic `Error`s rather than aborting the host.
 
 | Kept JS package | Why |
 |---|---|
-| `@pnpm/lockfile.fs` / `.types` / `.filtering` | lockfile v9 is byte-stable across stacks; reads and in-memory transforms are engine-independent |
-| `@pnpm/deps.path` | pure dep-path string parsing |
-| `@pnpm/installing.modules-yaml` | reads `.modules.yaml` (same format both stacks) |
+| `@pnpm/lockfile.types`, `@pnpm/types`, `@pnpm/error` | type-only |
+| `@pnpm/deps.path` | pure dep-path string parsing, called once per graph edge — millions of times per large workspace. Exactly the shape that does not belong behind an FFI call. |
 | `@pnpm/config.reader` (+ nerf-dart, parse-overrides, ca-file) | host-side config/auth introspection; engine gets explicit options |
-| `@pnpm/types`, `@pnpm/error` | type-only |
 | `@pnpm/node-fetch`, `@pnpm/semver-diff`, `@pnpm/colorize-semver-diff`, `@pnpm/registry-mock`, `@pnpm/plugin-trusted-deps` | unrelated to the engine |
 
 Dropped from consumers: `@pnpm/installing.deps-installer`, `@pnpm/installing.client`,
@@ -234,7 +251,8 @@ Dropped from consumers: `@pnpm/installing.deps-installer`, `@pnpm/installing.cli
 `@pnpm/worker`, `@pnpm/workspace.projects-graph`, `@pnpm/workspace.projects-sorter`,
 `@pnpm/releasing.commands`, `@pnpm/resolving.npm-resolver`, `@pnpm/logger`,
 `@pnpm/cli.default-reporter`, `@pnpm/deps.inspection.tree-builder`,
-`@pnpm/deps.inspection.list`.
+`@pnpm/deps.inspection.list`, `@pnpm/lockfile.fs`, `@pnpm/lockfile.filtering`,
+`@pnpm/installing.modules-yaml`.
 
 ## Implementation status
 
@@ -433,10 +451,11 @@ platform packages and cross-compiled artifacts are gitignored.
 
 ## Open items tracked during implementation
 
-- `bit`-namespaced passthrough at the lockfile top level: the Rust `Lockfile` struct
-  must not drop unknown top-level keys it round-trips (consumers persist custom
-  attributes, e.g. Bit's `bit.depsRequiringBuild`). Add a `#[serde(flatten)]`
-  passthrough map preserved by the YAML emitter.
+- ~~`bit`-namespaced passthrough at the lockfile top level~~ — done:
+  `Lockfile::extra` is a `#[serde(flatten)]` map of the top-level keys pnpm does
+  not define, preserved by the YAML emitter. Carrying it from the previous
+  lockfile into a freshly resolved one (so an install preserves it without the
+  consumer re-asserting) is a possible follow-up.
 - `depsRequiringBuild` in `InstallResult`: surface the ignored-builds list the engine
   already computes for `ERR_PNPM_IGNORED_BUILDS` / `pnpm:ignored-scripts`.
 - `modulesCacheMaxAge: Infinity` semantics (consumer prunes the virtual store itself):

@@ -25,6 +25,7 @@ mod dependents;
 mod error;
 mod hooks;
 mod install;
+mod lockfile;
 mod native_reporter;
 mod pack;
 mod read_config;
@@ -36,6 +37,10 @@ pub use dependents::{DependentsOptions, RenderDependentsInput, get_dependents, r
 pub use install::{
     InstallOptions, InstallResult, InstallStatsResult, NodeApiProject, get_peer_dependency_issues,
     install, rebuild,
+};
+pub use lockfile::{
+    FilterLockfileOptions, ReadLockfileOptions, WriteLockfileOptions, filter_lockfile_by_importers,
+    read_lockfile, read_modules_manifest, write_lockfile,
 };
 use napi_derive::napi;
 pub use native_reporter::ReporterOptions;

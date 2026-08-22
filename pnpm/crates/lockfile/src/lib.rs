@@ -1,6 +1,7 @@
 mod catalog_snapshots;
 mod comver;
 mod env_lockfile;
+mod filter_by_importers;
 mod freshness;
 mod git_branch_lockfile;
 mod lazy_lockfile;
@@ -28,6 +29,7 @@ mod yaml_emit;
 pub use catalog_snapshots::*;
 pub use comver::*;
 pub use env_lockfile::*;
+pub use filter_by_importers::*;
 pub use freshness::*;
 pub use lazy_lockfile::*;
 pub use load_lockfile::*;
@@ -90,6 +92,10 @@ pub struct LockfileSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub peers_suffix_max_length: Option<u64>,
 }
+
+/// Top-level lockfile keys pnpm itself does not define, in the order they
+/// were read. See [`Lockfile::extra`].
+pub type LockfileExtra = IndexMap<String, serde_json::Value>;
 
 /// A pnpm lockfile using a supported wire format.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -190,6 +196,19 @@ pub struct Lockfile {
     /// grow an entry per transitive package.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub time: Option<BTreeMap<String, String>>,
+
+    /// Top-level keys pnpm itself does not define, kept so a load/save
+    /// round trip does not delete them.
+    ///
+    /// Tools that drive pnpm programmatically record their own state
+    /// alongside the lockfile — Bit writes a `bit:` block listing the
+    /// dependencies whose build scripts it has approved — and a lockfile
+    /// rewrite that silently dropped it would lose that state on every
+    /// install. Serialized last, after every key pnpm defines, which is
+    /// where such a block already sits in the files pnpm's own consumers
+    /// have written.
+    #[serde(default, flatten, skip_serializing_if = "LockfileExtra::is_empty")]
+    pub extra: LockfileExtra,
 }
 
 impl Lockfile {

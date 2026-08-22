@@ -668,5 +668,104 @@ export function renderDependents(
   options?: RenderDependentsOptions,
 ): string
 
+/**
+ * A `pnpm-lock.yaml` as JSON — the file's own shape, which is
+ * `LockfileFile` in `@pnpm/lockfile.types` terms: each importer dependency
+ * is an `{ specifier, version }` pair, and `packages` (metadata) and
+ * `snapshots` (edges) are separate maps. There is no in-memory-only
+ * variant to convert to or from.
+ *
+ * Top-level keys pnpm does not define are preserved, so a host that
+ * records its own state beside the lockfile can read it, edit its own
+ * block, and write the file back without losing anything else.
+ *
+ * The lockfile functions are generic over this so a host that already has
+ * a precise type for the format — `LockfileFile` from
+ * `@pnpm/lockfile.types`, or its own extension of it — can name it rather
+ * than casting: `readLockfile<MyLockfile>({ dir })`.
+ */
+export type LockfileFile = Record<string, unknown>
+
+export interface ReadLockfileOptions {
+  /** Lockfile / workspace root directory. */
+  dir: string
+  /**
+   * `'wanted'` (the default) reads `<dir>/pnpm-lock.yaml`, what the
+   * workspace asks for. `'current'` reads
+   * `<modulesDir>/.pnpm/lock.yaml`, what the last install actually
+   * materialized.
+   */
+  kind?: 'wanted' | 'current'
+  /**
+   * `node_modules` directory, which the current lockfile lives under.
+   * Absolute, or relative to `dir`. Defaults to `<dir>/node_modules`.
+   */
+  modulesDir?: string
+}
+
+export interface WriteLockfileOptions<Lockfile = LockfileFile> {
+  /** Lockfile / workspace root directory. */
+  dir: string
+  /** The lockfile to write, in the shape {@link readLockfile} returns. */
+  lockfile: Lockfile
+  /** See {@link ReadLockfileOptions.kind}. */
+  kind?: 'wanted' | 'current'
+  /** See {@link ReadLockfileOptions.modulesDir}. */
+  modulesDir?: string
+}
+
+/** `null` when the lockfile is absent or empty. */
+export function readLockfile<Lockfile = LockfileFile>(
+  options: ReadLockfileOptions,
+): Promise<Lockfile | null>
+
+/** Write the lockfile, formatted exactly as an install writes it. */
+export function writeLockfile<Lockfile = LockfileFile>(
+  options: WriteLockfileOptions<Lockfile>,
+): Promise<void>
+
+export interface FilterLockfileOptions {
+  /** Whether the listed importers keep their `dependencies`. Default `true`. */
+  includeDependencies?: boolean
+  /** Whether they keep their `devDependencies`. Default `true`. */
+  includeDevDependencies?: boolean
+  /** Whether they keep their `optionalDependencies`. Default `true`. */
+  includeOptionalDependencies?: boolean
+  /**
+   * Dep paths to treat as already visited — the optional dependencies this
+   * platform did not install. Neither they nor anything reachable only
+   * through them is kept.
+   */
+  skipped?: string[]
+  /**
+   * Whether a dependency reference with no `snapshots` entry fails with
+   * `ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY`. Defaults to `false`, which
+   * drops the reference and keeps walking — what a caller inspecting a
+   * possibly-stale lockfile wants.
+   */
+  failOnMissingDependencies?: boolean
+}
+
+/**
+ * The lockfile narrowed to what `importerIds` reaches: those importers keep
+ * only the dependency groups asked for, and `packages` / `snapshots` are
+ * pruned to the transitive closure of what they still depend on. Every
+ * other importer entry is carried through untouched — the filter narrows
+ * the package graph, not the workspace.
+ *
+ * Synchronous: a transform over data the caller already holds.
+ */
+export function filterLockfileByImporters<Lockfile = LockfileFile>(
+  lockfile: Lockfile,
+  importerIds: string[],
+  options?: FilterLockfileOptions,
+): Lockfile
+
+/**
+ * The `.modules.yaml` state of an installed `node_modules`, or `null` when
+ * the directory has none.
+ */
+export function readModulesManifest(modulesDir: string): Promise<Record<string, unknown> | null>
+
 /** Version of the underlying Rust engine (pacquet). */
 export function engineVersion(): string

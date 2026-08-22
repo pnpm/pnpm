@@ -1,6 +1,7 @@
 use super::SaveLockfileError;
 use crate::Lockfile;
 use pretty_assertions::assert_eq;
+use std::path::Path;
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -276,6 +277,7 @@ fn peers_suffix_max_length_omitted_from_settings_when_unset() {
         packages: None,
         snapshots: None,
         time: None,
+        extra: crate::LockfileExtra::default(),
     };
 
     let tmp = tempdir().expect("create tempdir");
@@ -313,6 +315,7 @@ fn peers_suffix_max_length_serialized_when_set() {
         packages: None,
         snapshots: None,
         time: None,
+        extra: crate::LockfileExtra::default(),
     };
 
     let tmp = tempdir().expect("create tempdir");
@@ -628,4 +631,29 @@ fn save_leaves_no_temp_file_behind() {
         .filter(|name| name.to_string_lossy() != Lockfile::FILE_NAME)
         .collect();
     assert!(leftovers.is_empty(), "temp file should not be left behind, found: {leftovers:?}");
+}
+
+/// A tool that drives pnpm programmatically records its own state in a
+/// top-level block beside pnpm's; a load/save round trip must not delete
+/// it. The block is emitted after every key pnpm defines.
+#[test]
+fn foreign_top_level_keys_survive_a_round_trip() {
+    let source = "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      is-odd:\n        specifier: 3.0.1\n        version: 3.0.1\n\nbit:\n  depsRequiringBuild:\n    - esbuild@0.25.0\n";
+
+    let lockfile = Lockfile::parse(source, Path::new("pnpm-lock.yaml"))
+        .expect("parse lockfile")
+        .expect("lockfile is not empty");
+
+    assert_eq!(
+        lockfile.extra.get("bit"),
+        Some(&serde_json::json!({ "depsRequiringBuild": ["esbuild@0.25.0"] })),
+    );
+
+    let saved = lockfile.to_yaml_string().expect("serialize lockfile");
+    assert!(saved.contains("bit:"), "saved: {saved}");
+    assert!(saved.contains("esbuild@0.25.0"), "saved: {saved}");
+    assert!(
+        saved.find("importers:") < saved.find("bit:"),
+        "the foreign block belongs after pnpm's own keys:\n{saved}",
+    );
 }
