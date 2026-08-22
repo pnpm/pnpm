@@ -145,6 +145,12 @@ pub(crate) fn filesystem_now_ms(workspace_root: &Path) -> Option<i64> {
 /// pnpm's `checkDepsStatus` records `Date.now()` at this point. Reading
 /// the same *now* off the filesystem keeps the wall clock — which can
 /// run ahead of the mtime clock — out of the comparison.
+///
+/// A check that finishes inside the millisecond it is blessing leaves
+/// the baseline where it was, on purpose: `now_ms` is the present, not a
+/// point past it, and there is nothing later to record yet. The next run
+/// lands in a later millisecond and converges then, so the equality case
+/// costs one more content check rather than repeating forever.
 pub(crate) fn refreshed_validation_baseline_ms(baseline_ms: i64, now_ms: Option<i64>) -> i64 {
     now_ms.map_or(baseline_ms, |now| baseline_ms.max(now))
 }
