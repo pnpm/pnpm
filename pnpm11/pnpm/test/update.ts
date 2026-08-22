@@ -164,6 +164,91 @@ test('recursive update --no-save', async () => {
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.0.0')
 })
 
+test('recursive update <pkg>@<version> --lockfile-only --no-save does not leak across major lines for transitive targets', async () => {
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['recursive', 'install', '--lockfile-only'])
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lockfileBefore = readYamlFileSync<any>('pnpm-lock.yaml')
+  const project2VersionBefore = lockfileBefore.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version
+
+  await execPnpm(['recursive', 'update', '--lockfile-only', '--no-save', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml')
+  const depKeys = Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@'))
+
+  expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe(project2VersionBefore)
+  expect(depKeys.filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@101.'))).toStrictEqual([`@pnpm.e2e/dep-of-pkg-with-1-dep@${project2VersionBefore}`])
+  expect(depKeys).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+})
+
+test('recursive update alias@npm:<pkg>@<version> --lockfile-only --no-save scopes by version line', async () => {
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        alias: 'npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['recursive', 'install', '--lockfile-only'])
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lockfileBefore = readYamlFileSync<any>('pnpm-lock.yaml')
+  const project2VersionBefore = lockfileBefore.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version
+
+  await execPnpm(['recursive', 'update', '--lockfile-only', '--no-save', 'alias@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml')
+  const depKeys = Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@'))
+
+  expect(lockfile.importers['project-1'].dependencies['alias'].version).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+  // project-2's 101.x dependency must remain unchanged
+  expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe(project2VersionBefore)
+  expect(depKeys.filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@101.'))).toStrictEqual([`@pnpm.e2e/dep-of-pkg-with-1-dep@${project2VersionBefore}`])
+  // The alias expansion must have resolved 100.1.0 within the 100.x line
+  expect(depKeys).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+
+  const project1Manifest = await readPackageJsonFromDir(path.resolve('project-1'))
+  expect(project1Manifest.dependencies?.['alias']).toBe('npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0')
+
+  const project2Manifest = await readPackageJsonFromDir(path.resolve('project-2'))
+  expect(project2Manifest.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('101.0.0')
+})
+
 test('recursive update', async () => {
   await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
   preparePackages([
