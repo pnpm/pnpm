@@ -51,7 +51,7 @@ use super::{
     rebuild::RebuildArgs,
     remove::RemoveArgs,
     repo::RepoArgs,
-    reporter::ReporterType,
+    reporter::{LogLevelSetting, ReporterType},
     restart::RestartArgs,
     root::RootArgs,
     run::RunArgs,
@@ -172,6 +172,12 @@ pub struct CliArgs {
     )]
     pub reporter: ReporterType,
 
+    /// What level of logs to print. Mirrors pnpm's universal `--loglevel`
+    /// option: `silent` selects the silent reporter over any `--reporter`
+    /// choice; the other levels cap the default reporter's output.
+    #[clap(long, value_enum, global = true)]
+    pub loglevel: Option<LogLevelSetting>,
+
     /// Select which workspace projects to run on. Repeat to add more.
     /// Each selector can be a name pattern (`@scope/*`), a path (`./pkg`),
     /// a dependency query (`foo...`), an exclusion (`!bar`), a directory
@@ -237,6 +243,16 @@ fn parse_store_dir(value: &str) -> Result<PathBuf, std::convert::Infallible> {
 }
 
 impl CliArgs {
+    /// The reporter the command should drive: `--loglevel silent` forces
+    /// the silent reporter over any `--reporter` choice, mirroring the
+    /// reporter selection in pnpm 11's `main.ts`.
+    pub(crate) fn effective_reporter(&self) -> ReporterType {
+        if self.loglevel == Some(LogLevelSetting::Silent) {
+            return ReporterType::Silent;
+        }
+        self.reporter
+    }
+
     pub fn validate_command_scoped_global_options(&self) -> Result<(), clap::Error> {
         if self.resume_from.is_some() {
             self.validate_run_scoped_global_option("--resume-from")?;

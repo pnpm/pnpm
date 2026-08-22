@@ -22,7 +22,7 @@ use pnpm_reporter::{
 use serde_json::Value;
 
 use crate::{
-    SummaryScope,
+    MaxLogLevel, SummaryScope,
     colors::Colors,
     format::{
         contains_path, cut_line, format_prefix, format_prefix_no_trim, highlight_last_folder,
@@ -58,6 +58,8 @@ pub struct ReporterOptions {
     pub reports_scope: bool,
     /// Whether direct dependency warnings use workspace-relative prefixes.
     pub is_recursive: bool,
+    /// Verbosity ceiling from pnpm's `--loglevel` setting.
+    pub max_log_level: MaxLogLevel,
 }
 
 impl Default for ReporterOptions {
@@ -69,6 +71,7 @@ impl Default for ReporterOptions {
             summary_scope: SummaryScope::CurrentPrefix,
             reports_scope: false,
             is_recursive: false,
+            max_log_level: MaxLogLevel::Info,
         }
     }
 }
@@ -243,6 +246,7 @@ pub struct ReporterState {
     append_only: bool,
     hide_added_pkgs_progress: bool,
     hide_progress_prefix: bool,
+    max_log_level: MaxLogLevel,
     frame: Frame,
     last_frame: Option<String>,
 
@@ -342,6 +346,7 @@ impl ReporterState {
             summary_scope,
             reports_scope,
             is_recursive,
+            max_log_level,
         } = options;
         let mut diff = HashMap::new();
         for kind in SUMMARY_ORDER {
@@ -354,6 +359,7 @@ impl ReporterState {
             append_only,
             hide_added_pkgs_progress,
             hide_progress_prefix,
+            max_log_level,
             frame: Frame::new(append_only),
             last_frame: None,
             progress: HashMap::new(),
@@ -390,6 +396,9 @@ impl ReporterState {
     }
 
     pub fn handle(&mut self, event: &LogEvent) -> Output {
+        if !self.level_permits(event) {
+            return Output::None;
+        }
         if matches!(event, LogEvent::Summary(_) | LogEvent::ExecutionTime(_)) {
             self.flush_pending_lockfile_message();
         }
@@ -440,6 +449,25 @@ impl ReporterState {
             self.flush_pending_lockfile_message();
         }
         self.finish()
+    }
+
+    /// Which events render at the configured `--loglevel`, mirroring the
+    /// tiers in `@pnpm/cli.default-reporter`'s `reporterForClient`: the
+    /// request-retry and deprecation streams need `warn`, the visual
+    /// streams (progress, stats, lifecycle, summary, `Done in ...`) need
+    /// `info`, and the `pnpm` / `pnpm:global` misc streams filter per
+    /// message level in [`Self::on_pnpm`], so errors always pass.
+    /// Dedupe-check issues always pass too — upstream reports them as an
+    /// error-level log (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in
+    /// `reportError.ts`).
+    fn level_permits(&self, event: &LogEvent) -> bool {
+        match event {
+            LogEvent::Pnpm(_) | LogEvent::Global(_) | LogEvent::DedupeCheck(_) => true,
+            LogEvent::RequestRetry(_) | LogEvent::Deprecation(_) => {
+                self.max_log_level >= MaxLogLevel::Warn
+            }
+            _ => self.max_log_level >= MaxLogLevel::Info,
+        }
     }
 
     fn finish(&mut self) -> Output {
@@ -1153,10 +1181,14 @@ impl ReporterState {
 
     fn on_pnpm(&mut self, level: LogLevel, message: &str, prefix: &str) {
         match level {
-            LogLevel::Debug => {}
-            LogLevel::Warn => self.push_warning(message),
+            LogLevel::Debug if self.max_log_level >= MaxLogLevel::Debug => {
+                self.push_block(message.to_string());
+            }
+            LogLevel::Warn if self.max_log_level >= MaxLogLevel::Warn => {
+                self.push_warning(message);
+            }
             LogLevel::Error => self.push_block(message.to_string()),
-            LogLevel::Info => {
+            LogLevel::Info if self.max_log_level >= MaxLogLevel::Info => {
                 if prefix.is_empty() || prefix == self.cwd {
                     if message == "Lockfile is up to date, resolution step is skipped" {
                         self.pending_lockfile_message = Some(message.to_string());
@@ -1165,6 +1197,7 @@ impl ReporterState {
                     }
                 }
             }
+            LogLevel::Debug | LogLevel::Warn | LogLevel::Info => {}
         }
     }
 

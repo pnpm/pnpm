@@ -943,3 +943,35 @@ fn list_in_long_format_appends_manifest_details() {
     let ll_output = run_ok(&workspace, &["ll"]);
     assert_eq!(ll_output, output);
 }
+
+/// The exact flags electron-builder's node-module collector passes to
+/// `pnpm list`; the CLI rejecting `--loglevel` breaks Electron packaging
+/// ([pnpm/pnpm#14024](https://github.com/pnpm/pnpm/issues/14024)).
+#[test]
+fn list_accepts_the_global_loglevel_flag() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "app", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let output = pacquet
+        .with_arg("list")
+        .with_arg("--prod")
+        .with_arg("--json")
+        .with_arg("--depth")
+        .with_arg("Infinity")
+        .with_arg("--loglevel")
+        .with_arg("error")
+        .output()
+        .expect("spawn pacquet list");
+
+    assert!(
+        output.status.success(),
+        "list with --loglevel should succeed:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    drop(root);
+}
