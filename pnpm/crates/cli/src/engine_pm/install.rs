@@ -52,13 +52,16 @@ use crate::{
 /// user's bare specifier (a version, range, or dist-tag) and `version` the
 /// exact version it resolved to. `force_resync` discards recorded
 /// `packageManagerDependencies` and re-resolves them even when they look
-/// up to date.
+/// up to date. `frozen_lockfile` refuses that write instead of performing
+/// it; only a caller whose `env_root` is the project itself passes it,
+/// since a global env lockfile is not what `--frozen-lockfile` freezes.
 pub(crate) async fn install_engine_to_store<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     pm: PackageManager,
     env_root: &Path,
     spec: &str,
     version: &str,
+    frozen_lockfile: bool,
     force_resync: bool,
 ) -> miette::Result<PathBuf> {
     let packages = registry_engine_packages(pm, version)?;
@@ -77,7 +80,7 @@ pub(crate) async fn install_engine_to_store<Reporter: self::Reporter + 'static>(
             packages.pinned,
             spec,
             version,
-            false,
+            frozen_lockfile,
             force_resync,
         )
         .await?;
