@@ -4,7 +4,7 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_network::{NetworkSettings, RetryOpts, ThrottledClient};
+use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{
@@ -32,15 +32,10 @@ impl RepoArgs {
             &config.proxy,
             &config.tls,
             &config.tls_by_uri,
-            &NetworkSettings {
-                network_concurrency: config.network_concurrency,
-                fetch_timeout: Duration::from_millis(config.fetch_timeout),
-                user_agent: config.user_agent.clone(),
-            },
+            &config.network_settings(),
         )
         .into_diagnostic()
         .wrap_err("create the network client for repo")?;
-
         let registries: HashMap<String, String> =
             config.resolved_registries().into_iter().collect();
 

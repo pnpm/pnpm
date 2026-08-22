@@ -2,7 +2,8 @@ use super::{
     FetchTarballForResolution, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, RetryOpts,
     SharedReportedProgressKeys,
     download::{
-        DownloadTarballToStore, download_priority, fetch_and_extract_with_retry, is_transient_error,
+        DownloadTarballToStore, download_priority, fetch_and_extract_with_retry,
+        is_transient_error, slow_download_warning,
     },
     error::{HttpStatusError, NetworkError, TarballError, VerifyChecksumError},
     extract::{
@@ -38,6 +39,39 @@ use tempfile::{TempDir, tempdir};
 
 fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")
+}
+
+#[test]
+fn formats_warning_for_slow_tarball_download() {
+    assert_eq!(
+        slow_download_warning(
+            40 * 1024,
+            Duration::from_millis(2_001),
+            50,
+            "https://user:pass@registry.example.test/pkg.tgz?token=secret#fragment\u{1b}",
+        ),
+        Some(
+            "Tarball download average speed 19 KiB/s (size 40 KiB) is below 50 KiB/s: https://registry.example.test/pkg.tgz (GET)"
+                .to_string(),
+        ),
+    );
+}
+
+#[test]
+fn does_not_warn_for_short_or_fast_tarball_download() {
+    assert_eq!(
+        slow_download_warning(1, Duration::from_secs(1), 50, "https://example.test/pkg.tgz"),
+        None,
+    );
+    assert_eq!(
+        slow_download_warning(
+            100 * 1024,
+            Duration::from_secs(2),
+            50,
+            "https://example.test/pkg.tgz",
+        ),
+        None,
+    );
 }
 
 #[test]

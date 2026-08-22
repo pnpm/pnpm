@@ -229,6 +229,15 @@ pub struct InstallArgs {
     #[clap(long = "fetch-timeout")]
     pub fetch_timeout: Option<u64>,
 
+    /// Warn when a registry metadata request takes longer than this many
+    /// milliseconds.
+    #[clap(long = "fetch-warn-timeout-ms")]
+    pub fetch_warn_timeout_ms: Option<u64>,
+
+    /// Warn when a tarball download's average speed is below this many KiB/s.
+    #[clap(long = "fetch-min-speed-ki-bps")]
+    pub fetch_min_speed_ki_bps: Option<u64>,
+
     /// `User-Agent` header to send on registry requests.
     #[clap(long = "user-agent")]
     pub user_agent: Option<String>,
@@ -293,6 +302,8 @@ impl InstallArgs {
             update_checksums: false,
             network_concurrency: None,
             fetch_timeout: None,
+            fetch_warn_timeout_ms: None,
+            fetch_min_speed_ki_bps: None,
             user_agent: None,
             pnpr_server: None,
         }
@@ -429,6 +440,7 @@ impl InstallArgs {
         state: State,
         selection: Option<InstallFamilySelection>,
     ) -> miette::Result<()> {
+        state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let frozen_lockfile = match self.configured_frozen_lockfile(state.config) {
             Some(value) => value,
             None if state.config.ci
@@ -479,6 +491,8 @@ impl InstallArgs {
             update_checksums,
             network_concurrency: _,
             fetch_timeout: _,
+            fetch_warn_timeout_ms: _,
+            fetch_min_speed_ki_bps: _,
             user_agent: _,
             // Read from `config.pnpr_server` (the CLI flag was already
             // merged in by the dispatch in `cli_args.rs`), not from here.

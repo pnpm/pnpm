@@ -74,6 +74,8 @@ where
             pnpmfile_hook_override,
             workspace_projects_override,
         } = self;
+        http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let can_prompt = prompt_eligibility_override
             .unwrap_or_else(|| !is_ci::cached() && std::io::stdin().is_terminal());
         let peer_issues_sink_is_none = peer_issues_sink.is_none();

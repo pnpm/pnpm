@@ -3,7 +3,7 @@ use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_lockfile::LazyLockfile;
-use pnpm_network::{ForInstallsError, NetworkSettings, ThrottledClient};
+use pnpm_network::{ForInstallsError, ThrottledClient};
 use pnpm_package_manager::ResolvedPackages;
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use pnpm_tarball::MemCache;
@@ -89,11 +89,7 @@ impl State {
                     &config.proxy,
                     &config.tls,
                     &config.tls_by_uri,
-                    &NetworkSettings {
-                        network_concurrency: config.network_concurrency,
-                        fetch_timeout: std::time::Duration::from_millis(config.fetch_timeout),
-                        user_agent: config.user_agent.clone(),
-                    },
+                    &config.network_settings(),
                 )
                 .map_err(InitStateError::Network)?
                 .with_max_sockets_per_host(config.max_sockets),

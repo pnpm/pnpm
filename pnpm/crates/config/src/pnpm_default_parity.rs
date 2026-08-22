@@ -68,8 +68,6 @@ const NOT_PORTED: &[&str] = &[
     "ci",
     "color",
     "embed-readme",
-    "fetch-min-speed-ki-bps",
-    "fetch-warn-timeout-ms",
     "git-branch-lockfile",
     "ignore-workspace-root-check",
     "optional",
@@ -168,6 +166,8 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("fetch-retry-maxtimeout", Int(cfg.fetch_retry_maxtimeout as i64)),
         ("fetch-retry-mintimeout", Int(cfg.fetch_retry_mintimeout as i64)),
         ("fetch-timeout", Int(cfg.fetch_timeout as i64)),
+        ("fetch-warn-timeout-ms", Int(cfg.fetch_warn_timeout_ms as i64)),
+        ("fetch-min-speed-ki-bps", Int(cfg.fetch_min_speed_ki_bps as i64)),
         ("frozen-store", Bool(cfg.frozen_store)),
         (
             "minimum-release-age",

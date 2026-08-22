@@ -115,6 +115,8 @@ fn create_config(
         network_concurrency: pnpm_network::default_network_concurrency(),
         max_sockets: None,
         fetch_timeout: 60_000,
+        fetch_warn_timeout_ms: 10_000,
+        fetch_min_speed_ki_bps: 50,
         user_agent: "pnpm".to_string(),
         npmrc_auth_file: None,
         workspace_dir: None,

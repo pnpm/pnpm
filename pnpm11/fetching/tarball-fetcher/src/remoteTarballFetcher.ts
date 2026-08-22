@@ -2,7 +2,7 @@ import type { IncomingMessage } from 'node:http'
 import util from 'node:util'
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { FetchError } from '@pnpm/error'
+import { FetchError, redactUrlForDisplay } from '@pnpm/error'
 import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
@@ -197,7 +197,7 @@ export function createDownloader (
         const avgKiBps = Math.floor((downloaded / elapsedSec) / 1024)
         if (downloaded > 0 && elapsedSec > 1 && avgKiBps < fetchMinSpeedKiBps) {
           const sizeKb = Math.floor(downloaded / 1024)
-          globalWarn(`Tarball download average speed ${avgKiBps} KiB/s (size ${sizeKb} KiB) is below ${fetchMinSpeedKiBps} KiB/s: ${url} (GET)`)
+          globalWarn(`Tarball download average speed ${avgKiBps} KiB/s (size ${sizeKb} KiB) is below ${fetchMinSpeedKiBps} KiB/s: ${redactUrlForDisplay(url)} (GET)`)
         }
       } catch (err: unknown) {
         const error = util.types.isNativeError(err) ? err : new Error(String(err), { cause: err })

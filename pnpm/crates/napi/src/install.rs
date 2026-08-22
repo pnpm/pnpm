@@ -25,7 +25,7 @@ use indexmap::IndexMap;
 use napi_derive::napi;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
-use pnpm_network::{NetworkSettings, NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
+use pnpm_network::{NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
 use pnpm_package_manager::{
     DepsRequiringBuildSink, Install, ProjectMutation, RebuildOptions, ResolvedPackages,
     UpdateSeedPolicy,
@@ -131,6 +131,12 @@ pub struct InstallOptions {
     pub fetch_retry_mintimeout: Option<u32>,
     pub fetch_retry_maxtimeout: Option<u32>,
     pub fetch_timeout: Option<u32>,
+    /// Slow metadata-request threshold in milliseconds. When set, this takes
+    /// precedence over the same field in `networkConfig`.
+    pub fetch_warn_timeout_ms: Option<u32>,
+    /// Minimum average tarball speed in KiB/s. When set, this takes precedence
+    /// over the same field in `networkConfig`.
+    pub fetch_min_speed_ki_bps: Option<u32>,
     pub user_agent: Option<String>,
     /// Fail the install with `ERR_PNPM_IGNORED_BUILDS` when a dependency build
     /// script is blocked. Defaults to `false` — the install instead reports the
@@ -181,6 +187,12 @@ pub struct NetworkConfigInput {
     pub fetch_retry_mintimeout: Option<u32>,
     pub fetch_retry_maxtimeout: Option<u32>,
     pub fetch_timeout: Option<u32>,
+    /// Slow metadata-request threshold in milliseconds. Used when the
+    /// corresponding top-level install option is omitted.
+    pub fetch_warn_timeout_ms: Option<u32>,
+    /// Minimum average tarball speed in KiB/s. Used when the corresponding
+    /// top-level install option is omitted.
+    pub fetch_min_speed_ki_bps: Option<u32>,
     pub user_agent: Option<String>,
 }
 
@@ -384,11 +396,7 @@ fn run_install_inner(
             &config.proxy,
             &config.tls,
             &config.tls_by_uri,
-            &NetworkSettings {
-                network_concurrency: config.network_concurrency,
-                fetch_timeout: std::time::Duration::from_millis(config.fetch_timeout),
-                user_agent: config.user_agent.clone(),
-            },
+            &config.network_settings(),
         )
         .map_err(|error| to_napi_error(&error))?
         .with_max_sockets_per_host(config.max_sockets),
@@ -665,6 +673,14 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
         fetch_timeout: options
             .fetch_timeout
             .or_else(|| network_config.and_then(|config| config.fetch_timeout))
+            .map(u64::from),
+        fetch_warn_timeout_ms: options
+            .fetch_warn_timeout_ms
+            .or_else(|| network_config.and_then(|config| config.fetch_warn_timeout_ms))
+            .map(u64::from),
+        fetch_min_speed_ki_bps: options
+            .fetch_min_speed_ki_bps
+            .or_else(|| network_config.and_then(|config| config.fetch_min_speed_ki_bps))
             .map(u64::from),
         user_agent: options
             .user_agent

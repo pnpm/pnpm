@@ -316,6 +316,12 @@ pub struct WorkspaceSettings {
     /// [`Config::max_sockets`]. Default unset (no per-origin cap).
     pub max_sockets: Option<usize>,
     pub fetch_timeout: Option<u64>,
+    /// The `fetchWarnTimeoutMs` YAML value in milliseconds. [`None`] leaves
+    /// [`Config::fetch_warn_timeout_ms`] unchanged.
+    pub fetch_warn_timeout_ms: Option<u64>,
+    /// The `fetchMinSpeedKiBps` YAML value in KiB/s. [`None`] leaves
+    /// [`Config::fetch_min_speed_ki_bps`] unchanged.
+    pub fetch_min_speed_ki_bps: Option<u64>,
     pub user_agent: Option<String>,
     /// `npmrcAuthFile` is read only from the global `config.yaml`
     /// (consumed by [`crate::Config::current`] to choose the user-level
@@ -1449,7 +1455,8 @@ impl WorkspaceSettings {
             side_effects_cache, side_effects_cache_readonly,
             fetch_retries, fetch_retry_factor,
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
-            network_concurrency, fetch_timeout, user_agent,
+            network_concurrency, fetch_timeout,
+            fetch_warn_timeout_ms, fetch_min_speed_ki_bps, user_agent,
             enable_global_virtual_store,
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,

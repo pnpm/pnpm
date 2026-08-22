@@ -67,6 +67,8 @@ fn build_overlay_maps_supported_install_options() {
         fetch_retry_mintimeout: Some(10),
         fetch_retry_maxtimeout: Some(20),
         fetch_timeout: Some(30),
+        fetch_warn_timeout_ms: Some(40),
+        fetch_min_speed_ki_bps: Some(50),
         user_agent: Some("pnpm-test".to_string()),
     });
     options.proxy_config = Some(ProxyConfigInput {
@@ -93,6 +95,8 @@ fn build_overlay_maps_supported_install_options() {
     assert_eq!(overlay.fetch_retry_mintimeout, Some(10));
     assert_eq!(overlay.fetch_retry_maxtimeout, Some(20));
     assert_eq!(overlay.fetch_timeout, Some(30));
+    assert_eq!(overlay.fetch_warn_timeout_ms, Some(40));
+    assert_eq!(overlay.fetch_min_speed_ki_bps, Some(50));
     assert_eq!(overlay.user_agent, Some("pnpm-test".to_string()));
     let proxy = overlay.proxy.expect("proxy");
     assert_eq!(proxy.http_proxy, Some("http://proxy.test".to_string()));
@@ -107,6 +111,22 @@ fn build_overlay_maps_supported_install_options() {
     assert_eq!(tls.key, Some("client-key".to_string()));
     assert_eq!(tls.strict_ssl, Some(false));
     assert_eq!(tls.local_address.map(|ip| ip.to_string()), Some("127.0.0.1".to_string()));
+}
+
+#[test]
+fn top_level_fetch_warning_options_override_network_config() {
+    let mut options = install_options();
+    options.fetch_warn_timeout_ms = Some(1_234);
+    options.fetch_min_speed_ki_bps = Some(12);
+    options.network_config = Some(NetworkConfigInput {
+        fetch_warn_timeout_ms: Some(5_678),
+        fetch_min_speed_ki_bps: Some(56),
+        ..network_config()
+    });
+
+    let overlay = build_overlay(&options).expect("overlay");
+    assert_eq!(overlay.fetch_warn_timeout_ms, Some(1_234));
+    assert_eq!(overlay.fetch_min_speed_ki_bps, Some(12));
 }
 
 #[test]
@@ -628,6 +648,8 @@ fn install_options() -> InstallOptions {
         fetch_retry_mintimeout: None,
         fetch_retry_maxtimeout: None,
         fetch_timeout: None,
+        fetch_warn_timeout_ms: None,
+        fetch_min_speed_ki_bps: None,
         user_agent: None,
         strict_dep_builds: None,
         return_list_of_deps_requiring_build: None,
@@ -653,6 +675,8 @@ fn network_config() -> NetworkConfigInput {
         fetch_retry_mintimeout: None,
         fetch_retry_maxtimeout: None,
         fetch_timeout: None,
+        fetch_warn_timeout_ms: None,
+        fetch_min_speed_ki_bps: None,
         user_agent: None,
     }
 }

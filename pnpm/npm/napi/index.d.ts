@@ -65,6 +65,8 @@ export interface NetworkConfig {
   fetchRetryMintimeout?: number
   fetchRetryMaxtimeout?: number
   fetchTimeout?: number
+  fetchWarnTimeoutMs?: number
+  fetchMinSpeedKiBps?: number
   userAgent?: string
 }
 
@@ -117,6 +119,10 @@ export interface InstallOptions extends SharedEngineOptions {
   dir: string
   projects: NodeApiProject[]
   storeDir?: string
+  /** Slow metadata-request warning threshold in milliseconds. Overrides `networkConfig`. */
+  fetchWarnTimeoutMs?: number
+  /** Minimum average tarball download speed in KiB/s. Overrides `networkConfig`. */
+  fetchMinSpeedKiBps?: number
   nodeLinker?: 'hoisted' | 'isolated'
   /**
    * pnpm's `linkWorkspacePackages`. When `true`/`'deep'`, a bare-semver
@@ -423,6 +429,8 @@ export interface ResolvedConfig {
   fetchRetryMintimeout: number
   fetchRetryMaxtimeout: number
   fetchTimeout: number
+  fetchWarnTimeoutMs: number
+  fetchMinSpeedKiBps: number
   /**
    * The explicitly configured user agent, when the cascade set one. The
    * engine's own computed default is omitted — an embedder that passes

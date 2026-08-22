@@ -49,11 +49,11 @@ pub use crate::defaults::{
     is_unsafe_perm_posix, resolve_child_concurrency,
 };
 use crate::defaults::{
-    default_child_concurrency, default_enable_global_virtual_store, default_fetch_retries,
-    default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
-    default_fetch_timeout, default_hoist_pattern, default_modules_cache_max_age,
-    default_modules_dir, default_public_hoist_pattern, default_store_dir, default_user_agent,
-    default_virtual_store_dir,
+    default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
+    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
+    default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
+    default_hoist_pattern, default_modules_cache_max_age, default_modules_dir,
+    default_public_hoist_pattern, default_store_dir, default_user_agent, default_virtual_store_dir,
 };
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
@@ -1555,6 +1555,18 @@ pub struct Config {
     #[default(_code = "default_fetch_timeout()")]
     pub fetch_timeout: u64,
 
+    /// Successful registry metadata requests slower than this threshold emit
+    /// a warning. The `fetchWarnTimeoutMs` setting, in milliseconds (default
+    /// `10000`, or 10 s).
+    #[default(_code = "default_fetch_warn_timeout_ms()")]
+    pub fetch_warn_timeout_ms: u64,
+
+    /// Minimum expected average tarball download speed in KiB/s. A download
+    /// lasting more than one second warns when its average falls below this
+    /// value. The `fetchMinSpeedKiBps` setting (default `50`).
+    #[default(_code = "default_fetch_min_speed_ki_bps()")]
+    pub fetch_min_speed_ki_bps: u64,
+
     /// Value of the `User-Agent` header sent on every registry request.
     /// The `userAgent` setting; the default is the
     /// `pnpm/<version> npm/? node/? <platform> <arch>` format (built by
@@ -2216,6 +2228,18 @@ impl Config {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The resolved settings used to construct an install HTTP client.
+    #[must_use]
+    pub fn network_settings(&self) -> pnpm_network::NetworkSettings {
+        pnpm_network::NetworkSettings {
+            network_concurrency: self.network_concurrency,
+            fetch_timeout: std::time::Duration::from_millis(self.fetch_timeout),
+            fetch_warn_timeout: std::time::Duration::from_millis(self.fetch_warn_timeout_ms),
+            fetch_min_speed_ki_bps: self.fetch_min_speed_ki_bps,
+            user_agent: self.user_agent.clone(),
+        }
     }
 
     /// The registries this config declares, in the shape the `registries`

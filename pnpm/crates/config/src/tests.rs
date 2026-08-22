@@ -304,8 +304,27 @@ pub fn network_settings_defaults_match_pnpm() {
     let value = Config::new();
     assert_eq!(value.network_concurrency, pnpm_network::default_network_concurrency());
     assert_eq!(value.fetch_timeout, 60_000);
+    assert_eq!(value.fetch_warn_timeout_ms, 10_000);
+    assert_eq!(value.fetch_min_speed_ki_bps, 50);
     assert!(value.user_agent.starts_with("pnpm/"), "user-agent: {:?}", value.user_agent);
     assert_eq!(value.npmrc_auth_file, None);
+}
+
+#[test]
+pub fn network_settings_maps_custom_config_values() {
+    let mut config = Config::new();
+    config.network_concurrency = 8;
+    config.fetch_timeout = 120_000;
+    config.fetch_warn_timeout_ms = 2_345;
+    config.fetch_min_speed_ki_bps = 12;
+    config.user_agent = "pnpm-test".to_string();
+
+    let settings = config.network_settings();
+    assert_eq!(settings.network_concurrency, 8);
+    assert_eq!(settings.fetch_timeout, std::time::Duration::from_mins(2));
+    assert_eq!(settings.fetch_warn_timeout, std::time::Duration::from_millis(2_345));
+    assert_eq!(settings.fetch_min_speed_ki_bps, 12);
+    assert_eq!(settings.user_agent, "pnpm-test");
 }
 
 #[test]

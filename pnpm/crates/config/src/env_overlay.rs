@@ -211,6 +211,8 @@ impl WorkspaceSettings {
         json_field!(network_concurrency, "NETWORK_CONCURRENCY");
         json_field!(max_sockets, "MAX_SOCKETS");
         json_field!(fetch_timeout, "FETCH_TIMEOUT");
+        json_field!(fetch_warn_timeout_ms, "FETCH_WARN_TIMEOUT_MS");
+        json_field!(fetch_min_speed_ki_bps, "FETCH_MIN_SPEED_KI_BPS");
         string_field!(user_agent, "USER_AGENT");
         json_field!(patched_dependencies, "PATCHED_DEPENDENCIES");
         string_field!(patches_dir, "PATCHES_DIR");

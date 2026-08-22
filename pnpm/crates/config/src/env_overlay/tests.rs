@@ -134,6 +134,8 @@ fn network_settings_parse_from_env() {
             match name {
                 "PNPM_CONFIG_NETWORK_CONCURRENCY" => Some("12".to_owned()),
                 "PNPM_CONFIG_FETCH_TIMEOUT" => Some("90000".to_owned()),
+                "PNPM_CONFIG_FETCH_WARN_TIMEOUT_MS" => Some("15000".to_owned()),
+                "PNPM_CONFIG_FETCH_MIN_SPEED_KI_BPS" => Some("75".to_owned()),
                 "PNPM_CONFIG_USER_AGENT" => Some("custom-ua/1.0".to_owned()),
                 _ => None,
             }
@@ -142,6 +144,8 @@ fn network_settings_parse_from_env() {
     let settings = WorkspaceSettings::from_pnpm_config_env::<EnvNetwork>();
     assert_eq!(settings.network_concurrency, Some(12));
     assert_eq!(settings.fetch_timeout, Some(90_000));
+    assert_eq!(settings.fetch_warn_timeout_ms, Some(15_000));
+    assert_eq!(settings.fetch_min_speed_ki_bps, Some(75));
     assert_eq!(settings.user_agent.as_deref(), Some("custom-ua/1.0"));
 }
 

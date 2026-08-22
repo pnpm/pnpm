@@ -283,6 +283,8 @@ impl Update<'_> {
             lockfile_only,
             resolution_observer,
         } = self;
+        http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
 
         crate::minimum_release_age::ensure_strict_minimum_release_age_can_save(config, save)
             .map_err(UpdateError::MinimumReleaseAge)?;
@@ -465,6 +467,8 @@ impl Update<'_> {
             lockfile_only,
             resolution_observer,
         } = self;
+        http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
 
         crate::minimum_release_age::ensure_strict_minimum_release_age_can_save(config, save)
             .map_err(UpdateError::MinimumReleaseAge)?;

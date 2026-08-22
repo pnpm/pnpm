@@ -171,7 +171,7 @@ test('linkBins() deletes a PowerShell shim left by an older install of the pnpm 
     expect(bins).toContain(binName)
     expect(bins).not.toContain(`${binName}.ps1`)
     if (IS_WINDOWS) {
-      expect(bins).toContain(`${binName}.cmd`)
+      expect(bins).toContain(`${binName}${CMD_EXTENSION}`)
     }
   }
 
