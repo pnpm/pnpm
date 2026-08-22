@@ -297,6 +297,7 @@ pub fn state_dir_uses_only_trusted_config_sources() {
     let xdg = tempdir().expect("xdg tempdir");
     let config_dir = xdg.path().join("pnpm");
     let state_root = xdg.path().join("state");
+    let resolved_state_root = dunce::canonicalize(xdg.path()).unwrap().join("state");
     fs::create_dir_all(&config_dir).expect("create config dir");
     fs::write(config_dir.join("config.yaml"), "stateDir: from-global\n")
         .expect("write global config.yaml");
@@ -310,7 +311,7 @@ pub fn state_dir_uses_only_trusted_config_sources() {
         ("XDG_STATE_HOME", state_root.to_str().unwrap()),
     ]);
     let config = load_with_fake_env(project.path());
-    assert_eq!(config.state_dir, state_root.join("from-global"));
+    assert_eq!(config.state_dir, resolved_state_root.join("from-global"));
     assert_eq!(config.workspace_key_issues.refused, ["stateDir"]);
 
     set_fake_env(&[
@@ -319,7 +320,7 @@ pub fn state_dir_uses_only_trusted_config_sources() {
         ("PNPM_CONFIG_STATE_DIR", "from-env"),
     ]);
     let config = load_with_fake_env(project.path());
-    assert_eq!(config.state_dir, state_root.join("from-env"));
+    assert_eq!(config.state_dir, resolved_state_root.join("from-env"));
     assert_eq!(
         config.explicit_settings.get("stateDir"),
         Some(&serde_json::Value::String("from-env".to_string())),
