@@ -41,6 +41,7 @@ pnpm-network-web-auth                  = { workspace = true }
 pnpm-config                            = { workspace = true }
 pnpm-config-parse-overrides            = { workspace = true }
 pnpm-default-reporter                  = { workspace = true }
+pnpm-deps-inspection                   = { workspace = true }
 pnpm-deps-path                         = { workspace = true }
 pnpm-pack                              = { workspace = true }
 pnpm-publish                           = { workspace = true }
@@ -56,6 +57,7 @@ pnpm-resolving-parse-wanted-dependency = { workspace = true }
 pnpm-resolving-resolver-base           = { workspace = true }
 pnpm-store-dir                         = { workspace = true }
 pnpm-tarball                           = { workspace = true }
+pnpm-text-sanitize                     = { workspace = true }
 pnpm-diagnostics                       = { workspace = true }
 pnpm-directory-fetcher                 = { workspace = true }
 pnpm-versioning                        = { workspace = true }

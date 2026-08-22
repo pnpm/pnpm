@@ -10,7 +10,7 @@ use super::TreeNodeId;
 
 /// One outgoing dependency edge of a graph node.
 #[derive(Debug, Clone)]
-pub(crate) struct GraphEdge {
+pub struct GraphEdge {
     pub alias: String,
     /// The raw `version:` reference, used as the display version when
     /// the target cannot be resolved (mirrors the TypeScript
@@ -28,7 +28,7 @@ pub(crate) struct GraphEdge {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct GraphNode {
+pub struct GraphNode {
     pub edges: Vec<GraphEdge>,
     /// Names declared in this package's `peerDependencies` — a child
     /// edge whose alias is in this set is a peer dependency.
@@ -36,11 +36,11 @@ pub(crate) struct GraphNode {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct DependencyGraph {
+pub struct DependencyGraph {
     pub nodes: HashMap<TreeNodeId, GraphNode>,
 }
 
-pub(crate) struct BuildGraphOptions<'a> {
+pub struct BuildGraphOptions<'a> {
     pub lockfile: &'a Lockfile,
     pub include: IncludedDependencies,
     pub only_projects: bool,
@@ -48,7 +48,8 @@ pub(crate) struct BuildGraphOptions<'a> {
 
 /// Breadth-first walk from `root_ids`, recording every reachable node
 /// and its outgoing edges. Mirrors the TypeScript `buildDependencyGraph`.
-pub(crate) fn build_dependency_graph(
+#[must_use]
+pub fn build_dependency_graph(
     root_ids: &[TreeNodeId],
     opts: &BuildGraphOptions<'_>,
 ) -> DependencyGraph {
@@ -101,7 +102,8 @@ pub(crate) fn build_dependency_graph(
 
 /// Names declared in `peerDependencies` of the `packages:` entry for
 /// `dep_path` (looked up by its peer-stripped key).
-pub(crate) fn peer_names(lockfile: &Lockfile, dep_path: &PkgNameVerPeer) -> HashSet<String> {
+#[must_use]
+pub fn peer_names(lockfile: &Lockfile, dep_path: &PkgNameVerPeer) -> HashSet<String> {
     lockfile
         .packages
         .as_ref()
@@ -208,7 +210,8 @@ fn edge_target(
 /// Lexically resolve `relative` against the importer id `base`,
 /// producing another importer id (`.` for the workspace root). `None`
 /// when the path escapes the workspace root.
-pub(crate) fn normalize_importer_path(base: &str, relative: &str) -> Option<String> {
+#[must_use]
+pub fn normalize_importer_path(base: &str, relative: &str) -> Option<String> {
     let mut parts: Vec<&str> =
         base.split('/').filter(|segment| !segment.is_empty() && *segment != ".").collect();
     let normalized = relative.replace('\\', "/");

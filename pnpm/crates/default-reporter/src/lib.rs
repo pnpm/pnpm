@@ -15,7 +15,7 @@
 //! zooming) and [`set_package_version`] (rendered in the `Done in ...` line).
 
 pub mod colors;
-mod diff;
+pub mod diff;
 pub mod format;
 pub mod state;
 

@@ -21,20 +21,24 @@
 )]
 
 mod config;
+mod dependents;
 mod error;
 mod hooks;
 mod install;
+mod native_reporter;
 mod pack;
 mod read_config;
 mod reporter_bridge;
 mod resolve;
 mod specifier;
 
+pub use dependents::{DependentsOptions, RenderDependentsInput, get_dependents, render_dependents};
 pub use install::{
     InstallOptions, InstallResult, InstallStatsResult, NodeApiProject, get_peer_dependency_issues,
     install, rebuild,
 };
 use napi_derive::napi;
+pub use native_reporter::ReporterOptions;
 pub use pack::{PackOptions, PackResult, pack};
 pub use read_config::{ReadConfigOptions, ResolvedConfig, ResolvedRegistry, read_config};
 pub use resolve::{

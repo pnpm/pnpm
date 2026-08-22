@@ -6,15 +6,16 @@ use std::collections::{HashMap, HashSet};
 use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DepType {
+pub enum DepType {
     DevOnly,
     DevAndProd,
     ProdOnly,
 }
 
-pub(crate) type DepTypes = HashMap<PkgNameVerPeer, DepType>;
+pub type DepTypes = HashMap<PkgNameVerPeer, DepType>;
 
-pub(crate) fn detect_dep_types(lockfile: &Lockfile) -> DepTypes {
+#[must_use]
+pub fn detect_dep_types(lockfile: &Lockfile) -> DepTypes {
     let mut ctx = Ctx {
         lockfile,
         walked: HashSet::new(),

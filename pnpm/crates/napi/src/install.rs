@@ -38,6 +38,7 @@ use crate::{
     config::{ConfigOverlay, resolve_config},
     error::{invalid_manifest_error, to_napi_error, unsupported_option_error},
     hooks::{BatchHookSink, HookSink, JsBatchedReadPackageHook, JsReadPackageHook},
+    native_reporter::{NativeRenderer, OutputSink, ReporterOptions},
     reporter_bridge::{EngineCallGuard, LogSink, NodeBridgeReporter, begin_stats, take_stats},
 };
 
@@ -163,6 +164,10 @@ pub struct InstallOptions {
     /// it, never to a registry the project's own `.npmrc` names.
     pub auth_header_by_uri: Option<HashMap<String, String>>,
     pub pnpm_home_dir: Option<String>,
+    /// Render pnpm's own terminal output for this call. Omitted, the call
+    /// prints nothing and the embedder renders the `onLog` event stream
+    /// itself (or not at all).
+    pub reporter: Option<ReporterOptions>,
 }
 
 #[napi(object)]
@@ -237,6 +242,16 @@ pub struct InstallResult {
     pub store_dir: String,
 }
 
+/// The renderer for one call, built on the caller's thread: a
+/// `ThreadsafeFunction` must be constructed while the napi environment is
+/// live, before the work moves to the dedicated engine thread.
+fn build_renderer(
+    options: &InstallOptions,
+    on_output: Option<OutputSink>,
+) -> Option<NativeRenderer> {
+    options.reporter.as_ref().map(|reporter| NativeRenderer::new(reporter, &options.dir, on_output))
+}
+
 /// Serializes every engine call that touches the process-global log sink /
 /// stats accumulator (`install`, `rebuild`, `pack`) so their reporter state
 /// never overlaps. Held across the whole call; different install dirs still run
@@ -253,8 +268,10 @@ pub async fn install(
     on_log: Option<LogSink>,
     read_package_hook: Option<HookSink>,
     read_package_batch_hook: Option<BatchHookSink>,
+    on_output: Option<OutputSink>,
 ) -> napi::Result<InstallResult> {
     let _guard = engine_call_lock().lock().await;
+    let renderer = build_renderer(&options, on_output);
     let (tx, rx) = tokio::sync::oneshot::channel();
     std::thread::Builder::new()
         .name("pnpm-napi-install".to_string())
@@ -265,6 +282,7 @@ pub async fn install(
             let _ = tx.send(run_install_blocking(
                 &options,
                 on_log,
+                renderer,
                 read_package_hook,
                 read_package_batch_hook,
             ));
@@ -278,12 +296,14 @@ pub async fn install(
 fn run_install_blocking(
     options: &InstallOptions,
     on_log: Option<LogSink>,
+    renderer: Option<NativeRenderer>,
     read_package_hook: Option<HookSink>,
     read_package_batch_hook: Option<BatchHookSink>,
 ) -> napi::Result<InstallResult> {
-    // Restores the previous sink and clears stats on drop — including on a
-    // panic in `run_install_inner`, which unwinds this dedicated thread.
-    let _sink_guard = EngineCallGuard::new(on_log);
+    // Restores the previous sink and renderer and clears stats on drop —
+    // including on a panic in `run_install_inner`, which unwinds this
+    // dedicated thread.
+    let _sink_guard = EngineCallGuard::with_renderer(on_log, renderer);
     // The batch sink (synthesized by the `@pnpm/napi` wrapper) wins over the
     // per-manifest sink: one threadsafe call serves a whole batch, where
     // per-manifest dispatch pays roughly one event-loop tick per call. The
@@ -851,14 +871,16 @@ pub async fn rebuild(
     options: InstallOptions,
     on_log: Option<LogSink>,
     selected_names: Option<Vec<String>>,
+    on_output: Option<OutputSink>,
 ) -> napi::Result<()> {
     let _guard = engine_call_lock().lock().await;
+    let renderer = build_renderer(&options, on_output);
     let (tx, rx) = tokio::sync::oneshot::channel();
     std::thread::Builder::new()
         .name("pnpm-napi-rebuild".to_string())
         .stack_size(32 * 1024 * 1024)
         .spawn(move || {
-            let _ = tx.send(run_rebuild_blocking(&options, on_log, selected_names));
+            let _ = tx.send(run_rebuild_blocking(&options, on_log, renderer, selected_names));
         })
         .map_err(|error| {
             napi::Error::from_reason(format!("failed to spawn rebuild thread: {error}"))
@@ -869,11 +891,12 @@ pub async fn rebuild(
 fn run_rebuild_blocking(
     options: &InstallOptions,
     on_log: Option<LogSink>,
+    renderer: Option<NativeRenderer>,
     selected_names: Option<Vec<String>>,
 ) -> napi::Result<()> {
-    // Restores the previous sink on drop — including on a panic in
-    // `run_install_inner`, which unwinds this dedicated thread.
-    let _sink_guard = EngineCallGuard::new(on_log);
+    // Restores the previous sink and renderer on drop — including on a
+    // panic in `run_install_inner`, which unwinds this dedicated thread.
+    let _sink_guard = EngineCallGuard::with_renderer(on_log, renderer);
     // `None` (or an empty list) rebuilds every build-needing package; a
     // non-empty list restricts the rebuild to the matching names / build keys.
     let rebuild_options = RebuildOptions {

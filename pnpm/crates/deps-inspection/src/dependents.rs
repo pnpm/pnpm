@@ -7,6 +7,7 @@ use std::{
 };
 
 use pnpm_lockfile::{Lockfile, PkgNameVerPeer, ProjectSnapshot};
+use pnpm_package_manifest::parse_manifest_bytes;
 
 use super::{
     TreeNodeId,
@@ -18,9 +19,14 @@ use super::{
 
 /// One node of the reverse tree: a package or workspace project that
 /// depends (directly or transitively) on the searched package.
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct DependentNode {
+///
+/// `Deserialize` as well as `Serialize`: an embedder that renders through
+/// the `@pnpm/napi` bindings gets the tree as JSON, may annotate it (a
+/// `displayName` derived from [`Self::manifest`], say), and hands it back
+/// to the renderers.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct DependentNode {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
@@ -37,6 +43,18 @@ pub(crate) struct DependentNode {
     pub dep_field: Option<DepField>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dependents: Option<Vec<DependentNode>>,
+    /// The `manifest_fields` projection of this node's `package.json`,
+    /// present only when [`BuildDependentsOptions::manifest_fields`] asked
+    /// for fields and the manifest could be read. Workspace-project nodes
+    /// carry no manifest.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest: Option<serde_json::Map<String, serde_json::Value>>,
+}
+
+impl Default for DependentNode {
+    fn default() -> Self {
+        DependentNode::leaf(String::new(), String::new())
+    }
 }
 
 impl DependentNode {
@@ -50,12 +68,13 @@ impl DependentNode {
             deduped: false,
             dep_field: None,
             dependents: None,
+            manifest: None,
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
-pub(crate) enum DepField {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum DepField {
     #[serde(rename = "dependencies")]
     Dependencies,
     #[serde(rename = "devDependencies")]
@@ -65,7 +84,8 @@ pub(crate) enum DepField {
 }
 
 impl DepField {
-    pub(crate) fn as_str(self) -> &'static str {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
         match self {
             DepField::Dependencies => "dependencies",
             DepField::DevDependencies => "devDependencies",
@@ -75,9 +95,9 @@ impl DepField {
 }
 
 /// One matched package and everything that depends on it.
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct DependentsTree {
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct DependentsTree {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
@@ -89,19 +109,32 @@ pub(crate) struct DependentsTree {
     pub dependents: Vec<DependentNode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub search_message: Option<String>,
+    /// See [`DependentNode::manifest`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ImporterInfo {
+pub struct ImporterInfo {
     pub name: String,
     pub version: String,
 }
 
-pub(crate) struct BuildDependentsOptions<'a> {
+pub struct BuildDependentsOptions<'a> {
     pub env: &'a PkgInfoEnv<'a>,
     pub graph: &'a DependencyGraph,
     pub search: &'a Searcher,
     pub importer_info: &'a HashMap<String, ImporterInfo>,
+    /// `package.json` fields to project onto every package node of the
+    /// tree, in `manifest`. Empty (the CLI's case) reads no manifests at
+    /// all; the reverse walk otherwise works purely off the lockfile.
+    ///
+    /// This is what the TypeScript tree-builder's `nameFormatter` callback
+    /// is for: an embedder that renames nodes after a manifest field —
+    /// Bit rendering component ids instead of package names — asks for the
+    /// field here and sets `displayName` on the returned tree, rather than
+    /// handing a callback across the FFI boundary into a synchronous walk.
+    pub manifest_fields: &'a [String],
 }
 
 struct ReverseEdge {
@@ -109,10 +142,43 @@ struct ReverseEdge {
     alias: String,
 }
 
+/// Reads the requested `package.json` fields of a resolved package node.
+/// Each call re-reads the file; a `why` tree names a handful of packages,
+/// and caching would keep manifests alive for the whole walk.
+struct ManifestProjector<'a> {
+    fields: &'a [String],
+    resolved: &'a HashMap<TreeNodeId, ManifestSource>,
+}
+
+impl ManifestProjector<'_> {
+    /// The projection for `node_id`, or `None` when no fields were
+    /// requested, the node is a workspace project, or its manifest is
+    /// unreadable — an absent manifest is never an error here, it just
+    /// leaves the node un-annotated.
+    fn project(&self, node_id: &TreeNodeId) -> Option<serde_json::Map<String, serde_json::Value>> {
+        if self.fields.is_empty() {
+            return None;
+        }
+        let source = self.resolved.get(node_id)?;
+        let bytes = std::fs::read(source.path.join("package.json")).ok()?;
+        let manifest = parse_manifest_bytes(&bytes).ok()?;
+        let mut projected = serde_json::Map::new();
+        for field in self.fields {
+            if let Some(value) = manifest.get(field) {
+                projected.insert(field.clone(), value.clone());
+            }
+        }
+        (!projected.is_empty()).then_some(projected)
+    }
+}
+
 struct WalkCtx<'a> {
     reverse_map: &'a HashMap<TreeNodeId, Vec<ReverseEdge>>,
     lockfile: &'a Lockfile,
     importer_info: &'a HashMap<String, ImporterInfo>,
+    /// Where each package node's manifest lives, for the
+    /// `manifest_fields` projection. Empty when no fields were asked for.
+    manifest_reader: ManifestProjector<'a>,
     /// Nodes on the current path, for cycle detection.
     visited: HashSet<TreeNodeId>,
     /// Nodes already fully expanded, for deduplication across branches.
@@ -122,7 +188,7 @@ struct WalkCtx<'a> {
 /// Scan every package node of the graph for search matches and build
 /// the reverse tree of each match. Each distinct depPath (peer-variant)
 /// is a separate result.
-pub(crate) fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<DependentsTree> {
+pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<DependentsTree> {
     let lockfile = opts.env.current_lockfile;
     let reverse_map = invert_graph(opts.graph);
     let resolved_nodes = resolve_package_nodes(opts.env, opts.graph);
@@ -164,6 +230,10 @@ pub(crate) fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<De
             reverse_map: &reverse_map,
             lockfile,
             importer_info: opts.importer_info,
+            manifest_reader: ManifestProjector {
+                fields: opts.manifest_fields,
+                resolved: &resolved_nodes,
+            },
             visited: HashSet::from([node_id.clone()]),
             expanded: HashSet::new(),
         };
@@ -177,6 +247,8 @@ pub(crate) fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<De
             peers_suffix_hash: peers_suffix_hash(dep_path),
             dependents,
             search_message: matched.message().map(str::to_string),
+            manifest: ManifestProjector { fields: opts.manifest_fields, resolved: &resolved_nodes }
+                .project(node_id),
         });
     }
 
@@ -195,7 +267,8 @@ pub(crate) fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<De
 /// package node, found by walking the graph top-down from importers —
 /// with a global virtual store the correct path is only reachable by
 /// following symlinks through each parent's `node_modules`.
-pub(crate) fn resolve_package_nodes(
+#[must_use]
+pub fn resolve_package_nodes(
     env: &PkgInfoEnv<'_>,
     graph: &DependencyGraph,
 ) -> HashMap<TreeNodeId, ManifestSource> {
@@ -299,6 +372,7 @@ fn walk_reverse(ctx: &mut WalkCtx<'_>, node_id: &TreeNodeId, depth: usize) -> Ve
                         let (name, version) = name_ver_from_dep_path(ctx.lockfile, dep_path);
                         let mut node = DependentNode::leaf(name, version);
                         node.circular = true;
+                        node.manifest = ctx.manifest_reader.project(&edge.parent);
                         dependents.push(node);
                     }
                 }
@@ -338,6 +412,7 @@ fn walk_reverse(ctx: &mut WalkCtx<'_>, node_id: &TreeNodeId, depth: usize) -> Ve
                     let mut node = DependentNode::leaf(name, version);
                     node.peers_suffix_hash = hash;
                     node.deduped = true;
+                    node.manifest = ctx.manifest_reader.project(&edge.parent);
                     dependents.push(node);
                     continue;
                 }
@@ -351,6 +426,7 @@ fn walk_reverse(ctx: &mut WalkCtx<'_>, node_id: &TreeNodeId, depth: usize) -> Ve
                 node.peers_suffix_hash = hash;
                 node.dependents =
                     if child_dependents.is_empty() { None } else { Some(child_dependents) };
+                node.manifest = ctx.manifest_reader.project(&edge.parent);
                 dependents.push(node);
             }
         }
@@ -399,10 +475,8 @@ fn dep_field_for_alias(alias: &str, importer: &ProjectSnapshot) -> Option<DepFie
 /// Name and display version of a depPath, preferring the `version:`
 /// recorded in the `packages:` entry (git/tarball deps) over the
 /// version encoded in the depPath.
-pub(crate) fn name_ver_from_dep_path(
-    lockfile: &Lockfile,
-    dep_path: &PkgNameVerPeer,
-) -> (String, String) {
+#[must_use]
+pub fn name_ver_from_dep_path(lockfile: &Lockfile, dep_path: &PkgNameVerPeer) -> (String, String) {
     let version = lockfile
         .packages
         .as_ref()
@@ -414,7 +488,8 @@ pub(crate) fn name_ver_from_dep_path(
 
 /// `semver.compare` when both versions parse as semver, lexicographic
 /// otherwise — the tree ordering the TypeScript CLI uses.
-pub(crate) fn compare_versions(left: &str, right: &str) -> std::cmp::Ordering {
+#[must_use]
+pub fn compare_versions(left: &str, right: &str) -> std::cmp::Ordering {
     match (node_semver::Version::parse(left), node_semver::Version::parse(right)) {
         (Ok(left), Ok(right)) => left.cmp(&right),
         _ => left.cmp(right),

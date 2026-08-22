@@ -10,7 +10,7 @@ use pnpm_lockfile::Lockfile;
 use pretty_assertions::assert_eq;
 
 use super::{EdgeContext, PkgInfoEnv, get_pkg_info};
-use crate::cli_args::deps_tree::graph::GraphEdge;
+use crate::graph::GraphEdge;
 
 // Port of upstream's 'getPkgInfo handles missing pkgSnapshot without crashing'
 // (deps/inspection/tree-builder/test/getPkgInfo.test.ts). Upstream asserts
