@@ -462,6 +462,66 @@ async fn trust_downgrade_at_resolve_time_fails_under_no_downgrade() {
     assert!(err.to_string().contains("trust downgrade"), "got {err}");
 }
 
+/// [`TRUST_DOWNGRADE_PACKAGE_BODY`] as a registry that strips the
+/// per-version `time` field serves it.
+fn trust_downgrade_body_without_time() -> String {
+    let mut body: serde_json::Value =
+        serde_json::from_str(TRUST_DOWNGRADE_PACKAGE_BODY).expect("parse fixture packument");
+    body.as_object_mut().expect("packument is an object").remove("time");
+    body.to_string()
+}
+
+#[tokio::test]
+async fn trust_check_fails_at_resolve_time_when_the_registry_serves_no_time_field() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(trust_downgrade_body_without_time())
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let opts = ResolveOptions {
+        trust_policy: Some(TrustPolicy::NoDowngrade),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver.resolve(&wanted, &opts).await.expect_err("missing time should fail closed");
+    assert!(err.to_string().contains(r#"missing the "time" field"#), "got {err}");
+}
+
+#[tokio::test]
+async fn trust_check_skipped_at_resolve_time_when_missing_time_is_ignored() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(trust_downgrade_body_without_time())
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (mut resolver, _tempdir) = build_resolver(&registry);
+    resolver.ignore_missing_time_field = true;
+
+    let opts = ResolveOptions {
+        trust_policy: Some(TrustPolicy::NoDowngrade),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+}
+
 #[tokio::test]
 async fn trust_downgrade_ignored_when_trust_policy_off() {
     let mut server = mockito::Server::new_async().await;

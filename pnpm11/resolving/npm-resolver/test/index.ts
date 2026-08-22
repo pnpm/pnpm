@@ -1673,6 +1673,45 @@ test('preferWorkspacePackages: still consults the registry under trustPolicy=no-
   )
 })
 
+test('resolveFromNpm() fails under trustPolicy=no-downgrade when the registry serves no time field', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  await expect(
+    resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, { trustPolicy: 'no-downgrade' })
+  ).rejects.toThrow('The metadata of is-positive is missing the "time" field')
+})
+
+test('resolveFromNpm() skips the trust check when ignoreMissingTimeField is set and the registry serves no time field', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+    ignoreMissingTimeField: true,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    trustPolicy: 'no-downgrade',
+  })
+
+  expect(resolveResult).toStrictEqual(
+    expect.objectContaining({ id: 'is-positive@3.1.0' })
+  )
+})
+
 test('preferWorkspacePackages: does not engage for injected workspace packages', async () => {
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
