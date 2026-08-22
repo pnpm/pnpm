@@ -12,8 +12,8 @@ use super::{
     dev_preinstall_already_ran, emit_initial_package_manifest,
     get_catalogs_from_workspace_manifest, gvs_build_marker_present,
     gvs_build_markers_may_require_recovery, load_workspace_projects, lockfile_root_dir,
-    map_frozen_lockfile_error, materialize, prepare_modules_state, run_dev_preinstall,
-    selected_manifest_freshness_inputs, try_fast_update_lockfile,
+    map_frozen_lockfile_error, materialize, prepare_modules_state, report_workspace_cycles,
+    run_dev_preinstall, selected_manifest_freshness_inputs, try_fast_update_lockfile,
     unapproved_recorded_ignored_builds, verify_lockfile_eagerly,
 };
 use pnpm_config::Config;
@@ -221,6 +221,17 @@ where
         // non-recursive `scopeLogger` call does.
         if selection.is_none() && config.shared_workspace_lockfile {
             let workspace_wide = mutation.is_full_install().then_some(workspace_projects).flatten();
+            // A full install covers every project in the workspace, so
+            // that is the set the cycle report reads. A narrowed run
+            // reports over its selection instead, from the layer that
+            // resolved it, and a single-project mutation (`add`,
+            // `update`, ...) has no set to cycle within.
+            if let Some((workspace_dir, projects)) =
+                workspace_dir_opt.as_deref().zip(workspace_wide)
+            {
+                report_workspace_cycles::<Reporter>(config, workspace_dir, projects)
+                    .map_err(InstallError::CyclicWorkspaceDependencies)?;
+            }
             Reporter::emit(&LogEvent::Scope(ScopeLog {
                 level: LogLevel::Debug,
                 selected: workspace_wide.map_or(1, <[_]>::len),

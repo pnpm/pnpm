@@ -7,7 +7,7 @@ use super::{
     prune::PruneArgs,
     recursive::{
         AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
-        sort_filtered_projects,
+        sort_filtered_projects, workspace_cycles,
     },
     remove::RemoveArgs,
     update::UpdateArgs,
@@ -25,7 +25,7 @@ use crate::{
 };
 use miette::Context;
 use pnpm_config::Config;
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, ScopeLog};
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter, ScopeLog};
 use std::{
     collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
@@ -39,6 +39,11 @@ pub(crate) struct InstallFamilySelection {
     pub(crate) ordered_dirs: Vec<PathBuf>,
     pub(crate) selected_dirs: Arc<HashSet<PathBuf>>,
     pub(crate) active_manifest_is_standin: bool,
+    /// The cycles [`recursive::workspace_cycles`] found among the selected
+    /// projects, or `None` when they can be ordered. Computed here, where
+    /// the selection graph lives, and reported by
+    /// [`select_install_family_plan`], which has the reporter.
+    pub(crate) workspace_cycles: Option<Vec<Vec<PathBuf>>>,
 }
 
 /// How a recursive / filtered install-family command should be dispatched,
@@ -74,6 +79,7 @@ fn select_install_family_plan<Reporter: self::Reporter>(
     else {
         return Ok(InstallFamilyPlan::Single);
     };
+    report_workspace_cycles::<Reporter>(cfg, &selection)?;
     // Report what the `--filter` / `-r` selection resolved to, so the user
     // can confirm it before the install acts on it. Emitted once here for
     // every plan shape below — a `PerProject` plan installs each selected
@@ -116,7 +122,7 @@ pub(crate) fn select_workspace_projects(
             );
         }
     }
-    let (ordered_groups, ordered_dirs, selected_dirs) = {
+    let (ordered_groups, ordered_dirs, selected_dirs, workspace_cycles) = {
         let selection = select_recursive_projects(
             &projects,
             cfg,
@@ -139,7 +145,11 @@ pub(crate) fn select_workspace_projects(
         };
         let ordered_dirs = ordered_groups.iter().flatten().cloned().collect();
         let selected_dirs = Arc::new(selection.selected.keys().cloned().collect());
-        (ordered_groups, ordered_dirs, selected_dirs)
+        // Skipped outright under `ignoreWorkspaceCycles`: nothing reports
+        // the verdict then, so nothing has to compute it.
+        let workspace_cycles =
+            (!cfg.ignore_workspace_cycles).then(|| workspace_cycles(&selection.selected)).flatten();
+        (ordered_groups, ordered_dirs, selected_dirs, workspace_cycles)
     };
 
     let active_dir = manifest_path.parent().expect("manifest path always has a parent dir");
@@ -159,7 +169,55 @@ pub(crate) fn select_workspace_projects(
         ordered_dirs,
         selected_dirs,
         active_manifest_is_standin,
+        workspace_cycles,
     }))
+}
+
+/// Report workspace projects that depend on each other in a cycle: an
+/// error under `disallowWorkspaceCycles`, otherwise a warning against the
+/// workspace root. `ignoreWorkspaceCycles` already left
+/// [`InstallFamilySelection::workspace_cycles`] as `None`, so a selection
+/// carrying cycles here is one the user asked to hear about.
+fn report_workspace_cycles<Reporter: self::Reporter>(
+    cfg: &Config,
+    selection: &InstallFamilySelection,
+) -> miette::Result<()> {
+    let Some(cycles) = selection.workspace_cycles.as_deref() else {
+        return Ok(());
+    };
+    let message = format!("There are cyclic workspace dependencies{}", render_cycles(cycles));
+    if cfg.disallow_workspace_cycles {
+        return Err(WorkspaceCyclesError { message }.into());
+    }
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        message,
+        prefix: selection.workspace_root.to_string_lossy().into_owned(),
+    }));
+    Ok(())
+}
+
+/// The `: <cycle>; <cycle>` tail of the cyclic-dependencies message, with
+/// each cycle rendered as its comma-separated project directories. Empty
+/// when the sequencer could not name the cycles.
+fn render_cycles(cycles: &[Vec<PathBuf>]) -> String {
+    if cycles.is_empty() {
+        return String::new();
+    }
+    let rendered = cycles
+        .iter()
+        .map(|cycle| cycle.iter().map(|dir| dir.to_string_lossy()).collect::<Vec<_>>().join(", "))
+        .collect::<Vec<_>>()
+        .join("; ");
+    format!(": {rendered}")
+}
+
+#[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
+#[display("{message}")]
+#[diagnostic(code(ERR_PNPM_DISALLOW_WORKSPACE_CYCLES))]
+struct WorkspaceCyclesError {
+    #[error(not(source))]
+    message: String,
 }
 
 /// Build the project-anchored `State` for one project of a

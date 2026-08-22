@@ -577,6 +577,38 @@ fn parses_strict_store_pkg_content_check_from_yaml_and_applies() {
     assert!(!config.strict_store_pkg_content_check, "yaml override wins");
 }
 
+/// `includeWorkspaceRoot` keeps the workspace root in a recursive
+/// selection. Default `false`, so the yaml has to flip it on.
+#[test]
+fn parses_include_workspace_root_from_yaml_and_applies() {
+    let yaml = "includeWorkspaceRoot: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.include_workspace_root, Some(true));
+
+    let mut config = Config::new();
+    assert!(!config.include_workspace_root, "the default is `false` to match pnpm");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.include_workspace_root, "yaml override wins");
+}
+
+/// The two workspace-cycle knobs are independent keys — one silences the
+/// report, the other promotes it to an error — so a file setting both is
+/// applied to both fields.
+#[test]
+fn parses_the_workspace_cycle_settings_from_yaml_and_applies() {
+    let yaml = "ignoreWorkspaceCycles: true\ndisallowWorkspaceCycles: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.ignore_workspace_cycles, Some(true));
+    assert_eq!(settings.disallow_workspace_cycles, Some(true));
+
+    let mut config = Config::new();
+    assert!(!config.ignore_workspace_cycles, "the default is `false` to match pnpm");
+    assert!(!config.disallow_workspace_cycles, "the default is `false` to match pnpm");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.ignore_workspace_cycles, "yaml override wins");
+    assert!(config.disallow_workspace_cycles, "yaml override wins");
+}
+
 /// `sideEffectsCache` is the side-effects cache READ-path knob from
 /// pnpm-workspace.yaml. Same shape as `verifyStoreIntegrity`:
 /// camelCase rename + `apply_to` wiring. Parsing a yaml that flips

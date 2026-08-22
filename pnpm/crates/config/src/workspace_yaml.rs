@@ -296,6 +296,9 @@ pub struct WorkspaceSettings {
     pub block_exotic_subdeps: Option<bool>,
     pub verify_store_integrity: Option<bool>,
     pub strict_store_pkg_content_check: Option<bool>,
+    pub include_workspace_root: Option<bool>,
+    pub ignore_workspace_cycles: Option<bool>,
+    pub disallow_workspace_cycles: Option<bool>,
     /// `frozenStore` from `pnpm-workspace.yaml`. Opens the store
     /// read-only and suppresses every store write — see
     /// [`Config::frozen_store`]. Default `false`.
@@ -1435,6 +1438,8 @@ impl WorkspaceSettings {
             strict_peer_dependencies, ignore_compatibility_db,
             resolve_peers_from_workspace_root, verify_store_integrity,
             strict_store_pkg_content_check, frozen_store,
+            include_workspace_root,
+            ignore_workspace_cycles, disallow_workspace_cycles,
             verify_deps_before_run,
             block_exotic_subdeps,
             link_workspace_packages,

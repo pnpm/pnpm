@@ -5210,6 +5210,7 @@ dependencies = [
  "pnpm-testing-utils",
  "pnpm-workspace",
  "pnpm-workspace-manifest-writer",
+ "pnpm-workspace-projects-graph",
  "pnpm-workspace-range-resolver",
  "pnpm-workspace-spec",
  "pnpm-workspace-state",
@@ -5665,10 +5666,12 @@ name = "pnpm-workspace"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "indexmap 2.14.0",
  "miette 7.6.0",
  "pathdiff",
  "pnpm-catalogs-types",
  "pnpm-package-manifest",
+ "pnpm-workspace-projects-graph",
  "pretty_assertions",
  "serde",
  "serde-saphyr",

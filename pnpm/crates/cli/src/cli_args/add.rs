@@ -328,6 +328,7 @@ impl AddArgs {
             ordered_dirs,
             selected_dirs,
             active_manifest_is_standin,
+            workspace_cycles: _,
         } = selection;
         let lockfile_path = state.lockfile_path();
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
