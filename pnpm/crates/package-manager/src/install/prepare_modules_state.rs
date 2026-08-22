@@ -76,30 +76,30 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
     } = inputs;
     // A no-op still refreshes workspace state so `verifyDepsBeforeRun`
     // does not treat the materialized tree as stale.
-    let modules_manifest_res = if !resolve_only || take_frozen_path {
+    // An unreadable state file fails the install rather than being read
+    // as layout drift. Treating it as drift would purge `node_modules`
+    // — including whatever the user put there themselves — and silently
+    // relink the whole tree on every run, which is how a manifest the
+    // reader could not parse surfaced as an endless re-link
+    // (<https://github.com/pnpm/pnpm/issues/14062>). The TypeScript CLI's
+    // `readModulesManifest` rethrows everything but `ENOENT` for the same
+    // reason.
+    let old_modules = if !resolve_only || take_frozen_path {
         pnpm_modules_yaml::read_modules_layout::<Host>(&config.modules_dir)
+            .map_err(InstallError::ReadModules)?
     } else {
-        Ok(None)
+        None
     };
-    let read_failed = modules_manifest_res.is_err();
-    if let Err(err) = &modules_manifest_res {
-        tracing::warn!(
-            target: "pacquet::install",
-            ?err,
-            "failed to read .modules.yaml; treating as an inconsistent node_modules directory",
-        );
-    }
-    let old_modules = modules_manifest_res.ok().flatten();
     let modules_manifest = old_modules.as_ref();
     // A filtered install rewrites `.modules.yaml` from the selected
     // projects' state merged over the previous file's, so losing the
     // previous contents would drop every unselected project's entries.
-    // An unreadable *layout* is already handled as an inconsistent
-    // `node_modules` — the purge rebuilds everything and the merge is
-    // skipped — but a file whose layout parses while some later field
-    // does not would otherwise merge against `None` and silently prune
-    // those entries, so that case fails instead.
-    let previous_modules_metadata = if !resolve_only && !read_failed {
+    // A file whose layout parses while some later field does not would
+    // otherwise merge against `None` and silently prune those entries, so
+    // that case fails instead.
+    let previous_modules_metadata = if resolve_only {
+        None
+    } else {
         match pnpm_modules_yaml::read_modules_manifest::<Host>(&config.modules_dir) {
             Ok(modules) => modules,
             // A filtered install merges the unselected importers'
@@ -116,23 +116,20 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
                 None
             }
         }
-    } else {
-        None
     };
     // The purge keys off *layout* drift only, not `included`: an
     // included (`--prod`<->full) change is handled by relinking, so it
     // must not wipe the user's `node_modules` contents. See
     // [`modules_layout_consistent_with`].
-    let is_inconsistent = read_failed
-        || match &modules_manifest {
-            Some(modules) => !modules_layout_consistent_with(modules, config, node_linker),
-            // Treat existence-check errors conservatively as inconsistent.
-            None => config
-                .modules_dir
-                .join(pnpm_modules_yaml::MODULES_FILENAME)
-                .try_exists()
-                .unwrap_or(true),
-        };
+    let is_inconsistent = match &modules_manifest {
+        Some(modules) => !modules_layout_consistent_with(modules, config, node_linker),
+        // Treat existence-check errors conservatively as inconsistent.
+        None => config
+            .modules_dir
+            .join(pnpm_modules_yaml::MODULES_FILENAME)
+            .try_exists()
+            .unwrap_or(true),
+    };
 
     if !resolve_only && is_inconsistent {
         // A plain install may recreate the drifted modules dir;
