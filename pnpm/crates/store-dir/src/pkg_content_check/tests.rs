@@ -1,4 +1,4 @@
-use super::*;
+use super::pkg_content_mismatch;
 use crate::store_index_key;
 
 fn manifest(name: &str, version: &str) -> serde_json::Value {
