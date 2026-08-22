@@ -153,6 +153,7 @@ fn allocate_tarball_buffer_rejects_absurd_content_length() {
 /// plenty for loopback and keep the failure mode deterministic.
 fn fast_fail_client() -> ThrottledClient {
     let client = reqwest::Client::builder()
+        .no_proxy()
         .connect_timeout(std::time::Duration::from_secs(1))
         .timeout(std::time::Duration::from_secs(1))
         .build()
@@ -168,16 +169,15 @@ fn fast_fail_client() -> ThrottledClient {
 /// which is what triggered the original "what's actually failing?"
 /// debugging round on this branch.
 ///
-/// Uses `127.0.0.1:1` (port 1 is reserved; connect always fails
-/// with a deterministic ECONNREFUSED on every host I've tried)
-/// and [`fast_fail_client`]'s 1 s bounds, so the test stays
-/// hermetic and quick.
+/// Uses `127.0.0.1:1` and [`fast_fail_client`]'s 1 s bounds. A
+/// firewalled runner may time out instead of refusing the connection.
 #[tokio::test]
 async fn network_error_display_includes_reqwest_inner_chain() {
-    let url = "http://127.0.0.1:1/whatever";
+    let url = "http://127.0.0.1:1/ssl-package.tgz";
     let client = fast_fail_client();
     let err =
         client.acquire().await.get(url).send().await.expect_err("connecting to port 1 must fail");
+    let expected_code = if err.is_timeout() { "ETIMEDOUT" } else { "ECONNREFUSED" };
     let net_err = NetworkError { url: url.to_string(), error: err };
 
     let rendered = net_err.to_string();
@@ -211,6 +211,9 @@ async fn network_error_display_includes_reqwest_inner_chain() {
         std::error::Error::source(&net_err).is_some(),
         "NetworkError should expose its reqwest::Error as source",
     );
+    let details = TarballError::FetchTarball(net_err).fetch_error_details();
+    assert_eq!(details.code.as_deref(), Some(expected_code));
+    assert_eq!(details.status, None);
 }
 
 /// Default `RetryOpts` for unit tests. We don't want the suite to
@@ -431,7 +434,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
     // key to prevent a later warm/cold pass from counting the same
     // package status again.
     let progress_reported = SharedReportedProgressKeys::default();
-    let cas_paths = DownloadTarballToStore {
+    let download = DownloadTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
@@ -456,10 +459,11 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         offline: false,
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
         append_manifest: None,
-    }
-    .run_without_mem_cache::<SilentReporter>()
-    .await
-    .expect("cache hit should succeed without network");
+    };
+    let cas_paths = download
+        .run_without_mem_cache::<SilentReporter>()
+        .await
+        .expect("cache hit should succeed without network");
 
     assert_eq!(cas_paths.len(), 2);
     assert_eq!(cas_paths.get("package.json"), Some(&pkg_json_path));
@@ -468,6 +472,11 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         progress_reported.contains(&index_key),
         "a store cache hit must record its progress key; got {progress_reported:?}",
     );
+    let error = download
+        .fetch_and_extract::<SilentReporter>()
+        .await
+        .expect_err("an explicit fetch must read the requested URL despite the cached digest");
+    assert!(matches!(error, TarballError::FetchTarball(_)), "{error}");
 
     drop(store_dir);
 }
@@ -2017,44 +2026,65 @@ async fn read_local_tarball_metadata_reports_a_missing_file_as_not_found() {
 }
 
 #[tokio::test]
-async fn run_without_mem_cache_reads_local_file_tarball() {
+async fn fetch_and_extract_records_expected_or_computed_integrity() {
     let local_dir = tempdir().unwrap();
     let tarball_path = local_dir.path().join("pkg.tgz");
     std::fs::write(&tarball_path, FASTIFY_ERROR_TARBALL).unwrap();
 
-    let (store_dir, store_path) = tempdir_with_leaked_path();
     let package_url = format!("file:{}", tarball_path.display());
     let client = fast_fail_client();
-    let package_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
-    let cas_paths = DownloadTarballToStore {
-        http_client: &client,
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        package_integrity: Some(&package_integrity),
-        package_unpacked_size: Some(16697),
-        package_file_count: None,
-        package_url: &package_url,
-        package_id: "@fastify/error@3.3.0",
-        requester: "",
-        prefetched_cas_paths: None,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
-        ignore_file_pattern: None,
-        offline: true,
-        progress_reported: None,
-        append_manifest: None,
+    let mut sha1 = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha1);
+    sha1.input(FASTIFY_ERROR_TARBALL);
+    let sha1 = sha1.result();
+    let sha512 = integrity(FASTIFY_ERROR_INTEGRITY);
+    let package_id = "@fastify/error@3.3.0";
+    for package_integrity in [Some(&sha1), None] {
+        let expected = package_integrity.unwrap_or(&sha512);
+        let (store_dir, store_path) = tempdir_with_leaked_path();
+        let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
+        let result = DownloadTarballToStore {
+            http_client: &client,
+            store_dir: store_path,
+            store_index: None,
+            store_index_writer: Some(Arc::clone(&writer)),
+            verify_store_integrity: true,
+            strict_store_pkg_content_check: true,
+            package_integrity,
+            package_unpacked_size: Some(16697),
+            package_file_count: None,
+            package_url: &package_url,
+            package_id,
+            requester: "",
+            prefetched_cas_paths: None,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            retry_opts: test_retry_opts(),
+            auth_headers: &AuthHeaders::default(),
+            ignore_file_pattern: None,
+            offline: true,
+            progress_reported: None,
+            append_manifest: None,
+        }
+        .fetch_and_extract::<SilentReporter>()
+        .await
+        .expect("local tarballs should be read from disk without network access");
+
+        assert_eq!(&result.integrity, expected);
+        let manifest = result.manifest.expect("bundled manifest");
+        assert_eq!(manifest["name"], "@fastify/error");
+        assert_eq!(manifest["version"], "3.3.0");
+        assert!(!result.requires_build, "fixture has no install script");
+        assert!(result.files_map.contains_key("package.json"));
+
+        drop(writer);
+        writer_task.await.expect("writer task").expect("writer flushed");
+        let index = StoreIndex::open_in(store_path).expect("open store index");
+        let key = store_index_key(&expected.to_string(), package_id);
+        assert_eq!(index.keys().expect("read index keys"), vec![key.clone()]);
+        let entry = index.get(&key).expect("read index entry").expect("archive is indexed");
+        assert_eq!(entry.manifest, Some(manifest));
+        assert_eq!(entry.requires_build, Some(false));
+        drop((index, store_dir));
     }
-    .run_without_mem_cache::<SilentReporter>()
-    .await
-    .expect("local tarballs should be read from disk without network access");
-
-    assert!(cas_paths.contains_key("package.json"));
-
-    drop((store_dir, local_dir));
 }
 
 /// A resolution that pins no integrity is downloaded unverified, and

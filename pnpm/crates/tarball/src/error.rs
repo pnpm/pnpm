@@ -3,7 +3,7 @@
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;
 use pnpm_store_dir::{StoreIndexError, WriteCasFileError};
-use std::path::PathBuf;
+use std::{error::Error as StdError, io, path::PathBuf};
 use zune_inflate::errors::InflateDecodeErrors;
 
 /// Reqwest's own [`std::fmt::Display`] for a request-stage failure renders as
@@ -61,6 +61,16 @@ pub struct VerifyChecksumError {
     pub url: String,
     #[error(source)]
     pub error: ssri::Error,
+}
+
+/// Error fields exposed to custom fetchers by the JavaScript runtime.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct FetchErrorDetails {
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<u16>,
 }
 
 #[derive(Debug, Display, Error, Diagnostic, From)]
@@ -238,4 +248,64 @@ pub enum TarballError {
         )
     )]
     UnexpectedPkgContentInStore { hint: String },
+}
+
+impl TarballError {
+    /// Preserve the status and error code custom fetchers use for fallback decisions.
+    #[must_use]
+    pub fn fetch_error_details(&self) -> FetchErrorDetails {
+        let mut details = FetchErrorDetails {
+            message: self.to_string(),
+            code: self.code().map(|code| code.to_string()),
+            status: None,
+        };
+        let network = match self {
+            TarballError::HttpStatus(http) => {
+                details.code = Some(format!("ERR_PNPM_FETCH_{}", http.status));
+                details.status = Some(http.status);
+                return details;
+            }
+            TarballError::FetchTarball(network) => network,
+            _ => return details,
+        };
+        if network.error.is_timeout() {
+            details.code = Some("ETIMEDOUT".to_string());
+            return details;
+        }
+        if network.error.is_connect() {
+            details.code = Some("ENETUNREACH".to_string());
+        }
+
+        let mut source = network.error.source();
+        while let Some(error) = source {
+            // Only matches while this crate and `reqwest` resolve the same
+            // major `rustls`; a version split makes the downcast fail
+            // silently rather than break the build.
+            if error.is::<rustls::Error>() {
+                details.code = Some("ERR_TLS_HANDSHAKE".to_string());
+                return details;
+            }
+            if let Some(io_error) = error.downcast_ref::<io::Error>() {
+                let code = match io_error.kind() {
+                    io::ErrorKind::ConnectionRefused => Some("ECONNREFUSED"),
+                    io::ErrorKind::ConnectionReset => Some("ECONNRESET"),
+                    io::ErrorKind::ConnectionAborted => Some("ECONNABORTED"),
+                    io::ErrorKind::TimedOut => Some("ETIMEDOUT"),
+                    io::ErrorKind::BrokenPipe => Some("EPIPE"),
+                    _ => None,
+                };
+                if let Some(code) = code {
+                    details.code = Some(code.to_string());
+                }
+                // `io::Error::source()` skips its boxed error itself, which
+                // can be the rustls certificate or handshake failure.
+                if let Some(inner) = io_error.get_ref() {
+                    source = Some(inner);
+                    continue;
+                }
+            }
+            source = error.source();
+        }
+        details
+    }
 }

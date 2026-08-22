@@ -1,6 +1,6 @@
 use crate::{
-    AllowBuildPolicy, CreateVirtualDirBySnapshot, CreateVirtualDirError, VirtualStoreLayout,
-    retry_config::retry_opts_from_config,
+    AllowBuildPolicy, CreateVirtualDirBySnapshot, CreateVirtualDirError, CustomFetcherSession,
+    VirtualStoreLayout, custom_fetcher::CustomFetchOutcome, retry_config::retry_opts_from_config,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -11,7 +11,6 @@ use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pnpm_fs::lexical_normalize;
 use pnpm_git_fetcher::{GitFetchOutput, GitFetcher, GitFetcherError, GitHostedTarballFetcher};
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
-use pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker;
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
     PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry, is_git_hosted_tarball_url,
@@ -134,7 +133,7 @@ pub struct InstallPackageBySnapshot<'a> {
     /// Custom fetchers from the pnpmfile's `fetchers` export.
     /// Consulted before the built-in resolution-type dispatch; `None`
     /// when no pnpmfile exports fetchers.
-    pub custom_fetcher_picker: Option<&'a Arc<CustomFetcherPicker>>,
+    pub custom_fetcher_session: Option<&'a Arc<CustomFetcherSession>>,
     /// When `true`, return the fetched CAS paths without populating the
     /// virtual-store slot ([`CreateVirtualDirBySnapshot`]) — the caller
     /// links them itself in a separate parallel pass. The cold batch in
@@ -213,6 +212,12 @@ pub enum InstallPackageBySnapshotError {
     #[display("Custom fetcher failed: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CUSTOM_FETCHER_FAILED))]
     CustomFetcher(#[error(not(source))] String),
+
+    #[display(
+        "Custom fetcher delegated package \"{package_id}\" to a resolution that cannot verify its locked integrity"
+    )]
+    #[diagnostic(code(ERR_PNPM_TARBALL_INTEGRITY))]
+    CustomFetcherIntegrityMismatch { package_id: String },
 
     /// A custom-typed resolution reached the built-in dispatch — no
     /// pnpmfile custom fetcher claimed it. Message and code mirror the
@@ -328,7 +333,7 @@ impl InstallPackageBySnapshot<'_> {
             runtime_platform_selector,
             workspace_root,
             node_linker,
-            custom_fetcher_picker,
+            custom_fetcher_session,
             defer_link,
             #[cfg(test)]
             link_concurrency_probe,
@@ -355,49 +360,55 @@ impl InstallPackageBySnapshot<'_> {
             pnpm_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
         };
 
-        let effective_resolution: Option<LockfileResolution> = if let Some(picker) =
-            custom_fetcher_picker
-        {
-            let resolution_value = serde_json::to_value(&metadata.resolution).map_err(|err| {
-                InstallPackageBySnapshotError::CustomFetcher(format!(
-                    "failed to serialize resolution for {package_id}: {err}",
-                ))
-            })?;
-            // Shaped like the TypeScript `FetchOptions` subset a
-            // delegating fetcher can use (`pkg`, `lockfileDir`), so one
-            // pnpmfile works on both stacks.
-            let opts_value = serde_json::json!({
+        let download = DownloadTarballToStore {
+            http_client,
+            store_dir: &config.store_dir,
+            store_index: store_index.cloned(),
+            store_index_writer: store_index_writer.cloned(),
+            verify_store_integrity: config.verify_store_integrity,
+            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
+            verified_files_cache: Arc::clone(verified_files_cache),
+            package_integrity: metadata.resolution.checkable_integrity(),
+            package_unpacked_size: None,
+            package_file_count: None,
+            package_url: "",
+            package_id: &package_id,
+            requester,
+            prefetched_cas_paths,
+            retry_opts: retry_opts_from_config(config),
+            auth_headers: &config.auth_headers,
+            ignore_file_pattern: None,
+            offline: config.offline,
+            progress_reported: progress_reported.cloned(),
+            append_manifest: None,
+        };
+        let custom_fetch = if let Some(session) = custom_fetcher_session {
+            let opts = serde_json::json!({
                 "pkg": {
                     "name": package_key.name.to_string(),
-                    "version": metadata
-                        .version
-                        .clone()
+                    "version": metadata.version.clone()
                         .unwrap_or_else(|| package_key.suffix.version().to_string()),
                 },
                 "lockfileDir": workspace_root,
+                "readManifest": true,
+                "filesIndexFile": pnpm_store_dir::pick_store_index_key(
+                    metadata.resolution.checkable_integrity().map(ToString::to_string).as_deref(),
+                    false, &package_id, !config.ignore_scripts,
+                ),
             });
-            match picker.try_fetch(&package_id, &resolution_value, &opts_value).await {
-                Ok(Some(result)) => {
-                    if let Some(delegate) = result.get("delegate") {
-                        Some(serde_json::from_value(delegate.clone()).map_err(|err| {
-                            InstallPackageBySnapshotError::CustomFetcher(format!(
-                                "invalid delegate resolution for {package_id}: {err}",
-                            ))
-                        })?)
-                    } else {
-                        return Err(InstallPackageBySnapshotError::CustomFetcher(format!(
-                            "custom fetcher claimed {package_id} but returned an unhandled \
-                             response (expected {{ \"delegate\": ... }})",
-                        )));
-                    }
-                }
-                Ok(None) => None,
-                Err(err) => {
-                    return Err(InstallPackageBySnapshotError::CustomFetcher(err.to_string()));
-                }
-            }
+            Some(session.fetch::<Reporter>(download.clone(), &metadata.resolution, opts).await?)
         } else {
             None
+        };
+        let (effective_resolution, custom_cas_paths) = match custom_fetch {
+            Some(
+                CustomFetchOutcome::Declined(resolution)
+                | CustomFetchOutcome::Delegate { delegate: resolution, .. },
+            ) => (Some(resolution), None),
+            Some(CustomFetchOutcome::Fetched { tarball, .. }) => {
+                (None, Some(tarball.files_map.clone()))
+            }
+            None => (None, None),
         };
         let resolution = effective_resolution.as_ref().unwrap_or(&metadata.resolution);
         // Derived from the effective resolution, not the lockfile's: a
@@ -406,32 +417,16 @@ impl InstallPackageBySnapshot<'_> {
         // lockfile entry says otherwise.
         let source_is_mutable = matches!(resolution, LockfileResolution::Directory(_));
 
-        let cas_paths: HashMap<String, PathBuf> = match resolution {
-            LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
+        let cas_paths = match (custom_cas_paths, resolution) {
+            (Some(paths), _) => paths,
+            (None, LockfileResolution::Tarball(_) | LockfileResolution::Registry(_)) => {
                 let (tarball_url, integrity) =
                     tarball_url_and_integrity(resolution, package_key, config)?;
                 let tarball_url = local_file_tarball_install_url(tarball_url, self.workspace_root);
                 let download = DownloadTarballToStore {
-                    http_client,
-                    store_dir: &config.store_dir,
-                    store_index: store_index.cloned(),
-                    store_index_writer: store_index_writer.cloned(),
-                    verify_store_integrity: config.verify_store_integrity,
-                    strict_store_pkg_content_check: config.strict_store_pkg_content_check,
-                    verified_files_cache: Arc::clone(verified_files_cache),
-                    package_integrity: integrity,
-                    package_unpacked_size: None,
-                    package_file_count: None,
                     package_url: &tarball_url,
-                    package_id: &package_id,
-                    requester,
-                    prefetched_cas_paths,
-                    retry_opts: retry_opts_from_config(config),
-                    auth_headers: &config.auth_headers,
-                    ignore_file_pattern: None,
-                    offline: config.offline,
-                    progress_reported: progress_reported.cloned(),
-                    append_manifest: None,
+                    package_integrity: integrity,
+                    ..download.clone()
                 };
                 // Reuse an in-flight or completed background download
                 // through the shared mem cache when one is provided;
@@ -511,7 +506,7 @@ impl InstallPackageBySnapshot<'_> {
                     raw_cas_paths
                 }
             }
-            LockfileResolution::Directory(dir_resolution) => {
+            (None, LockfileResolution::Directory(dir_resolution)) => {
                 // Injected workspace dep (`file:./local-pkg` with
                 // `dependenciesMeta[*].injected = true`). The source
                 // dir resolves as
@@ -539,7 +534,7 @@ impl InstallPackageBySnapshot<'_> {
             // platform wrapper: pick the variant whose `targets`
             // includes the host triple, then route through the same
             // `BinaryResolution` extractor.
-            LockfileResolution::Binary(binary) => {
+            (None, LockfileResolution::Binary(binary)) => {
                 fetch_binary_resolution_to_cas::<Reporter>(
                     binary,
                     http_client,
@@ -554,7 +549,7 @@ impl InstallPackageBySnapshot<'_> {
                 )
                 .await?
             }
-            LockfileResolution::Variations(variations) => {
+            (None, LockfileResolution::Variations(variations)) => {
                 let Some(variant) =
                     select_platform_variant(&variations.variants, runtime_platform_selector)
                 else {
@@ -611,7 +606,7 @@ impl InstallPackageBySnapshot<'_> {
                 )
                 .await?
             }
-            LockfileResolution::Git(git_resolution) => {
+            (None, LockfileResolution::Git(git_resolution)) => {
                 // Same `built = !ignore_scripts` rationale as the
                 // git-hosted tarball branch above — key shape stays in
                 // lock-step with `snapshot_cache_key`.
@@ -645,10 +640,9 @@ impl InstallPackageBySnapshot<'_> {
                 .map_err(InstallPackageBySnapshotError::GitFetch)?;
                 cas_paths
             }
-            // A custom fetcher had its chance above (`try_fetch`) and
-            // either declined or wasn't loaded; without one there is
-            // no way to materialize a custom-typed resolution.
-            LockfileResolution::Custom(custom) => {
+            // A custom-typed resolution cannot be materialized without
+            // a custom fetcher that claims it.
+            (None, LockfileResolution::Custom(custom)) => {
                 return Err(InstallPackageBySnapshotError::UnsupportedResolutionType {
                     resolution_type: custom.resolution_type.to_string(),
                 });
@@ -708,7 +702,7 @@ fn fetch_directory_resolution(
     Ok(output.files_map)
 }
 
-fn local_file_tarball_install_url<'a>(
+pub(crate) fn local_file_tarball_install_url<'a>(
     tarball_url: Cow<'a, str>,
     workspace_root: &Path,
 ) -> Cow<'a, str> {

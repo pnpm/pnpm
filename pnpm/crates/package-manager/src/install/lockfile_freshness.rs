@@ -62,7 +62,10 @@ pub async fn wanted_lockfile_satisfies_workspace(
     // classify every importer the lockfile records as missing.
     let lockfile_root =
         super::lockfile_root_for(config, workspace_dir_opt.as_deref(), manifest_dir);
-    if !config.ignore_pnpmfile && pnpm_hooks::finder::find_pnpmfile(&workspace_root).is_some() {
+    if !config.ignore_pnpmfile
+        && !pnpm_hooks::finder::find_pnpmfiles(&workspace_root, config.pnpmfile.as_deref())
+            .is_empty()
+    {
         return false;
     }
     let Ok(workspace_manifest) = pnpm_workspace::read_workspace_manifest(&workspace_root) else {

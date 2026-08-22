@@ -3,7 +3,13 @@ use std::{
     sync::Arc,
 };
 
-use super::PnpmfileHooks;
+use async_trait::async_trait;
+use serde_json::Value;
+
+use super::{
+    CustomFetcher, CustomResolver, HookContext, HookError, PnpmfileHooks, PreResolutionHookContext,
+    PreResolutionHookLogger, ReadPackageResult,
+};
 
 #[must_use]
 pub fn find_pnpmfile(root: &Path) -> Option<std::path::PathBuf> {
@@ -22,6 +28,120 @@ pub fn find_pnpmfile(root: &Path) -> Option<std::path::PathBuf> {
 pub fn load_pnpmfile(root: &Path) -> Option<Arc<dyn PnpmfileHooks>> {
     let file = find_pnpmfile(root)?;
     Some(Arc::new(super::node_runtime::NodeJsHooks::new(file)))
+}
+
+#[must_use]
+pub fn find_pnpmfiles(root: &Path, configured: Option<&[PathBuf]>) -> Vec<PathBuf> {
+    let Some(configured) = configured else {
+        return find_pnpmfile(root).into_iter().collect();
+    };
+
+    let mut paths = Vec::with_capacity(configured.len());
+    for path in configured {
+        if !paths.contains(path) {
+            paths.push(path.clone());
+        }
+    }
+    paths
+}
+
+#[must_use]
+pub fn load_pnpmfiles(
+    root: &Path,
+    configured: Option<&[PathBuf]>,
+) -> Option<Arc<dyn PnpmfileHooks>> {
+    let mut hooks: Vec<_> =
+        find_pnpmfiles(root, configured).into_iter().map(load_pnpmfile_at).collect();
+    match hooks.len() {
+        0 => None,
+        1 => hooks.pop(),
+        _ => Some(Arc::new(CombinedPnpmfileHooks { hooks })),
+    }
+}
+
+struct CombinedPnpmfileHooks {
+    hooks: Vec<Arc<dyn PnpmfileHooks>>,
+}
+
+#[async_trait]
+impl PnpmfileHooks for CombinedPnpmfileHooks {
+    async fn read_package(
+        &self,
+        mut pkg: Value,
+        ctx: HookContext,
+    ) -> Result<ReadPackageResult, HookError> {
+        for hook in &self.hooks {
+            pkg = (*hook.read_package(pkg, ctx.clone()).await?).clone();
+        }
+        Ok(Arc::new(pkg))
+    }
+
+    async fn after_all_resolved(
+        &self,
+        mut lockfile: Value,
+        ctx: HookContext,
+    ) -> Result<Value, HookError> {
+        let mut changed = false;
+        for hook in &self.hooks {
+            let result = hook.after_all_resolved(lockfile.clone(), ctx.clone()).await?;
+            if !result.is_null() {
+                lockfile = result;
+                changed = true;
+            }
+        }
+        Ok(if changed { lockfile } else { Value::Null })
+    }
+
+    async fn pre_resolution(&self, ctx: PreResolutionHookContext, logger: PreResolutionHookLogger) {
+        for hook in &self.hooks {
+            hook.pre_resolution(ctx.clone(), logger.clone()).await;
+        }
+    }
+
+    async fn filter_log(&self, log: Value, ctx: HookContext) -> bool {
+        for hook in &self.hooks {
+            if !hook.filter_log(log.clone(), ctx.clone()).await {
+                return false;
+            }
+        }
+        true
+    }
+
+    async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
+        let mut includes_hooks = false;
+        for hook in &self.hooks {
+            includes_hooks |= hook.calculate_pnpmfile_checksum().await.is_some();
+        }
+        if !includes_hooks {
+            return None;
+        }
+
+        let mut paths: Vec<&Path> =
+            self.hooks.iter().filter_map(|hook| hook.source_path()).collect();
+        paths.sort_unstable();
+        let hashes: Option<Vec<String>> = paths
+            .into_iter()
+            .map(|path| pnpm_crypto_hash::create_hash_from_file(path).ok())
+            .collect();
+        let hashes = hashes?;
+        Some(pnpm_crypto_hash::create_hash(&hashes.join(",")))
+    }
+
+    async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn CustomResolver>>, HookError> {
+        let mut resolvers = Vec::new();
+        for hook in &self.hooks {
+            resolvers.extend(hook.get_custom_resolvers().await?);
+        }
+        Ok(resolvers)
+    }
+
+    async fn get_custom_fetchers(&self) -> Result<Vec<Arc<dyn CustomFetcher>>, HookError> {
+        let mut fetchers = Vec::new();
+        for hook in &self.hooks {
+            fetchers.extend(hook.get_custom_fetchers().await?);
+        }
+        Ok(fetchers)
+    }
 }
 
 /// Load a pnpmfile from an explicit path (used for config-dependency

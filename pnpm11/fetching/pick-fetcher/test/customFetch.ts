@@ -279,6 +279,104 @@ describe('custom fetcher implementation examples', () => {
     const registry = 'http://localhost:4873/'
     const tarballPath = f.find('babel-helper-hoist-variables-6.24.1.tgz')
     const tarballIntegrity = 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY='
+    const wrongIntegrity = 'sha1-AAAAAAAAAAAAAAAAAAAAAAAAAAA='
+
+    test.each([
+      { matches: true, rewrittenIntegrity: undefined },
+      { matches: true, rewrittenIntegrity: wrongIntegrity },
+      { matches: false, rewrittenIntegrity: undefined },
+      { matches: false, rewrittenIntegrity: tarballIntegrity },
+    ].flatMap(scenario => (['localTarball', 'remoteTarball', 'delegate', 'decline'] as const)
+      .map(method => ({ ...scenario, method }))))('$method checks the locked integrity (matches: $matches, replacement: $rewrittenIntegrity)', async ({ matches, rewrittenIntegrity, method }) => {
+      clearDispatcherCache()
+      const mockAgent = new MockAgent()
+      mockAgent.disableNetConnect()
+      setGlobalDispatcher(mockAgent)
+      mockAgent.get('http://localhost:4873')
+        .intercept({ path: '/locked-pkg.tgz', method: 'GET' })
+        .reply(200, fs.readFileSync(tarballPath))
+        .persist()
+
+      try {
+        const storeDir = temporaryDirectory()
+        const cafs = createCafsStore(storeDir)
+        const fetchers = createMockFetchers(createTarballFetcher(
+          createFetchFromRegistry({}),
+          () => undefined,
+          { storeIndex, retry: { retries: 0 } }
+        ))
+        const lockedIntegrity = matches ? tarballIntegrity : wrongIntegrity
+        const resolution = { tarball: `${registry}original-pkg.tgz`, integrity: lockedIntegrity }
+        const customFetcher: CustomFetcher = {
+          canFetch: (_packageId, resolution) => {
+            if (method !== 'decline') return true
+            Object.assign(resolution, { tarball: `file:${tarballPath}`, integrity: rewrittenIntegrity })
+            return false
+          },
+          fetch: (cafs, _resolution, opts, fetchers) => {
+            if (method === 'decline') throw new Error('declined fetcher was called')
+            Object.assign(_resolution, { integrity: rewrittenIntegrity })
+            const rewritten = {
+              tarball: method === 'remoteTarball' ? `${registry}locked-pkg.tgz` : `file:${tarballPath}`,
+              integrity: rewrittenIntegrity,
+            }
+            return method === 'delegate'
+              ? { delegate: rewritten }
+              : fetchers[method](cafs, rewritten, opts)
+          },
+        }
+        const fetch = await pickFetcher(fetchers, resolution, {
+          customFetchers: [customFetcher],
+          packageId: 'locked-pkg@1.0.0',
+        }) as FetchFunction
+        expect(resolution.integrity).toBe(lockedIntegrity)
+        const result = fetch(cafs, resolution, createMockFetchOptions({
+          filesIndexFile: path.join(storeDir, 'index.json'),
+          lockfileDir: process.cwd(),
+        }))
+        if (matches) {
+          expect((await result).filesMap.get('package.json')).toBeTruthy()
+        } else {
+          await expect(result).rejects.toMatchObject({ code: 'ERR_PNPM_TARBALL_INTEGRITY' })
+        }
+        expect(resolution.integrity).toBe(lockedIntegrity)
+      } finally {
+        await mockAgent.close()
+        setGlobalDispatcher(originalDispatcher)
+      }
+    })
+
+    test.each(['delegate', 'decline', 'directory', 'git'] as const)('%s cannot replace a locked archive with a non-archive source', async (method) => {
+      const resolution = { tarball: `${registry}original-pkg.tgz`, integrity: tarballIntegrity }
+      const directory = { type: 'directory' as const, directory: '/synthetic/package' }
+      const customFetcher: CustomFetcher = {
+        canFetch: (_packageId, resolution) => {
+          if (method !== 'decline') return true
+          Object.assign(resolution, directory)
+          return false
+        },
+        fetch: (cafs, _resolution, opts, fetchers) => {
+          if (method === 'directory') {
+            const rewritten = { ...directory }
+            Reflect.deleteProperty(rewritten, 'type')
+            return fetchers.directory(cafs, rewritten, opts)
+          }
+          if (method === 'git') {
+            const rewritten = { type: 'git' as const, repo: 'https://example.invalid/repo.git', commit: 'a'.repeat(40) }
+            Reflect.deleteProperty(rewritten, 'type')
+            return fetchers.git(cafs, rewritten, opts)
+          }
+          return { delegate: directory }
+        },
+      }
+      await expect((async () => {
+        const fetch = await pickFetcher(createMockFetchers(), resolution, {
+          customFetchers: [customFetcher],
+          packageId: 'locked-pkg@1.0.0',
+        }) as FetchFunction
+        return fetch(createMockCafs(), resolution, createMockFetchOptions())
+      })()).rejects.toMatchObject({ code: 'ERR_PNPM_TARBALL_INTEGRITY' })
+    })
 
     test('custom fetcher can delegate to remoteTarball fetcher', async () => {
       clearDispatcherCache()

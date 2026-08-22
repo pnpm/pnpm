@@ -570,7 +570,7 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
         // only the download-coordination branch and gets the CAS map
         // back directly.
         node_linker: pnpm_config::NodeLinker::Hoisted,
-        custom_fetcher_picker: None,
+        custom_fetcher_session: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -646,7 +646,7 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
         runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
         node_linker: pnpm_config::NodeLinker::Hoisted,
-        custom_fetcher_picker: None,
+        custom_fetcher_session: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -722,7 +722,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
         runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
         node_linker: pnpm_config::NodeLinker::Hoisted,
-        custom_fetcher_picker: None,
+        custom_fetcher_session: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -770,23 +770,23 @@ impl pnpm_hooks::CustomFetcher for ScriptedCustomFetcher {
     }
 }
 
-fn scripted_picker(
+fn scripted_session(
     claims: bool,
     response: Result<serde_json::Value, pnpm_hooks::HookError>,
-) -> std::sync::Arc<pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker> {
-    std::sync::Arc::new(pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(vec![
-        std::sync::Arc::new(ScriptedCustomFetcher { claims, response }),
-    ]))
+) -> std::sync::Arc<crate::CustomFetcherSession> {
+    std::sync::Arc::new(crate::CustomFetcherSession::new(vec![std::sync::Arc::new(
+        ScriptedCustomFetcher { claims, response },
+    )]))
 }
 
 /// Run one snapshot install for `foo@1.0.0` with the given custom
-/// fetcher picker. Hoisted linker + no store index keeps the run to the
+/// fetcher session. Hoisted linker + no store index keeps the run to the
 /// fetch-dispatch branch under test, mirroring the mem-cache tests
 /// above.
-async fn run_snapshot_install_with_picker(
+async fn run_snapshot_install_with_session(
     config: &'static Config,
     metadata: &pnpm_lockfile::PackageMetadata,
-    picker: &std::sync::Arc<pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker>,
+    session: &std::sync::Arc<crate::CustomFetcherSession>,
     tarball_mem_cache: Option<&std::sync::Arc<pnpm_tarball::MemCache>>,
     workspace_root: &std::path::Path,
 ) -> Result<super::InstalledPackage, InstallPackageBySnapshotError> {
@@ -823,7 +823,7 @@ async fn run_snapshot_install_with_picker(
         runtime_platform_selector: &host_platform_selector(),
         workspace_root,
         node_linker: pnpm_config::NodeLinker::Hoisted,
-        custom_fetcher_picker: Some(picker),
+        custom_fetcher_session: Some(session),
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -861,13 +861,15 @@ async fn custom_fetcher_delegate_rewrites_the_resolution() {
         Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
     );
 
-    let picker =
-        scripted_picker(true, Ok(serde_json::json!({ "delegate": { "integrity": DUMMY_SHA512 } })));
+    let session = scripted_session(
+        true,
+        Ok(serde_json::json!({ "delegate": { "integrity": DUMMY_SHA512 } })),
+    );
 
-    let cas_paths = run_snapshot_install_with_picker(
+    let cas_paths = run_snapshot_install_with_session(
         config,
         &metadata,
-        &picker,
+        &session,
         Some(&mem_cache),
         store_tmp.path(),
     )
@@ -900,7 +902,7 @@ async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
         Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
     );
 
-    let picker = scripted_picker(
+    let session = scripted_session(
         false,
         Err(pnpm_hooks::HookError::Execution {
             pnpmfile: ".pnpmfile.cjs".to_string(),
@@ -908,10 +910,10 @@ async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
         }),
     );
 
-    let cas_paths = run_snapshot_install_with_picker(
+    let cas_paths = run_snapshot_install_with_session(
         config,
         &metadata,
-        &picker,
+        &session,
         Some(&mem_cache),
         store_tmp.path(),
     )
@@ -923,21 +925,19 @@ async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
     drop(store_tmp);
 }
 
-/// A claiming fetcher that answers with anything other than
-/// `{ "delegate": ... }` fails the install — direct content fetch is
-/// not supported yet, so silently ignoring the response would make the
-/// fetcher a no-op.
+/// A claiming fetcher must return a delegate or verified native files.
 #[tokio::test]
 async fn custom_fetcher_unhandled_response_fails_the_install() {
     let store_tmp = tempfile::tempdir().expect("tempdir");
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
     let metadata = registry_metadata();
 
-    let picker = scripted_picker(true, Ok(serde_json::json!({ "filesIndex": {} })));
+    let session = scripted_session(true, Ok(serde_json::json!({ "filesIndex": {} })));
 
-    let err = run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
-        .await
-        .expect_err("a non-delegate response must fail the install");
+    let err =
+        run_snapshot_install_with_session(config, &metadata, &session, None, store_tmp.path())
+            .await
+            .expect_err("a non-delegate response must fail the install");
 
     assert!(
         matches!(
@@ -960,11 +960,13 @@ async fn custom_fetcher_invalid_delegate_fails_the_install() {
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
     let metadata = registry_metadata();
 
-    let picker = scripted_picker(true, Ok(serde_json::json!({ "delegate": { "garbage": true } })));
+    let session =
+        scripted_session(true, Ok(serde_json::json!({ "delegate": { "garbage": true } })));
 
-    let err = run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
-        .await
-        .expect_err("a malformed delegate must fail the install");
+    let err =
+        run_snapshot_install_with_session(config, &metadata, &session, None, store_tmp.path())
+            .await
+            .expect_err("a malformed delegate must fail the install");
 
     assert!(
         matches!(
@@ -985,14 +987,15 @@ async fn custom_fetcher_invalid_delegate_fails_the_install() {
 async fn custom_fetcher_custom_typed_delegate_is_rejected() {
     let store_tmp = tempfile::tempdir().expect("tempdir");
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
-    let metadata = registry_metadata();
+    let metadata = custom_resolution_metadata("custom:cdn");
 
-    let picker =
-        scripted_picker(true, Ok(serde_json::json!({ "delegate": { "type": "custom:other" } })));
+    let session =
+        scripted_session(true, Ok(serde_json::json!({ "delegate": { "type": "custom:other" } })));
 
-    let err = run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
-        .await
-        .expect_err("a custom-typed delegate must fail the install");
+    let err =
+        run_snapshot_install_with_session(config, &metadata, &session, None, store_tmp.path())
+            .await
+            .expect_err("a custom-typed delegate must fail the install");
 
     assert!(
         matches!(
@@ -1016,7 +1019,7 @@ async fn custom_fetcher_hook_error_propagates() {
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
     let metadata = registry_metadata();
 
-    let picker = scripted_picker(
+    let session = scripted_session(
         true,
         Err(pnpm_hooks::HookError::Execution {
             pnpmfile: ".pnpmfile.cjs".to_string(),
@@ -1024,9 +1027,10 @@ async fn custom_fetcher_hook_error_propagates() {
         }),
     );
 
-    let err = run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
-        .await
-        .expect_err("a throwing fetcher must fail the install");
+    let err =
+        run_snapshot_install_with_session(config, &metadata, &session, None, store_tmp.path())
+            .await
+            .expect_err("a throwing fetcher must fail the install");
 
     assert!(
         matches!(
@@ -1151,7 +1155,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
         node_linker: pnpm_config::NodeLinker::Hoisted,
-        custom_fetcher_picker: None,
+        custom_fetcher_session: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -1214,7 +1218,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
         node_linker: pnpm_config::NodeLinker::Hoisted,
-        custom_fetcher_picker: None,
+        custom_fetcher_session: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -1265,13 +1269,15 @@ async fn custom_typed_resolution_installs_via_delegating_fetcher() {
         Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
     );
 
-    let picker =
-        scripted_picker(true, Ok(serde_json::json!({ "delegate": { "integrity": DUMMY_SHA512 } })));
+    let session = scripted_session(
+        true,
+        Ok(serde_json::json!({ "delegate": { "integrity": DUMMY_SHA512 } })),
+    );
 
-    let cas_paths = run_snapshot_install_with_picker(
+    let cas_paths = run_snapshot_install_with_session(
         config,
         &metadata,
-        &picker,
+        &session,
         Some(&mem_cache),
         store_tmp.path(),
     )
@@ -1293,11 +1299,12 @@ async fn custom_typed_resolution_without_a_claiming_fetcher_fails() {
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
     let metadata = custom_resolution_metadata("custom:cdn");
 
-    let picker = scripted_picker(false, Ok(serde_json::Value::Null));
+    let session = scripted_session(false, Ok(serde_json::Value::Null));
 
-    let err = run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
-        .await
-        .expect_err("an unclaimed custom resolution must fail the install");
+    let err =
+        run_snapshot_install_with_session(config, &metadata, &session, None, store_tmp.path())
+            .await
+            .expect_err("an unclaimed custom resolution must fail the install");
 
     assert!(
         matches!(
@@ -1331,9 +1338,9 @@ async fn a_delegated_directory_resolution_reports_mutable_source() {
     .expect("write the source manifest");
 
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
-    let metadata = registry_metadata();
+    let metadata = custom_resolution_metadata("custom:cdn");
 
-    let picker = scripted_picker(
+    let session = scripted_session(
         true,
         Ok(serde_json::json!({
             "delegate": { "type": "directory", "directory": "local-src" },
@@ -1341,7 +1348,7 @@ async fn a_delegated_directory_resolution_reports_mutable_source() {
     );
 
     let installed =
-        run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
+        run_snapshot_install_with_session(config, &metadata, &session, None, store_tmp.path())
             .await
             .expect("the delegated directory resolution must drive the fetch");
 
