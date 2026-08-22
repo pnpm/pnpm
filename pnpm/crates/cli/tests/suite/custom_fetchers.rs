@@ -179,6 +179,28 @@ fn a_configured_pnpmfile_that_is_missing_names_itself() {
     drop((metadata, original));
 }
 
+/// A configured path that names no module extension is checked with `.cjs`
+/// appended, the way pnpm's `pnpmFileExistsSync` does. Such a path is present,
+/// so whatever happens next is an execution failure — `require` resolves
+/// `.js`/`.json`/`.node` but not `.cjs` — and reporting it as a missing file
+/// would blame the setting for a pnpmfile that is right there on disk.
+#[test]
+fn an_extensionless_configured_pnpmfile_is_not_reported_as_missing() {
+    let CommandTempCwd { root: _root, workspace, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let (metadata, original) = mock_fetcher_package(&mut registry, None);
+    configure_fetcher_project(&workspace, &registry.url(), Some("hooks/custom"));
+    fs::create_dir_all(workspace.join("hooks")).expect("create hooks dir");
+    fs::write(workspace.join("hooks/custom.cjs"), "module.exports = { hooks: {} };\n")
+        .expect("write pnpmfile");
+
+    let output = pacquet_at(&workspace).with_arg("install").assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(!stderr.contains("ERR_PNPM_PNPMFILE_NOT_FOUND"), "stderr: {stderr}");
+    assert!(stderr.contains("Error during pnpmfile execution"), "stderr: {stderr}");
+    drop((metadata, original));
+}
+
 /// Only a configured path is required to exist. With the setting absent the
 /// loader discovers `.pnpmfile.mjs` / `.pnpmfile.cjs`, and finding neither means
 /// the project has no pnpmfile rather than a misconfiguration. An empty list is

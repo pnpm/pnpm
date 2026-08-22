@@ -63,10 +63,30 @@ pub fn validate_configured_pnpmfiles(
     configured: Option<&[PathBuf]>,
 ) -> Result<(), MissingPnpmfileError> {
     let Some(configured) = configured else { return Ok(()) };
-    match configured.iter().find(|path| !path.is_file()) {
+    match configured.iter().find(|path| !pnpmfile_exists(path)) {
         Some(missing) => Err(MissingPnpmfileError { path: missing.clone() }),
         None => Ok(()),
     }
+}
+
+/// Whether a configured path names a pnpmfile at all, mirroring pnpm's
+/// `pnpmFileExistsSync`. The question is only "is there something here", not
+/// "will Node load it": a path that exists but fails to evaluate — because the
+/// pnpmfile itself requires a missing module, say — is an execution failure and
+/// must keep reporting as one. Hence a bare existence test rather than
+/// [`Path::is_file`], and the `.cjs` suffix pnpm appends to a path that names
+/// neither module extension itself.
+fn pnpmfile_exists(path: &Path) -> bool {
+    let names_a_module = path
+        .extension()
+        .and_then(std::ffi::OsStr::to_str)
+        .is_some_and(|extension| matches!(extension, "cjs" | "mjs"));
+    if names_a_module {
+        return path.exists();
+    }
+    let mut with_suffix = path.as_os_str().to_owned();
+    with_suffix.push(".cjs");
+    Path::new(&with_suffix).exists()
 }
 
 /// Load every pnpmfile the project runs, in the order the `pnpmfile` setting
