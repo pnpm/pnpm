@@ -8,8 +8,9 @@ use node_semver::{Range, Version};
 use owo_colors::{OwoColorize, Stream};
 use pnpm_config::{AuditLevel as ConfigAuditLevel, Config};
 use pnpm_lockfile::{
-    EnvLockfile, ImporterDepVersion, Lockfile, PackageKey, PkgName, ResolvedDependencyMap,
-    SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, pick_registry_for_package,
+    EnvLockfile, ImporterDepVersion, Lockfile, PackageKey, PackageMetadata, PkgName,
+    ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, SpecifierAndResolution,
+    pick_registry_for_package,
 };
 use pnpm_network::{RetryOpts, encode_package_name, send_with_retry};
 use pnpm_package_manager::{ResolutionObserver, ResolvedPackageHint, Update};
@@ -51,8 +52,8 @@ pub(crate) use report::{
 };
 pub(crate) use request::{
     AuditGraph, AuditIndexRequest, DepClass, DepKind, Edge, GraphImporter, Include,
-    append_snapshot_edges, classify_graph, empty_snapshots, env_roots, importer_roots,
-    lockfile_to_audit_request, root_included,
+    append_snapshot_edges, classify_graph, empty_packages, empty_snapshots, env_roots,
+    importer_roots, lockfile_to_audit_request, root_included,
 };
 pub(crate) use version_ranges::{
     caret_range_for_patched, infer_patched_versions, satisfies_including_prerelease, satisfies_safe,
@@ -536,8 +537,10 @@ async fn correct_inferred_patched_versions(
 
 impl<'a> AuditGraph<'a> {
     fn main(lockfile: &'a Lockfile) -> Self {
-        let empty = empty_snapshots();
-        let snapshots = lockfile.snapshots.as_ref().unwrap_or(empty);
+        let empty_snaps = empty_snapshots();
+        let snapshots = lockfile.snapshots.as_ref().unwrap_or(empty_snaps);
+        let empty_pkgs = empty_packages();
+        let packages = lockfile.packages.as_ref().unwrap_or(empty_pkgs);
         let importers = lockfile
             .importers
             .iter()
@@ -546,7 +549,7 @@ impl<'a> AuditGraph<'a> {
                 roots: importer_roots(importer),
             })
             .collect();
-        Self { importers, snapshots }
+        Self { importers, snapshots, packages }
     }
 
     fn env(env_lockfile: &'a EnvLockfile) -> Self {
@@ -573,15 +576,21 @@ impl<'a> AuditGraph<'a> {
                 }
             }
         }
-        Self { importers, snapshots: &env_lockfile.snapshots }
+        Self { importers, snapshots: &env_lockfile.snapshots, packages: &env_lockfile.packages }
     }
 
     fn children(&self, key: &PackageKey, include_optional_edges: bool) -> Vec<Edge> {
         let Some(snapshot) = self.snapshots.get(key) else { return Vec::new() };
+        let peer_dependencies =
+            self.packages.get(&key.without_peer()).and_then(|pkg| pkg.peer_dependencies.as_ref());
         let mut children = Vec::new();
-        append_snapshot_edges(&mut children, snapshot.dependencies.as_ref());
+        append_snapshot_edges(&mut children, snapshot.dependencies.as_ref(), peer_dependencies);
         if include_optional_edges {
-            append_snapshot_edges(&mut children, snapshot.optional_dependencies.as_ref());
+            append_snapshot_edges(
+                &mut children,
+                snapshot.optional_dependencies.as_ref(),
+                peer_dependencies,
+            );
         }
         children
     }
