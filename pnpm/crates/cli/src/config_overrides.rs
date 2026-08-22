@@ -227,6 +227,9 @@ impl ConfigOverrides {
         for (scope, registry) in &self.registries {
             config.registries_by_scope.insert(scope.clone(), registry.clone());
             config.package_manager_bootstrap.registries.insert(scope.clone(), registry.clone());
+            config
+                .explicit_settings
+                .insert(format!("{scope}:registry"), serde_json::Value::String(registry.clone()));
         }
         if let Some(value) = self.deploy_all_files {
             config.deploy_all_files = value;
@@ -361,7 +364,8 @@ pub(crate) fn apply_registry_override(config: &mut Config, registry: &str) {
     config.registry.clone_from(&registry);
     config.registries_by_scope.insert("default".to_string(), registry.clone());
     config.package_manager_bootstrap.registry.clone_from(&registry);
-    config.package_manager_bootstrap.registries.insert("default".to_string(), registry);
+    config.package_manager_bootstrap.registries.insert("default".to_string(), registry.clone());
+    config.explicit_settings.insert("registry".to_string(), serde_json::Value::String(registry));
 }
 
 fn normalize_registry_url(registry: &str) -> String {

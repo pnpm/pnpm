@@ -216,3 +216,43 @@ test('selector weights whose sum is unsafe disable cached range reuse', () => {
 
   expect(result).toBeNull()
 })
+
+test('picks highest engine-compatible version when enginesFiltering is strict', () => {
+  const meta: PackageMeta = {
+    name: 'test-engine-pkg',
+    'dist-tags': { latest: '2.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'test-engine-pkg',
+        version: '1.0.0',
+        engines: { node: '>=18.0.0' },
+        dist: { tarball: '', shasum: '' },
+      },
+      '2.0.0': {
+        name: 'test-engine-pkg',
+        version: '2.0.0',
+        engines: { node: '>=24.0.0' },
+        dist: { tarball: '', shasum: '' },
+      },
+    },
+  }
+
+  expect(pickVersionByVersionRange({
+    meta,
+    versionRange: '^1.0.0 || ^2.0.0',
+    engineConstraint: { nodeVersion: '22.13.0', enginesFiltering: 'strict' },
+  })).toBe('1.0.0')
+
+  expect(pickVersionByVersionRange({
+    meta,
+    versionRange: '^1.0.0 || ^2.0.0',
+    engineConstraint: { nodeVersion: '22.13.0', enginesFiltering: 'none' },
+  })).toBe('2.0.0')
+
+  expect(pickVersionByVersionRange({
+    meta,
+    versionRange: '^2.0.0',
+    engineConstraint: { nodeVersion: '22.13.0', enginesFiltering: 'strict' },
+  })).toBeNull()
+})
+

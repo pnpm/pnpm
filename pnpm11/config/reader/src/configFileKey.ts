@@ -17,6 +17,7 @@ export const pnpmConfigFileKeys = [
   'enable-modules-dir',
   'enable-global-virtual-store',
   'exclude-links-from-lockfile',
+  'engines-filtering',
   'extend-node-path',
   'fetch-timeout',
   'fetch-warn-timeout-ms',

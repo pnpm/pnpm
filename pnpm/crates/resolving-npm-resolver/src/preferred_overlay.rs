@@ -126,6 +126,7 @@ fn held_back_preferred(
         version_range: &spec.fetch_spec,
         preferred_version_selectors: (!non_pin_selectors.is_empty()).then_some(&non_pin_selectors),
         published_by: opts.published_by,
+        engine_constraint: None,
     })?;
     (preferred != picked_version).then_some(preferred)
 }

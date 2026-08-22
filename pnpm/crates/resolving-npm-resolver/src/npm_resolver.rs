@@ -673,6 +673,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             update_checksums: opts.update_checksums,
             trust_policy: opts.trust_policy,
             blocked_versions: (!blocked_versions.is_empty()).then_some(&blocked_versions),
+            engine_constraint: None,
         };
         let pick_result = pick_package(ctx, opts.spec, &pick_opts)
             .await

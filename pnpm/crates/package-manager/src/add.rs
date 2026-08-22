@@ -1099,6 +1099,7 @@ async fn resolve_explicit_registry_spec(
         update_checksums: false,
         trust_policy: Some(config.trust_policy),
         blocked_versions: None,
+        engine_constraint: None,
     };
 
     let pick = pick_package(&ctx, &spec_parsed, &opts)

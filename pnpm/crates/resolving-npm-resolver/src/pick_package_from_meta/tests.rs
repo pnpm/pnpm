@@ -91,6 +91,7 @@ fn version_range_prefers_latest_when_in_range() {
         version_range: "^1.0.0",
         preferred_version_selectors: None,
         published_by: None,
+        engine_constraint: None,
     };
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.1.0"));
 }
@@ -107,6 +108,7 @@ fn version_range_falls_back_when_latest_out_of_range() {
         version_range: "^1.0.0",
         preferred_version_selectors: None,
         published_by: None,
+        engine_constraint: None,
     };
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.1.0"));
 }
@@ -123,6 +125,7 @@ fn version_range_lte_partial_allows_entire_major() {
         version_range: ">=24 <=27",
         preferred_version_selectors: None,
         published_by: None,
+        engine_constraint: None,
     };
 
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("27.5.1"));
@@ -142,6 +145,7 @@ fn version_range_star_uses_latest_even_when_prerelease() {
         version_range: "*",
         preferred_version_selectors: None,
         published_by: None,
+        engine_constraint: None,
     };
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.0.0-beta.1"));
 }
@@ -158,6 +162,7 @@ fn version_range_deprecated_max_triggers_non_deprecated_retry() {
         version_range: ">=1.0.0",
         preferred_version_selectors: None,
         published_by: None,
+        engine_constraint: None,
     };
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.1.0"));
 }
@@ -174,6 +179,7 @@ fn version_range_all_deprecated_returns_deprecated_max() {
         version_range: "^1.0.0",
         preferred_version_selectors: None,
         published_by: None,
+        engine_constraint: None,
     };
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.1.0"));
 }
@@ -190,6 +196,7 @@ fn lowest_version_picker_picks_min_in_range() {
         version_range: "^1.0.0",
         preferred_version_selectors: None,
         published_by: None,
+        engine_constraint: None,
     };
     assert_eq!(pick_lowest_version_by_version_range(&opts).as_deref(), Some("1.0.0"));
 }
@@ -206,6 +213,7 @@ fn lowest_version_star_picks_smallest() {
         version_range: "*",
         preferred_version_selectors: None,
         published_by: None,
+        engine_constraint: None,
     };
     assert_eq!(pick_lowest_version_by_version_range(&opts).as_deref(), Some("1.0.0"));
 }
@@ -224,6 +232,7 @@ fn preferred_versions_tag_selector_wins() {
         version_range: "^1.0.0",
         preferred_version_selectors: Some(&selectors),
         published_by: None,
+        engine_constraint: None,
     };
     // The preferred-versions branch lifts 1.0.0 into the high-weight
     // group; latest still wins the in-range short-circuit there
@@ -255,6 +264,7 @@ fn preferred_versions_higher_weight_wins() {
         version_range: "^1.0.0",
         preferred_version_selectors: Some(&selectors),
         published_by: None,
+        engine_constraint: None,
     };
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.0.0"));
 }
@@ -385,6 +395,7 @@ fn preferred_selector_pick_uses_canonical_packument_name() {
             preferred_version_selectors: Some(&selectors),
             published_by: None,
             published_by_exclude: None,
+            engine_constraint: None,
         },
         &pkg,
         &spec("@acme/private", "^1.0.0", RegistryPackageSpecType::Range),
@@ -483,6 +494,7 @@ fn pick_from_meta_published_by_missing_time_fails() {
             preferred_version_selectors: None,
             published_by: Some(cutoff),
             published_by_exclude: None,
+            engine_constraint: None,
         },
         &pkg,
         &spec("acme", "^1.0.0", RegistryPackageSpecType::Range),
@@ -502,6 +514,7 @@ fn pick_from_meta_published_by_modified_shortcut() {
             preferred_version_selectors: None,
             published_by: Some(cutoff),
             published_by_exclude: None,
+            engine_constraint: None,
         },
         &pkg,
         &spec("acme", "^1.0.0", RegistryPackageSpecType::Range),
@@ -521,6 +534,7 @@ fn pick_from_meta_modified_shortcut_inclusive_at_cutoff() {
             preferred_version_selectors: None,
             published_by: Some(cutoff),
             published_by_exclude: None,
+            engine_constraint: None,
         },
         &pkg,
         &spec("acme", "^1.0.0", RegistryPackageSpecType::Range),
@@ -548,6 +562,7 @@ fn pick_from_meta_published_by_filters_immature_versions() {
             preferred_version_selectors: None,
             published_by: Some(cutoff),
             published_by_exclude: None,
+            engine_constraint: None,
         },
         &pkg,
         &spec("acme", "*", RegistryPackageSpecType::Range),
@@ -571,6 +586,7 @@ fn pick_from_meta_published_by_bare_name_exclude_skips_filter() {
             preferred_version_selectors: None,
             published_by: Some(cutoff),
             published_by_exclude: Some(&policy),
+            engine_constraint: None,
         },
         &pkg,
         &spec("acme", "*", RegistryPackageSpecType::Range),
@@ -594,6 +610,7 @@ fn pick_from_meta_published_by_trusted_version_passes_filter() {
             preferred_version_selectors: None,
             published_by: Some(cutoff),
             published_by_exclude: Some(&policy),
+            engine_constraint: None,
         },
         &pkg,
         &spec("acme", "*", RegistryPackageSpecType::Range),
@@ -744,6 +761,7 @@ fn lowest_picker_with_published_by_drops_immature_min() {
             preferred_version_selectors: None,
             published_by: Some(cutoff),
             published_by_exclude: None,
+            engine_constraint: None,
         },
         &pkg,
         &spec("acme", "*", RegistryPackageSpecType::Range),
@@ -853,4 +871,69 @@ fn filter_tag_rewrite_reads_deprecation_from_raw_fragments() {
         Some("2.1.0"),
         "deprecation must be read from the raw fragment, not via hydration",
     );
+}
+
+fn make_package_with_engines(
+    name: &str,
+    versions: &[(&str, Option<&str>, Option<&str>)],
+    dist_tags: &[(&str, &str)],
+) -> Package {
+    let versions_map = versions
+        .iter()
+        .map(|(version, deprecated, node_engine)| {
+            let mut pkg_ver = make_pkg_version(name, version, *deprecated);
+            if let Some(engine) = node_engine {
+                pkg_ver.other.insert("engines".to_string(), serde_json::json!({ "node": engine }));
+            }
+            (version.to_string(), pkg_ver)
+        })
+        .collect();
+    let dist_tags_map =
+        dist_tags.iter().map(|(tag, version)| (tag.to_string(), version.to_string())).collect();
+    Package {
+        name: name.to_string(),
+        dist_tags: dist_tags_map,
+        versions: versions_map,
+        time: None,
+        modified: None,
+        etag: None,
+        homepage: None,
+        mutex: std::sync::Arc::default(),
+        derived: DerivedPackuments::default(),
+    }
+}
+
+#[test]
+fn engine_filtering_picks_compatible_version() {
+    use super::{EngineConstraint, EnginesFiltering};
+
+    let pkg = make_package_with_engines(
+        "acme",
+        &[("1.0.0", None, Some(">=18.0.0")), ("2.0.0", None, Some(">=24.0.0"))],
+        &[("latest", "2.0.0")],
+    );
+
+    let opts_strict = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "^1.0.0 || ^2.0.0",
+        preferred_version_selectors: None,
+        published_by: None,
+        engine_constraint: Some(EngineConstraint {
+            node_version: Some("22.13.0"),
+            engines_filtering: EnginesFiltering::Strict,
+        }),
+    };
+    assert_eq!(pick_version_by_version_range(&opts_strict).as_deref(), Some("1.0.0"));
+
+    let opts_none = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "^1.0.0 || ^2.0.0",
+        preferred_version_selectors: None,
+        published_by: None,
+        engine_constraint: Some(EngineConstraint {
+            node_version: Some("22.13.0"),
+            engines_filtering: EnginesFiltering::None,
+        }),
+    };
+    assert_eq!(pick_version_by_version_range(&opts_none).as_deref(), Some("2.0.0"));
 }

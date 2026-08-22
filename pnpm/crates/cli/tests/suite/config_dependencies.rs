@@ -114,6 +114,37 @@ fn update_config_hook_mutates_config_before_install() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn update_config_hook_cli_registry_option_wins() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let registry_url = mock_instance.url();
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) {\n  config.registries = { default: 'http://127.0.0.1:1/' };\n  return config;\n} } }",
+    )
+    .expect("write .pnpmfile.cjs");
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .with_arg("--registry")
+        .with_arg(registry_url.as_str())
+        .assert()
+        .success();
+
+    let dep = workspace.join("node_modules/@pnpm.e2e/foo");
+    assert!(dep.join("package.json").exists(), "dependency is installed using CLI registry option");
+
+    drop((root, mock_instance));
+}
+
 /// `pacquet add --config <pkg>@<version>` resolves and installs the
 /// package as a configurational dependency, writing the clean specifier
 /// to `pnpm-workspace.yaml` and linking it under `.pnpm-config`.

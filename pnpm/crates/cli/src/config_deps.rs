@@ -488,8 +488,8 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         .into_diagnostic()
         .wrap_err("reading catalogs for updateConfig hooks")?;
     if let Some(object) = input.as_object_mut() {
-        if let Some(store_dir) = config.explicit_settings.get("storeDir") {
-            object.insert("storeDir".to_string(), store_dir.clone());
+        for (key, val) in &config.explicit_settings {
+            object.insert(key.clone(), val.clone());
         }
         object.insert(
             "catalogs".to_string(),
@@ -608,7 +608,56 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
             global_virtual_store_dir_explicit,
         );
     }
+    reapply_explicit_settings(config);
     Ok(())
+}
+
+fn reapply_explicit_settings(config: &mut Config) {
+    if let Some(registry_val) = config.explicit_settings.get("registry").and_then(Value::as_str) {
+        let normalized = if registry_val.ends_with('/') {
+            registry_val.to_string()
+        } else {
+            format!("{registry_val}/")
+        };
+        config.registry.clone_from(&normalized);
+        config.registries_by_scope.insert("default".to_string(), normalized.clone());
+        config.package_manager_bootstrap.registry.clone_from(&normalized);
+        config.package_manager_bootstrap.registries.insert("default".to_string(), normalized);
+    }
+    if let Some(registries_obj) =
+        config.explicit_settings.get("registries").and_then(Value::as_object)
+    {
+        for (key, val) in registries_obj {
+            if let Some(registry_val) = val.as_str() {
+                let normalized = if registry_val.ends_with('/') {
+                    registry_val.to_string()
+                } else {
+                    format!("{registry_val}/")
+                };
+                if key == "default" {
+                    config.registry.clone_from(&normalized);
+                    config.package_manager_bootstrap.registry.clone_from(&normalized);
+                }
+                config.registries_by_scope.insert(key.clone(), normalized.clone());
+                config.package_manager_bootstrap.registries.insert(key.clone(), normalized);
+            }
+        }
+    }
+    for (key, val) in &config.explicit_settings {
+        if key.starts_with('@')
+            && key.ends_with(":registry")
+            && let Some(registry_val) = val.as_str()
+        {
+            let scope = key[..key.len() - ":registry".len()].to_string();
+            let normalized = if registry_val.ends_with('/') {
+                registry_val.to_string()
+            } else {
+                format!("{registry_val}/")
+            };
+            config.registries_by_scope.insert(scope.clone(), normalized.clone());
+            config.package_manager_bootstrap.registries.insert(scope, normalized);
+        }
+    }
 }
 
 /// The keys whose value the hooks changed between the serialized input

@@ -115,9 +115,61 @@ export async function installConfigDepsAndLoadHooks (
         const updateConfigResult = updateConfig(config)
         config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop
       }
+      reapplyExplicitCliOptions(config, context)
     }
   }
   return { config, context }
+}
+
+function reapplyExplicitCliOptions (config: Config, context: ConfigContext): void {
+  const cliOptions = context.cliOptions
+  if (!cliOptions) return
+  if (cliOptions.registry && typeof cliOptions.registry === 'string') {
+    const normalized = normalizeRegistryUrl(cliOptions.registry)
+    config.registry = normalized
+    if (config.registriesByScope) {
+      config.registriesByScope.default = normalized
+    }
+    if (config.packageManagerRegistries) {
+      config.packageManagerRegistries.default = normalized
+    }
+    if ((config as Record<string, any>).registries?.default) { // eslint-disable-line @typescript-eslint/no-explicit-any
+      (config as Record<string, any>).registries.default = normalized // eslint-disable-line @typescript-eslint/no-explicit-any
+    }
+  }
+  for (const [key, value] of Object.entries(cliOptions)) {
+    if (key.startsWith('@') && key.endsWith(':registry') && typeof value === 'string') {
+      const scope = key.slice(0, -':registry'.length)
+      const normalized = normalizeRegistryUrl(value)
+      if (config.registriesByScope) {
+        config.registriesByScope[scope] = normalized
+      }
+      if (config.packageManagerRegistries) {
+        config.packageManagerRegistries[scope] = normalized
+      }
+      if ((config as Record<string, any>).registries) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        (config as Record<string, any>).registries[scope] = normalized // eslint-disable-line @typescript-eslint/no-explicit-any
+      }
+    }
+  }
+  if (context.explicitlySetKeys) {
+    for (const key of context.explicitlySetKeys) {
+      if (key === 'registry') continue
+      const camelKey = key.replace(/-([a-z])/g, (_, g: string) => g.toUpperCase())
+      const kebabKey = key.replace(/([A-Z])/g, '-$1').toLowerCase()
+      const val = cliOptions[key] ?? cliOptions[camelKey] ?? cliOptions[kebabKey]
+      if (val !== undefined) {
+        (config as unknown as Record<string, unknown>)[key] = val
+        if (key !== camelKey) {
+          (config as unknown as Record<string, unknown>)[camelKey] = val
+        }
+      }
+    }
+  }
+}
+
+function normalizeRegistryUrl (url: string): string {
+  return url.endsWith('/') ? url : `${url}/`
 }
 
 export function * calcPnpmfilePathsOfPluginDeps (configModulesDir: string, configDependencies: ConfigDependencies): Generator<string> {
