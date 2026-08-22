@@ -158,6 +158,21 @@ test('keep entries that fail to parse', async () => {
   })
 })
 
+test('keep an empty list untouched', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    trustPolicyExclude: [],
+  })
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({}),
+    trustPolicyExcludePrune: true,
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    trustPolicyExclude: [],
+  })
+})
+
 test('prune both exclude lists in one write when both settings are on', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)

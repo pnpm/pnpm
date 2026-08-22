@@ -1471,6 +1471,15 @@ mod minimum_release_age_exclude_prune {
         let out = run_age_cleanup(Some(original), Some(&resolved(&[])));
         assert_eq!(out.as_deref(), Some(original));
     }
+
+    /// An empty list has nothing to prune; removing the block would diverge
+    /// from the TypeScript implementation, which leaves it untouched.
+    #[test]
+    fn keeps_an_empty_list_verbatim() {
+        let original = "minimumReleaseAgeExclude: []\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[])));
+        assert_eq!(out.as_deref(), Some(original));
+    }
 }
 
 /// The `trustPolicyExcludePrune` pass: entries of `trustPolicyExclude`
@@ -1581,6 +1590,15 @@ mod trust_policy_exclude_prune {
             },
         );
         assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude:\n  - foo@1.0.0\n"));
+    }
+
+    /// An empty list has nothing to prune; removing the block would diverge
+    /// from the TypeScript implementation, which leaves it untouched.
+    #[test]
+    fn keeps_an_empty_list_verbatim() {
+        let original = "trustPolicyExclude: []\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[])));
+        assert_eq!(out.as_deref(), Some(original));
     }
 }
 

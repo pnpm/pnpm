@@ -467,6 +467,9 @@ pub(crate) fn prune_minimum_release_age_excludes(
     let Some(current) = manifest.minimum_release_age_exclude.as_deref() else {
         return false;
     };
+    if current.is_empty() {
+        return false;
+    }
     let pruned =
         pnpm_config::version_policy::drop_unresolved_package_version_specs(current, resolved);
     set_minimum_release_age_excludes(manifest, &pruned)
@@ -482,6 +485,9 @@ pub(crate) fn prune_trust_policy_excludes(
     let Some(current) = manifest.trust_policy_exclude.as_deref() else {
         return false;
     };
+    if current.is_empty() {
+        return false;
+    }
     let pruned =
         pnpm_config::version_policy::drop_unresolved_package_version_specs(current, resolved);
     set_trust_policy_excludes(manifest, &pruned)
