@@ -37,7 +37,7 @@ use pnpm_reporter::{
     LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, PnpmLog, Reporter,
 };
 use pnpm_resolving_default_resolver::DefaultResolver;
-use pnpm_resolving_deps_resolver::{UpdateDepth, real_package_name_of};
+use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets, VersionLine, real_package_name_of};
 use pnpm_resolving_npm_resolver::{
     DeclaredSpecifiers, InMemoryPackageMetaCache, NpmResolver, calc_specifier_for_workspace_dep,
     merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
@@ -774,7 +774,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
     let mut catalog_ctx = catalogs_seed
         .map(|catalogs| read_catalog_ctx_with_catalogs(manifest, catalogs.clone()))
         .transpose()?;
-    let mut drop_names = HashSet::new();
+    let mut drop_targets = UpdateTargets::default();
     let mut rewrites = Vec::new();
     // A compatible bump cannot name its version before the resolve, so the
     // matched names are collected here and the install reports back what it
@@ -816,10 +816,10 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 config.save_workspace_protocol,
                 range_spec_style,
             );
-            drop_names.insert(target.name.clone());
+            drop_targets.insert(target.name.clone(), None);
             rewrites.push((target.name, target.group, specifier));
         }
-        UpdateSeedPolicy::DropOnly { names: drop_names, max_depth }
+        UpdateSeedPolicy::DropOnly { targets: drop_targets, max_depth }
     } else if selectors.is_empty() {
         // `updateConfig.ignoreDependencies` applies only when no selector was
         // supplied and remains scoped by the included direct groups.
@@ -846,24 +846,24 @@ async fn prepare_manifest<Reporter: self::Reporter>(
             if save && !latest {
                 bump_targets.insert(name.clone());
             }
-            drop_names.insert(name.clone());
+            drop_targets.insert(name.clone(), None);
         }
         if updates_all_groups && ignore_patterns.is_empty() {
             // A bare, ungated update re-resolves the whole graph.
             UpdateSeedPolicy::DropAll { max_depth }
         } else {
             if updates_all_groups
-                && !(latest && drop_names.is_empty())
+                && !(latest && drop_targets.is_empty())
                 && let Some(snapshots) = lockfile.and_then(|lockfile| lockfile.snapshots.as_ref())
             {
                 for key in snapshots.keys() {
                     let name = key.name.to_string();
                     if !is_ignored(&name) {
-                        drop_names.insert(name);
+                        drop_targets.insert(name, None);
                     }
                 }
             }
-            UpdateSeedPolicy::DropOnly { names: drop_names, max_depth }
+            UpdateSeedPolicy::DropOnly { targets: drop_targets, max_depth }
         }
     } else if use_name_matcher {
         let patterns =
@@ -874,7 +874,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 if save {
                     bump_targets.insert(name.clone());
                 }
-                drop_names.insert(name.clone());
+                drop_targets.insert(name.clone(), None);
             }
         }
         // Lockfile names keep transitive-only matches in the update scope.
@@ -882,15 +882,16 @@ async fn prepare_manifest<Reporter: self::Reporter>(
             for key in snapshots.keys() {
                 let name = key.name.to_string();
                 if matcher.matches(&name) {
-                    drop_names.insert(name);
+                    drop_targets.insert(name, None);
                 }
             }
         }
-        UpdateSeedPolicy::DropOnly { names: drop_names, max_depth }
+        UpdateSeedPolicy::DropOnly { targets: drop_targets, max_depth }
     } else {
         let patterns =
             selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
         let matcher = create_matcher(&patterns);
+        let expanded = expand_update_selectors(&selectors);
         let matched_direct =
             direct.iter().filter(|(name, _, _)| matcher.matches(name)).cloned().collect::<Vec<_>>();
         if matched_direct.is_empty() {
@@ -904,10 +905,13 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 return Ok(None);
             }
             if let Some(snapshots) = lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()) {
+                let target_matcher = create_matcher(
+                    &expanded.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>(),
+                );
                 for key in snapshots.keys() {
                     let name = key.name.to_string();
-                    if matcher.matches(&name) {
-                        drop_names.insert(name);
+                    if target_matcher.matches(&name) {
+                        insert_update_target(&mut drop_targets, &expanded, &name);
                     }
                 }
             }
@@ -994,13 +998,17 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                         requested
                     }
                 };
-                drop_names.insert(update_target_name(&selectors, name));
+                insert_update_target(
+                    &mut drop_targets,
+                    &expanded,
+                    &update_target_name(&selectors, name),
+                );
                 if let Some(specifier) = rewrite {
                     rewrites.push((name.clone(), *group, specifier));
                 }
             }
         }
-        UpdateSeedPolicy::DropOnly { names: drop_names, max_depth }
+        UpdateSeedPolicy::DropOnly { targets: drop_targets, max_depth }
     };
 
     // Reconcile only manifest rewrites. Existing `catalog:` references retain
@@ -1159,8 +1167,8 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
             UpdateSeedPolicy::DropAll { .. } => {
                 seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropAll);
             }
-            UpdateSeedPolicy::DropOnly { names, .. } => {
-                seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropOnly(names));
+            UpdateSeedPolicy::DropOnly { targets, .. } => {
+                seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropOnly(targets));
             }
             UpdateSeedPolicy::ByImporter { .. } => {
                 unreachable!("per-manifest preparation never produces importer policies")
@@ -1412,6 +1420,53 @@ fn judge_against_kept_range(requested: &str, kept: &str) -> KeptRangeVerdict {
         return KeptRangeVerdict::Undecided;
     };
     if requested.satisfies(&kept) { KeptRangeVerdict::Admitted } else { KeptRangeVerdict::Excluded }
+}
+
+/// The selectors an update selector stands for. An `npm:` selector
+/// contributes a second one for the aliased package, because that -- not
+/// the alias -- is the name the resolver resolves the edge under; it
+/// carries the aliased spec's own version so the expansion scopes the same
+/// version line the user asked for.
+fn expand_update_selectors(selectors: &[ParsedSelector]) -> Vec<ParsedSelector> {
+    let mut expanded = Vec::with_capacity(selectors.len());
+    for selector in selectors {
+        expanded.push(ParsedSelector {
+            pattern: selector.pattern.clone(),
+            version: selector.version.clone(),
+        });
+        let Some(aliased) =
+            selector.version.as_deref().and_then(|version| version.strip_prefix("npm:"))
+        else {
+            continue;
+        };
+        let alias = parse_update_param(aliased);
+        let pattern = if selector.pattern.starts_with('!') {
+            format!("!{}", alias.pattern)
+        } else {
+            alias.pattern
+        };
+        expanded.push(ParsedSelector { pattern, version: alias.version });
+    }
+    expanded
+}
+
+/// Record `name` as an update target once per selector that claims it: a
+/// selector pinning an exact version scopes the target to that version's
+/// line, while a bare or ranged one widens it to every version. Negated
+/// selectors exclude names, never versions, so they claim nothing here --
+/// the matcher that found `name` has already applied them.
+fn insert_update_target(targets: &mut UpdateTargets, selectors: &[ParsedSelector], name: &str) {
+    let mut claimed = false;
+    for selector in selectors.iter().filter(|selector| !selector.pattern.starts_with('!')) {
+        if !matcher_one(&selector.pattern).matches(name) {
+            continue;
+        }
+        claimed = true;
+        targets.insert(name.to_string(), selector.version.as_deref().and_then(VersionLine::parse));
+    }
+    if !claimed {
+        targets.insert(name.to_string(), None);
+    }
 }
 
 /// The name an update target for `matched` is keyed by. A manifest keys a

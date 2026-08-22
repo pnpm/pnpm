@@ -368,9 +368,7 @@ async fn importer_scoped_update_drop_only_is_order_independent() {
     for order in [["selected", "unselected"], ["unselected", "selected"]] {
         let direct = resolve_importer_scoped_update_direct(
             order,
-            crate::UpdateReuseScope::Except(std::collections::HashSet::from_iter([
-                "pkg".to_string()
-            ])),
+            crate::UpdateReuseScope::Except(std::iter::once(("pkg".to_string(), None)).collect()),
         )
         .await;
         assert_eq!(direct["selected"], "pkg@100.1.0");
@@ -440,9 +438,7 @@ async fn importer_scoped_update_route_owns_shared_parent_children_in_either_orde
         )));
         opts.update_reuse_scopes_by_importer = BTreeMap::from([(
             "selected".to_string(),
-            crate::UpdateReuseScope::Except(std::collections::HashSet::from_iter([
-                "pkg".to_string()
-            ])),
+            crate::UpdateReuseScope::Except(std::iter::once(("pkg".to_string(), None)).collect()),
         )]);
         let result =
             resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {

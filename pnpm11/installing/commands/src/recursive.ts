@@ -34,8 +34,11 @@ import {
 import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
-import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
-import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+import {
+  DIRECT_DEP_SELECTOR_WEIGHT,
+  type PreferredVersions,
+  type ResolutionVerifier,
+} from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { StoreController } from '@pnpm/store.controller'
 import type {
@@ -55,6 +58,7 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writ
 import { isSubdir } from 'is-subdir'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
+import getVersionSelectorType from 'version-selector-type'
 
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
@@ -245,6 +249,9 @@ export async function recursive (
   } else {
     updateMatch = null
   }
+  const preferredVersions = cmdFullName === 'update'
+    ? createPreferredVersionsFromPinnedUpdateSpecs(params.flatMap(expandUpdateSelectorsForMatching), opts.preferredVersions)
+    : opts.preferredVersions
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
     let importers = getImporters(opts)
@@ -349,6 +356,7 @@ export async function recursive (
       dryRunResult,
     } = await mutateModules(mutatedImporters, {
       ...installOpts,
+      preferredVersions,
       storeController: store.ctrl,
       resolutionVerifiers: store.resolutionVerifiers,
     })
@@ -426,7 +434,7 @@ export async function recursive (
           & OptionsFromRootManifest
           & Project
           & Pick<Config, 'bin'>
-          & { rangeSpecStyle: RangeSpecStyle }
+          & { preferredVersions?: PreferredVersions, rangeSpecStyle: RangeSpecStyle }
 
         interface ActionResult {
           updatedCatalogs?: Catalogs
@@ -484,6 +492,7 @@ export async function recursive (
               savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
             }),
             configByUri: installOpts.configByUri,
+            preferredVersions,
             storeController: store.ctrl,
             resolutionVerifiers: store.resolutionVerifiers,
           }
@@ -598,6 +607,91 @@ export function matchDependencies (
   return matchedDeps
 }
 
+/**
+ * The update-target predicate of `pnpm update <selector>...`. The version part
+ * of an exact selector narrows which resolved copies of a matched package are
+ * update targets: `foo@1.2.3` targets only the version line that can resolve to
+ * `1.2.3` — the same major, or the same minor when the request is on `0.x`,
+ * where the minor is the compatibility boundary. A package the workspace
+ * depends on twice therefore keeps the copies on its other lines untouched.
+ *
+ * A selector that carries a range, a tag, or no version at all targets by name
+ * alone, and so does every call made before the edge's resolved version is
+ * known. Negated selectors exclude names, never versions.
+ */
+export function createUpdateMatching (params: string[]): UpdateMatchingFunction {
+  const parsed = params.map(parseUpdateParam)
+  const matchesAnySelector = createMatcherWithIndex(parsed.map(({ pattern }) => pattern))
+  const versionScopes = parsed
+    .filter(({ pattern }) => pattern[0] !== '!')
+    .map(({ pattern, versionSpec }) => ({
+      matchesPattern: createMatcherWithIndex([pattern]),
+      requestedLine: versionSpec != null ? parseVersionLine(versionSpec) : undefined,
+    }))
+  return (pkgName: string, version?: string) => {
+    if (matchesAnySelector(pkgName) === -1) return false
+    if (versionScopes.length === 0) return true
+    for (const { matchesPattern, requestedLine } of versionScopes) {
+      if (matchesPattern(pkgName) === -1) continue
+      if (requestedLine == null || version == null) return true
+      const currentLine = parseVersionLine(version)
+      if (currentLine == null || currentLine.major !== requestedLine.major) continue
+      if (requestedLine.major !== 0 || currentLine.minor === requestedLine.minor) return true
+    }
+    return false
+  }
+}
+
+/**
+ * The version a selector names, normalized, or `undefined` for a range, a tag
+ * or an `npm:` alias spec — none of which name a single version.
+ */
+function parseExactVersion (versionSpec: string): string | undefined {
+  const selector = getVersionSelectorType(versionSpec)
+  return selector?.type === 'version' ? selector.normalized : undefined
+}
+
+/** The major and minor of the version a selector names, if it names one. */
+function parseVersionLine (versionSpec: string): { major: number, minor: number } | undefined {
+  const version = parseExactVersion(versionSpec)
+  if (version == null) return undefined
+  const [major, minor] = version.split('.')
+  return { major: Number(major), minor: Number(minor) }
+}
+
+/**
+ * A selector that pins an exact version also steers the resolver towards it:
+ * the pinned version, plus a cap so a dependent whose range excludes it still
+ * stays below it. Both weigh just above `DIRECT_DEP_SELECTOR_WEIGHT`, so they
+ * outrank the ranges the manifests declare but stay under the pins the
+ * lockfile seeds — an edge outside the update keeps its locked version, while
+ * an edge the update targets has had those pins stripped by then and follows
+ * the request. Negated and glob patterns name no single package to prefer a
+ * version for.
+ */
+export function createPreferredVersionsFromPinnedUpdateSpecs (
+  params: string[],
+  preferredVersions?: PreferredVersions
+): PreferredVersions | undefined {
+  const pinned: Array<{ pattern: string, version: string }> = []
+  for (const param of params) {
+    const { pattern, versionSpec } = parseUpdateParam(param)
+    if (versionSpec == null || pattern[0] === '!' || pattern.includes('*')) continue
+    const version = parseExactVersion(versionSpec)
+    if (version != null) pinned.push({ pattern, version })
+  }
+  if (pinned.length === 0) return preferredVersions
+  // A null prototype keeps a package named `__proto__` out of the prototype chain.
+  const mergedPreferredVersions: PreferredVersions = Object.assign(Object.create(null), preferredVersions)
+  for (const { pattern, version } of pinned) {
+    mergedPreferredVersions[pattern] = Object.assign(Object.create(null), mergedPreferredVersions[pattern], {
+      [version]: { selectorType: 'version', weight: DIRECT_DEP_SELECTOR_WEIGHT + 1 },
+      [`<=${version}`]: { selectorType: 'range', weight: DIRECT_DEP_SELECTOR_WEIGHT + 1 },
+    })
+  }
+  return mergedPreferredVersions
+}
+
 export type UpdateDepsMatcher = (input: string) => string | null
 
 export function createMatcher (params: string[]): UpdateDepsMatcher {
@@ -628,6 +722,21 @@ export function parseUpdateParam (param: string): { pattern: string, versionSpec
     pattern: param.slice(0, atIndex),
     versionSpec: param.slice(atIndex + 1),
   }
+}
+
+/**
+ * The selectors an update selector stands for. An `npm:` selector contributes
+ * a second one for the aliased package, because that — not the alias — is the
+ * name the resolver resolves the edge under; it carries the aliased spec's own
+ * version so the expansion scopes the same version line the user asked for.
+ */
+export function expandUpdateSelectorsForMatching (selector: string): string[] {
+  const { pattern, versionSpec } = parseUpdateParam(selector)
+  if (versionSpec?.startsWith('npm:') !== true) return [selector]
+  const aliasSelector = parseUpdateParam(versionSpec.slice('npm:'.length))
+  const aliasPattern = pattern[0] === '!' ? `!${aliasSelector.pattern}` : aliasSelector.pattern
+  const aliasSpec = aliasSelector.versionSpec != null ? `${aliasPattern}@${aliasSelector.versionSpec}` : aliasPattern
+  return [selector, aliasSpec]
 }
 
 export function makeIgnorePatterns (ignoredDependencies: string[]): string[] {
