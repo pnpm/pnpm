@@ -101,6 +101,69 @@ test('filterPeerDependencyIssues() allow any version', () => {
   })
 })
 
+test('filterPeerDependencyIssues() ignoreMissing also suppresses bad (version-mismatch) peer issues', () => {
+  expect(filterPeerDependencyIssues({
+    '.': {
+      missing: {},
+      bad: {
+        bbb: [
+          {
+            parents: [
+              {
+                name: 'xxx',
+                version: '1.0.0',
+              }],
+
+            foundVersion: '2.0.0',
+            resolvedFrom: [],
+            optional: false,
+            wantedRange: '^1.0.0',
+          }],
+
+        ccc: [
+          {
+            parents: [
+              {
+                name: 'yyy',
+                version: '1.0.0',
+              }],
+
+            foundVersion: '2.0.0',
+            resolvedFrom: [],
+            optional: false,
+            wantedRange: '^1.0.0',
+          }],
+
+      },
+      conflicts: [],
+      intersections: {},
+    },
+  }, {
+    ignoreMissing: ['bbb'],
+  })).toStrictEqual({
+    '.': {
+      bad: {
+        ccc: [
+          {
+            parents: [
+              {
+                name: 'yyy',
+                version: '1.0.0',
+              }],
+
+            foundVersion: '2.0.0',
+            resolvedFrom: [],
+            optional: false,
+            wantedRange: '^1.0.0',
+          }],
+      },
+      conflicts: [],
+      intersections: {},
+      missing: {},
+    },
+  })
+})
+
 test('filterPeerDependencyIssues() allowed versions', () => {
   expect(filterPeerDependencyIssues({
     '.': {

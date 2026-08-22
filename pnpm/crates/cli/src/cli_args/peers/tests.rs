@@ -286,6 +286,48 @@ fn test_filter_peer_issues_allow_any() {
 }
 
 #[test]
+fn test_filter_peer_issues_ignore_missing_also_suppresses_bad() {
+    let mut issues: IssuesByProjects = BTreeMap::new();
+    let mut peer = PeerIssues {
+        bad: BTreeMap::new(),
+        missing: BTreeMap::new(),
+        conflicts: Vec::new(),
+        intersections: BTreeMap::new(),
+    };
+    peer.bad.insert(
+        "react".to_string(),
+        vec![BadPeerIssue {
+            parents: vec![ParentPkg { name: "foo".to_string(), version: "1.0.0".to_string() }],
+            optional: false,
+            wanted_range: "^18.0.0".to_string(),
+            found_version: "17.0.0".to_string(),
+            resolved_from: Vec::new(),
+        }],
+    );
+    peer.bad.insert(
+        "vue".to_string(),
+        vec![BadPeerIssue {
+            parents: vec![ParentPkg { name: "bar".to_string(), version: "1.0.0".to_string() }],
+            optional: false,
+            wanted_range: "^3.0.0".to_string(),
+            found_version: "2.0.0".to_string(),
+            resolved_from: Vec::new(),
+        }],
+    );
+    issues.insert("project".to_string(), peer);
+    let filtered = filter_peer_issues(
+        issues,
+        &PeerDependencyRules {
+            ignore_missing: Some(vec!["react".to_string()]),
+            allow_any: None,
+            allowed_versions: None,
+        },
+    );
+    assert!(!filtered["project"].bad.contains_key("react"));
+    assert!(filtered["project"].bad.contains_key("vue"));
+}
+
+#[test]
 fn test_filter_peer_issues_allowed_versions() {
     let mut issues: IssuesByProjects = BTreeMap::new();
     let mut peer = PeerIssues {

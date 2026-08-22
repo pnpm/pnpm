@@ -164,7 +164,7 @@ function filterPeerDependencyIssues (
     }
 
     for (const [peerName, issues] of Object.entries(bad)) {
-      if (allowAnyMatcher(peerName)) continue
+      if (allowAnyMatcher(peerName) || ignoreMissingMatcher(peerName)) continue
       const remaining = issues.filter(
         (issue) => {
           if (allowedVersionsMatchAll[peerName]?.some(
