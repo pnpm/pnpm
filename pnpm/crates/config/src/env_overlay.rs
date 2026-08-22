@@ -142,6 +142,7 @@ impl WorkspaceSettings {
         tri_array_field!(public_hoist_pattern, "PUBLIC_HOIST_PATTERN");
         json_field!(shamefully_hoist, "SHAMEFULLY_HOIST");
         string_field!(store_dir, "STORE_DIR");
+        string_field!(state_dir, "STATE_DIR");
         string_field!(modules_dir, "MODULES_DIR");
         enum_field!(node_linker, "NODE_LINKER", NodeLinker);
         json_field!(node_experimental_package_map, "NODE_EXPERIMENTAL_PACKAGE_MAP");

@@ -913,6 +913,11 @@ pub struct Config {
     #[default(_code = "default_store_dir::<Host>()")]
     pub store_dir: StoreDir,
 
+    /// The machine-local directory in which pnpm persists state across
+    /// invocations. A project's manifest cannot set this path.
+    #[default(_code = "default_state_dir::<Host>().unwrap_or_default()")]
+    pub state_dir: PathBuf,
+
     /// The directory in which dependencies will be installed (instead of `node_modules`).
     #[default(_code = "default_modules_dir()")]
     pub modules_dir: PathBuf,
@@ -2967,6 +2972,8 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
+        self.state_dir = default_state_dir::<Sys>().unwrap_or_default();
+
         // Re-anchor the path-valued defaults (`modules_dir`,
         // `virtual_store_dir`) onto the caller-supplied starting directory.
         // SmartDefault populates them via [`defaults::default_modules_dir`] /
@@ -3279,6 +3286,7 @@ impl Config {
                 // manifest must not be able to turn it off; trusted global
                 // config and PNPM_CONFIG_CI are applied in their own layers.
                 settings.ci = None;
+                settings.state_dir = None;
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
                 // counts as "explicitly set" when the workspace yaml

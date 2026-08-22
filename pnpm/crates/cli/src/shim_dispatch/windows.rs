@@ -1,7 +1,7 @@
 //! The native `node.exe` dispatcher: argv0-detected, with the managed
 //! executable recorded in a sibling target file.
 
-use super::{dispatch_target, global_shims_setting};
+use super::{dispatch_target, trusted_shim_settings};
 use pnpm_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
 use std::{
     ffi::OsString,
@@ -94,5 +94,13 @@ pub(super) fn try_windows_node_dispatch(argv: &[OsString]) -> Option<i32> {
         );
         return Some(1);
     }
-    Some(dispatch_target("node", None, &global_target, &argv[1..], &global_shims_setting()))
+    let settings = trusted_shim_settings();
+    Some(dispatch_target(
+        "node",
+        None,
+        &global_target,
+        &argv[1..],
+        &settings.shims,
+        &settings.state_dir,
+    ))
 }

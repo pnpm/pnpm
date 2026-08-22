@@ -109,6 +109,17 @@ fn store_dir_accepts_an_explicit_empty_value() {
 }
 
 #[test]
+fn state_dir_is_global_and_parses_on_either_side_of_the_subcommand() {
+    for argv in [
+        ["pacquet", "--state-dir", "custom-state", "install"].as_slice(),
+        ["pacquet", "install", "--state-dir=custom-state"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses global --state-dir");
+        assert_eq!(parsed.state_dir.as_deref(), Some(Path::new("custom-state")));
+    }
+}
+
+#[test]
 fn proxy_flags_are_global_and_parse_on_either_side_of_the_subcommand() {
     let before =
         CliArgs::try_parse_from(["pacquet", "--https-proxy=http://proxy.example:8443", "install"])

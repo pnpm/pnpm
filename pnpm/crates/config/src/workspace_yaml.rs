@@ -180,6 +180,7 @@ pub struct WorkspaceSettings {
     pub public_hoist_pattern: Option<Option<Vec<String>>>,
     pub shamefully_hoist: Option<bool>,
     pub store_dir: Option<String>,
+    pub state_dir: Option<String>,
     pub modules_dir: Option<String>,
     pub node_linker: Option<NodeLinker>,
     pub node_experimental_package_map: Option<bool>,
@@ -1396,6 +1397,7 @@ impl WorkspaceSettings {
     fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
         substitute_optional_string::<Sys>(&mut self.scope);
         substitute_optional_string::<Sys>(&mut self.store_dir);
+        substitute_optional_string::<Sys>(&mut self.state_dir);
         substitute_optional_string::<Sys>(&mut self.modules_dir);
         substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
         substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
@@ -1573,6 +1575,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.store_dir {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));
+        }
+        if let Some(v) = self.state_dir.filter(|value| !value.is_empty()) {
+            config.state_dir = resolve(base_dir, &v);
         }
         let mut declared_prefixes = false;
         if let Some(entries) = self.registries {

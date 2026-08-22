@@ -1,6 +1,6 @@
 use pnpm_config::{
     Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail, RuntimeOnFail,
-    VerifyDepsBeforeRun,
+    VerifyDepsBeforeRun, default_state_dir,
 };
 use pnpm_fs::lexical_normalize;
 use pnpm_store_dir::StoreDir;
@@ -55,6 +55,22 @@ where
         global_virtual_store_dir_explicit,
     );
     Ok(())
+}
+
+pub(crate) fn apply_state_dir_override<Sys>(config: &mut Config, state_dir: &Path)
+where
+    Sys: EnvVar + GetHomeDir,
+{
+    config.state_dir = if state_dir.as_os_str().is_empty() {
+        default_state_dir::<Sys>().unwrap_or_default()
+    } else {
+        state_dir.to_path_buf()
+    };
+    if let Some(state_dir) = state_dir.to_str() {
+        config
+            .explicit_settings
+            .insert("stateDir".to_string(), serde_json::Value::String(state_dir.to_string()));
+    }
 }
 
 fn home_relative_store_dir(store_dir: &Path) -> Option<&Path> {
@@ -118,8 +134,10 @@ impl ConfigOverrides {
                 continue;
             }
             match classify(&arg) {
-                ConfigToken::WellFormed { key: "store-dir", value } => {
-                    remaining.push(OsString::from(format!("--store-dir={value}")));
+                ConfigToken::WellFormed { key, value }
+                    if matches!(key, "state-dir" | "store-dir") =>
+                {
+                    remaining.push(OsString::from(format!("--{key}={value}")));
                 }
                 ConfigToken::WellFormed { key, value } => overrides.set(key, value),
                 ConfigToken::Malformed => {}

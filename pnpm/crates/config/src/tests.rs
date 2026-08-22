@@ -3,7 +3,7 @@ use super::{
     NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, WorkspaceSettings,
     default_ci, fs,
 };
-use crate::defaults::default_store_dir;
+use crate::defaults::{default_state_dir, default_store_dir};
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::env_guard::EnvGuard;
 use pretty_assertions::assert_eq;
@@ -287,7 +287,38 @@ pub fn have_default_values() {
     // behaviour of `default_store_dir` is exercised with fake-`Sys`
     // structs in `defaults::tests`.
     assert_eq!(value.store_dir, default_store_dir::<Host>());
+    assert_eq!(value.state_dir, default_state_dir::<Host>().unwrap_or_default());
     assert_eq!(value.registry, "https://registry.npmjs.org/");
+}
+
+#[test]
+pub fn state_dir_uses_only_trusted_config_sources() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), "stateDir: from-global\n")
+        .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "stateDir: from-project\n")
+        .expect("write workspace yaml");
+
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+    assert_eq!(config.state_dir, project.path().join("from-global"));
+    assert_eq!(config.workspace_key_issues.refused, ["stateDir"]);
+
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("PNPM_CONFIG_STATE_DIR", "from-env"),
+    ]);
+    let config = load_with_fake_env(project.path());
+    assert_eq!(config.state_dir, project.path().join("from-env"));
+    assert_eq!(
+        config.explicit_settings.get("stateDir"),
+        Some(&serde_json::Value::String("from-env".to_string())),
+    );
 }
 
 #[test]
