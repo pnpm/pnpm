@@ -84,6 +84,7 @@ pub struct ConfigOverrides {
     registries: BTreeMap<String, String>,
     deploy_all_files: Option<bool>,
     force_legacy_deploy: Option<bool>,
+    ignore_scripts: Option<bool>,
     inject_workspace_packages: Option<bool>,
     minimum_release_age: Option<u64>,
     minimum_release_age_exclude: Option<Vec<String>>,
@@ -157,6 +158,10 @@ impl ConfigOverrides {
             self.force_legacy_deploy = parse_bool(value);
             return;
         }
+        if key == "ignore-scripts" {
+            self.ignore_scripts = parse_bool(value);
+            return;
+        }
         if key == "inject-workspace-packages" {
             self.inject_workspace_packages = parse_bool(value);
             return;
@@ -228,6 +233,13 @@ impl ConfigOverrides {
         }
         if let Some(value) = self.force_legacy_deploy {
             config.force_legacy_deploy = value;
+        }
+        // `pnpm config get ignore-scripts` answers from the explicitly-set
+        // settings, so a CLI-set value has to be recorded there to be
+        // reported as set while it suppresses the scripts.
+        if let Some(value) = self.ignore_scripts {
+            config.ignore_scripts = value;
+            config.explicit_settings.insert("ignoreScripts".to_string(), value.into());
         }
         if let Some(value) = self.inject_workspace_packages {
             config.inject_workspace_packages = value;
