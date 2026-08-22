@@ -107,3 +107,21 @@ fn a_head_that_is_not_a_plain_file_is_not_read() {
 
     assert_eq!(get_current_branch::<GitFails>(&repo), None);
 }
+
+/// A FIFO at `HEAD` must be refused rather than opened: a plain
+/// `open` on one blocks until a writer appears, which would hang every
+/// install that consults the branch. This test hangs rather than fails if
+/// the non-blocking open is ever dropped.
+#[cfg(unix)]
+#[test]
+fn a_head_that_is_a_fifo_does_not_block_the_read() {
+    let repo = TempDir::new().unwrap();
+    fs::create_dir(repo.path().join(".git")).unwrap();
+    let status = std::process::Command::new("mkfifo")
+        .arg(repo.path().join(".git/HEAD"))
+        .status()
+        .expect("run mkfifo");
+    assert!(status.success(), "mkfifo failed");
+
+    assert_eq!(get_current_branch::<GitFails>(repo.path()), None);
+}

@@ -325,3 +325,32 @@ test('--merge-git-branch-lockfiles keeps the branch lockfiles on a check-only in
   // The run only reports what it would do, so it may not delete them.
   expect(fs.existsSync(otherLockfilePath)).toBe(true)
 })
+
+test('--merge-git-branch-lockfiles keeps the branch lockfiles under lockfileCheck', async () => {
+  prepareEmpty()
+
+  const branchName: string = 'main-branch'
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+
+  const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
+  writeYamlFileSync(otherLockfilePath, {
+    importers: { '.': {} },
+    lockfileVersion: LOCKFILE_VERSION,
+  })
+
+  // What `pnpm dedupe --check` runs: the lockfile is handed to the check
+  // rather than kept, so the merge never survives the install.
+  const lockfileCheck = jest.fn()
+  await install({
+    dependencies: {
+      'is-positive': '^3.0.0',
+    },
+  }, testDefaults({
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+    lockfileCheck,
+  }))
+  expect(lockfileCheck).toHaveBeenCalled()
+
+  expect(fs.existsSync(otherLockfilePath)).toBe(true)
+})

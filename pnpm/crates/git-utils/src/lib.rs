@@ -105,26 +105,31 @@ const MAX_GIT_METADATA_BYTES: u64 = 8 * 1024;
 ///
 /// A repository is untrusted input, and the per-branch lockfile settings
 /// let it decide whether this runs at all, so neither the size nor the
-/// kind of what `.git` names may be assumed. Anything rejected here leaves
-/// the caller falling back to `git symbolic-ref`, which answers such a
+/// kind of what `.git` names may be assumed. Every check here is made
+/// against the opened handle rather than the path, so nothing can be
+/// swapped in between deciding and reading. Anything rejected leaves the
+/// caller falling back to `git symbolic-ref`, which answers such a
 /// repository correctly anyway.
-///
-/// The kind is checked twice. Once through [`fs::symlink_metadata`] before
-/// the open, because opening a FIFO blocks rather than failing; and once
-/// on the open handle, which is the file actually read rather than
-/// whatever the path named a moment earlier. The read is bounded off that
-/// same handle, so a file that grows between the two never gets read past
-/// the cap. What is left is a racer swapping a FIFO in between the stat
-/// and the open — which needs write access to `.git`, where hooks are a
-/// far shorter path to the same machine.
 fn read_git_metadata_file(path: &Path) -> Option<String> {
-    if !fs::symlink_metadata(path).ok()?.file_type().is_file() {
-        return None;
+    let mut options = fs::OpenOptions::new();
+    options.read(true);
+    // A FIFO planted at the path would block a plain `open` until a writer
+    // appears; `O_NONBLOCK` makes the open return immediately and is a
+    // no-op for regular files. `O_NOFOLLOW` refuses a symlink outright —
+    // git writes neither. (Windows directory entries cannot be named
+    // pipes, so the plain open is safe there.)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW);
     }
-    let mut file = fs::File::open(path).ok()?;
+    let mut file = options.open(path).ok()?;
     if !file.metadata().ok()?.is_file() {
         return None;
     }
+    // A bounded reader rather than a size check keeps the cap race-free:
+    // at most one byte past the bound is ever read, whatever the file's
+    // size becomes between the open and the read.
     let mut content = String::new();
     Read::by_ref(&mut file).take(MAX_GIT_METADATA_BYTES + 1).read_to_string(&mut content).ok()?;
     (content.len() as u64 <= MAX_GIT_METADATA_BYTES).then_some(content)

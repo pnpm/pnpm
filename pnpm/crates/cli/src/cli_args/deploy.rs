@@ -323,7 +323,10 @@ impl DeployArgs {
             // The deployed project is not one of the source workspace's
             // importers — the deploy hook rewrites the copied manifest —
             // so its resolution must not be seeded from the workspace
-            // lockfile.
+            // lockfile. Plain `pnpm-lock.yaml` whatever the branch settings
+            // say, for the same reason: they describe that workspace
+            // resolution, and pnpm's deploy reads and writes the deployed
+            // lockfile under the plain name too.
             state.lockfile = if state.config.lockfile || frozen_lockfile {
                 LazyLockfile::deferred(deploy_dir.to_path_buf(), WantedLockfileSelection::default())
             } else {
@@ -424,14 +427,6 @@ fn create_deploy_install_config(
     deploy_config.dedupe_peer_dependents = false;
     deploy_config.dedupe_injected_deps = false;
     deploy_config.node_linker = node_linker;
-    // The deployed lockfile is a fresh artifact describing one project, not
-    // the workspace resolution the branch settings apply to — pnpm's deploy
-    // likewise reads and writes plain `pnpm-lock.yaml`.
-    // The deployed lockfile is a fresh artifact describing one project, not
-    // the workspace resolution the branch settings apply to — pnpm's deploy
-    // likewise reads and writes plain `pnpm-lock.yaml`. Left set, they would
-    // name the deployed lockfile after the branch, and merging would fold
-    // and delete the workspace's branch lockfiles from inside a deploy.
     deploy_config
 }
 
