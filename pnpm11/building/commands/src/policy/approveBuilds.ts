@@ -6,7 +6,7 @@ import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
 import { type Modules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
-import { globalInfo } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import chalk from 'chalk'
 import { renderHelp } from 'render-help'
@@ -88,28 +88,27 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     modulesDir,
     modulesManifest,
   } = await getAutomaticallyIgnoredBuilds(opts)
-  if (!automaticallyIgnoredBuilds?.length) {
+  if (!automaticallyIgnoredBuilds?.length && !params.length) {
     globalInfo('There are no packages awaiting approval')
     return
   }
+  const ignoredList = automaticallyIgnoredBuilds ?? []
   const denied: string[] = []
   const approved: string[] = []
   const unknown: string[] = []
   for (const p of params) {
     const name = p.startsWith('!') ? p.slice(1) : p
-    if (!automaticallyIgnoredBuilds.includes(name)) {
+    if (!ignoredList.includes(name)) {
       unknown.push(name)
-    } else if (p.startsWith('!')) {
+    }
+    if (p.startsWith('!')) {
       denied.push(name)
     } else {
       approved.push(name)
     }
   }
   if (unknown.length) {
-    throw new PnpmError(
-      'APPROVE_BUILDS_UNKNOWN_PACKAGES',
-      `The following packages are not awaiting approval: ${unknown.join(', ')}`
-    )
+    globalWarn(`The following packages are not awaiting approval: ${unknown.join(', ')}`)
   }
   const contradictions = approved.filter((p) => denied.includes(p))
   if (contradictions.length) {
@@ -122,11 +121,11 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   if (params.length) {
     buildPackages = sortUniqueStrings([...approved])
   } else if (opts.all) {
-    buildPackages = sortUniqueStrings([...automaticallyIgnoredBuilds])
+    buildPackages = sortUniqueStrings([...ignoredList])
   } else {
     try {
       const buildPackagesValues = await checkbox({
-        choices: sortUniqueStrings([...automaticallyIgnoredBuilds]).map((name) => ({
+        choices: sortUniqueStrings([...ignoredList]).map((name) => ({
           name,
           value: name,
         })),
@@ -160,7 +159,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
       allowBuilds[pkg] = false
     }
   } else {
-    const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
+    const ignoredPackages = ignoredList.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
     for (const pkg of ignoredPackages) {
       allowBuilds[pkg] = false
     }

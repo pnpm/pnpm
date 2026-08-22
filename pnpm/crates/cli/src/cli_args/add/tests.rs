@@ -18,6 +18,20 @@ fn allow_build_merges_into_config_and_persists_to_workspace_yaml() {
 }
 
 #[test]
+fn allow_build_negation_sets_false_in_config_and_workspace_yaml() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let mut config = Config::default();
+    apply_allow_build(&mut config, &["!core-js".to_string()], dir.path())
+        .expect("allow-build negation applies");
+
+    assert_eq!(config.allow_builds.get("core-js"), Some(&false), "disabled for this install");
+
+    let yaml = std::fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
+        .expect("pnpm-workspace.yaml written");
+    assert!(yaml.contains("core-js"), "allowBuilds entry persisted, got:\n{yaml}");
+}
+
+#[test]
 fn allow_build_rejects_a_package_the_root_disallows() {
     let dir = tempfile::tempdir().expect("temp dir");
     let mut config = Config::default();

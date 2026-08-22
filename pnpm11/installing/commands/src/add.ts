@@ -286,7 +286,8 @@ export async function handler (
       const disallowedBuilds = Object.entries(opts.allowBuilds)
         .filter(([, value]) => value === false)
         .map(([pkg]) => pkg)
-      const overlapDependencies = disallowedBuilds.filter((dep) => opts.allowBuild?.includes(dep))
+      const allowedOnly = opts.allowBuild.filter((pkg) => !pkg.startsWith('!'))
+      const overlapDependencies = disallowedBuilds.filter((dep) => allowedOnly.includes(dep))
       if (overlapDependencies.length) {
         throw new PnpmError('OVERRIDING_IGNORED_BUILT_DEPENDENCIES', `The following dependencies are ignored by the root project, but are allowed to be built by the current command: ${overlapDependencies.join(', ')}`, {
           hint: 'If you are sure you want to allow those dependencies to run installation scripts, remove them from the allowBuilds list (or change their value to true).',
@@ -295,7 +296,9 @@ export async function handler (
     }
     const allowBuilds = { ...opts.allowBuilds }
     for (const pkg of opts.allowBuild) {
-      allowBuilds[pkg] = true
+      const isNegated = pkg.startsWith('!')
+      const name = isNegated ? pkg.slice(1) : pkg
+      allowBuilds[name] = !isNegated
     }
     if (opts.rootProjectManifestDir) {
       opts.rootProjectManifest = opts.rootProjectManifest ?? {}
