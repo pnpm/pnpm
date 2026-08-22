@@ -645,10 +645,7 @@ fn workspace_install_via_pnpr_names_importers_relative_to_a_pinned_lockfile_dir(
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
     configure_workspace(&workspace);
-    let path = workspace.join("pnpm-workspace.yaml");
-    let mut yaml = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
-    yaml.push_str("lockfileDir: ..\n");
-    fs::write(&path, yaml).expect("write pnpm-workspace.yaml");
+    crate::_utils::append_workspace_yaml_key(&workspace, "lockfileDir", "..");
     write_workspace_project(&workspace, "app", "app", (WORKSPACE_HELLO, "1.0.0"));
     let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);

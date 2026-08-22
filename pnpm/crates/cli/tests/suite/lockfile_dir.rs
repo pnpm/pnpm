@@ -252,7 +252,7 @@ fn a_pin_overrides_dedicated_per_project_lockfiles() {
     .expect("write the package manifest");
     fs::write(workspace.join("package.json"), r#"{"name":"root","version":"1.0.0"}"#)
         .expect("write the root manifest");
-    append_workspace_yaml_key(&workspace, "packages", "\n  - packages/*");
+    append_workspace_yaml_key(&workspace, "packages", "['packages/*']");
     append_workspace_yaml_key(&workspace, "sharedWorkspaceLockfile", false);
     append_workspace_yaml_key(&workspace, "lockfileDir", "..");
 

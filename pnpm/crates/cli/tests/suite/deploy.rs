@@ -1,3 +1,5 @@
+use crate::_utils::append_workspace_yaml_key;
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::Lockfile;
@@ -106,9 +108,7 @@ fn deploy_from_shared_lockfile_follows_a_pinned_lockfile_dir() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_reachability_workspace(&workspace);
-    let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
-    workspace_yaml.push_str("lockfileDir: ..\n");
-    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+    append_workspace_yaml_key(&workspace, "lockfileDir", "..");
 
     pacquet.with_arg("install").assert().success();
     assert!(
@@ -146,15 +146,13 @@ fn deploy_from_shared_lockfile_follows_a_pinned_lockfile_dir() {
 /// The shared path cannot describe the layout, so it hands over to the
 /// legacy installer rather than failing the command.
 #[test]
-fn deploy_falls_back_when_the_pinned_lockfile_dir_is_outside_the_workspace() {
+fn deploy_falls_back_when_the_pinned_lockfile_dir_does_not_contain_the_workspace() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_reachability_workspace(&workspace);
     fs::create_dir_all(root.path().join("side")).unwrap();
-    let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
-    workspace_yaml.push_str("lockfileDir: ../side\n");
-    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+    append_workspace_yaml_key(&workspace, "lockfileDir", "../side");
 
     pacquet.with_arg("install").assert().success();
 
@@ -166,7 +164,7 @@ fn deploy_falls_back_when_the_pinned_lockfile_dir_is_outside_the_workspace() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "deploy must fall back, not fail:\n{stdout}\n{stderr}");
     assert!(
-        stdout.contains("is outside the workspace, so its importer paths cannot be deployed"),
+        stdout.contains("does not contain the workspace, so its importer paths cannot be deployed"),
         "the fallback must say why the shared lockfile was unusable:\n{stdout}",
     );
     assert!(

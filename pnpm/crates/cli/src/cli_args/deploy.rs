@@ -245,7 +245,7 @@ impl DeployArgs {
         if !same_path(workspace_dir, lockfile_dir) && !is_ancestor_path(lockfile_dir, workspace_dir)
         {
             return Ok(SharedDeployOutcome::Fallback(format!(
-                "The lockfile at {} is outside the workspace, so its importer paths cannot be deployed. Falling back to installing without it.",
+                "The lockfile at {} does not contain the workspace, so its importer paths cannot be deployed. Falling back to installing without it.",
                 lockfile_dir.display(),
             )));
         }
