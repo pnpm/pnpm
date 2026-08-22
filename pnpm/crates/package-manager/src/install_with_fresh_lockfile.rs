@@ -398,6 +398,11 @@ fn full_resolution_required<'a>(
 /// Error type of [`InstallWithFreshLockfile`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum InstallWithFreshLockfileError {
+    /// A path named by the `pnpmfile` setting is not on disk. pnpm reports the
+    /// same code and message from `requireHooks`.
+    #[display("{_0}")]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_NOT_FOUND))]
+    MissingPnpmfile(#[error(not(source))] pnpm_hooks::finder::MissingPnpmfileError),
     /// The concurrent pre-resolve verification of the existing lockfile
     /// rejected it. The orchestrator maps this back to
     /// `InstallError::LockfileVerification` so the failure keeps the

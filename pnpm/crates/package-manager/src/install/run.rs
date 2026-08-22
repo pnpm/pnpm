@@ -537,13 +537,12 @@ where
         // costs a `stat`. The Node worker only starts if a gate has to
         // ask whether the pnpmfile exports hooks. The handle is handed to
         // the resolve path below so an install spawns at most one.
-        let pnpmfile_hook = pnpmfile_hook_override.or_else(|| {
-            (!config.ignore_pnpmfile)
-                .then(|| {
-                    pnpm_hooks::finder::load_pnpmfiles(&workspace_root, config.pnpmfile.as_deref())
-                })
-                .flatten()
-        });
+        let pnpmfile_hook = match pnpmfile_hook_override {
+            Some(hook) => Some(hook),
+            None if config.ignore_pnpmfile => None,
+            None => pnpm_hooks::finder::load_pnpmfiles(&workspace_root, config.pnpmfile.as_deref())
+                .map_err(InstallError::MissingPnpmfile)?,
+        };
 
         // pnpm's `getContext` runs `readPackage` over every project
         // manifest before anything reads it, so a hook that rewrites a

@@ -900,9 +900,12 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let lockfile_dir = link.lockfile_path.and_then(|path| path.parent()).unwrap_or_else(|| {
         state.manifest.path().parent().expect("manifest path always has a parent dir")
     });
-    let pnpmfile_hook = (!state.config.ignore_pnpmfile)
-        .then(|| pnpm_hooks::finder::load_pnpmfiles(lockfile_dir, state.config.pnpmfile.as_deref()))
-        .flatten();
+    let pnpmfile_hook = if state.config.ignore_pnpmfile {
+        None
+    } else {
+        pnpm_hooks::finder::load_pnpmfiles(lockfile_dir, state.config.pnpmfile.as_deref())
+            .map_err(|error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"))?
+    };
     let prefetch_allowed = match pnpmfile_hook.as_ref() {
         Some(hook) => !hook
             .get_custom_fetchers()

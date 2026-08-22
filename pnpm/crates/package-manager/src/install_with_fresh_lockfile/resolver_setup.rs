@@ -327,11 +327,12 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
         retry_opts: crate::retry_config::retry_opts_from_config(config),
     };
 
-    let pnpmfile_hook = pnpmfile_hook_override.or_else(|| {
-        (!config.ignore_pnpmfile)
-            .then(|| pnpm_hooks::finder::load_pnpmfiles(lockfile_dir, config.pnpmfile.as_deref()))
-            .flatten()
-    });
+    let pnpmfile_hook = match pnpmfile_hook_override {
+        Some(hook) => Some(hook),
+        None if config.ignore_pnpmfile => None,
+        None => pnpm_hooks::finder::load_pnpmfiles(lockfile_dir, config.pnpmfile.as_deref())
+            .map_err(InstallWithFreshLockfileError::MissingPnpmfile)?,
+    };
     let custom_resolvers: Vec<Arc<dyn pnpm_hooks::CustomResolver>> =
         if let Some(ref hook) = pnpmfile_hook {
             hook.get_custom_resolvers().await.map_err(|err| {

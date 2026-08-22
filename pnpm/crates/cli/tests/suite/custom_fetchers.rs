@@ -160,6 +160,42 @@ fn ignore_pnpmfile_skips_the_custom_resolver_on_install() {
     drop((root, mock_instance)); // cleanup
 }
 
+/// pnpm's `requireHooks` fails a configured pnpmfile that is not on disk with
+/// `ERR_PNPM_PNPMFILE_NOT_FOUND`; only the default `.pnpmfile.cjs` is optional.
+/// A generic execution failure here would read as a broken pnpmfile rather than
+/// a misconfigured path.
+#[test]
+fn a_configured_pnpmfile_that_is_missing_names_itself() {
+    let CommandTempCwd { root: _root, workspace, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let (metadata, original) = mock_fetcher_package(&mut registry, None);
+    configure_fetcher_project(&workspace, &registry.url(), "absent.cjs");
+
+    let output = pacquet_at(&workspace).with_arg("install").assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_PNPMFILE_NOT_FOUND"), "stderr: {stderr}");
+    assert!(stderr.contains("is not found"), "stderr: {stderr}");
+    assert!(stderr.contains("absent.cjs"), "stderr: {stderr}");
+    drop((metadata, original));
+}
+
+/// The default pnpmfile stays optional: a project that configures nothing and
+/// ships no `.pnpmfile.cjs` installs normally.
+#[test]
+fn an_absent_default_pnpmfile_is_not_an_error() {
+    let CommandTempCwd { root: _root, workspace, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let tarball = minimal_tarball("fetcher-pkg", "1.0.0");
+    let (metadata, _original) =
+        mock_fetcher_package(&mut registry, Some(&sha512_integrity(&tarball)));
+    let custom = registry.mock("GET", "/original.tgz").with_body(tarball).create();
+    configure_fetcher_project(&workspace, &registry.url(), "[]");
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+    assert!(workspace.join("node_modules/fetcher-pkg/package.json").is_file());
+    drop((metadata, custom));
+}
+
 fn configure_fetcher_project(workspace: &Path, registry: &str, pnpmfile: &str) {
     fs::write(workspace.join(".npmrc"), format!("registry={registry}/\n"))
         .expect("write registry configuration");
