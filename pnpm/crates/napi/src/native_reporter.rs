@@ -68,10 +68,10 @@ pub struct ReporterOptions {
     pub hide_linked_pkgs_diff: Option<Vec<String>>,
     /// `"error"`, `"warn"`, `"info"` (the default), or `"debug"`.
     pub log_level: Option<String>,
-    /// Terminal width to wrap at. Defaults to the width of the output
-    /// stream when it is a terminal, and 80 otherwise — an `onOutput`
-    /// callback always needs it passed explicitly, since the engine cannot
-    /// see where the chunks end up.
+    /// Terminal width to wrap at, at least one column. Defaults to the
+    /// width of the output stream when it is a terminal, and 80 otherwise —
+    /// an `onOutput` callback always needs it passed explicitly, since the
+    /// engine cannot see where the chunks end up.
     pub width: Option<u32>,
     /// Whether to emit ANSI color. Defaults to "the output stream is a
     /// terminal and `NO_COLOR` is unset"; with an `onOutput` callback, to
@@ -180,16 +180,22 @@ impl NativeRenderer {
         let is_terminal = destination.is_terminal();
         let append_only = options.append_only.unwrap_or(!is_terminal);
         // pnpm's `outputMaxWidth`: the terminal's columns less 2, or 80.
-        let width = options.width.map_or_else(
-            || {
-                if is_terminal {
-                    destination.terminal_columns().unwrap_or(82).saturating_sub(2)
-                } else {
-                    80
-                }
-            },
-            |width| width as usize,
-        );
+        // Floored at one column, so a host that computed its width the same
+        // way from a one- or two-column terminal cannot ask the renderer to
+        // wrap at zero.
+        let width = options
+            .width
+            .map_or_else(
+                || {
+                    if is_terminal {
+                        destination.terminal_columns().unwrap_or(82).saturating_sub(2)
+                    } else {
+                        80
+                    }
+                },
+                |width| width as usize,
+            )
+            .max(1);
         let colors = Colors {
             enabled: options
                 .color

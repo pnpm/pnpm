@@ -304,9 +304,9 @@ export interface ReporterOptions {
   /** Verbosity ceiling. Defaults to `'info'`. */
   logLevel?: 'error' | 'warn' | 'info' | 'debug'
   /**
-   * Width to wrap at. Defaults to the output stream's width when it is a
-   * terminal, else 80. Pass it explicitly alongside `onOutput`: the engine
-   * cannot see where those chunks end up.
+   * Width to wrap at, at least one column. Defaults to the output stream's
+   * width when it is a terminal, else 80. Pass it explicitly alongside
+   * `onOutput`: the engine cannot see where those chunks end up.
    */
   width?: number
   /**

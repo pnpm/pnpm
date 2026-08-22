@@ -176,3 +176,19 @@ fn an_unknown_log_level_falls_back_to_info() {
         format!("{:?}", super::parse_log_level(None)),
     );
 }
+
+/// A host that computed its width the way pnpm does — the terminal's
+/// columns less two — can arrive at zero from a one- or two-column
+/// terminal. The renderer floors it rather than trying to wrap at nothing.
+#[test]
+fn a_zero_width_is_floored_to_one_column() {
+    let (mut renderer, buffer) = renderer(&ReporterOptions {
+        append_only: Some(true),
+        width: Some(0),
+        ..ReporterOptions::default()
+    });
+
+    renderer.handle(&progress());
+
+    assert!(!written(&buffer).is_empty());
+}
