@@ -976,3 +976,34 @@ fn sbom_workspace_root_selects_only_the_root() {
         parsed["components"],
     );
 }
+
+/// A lockfile with no importer for a selected project is out of date, and
+/// walking what is left would under-report the selection's dependencies —
+/// so the run fails instead of writing that SBOM.
+#[test]
+fn sbom_fails_when_the_lockfile_has_no_importer_for_a_selected_project() {
+    let tmp = copy_fixture("workspace-sbom-filter-prod");
+    let added = tmp.path().join("newpkg");
+    fs::create_dir_all(&added).expect("create the added package dir");
+    fs::write(added.join("package.json"), r#"{ "name": "newpkg", "version": "1.0.0" }"#)
+        .expect("write the added package.json");
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - app\n  - dev-lib\n  - newpkg\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let output = pacquet(
+        tmp.path(),
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--filter", "newpkg"],
+    )
+    .output()
+    .expect("run pacquet");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(output.status.code(), Some(1), "stdout:\n{stdout}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_SBOM_MISSING_IMPORTERS"), "stderr:\n{stderr}");
+    assert!(stderr.contains("newpkg"), "the error should name the missing project:\n{stderr}");
+    assert!(!stdout.contains("bomFormat"), "no SBOM may be written for an out-of-date lockfile");
+}

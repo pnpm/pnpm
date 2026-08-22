@@ -793,6 +793,16 @@ fn selected_workspace_importer_ids(state: &State) -> miette::Result<HashSet<Stri
     Ok(selected_importer_ids(&selection, state.lockfile_dir()).into_iter().collect())
 }
 
+/// The selected importer ids the lockfile has no entry for, sorted so the
+/// error names them in a stable order.
+fn missing_importers(selected: &HashSet<String>, lockfile_ids: &[String]) -> Vec<String> {
+    let known: HashSet<&str> = lockfile_ids.iter().map(String::as_str).collect();
+    let mut missing: Vec<String> =
+        selected.iter().filter(|id| !known.contains(id.as_str())).cloned().collect();
+    missing.sort_unstable();
+    missing
+}
+
 impl SbomArgs {
     pub async fn run(self, state: State) -> miette::Result<()> {
         if !state.config.shared_workspace_lockfile
@@ -841,9 +851,6 @@ impl SbomArgs {
         all_importer_ids.sort_unstable();
 
         let all_count = all_importer_ids.len();
-        // Intersecting rather than mapping the selection keeps the lockfile
-        // order above and drops a selected project the lockfile has no
-        // importer for.
         let importer_ids: Vec<String> = if selectors_narrow_the_run(state.config) {
             let selected = selected_workspace_importer_ids(&state)?;
             if selected.is_empty() {
@@ -853,6 +860,24 @@ impl SbomArgs {
                 println!("{}", no_projects_matched_message(workspace_dir));
                 return Ok(());
             }
+            // Selecting through the workspace can name a project the lockfile
+            // has no importer for, which only an out-of-date lockfile
+            // produces — pnpm writes an entry for every project, `{}` for one
+            // with no dependencies. Walking what is left would answer with an
+            // SBOM that under-reports the selection's dependencies, so the run
+            // fails instead.
+            let missing = missing_importers(&selected, &all_importer_ids);
+            if !missing.is_empty() {
+                let plural = if missing.len() == 1 { "" } else { "s" };
+                let names = missing.join(", ");
+                let lockfile_name = pnpm_lockfile::Lockfile::FILE_NAME;
+                return Err(miette::miette!(
+                    code = "ERR_PNPM_SBOM_MISSING_IMPORTERS",
+                    r#"{lockfile_name} has no entry for the selected project{plural}: {names}. Run "pnpm install" to update it."#,
+                ));
+            }
+            // Intersecting rather than mapping the selection keeps the
+            // lockfile order established above.
             all_importer_ids.into_iter().filter(|id| selected.contains(id)).collect()
         } else {
             all_importer_ids

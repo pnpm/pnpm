@@ -265,6 +265,38 @@ test('pnpm sbom --exclude-peers drops peers declared in workspace sub-packages',
   expect(componentNames).not.toContain('is-number')
 })
 
+test('pnpm sbom fails when the lockfile has no importer for a selected project', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-peer-workspace', workspaceDir)
+  // A workspace package the lockfile knows nothing about: only an out-of-date
+  // lockfile produces that, and the SBOM it would answer with under-reports
+  // the selection's dependencies.
+  const addedDir = path.join(workspaceDir, 'packages/not-installed')
+  fs.mkdirSync(addedDir, { recursive: true })
+  fs.writeFileSync(
+    path.join(addedDir, 'package.json'),
+    JSON.stringify({ name: 'not-installed', version: '1.0.0' })
+  )
+
+  const { allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [
+      { namePattern: 'not-installed' },
+    ])
+
+  await expect(
+    sbom.handler({
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      pnpmHomeDir: '',
+      sbomFormat: 'cyclonedx',
+      lockfileOnly: true,
+      allProjectsGraph,
+      selectedProjectsGraph,
+    })
+  ).rejects.toThrow('has no entry for the selected project: packages/not-installed')
+})
+
 test('pnpm sbom --exclude-peers tolerates a malformed importer manifest', async () => {
   const workspaceDir = tempDir()
   f.copy('with-peer-workspace', workspaceDir)
