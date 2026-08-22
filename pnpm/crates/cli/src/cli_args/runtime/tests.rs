@@ -5,7 +5,7 @@ use pnpm_reporter::SilentReporter;
 use std::fs;
 use tempfile::tempdir;
 
-use super::{RuntimeArgs, RuntimeError, runtime_shim_hint};
+use super::{MAX_RUNTIME_SHIM_PROBE_BYTES, RuntimeArgs, RuntimeError, runtime_shim_hint};
 use crate::State;
 
 fn args(params: &[&str]) -> RuntimeArgs {
@@ -165,6 +165,25 @@ fn local_runtime_does_not_suggest_an_installed_project_aware_shim() {
     let bin_dir = dir.path();
     let shim_path = bin_dir.join("node");
     fs::write(&shim_path, generate_virtual_sh_shim("node", &shim_path)).unwrap();
+    fs::write(
+        bin_dir.join(format!("{CONTEXT_AWARE_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX)),
+        "dispatcher",
+    )
+    .unwrap();
+    let config = Config { global_bin: Some(bin_dir.to_path_buf()), ..Config::default() };
+
+    assert_eq!(runtime_shim_hint(&config, "node", &GlobalShims::default()), None);
+}
+
+#[test]
+fn local_runtime_bounds_the_project_aware_shim_probe() {
+    let dir = tempdir().unwrap();
+    let bin_dir = dir.path();
+    let shim_path = bin_dir.join("node");
+    let mut shim = generate_virtual_sh_shim("node", &shim_path).into_bytes();
+    shim.resize(usize::try_from(MAX_RUNTIME_SHIM_PROBE_BYTES).unwrap(), b' ');
+    shim.push(0xff);
+    fs::write(&shim_path, shim).unwrap();
     fs::write(
         bin_dir.join(format!("{CONTEXT_AWARE_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX)),
         "dispatcher",

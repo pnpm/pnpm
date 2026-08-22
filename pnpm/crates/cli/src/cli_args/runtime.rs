@@ -10,7 +10,9 @@ use pnpm_config::{Config, GlobalShims};
 use pnpm_package_manifest::{DependencyGroup, is_runtime_alias};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use std::{fs, path::Path};
+use std::{fs, io::Read as _, path::Path};
+
+const MAX_RUNTIME_SHIM_PROBE_BYTES: u64 = 64 * 1024;
 
 /// Manage runtimes.
 #[derive(Debug, Args)]
@@ -199,8 +201,7 @@ fn project_aware_runtime_shim_exists(config: &Config, runtime_name: &str) -> boo
     if !dispatcher.is_file() {
         return false;
     }
-    if fs::read_to_string(bin_dir.join(runtime_name)).is_ok_and(|body| is_context_aware_shim(&body))
-    {
+    if context_aware_runtime_shim_exists(&bin_dir.join(runtime_name)) {
         return true;
     }
     #[cfg(windows)]
@@ -209,6 +210,16 @@ fn project_aware_runtime_shim_exists(config: &Config, runtime_name: &str) -> boo
         return true;
     }
     false
+}
+
+fn context_aware_runtime_shim_exists(path: &Path) -> bool {
+    let Ok(file) = fs::File::open(path) else {
+        return false;
+    };
+    let mut body = String::new();
+    file.take(MAX_RUNTIME_SHIM_PROBE_BYTES)
+        .read_to_string(&mut body)
+        .is_ok_and(|_| is_context_aware_shim(&body))
 }
 
 #[cfg(test)]
