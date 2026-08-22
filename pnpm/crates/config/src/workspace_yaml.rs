@@ -611,6 +611,10 @@ pub struct WorkspaceSettings {
     /// `trustPolicyExclude` from `pnpm-workspace.yaml`.
     pub trust_policy_exclude: Option<Vec<String>>,
 
+    /// `trustPolicyExcludePrune` from `pnpm-workspace.yaml`.
+    /// See [`Config::trust_policy_exclude_prune`]. Default `false`.
+    pub trust_policy_exclude_prune: Option<bool>,
+
     /// `trustPolicyIgnoreAfter` from `pnpm-workspace.yaml`. Minutes.
     pub trust_policy_ignore_after: Option<u64>,
 
@@ -1697,6 +1701,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.trust_policy_exclude {
             config.trust_policy_exclude = Some(v);
+        }
+        if let Some(v) = self.trust_policy_exclude_prune {
+            config.trust_policy_exclude_prune = v;
         }
         if let Some(v) = self.trust_policy_ignore_after {
             config.trust_policy_ignore_after = Some(v);

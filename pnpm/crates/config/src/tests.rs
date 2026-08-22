@@ -3228,6 +3228,17 @@ pub fn minimum_release_age_exclude_prune_from_workspace_yaml() {
 }
 
 #[test]
+pub fn trust_policy_exclude_prune_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    assert!(!config.trust_policy_exclude_prune);
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "trustPolicyExcludePrune: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.trust_policy_exclude_prune);
+}
+
+#[test]
 pub fn runtime_on_fail_from_workspace_yaml() {
     let dir = tempdir().unwrap();
     std::fs::write(dir.path().join("pnpm-workspace.yaml"), "runtimeOnFail: download\n").unwrap();

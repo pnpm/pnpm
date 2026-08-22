@@ -160,6 +160,7 @@ fn create_config(
         audit_level: None,
         audit_config: Default::default(),
         trust_policy_exclude: None,
+        trust_policy_exclude_prune: false,
         trust_policy_ignore_after: None,
         resolution_mode: Default::default(),
         catalog_mode: Default::default(),

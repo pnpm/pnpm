@@ -132,13 +132,14 @@ pub struct UpdateWorkspaceManifestOptions<'a> {
     /// pass, mirroring upstream's `allProjects ?? []` guard.
     pub all_projects: &'a [&'a PackageManifest],
     /// Package name → the versions the freshly resolved lockfile
-    /// records. Present only under `minimumReleaseAgeExcludePrune`, and
-    /// only when the lockfile covers every project
-    /// `minimumReleaseAgeExclude` governs; `None` disables that pass,
+    /// records. Present only when a prune pass is enabled, and
+    /// only when the lockfile covers every project the exclude lists
+    /// govern; `None` disables those passes,
     /// mirroring the [`Self::all_projects`] guard of
     /// `catalogPrune`.
     pub resolved_package_versions: Option<&'a ResolvedPackageVersions>,
     pub prune_minimum_release_age_excludes: bool,
+    pub prune_trust_policy_excludes: bool,
     pub prune_allow_builds: bool,
 }
 
@@ -182,6 +183,9 @@ pub fn update_workspace_manifest(
     if let Some(resolved) = opts.resolved_package_versions {
         if opts.prune_minimum_release_age_excludes {
             changed |= edit::prune_minimum_release_age_excludes(&mut manifest, resolved);
+        }
+        if opts.prune_trust_policy_excludes {
+            changed |= edit::prune_trust_policy_excludes(&mut manifest, resolved);
         }
         if opts.prune_allow_builds {
             changed |= edit::prune_allow_builds(&mut manifest, resolved);
