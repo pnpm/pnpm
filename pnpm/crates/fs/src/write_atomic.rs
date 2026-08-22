@@ -44,29 +44,5 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     Ok(())
 }
 
-/// Publish `bytes` at `path` only when that path is still unoccupied.
-/// The complete file is prepared beside the target before the no-clobber
-/// publish, so a competing command can win the slot but is never replaced.
-pub fn write_new_atomic(
-    path: &Path,
-    bytes: &[u8],
-    #[cfg_attr(windows, allow(unused_variables))] mode: Option<u32>,
-) -> io::Result<()> {
-    let dir = path.parent().filter(|parent| !parent.as_os_str().is_empty());
-    if let Some(parent) = dir {
-        fs::create_dir_all(parent)?;
-    }
-    let mut tmp = tempfile::NamedTempFile::new_in(dir.unwrap_or_else(|| Path::new(".")))?;
-    tmp.write_all(bytes)?;
-    tmp.as_file().sync_all()?;
-    #[cfg(unix)]
-    if let Some(mode) = mode {
-        use std::os::unix::fs::PermissionsExt as _;
-        tmp.as_file().set_permissions(fs::Permissions::from_mode(mode))?;
-    }
-    tmp.persist_noclobber(path).map_err(|error| error.error)?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests;

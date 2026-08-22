@@ -550,11 +550,10 @@ fn runtime_bin_path(name: &str, target_os: &str) -> String {
 fn build_tarball(name: &str, version: &str, node_extras: bool) -> Vec<u8> {
     let prefix = format!("{name}-v{version}-fixture");
     let mut tar = tar::Builder::new(Vec::new());
-    let runtime_body = format!("#!/bin/sh\nprintf '%s\\n' 'v{version}'\n");
     append_tar(
         &mut tar,
         format!("{prefix}/{}", runtime_bin_path(name, "linux")).as_str(),
-        runtime_body.as_bytes(),
+        b"#!/bin/sh\nexit 0\n",
         0o755,
     );
     if node_extras {

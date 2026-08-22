@@ -1,11 +1,6 @@
 use assert_cmd::prelude::*;
-use command_extra::CommandExtra;
-use pnpm_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{fs, path::Path};
-
-#[cfg(unix)]
-use std::process::Command;
 
 #[test]
 fn runtime_unknown_subcommand_runs_with_default_ndjson_and_silent_reporters() {
@@ -29,85 +24,25 @@ fn runtime_unknown_subcommand_runs_with_default_ndjson_and_silent_reporters() {
 }
 
 #[test]
-fn setting_a_project_runtime_creates_a_project_aware_global_bin() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+fn setting_a_project_runtime_suggests_the_explicit_global_shim() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let version = "24.0.0-rc.4";
     let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
     let pnpm_home = root.path().join("pnpm-home");
-    let global_bin = pnpm_home.join("bin");
     configure_node_runtime(&root, &workspace, &server);
-
-    pacquet
-        .with_env("PNPM_HOME", &pnpm_home)
-        .with_env("XDG_STATE_HOME", root.path().join("state"))
-        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
-        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "true")
-        .with_args(["runtime", "set", "node", version])
-        .assert()
-        .success();
-
-    let shim = fs::read_to_string(global_bin.join("node")).expect("read the Node.js shim");
-    assert!(shim.contains("cmd-shim-target=pkg:node"), "shim was:\n{shim}");
-    assert!(
-        global_bin
-            .join(format!("{CONTEXT_AWARE_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX))
-            .is_file(),
-    );
-
-    #[cfg(unix)]
-    {
-        let inherited_path = std::env::var_os("PATH").unwrap_or_default();
-        let path = std::env::join_paths(
-            std::iter::once(global_bin).chain(std::env::split_paths(&inherited_path)),
-        )
-        .unwrap();
-        let output = Command::new("node")
-            .with_current_dir(&workspace)
-            .with_env("PATH", path)
-            .with_env("PNPM_HOME", &pnpm_home)
-            .with_env("XDG_STATE_HOME", root.path().join("state"))
-            .with_env("XDG_CONFIG_HOME", root.path().join("config"))
-            .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "true")
-            .with_env("PNPM_AUTO_APPROVE_PROJECT_BINS_FOR_TESTS", "1")
-            .with_arg("-v")
-            .assert()
-            .success();
-        assert_eq!(
-            String::from_utf8_lossy(&output.get_output().stdout).trim(),
-            format!("v{version}"),
-        );
-    }
-}
-
-#[test]
-fn a_shim_write_failure_does_not_fail_runtime_set() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let mut server = mockito::Server::new();
-    let version = "24.0.0-rc.4";
-    let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
-    configure_node_runtime(&root, &workspace, &server);
-    let pnpm_home = root.path().join("pnpm-home");
-    fs::create_dir_all(&pnpm_home).unwrap();
-    fs::write(pnpm_home.join("bin"), "not a directory").unwrap();
 
     let output = pacquet
-        .with_env("PNPM_HOME", &pnpm_home)
-        .with_env("XDG_STATE_HOME", root.path().join("state"))
-        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
-        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "true")
-        .with_args(["runtime", "set", "node", version])
+        .env("PNPM_HOME", &pnpm_home)
+        .env("XDG_STATE_HOME", root.path().join("state"))
+        .env("XDG_CONFIG_HOME", root.path().join("config"))
+        .args(["runtime", "set", "node", version])
         .assert()
         .success();
 
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
-    assert!(
-        stdout.contains("Unable to create the project-aware node shim"),
-        "stdout was:\n{stdout}",
-    );
-    let manifest: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
-    assert_eq!(manifest["devEngines"]["runtime"]["version"], version);
+    assert!(stdout.contains("pnpm shim add node"), "stdout was:\n{stdout}");
+    assert!(!pnpm_home.join("bin").join(format!("node{}", std::env::consts::EXE_SUFFIX)).exists());
 }
 
 fn configure_node_runtime(root: &tempfile::TempDir, workspace: &Path, server: &mockito::Server) {

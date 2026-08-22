@@ -16,6 +16,6 @@ pub use realpath_missing::realpath_missing;
 pub use relative_path::relative_path;
 pub use remove_dirent::remove_dirent;
 pub use symlink_dir::*;
-pub use write_atomic::{write_atomic, write_new_atomic};
+pub use write_atomic::write_atomic;
 
 pub mod file_mode;

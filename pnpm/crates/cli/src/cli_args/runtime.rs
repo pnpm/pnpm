@@ -1,15 +1,16 @@
 use crate::{
     State,
-    cli_args::{add::add_package, global::handle_global_add, shim::ensure_runtime_shim},
+    cli_args::{add::add_package, global::handle_global_add},
 };
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_config::Config;
+use pnpm_cmd_shim::{CONTEXT_AWARE_DISPATCHER_NAME, is_context_aware_shim};
+use pnpm_config::{Config, GlobalShims};
 use pnpm_package_manifest::{DependencyGroup, is_runtime_alias};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use std::path::Path;
+use std::{fs, path::Path};
 
 /// Manage runtimes.
 #[derive(Debug, Args)]
@@ -91,8 +92,16 @@ impl RuntimeArgs {
             [request.dependency_group],
         )
         .await?;
-        if let Err(error) = ensure_runtime_shim(config, &request.runtime_name) {
-            warn_runtime_shim_failure::<Reporter>(&prefix, &request.runtime_name, &error);
+        if let Some(message) = runtime_shim_hint(
+            config,
+            &request.runtime_name,
+            &crate::shim_dispatch::global_shims_setting(),
+        ) {
+            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Info,
+                message,
+                prefix: prefix.to_string_lossy().into_owned(),
+            }));
         }
         Ok(())
     }
@@ -165,20 +174,41 @@ impl RuntimeArgs {
     }
 }
 
-fn warn_runtime_shim_failure<Reporter: self::Reporter>(
-    prefix: &Path,
+fn runtime_shim_hint(
+    config: &Config,
     runtime_name: &str,
-    error: &miette::Report,
-) {
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Warn,
-        message: format!(
-            "Unable to create the project-aware {runtime_name} shim in the global bin directory: \
-             {error:#}. The runtime was pinned successfully; run \"pnpm setup\" after fixing the \
-             global bin directory.",
-        ),
-        prefix: prefix.to_string_lossy().into_owned(),
-    }));
+    global_shims: &GlobalShims,
+) -> Option<String> {
+    if !global_shims.is_enabled(runtime_name)
+        || project_aware_runtime_shim_exists(config, runtime_name)
+    {
+        return None;
+    }
+    let setup = if config.global_bin.is_none() { r#"run "pnpm setup", then "# } else { "" };
+    Some(format!(
+        r#"To make the bare "{runtime_name}" command project-aware, {setup}run "pnpm shim add {runtime_name}"."#,
+    ))
+}
+
+fn project_aware_runtime_shim_exists(config: &Config, runtime_name: &str) -> bool {
+    let Some(bin_dir) = config.global_bin.as_deref() else {
+        return false;
+    };
+    let dispatcher =
+        bin_dir.join(format!("{CONTEXT_AWARE_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX));
+    if !dispatcher.is_file() {
+        return false;
+    }
+    if fs::read_to_string(bin_dir.join(runtime_name)).is_ok_and(|body| is_context_aware_shim(&body))
+    {
+        return true;
+    }
+    #[cfg(windows)]
+    if runtime_name == "node" && crate::shim_dispatch::windows_node_dispatcher_is_installed(bin_dir)
+    {
+        return true;
+    }
+    false
 }
 
 #[cfg(test)]

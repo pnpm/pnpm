@@ -57,9 +57,9 @@ pub(crate) use runtime_env::materialize_runtime;
 use runtime_env::{PACKAGE_MANAGER_ENVS_DIR_NAME, trusted_runtime_config};
 use trust::is_trusted;
 #[cfg(windows)]
-pub(crate) use windows::install_windows_node_dispatcher;
-#[cfg(windows)]
 use windows::try_windows_node_dispatch;
+#[cfg(windows)]
+pub(crate) use windows::{install_windows_node_dispatcher, windows_node_dispatcher_is_installed};
 
 /// Environment variable that short-circuits the dispatcher to the global
 /// target: a user-facing kill switch, and the recursion guard for the
