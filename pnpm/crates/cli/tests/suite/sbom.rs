@@ -948,3 +948,31 @@ fn sbom_fail_if_no_match_exits_non_zero() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.starts_with("No projects matched the filters in"), "stdout:\n{stdout}");
 }
+
+/// `--workspace-root` narrows the SBOM to the root project, even though
+/// the workspace package patterns don't name it — the root project is
+/// always part of the workspace, so the `{<workspace-root>}` selector the
+/// flag adds finds it.
+#[test]
+fn sbom_workspace_root_selects_only_the_root() {
+    let tmp = copy_fixture("workspace-sbom-filter-prod");
+    let output = pacquet(
+        tmp.path(),
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--workspace-root"],
+    )
+    .output()
+    .expect("run pacquet");
+    assert!(
+        output.status.success(),
+        "pacquet sbom failed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("parse JSON output");
+    assert_eq!(parsed["metadata"]["component"]["name"], "workspace-sbom-filter-prod-root");
+    assert!(
+        parsed["components"].as_array().expect("components").is_empty(),
+        "the root project has no dependencies, so nothing from app / dev-lib may leak in: {}",
+        parsed["components"],
+    );
+}

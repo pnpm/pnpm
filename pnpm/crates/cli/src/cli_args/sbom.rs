@@ -833,19 +833,17 @@ impl SbomArgs {
             .lockfile
             .get()
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-        // The lockfile's `importers` is a `HashMap`, so its iteration order
-        // is arbitrary; sorting restores the order the ids appear in the
-        // file, which is the order `--split` emits its SBOMs in.
+        // `importers` is a `HashMap`, so its iteration order is arbitrary.
+        // Sorting fixes the order `--split` emits its SBOMs in, and matches
+        // the lockfile, whose importers are serialized sorted by id.
         let mut all_importer_ids: Vec<String> =
             lockfile.as_ref().map(|lf| lf.importers.keys().cloned().collect()).unwrap_or_default();
         all_importer_ids.sort_unstable();
 
         let all_count = all_importer_ids.len();
-        // The selectors run through the same workspace-filtering machinery
-        // every other filterable command uses, so `sbom` honours the full
-        // selector syntax — dependency queries, `[since]`, globs — and
-        // `--filter-prod`'s production-only walk. Lockfile order is kept,
-        // and an importer the workspace no longer contains is dropped.
+        // Intersecting rather than mapping the selection keeps the lockfile
+        // order above and drops a selected project the lockfile has no
+        // importer for.
         let importer_ids: Vec<String> = if selectors_narrow_the_run(state.config) {
             let selected = selected_workspace_importer_ids(&state)?;
             if selected.is_empty() {
