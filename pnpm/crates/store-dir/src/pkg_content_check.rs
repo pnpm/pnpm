@@ -54,7 +54,11 @@ pub fn pkg_content_mismatch(
     index_key: &str,
 ) -> Option<PkgContentMismatch> {
     let manifest = manifest?;
-    let (expected_name, expected_version) = split_pkg_id(index_key)?;
+    let (expected_name, version_slot) = split_pkg_id(index_key)?;
+    // A named-registry alias (`foo@work:1.0.0`) qualifies where the version
+    // came from, not which version it is, so the manifest states the half
+    // after the colon.
+    let expected_version = version_slot.split_once(':').map_or(version_slot, |(_, rest)| rest);
     let actual_name = manifest.get("name").and_then(serde_json::Value::as_str);
     let actual_version = manifest.get("version").and_then(serde_json::Value::as_str);
 
@@ -64,11 +68,13 @@ pub fn pkg_content_mismatch(
     if !name_differs && !version_differs {
         return None;
     }
-    // Every agreeing row has returned by here, so confirming that the
-    // key names a package at all — rather than splitting a `pkg_id`
-    // that merely contains an `@`, such as a tarball URL carrying
-    // credentials — costs nothing on the path every install takes.
-    if node_semver::Version::parse(expected_version).is_err() {
+    // Every agreeing row has returned by here, so confirming that the key
+    // names a registry package at all costs nothing on the path every
+    // install takes. Without the confirmation a `pkg_id` that merely looks
+    // split-able — a tarball URL ending in something version-shaped, whose
+    // name half would then be the URL itself, credentials included — would
+    // be reported as another package.
+    if !names_a_registry_package(expected_name, version_slot) {
         return None;
     }
     Some(PkgContentMismatch {
@@ -81,14 +87,32 @@ pub fn pkg_content_mismatch(
     })
 }
 
-/// Split a `package_index` key's `pkg_id` half at the separator between
-/// a registry package's name and version. A `pkg_id` that is a URL or a
+/// Split a `package_index` key's `pkg_id` half at the separator between a
+/// registry package's name and version slot. A `pkg_id` that is a URL or a
 /// git resolution id has no such separator; one that happens to have an
-/// `@` anyway is caught by the semver check in the caller.
+/// `@` anyway is rejected by [`names_a_registry_package`].
 fn split_pkg_id(index_key: &str) -> Option<(&str, &str)> {
     let pkg_id = index_key.rsplit_once('\t').map_or(index_key, |(_, pkg_id)| pkg_id);
-    let (name, version) = pkg_id.rsplit_once('@')?;
-    (!name.is_empty()).then_some((name, version))
+    let (name, version_slot) = pkg_id.rsplit_once('@')?;
+    (!name.is_empty()).then_some((name, version_slot))
+}
+
+/// Whether the two halves [`split_pkg_id`] produced really are a package
+/// name and a version.
+///
+/// The version slot is either a plain version or the registry-qualified
+/// `<alias>:<version>` form. Every other version-slot shape — `file:`,
+/// `link:`, a git committish — states no version the manifest could
+/// disagree with.
+fn names_a_registry_package(name: &str, version_slot: &str) -> bool {
+    if !pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name(name) {
+        return false;
+    }
+    if version_slot.contains(':') {
+        pnpm_deps_path::parse_registry_qualified_version(version_slot).is_some()
+    } else {
+        node_semver::Version::parse(version_slot).is_ok()
+    }
 }
 
 /// Package names are compared case-insensitively, as pnpm compares
