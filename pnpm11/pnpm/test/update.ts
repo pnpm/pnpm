@@ -187,14 +187,12 @@ test('recursive update <pkg>@<version> --lockfile-only --no-save does not leak a
   writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['recursive', 'install', '--lockfile-only'])
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const lockfileBefore = readYamlFileSync<any>('pnpm-lock.yaml')
+  const lockfileBefore = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
   const project2VersionBefore = lockfileBefore.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version
 
   await execPnpm(['recursive', 'update', '--lockfile-only', '--no-save', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml')
+  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
   const depKeys = Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@'))
 
   expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe(project2VersionBefore)
@@ -225,14 +223,12 @@ test('recursive update alias@npm:<pkg>@<version> --lockfile-only --no-save scope
   writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['recursive', 'install', '--lockfile-only'])
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const lockfileBefore = readYamlFileSync<any>('pnpm-lock.yaml')
+  const lockfileBefore = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
   const project2VersionBefore = lockfileBefore.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version
 
   await execPnpm(['recursive', 'update', '--lockfile-only', '--no-save', 'alias@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml')
+  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
   const depKeys = Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@'))
 
   expect(lockfile.importers['project-1'].dependencies['alias'].version).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')

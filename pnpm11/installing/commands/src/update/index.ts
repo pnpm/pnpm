@@ -25,7 +25,7 @@ import { renderHelp } from 'render-help'
 
 import type { InstallCommandOptions } from '../install.js'
 import { createVulnerabilityUpdateMatching, installDeps } from '../installDeps.js'
-import { createUpdateMatching, parseUpdateParam } from '../recursive.js'
+import { createUpdateMatching, expandUpdateSelectorsForMatching, parseUpdateParam } from '../recursive.js'
 import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
 import { captureUpdateChangesetContext, generateUpdateChangeset } from './generateUpdateChangeset.js'
 import { getUpdateChoices, sanitizeUpdateChoiceText } from './getUpdateChoices.js'
@@ -435,7 +435,7 @@ async function update (
   let updateMatching: UpdateMatchingFunction | undefined
   if (opts.packageVulnerabilityAudit != null) {
     updateMatching = createVulnerabilityUpdateMatching(opts.packageVulnerabilityAudit)
-  } else if (packageDependencies.length > 0 && depth > 0 && !opts.latest) {
+  } else if ((packageDependencies.length > 0) && depth > 0 && !opts.latest) {
     updateMatching = createUpdateMatching(packageDependencies.flatMap(expandUpdateSelectorsForMatching))
   }
   const generateChangeset = opts.changeset ?? opts.updateConfig?.changeset ?? false
@@ -470,15 +470,6 @@ async function update (
   if (changesetContext != null) {
     await generateUpdateChangeset(changesetContext)
   }
-}
-
-function expandUpdateSelectorsForMatching (selector: string): string[] {
-  const { pattern, versionSpec } = parseUpdateParam(selector)
-  if (versionSpec?.startsWith('npm:') !== true) return [selector]
-  const aliasSelector = parseUpdateParam(versionSpec.slice('npm:'.length))
-  const aliasPattern = pattern.startsWith('!') ? `!${aliasSelector.pattern}` : aliasSelector.pattern
-  const aliasSpec = aliasSelector.versionSpec != null ? `${aliasPattern}@${aliasSelector.versionSpec}` : aliasPattern
-  return [selector, aliasSpec]
 }
 
 function shouldUpdateGitHubActions (opts: UpdateCommandOptions, include: IncludedDependencies): boolean {
