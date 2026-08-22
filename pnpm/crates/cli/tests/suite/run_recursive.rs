@@ -688,17 +688,27 @@ fn include_workspace_root_setting_is_read_from_the_workspace_manifest() {
     )
     .expect("write workspace manifest");
 
-    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
-    assert!(workspace.join("root-ran.txt").exists(), "the root must run under the setting");
+    let markers = [
+        workspace.join("root-ran.txt"),
+        workspace.join("packages/project-1/ran.txt"),
+        workspace.join("packages/project-2/ran.txt"),
+    ];
 
-    fs::remove_file(workspace.join("root-ran.txt")).expect("clear the root marker");
+    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
+    for marker in &markers {
+        assert!(marker.exists(), "{} should run under the setting", marker.display());
+        fs::remove_file(marker).expect("clear the marker");
+    }
+
     let mut negated = Command::cargo_bin("pnpm").unwrap();
     negated.current_dir(&workspace);
     negated.args(["-r", "--no-include-workspace-root", "run", "build"]).assert().success();
-    assert!(
-        !workspace.join("root-ran.txt").exists(),
-        "--no-include-workspace-root must override the setting",
-    );
+    assert!(!markers[0].exists(), "--no-include-workspace-root must override the setting");
+    // The negation drops the root, not the selection: a run that
+    // selected nothing would leave these missing too.
+    for marker in &markers[1..] {
+        assert!(marker.exists(), "{} should still run", marker.display());
+    }
 
     drop(root);
 }
