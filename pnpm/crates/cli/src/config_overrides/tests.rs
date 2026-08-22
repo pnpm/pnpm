@@ -105,16 +105,31 @@ fn extract_rewrites_the_dotted_state_dir_for_clap() {
 
 #[test]
 fn state_dir_cli_override_is_recorded() {
+    let anchor = tempfile::tempdir().unwrap();
     let mut config = Config::default();
     apply_state_dir_override::<pnpm_config::Host>(
         &mut config,
         PathBuf::from("custom-state").as_path(),
+        anchor.path(),
     );
-    assert_eq!(config.state_dir, PathBuf::from("custom-state"));
+    assert_eq!(config.state_dir, anchor.path().join("custom-state"));
     assert_eq!(
         config.explicit_settings.get("stateDir"),
         Some(&serde_json::Value::String("custom-state".to_string())),
     );
+}
+
+#[test]
+fn absolute_state_dir_cli_override_is_preserved() {
+    let root = tempfile::tempdir().unwrap();
+    let state_dir = root.path().join("absolute-state");
+    let mut config = Config::default();
+    apply_state_dir_override::<pnpm_config::Host>(
+        &mut config,
+        &state_dir,
+        &root.path().join("unrelated-anchor"),
+    );
+    assert_eq!(config.state_dir, state_dir);
 }
 
 #[test]

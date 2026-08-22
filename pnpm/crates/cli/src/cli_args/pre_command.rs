@@ -211,7 +211,7 @@ fn pre_command_plan_from_input(
             .wrap_err("load configuration")?;
     config_overrides.apply(&mut config);
     if let Some(state_dir) = switch.state_dir.as_deref() {
-        apply_state_dir_override::<Host>(&mut config, state_dir);
+        apply_state_dir_override::<Host>(&mut config, state_dir, &dir);
     }
 
     let root_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.clone());

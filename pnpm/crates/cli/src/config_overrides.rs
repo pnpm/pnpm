@@ -57,14 +57,16 @@ where
     Ok(())
 }
 
-pub(crate) fn apply_state_dir_override<Sys>(config: &mut Config, state_dir: &Path)
+pub(crate) fn apply_state_dir_override<Sys>(config: &mut Config, state_dir: &Path, dir: &Path)
 where
     Sys: EnvVar + GetHomeDir,
 {
     config.state_dir = if state_dir.as_os_str().is_empty() {
         default_state_dir::<Sys>().unwrap_or_default()
+    } else if state_dir.is_absolute() {
+        lexical_normalize(state_dir)
     } else {
-        state_dir.to_path_buf()
+        lexical_normalize(&dir.join(state_dir))
     };
     if let Some(state_dir) = state_dir.to_str() {
         config

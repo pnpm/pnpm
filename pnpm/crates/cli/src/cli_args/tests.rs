@@ -120,6 +120,18 @@ fn state_dir_is_global_and_parses_on_either_side_of_the_subcommand() {
 }
 
 #[test]
+fn repeated_state_dir_uses_the_last_value_on_either_side_of_the_subcommand() {
+    for argv in [
+        ["pacquet", "--state-dir", "first-state", "--state-dir", "last-state", "install"]
+            .as_slice(),
+        ["pacquet", "install", "--state-dir=first-state", "--state-dir=last-state"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses repeated global --state-dir");
+        assert_eq!(parsed.state_dir.as_deref(), Some(Path::new("last-state")));
+    }
+}
+
+#[test]
 fn proxy_flags_are_global_and_parse_on_either_side_of_the_subcommand() {
     let before =
         CliArgs::try_parse_from(["pacquet", "--https-proxy=http://proxy.example:8443", "install"])
