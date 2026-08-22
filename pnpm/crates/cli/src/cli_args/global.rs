@@ -485,14 +485,18 @@ pub fn handle_global_remove(base_config: &'static Config, params: &[String]) -> 
             .wrap_err("install the global shim dispatcher")?;
     }
 
-    for pkg in &groups {
-        remove_group(&global_pkg_dir, &global_bin_dir, pkg, &protected);
-    }
-    for (package, bins) in shims_to_restore {
+    // Keep every group installed until all replacement shims are ready so
+    // a publication failure can be repaired by retrying the removal.
+    let mut bins_to_keep = protected;
+    for (package, bins) in &shims_to_restore {
         let bin_refs = bins.iter().map(String::as_str).collect::<Vec<_>>();
-        link_virtual_shims::<CmdShimHost>(&package, &bin_refs, &global_bin_dir)
+        link_virtual_shims::<CmdShimHost>(package, &bin_refs, &global_bin_dir)
             .map_err(miette::Report::new)
             .wrap_err_with(|| format!("restore the {package} shims"))?;
+        bins_to_keep.extend(bins.iter().cloned());
+    }
+    for pkg in &groups {
+        remove_group(&global_pkg_dir, &global_bin_dir, pkg, &bins_to_keep);
     }
     Ok(())
 }
@@ -878,16 +882,16 @@ fn is_pnpm_cli_package_alias(alias: &str) -> bool {
     matches!(alias, "pnpm" | "@pnpm/exe")
 }
 
-/// Remove a group's bins (except those in `protected`, owned by a surviving
-/// group), its hash symlink, and its install dir.
+/// Remove a group's bins except those that must remain available, then its
+/// hash symlink and install dir.
 fn remove_group(
     global_pkg_dir: &Path,
     global_bin_dir: &Path,
     pkg: &GlobalPackageInfo,
-    protected: &HashSet<String>,
+    bins_to_keep: &HashSet<String>,
 ) {
     for bin in get_installed_bin_names(pkg) {
-        if protected.contains(&bin) {
+        if bins_to_keep.contains(&bin) {
             continue;
         }
         let _ = remove_bin(&global_bin_dir.join(&bin));

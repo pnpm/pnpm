@@ -302,6 +302,60 @@ fn global_install_preserves_virtual_shim_ownership_and_restores_it_on_remove() {
     drop(root);
 }
 
+#[cfg(unix)]
+#[test]
+fn failed_virtual_shim_restoration_leaves_global_removal_retryable() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let global_pkg_dir = pnpm_home.join("global").join("v11");
+    let shim_path = global_bin.join("touch-file-one-bin");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    let registry = npmrc_info.mock_instance.url();
+
+    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+        .with_args(["shim", "add", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+        .with_args(["add", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+
+    fs::remove_file(&shim_path).expect("remove the global shim");
+    fs::create_dir(&shim_path).expect("occupy the shim path with a directory");
+    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+        .with_args(["remove", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .failure();
+    assert_eq!(
+        symlink_entries(&global_pkg_dir).len(),
+        1,
+        "a restoration failure must leave the global package installed",
+    );
+
+    fs::remove_dir(&shim_path).expect("release the shim path");
+    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+        .with_args(["remove", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    let restored_shim = fs::read_to_string(&shim_path).expect("read restored virtual shim");
+    assert!(
+        restored_shim.contains("# cmd-shim-target=pkg:@foo/touch-file-one-bin"),
+        "shim was:\n{restored_shim}",
+    );
+    assert!(
+        symlink_entries(&global_pkg_dir).is_empty(),
+        "the successful retry must remove the global package",
+    );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 /// Ordinary packages use the plain direct-exec format in `auto` mode.
 #[cfg(unix)]
 #[test]
