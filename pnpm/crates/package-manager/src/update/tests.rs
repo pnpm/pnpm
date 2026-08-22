@@ -575,7 +575,7 @@ fn covers(selectors: &[&str], name: &str, versions: &[&str]) -> Vec<bool> {
 fn a_pinned_selector_targets_only_its_version_line() {
     assert_eq!(
         covers(&["js-yaml@3.15.1"], "js-yaml", &["3.15.0", "3.15.1", "4.3.0"]),
-        [true, true, false]
+        [true, true, false],
     );
 }
 
@@ -595,7 +595,7 @@ fn a_selector_that_names_no_single_version_targets_every_line() {
 fn every_selector_that_claims_a_name_widens_its_lines() {
     assert_eq!(
         covers(&["foo@1.0.0", "foo@2.0.0"], "foo", &["1.5.0", "2.5.0", "3.0.0"]),
-        [true, true, false]
+        [true, true, false],
     );
 }
 
