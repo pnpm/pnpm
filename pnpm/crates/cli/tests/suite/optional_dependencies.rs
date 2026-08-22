@@ -9,13 +9,17 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::{Lockfile, PkgName};
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path};
+use std::{fs, io, path::Path};
 
 /// Nothing at `path` at all. `Path::exists` follows links, so it also reports
 /// `false` for a link whose target is missing — an excluded dependency that was
 /// wrongly linked would pass a plain `!exists()` check.
 fn is_absent(path: &Path) -> bool {
-    fs::symlink_metadata(path).is_err()
+    match fs::symlink_metadata(path) {
+        Ok(_) => false,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => true,
+        Err(error) => panic!("stat {}: {error}", path.display()),
+    }
 }
 
 fn read_wanted_lockfile(workspace: &Path) -> Lockfile {
