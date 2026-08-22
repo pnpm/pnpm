@@ -3289,6 +3289,70 @@ pub fn virtual_store_dir_max_length_env_var_overrides_yaml() {
     );
 }
 
+/// `lockfileDir` moves the paths pnpm resolves against it: the root
+/// `node_modules` and the virtual store follow the pin, and the config
+/// root the install reads its root manifest and pnpmfile from becomes the
+/// pin rather than the workspace root.
+#[test]
+pub fn lockfile_dir_from_workspace_yaml_moves_the_paths_anchored_on_it() {
+    let tmp = tempdir().unwrap();
+    let workspace = tmp.path().join("workspace");
+    fs::create_dir(&workspace).expect("create the workspace dir");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "lockfileDir: ..
+",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    let config = Config::new().current::<HostNoHome>(&workspace).expect("yaml is valid");
+
+    assert_eq!(config.lockfile_dir.as_deref(), Some(tmp.path()));
+    assert_eq!(config.lockfile_dir_for(&workspace), tmp.path());
+    assert_eq!(config.root_project_manifest_dir(&workspace), tmp.path());
+    assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
+    assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules").join(".pnpm"));
+}
+
+/// `PNPM_CONFIG_LOCKFILE_DIR` overrides the yaml setting, and a relative
+/// value resolves against the directory the config was loaded for.
+#[test]
+pub fn lockfile_dir_env_var_overrides_yaml() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "lockfileDir: from-yaml
+",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    struct HostWithLockfileDirEnv;
+    impl EnvVar for HostWithLockfileDirEnv {
+        fn var(name: &str) -> Option<String> {
+            if name == "PNPM_CONFIG_LOCKFILE_DIR" {
+                return Some("from-env".to_owned());
+            }
+            safe_host_var(name)
+        }
+    }
+    impl EnvVarOs for HostWithLockfileDirEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithLockfileDirEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithLockfileDirEnv);
+    host_current_dir!(HostWithLockfileDirEnv);
+
+    let config = Config::new().current::<HostWithLockfileDirEnv>(tmp.path()).expect("loads");
+    assert_eq!(config.lockfile_dir.as_deref(), Some(tmp.path().join("from-env").as_path()));
+    assert_eq!(config.modules_dir, tmp.path().join("from-env").join("node_modules"));
+}
+
 #[test]
 pub fn package_map_settings_load_from_workspace_yaml() {
     let tmp = tempdir().unwrap();

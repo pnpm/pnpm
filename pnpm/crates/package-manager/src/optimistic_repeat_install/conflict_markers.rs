@@ -21,7 +21,7 @@ pub(crate) fn first_lockfile_requiring_conflict_safe_install(
     {
         return Some((shared_lockfile, failure));
     }
-    if check.config.shared_workspace_lockfile {
+    if check.config.shares_one_lockfile() {
         return None;
     }
     for (root_dir, _) in check.project_manifests {

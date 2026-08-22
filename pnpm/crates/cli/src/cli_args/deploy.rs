@@ -169,7 +169,7 @@ impl DeployArgs {
         }
 
         let force_legacy = self.legacy || config.force_legacy_deploy;
-        if config.shared_workspace_lockfile && !force_legacy && !config.inject_workspace_packages {
+        if config.shares_one_lockfile() && !force_legacy && !config.inject_workspace_packages {
             return Err(DeployError::NonInjectedWorkspace.into());
         }
 
@@ -191,7 +191,7 @@ impl DeployArgs {
             !config.deploy_all_files,
         )?;
 
-        if config.shared_workspace_lockfile && !force_legacy {
+        if config.shares_one_lockfile() && !force_legacy {
             match Box::pin(self.deploy_from_shared_lockfile::<ReporterT>(
                 config,
                 workspace_dir,
@@ -203,7 +203,7 @@ impl DeployArgs {
                 SharedDeployOutcome::Deployed => return Ok(()),
                 SharedDeployOutcome::Fallback(warning) => warn::<ReporterT>(&deploy_dir, warning),
             }
-        } else if config.shared_workspace_lockfile && force_legacy {
+        } else if config.shares_one_lockfile() && force_legacy {
             warn::<ReporterT>(
                 &deploy_dir,
                 "Shared workspace lockfile detected but configuration forces legacy deploy implementation.",
@@ -232,7 +232,24 @@ impl DeployArgs {
         if !config.inject_workspace_packages {
             return Err(DeployError::NonInjectedWorkspace.into());
         }
-        let Some(lockfile) = Lockfile::load_wanted_from_dir(workspace_dir)
+        // The shared lockfile, and the importer ids naming the projects in
+        // it, belong to the lockfile dir — which `lockfileDir` can move
+        // away from the workspace this deploy selected its project from.
+        let lockfile_dir = config.lockfile_dir_for(workspace_dir);
+        // Every path this deploy resolves is a lockfile-relative importer
+        // id joined onto that dir, and none of them may escape it. A pin
+        // that does not contain the workspace makes each project's id
+        // climb out (`../packages/app`), so the shared path cannot
+        // describe this layout at all: hand it to the legacy installer,
+        // which resolves the deployed manifest on its own.
+        if !same_path(workspace_dir, lockfile_dir) && !is_ancestor_path(lockfile_dir, workspace_dir)
+        {
+            return Ok(SharedDeployOutcome::Fallback(format!(
+                "The lockfile at {} does not contain the workspace, so its importer paths cannot be deployed. Falling back to installing without it.",
+                lockfile_dir.display(),
+            )));
+        }
+        let Some(lockfile) = Lockfile::load_wanted_from_dir(lockfile_dir)
             .map_err(miette::Report::new)
             .wrap_err("read shared lockfile")?
         else {
@@ -242,14 +259,14 @@ impl DeployArgs {
             ));
         };
 
-        let project_id = importer_id_from_root_dir(workspace_dir, &selected.project.root_dir);
+        let project_id = importer_id_from_root_dir(lockfile_dir, &selected.project.root_dir);
         let dependency_groups =
             self.install_args.dependency_options.dependency_groups().collect::<Vec<_>>();
         let deploy_files = create_deploy_files(
             &lockfile,
             selected,
             &project_id,
-            workspace_dir,
+            lockfile_dir,
             deploy_dir,
             config,
             &dependency_groups,
@@ -395,6 +412,11 @@ fn create_deploy_install_config(
     let mut deploy_config = base_config.clone();
     deploy_config.modules_dir = deploy_dir.join("node_modules");
     deploy_config.virtual_store_dir = deploy_dir.join("node_modules/.pnpm");
+    // The deploy directory owns the lockfile this install runs against —
+    // the generated one for a shared deploy, its own resolution for the
+    // legacy path. A `lockfileDir` pinning the *source* workspace's
+    // lockfile must not redirect either.
+    deploy_config.lockfile_dir = None;
     deploy_config.global_virtual_store_dir = deploy_config.virtual_store_dir.clone();
     deploy_config.enable_global_virtual_store = false;
     deploy_config.pnpr_server = None;

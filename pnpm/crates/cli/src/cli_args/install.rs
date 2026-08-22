@@ -1,7 +1,7 @@
 use crate::{
     State,
     cli_args::{
-        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields_in,
+        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields_in, lockfile_dir::LockfileDirArg,
         override_version_references::warn_deprecated_override_version_references,
         pipelines::InstallFamilySelection, recursive::discover_workspace_projects,
         supported_architectures::SupportedArchitecturesArgs,
@@ -115,6 +115,9 @@ pub struct InstallArgs {
     /// `node_modules`.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
+
+    #[clap(flatten)]
+    pub lockfile_dir: LockfileDirArg,
 
     /// Show what an install would change without writing anything to disk.
     #[clap(long = "dry-run")]
@@ -280,6 +283,7 @@ impl InstallArgs {
             frozen_lockfile: false,
             no_frozen_lockfile: true,
             lockfile_only: false,
+            lockfile_dir: LockfileDirArg::default(),
             dry_run: false,
             force: false,
             prefer_frozen_lockfile: false,
@@ -347,13 +351,13 @@ impl InstallArgs {
         // project; a single-dir up-to-date probe can't speak for the
         // sibling projects, so the loop (whose per-project engine runs
         // each have their own optimistic short-circuit) must always run.
-        if !config.shared_workspace_lockfile && config.workspace_dir.is_some() {
+        if !config.shares_one_lockfile() && config.workspace_dir.is_some() {
             return false;
         }
         if config.config_dependencies.as_ref().is_some_and(|deps| !deps.is_empty()) {
             return false;
         }
-        let config_root = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
+        let config_root = config.root_project_manifest_dir(dir).to_path_buf();
         if pnpm_hooks::finder::find_pnpmfile(&config_root).is_some() {
             return false;
         }
@@ -462,6 +466,10 @@ impl InstallArgs {
             frozen_lockfile: _,
             no_frozen_lockfile: _,
             lockfile_only,
+            // Pinned onto `config` in the dispatch (`dispatch_install.rs`)
+            // before the state is built, so the install reads it from
+            // `config`, not from here.
+            lockfile_dir: _,
             dry_run,
             // Resolved against config by `apply_install_cli_config` in
             // the dispatch, like `ignore_scripts` below.
@@ -785,22 +793,24 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     } else {
         None
     };
+    // Importer ids name projects relative to the lockfile, which
+    // `lockfileDir` can pin somewhere other than the workspace the
+    // selection was resolved in. The server request, the merge below, and
+    // the lockfile on disk all have to agree on them.
     let selection_importer_ids = selection.map(|selection| {
+        let importer_root = state.config.lockfile_dir_for(&selection.workspace_root);
         let real_importer_ids = selection
             .projects
             .iter()
             .map(|project| {
-                pnpm_workspace::importer_id_from_root_dir(
-                    &selection.workspace_root,
-                    &project.root_dir,
-                )
+                pnpm_workspace::importer_id_from_root_dir(importer_root, &project.root_dir)
             })
             .collect();
         let selected_importer_ids = selection
             .selected_dirs
             .iter()
             .map(|project_dir| {
-                pnpm_workspace::importer_id_from_root_dir(&selection.workspace_root, project_dir)
+                pnpm_workspace::importer_id_from_root_dir(importer_root, project_dir)
             })
             .collect();
         (real_importer_ids, selected_importer_ids)
@@ -811,7 +821,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let projects = resolve_projects_for_pnpr(state, selection, link.use_state_lockfile)?;
     let full_workspace_importer_ids = (selection.is_none()
         && link.use_state_lockfile
-        && state.config.shared_workspace_lockfile
+        && state.config.shares_one_lockfile()
         && state.config.workspace_dir.is_some())
     .then(|| {
         let importer_ids: std::collections::HashSet<_> =
@@ -1150,7 +1160,8 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         selection_importer_ids.as_ref().or(full_workspace_importer_ids.as_ref()),
         selection
             .map(|selection| selection.workspace_root.as_path())
-            .or(state.config.workspace_dir.as_deref()),
+            .or(state.config.workspace_dir.as_deref())
+            .map(|root| state.config.lockfile_dir_for(root)),
     ) {
         outcome.lockfile = merge_filtered_wanted_lockfile(
             previous_wanted,
@@ -1288,14 +1299,20 @@ fn resolve_projects_for_pnpr(
     use_state_lockfile: bool,
 ) -> miette::Result<Vec<ResolveProject>> {
     if let Some(selection) = selection {
-        return Ok(resolve_workspace_projects(&selection.workspace_root, &selection.projects));
+        return Ok(resolve_workspace_projects(
+            state.config.lockfile_dir_for(&selection.workspace_root),
+            &selection.projects,
+        ));
     }
     if use_state_lockfile
-        && state.config.shared_workspace_lockfile
+        && state.config.shares_one_lockfile()
         && let Some(workspace_root) = state.config.workspace_dir.as_deref()
     {
         let (projects, _) = discover_workspace_projects(workspace_root)?;
-        return Ok(resolve_workspace_projects(workspace_root, &projects));
+        return Ok(resolve_workspace_projects(
+            state.config.lockfile_dir_for(workspace_root),
+            &projects,
+        ));
     }
     Ok(vec![resolve_project(".".to_string(), &state.manifest)])
 }

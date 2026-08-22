@@ -805,7 +805,7 @@ fn missing_importers(selected: &HashSet<String>, lockfile_ids: &[String]) -> Vec
 
 impl SbomArgs {
     pub async fn run(self, state: State) -> miette::Result<()> {
-        if !state.config.shared_workspace_lockfile
+        if !state.config.shares_one_lockfile()
             && (state.config.recursive || self.split || selectors_narrow_the_run(state.config))
         {
             return Err(

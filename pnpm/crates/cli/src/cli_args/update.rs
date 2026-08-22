@@ -1,7 +1,7 @@
 use crate::{
     State,
     cli_args::{
-        pipelines::InstallFamilySelection, recursive,
+        lockfile_dir::LockfileDirArg, pipelines::InstallFamilySelection, recursive,
         supported_architectures::SupportedArchitecturesArgs,
         update_interactive::InteractiveUpdateOptions,
     },
@@ -100,6 +100,9 @@ pub struct UpdateArgs {
     /// Dependencies are not downloaded; only `pnpm-lock.yaml` is updated.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
+
+    #[clap(flatten)]
+    pub lockfile_dir: LockfileDirArg,
 
     /// Show outdated dependencies and select which ones to update.
     #[clap(short = 'i', long)]

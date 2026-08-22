@@ -42,7 +42,7 @@ use pnpm_workspace_range_resolver::resolve_workspace_range;
 use pnpm_workspace_spec::WorkspaceSpec;
 use std::{
     collections::{BTreeMap, HashSet},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Arc,
 };
 
@@ -251,7 +251,7 @@ where
                 manifest.path().parent().expect("manifest path always has a parent dir");
             BTreeMap::from([(
                 pnpm_workspace::importer_id_from_root_dir(
-                    importer_id_root(config, manifest_dir),
+                    config.lockfile_dir_for(manifest_dir),
                     manifest_dir,
                 ),
                 ImporterUpdateSeedPolicy::DropOnly(dropped_pins),
@@ -394,7 +394,7 @@ where
         // Scoped per importer: a project that wasn't selected keeps its pins, so its
         // resolutions stand even when it declares the same package directly.
         let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
-        let importer_root = importer_id_root(config, manifest_dir);
+        let importer_root = config.lockfile_dir_for(manifest_dir);
         let mut seed_policies = BTreeMap::new();
         let mut preferred_versions_override = PreferredVersions::new();
         for &index in &selected_indices {
@@ -485,18 +485,6 @@ where
         post_install_prune(config, Some(&prepared.workspace_dir), manifest)
             .map_err(AddError::WriteWorkspaceManifest)?;
         Ok(())
-    }
-}
-
-/// The directory importer ids are relative to: the lockfile's own directory,
-/// which is the workspace root only while one lockfile is shared. A seed
-/// policy keyed against anything else names no importer and silently does
-/// nothing. Mirrors the root [`Install`] resolves against.
-fn importer_id_root<'a>(config: &'a Config, manifest_dir: &'a Path) -> &'a Path {
-    if config.shared_workspace_lockfile {
-        config.workspace_dir.as_deref().unwrap_or(manifest_dir)
-    } else {
-        manifest_dir
     }
 }
 

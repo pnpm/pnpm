@@ -69,14 +69,12 @@ impl State {
     ) -> Result<Self, InitStateError> {
         let should_load = config.lockfile || require_lockfile;
         let lockfile = if should_load {
-            let manifest_dir =
-                manifest_path.parent().expect("manifest path always has a parent dir");
-            if config.shared_workspace_lockfile {
-                config.workspace_dir.clone().unwrap_or_else(|| manifest_dir.to_path_buf())
-            } else {
-                manifest_dir.to_path_buf()
-            }
-            .pipe(LazyLockfile::deferred)
+            manifest_path
+                .parent()
+                .expect("manifest path always has a parent dir")
+                .pipe(|manifest_dir| config.lockfile_dir_for(manifest_dir))
+                .to_path_buf()
+                .pipe(LazyLockfile::deferred)
         } else {
             LazyLockfile::disabled()
         };
@@ -106,12 +104,7 @@ impl State {
     }
 
     pub fn lockfile_dir(&self) -> &Path {
-        let manifest_dir = self.project_dir();
-        if self.config.shared_workspace_lockfile {
-            self.config.workspace_dir.as_deref().unwrap_or(manifest_dir)
-        } else {
-            manifest_dir
-        }
+        self.config.lockfile_dir_for(self.project_dir())
     }
 
     pub fn lockfile_path(&self) -> PathBuf {

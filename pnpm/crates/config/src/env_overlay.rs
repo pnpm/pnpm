@@ -157,6 +157,7 @@ impl WorkspaceSettings {
         json_field!(virtual_store_dir_max_length, "VIRTUAL_STORE_DIR_MAX_LENGTH");
         json_field!(peers_suffix_max_length, "PEERS_SUFFIX_MAX_LENGTH");
         json_field!(lockfile, "LOCKFILE");
+        string_field!(lockfile_dir, "LOCKFILE_DIR");
         json_field!(prefer_frozen_lockfile, "PREFER_FROZEN_LOCKFILE");
         json_field!(prefer_symlinked_executables, "PREFER_SYMLINKED_EXECUTABLES");
         json_field!(frozen_lockfile, "FROZEN_LOCKFILE");

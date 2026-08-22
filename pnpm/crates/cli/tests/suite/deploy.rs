@@ -1,3 +1,5 @@
+use crate::_utils::append_workspace_yaml_key;
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::Lockfile;
@@ -91,6 +93,84 @@ fn deploy_from_shared_lockfile_installs_selected_project() {
             "production deploy virtual store should exclude {excluded}: {virtual_store_entries:#?}",
         );
     }
+
+    drop((root, mock_instance));
+}
+
+/// A pinned `lockfileDir` moves the shared lockfile `deploy` reads and
+/// the importer id naming the selected project in it. Reading either from
+/// the workspace root instead drops the deploy to its "shared lockfile not
+/// found" fallback, which installs the project without a lockfile and can
+/// resolve versions the workspace never pinned.
+#[test]
+fn deploy_from_shared_lockfile_follows_a_pinned_lockfile_dir() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_reachability_workspace(&workspace);
+    append_workspace_yaml_key(&workspace, "lockfileDir", "..");
+
+    pacquet.with_arg("install").assert().success();
+    assert!(
+        root.path().join("pnpm-lock.yaml").is_file(),
+        "the install must have written the lockfile at the pin",
+    );
+
+    let output = pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy"])
+        .output()
+        .expect("spawn pacquet deploy");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "deploy must succeed:\n{stdout}");
+    assert!(
+        !stdout.contains("Shared lockfile not found"),
+        "deploy must find the lockfile at the pin:\n{stdout}",
+    );
+
+    let deploy_dir = workspace.join("deploy");
+    assert!(
+        deploy_dir.join("pnpm-lock.yaml").is_file(),
+        "the deployed project gets its own lockfile, not the pinned one",
+    );
+    assert!(
+        is_symlink_or_junction(&deploy_dir.join("node_modules/lib")).unwrap(),
+        "the prod workspace dependency must be linked into the deploy dir",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A pin that does not contain the workspace gives every project an
+/// importer id that climbs out of the lockfile dir, and deploy resolves
+/// each of them by joining onto that dir — paths it refuses on principle.
+/// The shared path cannot describe the layout, so it hands over to the
+/// legacy installer rather than failing the command.
+#[test]
+fn deploy_falls_back_when_the_pinned_lockfile_dir_does_not_contain_the_workspace() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_reachability_workspace(&workspace);
+    fs::create_dir_all(root.path().join("side")).unwrap();
+    append_workspace_yaml_key(&workspace, "lockfileDir", "../side");
+
+    pacquet.with_arg("install").assert().success();
+
+    let output = pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy"])
+        .output()
+        .expect("spawn pacquet deploy");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "deploy must fall back, not fail:\n{stdout}\n{stderr}");
+    assert!(
+        stdout.contains("does not contain the workspace, so its importer paths cannot be deployed"),
+        "the fallback must say why the shared lockfile was unusable:\n{stdout}",
+    );
+    assert!(
+        is_symlink_or_junction(&workspace.join("deploy/node_modules/lib")).unwrap(),
+        "the legacy deploy still links the prod workspace dependency",
+    );
 
     drop((root, mock_instance));
 }

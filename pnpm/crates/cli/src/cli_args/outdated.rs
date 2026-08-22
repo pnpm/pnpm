@@ -593,6 +593,9 @@ impl OutdatedArgs {
         let config = state.config;
         let workspace_root =
             config.workspace_dir.clone().unwrap_or_else(|| state.lockfile_dir().to_path_buf());
+        // The lockfile the importer ids name may sit somewhere else than
+        // the workspace the projects are discovered in — `lockfileDir`.
+        let lockfile_root = state.lockfile_dir().to_path_buf();
         let (projects, _) = discover_workspace_projects(&workspace_root)?;
         let prefix = state.manifest.path().parent().unwrap_or_else(|| state.manifest.path());
         let selection =
@@ -608,7 +611,7 @@ impl OutdatedArgs {
             include_deprecated: true,
         };
 
-        let shared_lockfile = if config.shared_workspace_lockfile {
+        let shared_lockfile = if config.shares_one_lockfile() {
             state
                 .lockfile
                 .get()
@@ -631,7 +634,7 @@ impl OutdatedArgs {
             if !has_any_dependency {
                 continue;
             }
-            let project_lockfile = if config.shared_workspace_lockfile {
+            let project_lockfile = if config.shares_one_lockfile() {
                 None
             } else {
                 Lockfile::load_wanted_from_dir(project_dir).into_diagnostic()?
@@ -641,17 +644,17 @@ impl OutdatedArgs {
         let run = OutdatedRun::new(config)?;
         let project_queries =
             project_inputs.iter().map(|(project_dir, project, project_lockfile)| async {
-                let (lockfile, importer_id) = if config.shared_workspace_lockfile {
+                let (lockfile, importer_id) = if config.shares_one_lockfile() {
                     (
                         shared_lockfile,
-                        pnpm_workspace::importer_id_from_root_dir(&workspace_root, project_dir),
+                        pnpm_workspace::importer_id_from_root_dir(&lockfile_root, project_dir),
                     )
                 } else {
                     (project_lockfile.as_ref(), Lockfile::ROOT_IMPORTER_KEY.to_string())
                 };
                 let Some(lockfile) = lockfile else {
-                    let lockfile_dir = if config.shared_workspace_lockfile {
-                        workspace_root.as_path()
+                    let lockfile_dir = if config.shares_one_lockfile() {
+                        lockfile_root.as_path()
                     } else {
                         project_dir.as_path()
                     };
@@ -748,6 +751,7 @@ impl OutdatedArgs {
         let mut isolated_config = config.clone();
         isolated_config.workspace_dir = None;
         isolated_config.shared_workspace_lockfile = false;
+        isolated_config.lockfile_dir = None;
         // A group's lockfile is written unconditionally (`run_group_install`
         // forces it) because it is where the installed versions are recorded,
         // so reading it back must not depend on the caller's `lockfile`

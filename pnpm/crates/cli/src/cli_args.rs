@@ -38,6 +38,7 @@ pub(crate) mod legacy_pnpm_field;
 pub mod licenses;
 pub mod link;
 pub mod list;
+pub mod lockfile_dir;
 pub mod login;
 pub mod logout;
 pub mod outdated;

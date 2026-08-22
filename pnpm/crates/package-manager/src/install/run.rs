@@ -221,7 +221,7 @@ where
         // `remove`, ...) targets the project it was run in and reports the
         // single-project shape, with no `total`, exactly as pnpm's
         // non-recursive `scopeLogger` call does.
-        if selection.is_none() && config.shared_workspace_lockfile {
+        if selection.is_none() && config.shares_one_lockfile() {
             let workspace_wide = mutation.is_full_install().then_some(workspace_projects).flatten();
             Reporter::emit(&LogEvent::Scope(ScopeLog {
                 level: LogLevel::Debug,
@@ -244,9 +244,10 @@ where
         // headless install should always go through the dispatch so a
         // `NoLockfile` or `OutdatedLockfile` error still fires when
         // the lockfile is missing or stale.
+
         let manifest_is_root_importer = root_manifest_as_workspace_root
             || workspace_projects_are_overridden
-            || !config.shared_workspace_lockfile;
+            || !config.shares_one_lockfile();
         let project_manifests = match selection.as_ref() {
             Some(selection) => build_selected_project_manifests_list(
                 manifest,
@@ -259,9 +260,9 @@ where
                 // Dedicated per-project lockfiles record a single "."
                 // importer per project; sibling projects only feed the
                 // `workspace:` resolver, never the importer list.
-                config.shared_workspace_lockfile.then_some(workspace_projects).flatten(),
+                config.shares_one_lockfile().then_some(workspace_projects).flatten(),
             ),
-            None => build_project_manifests_list(&workspace_root, manifest, workspace_projects),
+            None => build_project_manifests_list(manifest, workspace_projects),
         };
         // Only an unfiltered install of a whole workspace sees the complete
         // project list, so only it may conclude that an importer the
@@ -276,7 +277,7 @@ where
             && mutation.is_full_install()
             && workspace_projects.is_some()
             && !workspace_projects_are_overridden
-            && config.shared_workspace_lockfile;
+            && config.shares_one_lockfile();
         let selected_importer_ids = selection.as_ref().map(|selection| {
             selection
                 .selected_dirs
