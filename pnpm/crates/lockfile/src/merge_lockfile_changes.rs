@@ -9,8 +9,8 @@
 //! consumes the merge writes its own back.
 
 use crate::{
-    Lockfile, LockfileVersion, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
-    SnapshotDepRef, SnapshotEntry,
+    Lockfile, LockfileExtra, LockfileVersion, ProjectSnapshot, ResolvedDependencyMap,
+    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
 use node_semver::Version;
 use serde::{Serialize, de::DeserializeOwned};
@@ -42,7 +42,20 @@ pub fn merge_lockfile_changes(ours: &Lockfile, theirs: &Lockfile) -> Lockfile {
         package_extensions_checksum: None,
         patched_dependencies: None,
         time: None,
+        extra: merge_extra(&ours.extra, &theirs.extra),
     }
+}
+
+/// Union the top-level keys pnpm does not define, ours winning a conflict —
+/// the same precedence the fields above use. Dropping them would delete the
+/// state a tool driving pnpm records beside the lockfile from whichever
+/// branch is being merged.
+fn merge_extra(ours: &LockfileExtra, theirs: &LockfileExtra) -> LockfileExtra {
+    let mut merged = theirs.clone();
+    for (key, value) in ours {
+        merged.insert(key.clone(), value.clone());
+    }
+    merged
 }
 
 /// Which side of a disagreement a merge keeps.

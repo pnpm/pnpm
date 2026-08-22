@@ -161,3 +161,20 @@ pnpmfileChecksum: theirs
         Some(["fsevents".to_string(), "node-gyp".to_string()].as_slice()),
     );
 }
+
+/// A tool driving pnpm records its own state in a top-level block beside
+/// pnpm's; merging two branches' lockfiles must not delete it. Ours wins a
+/// conflict, matching the precedence the other fields use.
+#[test]
+fn merging_unions_the_foreign_top_level_keys() {
+    let mut ours = parse("lockfileVersion: '9.0'\n");
+    ours.extra.insert("bit".to_string(), serde_json::json!({ "depsRequiringBuild": ["ours"] }));
+    let mut theirs = parse("lockfileVersion: '9.0'\n");
+    theirs.extra.insert("bit".to_string(), serde_json::json!({ "depsRequiringBuild": ["theirs"] }));
+    theirs.extra.insert("other-tool".to_string(), serde_json::json!(true));
+
+    let merged = merge_lockfile_changes(&ours, &theirs);
+
+    assert_eq!(merged.extra["bit"], serde_json::json!({ "depsRequiringBuild": ["ours"] }));
+    assert_eq!(merged.extra["other-tool"], serde_json::json!(true));
+}
