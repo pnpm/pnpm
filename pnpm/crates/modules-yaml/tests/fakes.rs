@@ -170,7 +170,6 @@ fn read_reports_an_incompatible_layout_version_as_no_layout() {
         .pipe(read_modules_manifest::<LegacyVersion>)
         .expect("read manifest")
         .expect("manifest exists");
-    dbg!(&manifest.layout_version);
     assert_eq!(manifest.layout_version, None);
 
     // `ModulesLayout` carries its own copy of the field, and it is the
@@ -180,7 +179,6 @@ fn read_reports_an_incompatible_layout_version_as_no_layout() {
         .pipe(read_modules_layout::<LegacyVersion>)
         .expect("read layout")
         .expect("layout exists");
-    dbg!(&layout.layout_version);
     assert_eq!(layout.layout_version, None);
 }
 
