@@ -2183,6 +2183,51 @@ fn an_unmigrated_package_json_pnpm_field_is_not_reported() {
     drop(root);
 }
 
+/// `ignorePnpmfile` is a setting, not only a flag. pnpm lists
+/// `ignore-pnpmfile` among the keys a config file may carry and exposes it
+/// through `PNPM_CONFIG_IGNORE_PNPMFILE`, so a project or a machine can turn
+/// hooks off without every command growing the flag.
+#[test]
+fn ignore_pnpmfile_is_settable_without_the_flag() {
+    for source in ["pnpm-workspace.yaml", "PNPM_CONFIG_IGNORE_PNPMFILE"] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        write_read_package_pnpmfile(&workspace);
+        fs::write(
+            workspace.join("package.json"),
+            r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+        )
+        .expect("write package.json");
+
+        let mut command = pacquet_in(&workspace);
+        if source == "pnpm-workspace.yaml" {
+            let path = workspace.join("pnpm-workspace.yaml");
+            let mut yaml = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
+            yaml.push_str("ignorePnpmfile: true\n");
+            fs::write(&path, yaml).expect("write pnpm-workspace.yaml");
+        } else {
+            command = command.with_env("PNPM_CONFIG_IGNORE_PNPMFILE", "true");
+        }
+        command.with_args(["install", "--lockfile-only"]).assert().success();
+        assert!(!read_package_hook_applied(&workspace), "{source}: the pnpmfile's hook is skipped");
+
+        // Resolve the same project with the setting absent, so the assertion
+        // above cannot pass on a fixture whose hook never worked.
+        fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
+        if source == "pnpm-workspace.yaml" {
+            let path = workspace.join("pnpm-workspace.yaml");
+            let yaml = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
+            fs::write(&path, yaml.replace("ignorePnpmfile: true\n", "")).expect("rewrite yaml");
+        }
+        pacquet_in(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+        assert!(read_package_hook_applied(&workspace), "{source}: the hook otherwise applies");
+
+        drop((root, mock_instance));
+    }
+}
+
 /// `--ignore-pnpmfile` disables the hooks the workspace pnpmfile
 /// exports, so an install that passes it resolves the manifest as
 /// written and drops what a `readPackage` hook injected.
@@ -2348,7 +2393,7 @@ fn a_global_pnpmfile_runs_for_a_project_without_one() {
 
 /// The global pnpmfile loads ahead of the project's, so `readPackage` reaches
 /// it first and the project's hook sees what it returned. Chaining is the whole
-/// point of the order pnpm fixes by pushing the global entry first, and nothing
+/// point of the order pnpm pins by pushing the global entry first, and nothing
 /// else in this file would notice if the two swapped.
 #[test]
 fn a_global_pnpmfile_runs_before_the_project_pnpmfile() {
@@ -2418,6 +2463,9 @@ fn a_global_pnpmfile_stays_out_of_the_pnpmfile_checksum() {
     .expect("write package.json");
 
     let install = || {
+        // Each measurement resolves from scratch. Reading back a lockfile an
+        // up-to-date check declined to rewrite would compare a value to itself.
+        drop(fs::remove_file(workspace.join("pnpm-lock.yaml")));
         pacquet_in(&workspace)
             .with_env("PNPM_CONFIG_GLOBAL_PNPMFILE", &global_pnpmfile)
             .with_args(["install", "--lockfile-only"])

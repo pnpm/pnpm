@@ -431,6 +431,11 @@ pub struct WorkspaceSettings {
     /// CLI flag ORs on top of this. Default `false`.
     pub ignore_scripts: Option<bool>,
 
+    /// `ignorePnpmfile`. When `true`, no pnpmfile hooks run. See
+    /// [`Config::ignore_pnpmfile`]. The `--ignore-pnpmfile` CLI flag ORs on
+    /// top of this. Default `false`.
+    pub ignore_pnpmfile: Option<bool>,
+
     /// `gitChecks` from `pnpm-workspace.yaml`. When `false`, `pnpm publish`
     /// skips its git working-tree checks. See [`Config::git_checks`]. The
     /// `--no-git-checks` CLI flag forces it off on top of this. Default
@@ -1653,6 +1658,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.ignore_scripts {
             config.ignore_scripts = v;
+        }
+        if let Some(v) = self.ignore_pnpmfile {
+            config.ignore_pnpmfile = v;
         }
         if let Some(v) = self.git_checks {
             config.git_checks = v;
