@@ -23,7 +23,7 @@ use super::{
 
 /// Everything that stays constant while resolving node metadata across
 /// one tree build.
-pub(crate) struct PkgInfoEnv<'a> {
+pub struct PkgInfoEnv<'a> {
     pub lockfile_dir: PathBuf,
     /// Absolute, symlink-resolved `node_modules` of the lockfile root.
     pub modules_dir: PathBuf,
@@ -60,14 +60,14 @@ impl PkgInfoEnv<'_> {
 /// when `node_modules` was never materialized), the package directory
 /// is the fallback.
 #[derive(Debug, Clone)]
-pub(crate) struct ManifestSource {
+pub struct ManifestSource {
     pub path: PathBuf,
     pub integrity: Option<String>,
     pub name: String,
     pub version: String,
 }
 
-pub(crate) struct EdgeContext<'a> {
+pub struct EdgeContext<'a> {
     /// Names in the parent's `peerDependencies`.
     pub peers: Option<&'a HashSet<String>>,
     /// Base directory for resolving `link:` paths of this edge.
@@ -79,7 +79,7 @@ pub(crate) struct EdgeContext<'a> {
     pub parent_dir: Option<PathBuf>,
 }
 
-pub(crate) fn get_pkg_info(
+pub fn get_pkg_info(
     env: &PkgInfoEnv<'_>,
     edge: &GraphEdge,
     ctx: &EdgeContext<'_>,
@@ -216,7 +216,8 @@ fn resolved_tarball_url(
 /// prefixed components are rejected by shape, not `is_absolute()`:
 /// on Windows a rooted-but-prefixless `\escape` (or a prefix-only
 /// `C:evil`) is not "absolute" yet still replaces the join base.
-pub(crate) fn is_unsafe_path_component(component: &str) -> bool {
+#[must_use]
+pub fn is_unsafe_path_component(component: &str) -> bool {
     Path::new(component).components().any(|part| {
         matches!(
             part,
@@ -232,7 +233,7 @@ pub(crate) fn is_unsafe_path_component(component: &str) -> bool {
 /// virtual store the symlink through the parent's `node_modules` is
 /// resolved instead. A name that could traverse outside the virtual
 /// store is never joined or dereferenced.
-pub(crate) fn resolve_package_path(
+pub fn resolve_package_path(
     env: &PkgInfoEnv<'_>,
     dep_path: &PkgNameVerPeer,
     name: &str,

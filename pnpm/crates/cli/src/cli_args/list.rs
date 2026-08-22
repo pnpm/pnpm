@@ -14,11 +14,11 @@ use crate::cli_args::{
             BuildTreeOptions, DependenciesHierarchy, LoadedState, build_dependencies_tree,
             importer_root_ids,
         },
-        finders::{evaluate_finders, finder_candidates, resolve_finders},
         get_tree::MaxDepth,
         graph::{BuildGraphOptions, build_dependency_graph},
         search::Searcher,
     },
+    deps_tree_finders::{evaluate_finders, finder_candidates, resolve_finders},
     recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
 };
 

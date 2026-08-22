@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use pretty_assertions::assert_eq;
 
 use super::{SearchMatch, Searcher};
-use crate::cli_args::deps_tree::TreeNodeId;
+use crate::TreeNodeId;
 
 fn searcher(queries: &[&str]) -> Searcher {
     let queries: Vec<String> = queries.iter().copied().map(str::to_string).collect();

@@ -18,7 +18,7 @@ use crate::format::visible_width;
 // undercounted, same as the pre-pnpm/pnpm#12351 behavior.
 
 /// Renders the differential between successive frames.
-pub(crate) struct Diff {
+pub struct Diff {
     col: usize,
     row: usize,
     width: usize,
@@ -26,11 +26,12 @@ pub(crate) struct Diff {
 }
 
 impl Diff {
-    pub(crate) fn new(width: usize) -> Self {
+    #[must_use]
+    pub fn new(width: usize) -> Self {
         Diff { col: 0, row: 0, width, lines: Vec::new() }
     }
 
-    pub(crate) fn reset(&mut self) {
+    pub fn reset(&mut self) {
         self.col = 0;
         self.row = 0;
         self.lines.clear();
@@ -40,7 +41,7 @@ impl Diff {
     /// frame into `frame`. The caller wraps this with `\r` (column reset) and
     /// `\x1b[0J` (erase below frame), composing the whole redraw into one
     /// buffer so it reaches the terminal as a single write.
-    pub(crate) fn update_into(&mut self, frame: &str, out: &mut String) {
+    pub fn update_into(&mut self, frame: &str, out: &mut String) {
         let next = Line::split(frame, self.width);
         let min = next.len().min(self.lines.len());
         let mut scrub = false;
@@ -116,7 +117,7 @@ impl Diff {
     }
 
     #[cfg(test)]
-    pub(crate) fn update(&mut self, frame: &str) -> String {
+    pub fn update(&mut self, frame: &str) -> String {
         let mut out = String::new();
         self.update_into(frame, &mut out);
         out

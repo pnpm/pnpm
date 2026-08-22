@@ -11,7 +11,7 @@ use pnpm_hooks::PnpmfileHooks;
 use pnpm_package_manifest::parse_manifest_bytes;
 use pnpm_store_dir::{StoreDir, StoreIndex, store_index_key};
 
-use super::{
+use pnpm_deps_inspection::{
     TreeNodeId,
     dependents::resolve_package_nodes,
     graph::DependencyGraph,
@@ -87,7 +87,7 @@ pub(crate) fn finder_candidates(
         // for importer parents, the lockfile root otherwise.
         let linked_path_base_dir = match parent_id {
             TreeNodeId::Importer(importer_id) => {
-                super::build::safe_importer_dir(&env.lockfile_dir, importer_id)
+                pnpm_deps_inspection::build::safe_importer_dir(&env.lockfile_dir, importer_id)
                     .unwrap_or_else(|| env.lockfile_dir.clone())
             }
             TreeNodeId::Package(_) => env.lockfile_dir.clone(),
@@ -100,9 +100,10 @@ pub(crate) fn finder_candidates(
                     }
                 }
                 Some(target @ TreeNodeId::Importer(importer_id)) => {
-                    let Some(importer_dir) =
-                        super::build::safe_importer_dir(&env.lockfile_dir, importer_id)
-                    else {
+                    let Some(importer_dir) = pnpm_deps_inspection::build::safe_importer_dir(
+                        &env.lockfile_dir,
+                        importer_id,
+                    ) else {
                         continue;
                     };
                     push(
