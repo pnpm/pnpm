@@ -60,6 +60,7 @@ pub use pnpm_patching::{
 pub use prefetching_resolver::*;
 pub use remove::*;
 pub use resolution_observer::*;
+pub use resolution_policy::{PickPolicy, create_configured_npm_resolver};
 pub use resolve_latest::ResolveLatestError;
 pub use tarball_prefetch::*;
 pub use update::*;
