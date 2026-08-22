@@ -66,8 +66,8 @@ pub use update::*;
 pub use update_project_manifest::*;
 pub use update_project_manifest_object::*;
 pub use workspace_cycles::{
-    CyclicWorkspaceDependenciesError, report_workspace_cycles, workspace_cycles,
-    workspace_wide_cycles,
+    CyclicWorkspaceDependenciesError, install_scope_cycles, report_workspace_cycles,
+    workspace_cycles,
 };
 
 /// The dependency groups a project installs directly — `dependencies`,

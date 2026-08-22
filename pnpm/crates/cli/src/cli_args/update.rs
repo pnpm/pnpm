@@ -337,7 +337,6 @@ impl UpdateArgs {
             ordered_dirs,
             selected_dirs,
             active_manifest_is_standin,
-            workspace_cycles: _,
         } = selection;
 
         if run_package_update {

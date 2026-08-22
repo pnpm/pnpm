@@ -221,23 +221,6 @@ where
         // non-recursive `scopeLogger` call does.
         if selection.is_none() && config.shared_workspace_lockfile {
             let workspace_wide = mutation.is_full_install().then_some(workspace_projects).flatten();
-            // A full install covers every project in the workspace, so
-            // that is the set the cycle report reads. A narrowed run
-            // reports over its selection instead, from the layer that
-            // resolved it, and a single-project mutation (`add`,
-            // `update`, ...) has no set to cycle within.
-            if let Some((workspace_dir, projects)) =
-                workspace_dir_opt.as_deref().zip(workspace_wide)
-                && !config.ignore_workspace_cycles
-            {
-                let cycles = crate::workspace_wide_cycles(config, projects);
-                crate::report_workspace_cycles::<Reporter>(
-                    config,
-                    workspace_dir,
-                    cycles.as_deref(),
-                )
-                .map_err(InstallError::CyclicWorkspaceDependencies)?;
-            }
             Reporter::emit(&LogEvent::Scope(ScopeLog {
                 level: LogLevel::Debug,
                 selected: workspace_wide.map_or(1, <[_]>::len),
@@ -386,6 +369,36 @@ where
                 }));
                 Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
                 return Ok(());
+            }
+        }
+
+        // Report the projects this install covers depending on each
+        // other in a cycle — after the short-circuit above, because pnpm
+        // returns from "Already up to date" before reaching its own
+        // check, and before any resolution, because a
+        // `disallowWorkspaceCycles` failure must not be paid for.
+        if !config.ignore_workspace_cycles
+            && let Some(workspace_dir) = workspace_dir_opt.as_deref()
+        {
+            let scope = match selection.as_ref() {
+                Some(selection) => Some((selection.all_projects, Some(selection.selected_dirs))),
+                // A single-project mutation (`add`, `update`, ...) has no
+                // set to cycle within; only a full install covers the
+                // whole workspace.
+                None => mutation
+                    .is_full_install()
+                    .then_some(workspace_projects)
+                    .flatten()
+                    .map(|projects| (projects, None)),
+            };
+            if let Some((projects, selected_dirs)) = scope {
+                let cycles = crate::install_scope_cycles(config, projects, selected_dirs);
+                crate::report_workspace_cycles::<Reporter>(
+                    config,
+                    workspace_dir,
+                    cycles.as_deref(),
+                )
+                .map_err(InstallError::CyclicWorkspaceDependencies)?;
             }
         }
 

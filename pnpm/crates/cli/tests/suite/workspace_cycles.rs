@@ -158,28 +158,34 @@ fn adding_a_dependency_to_one_project_reports_no_cycles() {
     assert!(!stdout.contains(CYCLE_MESSAGE), "{stdout}");
 }
 
-/// The report is not part of the install work, so the repeat install
-/// that short-circuits as "Already up to date" still makes it — which is
-/// also where a `disallowWorkspaceCycles` failure would be easiest to
-/// lose.
+/// pnpm's `installDeps` returns from its optimistic repeat-install
+/// short-circuit before it reaches the cycle check, so an install that
+/// concludes "Already up to date" says nothing about cycles — not even
+/// under `disallowWorkspaceCycles`, which cannot fail an install that
+/// never ran.
 #[test]
-fn an_already_up_to_date_install_still_reports_the_cycle() {
+fn an_already_up_to_date_install_reports_no_cycles() {
     let CommandTempCwd { root: _root, workspace, .. } =
         CommandTempCwd::init().add_mocked_registry();
     write_cyclic_workspace(&workspace, "");
 
-    install_command(&workspace, false).assert().success();
+    let first = install_command(&workspace, false).assert().success();
+    assert!(
+        String::from_utf8_lossy(&first.get_output().stdout).contains(CYCLE_MESSAGE),
+        "the install that did the work reports the cycle",
+    );
+
     let output = install_command(&workspace, false).assert().success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     assert!(stdout.contains("Already up to date"), "{stdout}");
-    assert!(stdout.contains(&format!("[WARN] {CYCLE_MESSAGE}")), "{stdout}");
+    assert!(!stdout.contains(CYCLE_MESSAGE), "{stdout}");
 
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
     yaml.push_str("disallowWorkspaceCycles: true\n");
     fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
 
-    let output = install_command(&workspace, false).assert().failure();
-    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    assert!(stderr.contains("ERR_PNPM_DISALLOW_WORKSPACE_CYCLES"), "{stderr}");
+    let output = install_command(&workspace, false).assert().success();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert!(stdout.contains("Already up to date"), "{stdout}");
 }

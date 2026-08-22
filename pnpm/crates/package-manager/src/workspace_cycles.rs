@@ -1,10 +1,11 @@
 //! Report workspace projects that depend on each other in a cycle.
 //!
-//! Two installs ask this question with different sets in hand: a
-//! `--filter`ed or `-r` one reports over the selection the CLI resolved,
-//! a full one over every project in the workspace, from the installer
-//! where that list is already loaded. Both meet here, so the verdict and
-//! the message they render cannot drift apart.
+//! The set the report covers is the set the install covers: the
+//! selection a `--filter`ed or `-r` run resolved, or every project in
+//! the workspace for a full install. The report comes after the
+//! optimistic repeat-install short-circuit, so an install that concludes
+//! "Already up to date" says nothing about cycles — pnpm returns before
+//! its own check in that case.
 
 use pnpm_config::{Config, LinkWorkspacePackages};
 use pnpm_deps_restorer::graph_sequencer;
@@ -47,14 +48,23 @@ pub fn workspace_cycles<Pkg>(graph: &ProjectGraph<Pkg>) -> Option<Vec<Vec<PathBu
     (!sequenced.safe).then_some(sequenced.cycles)
 }
 
-/// The cycles among every project in the workspace — the set a full
-/// install covers.
+/// The cycles among the projects an install covers: `selected_dirs`
+/// narrows `projects` to a `--filter`ed or `-r` selection, `None` covers
+/// the whole workspace.
+///
+/// A selected project keeps the dependency list it has in the full
+/// graph; [`workspace_cycles`] then drops the edges that leave the
+/// selection, which is how pnpm sequences its selected graph.
 #[must_use]
-pub fn workspace_wide_cycles(config: &Config, projects: &[Project]) -> Option<Vec<Vec<PathBuf>>> {
+pub fn install_scope_cycles(
+    config: &Config,
+    projects: &[Project],
+    selected_dirs: Option<&HashSet<PathBuf>>,
+) -> Option<Vec<Vec<PathBuf>>> {
     if projects.len() < 2 {
         return None;
     }
-    let graph = create_projects_graph(
+    let mut graph = create_projects_graph(
         projects.iter().map(|project| GraphPkg { project }).collect(),
         &CreateProjectsGraphOptions {
             link_workspace_packages: Some(
@@ -64,6 +74,9 @@ pub fn workspace_wide_cycles(config: &Config, projects: &[Project]) -> Option<Ve
         },
     )
     .graph;
+    if let Some(selected_dirs) = selected_dirs {
+        graph.retain(|dir, _| selected_dirs.contains(dir));
+    }
     workspace_cycles(&graph)
 }
 

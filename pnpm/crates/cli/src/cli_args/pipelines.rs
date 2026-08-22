@@ -39,11 +39,6 @@ pub(crate) struct InstallFamilySelection {
     pub(crate) ordered_dirs: Vec<PathBuf>,
     pub(crate) selected_dirs: Arc<HashSet<PathBuf>>,
     pub(crate) active_manifest_is_standin: bool,
-    /// The cycles [`pnpm_package_manager::workspace_cycles`] found among
-    /// the selected projects, or `None` when they can be ordered.
-    /// Computed here, where the selection graph lives, and reported by
-    /// [`select_install_family_plan`], which has the reporter.
-    pub(crate) workspace_cycles: Option<Vec<Vec<PathBuf>>>,
 }
 
 /// How a recursive / filtered install-family command should be dispatched,
@@ -79,7 +74,6 @@ fn select_install_family_plan<Reporter: self::Reporter>(
     else {
         return Ok(InstallFamilyPlan::Single);
     };
-    report_workspace_cycles::<Reporter>(cfg, &selection)?;
     // Report what the `--filter` / `-r` selection resolved to, so the user
     // can confirm it before the install acts on it. Emitted once here for
     // every plan shape below — a `PerProject` plan installs each selected
@@ -122,7 +116,7 @@ pub(crate) fn select_workspace_projects(
             );
         }
     }
-    let (ordered_groups, ordered_dirs, selected_dirs, workspace_cycles) = {
+    let (ordered_groups, ordered_dirs, selected_dirs) = {
         let selection = select_recursive_projects(
             &projects,
             cfg,
@@ -145,12 +139,7 @@ pub(crate) fn select_workspace_projects(
         };
         let ordered_dirs = ordered_groups.iter().flatten().cloned().collect();
         let selected_dirs = Arc::new(selection.selected.keys().cloned().collect());
-        // Skipped outright under `ignoreWorkspaceCycles`: nothing reports
-        // the verdict then, so nothing has to compute it.
-        let workspace_cycles = (!cfg.ignore_workspace_cycles)
-            .then(|| pnpm_package_manager::workspace_cycles(&selection.selected))
-            .flatten();
-        (ordered_groups, ordered_dirs, selected_dirs, workspace_cycles)
+        (ordered_groups, ordered_dirs, selected_dirs)
     };
 
     let active_dir = manifest_path.parent().expect("manifest path always has a parent dir");
@@ -170,23 +159,7 @@ pub(crate) fn select_workspace_projects(
         ordered_dirs,
         selected_dirs,
         active_manifest_is_standin,
-        workspace_cycles,
     }))
-}
-
-/// Report workspace projects that depend on each other in a cycle over
-/// the resolved selection. A full install reports over the whole
-/// workspace instead, from the installer.
-fn report_workspace_cycles<Reporter: self::Reporter>(
-    cfg: &Config,
-    selection: &InstallFamilySelection,
-) -> miette::Result<()> {
-    pnpm_package_manager::report_workspace_cycles::<Reporter>(
-        cfg,
-        &selection.workspace_root,
-        selection.workspace_cycles.as_deref(),
-    )
-    .map_err(miette::Report::new)
 }
 
 /// Build the project-anchored `State` for one project of a
