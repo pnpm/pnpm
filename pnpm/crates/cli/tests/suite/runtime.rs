@@ -1,8 +1,12 @@
 use assert_cmd::prelude::*;
-use command_extra::CommandExtra;
 use pnpm_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path, process::Command};
+use std::{fs, path::Path};
+
+#[cfg(unix)]
+use command_extra::CommandExtra;
+#[cfg(unix)]
+use std::process::Command;
 
 #[test]
 fn runtime_unknown_subcommand_runs_with_default_ndjson_and_silent_reporters() {
