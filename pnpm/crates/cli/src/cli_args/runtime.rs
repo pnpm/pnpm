@@ -8,7 +8,7 @@ use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_package_manifest::{DependencyGroup, is_runtime_alias};
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::Reporter;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use std::path::Path;
 
 /// Manage runtimes.
@@ -79,6 +79,8 @@ impl RuntimeArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let request = self.set_request()?;
         let config = state.config;
+        let prefix =
+            state.manifest.path().parent().expect("manifest path has a parent").to_path_buf();
         add_package::<Reporter, _>(
             state,
             &request.package_name,
@@ -89,7 +91,10 @@ impl RuntimeArgs {
             [request.dependency_group],
         )
         .await?;
-        ensure_runtime_shim(config, &request.runtime_name)
+        if let Err(error) = ensure_runtime_shim(config, &request.runtime_name) {
+            warn_runtime_shim_failure::<Reporter>(&prefix, &request.runtime_name, &error);
+        }
+        Ok(())
     }
 
     /// `pnpm runtime set <name> <version> -g`: install the runtime into the
@@ -158,6 +163,22 @@ impl RuntimeArgs {
             dependency_group,
         })
     }
+}
+
+fn warn_runtime_shim_failure<Reporter: self::Reporter>(
+    prefix: &Path,
+    runtime_name: &str,
+    error: &miette::Report,
+) {
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        message: format!(
+            "Unable to create the project-aware {runtime_name} shim in the global bin directory: \
+             {error:#}. The runtime was pinned successfully; run \"pnpm setup\" after fixing the \
+             global bin directory.",
+        ),
+        prefix: prefix.to_string_lossy().into_owned(),
+    }));
 }
 
 #[cfg(test)]
