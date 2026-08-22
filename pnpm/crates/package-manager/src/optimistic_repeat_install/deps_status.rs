@@ -101,7 +101,7 @@ pub fn check_deps_status_before_run(
     // A filtered install legitimately leaves unselected projects
     // without a modules directory.
     if !state.filtered_install
-        && let Some(id) = first_project_missing_modules_dir(config, project_manifests)
+        && let Some(id) = first_project_missing_modules_dir(config, node_linker, project_manifests)
     {
         return outdated(format!(
             "Workspace package {id} has dependencies but does not have a modules directory",

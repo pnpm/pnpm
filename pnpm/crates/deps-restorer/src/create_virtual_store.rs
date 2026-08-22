@@ -419,6 +419,7 @@ impl CreateVirtualStore<'_> {
             allow_build_policy,
             skipped,
             link_dependencies: !is_hoisted && config.symlink,
+            is_hoisted,
             include_optional_dependencies,
             ignore_scripts: config.ignore_scripts,
             runtime_platform_selector: &runtime_platform_selector,
