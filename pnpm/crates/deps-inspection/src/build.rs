@@ -29,7 +29,7 @@ use super::{
 
 /// The lockfiles and modules-manifest state one tree build runs
 /// against. Owns the loaded lockfiles; [`LoadedState::env`] borrows them.
-pub(crate) struct LoadedState {
+pub struct LoadedState {
     pub modules_dir: PathBuf,
     pub modules: Option<Modules>,
     pub current_lockfile: Option<Lockfile>,
@@ -38,7 +38,7 @@ pub(crate) struct LoadedState {
 }
 
 impl LoadedState {
-    pub(crate) fn load(
+    pub fn load(
         lockfile_dir: &Path,
         modules_dir_opt: Option<&Path>,
         check_wanted_lockfile_only: bool,
@@ -71,7 +71,8 @@ impl LoadedState {
     /// The lockfile the tree is built from: the wanted lockfile under
     /// `--lockfile-only`, otherwise the current lockfile with the
     /// wanted one as fallback.
-    pub(crate) fn lockfile_to_use(&self) -> Option<&Lockfile> {
+    #[must_use]
+    pub fn lockfile_to_use(&self) -> Option<&Lockfile> {
         if self.check_wanted_lockfile_only {
             self.wanted_lockfile.as_ref()
         } else {
@@ -79,7 +80,8 @@ impl LoadedState {
         }
     }
 
-    pub(crate) fn env<'a>(
+    #[must_use]
+    pub fn env<'a>(
         &'a self,
         lockfile_dir: &Path,
         virtual_store_dir_max_length: usize,
@@ -131,14 +133,14 @@ impl LoadedState {
 /// One project's categorized dependency hierarchy — the input of the
 /// `list` renderers.
 #[derive(Debug, Default)]
-pub(crate) struct DependenciesHierarchy {
+pub struct DependenciesHierarchy {
     pub dependencies: Vec<DependencyNode>,
     pub dev_dependencies: Vec<DependencyNode>,
     pub optional_dependencies: Vec<DependencyNode>,
     pub unsaved_dependencies: Vec<DependencyNode>,
 }
 
-pub(crate) struct BuildTreeOptions<'a> {
+pub struct BuildTreeOptions<'a> {
     pub lockfile_dir: &'a Path,
     pub depth: MaxDepth,
     pub include: IncludedDependencies,
@@ -150,7 +152,8 @@ pub(crate) struct BuildTreeOptions<'a> {
 }
 
 /// The importer root ids of `project_dirs` that exist in the lockfile.
-pub(crate) fn importer_root_ids(
+#[must_use]
+pub fn importer_root_ids(
     lockfile: &Lockfile,
     lockfile_dir: &Path,
     project_dirs: &[PathBuf],
@@ -170,7 +173,7 @@ pub(crate) fn importer_root_ids(
 /// Build the dependency hierarchy of every project in `project_dirs`
 /// over a prebuilt `graph`, sharing one materialization cache so
 /// identical subtrees are only expanded once across projects.
-pub(crate) fn build_dependencies_tree(
+pub fn build_dependencies_tree(
     state: &LoadedState,
     env: &PkgInfoEnv<'_>,
     graph: &DependencyGraph,
@@ -293,22 +296,25 @@ fn field_map(
 }
 
 /// The importer id of `project_dir` relative to the lockfile root.
-pub(crate) fn importer_id_for(lockfile_dir: &Path, project_dir: &Path) -> String {
+#[must_use]
+pub fn importer_id_for(lockfile_dir: &Path, project_dir: &Path) -> String {
     pnpm_workspace::importer_id_from_root_dir(lockfile_dir, project_dir)
 }
 
 /// The on-disk directory of a lockfile importer key, or `None` for a
 /// key that cannot be safely joined (absolute, drive-prefixed, or
 /// `..`-traversing — a malformed or hostile lockfile).
-pub(crate) fn safe_importer_dir(lockfile_dir: &Path, importer_id: &str) -> Option<PathBuf> {
-    pnpm_package_manager::validate_importer_id(importer_id).ok()?;
-    Some(pnpm_package_manager::importer_root_dir(lockfile_dir, importer_id))
+#[must_use]
+pub fn safe_importer_dir(lockfile_dir: &Path, importer_id: &str) -> Option<PathBuf> {
+    pnpm_deps_restorer::validate_importer_id(importer_id).ok()?;
+    Some(pnpm_deps_restorer::importer_root_dir(lockfile_dir, importer_id))
 }
 
 /// Resolve symlinks in the deepest existing ancestor of `path`,
 /// re-appending the missing tail (counterpart of the `realpath-missing`
 /// package).
-pub(crate) fn realpath_missing(path: &Path) -> PathBuf {
+#[must_use]
+pub fn realpath_missing(path: &Path) -> PathBuf {
     let mut current = path.to_path_buf();
     let mut tail: Vec<std::ffi::OsString> = Vec::new();
     loop {
@@ -460,7 +466,7 @@ fn read_package_version(pkg_dir: &Path) -> Option<String> {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct ProjectManifestSummary {
+pub struct ProjectManifestSummary {
     pub name: Option<String>,
     pub version: Option<String>,
     pub private: bool,
@@ -469,7 +475,7 @@ pub(crate) struct ProjectManifestSummary {
 /// Read `name` / `version` / `private` from a project manifest,
 /// treating an unreadable manifest as empty (mirroring the TypeScript
 /// `safeReadProjectManifestOnly`).
-pub(crate) fn read_project_manifest(project_dir: &Path) -> ProjectManifestSummary {
+pub fn read_project_manifest(project_dir: &Path) -> ProjectManifestSummary {
     let Ok(bytes) = std::fs::read(project_dir.join("package.json")) else {
         return ProjectManifestSummary::default();
     };

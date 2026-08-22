@@ -12,7 +12,7 @@ use pnpm_modules_yaml::IncludedDependencies;
 use pretty_assertions::assert_eq;
 
 use super::{GetTreeOptions, MaterializationCache, MaxDepth, get_tree};
-use crate::cli_args::deps_tree::{
+use crate::{
     DependencyNode, TreeNodeId,
     graph::{BuildGraphOptions, DependencyGraph, build_dependency_graph},
     pkg_info::PkgInfoEnv,
@@ -739,7 +739,7 @@ snapshots:
 // the walks stop at MAX_WALK_DEPTH instead of recursing without bound.
 #[test]
 fn absurdly_deep_chain_is_capped_instead_of_overflowing_the_stack() {
-    let chain_len = crate::cli_args::deps_tree::MAX_WALK_DEPTH * 3;
+    let chain_len = crate::MAX_WALK_DEPTH * 3;
     let names: Vec<String> = (0..chain_len).map(|i| format!("chain-{i}")).collect();
 
     let mut yaml = String::from("lockfileVersion: '9.0'\n\nimporters:\n  .: {}\n\npackages:\n");
@@ -788,6 +788,6 @@ fn absurdly_deep_chain_is_capped_instead_of_overflowing_the_stack() {
         nodes = &node.dependencies;
     }
     eprintln!("materialized chain depth: {depth}");
-    assert!(depth <= crate::cli_args::deps_tree::MAX_WALK_DEPTH);
-    assert!(depth >= crate::cli_args::deps_tree::MAX_WALK_DEPTH - 1);
+    assert!(depth <= crate::MAX_WALK_DEPTH);
+    assert!(depth >= crate::MAX_WALK_DEPTH - 1);
 }

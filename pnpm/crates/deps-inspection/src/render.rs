@@ -10,21 +10,22 @@ use std::{
 use owo_colors::{OwoColorize, Stream};
 use pnpm_package_manifest::parse_manifest_bytes;
 
-use crate::cli_args::sanitize::sanitize;
+use pnpm_text_sanitize::sanitize;
 
-pub(crate) struct TreeNode {
+pub struct TreeNode {
     pub label: String,
     pub groups: Vec<TreeNodeGroup>,
 }
 
-pub(crate) struct TreeNodeGroup {
+pub struct TreeNodeGroup {
     pub group: String,
     pub nodes: Vec<TreeNode>,
 }
 
 impl TreeNode {
     /// A node whose children carry no group header.
-    pub(crate) fn with_children(label: String, nodes: Vec<TreeNode>) -> TreeNode {
+    #[must_use]
+    pub fn with_children(label: String, nodes: Vec<TreeNode>) -> TreeNode {
         let groups = if nodes.is_empty() {
             Vec::new()
         } else {
@@ -36,7 +37,8 @@ impl TreeNode {
 
 /// Archy-style tree renderer with dimmed tree-drawing characters,
 /// matching the TypeScript `@pnpm/text.tree-renderer` output.
-pub(crate) fn render_archy(node: &TreeNode) -> String {
+#[must_use]
+pub fn render_archy(node: &TreeNode) -> String {
     let mut out = String::new();
     render_archy_node(node, "", "", &mut out);
     out
@@ -95,11 +97,11 @@ fn render_archy_node(node: &TreeNode, connector: &str, prefix: &str, out: &mut S
 }
 
 /// A terminal-styling function (identity when colors are off).
-pub(crate) type ColorFn = fn(&str) -> String;
+pub type ColorFn = fn(&str) -> String;
 
 /// `name` followed by the gray `@version` suffix (no suffix when the
 /// version is empty). `color` styles the name only.
-pub(crate) fn name_at_version(name: &str, version: &str, color: ColorFn) -> String {
+pub fn name_at_version(name: &str, version: &str, color: ColorFn) -> String {
     let name = sanitize(name);
     let version = sanitize(version);
     if version.is_empty() {
@@ -109,11 +111,13 @@ pub(crate) fn name_at_version(name: &str, version: &str, color: ColorFn) -> Stri
     }
 }
 
-pub(crate) fn deduped_label() -> String {
+#[must_use]
+pub fn deduped_label() -> String {
     dim(" [deduped]")
 }
 
-pub(crate) fn circular_label() -> String {
+#[must_use]
+pub fn circular_label() -> String {
     dim(" [circular]")
 }
 
@@ -121,12 +125,12 @@ pub(crate) fn circular_label() -> String {
 /// appears with; only packages with more than one variant get the
 /// `peer#<hash>` suffix in the output.
 #[derive(Debug, Default)]
-pub(crate) struct PeerVariants {
+pub struct PeerVariants {
     hashes_per_pkg: HashMap<String, HashSet<String>>,
 }
 
 impl PeerVariants {
-    pub(crate) fn collect(&mut self, name: &str, version: &str, hash: Option<&str>) {
+    pub fn collect(&mut self, name: &str, version: &str, hash: Option<&str>) {
         let Some(hash) = hash else { return };
         self.hashes_per_pkg
             .entry(format!("{name}@{version}"))
@@ -134,7 +138,8 @@ impl PeerVariants {
             .insert(hash.to_string());
     }
 
-    pub(crate) fn into_multi_variant_counts(self) -> HashMap<String, usize> {
+    #[must_use]
+    pub fn into_multi_variant_counts(self) -> HashMap<String, usize> {
         self.hashes_per_pkg
             .into_iter()
             .filter(|(_, hashes)| hashes.len() > 1)
@@ -143,7 +148,8 @@ impl PeerVariants {
     }
 }
 
-pub(crate) fn peer_hash_suffix(
+#[must_use]
+pub fn peer_hash_suffix(
     multi_peer_pkgs: &HashMap<String, usize>,
     name: &str,
     version: &str,
@@ -159,7 +165,7 @@ pub(crate) fn peer_hash_suffix(
 
 /// Extra manifest details shown by `--long`.
 #[derive(Debug, Default, Clone)]
-pub(crate) struct LongPkgInfo {
+pub struct LongPkgInfo {
     pub description: Option<String>,
     pub license: Option<serde_json::Value>,
     pub author: Option<serde_json::Value>,
@@ -170,7 +176,7 @@ pub(crate) struct LongPkgInfo {
 /// Read the `--long` manifest details from `<pkg_dir>/package.json`.
 /// Unreadable manifests degrade to a placeholder description, matching
 /// the TypeScript CLI.
-pub(crate) fn read_long_pkg_info(pkg_dir: &Path) -> LongPkgInfo {
+pub fn read_long_pkg_info(pkg_dir: &Path) -> LongPkgInfo {
     let manifest: Option<serde_json::Value> = std::fs::read(pkg_dir.join("package.json"))
         .ok()
         .and_then(|bytes| parse_manifest_bytes(&bytes).ok());
@@ -198,11 +204,13 @@ pub(crate) fn read_long_pkg_info(pkg_dir: &Path) -> LongPkgInfo {
     }
 }
 
-pub(crate) fn plain(text: &str) -> String {
+#[must_use]
+pub fn plain(text: &str) -> String {
     sanitize(text).into_owned()
 }
 
-pub(crate) fn dim(text: &str) -> String {
+#[must_use]
+pub fn dim(text: &str) -> String {
     sanitize(text).if_supports_color(Stream::Stdout, |t| t.dimmed()).to_string()
 }
 
@@ -218,7 +226,8 @@ const RESET: &str = "\u{1b}[0m";
 /// The nested styles end in a full reset, so the bold is reopened after
 /// each of them to stay in effect through the whole label, the way
 /// `chalk` nests styles for the TypeScript CLI.
-pub(crate) fn bold_styled(styled: &str) -> String {
+#[must_use]
+pub fn bold_styled(styled: &str) -> String {
     styled
         .if_supports_color(Stream::Stdout, |text| {
             format!("{BOLD}{}{RESET}", text.replace(RESET, &format!("{RESET}{BOLD}")))
@@ -226,31 +235,38 @@ pub(crate) fn bold_styled(styled: &str) -> String {
         .to_string()
 }
 
-pub(crate) fn cyan_bright(text: &str) -> String {
+#[must_use]
+pub fn cyan_bright(text: &str) -> String {
     sanitize(text).if_supports_color(Stream::Stdout, |t| t.bright_cyan()).to_string()
 }
 
-pub(crate) fn gray(text: &str) -> String {
+#[must_use]
+pub fn gray(text: &str) -> String {
     sanitize(text).if_supports_color(Stream::Stdout, |t| t.bright_black()).to_string()
 }
 
-pub(crate) fn yellow(text: &str) -> String {
+#[must_use]
+pub fn yellow(text: &str) -> String {
     sanitize(text).if_supports_color(Stream::Stdout, |t| t.yellow()).to_string()
 }
 
-pub(crate) fn blue(text: &str) -> String {
+#[must_use]
+pub fn blue(text: &str) -> String {
     sanitize(text).if_supports_color(Stream::Stdout, |t| t.blue()).to_string()
 }
 
-pub(crate) fn red(text: &str) -> String {
+#[must_use]
+pub fn red(text: &str) -> String {
     sanitize(text).if_supports_color(Stream::Stdout, |t| t.red()).to_string()
 }
 
-pub(crate) fn green(text: &str) -> String {
+#[must_use]
+pub fn green(text: &str) -> String {
     sanitize(text).if_supports_color(Stream::Stdout, |t| t.green()).to_string()
 }
 
-pub(crate) fn blue_bright_underline(text: &str) -> String {
+#[must_use]
+pub fn blue_bright_underline(text: &str) -> String {
     let style = owo_colors::Style::new().bright_blue().underline();
     sanitize(text).if_supports_color(Stream::Stdout, |t| t.style(style)).to_string()
 }

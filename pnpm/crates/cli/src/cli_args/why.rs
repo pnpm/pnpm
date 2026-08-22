@@ -11,20 +11,17 @@ use crate::{
         deps_tree::{
             build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
             dependents::{BuildDependentsOptions, ImporterInfo, build_dependents_tree},
-            finders::{evaluate_finders, finder_candidates, resolve_finders},
+            dependents_render::{
+                RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
+                render_dependents_tree,
+            },
             graph::{BuildGraphOptions, build_dependency_graph},
             search::Searcher,
         },
+        deps_tree_finders::{evaluate_finders, finder_candidates, resolve_finders},
         list::print_output,
         recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
     },
-};
-
-mod render;
-
-use render::{
-    RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
-    render_dependents_tree,
 };
 
 #[derive(Debug, Args)]
@@ -167,6 +164,7 @@ impl WhyArgs {
             graph: &graph,
             search: &searcher,
             importer_info: &importer_info,
+            manifest_fields: &[],
         });
 
         let render_opts = RenderDependentsOptions { long: self.long, depth: self.depth };
@@ -181,6 +179,3 @@ impl WhyArgs {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests;

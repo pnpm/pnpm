@@ -236,6 +236,12 @@ export interface InstallOptions extends SharedEngineOptions {
   returnListOfDepsRequiringBuild?: boolean
   /** Customizations for how peer-dependency mismatches are treated. */
   peerDependencyRules?: PeerDependencyRules
+  /**
+   * Render pnpm's own terminal output for this call. Omitted, the call
+   * prints nothing and the host renders the `onLog` stream itself (or not
+   * at all).
+   */
+  reporter?: ReporterOptions
 }
 
 /** pnpm's `peerDependencyRules`. */
@@ -244,6 +250,85 @@ export interface PeerDependencyRules {
   allowAny?: string[]
   allowedVersions?: Record<string, string>
 }
+
+
+/**
+ * pnpm's own terminal output, rendered by the engine.
+ *
+ * Without this the host gets only the `onLog` event stream and has to
+ * render it itself — in practice by keeping `@pnpm/logger` and
+ * `@pnpm/cli.default-reporter` and feeding the events into them, a
+ * coupling between one pnpm line's reporter and another's event stream
+ * that the host then has to maintain. Set `reporter` and the engine
+ * renders with the reporter `pnpm install` itself uses.
+ *
+ * Every field maps onto the option of the same name in
+ * `@pnpm/cli.default-reporter`'s `reportingOptions`.
+ */
+export interface ReporterOptions {
+  /**
+   * Print each update on its own line instead of redrawing the frame in
+   * place. Defaults to `true` whenever the output is not a terminal.
+   */
+  appendOnly?: boolean
+  /**
+   * Milliseconds between progress redraws. Defaults to 1000 in
+   * append-only mode and 200 otherwise.
+   */
+  throttleProgress?: number
+  /** Leave the materialized-package count out of the progress line. */
+  hideAddedPkgsProgress?: boolean
+  /** Leave the workspace-project prefix out of progress lines. */
+  hideProgressPrefix?: boolean
+  /**
+   * Keep dependency build-script output in its collapsed block instead of
+   * streaming every line.
+   */
+  hideLifecycleOutput?: boolean
+  /**
+   * Replaces the `Run "pnpm approve-builds"…` line under the list of
+   * packages whose build scripts were blocked, for a host whose users
+   * approve builds through its own configuration.
+   */
+  ignoredBuildsInstructionText?: string
+  /**
+   * Package-name patterns whose *linked* entries are left out of the
+   * packages-diff summary — an entry is linked when it was symlinked in
+   * rather than materialized from the store. A host that links its own
+   * runtime into every project silences that noise without silencing the
+   * same packages when they are really installed. The Rust counterpart of
+   * the TypeScript reporter's `filterPkgsDiff` callback, which cannot
+   * cross the addon boundary.
+   */
+  hideLinkedPkgsDiff?: string[]
+  /** Verbosity ceiling. Defaults to `'info'`. */
+  logLevel?: 'error' | 'warn' | 'info' | 'debug'
+  /**
+   * Width to wrap at. Defaults to the output stream's width when it is a
+   * terminal, else 80. Pass it explicitly alongside `onOutput`: the engine
+   * cannot see where those chunks end up.
+   */
+  width?: number
+  /**
+   * Whether to emit ANSI color. Defaults to "the output stream is a
+   * terminal and `NO_COLOR` is unset"; with `onOutput`, to `false`.
+   */
+  color?: boolean
+  /** Render on stderr rather than stdout. Ignored when `onOutput` is given. */
+  useStderr?: boolean
+  /** Directory paths are rendered relative to. Defaults to `dir`. */
+  cwd?: string
+}
+
+/**
+ * Receives each rendered output chunk instead of the engine writing it to
+ * a file descriptor. For a host that has redirected its own output at the
+ * JavaScript level — a monkey-patched `process.stdout.write`, a stream
+ * that forwards to a remote terminal — where a write from Rust would
+ * bypass the redirection. Chunks arrive in order and already carry their
+ * newlines and cursor-control sequences; write them verbatim.
+ */
+export type OutputListener = (chunk: string) => void
 
 export interface InstallResult {
   stats: {
@@ -268,11 +353,14 @@ export interface InstallResult {
  * @param readPackageHook a **synchronous** `(manifest, resolvedDir?) => manifest`
  *   transform applied to every resolved dependency manifest during resolution
  *   (the `readPackage` hook). Must return the manifest object, not a promise.
+ * @param onOutput receives the rendered output of `options.reporter`
+ *   instead of the engine writing it to stdout/stderr.
  */
 export function install(
   options: InstallOptions,
   onLog?: LogListener,
   readPackageHook?: ReadPackageHook,
+  onOutput?: OutputListener,
 ): Promise<InstallResult>
 
 /**
@@ -285,6 +373,7 @@ export function rebuild(
   options: InstallOptions,
   onLog?: LogListener,
   selectedNames?: string[],
+  onOutput?: OutputListener,
 ): Promise<void>
 
 export interface PeerIssuesOptions extends SharedEngineOptions {
@@ -468,6 +557,116 @@ export interface ResolvedConfig {
  * so the embedder needs no JavaScript config reader.
  */
 export function readConfig(options: ReadConfigOptions): ResolvedConfig
+
+/**
+ * Inputs for {@link getDependents} — the engine side of `pnpm why`.
+ *
+ * The reverse tree is pure lockfile analysis, so a host that asks the
+ * engine for it needs neither `@pnpm/deps.inspection.tree-builder` and
+ * `@pnpm/deps.inspection.list` nor the `@pnpm/lockfile.fs` /
+ * `@pnpm/installing.modules-yaml` readers that feed them.
+ */
+export interface DependentsOptions {
+  /** Lockfile / workspace root directory. */
+  dir: string
+  /** Package selectors to search for: a name, or `name@range`. */
+  packages: string[]
+  /**
+   * Importer directories to walk from. Absolute, or relative to `dir`.
+   * Omitted means every importer the lockfile records.
+   */
+  projectDirs?: string[]
+  /**
+   * Importer-id patterns to skip when `projectDirs` is omitted, in pnpm's
+   * `hoistPattern` glob syntax (`*` is the only wildcard). Lets a host keep
+   * its own generated importers out of the answer without reading the
+   * lockfile itself to enumerate the rest.
+   */
+  excludeProjectPatterns?: string[]
+  /** `node_modules` directory. Defaults to `<dir>/node_modules`. */
+  modulesDir?: string
+  /** Follow `dependencies` edges. Defaults to `true`. */
+  includeDependencies?: boolean
+  /** Follow `devDependencies` edges. Defaults to `true`. */
+  includeDevDependencies?: boolean
+  /** Follow `optionalDependencies` edges. Defaults to `true`. */
+  includeOptionalDependencies?: boolean
+  /** Registry routes, used to reconstruct tarball URLs. */
+  registries?: Record<string, string>
+  /** Fallback when `.modules.yaml` records no value. */
+  virtualStoreDirMaxLength?: number
+  /**
+   * `package.json` fields to project onto every package node as
+   * `manifest`. This is what the TypeScript tree-builder's `nameFormatter`
+   * callback is for: the walk is synchronous Rust and cannot call back
+   * into JavaScript, so a host that renames nodes after a manifest field
+   * asks for that field here, writes `displayName` on the returned trees,
+   * and passes them to {@link renderDependents}. Nodes whose manifest is
+   * unreadable — and every workspace-project node — carry none.
+   */
+  manifestFields?: string[]
+}
+
+/** One entry of a {@link DependentsTree}'s reverse tree. */
+export interface DependentNode {
+  name: string
+  /** Rendered in place of `name`, when set. */
+  displayName?: string
+  version: string
+  /** The node was reached again on its own path; the walk stopped there. */
+  circular?: boolean
+  /** Short hash distinguishing peer-dependency variants of a `name@version`. */
+  peersSuffixHash?: string
+  /** The node is expanded elsewhere in the tree and shown here as a leaf. */
+  deduped?: boolean
+  /** For a workspace-project leaf: which manifest field declares the edge. */
+  depField?: 'dependencies' | 'devDependencies' | 'optionalDependencies'
+  dependents?: DependentNode[]
+  /** The `manifestFields` projection of this node's `package.json`. */
+  manifest?: Record<string, unknown>
+}
+
+/** One matched package and everything that depends on it. */
+export interface DependentsTree {
+  name: string
+  /** Rendered in place of `name`, when set. */
+  displayName?: string
+  version: string
+  /** Resolved filesystem path of the package. */
+  path?: string
+  peersSuffixHash?: string
+  dependents: DependentNode[]
+  /** Message returned by a `--find-by` finder, when one matched. */
+  searchMessage?: string
+  /** See {@link DependentNode.manifest}. */
+  manifest?: Record<string, unknown>
+}
+
+/**
+ * Every package matching `packages`, each with the reverse tree of what
+ * depends on it. An empty array when the directory has no lockfile: an
+ * un-installed workspace has no dependents to report, which is an answer
+ * rather than an error.
+ */
+export function getDependents(options: DependentsOptions): Promise<DependentsTree[]>
+
+export interface RenderDependentsOptions {
+  /** Defaults to `'tree'`. */
+  format?: 'tree' | 'parseable' | 'json'
+  /** Max display depth. Omitted renders the whole tree. */
+  depth?: number
+  /** Include description / repository / homepage / path for each root. */
+  long?: boolean
+}
+
+/**
+ * Render trees from {@link getDependents} — after any `displayName` the
+ * caller wrote onto them — the way `pnpm why` renders its own.
+ */
+export function renderDependents(
+  trees: DependentsTree[],
+  options?: RenderDependentsOptions,
+): string
 
 /** Version of the underlying Rust engine (pacquet). */
 export function engineVersion(): string

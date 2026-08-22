@@ -11,13 +11,13 @@ use pnpm_default_reporter::{
 };
 use pnpm_reporter::{
     AddedRoot, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog, ExecutionTimeLog,
-    FetchingProgressLog, FetchingProgressMessage, GlobalLog, HookLog, LifecycleLog,
-    LifecycleMessage, LifecycleStdio, LockfileVerificationLog, LockfileVerificationMessage,
-    LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog, PackageManifestLog,
-    PackageManifestMessage, PnpmErrorLog, PnpmLog, ProgressLog, ProgressMessage, RootLog,
-    RootMessage, ScopeLog, SkippedOptionalDependencyLog, SkippedOptionalPackage,
-    SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage,
-    SummaryLog,
+    FetchingProgressLog, FetchingProgressMessage, GlobalLog, HookLog, IgnoredScriptsLog,
+    LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileVerificationLog,
+    LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog,
+    PackageManifestLog, PackageManifestMessage, PnpmErrorLog, PnpmLog, ProgressLog,
+    ProgressMessage, RootLog, RootMessage, ScopeLog, SkippedOptionalDependencyLog,
+    SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
+    StatsLog, StatsMessage, SummaryLog,
 };
 
 const CWD: &str = "/repo";
@@ -1267,4 +1267,166 @@ fn stays_silent_for_a_single_selected_project() {
 fn stays_silent_for_a_command_that_does_not_report_scope() {
     let mut reporter = state(false);
     assert!(render(&mut reporter, vec![scope(3, Some(3), Some(CWD))]).is_empty());
+}
+
+// --- embedder reporting options ---------------------------------------
+
+fn ignored_scripts(names: &[&str]) -> LogEvent {
+    LogEvent::IgnoredScripts(IgnoredScriptsLog {
+        level: LogLevel::Info,
+        package_names: names.iter().map(|name| (*name).to_string()).collect(),
+        strict_dep_builds: false,
+    })
+}
+
+fn linked_root(name: &str, from: &str) -> LogEvent {
+    LogEvent::Root(RootLog {
+        level: LogLevel::Debug,
+        message: RootMessage::Added {
+            prefix: CWD.to_string(),
+            added: AddedRoot {
+                name: name.to_string(),
+                real_name: name.to_string(),
+                version: None,
+                dependency_type: Some(DependencyType::Prod),
+                id: None,
+                latest: None,
+                linked_from: Some(from.to_string()),
+            },
+        },
+    })
+}
+
+#[test]
+fn the_ignored_builds_instruction_defaults_to_the_pnpm_command() {
+    let mut reporter = state(false);
+
+    let frame = render(&mut reporter, vec![ignored_scripts(&["esbuild"])]);
+
+    assert!(frame.contains("Ignored build scripts: esbuild."), "frame: {frame}");
+    assert!(frame.contains(r#"Run "pnpm approve-builds""#), "frame: {frame}");
+}
+
+/// An embedder whose users approve builds through its own configuration
+/// replaces the instruction line; the list of blocked packages above it
+/// is unchanged.
+#[test]
+fn the_ignored_builds_instruction_can_be_replaced() {
+    let mut reporter = state_with_options(ReporterOptions {
+        ignored_builds_instruction_text: Some("Set allowScripts in workspace.jsonc.".to_string()),
+        ..ReporterOptions::default()
+    });
+
+    let frame = render(&mut reporter, vec![ignored_scripts(&["esbuild"])]);
+
+    assert!(frame.contains("Ignored build scripts: esbuild."), "frame: {frame}");
+    assert!(frame.contains("Set allowScripts in workspace.jsonc."), "frame: {frame}");
+    assert!(!frame.contains("pnpm approve-builds"), "frame: {frame}");
+}
+
+#[test]
+fn linked_packages_appear_in_the_summary_by_default() {
+    let mut reporter = state(false);
+
+    let frame = render(&mut reporter, vec![linked_root("@acme/runtime", "/elsewhere"), summary()]);
+
+    assert!(frame.contains("@acme/runtime"), "frame: {frame}");
+}
+
+#[test]
+fn a_hide_linked_pattern_drops_matching_linked_entries_from_the_summary() {
+    let mut reporter = state_with_options(ReporterOptions {
+        hide_linked_pkgs_diff: vec!["@acme/*".to_string()],
+        ..ReporterOptions::default()
+    });
+
+    let frame = render(
+        &mut reporter,
+        vec![
+            linked_root("@acme/runtime", "/elsewhere"),
+            linked_root("@other/tool", "/elsewhere"),
+            summary(),
+        ],
+    );
+
+    assert!(!frame.contains("@acme/runtime"), "frame: {frame}");
+    assert!(frame.contains("@other/tool"), "frame: {frame}");
+}
+
+/// The pattern hides *linked* instances only. The same package really
+/// installed from the registry is a change the summary must still report.
+#[test]
+fn a_hide_linked_pattern_keeps_the_same_package_when_it_is_installed() {
+    let mut reporter = state_with_options(ReporterOptions {
+        hide_linked_pkgs_diff: vec!["@acme/*".to_string()],
+        ..ReporterOptions::default()
+    });
+
+    let frame = render(
+        &mut reporter,
+        vec![added_root("@acme/runtime", "1.0.0", DependencyType::Prod), summary()],
+    );
+
+    assert!(frame.contains("@acme/runtime"), "frame: {frame}");
+}
+
+fn lifecycle_stdio_events() -> Vec<LogEvent> {
+    vec![
+        LogEvent::Lifecycle(LifecycleLog {
+            level: LogLevel::Debug,
+            message: LifecycleMessage::Script {
+                dep_path: "/repo/node_modules/.pnpm/esbuild@1.0.0".to_string(),
+                optional: false,
+                script: "node install.js".to_string(),
+                stage: "postinstall".to_string(),
+                wd: "/repo/node_modules/.pnpm/esbuild@1.0.0".to_string(),
+            },
+        }),
+        LogEvent::Lifecycle(LifecycleLog {
+            level: LogLevel::Debug,
+            message: LifecycleMessage::Stdio {
+                dep_path: "/repo/node_modules/.pnpm/esbuild@1.0.0".to_string(),
+                line: "downloading the binary".to_string(),
+                stage: "postinstall".to_string(),
+                stdio: LifecycleStdio::Stdout,
+                wd: "/repo/node_modules/.pnpm/esbuild@1.0.0".to_string(),
+            },
+        }),
+    ]
+}
+
+#[test]
+fn append_only_streams_each_lifecycle_output_line() {
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
+
+    let mut lines = Vec::new();
+    for event in lifecycle_stdio_events() {
+        if let Output::Lines(emitted) = reporter.handle(&event) {
+            lines.extend(emitted);
+        }
+    }
+
+    assert!(lines.iter().any(|line| line.contains("downloading the binary")), "lines: {lines:#?}");
+}
+
+/// `hideLifecycleOutput` keeps the script's output in its collapsed block
+/// rather than streaming it, even under append-only rendering — pnpm's
+/// behavior for an embedder that owns the surrounding terminal output.
+#[test]
+fn hide_lifecycle_output_stops_the_streaming_even_under_append_only() {
+    let mut reporter = state_with_options(ReporterOptions {
+        append_only: true,
+        hide_lifecycle_output: true,
+        ..ReporterOptions::default()
+    });
+
+    let mut lines = Vec::new();
+    for event in lifecycle_stdio_events() {
+        if let Output::Lines(emitted) = reporter.handle(&event) {
+            lines.extend(emitted);
+        }
+    }
+
+    assert!(!lines.iter().any(|line| line.contains("downloading the binary")), "lines: {lines:#?}");
 }
