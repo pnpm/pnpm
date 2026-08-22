@@ -109,6 +109,10 @@ async fn provision_from_registry<Reporter: self::Reporter + 'static>(
         &env_root,
         version_spec,
         &resolved.version,
+        // A foreign package manager's closure is recorded in a global env
+        // lockfile under the pnpm home directory, never in the project's
+        // `pnpm-lock.yaml`, so `--frozen-lockfile` has nothing to freeze here.
+        false,
         false,
     ))
     .await?;

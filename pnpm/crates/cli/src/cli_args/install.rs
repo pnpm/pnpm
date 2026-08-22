@@ -403,12 +403,18 @@ impl InstallArgs {
     }
 
     fn configured_frozen_lockfile(&self, config: &pnpm_config::Config) -> Option<bool> {
+        self.frozen_lockfile_flag().or(config.frozen_lockfile)
+    }
+
+    /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command
+    /// line, before the `frozenLockfile` setting is layered under it.
+    pub(crate) fn frozen_lockfile_flag(&self) -> Option<bool> {
         if self.frozen_lockfile {
             Some(true)
         } else if self.no_frozen_lockfile {
             Some(false)
         } else {
-            config.frozen_lockfile
+            None
         }
     }
 

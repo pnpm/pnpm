@@ -1,7 +1,7 @@
 ---
 "@pnpm/installing.env-installer": patch
-"pnpm": patch
 "pacquet": patch
+"pnpm": patch
 ---
 
-Ensure that running with `--frozen-lockfile` throws an outdated lockfile error when `packageManagerDependencies` is out of sync or not resolved in the lockfile, instead of silently updating the lockfile, resolving the bug described in [pnpm/pnpm#14009](https://github.com/pnpm/pnpm/issues/14009).
+A frozen install no longer rewrites the `packageManagerDependencies` block of `pnpm-lock.yaml`. When the pnpm version pinned by `devEngines.packageManager` (or by `packageManager`) is missing from the lockfile or no longer matches it, `--frozen-lockfile` now fails with `ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE` instead of resolving the version and saving it, so a manifest whose pin was bumped without regenerating the lockfile can no longer pass CI [#14009](https://github.com/pnpm/pnpm/issues/14009).

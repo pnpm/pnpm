@@ -194,6 +194,43 @@ test('devEngines.packageManager re-resolves when locked version no longer satisf
   expect(secondRun.stdout.toString()).toContain('Version 9.1.3')
 })
 
+// https://github.com/pnpm/pnpm/issues/14009: a frozen install used to record
+// the bumped pin and carry on, hiding a lockfile that no longer matched the
+// manifest from every CI job that relies on the flag.
+test('devEngines.packageManager is not re-resolved under --frozen-lockfile', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=9.1.0 <9.1.2',
+        onFail: 'download',
+      },
+    },
+  })
+  expect(execPnpmSync(['help'], { env }).stdout.toString()).toContain('Version 9.1.1')
+  const lockfile = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=9.1.2 <9.1.4',
+        onFail: 'download',
+      },
+    },
+  })
+
+  const { status, stderr } = execPnpmSync(['install', '--frozen-lockfile'], { env })
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('Cannot update packageManagerDependencies with "frozen-lockfile" because the lockfile is not up to date')
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
+})
+
 test('devEngines.packageManager without onFail=download does not switch version', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
