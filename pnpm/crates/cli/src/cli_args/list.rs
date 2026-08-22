@@ -213,7 +213,7 @@ impl ListArgs {
                     config,
                     &project_dirs,
                     &self.packages,
-                    &workspace_root,
+                    config.lockfile_dir_for(&workspace_root),
                     always_print_root_package,
                 )
                 .await;
@@ -379,15 +379,9 @@ fn global_report_as(report_as: ReportAs) -> ListReportAs {
     }
 }
 
-/// The directory the lockfile is read from for a non-recursive `list`:
-/// the workspace root under a shared workspace lockfile, the project
-/// itself otherwise.
+/// The directory the lockfile is read from for a non-recursive `list`.
 pub(crate) fn local_lockfile_dir(config: &Config, dir: &Path) -> PathBuf {
-    if config.shared_workspace_lockfile {
-        config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf())
-    } else {
-        dir.to_path_buf()
-    }
+    config.lockfile_dir_for(dir).to_path_buf()
 }
 
 /// Print command output the way the TypeScript CLI does: nothing for an

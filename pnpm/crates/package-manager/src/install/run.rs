@@ -242,9 +242,13 @@ where
         // headless install should always go through the dispatch so a
         // `NoLockfile` or `OutdatedLockfile` error still fires when
         // the lockfile is missing or stale.
+
+        // A pinned `lockfileDir` decouples the lockfile root from the
+        // active project, so the manifest can no longer stand in for it —
+        // its importer id is the path from the pin down to the project.
         let manifest_is_root_importer = root_manifest_as_workspace_root
             || workspace_projects_are_overridden
-            || !config.shared_workspace_lockfile;
+            || (!config.shared_workspace_lockfile && config.lockfile_dir.is_none());
         let project_manifests = match selection.as_ref() {
             Some(selection) => build_selected_project_manifests_list(
                 manifest,
@@ -259,7 +263,7 @@ where
                 // `workspace:` resolver, never the importer list.
                 config.shared_workspace_lockfile.then_some(workspace_projects).flatten(),
             ),
-            None => build_project_manifests_list(&workspace_root, manifest, workspace_projects),
+            None => build_project_manifests_list(manifest, workspace_projects),
         };
         // Only an unfiltered install of a whole workspace sees the complete
         // project list, so only it may conclude that an importer the

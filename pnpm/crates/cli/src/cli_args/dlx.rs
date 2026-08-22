@@ -367,6 +367,9 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // rather than `None`, which walks up from the cache dir and can
     // adopt a stray `pnpm-workspace.yaml` above it (pnpm/pnpm#13697).
     config.workspace_dir = Some(prepare_dir.to_path_buf());
+    // Same reasoning for a pinned `lockfileDir`: it names the caller's
+    // lockfile, which the throwaway install must not touch.
+    config.lockfile_dir = None;
     // The caller's patches never apply to the throwaway install (pnpm's
     // dlx installs the package unpatched too). Their paths are relative
     // to the caller's workspace root, which the anchor above replaced, so

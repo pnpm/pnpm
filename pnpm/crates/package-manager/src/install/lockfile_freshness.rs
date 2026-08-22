@@ -67,8 +67,7 @@ pub async fn wanted_lockfile_satisfies_workspace(
     else {
         return false;
     };
-    let project_manifests =
-        build_project_manifests_list(&workspace_root, manifest, workspace_projects.as_deref());
+    let project_manifests = build_project_manifests_list(manifest, workspace_projects.as_deref());
     let manifest_freshness_inputs: Vec<(String, &PackageManifest)> = project_manifests
         .iter()
         .map(|(project_dir, manifest)| {

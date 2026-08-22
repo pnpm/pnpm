@@ -98,11 +98,7 @@ impl PeersArgs {
             }
         }
 
-        let lockfile_dir = if config.shared_workspace_lockfile {
-            config.workspace_dir.as_deref().unwrap_or(dir)
-        } else {
-            dir
-        };
+        let lockfile_dir = config.lockfile_dir_for(dir);
         let project_dirs = if recursive {
             let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
             let (projects, _) = discover_workspace_projects(workspace_root)?;

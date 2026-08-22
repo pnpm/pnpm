@@ -488,8 +488,11 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
     cfg.enable_global_virtual_store = false;
     // Persist a `pnpm-lock.yaml` in the group's install dir (pnpm sets
     // `lockfileDir = installDir`). `outdated -g` / `update -g` read these
-    // pins to determine the currently-installed versions.
+    // pins to determine the currently-installed versions. A `lockfileDir`
+    // the environment set cannot redirect it — pnpm deletes the setting
+    // under `--global`.
     cfg.lockfile = true;
+    cfg.lockfile_dir = None;
     // Pin the group's workspace root to its own install dir (pnpm's
     // `rootProjectManifestDir: installDir`, `workspaceDir: undefined`). The
     // install dir sits *under* the global packages dir, which carries a

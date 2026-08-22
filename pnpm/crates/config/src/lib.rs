@@ -1090,6 +1090,17 @@ pub struct Config {
     #[default = true]
     pub lockfile: bool,
 
+    /// Where `pnpm-lock.yaml` is read and written, when the user pins it
+    /// with the `lockfileDir` setting (or `--lockfile-dir`). Several
+    /// projects may share one lockfile this way. Absolute once
+    /// [`Config::current`] has resolved it; `None` means "derive it",
+    /// which [`Config::lockfile_dir_for`] does.
+    ///
+    /// Every path anchored on the lockfile — the root `node_modules`, the
+    /// virtual store, and the importer ids — follows it, so setting it
+    /// goes through [`Config::pin_lockfile_dir`].
+    pub lockfile_dir: Option<PathBuf>,
+
     /// When set to true and the available pnpm-lock.yaml satisfies the package.json dependencies
     /// directive, a headless installation is performed. A headless installation skips all
     /// dependency resolution as it does not need to modify the lockfile.
@@ -2513,6 +2524,83 @@ impl Config {
             };
     }
 
+    /// The directory owning the `pnpm-lock.yaml` that covers
+    /// `project_dir`: the pinned [`lockfile_dir`], else the workspace root
+    /// when the workspace shares one lockfile, else the project itself.
+    ///
+    /// Mirrors pnpm's `lockfileDir ?? dir`, whose config reader has
+    /// already defaulted `lockfileDir` to `workspaceDir` for a shared
+    /// workspace lockfile.
+    ///
+    /// [`lockfile_dir`]: Self::lockfile_dir
+    #[must_use]
+    pub fn lockfile_dir_for<'a>(&'a self, project_dir: &'a Path) -> &'a Path {
+        self.lockfile_dir.as_deref().unwrap_or_else(|| {
+            if self.shared_workspace_lockfile {
+                self.workspace_dir.as_deref().unwrap_or(project_dir)
+            } else {
+                project_dir
+            }
+        })
+    }
+
+    /// pnpm's `rootProjectManifestDir`: where the root `package.json`,
+    /// the config dependencies (`node_modules/.pnpm-config`), and the
+    /// pnpmfile a command reads live — `lockfileDir ?? workspaceDir ??
+    /// dir`.
+    ///
+    /// Not the directory settings are *written* back to: `pnpm-workspace.yaml`
+    /// stays at [`workspace_dir`] when there is one.
+    ///
+    /// [`workspace_dir`]: Self::workspace_dir
+    #[must_use]
+    pub fn root_project_manifest_dir<'a>(&'a self, dir: &'a Path) -> &'a Path {
+        self.lockfile_dir.as_deref().or(self.workspace_dir.as_deref()).unwrap_or(dir)
+    }
+
+    /// Pin [`lockfile_dir`] to `dir` and re-anchor the paths that follow
+    /// the lockfile with it.
+    ///
+    /// `dir` is normalized first: importer ids are a lexical path diff
+    /// against it, so an unnormalized `<workspace>/..` would not name the
+    /// project it points at.
+    ///
+    /// [`lockfile_dir`]: Self::lockfile_dir
+    pub fn pin_lockfile_dir(&mut self, dir: &Path) {
+        let dir = pnpm_fs::lexical_normalize(dir);
+        self.anchor_lockfile_paths(&dir);
+        self.lockfile_dir = Some(dir);
+    }
+
+    /// Re-anchor the paths pnpm resolves against `lockfileDir` — the root
+    /// `node_modules` and the virtual store — onto `dir`.
+    ///
+    /// An explicitly configured `modulesDir` / `virtualStoreDir` keeps its
+    /// raw value (recovered from [`explicit_settings`]) and is re-resolved
+    /// against `dir`, so a multi-component or absolute setting keeps its
+    /// full shape — [`Path::join`] leaves an absolute value absolute.
+    /// Global-virtual-store installs keep their store-anchored
+    /// `virtual_store_dir`.
+    ///
+    /// [`explicit_settings`]: Self::explicit_settings
+    pub fn anchor_lockfile_paths(&mut self, dir: &Path) {
+        self.modules_dir =
+            match self.explicit_settings.get("modulesDir").and_then(serde_json::Value::as_str) {
+                Some(raw) => dir.join(raw),
+                None => dir.join("node_modules"),
+            };
+        if !self.enable_global_virtual_store {
+            self.virtual_store_dir = match self
+                .explicit_settings
+                .get("virtualStoreDir")
+                .and_then(serde_json::Value::as_str)
+            {
+                Some(raw) => dir.join(raw),
+                None => self.modules_dir.join(".pnpm"),
+            };
+        }
+    }
+
     /// [`Config::extra_env`] with the `nodeOptions` setting applied as
     /// `NODE_OPTIONS`, preserving the ESM `NODE_PATH` loader flag the
     /// `extra_env` carries under a global virtual store.
@@ -3109,6 +3197,15 @@ impl Config {
             self.registries_by_scope.insert("default".to_string(), normalized.clone());
             self.package_manager_bootstrap.registry.clone_from(&normalized);
             self.package_manager_bootstrap.registries.insert("default".to_string(), normalized);
+        }
+
+        // A pinned `lockfileDir` moves the root `node_modules` and the
+        // virtual store with it. Applied after every source has had its
+        // say so the anchor uses the final value, and before the
+        // global-virtual-store derivation, which may re-point
+        // `virtual_store_dir` at the store.
+        if let Some(lockfile_dir) = self.lockfile_dir.clone() {
+            self.anchor_lockfile_paths(&lockfile_dir);
         }
 
         // Build the per-URI auth-header lookup. Credentials were already

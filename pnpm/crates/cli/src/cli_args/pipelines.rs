@@ -164,7 +164,7 @@ pub(crate) fn select_workspace_projects(
 
 /// Build the project-anchored `State` for one project of a
 /// `sharedWorkspaceLockfile: false` workspace: clone `cfg`, re-anchor its
-/// output paths under `project_dir` via [`anchor_dedicated_project_config`],
+/// output paths under `project_dir` via [`Config::anchor_lockfile_paths`],
 /// and initialize the state. The clone is leaked because [`State::init`] needs
 /// a `&'static Config`; see [`run_dedicated_lockfile_workspace_install`] for
 /// why the bounded leak is acceptable.
@@ -174,7 +174,7 @@ fn init_dedicated_project_state(
     require_lockfile: bool,
 ) -> miette::Result<State> {
     let mut project_config = cfg.clone();
-    anchor_dedicated_project_config(&mut project_config, project_dir);
+    project_config.anchor_lockfile_paths(project_dir);
     let project_config = Config::leak(project_config);
     State::init(project_dir.join("package.json"), project_config, require_lockfile)
         .wrap_err_with(|| format!("initialize the state for {}", project_dir.display()))
@@ -354,7 +354,7 @@ impl AddPipeline {
                         .parent()
                         .expect("manifest path always has a parent dir")
                         .to_path_buf();
-                    anchor_dedicated_project_config(cfg, &manifest_dir);
+                    cfg.anchor_lockfile_paths(&manifest_dir);
                 }
                 let cfg: &'static Config = cfg;
                 let state =
@@ -428,7 +428,7 @@ impl UpdatePipeline {
                 .parent()
                 .expect("manifest path always has a parent dir")
                 .to_path_buf();
-            anchor_dedicated_project_config(cfg, &manifest_dir);
+            cfg.anchor_lockfile_paths(&manifest_dir);
         }
         let generate_changeset = if args.changeset {
             true
@@ -538,7 +538,7 @@ impl RemovePipeline {
                         .parent()
                         .expect("manifest path always has a parent dir")
                         .to_path_buf();
-                    anchor_dedicated_project_config(cfg, &manifest_dir);
+                    cfg.anchor_lockfile_paths(&manifest_dir);
                 }
                 let cfg: &'static Config = cfg;
                 let state =
@@ -577,36 +577,6 @@ impl DeployPipeline {
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
         let cfg: &'static Config = cfg;
         Box::pin(args.run::<Reporter>(cfg, dir_ref)).await
-    }
-}
-
-/// Re-anchor the per-project output paths for dedicated per-project
-/// lockfiles (`sharedWorkspaceLockfile: false`): `node_modules` and the
-/// virtual store live under the project, mirroring pnpm, which resolves
-/// them against `lockfileDir` — the project dir in dedicated mode. An
-/// explicit `virtualStoreDir` setting re-resolves against the project
-/// (its raw value is recovered from [`Config::explicit_settings`]);
-/// the default stays `<modules_dir>/.pnpm`. Global-virtual-store
-/// installs keep their store-anchored `virtual_store_dir`.
-pub(crate) fn anchor_dedicated_project_config(config: &mut Config, project_dir: &Path) {
-    // Both re-anchored paths resolve the *raw* setting (recovered from
-    // [`Config::explicit_settings`]) against the project dir, so a
-    // multi-component or absolute value keeps its full shape —
-    // `Path::join` keeps an absolute setting absolute.
-    config.modules_dir =
-        match config.explicit_settings.get("modulesDir").and_then(serde_json::Value::as_str) {
-            Some(raw) => project_dir.join(raw),
-            None => project_dir.join("node_modules"),
-        };
-    if !config.enable_global_virtual_store {
-        config.virtual_store_dir = match config
-            .explicit_settings
-            .get("virtualStoreDir")
-            .and_then(serde_json::Value::as_str)
-        {
-            Some(raw) => project_dir.join(raw),
-            None => config.modules_dir.join(".pnpm"),
-        };
     }
 }
 
@@ -653,7 +623,7 @@ pub(crate) fn derive_config_root_and_package_manager_to_sync(
     dir_ref: &Path,
     reporter: ReporterType,
 ) -> miette::Result<(PathBuf, Option<PackageManagerToSync>)> {
-    let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.to_path_buf());
+    let config_root = cfg.root_project_manifest_dir(dir_ref).to_path_buf();
     let root_manifest = read_manifest_json(&config_root.join("package.json"))
         .wrap_err("read package manager policy")?;
     // pnpm warns from config-reading, so the notice lands ahead of any

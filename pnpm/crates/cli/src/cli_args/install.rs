@@ -1,7 +1,7 @@
 use crate::{
     State,
     cli_args::{
-        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields_in,
+        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields_in, lockfile_dir::LockfileDirArg,
         override_version_references::warn_deprecated_override_version_references,
         pipelines::InstallFamilySelection, recursive::discover_workspace_projects,
         supported_architectures::SupportedArchitecturesArgs,
@@ -115,6 +115,9 @@ pub struct InstallArgs {
     /// `node_modules`.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
+
+    #[clap(flatten)]
+    pub lockfile_dir: LockfileDirArg,
 
     /// Show what an install would change without writing anything to disk.
     #[clap(long = "dry-run")]
@@ -271,6 +274,7 @@ impl InstallArgs {
             frozen_lockfile: false,
             no_frozen_lockfile: true,
             lockfile_only: false,
+            lockfile_dir: LockfileDirArg::default(),
             dry_run: false,
             force: false,
             prefer_frozen_lockfile: false,
@@ -342,7 +346,7 @@ impl InstallArgs {
         if config.config_dependencies.as_ref().is_some_and(|deps| !deps.is_empty()) {
             return false;
         }
-        let config_root = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
+        let config_root = config.root_project_manifest_dir(dir).to_path_buf();
         if pnpm_hooks::finder::find_pnpmfile(&config_root).is_some() {
             return false;
         }
@@ -450,6 +454,10 @@ impl InstallArgs {
             frozen_lockfile: _,
             no_frozen_lockfile: _,
             lockfile_only,
+            // Pinned onto `config` in the dispatch (`dispatch_install.rs`)
+            // before the state is built, so the install reads it from
+            // `config`, not from here.
+            lockfile_dir: _,
             dry_run,
             // Resolved against config by `apply_install_cli_config` in
             // the dispatch, like `ignore_scripts` below.

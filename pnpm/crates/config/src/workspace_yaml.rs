@@ -207,6 +207,10 @@ pub struct WorkspaceSettings {
     pub virtual_store_dir_max_length: Option<u64>,
     pub peers_suffix_max_length: Option<u64>,
     pub lockfile: Option<bool>,
+    /// `lockfileDir` from `pnpm-workspace.yaml` or the global
+    /// `config.yaml`. Resolved against the workspace dir like the other
+    /// path-valued fields. See [`Config::lockfile_dir`].
+    pub lockfile_dir: Option<String>,
     pub prefer_frozen_lockfile: Option<bool>,
 
     /// `frozenLockfile` from `pnpm-workspace.yaml`. Unset by default:
@@ -1372,6 +1376,7 @@ impl WorkspaceSettings {
         substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
         substitute_optional_string::<Sys>(&mut self.user_agent);
         substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
+        substitute_optional_string::<Sys>(&mut self.lockfile_dir);
         substitute_optional_string::<Sys>(&mut self.patches_dir);
         substitute_optional_string::<Sys>(&mut self.cache_dir);
         substitute_optional_inner_string::<Sys>(&mut self.script_shell);
@@ -1523,6 +1528,12 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.global_virtual_store_dir {
             config.global_virtual_store_dir = resolve(base_dir, &v);
+        }
+        // Last of the path-valued settings: pinning the lockfile dir
+        // re-resolves `modulesDir` / `virtualStoreDir` against it, so it
+        // must see whatever this layer just set.
+        if let Some(v) = self.lockfile_dir {
+            config.pin_lockfile_dir(&resolve(base_dir, &v));
         }
         if let Some(v) = self.store_dir {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));

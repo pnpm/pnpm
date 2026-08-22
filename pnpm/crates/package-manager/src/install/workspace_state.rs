@@ -69,8 +69,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     };
     let workspace_projects =
         load_workspace_projects(&workspace_root, workspace_manifest.as_ref()).ok()?;
-    let project_manifests =
-        build_project_manifests_list(&workspace_root, manifest, workspace_projects.as_deref());
+    let project_manifests = build_project_manifests_list(manifest, workspace_projects.as_deref());
     // Match the install pipeline's lockfile source: shared workspaces
     // read the root lockfile, while per-project workspaces read the
     // active project's lockfile.
@@ -204,11 +203,8 @@ pub fn check_deps_status_before_run_at(
     else {
         return cannot_check();
     };
-    let project_manifests = build_project_manifests_list(
-        &workspace_root,
-        &root_manifest,
-        workspace_projects.as_deref(),
-    );
+    let project_manifests =
+        build_project_manifests_list(&root_manifest, workspace_projects.as_deref());
     let lockfile = if config.lockfile {
         LazyLockfile::deferred(workspace_root.clone())
     } else {
@@ -238,14 +234,13 @@ pub fn check_deps_status_before_run_at(
 }
 
 pub(super) fn build_project_manifests_list<'a>(
-    workspace_root: &std::path::Path,
     root_manifest: &'a PackageManifest,
     workspace_projects: Option<&'a [pnpm_workspace::Project]>,
 ) -> Vec<(std::path::PathBuf, &'a PackageManifest)> {
-    let Some(projects) = workspace_projects else {
-        return vec![(workspace_root.to_path_buf(), root_manifest)];
-    };
     let active_dir = root_manifest.path().parent().expect("manifest path always has a parent dir");
+    let Some(projects) = workspace_projects else {
+        return vec![(active_dir.to_path_buf(), root_manifest)];
+    };
     let active_dir_matcher = ProjectDirMatcher::new(active_dir);
     let mut active_project_was_discovered = false;
     let mut list = projects
@@ -445,10 +440,13 @@ pub(crate) fn configured_or_discovered_workspace_dir(
 
 /// The directory `pnpm-lock.yaml` lives in, which is what importer ids,
 /// reporter prefixes and the workspace-state file are all named relative
-/// to. Dedicated per-project lockfiles (`sharedWorkspaceLockfile: false`)
-/// anchor it at the active project rather than the workspace root,
-/// mirroring pnpm's `lockfileDir = sharedWorkspaceLockfile ? workspaceDir
-/// : projectDir`.
+/// to. A pinned `lockfileDir` wins outright; otherwise dedicated
+/// per-project lockfiles (`sharedWorkspaceLockfile: false`) anchor it at
+/// the active project rather than the workspace root, mirroring pnpm's
+/// `lockfileDir ?? (sharedWorkspaceLockfile ? workspaceDir : projectDir)`.
+///
+/// Unlike [`Config::lockfile_dir_for`], this also *discovers* the
+/// workspace root when the config carries none.
 ///
 /// Every caller that names something by importer id has to derive it the
 /// same way the install does, or the two disagree about which importer an
@@ -457,6 +455,9 @@ pub(crate) fn lockfile_root_dir(
     config: &Config,
     manifest_dir: &Path,
 ) -> Result<PathBuf, pnpm_workspace::FindWorkspaceDirError> {
+    if let Some(lockfile_dir) = config.lockfile_dir.clone() {
+        return Ok(lockfile_dir);
+    }
     if !config.shared_workspace_lockfile {
         return Ok(manifest_dir.to_path_buf());
     }

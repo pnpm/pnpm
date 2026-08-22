@@ -1,4 +1,7 @@
-use crate::{State, cli_args::pipelines::InstallFamilySelection};
+use crate::{
+    State,
+    cli_args::{lockfile_dir::LockfileDirArg, pipelines::InstallFamilySelection},
+};
 use clap::Args;
 use miette::Context;
 use pnpm_package_manager::Remove;
@@ -46,6 +49,8 @@ pub struct RemoveArgs {
     /// and `pnpm-lock.yaml` are updated.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
+    #[clap(flatten)]
+    pub lockfile_dir: LockfileDirArg,
     /// Remove the package from the global packages directory and unlink its
     /// bins.
     #[clap(short = 'g', long)]

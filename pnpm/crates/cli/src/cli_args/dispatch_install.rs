@@ -36,6 +36,7 @@ use pnpm_reporter::{NdjsonReporter, SilentReporter};
 pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
     if args.global {
         let config = (ctx.global_config)()?;
+        args.lockfile_dir.apply_to_global(config)?;
         args.apply_cli_config(config);
         let dir = ctx.dir;
         return Ok(match ctx.reporter {
@@ -56,11 +57,16 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        args.lockfile_dir.apply_to(cfg, dir);
         args.apply_cli_config(cfg);
         let (config_root, package_manager_to_sync) =
             derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
-        apply_allow_build(cfg, &args.allow_build, &config_root)?;
+        // `allowBuilds` is persisted to `pnpm-workspace.yaml`, which stays
+        // at the workspace root even when `lockfileDir` moved the config
+        // root elsewhere.
+        let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());
+        apply_allow_build(cfg, &args.allow_build, &allow_build_root)?;
         let pipeline = AddPipeline {
             args,
             cfg,
@@ -85,6 +91,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
 pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<CommandFuture<'a>> {
     if args.global {
         let config = (ctx.global_config)()?;
+        args.lockfile_dir.apply_to_global(config)?;
         args.apply_cli_config(config);
         return Ok(match ctx.reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
@@ -101,6 +108,7 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        args.lockfile_dir.apply_to(cfg, dir);
         args.apply_cli_config(cfg);
         let (config_root, package_manager_to_sync) =
             derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
@@ -127,7 +135,9 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
 
 pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<CommandFuture<'a>> {
     if args.global {
-        global::handle_global_remove((ctx.global_config)()?, &args.package_names)?;
+        let config = (ctx.global_config)()?;
+        args.lockfile_dir.apply_to_global(config)?;
+        global::handle_global_remove(config, &args.package_names)?;
         return Ok(Box::pin(std::future::ready(Ok(()))));
     }
     let dir = ctx.dir;
@@ -137,6 +147,7 @@ pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<C
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        args.lockfile_dir.apply_to(cfg, dir);
         let (config_root, package_manager_to_sync) =
             derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
@@ -184,6 +195,7 @@ pub(super) fn install<'a>(
             // mutable through `Config::leak`'s
             // `&'static mut Config` return.
             let cfg = config()?;
+            args.lockfile_dir.apply_to(cfg, dir);
             apply_install_cli_config(cfg, &args);
             let frozen_lockfile = args.effective_frozen_lockfile(cfg);
             let require_lockfile = frozen_lockfile;

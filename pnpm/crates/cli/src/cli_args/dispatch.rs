@@ -133,6 +133,7 @@ impl CliArgs {
         {
             return false;
         }
+        install_args.lockfile_dir.apply_to(&mut config, &dir);
         self.configure_reporter();
         let emit = reporter_emit(self.effective_reporter());
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
