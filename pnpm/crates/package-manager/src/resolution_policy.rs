@@ -105,8 +105,15 @@ impl PickPolicy {
     }
 }
 
-/// Construct the npm resolver used by config-driven, command-level version
-/// lookups with the same registry, cache, and metadata settings as an install.
+/// Constructs the npm resolver used by config-driven, command-level version
+/// lookups with the same registry, authentication, cache, network, and metadata
+/// settings as an install. The supplied [`PickPolicy`] keeps version selection
+/// aligned with the install operation that derived it.
+///
+/// # Errors
+///
+/// Returns an error when the configured named-registry prefixes cannot be
+/// merged into an unambiguous resolver map.
 pub fn create_configured_npm_resolver(
     config: &Config,
     http_client: Arc<ThrottledClient>,
