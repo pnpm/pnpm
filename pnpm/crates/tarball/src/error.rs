@@ -224,4 +224,18 @@ pub enum TarballError {
         )
     )]
     NoOfflineTarball { package_id: String, url: String },
+
+    /// The store row for this package holds a tarball whose
+    /// `package.json` names a different package. Raised on the read
+    /// (`strictStorePkgContentCheck`, the default); with the setting off
+    /// the same disagreement is only warned about and the row is used.
+    #[from(ignore)]
+    #[display("Package name or version mismatch found while reading from the store.")]
+    #[diagnostic(
+        code(ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE),
+        help(
+            "{hint}\n\nIf you want to ignore this issue, set strictStorePkgContentCheck to false in your configuration"
+        )
+    )]
+    UnexpectedPkgContentInStore { hint: String },
 }

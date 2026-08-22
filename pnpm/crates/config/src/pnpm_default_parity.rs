@@ -83,7 +83,6 @@ const NOT_PORTED: &[&str] = &[
     "shell-emulator",
     "skip-manifest-obfuscation",
     "sort",
-    "strict-store-pkg-content-check",
     "use-beta-cli",
     "workspace-prefix",
 ];
@@ -142,6 +141,7 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("side-effects-cache", Bool(cfg.side_effects_cache)),
         ("shared-workspace-lockfile", Bool(cfg.shared_workspace_lockfile)),
         ("strict-peer-dependencies", Bool(cfg.strict_peer_dependencies)),
+        ("strict-store-pkg-content-check", Bool(cfg.strict_store_pkg_content_check)),
         ("symlink", Bool(cfg.symlink)),
         ("verify-store-integrity", Bool(cfg.verify_store_integrity)),
         // `boolean | 'deep'` upstream; the default is `false`.

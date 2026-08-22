@@ -198,6 +198,7 @@ impl WorkspaceSettings {
         json_field!(resolve_peers_from_workspace_root, "RESOLVE_PEERS_FROM_WORKSPACE_ROOT");
         json_field!(block_exotic_subdeps, "BLOCK_EXOTIC_SUBDEPS");
         json_field!(verify_store_integrity, "VERIFY_STORE_INTEGRITY");
+        json_field!(strict_store_pkg_content_check, "STRICT_STORE_PKG_CONTENT_CHECK");
         json_field!(side_effects_cache, "SIDE_EFFECTS_CACHE");
         json_field!(side_effects_cache_readonly, "SIDE_EFFECTS_CACHE_READONLY");
         json_field!(fetch_retries, "FETCH_RETRIES");

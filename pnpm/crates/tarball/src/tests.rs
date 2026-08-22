@@ -218,6 +218,7 @@ async fn packages_under_orgs_should_work() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&integrity("sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),
         package_unpacked_size: Some(16697),
         package_file_count: None,
@@ -283,6 +284,7 @@ async fn network_fetch_records_progress_key() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: Some(16697),
         package_file_count: None,
@@ -320,6 +322,7 @@ async fn should_throw_error_on_checksum_mismatch() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&integrity("sha512-aaaan1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),
         package_unpacked_size: Some(16697),
         package_file_count: None,
@@ -400,6 +403,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -472,6 +476,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -754,6 +759,7 @@ async fn falls_through_when_cafs_file_missing() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -775,6 +781,151 @@ async fn falls_through_when_cafs_file_missing() {
     assert!(
         matches!(err, TarballError::FetchTarball(_)),
         "expected fall-through to network fetch, got: {err:?}",
+    );
+
+    drop(store_dir);
+}
+
+/// Write one store-index row whose bundled manifest names
+/// `other-package@9.9.9`, keyed for `fake@1.0.0`.
+fn seed_row_holding_another_package(store_path: &StoreDir, index_key: &str) {
+    let mut files = HashMap::new();
+    files.insert(
+        "package.json".to_string(),
+        CafsFileInfo { digest: "0".repeat(128), mode: 0o644, size: 0, checked_at: None },
+    );
+    let entry = PackageFilesIndex {
+        manifest: Some(serde_json::json!({ "name": "other-package", "version": "9.9.9" })),
+        requires_build: None,
+        algo: "sha512".to_string(),
+        files,
+        side_effects: None,
+    };
+    let index = StoreIndex::open_in(store_path).unwrap();
+    index.set(index_key, &entry).unwrap();
+    drop(index);
+}
+
+/// A lockfile that pairs an integrity with the wrong package, or a
+/// registry serving a tarball that isn't what its metadata says, leaves
+/// a store row whose `package.json` names another package. Reusing it
+/// would install that other package under this name, so the read fails
+/// instead — pnpm's `ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE`.
+#[tokio::test]
+async fn store_row_holding_another_package_fails_the_read() {
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+
+    let pkg_integrity = integrity(
+        "sha512-q/IXcMGuF8v7ZLf/JeYfE/pB4Wg1yxT6jXJz8JxRK7a4mJSXV1QKMXDPfZkvMHTZpYxWBDoJiXtptDWFnoCA2w==",
+    );
+    let pkg_id = "fake@1.0.0";
+    let index_key = store_index_key(&pkg_integrity.to_string(), pkg_id);
+    seed_row_holding_another_package(store_path, &index_key);
+
+    let err = DownloadTarballToStore {
+        http_client: &fast_fail_client(),
+        store_dir: store_path,
+        store_index: StoreIndex::shared_readonly_in(store_path),
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        package_integrity: Some(&pkg_integrity),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: "http://127.0.0.1:1/unreachable.tgz",
+        package_id: pkg_id,
+        requester: "",
+        prefetched_cas_paths: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: None,
+        append_manifest: None,
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .expect_err("a row holding another package must not be reused");
+    let TarballError::UnexpectedPkgContentInStore { hint } = &err else {
+        panic!("expected an unexpected-content error, got: {err:?}");
+    };
+    assert!(hint.contains("Expected package: fake@1.0.0."), "{hint}");
+    assert!(hint.contains("Actual package in the store: other-package@9.9.9."), "{hint}");
+
+    drop(store_dir);
+}
+
+/// `strictStorePkgContentCheck: false` downgrades the same
+/// disagreement to a warning and installs from the row anyway.
+#[tokio::test]
+async fn store_row_holding_another_package_only_warns_when_not_strict() {
+    use std::sync::Mutex;
+
+    use pnpm_reporter::LogEvent;
+
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+
+    struct RecordingReporter;
+    impl pnpm_reporter::Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+
+    let pkg_integrity = integrity(
+        "sha512-q/IXcMGuF8v7ZLf/JeYfE/pB4Wg1yxT6jXJz8JxRK7a4mJSXV1QKMXDPfZkvMHTZpYxWBDoJiXtptDWFnoCA2w==",
+    );
+    let pkg_id = "fake@1.0.0";
+    let index_key = store_index_key(&pkg_integrity.to_string(), pkg_id);
+    seed_row_holding_another_package(store_path, &index_key);
+
+    EVENTS.lock().unwrap().clear();
+    let cas_paths = DownloadTarballToStore {
+        http_client: &fast_fail_client(),
+        store_dir: store_path,
+        store_index: StoreIndex::shared_readonly_in(store_path),
+        store_index_writer: None,
+        // The row's blob was never written to disk, so the reuse this
+        // asserts is only reachable with verification off.
+        verify_store_integrity: false,
+        strict_store_pkg_content_check: false,
+        package_integrity: Some(&pkg_integrity),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: "http://127.0.0.1:1/unreachable.tgz",
+        package_id: pkg_id,
+        requester: "",
+        prefetched_cas_paths: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: None,
+        append_manifest: None,
+    }
+    .run_without_mem_cache::<RecordingReporter>()
+    .await
+    .expect("without the strict check the row is still used");
+    assert!(cas_paths.contains_key("package.json"));
+
+    let warnings: Vec<String> = EVENTS
+        .lock()
+        .unwrap()
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Global(log) => Some(log.message.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(
+        warnings[0]
+            .starts_with("Package name or version mismatch found while reading from the store."),
+        "{warnings:?}",
     );
 
     drop(store_dir);
@@ -816,6 +967,7 @@ async fn falls_through_when_digest_is_malformed() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -883,6 +1035,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -960,6 +1113,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -1844,6 +1998,7 @@ async fn run_without_mem_cache_reads_local_file_tarball() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&package_integrity),
         package_unpacked_size: Some(16697),
         package_file_count: None,
@@ -1889,6 +2044,7 @@ async fn run_without_mem_cache_fetches_unverified_and_writes_no_index_row() {
         store_index: None,
         store_index_writer: Some(Arc::clone(&writer)),
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: None,
         package_unpacked_size: None,
         package_file_count: None,
@@ -2436,6 +2592,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     store_index: None,
                     store_index_writer: None,
                     verify_store_integrity: true,
+                    strict_store_pkg_content_check: true,
                     package_integrity: Some(pkg_integrity),
                     package_unpacked_size: None,
                     package_file_count: None,
@@ -2731,6 +2888,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -2761,6 +2919,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -2858,6 +3017,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -2897,6 +3057,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -2980,6 +3141,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::default(),
         package_integrity: Some(pkg_integrity),
         package_unpacked_size: None,
@@ -3268,6 +3430,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         store_index: None,
         store_index_writer: Some(Arc::clone(&writer)),
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -3309,6 +3472,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         store_index: Some(store_index),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -3697,6 +3861,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::default(),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -3770,6 +3935,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::default(),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,

@@ -98,6 +98,7 @@ struct OwnedFetchCtx {
     requester: Arc<str>,
     offline: bool,
     verify_store_integrity: bool,
+    strict_store_pkg_content_check: bool,
     supported_architectures: Option<SupportedArchitectures>,
     current_os: &'static str,
     current_cpu: &'static str,
@@ -173,6 +174,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             requester: Arc::<str>::from(requester),
             offline: config.offline,
             verify_store_integrity: config.verify_store_integrity,
+            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
             supported_architectures: supported_architectures.cloned(),
             current_os: pnpm_graph_hasher::host_platform(),
             current_cpu: pnpm_graph_hasher::host_arch(),
@@ -315,6 +317,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let requester = Arc::clone(&self.ctx.requester);
         let offline = self.ctx.offline;
         let verify_store_integrity = self.ctx.verify_store_integrity;
+        let strict_store_pkg_content_check = self.ctx.strict_store_pkg_content_check;
         let progress_reported = SharedReportedProgressKeys::clone(&self.ctx.progress_reported);
 
         tokio::spawn(async move {
@@ -335,6 +338,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 store_index,
                 store_index_writer,
                 verify_store_integrity,
+                strict_store_pkg_content_check,
                 verified_files_cache,
                 package_integrity: Some(&integrity),
                 package_unpacked_size,

@@ -462,6 +462,8 @@ pub struct DownloadZipArchiveToStore<'a> {
     pub store_index: Option<SharedReadonlyStoreIndex>,
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
     pub verify_store_integrity: bool,
+    /// See [`crate::download::DownloadTarballToStore::strict_store_pkg_content_check`].
+    pub strict_store_pkg_content_check: bool,
     pub verified_files_cache: SharedVerifiedFilesCache,
     pub package_integrity: &'a Integrity,
     pub package_url: &'a str,
@@ -514,6 +516,7 @@ impl DownloadZipArchiveToStore<'_> {
             package_id,
             requester,
             verify_store_integrity,
+            strict_store_pkg_content_check,
             prefetched_cas_paths,
             retry_opts,
             auth_headers,
@@ -543,15 +546,16 @@ impl DownloadZipArchiveToStore<'_> {
             emit_progress_found_in_store::<Reporter>(package_id, requester, None);
             return Ok((**cas_paths).clone());
         }
-        if let Some(cas_paths) = load_cached_cas_paths(
+        let cached = load_cached_cas_paths::<Reporter>(
             store_index,
             store_dir,
             cache_key,
             verify_store_integrity,
+            strict_store_pkg_content_check,
             verified_files_cache,
         )
-        .await
-        {
+        .await?;
+        if let Some(cas_paths) = cached {
             tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping zip download");
             emit_progress_found_in_store::<Reporter>(package_id, requester, None);
             return Ok(cas_paths);

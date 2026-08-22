@@ -76,6 +76,7 @@ pub(crate) struct TarballDownload {
     pub requester: Arc<str>,
     pub offline: bool,
     pub verify_store_integrity: bool,
+    pub strict_store_pkg_content_check: bool,
     pub package_id: String,
     pub package_url: String,
     pub integrity: Integrity,
@@ -104,6 +105,7 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
         requester,
         offline,
         verify_store_integrity,
+        strict_store_pkg_content_check,
         package_id,
         package_url,
         integrity,
@@ -118,6 +120,7 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
             store_index,
             store_index_writer,
             verify_store_integrity,
+            strict_store_pkg_content_check,
             verified_files_cache,
             package_integrity: Some(&integrity),
             package_unpacked_size,
@@ -168,6 +171,7 @@ pub struct TarballPrefetcher {
     requester: Arc<str>,
     offline: bool,
     verify_store_integrity: bool,
+    strict_store_pkg_content_check: bool,
     /// URLs already spawned, so repeated frames for the same tarball
     /// (the resolver yields one per dependent edge) collapse to a single
     /// download. Mirrors `PrefetchingResolver::spawned_urls`.
@@ -220,6 +224,7 @@ impl TarballPrefetcher {
             requester: Arc::<str>::from(requester),
             offline: config.offline,
             verify_store_integrity: config.verify_store_integrity,
+            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
             spawned_urls: DashSet::new(),
         }
     }
@@ -266,6 +271,7 @@ impl TarballPrefetcher {
             requester: Arc::clone(&self.requester),
             offline: self.offline,
             verify_store_integrity: self.verify_store_integrity,
+            strict_store_pkg_content_check: self.strict_store_pkg_content_check,
             package_id,
             package_url,
             integrity,
