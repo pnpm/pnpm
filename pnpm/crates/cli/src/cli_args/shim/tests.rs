@@ -1,6 +1,7 @@
 use super::{
-    installed_shims, record_virtual_shim_state, remove_virtual_shim_state,
-    virtual_shim_bins_to_restore, virtual_shim_owner, virtual_shim_state_path, virtual_shims,
+    installed_shims, record_virtual_shim_state, remove_virtual_shim_if_owned,
+    remove_virtual_shim_state, virtual_shim_bins_to_restore, virtual_shim_owner,
+    virtual_shim_state_path, virtual_shims,
 };
 use pnpm_cmd_shim::{Host as CmdShimHost, link_virtual_shims, virtual_shim_package};
 use std::{collections::HashMap, fs};
@@ -59,6 +60,17 @@ fn a_binary_in_the_global_bin_slot_is_not_a_virtual_shim() {
     fs::write(&path, [0xff, 0xfe]).unwrap();
 
     assert_eq!(virtual_shim_owner(&path).unwrap(), None);
+}
+
+#[test]
+fn rollback_does_not_remove_a_replaced_bin() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("tool");
+    link_virtual_shims::<CmdShimHost>("tool", &["tool"], dir.path()).expect("link the shim");
+    fs::write(&path, "globally installed command").unwrap();
+
+    assert!(!remove_virtual_shim_if_owned(dir.path(), "tool", "tool").unwrap());
+    assert_eq!(fs::read_to_string(path).unwrap(), "globally installed command");
 }
 
 /// A globally installed package manager opts into project-aware

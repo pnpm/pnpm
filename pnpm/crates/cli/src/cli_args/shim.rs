@@ -181,7 +181,7 @@ async fn add(
         if let Err(error) = record_virtual_shim_state(bin_dir, package, &bins) {
             if !repairing {
                 for bin in &bins {
-                    let _ = remove_bin(&bin_dir.join(bin));
+                    let _ = remove_virtual_shim_if_owned(bin_dir, bin, package);
                 }
             }
             return Err(error);
@@ -197,7 +197,7 @@ async fn add(
             // break what was working.
             if !repairing {
                 for bin in &bins {
-                    let _ = remove_bin(&bin_dir.join(bin));
+                    let _ = remove_virtual_shim_if_owned(bin_dir, bin, package);
                 }
                 let _ = remove_virtual_shim_state(bin_dir, package);
             }
@@ -322,6 +322,15 @@ pub(crate) fn virtual_shim_owner(path: &Path) -> io::Result<Option<String>> {
     let owner =
         std::str::from_utf8(&bytes).ok().and_then(virtual_shim_package).map(ToString::to_string);
     Ok(owner)
+}
+
+fn remove_virtual_shim_if_owned(bin_dir: &Path, bin: &str, package: &str) -> io::Result<bool> {
+    let path = bin_dir.join(bin);
+    if virtual_shim_owner(&path)?.as_deref() != Some(package) {
+        return Ok(false);
+    }
+    remove_bin(&path)?;
+    Ok(true)
 }
 
 pub(crate) fn virtual_shim_bins_to_restore(
