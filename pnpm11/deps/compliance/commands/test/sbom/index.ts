@@ -265,6 +265,39 @@ test('pnpm sbom --exclude-peers drops peers declared in workspace sub-packages',
   expect(componentNames).not.toContain('is-number')
 })
 
+test('pnpm sbom --workspace-root covers only the root project', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-peer-workspace', workspaceDir)
+
+  // What `-w` produces: the `{<workspace-root>}` selector main.ts appends
+  // selects the root project alone, even though the workspace package
+  // patterns name only `packages/*`. Mirrors pacquet's
+  // `sbom_workspace_root_selects_only_the_root`.
+  const { allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+  const rootOnlyGraph = Object.fromEntries(
+    Object.entries(selectedProjectsGraph).filter(([dir]) => dir === workspaceDir)
+  ) as typeof selectedProjectsGraph
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    lockfileOnly: true,
+    allProjectsGraph,
+    selectedProjectsGraph: rootOnlyGraph,
+  })
+
+  expect(exitCode).toBe(0)
+  const parsed = JSON.parse(output)
+  expect(parsed.metadata.component.name).toBe('sbom-peer-workspace')
+  const componentNames = parsed.components.map((c: { name: string }) => c.name)
+  expect(componentNames).toContain('is-positive') // the root's own dependency
+  expect(componentNames).not.toContain('is-odd') // declared by packages/pkg-a
+})
+
 test('pnpm sbom fails when the lockfile has no importer for a selected project', async () => {
   const workspaceDir = tempDir()
   f.copy('with-peer-workspace', workspaceDir)
