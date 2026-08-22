@@ -194,10 +194,12 @@ fn an_over_deep_tree_is_rejected_instead_of_recursed_into() {
     assert!(error.reason.contains("nests dependents more than"), "{}", error.reason);
 }
 
+/// The boundary itself: a tree nested exactly as deep as the walk can go
+/// is accepted, so the guard rejects only what a real tree could not be.
 #[test]
 fn a_tree_at_the_depth_limit_still_renders() {
     let mut node = json!({ "name": "leaf", "version": "1.0.0" });
-    for _ in 0..10 {
+    for _ in 0..pnpm_deps_inspection::MAX_WALK_DEPTH {
         node = json!({ "name": "n", "version": "1.0.0", "dependents": [node] });
     }
 

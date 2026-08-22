@@ -5,13 +5,20 @@ programmatic API — install, rebuild, dependency resolution, and pack — to a
 JavaScript host. The reference consumer is [Bit](https://bit.dev), which drives
 pnpm entirely through its programmatic API.
 
-This package binds pnpm's **engine** plus the two things a host cannot
-reasonably reimplement over it: pnpm's terminal output (`options.reporter`)
-and its reverse dependency tree (`getDependents` / `renderDependents`, what
-`pnpm why` is built on). Pure data utilities that operate on in-memory
-objects or the (byte-stable) on-disk lockfile/store formats stay as regular
-`@pnpm/*` JS packages — both stacks share the same lockfile v9 shape,
-`.modules.yaml` format, and store layout.
+This package binds pnpm's **engine**, and alongside it the pieces of pnpm a
+host would otherwise have to reimplement over that engine: pnpm's terminal
+output (`options.reporter`), its reverse dependency tree (`getDependents` /
+`renderDependents`, what `pnpm why` is built on), and the files it owns —
+`pnpm-lock.yaml` and `.modules.yaml` (`readLockfile` / `writeLockfile` /
+`filterLockfileByImporters` / `readModulesManifest`). The lockfile ones
+include pure in-memory transforms: `filterLockfileByImporters` touches no
+disk at all. They are bound anyway, because the alternative is a second
+implementation of a format the engine writes, kept in step by hand.
+
+What stays a regular `@pnpm/*` JS package is what the engine has no part in:
+type-only packages, and small pure helpers whose call sites are hot enough
+that a boundary crossing per call would cost more than it saves (dep-path
+string parsing runs once per graph edge).
 
 ## API
 

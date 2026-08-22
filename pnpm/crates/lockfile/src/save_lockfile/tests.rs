@@ -652,8 +652,7 @@ fn foreign_top_level_keys_survive_a_round_trip() {
     let saved = lockfile.to_yaml_string().expect("serialize lockfile");
     assert!(saved.contains("bit:"), "saved: {saved}");
     assert!(saved.contains("esbuild@0.25.0"), "saved: {saved}");
-    assert!(
-        saved.find("importers:") < saved.find("bit:"),
-        "the foreign block belongs after pnpm's own keys:\n{saved}",
-    );
+    let importers_at = saved.find("importers:").expect("importers survive the round trip");
+    let foreign_at = saved.find("bit:").expect("the foreign block survives the round trip");
+    assert!(importers_at < foreign_at, "the foreign block belongs after pnpm's own keys:\n{saved}");
 }

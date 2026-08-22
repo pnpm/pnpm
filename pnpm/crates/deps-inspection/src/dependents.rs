@@ -95,7 +95,7 @@ impl DepField {
 }
 
 /// One matched package and everything that depends on it.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct DependentsTree {
     pub name: String,
