@@ -24,6 +24,7 @@ use std::{
 use napi_derive::napi;
 use pnpm_config::matcher::create_matcher;
 use pnpm_deps_inspection::{
+    MAX_WALK_DEPTH,
     build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
     dependents::{BuildDependentsOptions, DependentsTree, ImporterInfo, build_dependents_tree},
     dependents_render::{
@@ -113,6 +114,7 @@ pub fn render_dependents(
     trees: serde_json::Value,
     options: Option<RenderDependentsInput>,
 ) -> napi::Result<String> {
+    reject_over_deep_trees(&trees)?;
     let trees: Vec<DependentsTree> = serde_json::from_value(trees).map_err(|err| {
         napi::Error::from_reason(format!("the trees argument is not a dependents tree: {err}"))
     })?;
@@ -132,6 +134,36 @@ pub fn render_dependents(
             )));
         }
     })
+}
+
+/// Refuse a caller-supplied tree nested deeper than the walk that produced
+/// it could ever go. Deserialization and all three renderers recurse over
+/// `dependents`, so an arbitrarily deep argument — a hand-built one, or a
+/// tree from another tool — would otherwise exhaust the stack and take the
+/// host process down with it.
+///
+/// The check itself is iterative for the same reason.
+fn reject_over_deep_trees(trees: &serde_json::Value) -> napi::Result<()> {
+    let mut stack: Vec<(&serde_json::Value, usize)> = vec![(trees, 0)];
+    while let Some((value, depth)) = stack.pop() {
+        if depth > MAX_WALK_DEPTH {
+            return Err(napi::Error::from_reason(format!(
+                "the trees argument nests dependents more than {MAX_WALK_DEPTH} levels deep",
+            )));
+        }
+        match value {
+            serde_json::Value::Array(items) => {
+                stack.extend(items.iter().map(|item| (item, depth)));
+            }
+            serde_json::Value::Object(fields) => {
+                if let Some(dependents) = fields.get("dependents") {
+                    stack.push((dependents, depth + 1));
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>> {
@@ -158,18 +190,17 @@ fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>>
     };
     let lockfile = env.current_lockfile;
 
-    let project_dirs: Vec<PathBuf> = match &options.project_dirs {
-        Some(dirs) => dirs.iter().map(|dir| resolve_project_dir(&lockfile_dir, dir)).collect(),
-        None => {
-            let excluded =
-                create_matcher(options.exclude_project_patterns.as_deref().unwrap_or_default());
-            lockfile
-                .importers
-                .keys()
-                .filter(|importer_id| !excluded.matches(importer_id))
-                .filter_map(|importer_id| safe_importer_dir(&lockfile_dir, importer_id))
-                .collect()
-        }
+    let project_dirs: Vec<PathBuf> = if let Some(dirs) = &options.project_dirs {
+        dirs.iter().map(|dir| resolve_project_dir(&lockfile_dir, dir)).collect()
+    } else {
+        let excluded =
+            create_matcher(options.exclude_project_patterns.as_deref().unwrap_or_default());
+        lockfile
+            .importers
+            .keys()
+            .filter(|importer_id| !excluded.matches(importer_id))
+            .filter_map(|importer_id| safe_importer_dir(&lockfile_dir, importer_id))
+            .collect()
     };
 
     let mut importer_info: HashMap<String, ImporterInfo> = HashMap::new();

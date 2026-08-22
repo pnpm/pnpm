@@ -12,8 +12,15 @@ use crate::{
     },
 };
 
+/// Shared by the three renderers below; each ignores what does not apply
+/// to its format (`long` reads each root's `package.json`, which the
+/// parseable and JSON formats do not render).
 pub struct RenderDependentsOptions {
+    /// Include the description, repository, homepage, and path of each
+    /// matched package under its root label.
     pub long: bool,
+    /// Stop descending after this many levels of dependents. `None`
+    /// renders the whole tree.
     pub depth: Option<usize>,
 }
 

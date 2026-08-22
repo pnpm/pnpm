@@ -179,6 +179,33 @@ fn render_round_trips_the_json_format() {
     assert_eq!(parsed[0]["name"], "nested");
 }
 
+/// A tree deeper than the walk could ever produce is refused rather than
+/// recursed into: deserialization and the renderers both recurse over
+/// `dependents`, and exhausting the stack takes the host process with it.
+#[test]
+fn an_over_deep_tree_is_rejected_instead_of_recursed_into() {
+    let mut node = json!({ "name": "leaf", "version": "1.0.0" });
+    for _ in 0..(pnpm_deps_inspection::MAX_WALK_DEPTH + 2) {
+        node = json!({ "name": "n", "version": "1.0.0", "dependents": [node] });
+    }
+
+    let error = render_dependents(json!([node]), None).unwrap_err();
+
+    assert!(error.reason.contains("nests dependents more than"), "{}", error.reason);
+}
+
+#[test]
+fn a_tree_at_the_depth_limit_still_renders() {
+    let mut node = json!({ "name": "leaf", "version": "1.0.0" });
+    for _ in 0..10 {
+        node = json!({ "name": "n", "version": "1.0.0", "dependents": [node] });
+    }
+
+    let rendered = render_dependents(json!([node]), None).unwrap();
+
+    assert!(rendered.contains("leaf@1.0.0"), "rendered: {rendered}");
+}
+
 #[test]
 fn an_unknown_render_format_is_rejected() {
     let error = render_dependents(
