@@ -264,12 +264,17 @@ fn extract_applies_ignore_scripts_override() {
     assert!(!config.ignore_scripts);
     overrides.apply(&mut config);
     assert!(config.ignore_scripts);
+    assert_eq!(config.explicit_settings.get("ignoreScripts"), Some(&serde_json::Value::Bool(true)));
 
     let (overrides, _) =
         ConfigOverrides::extract(argv(["pacquet", "--config.ignore-scripts=false", "pack"]));
     let mut config = Config { ignore_scripts: true, ..Config::default() };
     overrides.apply(&mut config);
     assert!(!config.ignore_scripts);
+    assert_eq!(
+        config.explicit_settings.get("ignoreScripts"),
+        Some(&serde_json::Value::Bool(false)),
+    );
 }
 
 #[test]

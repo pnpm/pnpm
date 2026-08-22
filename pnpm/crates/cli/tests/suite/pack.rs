@@ -201,7 +201,9 @@ fn config_ignore_scripts_override_suppresses_prepack() {
         .assert()
         .success();
     assert!(marker.exists(), "prepack must run when nothing suppresses it");
+    let tarball = out.join("pkg-1.0.0.tgz");
     fs::remove_file(&marker).expect("remove marker");
+    fs::remove_file(&tarball).expect("remove the first tarball");
 
     let CommandTempCwd { pacquet: ignoring, root: ignoring_root, .. } = CommandTempCwd::init();
     ignoring
@@ -213,7 +215,7 @@ fn config_ignore_scripts_override_suppresses_prepack() {
         .assert()
         .success();
     assert!(!marker.exists(), "--config.ignore-scripts=true must suppress prepack");
-    assert!(out.join("pkg-1.0.0.tgz").exists(), "the tarball must still be packed");
+    assert!(tarball.exists(), "the tarball must still be packed");
 
     drop((root, ignoring_root));
 }

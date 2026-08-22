@@ -234,8 +234,12 @@ impl ConfigOverrides {
         if let Some(value) = self.force_legacy_deploy {
             config.force_legacy_deploy = value;
         }
+        // `pnpm config get ignore-scripts` answers from the explicitly-set
+        // settings, so a CLI-set value has to be recorded there to be
+        // reported as set while it suppresses the scripts.
         if let Some(value) = self.ignore_scripts {
             config.ignore_scripts = value;
+            config.explicit_settings.insert("ignoreScripts".to_string(), value.into());
         }
         if let Some(value) = self.inject_workspace_packages {
             config.inject_workspace_packages = value;
