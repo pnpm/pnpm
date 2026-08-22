@@ -15,6 +15,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pnpm-config                            = { workspace = true }
+pnpm-default-reporter                  = { workspace = true }
+pnpm-deps-inspection                   = { workspace = true }
 pnpm-diagnostics                       = { workspace = true }
 pnpm-catalogs-types                    = { workspace = true }
 pnpm-engine-pm-yarn-resolver           = { workspace = true }
@@ -23,6 +25,7 @@ pnpm-engine-runtime-deno-resolver      = { workspace = true }
 pnpm-engine-runtime-node-resolver      = { workspace = true }
 pnpm-hooks                             = { workspace = true }
 pnpm-lockfile                          = { workspace = true }
+pnpm-modules-yaml                      = { workspace = true }
 pnpm-network                           = { workspace = true }
 pnpm-pack                              = { workspace = true }
 pnpm-package-manager                   = { workspace = true }
@@ -44,6 +47,7 @@ pnpm-workspace                         = { workspace = true }
 async-trait = { workspace = true }
 dashmap     = { workspace = true }
 indexmap    = { workspace = true }
+libc        = { workspace = true }
 miette      = { workspace = true }
 napi        = { workspace = true }
 napi-derive = { workspace = true }

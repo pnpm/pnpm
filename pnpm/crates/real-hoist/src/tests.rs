@@ -47,6 +47,7 @@ fn empty_lockfile() -> Lockfile {
         packages: None,
         snapshots: None,
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 
@@ -73,6 +74,7 @@ fn hoist_throws_on_broken_lockfile() {
         packages: None,
         snapshots: None,
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let err = hoist(&lockfile, &HoistOpts::default()).expect_err("missing snapshot should error");
@@ -121,6 +123,7 @@ fn one_transitive_dep_hoists_to_root() {
         packages: None,
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("happy hoist should succeed");
@@ -172,6 +175,7 @@ fn diamond_dep_hoists_once_to_root() {
         packages: None,
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
@@ -252,6 +256,7 @@ fn version_conflict_keeps_loser_at_parent() {
         packages: None,
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
@@ -327,6 +332,7 @@ fn most_used_version_wins_root_slot() {
         packages: None,
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
@@ -394,6 +400,7 @@ fn deep_chain_flattens_in_one_pass() {
         packages: None,
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
@@ -432,6 +439,7 @@ fn external_dependencies_are_stripped_from_the_result() {
         packages: None,
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let opts = HoistOpts {
@@ -476,6 +484,7 @@ fn transitive_npm_alias_resolves_target_snapshot() {
         packages: None,
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let result =
@@ -572,6 +581,7 @@ fn peer_constrained_node_stays_under_parent_when_root_provides_different_ident()
         packages: Some(packages),
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("peer-aware hoist should succeed");
@@ -634,6 +644,7 @@ fn peer_check_uses_post_hoist_ancestor_path_not_queue_time_path() {
         packages: Some(packages),
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
@@ -692,6 +703,7 @@ fn peer_constrained_node_hoists_when_ancestor_and_root_agree() {
         packages: Some(packages),
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("peer-aware hoist should succeed");
@@ -748,6 +760,7 @@ fn multi_round_unlocks_peer_friendly_hoist_after_blocker_moves() {
         packages: Some(packages),
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("multi-round should converge");
@@ -795,6 +808,7 @@ fn hoisting_limits_border_keeps_descendants_nested() {
         packages: None,
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let mut blocked = BTreeSet::new();
@@ -849,6 +863,7 @@ fn hoisting_limits_border_keeps_all_descendants_nested() {
         packages: None,
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let mut blocked = BTreeSet::new();
@@ -904,6 +919,7 @@ fn hoisting_limits_keyed_on_unrelated_importer_is_inert() {
         packages: None,
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let mut blocked = BTreeSet::new();
@@ -966,6 +982,7 @@ fn nested_hoist_uses_the_nested_root_locator() {
             packages: None,
             snapshots: Some(snapshots),
             time: None,
+            extra: pnpm_lockfile::LockfileExtra::default(),
         },
         &opts,
     )
@@ -1050,6 +1067,7 @@ fn nested_hoist_keeps_conflicting_dep_reachable_from_every_parent_of_a_shared_no
         packages: None,
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
@@ -1151,6 +1169,7 @@ fn conflict_nested_shared_cycle_is_cut() {
         packages: None,
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("cyclic hoist should succeed");
@@ -1219,6 +1238,7 @@ fn self_alias_keeps_its_entry_and_only_the_alias_repeat_is_cut() {
         packages: None,
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("self-alias hoist should succeed");
@@ -1438,6 +1458,7 @@ fn self_dependency_does_not_loop() {
         packages: None,
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("self-dep should not loop");
@@ -1486,6 +1507,7 @@ fn basic_cyclic_dependency_terminates() {
             packages: None,
             snapshots: Some(snapshots),
             time: None,
+            extra: pnpm_lockfile::LockfileExtra::default(),
         },
         &HoistOpts::default(),
     )
@@ -1520,6 +1542,7 @@ fn multi_importer_lockfile_emits_workspace_children() {
         packages: None,
         snapshots: None,
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("workspace hoist succeeds");
@@ -1569,6 +1592,7 @@ fn hoist_workspace_packages_false_keeps_workspace_children() {
         packages: None,
         snapshots: None,
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
     let opts = HoistOpts { hoist_workspace_packages: false, ..HoistOpts::default() };

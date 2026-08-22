@@ -307,6 +307,7 @@ fn importer_scoped_update_lockfile(
         packages: Some(packages),
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 
@@ -848,6 +849,7 @@ fn lockfile_recording_time(entries: &[(&str, &str)]) -> pnpm_lockfile::Lockfile 
         packages: None,
         snapshots: None,
         time: Some(recorded_time(entries)),
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 
@@ -1064,6 +1066,7 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
             pnpm_lockfile::SnapshotEntry::default(),
         )])),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }));
     let mut next = 0;
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
@@ -1655,6 +1658,7 @@ fn lockfile_with_package(key: &str) -> pnpm_lockfile::Lockfile {
         packages: Some(std::collections::HashMap::from([(key, metadata)])),
         snapshots: None,
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 
@@ -2159,6 +2163,7 @@ fn reuse_graph_lockfile(
         packages: Some(packages),
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 
@@ -3340,6 +3345,7 @@ fn reuse_steal_lockfile() -> pnpm_lockfile::Lockfile {
         packages: Some(packages),
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 

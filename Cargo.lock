@@ -4323,6 +4323,7 @@ dependencies = [
  "pnpm-config-parse-overrides",
  "pnpm-crypto-hash",
  "pnpm-default-reporter",
+ "pnpm-deps-inspection",
  "pnpm-deps-path",
  "pnpm-detect-libc",
  "pnpm-diagnostics",
@@ -4358,6 +4359,7 @@ dependencies = [
  "pnpm-store-dir",
  "pnpm-tarball",
  "pnpm-testing-utils",
+ "pnpm-text-sanitize",
  "pnpm-versioning",
  "pnpm-workspace",
  "pnpm-workspace-manifest-writer",
@@ -4501,9 +4503,36 @@ dependencies = [
  "libc",
  "node-semver",
  "owo-colors",
+ "pnpm-config",
  "pnpm-reporter",
  "pretty_assertions",
  "serde_json",
+]
+
+[[package]]
+name = "pnpm-deps-inspection"
+version = "0.0.1"
+dependencies = [
+ "dunce",
+ "miette 7.6.0",
+ "node-semver",
+ "owo-colors",
+ "pathdiff",
+ "pnpm-config",
+ "pnpm-crypto-hash",
+ "pnpm-deps-restorer",
+ "pnpm-fs",
+ "pnpm-lockfile",
+ "pnpm-modules-yaml",
+ "pnpm-package-manifest",
+ "pnpm-store-dir",
+ "pnpm-testing-utils",
+ "pnpm-text-sanitize",
+ "pnpm-workspace",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -5026,6 +5055,7 @@ dependencies = [
  "async-trait",
  "dashmap",
  "indexmap 2.14.0",
+ "libc",
  "miette 7.6.0",
  "mockito",
  "napi",
@@ -5034,6 +5064,8 @@ dependencies = [
  "node-semver",
  "pnpm-catalogs-types",
  "pnpm-config",
+ "pnpm-default-reporter",
+ "pnpm-deps-inspection",
  "pnpm-diagnostics",
  "pnpm-engine-pm-yarn-resolver",
  "pnpm-engine-runtime-bun-resolver",
@@ -5041,6 +5073,7 @@ dependencies = [
  "pnpm-engine-runtime-node-resolver",
  "pnpm-hooks",
  "pnpm-lockfile",
+ "pnpm-modules-yaml",
  "pnpm-network",
  "pnpm-pack",
  "pnpm-package-manager",
@@ -5654,6 +5687,10 @@ dependencies = [
  "url",
  "walkdir",
 ]
+
+[[package]]
+name = "pnpm-text-sanitize"
+version = "0.0.1"
 
 [[package]]
 name = "pnpm-versioning"

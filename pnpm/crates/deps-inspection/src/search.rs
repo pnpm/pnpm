@@ -12,18 +12,20 @@ use super::TreeNodeId;
 /// Result of matching one package: no match, a plain match, or a match
 /// with a message returned by a finder.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum SearchMatch {
+pub enum SearchMatch {
     No,
     Yes,
     Message(String),
 }
 
 impl SearchMatch {
-    pub(crate) fn is_match(&self) -> bool {
+    #[must_use]
+    pub fn is_match(&self) -> bool {
         !matches!(self, SearchMatch::No)
     }
 
-    pub(crate) fn message(&self) -> Option<&str> {
+    #[must_use]
+    pub fn message(&self) -> Option<&str> {
         match self {
             SearchMatch::Message(message) => Some(message),
             SearchMatch::No | SearchMatch::Yes => None,
@@ -40,14 +42,14 @@ struct ParsedQuery {
 /// finder verdicts pre-computed per `(alias, node)` pair (finders are
 /// JavaScript callbacks running in the pnpmfile worker, so their
 /// results are gathered before the synchronous tree walk).
-pub(crate) struct Searcher {
+pub struct Searcher {
     queries: Vec<ParsedQuery>,
     finder_results: HashMap<(String, Option<TreeNodeId>), SearchMatch>,
     has_finders: bool,
 }
 
 impl Searcher {
-    pub(crate) fn from_queries(queries: &[String]) -> miette::Result<Self> {
+    pub fn from_queries(queries: &[String]) -> miette::Result<Self> {
         Ok(Searcher {
             queries: queries
                 .iter()
@@ -62,7 +64,7 @@ impl Searcher {
     /// evaluated ahead of the tree walk. The key is the alias the
     /// package is referred to by and the node it resolves to (`None`
     /// for unresolvable leaf edges, keyed by alias only).
-    pub(crate) fn set_finder_results(
+    pub fn set_finder_results(
         &mut self,
         results: HashMap<(String, Option<TreeNodeId>), SearchMatch>,
     ) {
@@ -70,7 +72,8 @@ impl Searcher {
         self.has_finders = true;
     }
 
-    pub(crate) fn matches(
+    #[must_use]
+    pub fn matches(
         &self,
         alias: &str,
         name: &str,

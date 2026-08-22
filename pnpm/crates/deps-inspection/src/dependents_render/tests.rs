@@ -1,11 +1,11 @@
 use pretty_assertions::assert_eq;
 use serde_json::Value;
 
-use super::render::{
+use super::{
     RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
     render_dependents_tree,
 };
-use crate::cli_args::deps_tree::dependents::{DepField, DependentNode, DependentsTree};
+use crate::dependents::{DepField, DependentNode, DependentsTree};
 
 fn tree(name: &str, version: &str, dependents: Vec<DependentNode>) -> DependentsTree {
     DependentsTree {
@@ -16,6 +16,7 @@ fn tree(name: &str, version: &str, dependents: Vec<DependentNode>) -> Dependents
         peers_suffix_hash: None,
         dependents,
         search_message: None,
+        manifest: None,
     }
 }
 
@@ -29,6 +30,7 @@ fn importer(name: &str, version: &str, dep_field: DepField) -> DependentNode {
         deduped: false,
         dep_field: Some(dep_field),
         dependents: None,
+        manifest: None,
     }
 }
 

@@ -1,22 +1,30 @@
-//! Dependency-tree building shared by `pnpm list` and `pnpm why`.
+//! Lockfile-backed dependency inspection, shared by `pnpm list`, `pnpm why`,
+//! `pnpm licenses`, `pnpm dedupe`, and the `@pnpm/napi` bindings.
 //!
 //! Rust counterpart of the TypeScript `@pnpm/deps.inspection.tree-builder`
-//! package: a lockfile-backed dependency graph ([`graph`]), a
-//! materializer that turns it into renderable [`DependencyNode`] trees
-//! with deduplication and circular-reference marking ([`get_tree`]),
-//! per-node metadata resolution ([`pkg_info`]), dev/prod classification
-//! ([`dep_types`]), package search ([`search`]), and the reverse
-//! (dependents) tree used by `pnpm why` ([`dependents`]).
+//! and `@pnpm/deps.inspection.list` packages: a lockfile-backed dependency
+//! graph ([`graph`]), a materializer that turns it into renderable
+//! [`DependencyNode`] trees with deduplication and circular-reference
+//! marking ([`get_tree`]), per-node metadata resolution ([`pkg_info`]),
+//! dev/prod classification ([`dep_types`]), package search ([`search`]),
+//! the reverse (dependents) tree behind `pnpm why` ([`dependents`]), and
+//! the tree / parseable / JSON renderers for both directions ([`render`],
+//! [`dependents_render`]).
+//!
+//! Everything here reads the lockfile and the already-materialized
+//! `node_modules`; nothing resolves or fetches. `--find-by` finders, which
+//! run JavaScript out of a `.pnpmfile.cjs`, stay in the CLI — this crate
+//! only consumes the verdicts they record (see [`search::Searcher`]).
 
-pub(crate) mod build;
-pub(crate) mod dep_types;
-pub(crate) mod dependents;
-pub(crate) mod finders;
-pub(crate) mod get_tree;
-pub(crate) mod graph;
-pub(crate) mod pkg_info;
-pub(crate) mod render;
-pub(crate) mod search;
+pub mod build;
+pub mod dep_types;
+pub mod dependents;
+pub mod dependents_render;
+pub mod get_tree;
+pub mod graph;
+pub mod pkg_info;
+pub mod render;
+pub mod search;
 
 use pnpm_lockfile::PkgNameVerPeer;
 
@@ -25,12 +33,12 @@ use pnpm_lockfile::PkgNameVerPeer;
 /// lockfile with an absurdly long acyclic chain could otherwise
 /// overflow the stack (worker threads get 2 MiB). Real dependency
 /// chains stay far below this.
-pub(crate) const MAX_WALK_DEPTH: usize = 256;
+pub const MAX_WALK_DEPTH: usize = 256;
 
 /// Identity of a node in the dependency graph: a workspace project
 /// (importer) or an external package addressed by its depPath.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) enum TreeNodeId {
+pub enum TreeNodeId {
     Importer(String),
     Package(PkgNameVerPeer),
 }
@@ -39,7 +47,8 @@ impl TreeNodeId {
     /// Stable serialization used for deterministic tie-break ordering.
     /// Byte-identical to the TypeScript `serializeTreeNodeId` so the
     /// two stacks order same-name parents the same way.
-    pub(crate) fn serialize(&self) -> String {
+    #[must_use]
+    pub fn serialize(&self) -> String {
         match self {
             TreeNodeId::Importer(importer_id) => {
                 format!(
@@ -61,7 +70,7 @@ impl TreeNodeId {
 /// `list` renderers consume. Counterpart of the TypeScript
 /// [`DependencyNode`].
 #[derive(Debug, Default, Clone)]
-pub(crate) struct DependencyNode {
+pub struct DependencyNode {
     pub alias: String,
     pub name: String,
     pub version: String,
@@ -92,7 +101,8 @@ pub(crate) struct DependencyNode {
 /// Short hash of a depPath's peer-dependency suffix, used to
 /// distinguish deduped instances of the same package resolved against
 /// different peers. `None` when the depPath carries no peer suffix.
-pub(crate) fn peers_suffix_hash(dep_path: &PkgNameVerPeer) -> Option<String> {
+#[must_use]
+pub fn peers_suffix_hash(dep_path: &PkgNameVerPeer) -> Option<String> {
     let peer = dep_path.suffix.peer();
     if peer.is_empty() {
         return None;

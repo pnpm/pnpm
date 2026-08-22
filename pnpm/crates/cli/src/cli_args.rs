@@ -19,7 +19,10 @@ pub mod create;
 pub mod dedupe;
 pub mod deploy;
 pub mod deprecate;
-pub(crate) mod deps_tree;
+/// The extracted dependency-inspection crate, aliased so the command
+/// modules keep addressing it as `cli_args::deps_tree`.
+pub(crate) use pnpm_deps_inspection as deps_tree;
+pub(crate) mod deps_tree_finders;
 pub mod dist_tag;
 pub mod dlx;
 pub mod docs;

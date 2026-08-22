@@ -19,7 +19,7 @@ use super::{
 /// `Infinity` depth, which the materialization cache keys differently
 /// from any finite depth.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum MaxDepth {
+pub enum MaxDepth {
     Finite(u64),
     Unlimited,
 }
@@ -54,14 +54,14 @@ struct CachedSubtree {
 /// Caches already-materialized subtrees keyed by `(node, remaining
 /// depth)`. A cache hit elides the subtree (the node is marked
 /// `deduped`), bounding the total output to `O(N)` nodes.
-pub(crate) type MaterializationCache = HashMap<(TreeNodeId, Option<u64>), CachedSubtreeOpaque>;
+pub type MaterializationCache = HashMap<(TreeNodeId, Option<u64>), CachedSubtreeOpaque>;
 
 /// Opaque wrapper so the cache type can be shared without exposing the
 /// bookkeeping fields.
 #[derive(Debug, Clone)]
-pub(crate) struct CachedSubtreeOpaque(CachedSubtree);
+pub struct CachedSubtreeOpaque(CachedSubtree);
 
-pub(crate) struct GetTreeOptions<'a> {
+pub struct GetTreeOptions<'a> {
     pub env: &'a PkgInfoEnv<'a>,
     pub graph: &'a DependencyGraph,
     pub exclude_peer_dependencies: bool,
@@ -79,7 +79,7 @@ struct MaterializationResult {
     search_messages: Vec<String>,
 }
 
-pub(crate) fn get_tree(
+pub fn get_tree(
     opts: &GetTreeOptions<'_>,
     cache: &mut MaterializationCache,
     parent_id: &TreeNodeId,

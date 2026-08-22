@@ -658,6 +658,7 @@ fn install_options() -> InstallOptions {
         peer_dependency_rules: None,
         auth_header_by_uri: None,
         pnpm_home_dir: None,
+        reporter: None,
     }
 }
 

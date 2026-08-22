@@ -168,6 +168,7 @@ fn lockfile_with(
         packages: Some(packages),
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 
@@ -187,6 +188,7 @@ fn walker_empty_lockfile_produces_empty_result() {
         packages: None,
         snapshots: None,
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
     let opts = LockfileToHoistedDepGraphOptions {
         lockfile_dir: PathBuf::from("/repo"),
@@ -607,6 +609,7 @@ fn prev_graph_none_when_current_lockfile_has_no_packages() {
         packages: None,
         snapshots: None,
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
     let opts = LockfileToHoistedDepGraphOptions {
         lockfile_dir: PathBuf::from("/repo"),
@@ -646,6 +649,7 @@ fn prev_graph_none_when_current_lockfile_has_empty_packages() {
         packages: Some(HashMap::new()),
         snapshots: Some(HashMap::new()),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     };
     let opts = LockfileToHoistedDepGraphOptions {
         lockfile_dir: PathBuf::from("/repo"),
@@ -777,6 +781,7 @@ fn workspace_lockfile(
         packages: Some(packages),
         snapshots: Some(snapshots),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 

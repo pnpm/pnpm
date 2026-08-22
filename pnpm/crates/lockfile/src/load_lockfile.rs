@@ -178,7 +178,10 @@ impl Lockfile {
         .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
     }
 
-    fn load_from_path(file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {
+    /// Load a lockfile from an explicit path. Returns `Ok(None)` when the
+    /// file is absent or its main document is empty, the same absence
+    /// rules the directory-addressed loaders use.
+    pub fn load_from_path(file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {
         let content = match fs::read_to_string(file_path) {
             Ok(content) => content,
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),

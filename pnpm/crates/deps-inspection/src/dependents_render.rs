@@ -4,7 +4,7 @@
 
 use std::{collections::HashMap, path::Path};
 
-use crate::cli_args::deps_tree::{
+use crate::{
     dependents::{DependentNode, DependentsTree},
     render::{
         PeerVariants, TreeNode, bold_styled, circular_label, deduped_label, dim, name_at_version,
@@ -12,15 +12,20 @@ use crate::cli_args::deps_tree::{
     },
 };
 
-pub(crate) struct RenderDependentsOptions {
+/// Shared by the three renderers below; each ignores what does not apply
+/// to its format (`long` reads each root's `package.json`, which the
+/// parseable and JSON formats do not render).
+pub struct RenderDependentsOptions {
+    /// Include the description, repository, homepage, and path of each
+    /// matched package under its root label.
     pub long: bool,
+    /// Stop descending after this many levels of dependents. `None`
+    /// renders the whole tree.
     pub depth: Option<usize>,
 }
 
-pub(crate) fn render_dependents_tree(
-    trees: &[DependentsTree],
-    opts: &RenderDependentsOptions,
-) -> String {
+#[must_use]
+pub fn render_dependents_tree(trees: &[DependentsTree], opts: &RenderDependentsOptions) -> String {
     if trees.is_empty() {
         return String::new();
     }
@@ -186,10 +191,8 @@ fn dependents_to_tree_nodes(
         .collect()
 }
 
-pub(crate) fn render_dependents_json(
-    trees: &[DependentsTree],
-    opts: &RenderDependentsOptions,
-) -> String {
+#[must_use]
+pub fn render_dependents_json(trees: &[DependentsTree], opts: &RenderDependentsOptions) -> String {
     let values: Vec<serde_json::Value> = trees
         .iter()
         .map(|tree| {
@@ -238,7 +241,8 @@ fn truncate_dependents(
         .collect()
 }
 
-pub(crate) fn render_dependents_parseable(
+#[must_use]
+pub fn render_dependents_parseable(
     trees: &[DependentsTree],
     opts: &RenderDependentsOptions,
 ) -> String {
@@ -285,3 +289,6 @@ fn collect_paths(
 fn plain_name_at_version(name: &str, version: &str) -> String {
     if version.is_empty() { plain(name) } else { plain(&format!("{name}@{version}")) }
 }
+
+#[cfg(test)]
+mod tests;
