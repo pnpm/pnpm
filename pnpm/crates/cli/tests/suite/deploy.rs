@@ -5,7 +5,12 @@ use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };
-use std::{fmt::Write as _, fs, path::Path, process::Command};
+use std::{
+    fmt::Write as _,
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 #[test]
 fn deploy_from_shared_lockfile_installs_selected_project() {
@@ -275,11 +280,7 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
     fs::copy(&npmrc_path, deploy_dir.join(".npmrc")).unwrap();
     fs::remove_dir_all(deploy_dir.join("node_modules")).unwrap();
     pacquet_cmd(&deploy_dir).with_args(["install", "--frozen-lockfile"]).assert().success();
-    let dangling = fs::read_dir(deploy_dir.join("node_modules"))
-        .unwrap()
-        .map(|entry| entry.unwrap().path())
-        .filter(|path| is_symlink_or_junction(path).unwrap() && !path.exists())
-        .collect::<Vec<_>>();
+    let dangling = dangling_links(&deploy_dir.join("node_modules"));
     assert!(
         dangling.is_empty(),
         "installing the deployed lockfile must not create dangling symlinks: {dangling:#?}",
@@ -708,6 +709,25 @@ fn assert_workspace_lockfile_untouched(workspace: &Path, before: &str) {
 
 fn pacquet_cmd(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+}
+
+/// Every link under `dir`, at any depth, whose target does not exist.
+fn dangling_links(dir: &Path) -> Vec<PathBuf> {
+    let mut dangling = Vec::new();
+    let mut queue = vec![dir.to_path_buf()];
+    while let Some(current) = queue.pop() {
+        for entry in fs::read_dir(&current).expect("read a deployed directory") {
+            let path = entry.expect("read a deployed entry").path();
+            if is_symlink_or_junction(&path).expect("stat a deployed entry") {
+                if !path.exists() {
+                    dangling.push(path);
+                }
+            } else if path.is_dir() {
+                queue.push(path);
+            }
+        }
+    }
+    dangling
 }
 
 fn deploy_graph_keys(deploy_dir: &Path) -> Vec<String> {

@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import type { LockfileFile } from '@pnpm/lockfile.types'
-import { preparePackages } from '@pnpm/prepare'
+import { preparePackages, tempDir } from '@pnpm/prepare'
 import { loadJsonFileSync } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -172,7 +172,9 @@ test('deploy with a shared lockfile drops excluded direct dependency groups', as
 
   await execPnpm(['install'])
 
-  const deployDir = path.resolve('deploy')
+  // Deploying outside the workspace keeps the follow-up install standalone.
+  const workspaceDir = process.cwd()
+  const deployDir = path.join(tempDir(false), 'deploy')
   await execPnpm(['--filter=app', 'deploy', '--prod', '--no-optional', deployDir])
 
   const deployManifest = loadJsonFileSync<Record<string, unknown>>(path.join(deployDir, 'package.json'))
@@ -186,6 +188,18 @@ test('deploy with a shared lockfile drops excluded direct dependency groups', as
   expect(importer.optionalDependencies ?? {}).toStrictEqual({})
   const graphKeys = Object.keys(deployLockfile.packages ?? {})
   expect(graphKeys.filter(key => key.startsWith('@pnpm.e2e/bar@') || key.startsWith('@pnpm.e2e/qar@'))).toStrictEqual([])
+
+  const nodeModulesDir = path.join(deployDir, 'node_modules')
+  fs.rmSync(nodeModulesDir, { recursive: true })
+  process.chdir(deployDir)
+  try {
+    await execPnpm(['install', '--frozen-lockfile'])
+  } finally {
+    process.chdir(workspaceDir)
+  }
+  const dangling = fs.readdirSync(nodeModulesDir, { recursive: true, encoding: 'utf8' })
+    .filter(entry => !fs.existsSync(path.join(nodeModulesDir, entry)))
+  expect(dangling).toStrictEqual([])
 })
 
 // `pacquet` is fetched from the real npm registry — registry-mock doesn't
