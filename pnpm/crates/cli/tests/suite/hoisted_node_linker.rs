@@ -1064,6 +1064,11 @@ fn a_directory_dependency_is_recopied_under_the_hoisted_linker() {
 /// version. pnpm hoists such variants into a single root copy; nesting
 /// a second, identical copy under the project only costs disk and
 /// install time.
+///
+/// Collapsing the variants leaves only one of the two snapshot keys in
+/// the dep graph, so the package map is asserted too: a project that
+/// declared the *other* variant must still resolve the dependency it
+/// declared, through the one copy at the root.
 #[test]
 fn peer_variants_of_one_version_share_the_root_slot() {
     let fixture = WorkspaceFixture::new();
@@ -1101,6 +1106,20 @@ fn peer_variants_of_one_version_share_the_root_slot() {
         assert!(
             !project.join("node_modules/@pnpm.e2e/abc").exists(),
             "a peer variant of the root version must not nest its own copy: {project:?}",
+        );
+    }
+
+    let package_map: serde_json::Value =
+        serde_json::from_str(&package_map_contents(&fixture.workspace))
+            .expect("parse the package map");
+    for project in ["a", "b"] {
+        let dependency_id = package_map["packages"][format!("../packages/{project}")]
+            ["dependencies"]["@pnpm.e2e/abc"]
+            .as_str()
+            .unwrap_or_else(|| panic!("packages/{project} declares @pnpm.e2e/abc"));
+        assert_eq!(
+            package_map["packages"][dependency_id]["url"], "./@pnpm.e2e/abc",
+            "packages/{project} resolves @pnpm.e2e/abc through the root copy",
         );
     }
 }

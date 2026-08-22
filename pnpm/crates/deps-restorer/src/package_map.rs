@@ -234,7 +234,7 @@ pub fn dependencies_graph_to_package_map(
     let is_loose = opts.package_map_type == NodePackageMapType::Loose;
     let mut packages = BTreeMap::new();
     let mut package_ids_by_graph_key = BTreeMap::new();
-    let mut package_ids_by_dep_path = BTreeMap::new();
+    let mut package_ids_by_pkg_id = BTreeMap::new();
     let mut package_dirs = is_loose.then(BTreeMap::new);
     let mut loose_index = is_loose.then(PhysicalPackageIndex::default);
     let importer_names = importer_names(opts.lockfile_dir, opts.project_manifests);
@@ -242,9 +242,16 @@ pub fn dependencies_graph_to_package_map(
     for (graph_key, node) in &graph.graph {
         let id = graph_package_id(&node.dir, opts.modules_dir);
         package_ids_by_graph_key.insert(graph_key.clone(), id.clone());
-        package_ids_by_dep_path
-            .entry(node.dep_path.as_str().to_string())
-            .or_insert_with(|| id.clone());
+        // Keyed by the peer-suffix-free package id: the hoister
+        // collapses every peer variant of one package version onto a
+        // single node, so an importer that declared another variant
+        // still has to find this one (see
+        // [`crate::hoisted_dep_graph`]'s `pkg_locations_by_pkg_id`).
+        if let Ok(key) = node.dep_path.as_str().parse::<PackageKey>() {
+            package_ids_by_pkg_id
+                .entry(key.without_peer().to_string())
+                .or_insert_with(|| id.clone());
+        }
         if let Some(loose_index) = loose_index.as_mut()
             && let Some(modules_dir) = get_node_modules_path(&node.dir)
         {
@@ -262,17 +269,17 @@ pub fn dependencies_graph_to_package_map(
         add_hoisted_importer_dependencies(
             &mut dependencies,
             importer.dependencies.as_ref(),
-            &package_ids_by_dep_path,
+            &package_ids_by_pkg_id,
         );
         add_hoisted_importer_dependencies(
             &mut dependencies,
             importer.optional_dependencies.as_ref(),
-            &package_ids_by_dep_path,
+            &package_ids_by_pkg_id,
         );
         add_hoisted_importer_dependencies(
             &mut dependencies,
             importer.dev_dependencies.as_ref(),
-            &package_ids_by_dep_path,
+            &package_ids_by_pkg_id,
         );
         let importer_modules_dir = is_loose.then(|| importer_dir.join("node_modules"));
         add_hoisted_linked_dependencies(
@@ -499,7 +506,7 @@ fn add_physical_snapshot_dependencies(
 fn add_hoisted_importer_dependencies(
     dependencies: &mut BTreeMap<String, String>,
     deps: Option<&pnpm_lockfile::ResolvedDependencyMap>,
-    package_ids_by_dep_path: &BTreeMap<String, String>,
+    package_ids_by_pkg_id: &BTreeMap<String, String>,
 ) {
     let Some(deps) = deps else { return };
     for (alias, spec) in deps {
@@ -507,7 +514,7 @@ fn add_hoisted_importer_dependencies(
             continue;
         }
         if let Some(key) = spec.version.resolved_key(alias)
-            && let Some(id) = package_ids_by_dep_path.get(&key.to_string())
+            && let Some(id) = package_ids_by_pkg_id.get(&key.without_peer().to_string())
         {
             dependencies.insert(alias.to_string(), id.clone());
         }

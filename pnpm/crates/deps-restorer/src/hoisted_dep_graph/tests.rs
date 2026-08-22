@@ -1106,3 +1106,67 @@ fn walker_resolves_peered_reference_via_peerless_packages_key() {
     // The peer itself is a plain dep of the root and must be there too.
     assert!(result.graph.contains_key(&lockfile_dir.join("node_modules").join("peer")));
 }
+
+/// The hoister collapses every peer variant of one package version onto
+/// a single node keyed by the first snapshot key it sees, so the graph
+/// holds no entry under the other variants' keys. Edges declared against
+/// one of those — an importer's own dependency, or a sibling package's —
+/// still have to resolve to the copy that node produced.
+#[test]
+fn walker_wires_edges_declared_against_a_collapsed_peer_variant() {
+    let mut root_deps = ResolvedDependencyMap::new();
+    root_deps.insert(pkg_name("b"), resolved_dep("1.0.0(peer@2.0.0)"));
+    root_deps.insert(pkg_name("peer"), resolved_dep("2.0.0"));
+    root_deps.insert(pkg_name("c"), resolved_dep("1.0.0"));
+
+    let mut foo_deps = ResolvedDependencyMap::new();
+    foo_deps.insert(pkg_name("b"), resolved_dep("1.0.0(peer@3.0.0)"));
+
+    let mut packages = HashMap::new();
+    packages.insert(dep_key("b", "1.0.0"), metadata_stub());
+    packages.insert(dep_key("c", "1.0.0"), metadata_stub());
+    packages.insert(dep_key("peer", "2.0.0"), metadata_stub());
+    packages.insert(dep_key("peer", "3.0.0"), metadata_stub());
+
+    let mut snapshots = HashMap::new();
+    for peer_version in ["2.0.0", "3.0.0"] {
+        let mut b_deps = HashMap::new();
+        b_deps.insert(pkg_name("peer"), SnapshotDepRef::Plain(ver_peer(peer_version)));
+        snapshots.insert(
+            dep_key("b", &format!("1.0.0(peer@{peer_version})")),
+            SnapshotEntry { dependencies: Some(b_deps), ..SnapshotEntry::default() },
+        );
+        snapshots.insert(dep_key("peer", peer_version), SnapshotEntry::default());
+    }
+    // `c` depends on the variant the root importer does not declare.
+    let mut c_deps = HashMap::new();
+    c_deps.insert(pkg_name("b"), SnapshotDepRef::Plain(ver_peer("1.0.0(peer@3.0.0)")));
+    snapshots.insert(
+        dep_key("c", "1.0.0"),
+        SnapshotEntry { dependencies: Some(c_deps), ..SnapshotEntry::default() },
+    );
+
+    let lockfile = workspace_lockfile(
+        vec![(Lockfile::ROOT_IMPORTER_KEY, root_deps), ("packages/foo", foo_deps)],
+        packages,
+        snapshots,
+    );
+    let lockfile_dir = PathBuf::from("/repo");
+    let opts = LockfileToHoistedDepGraphOptions {
+        lockfile_dir: lockfile_dir.clone(),
+        ..LockfileToHoistedDepGraphOptions::default()
+    };
+    let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
+
+    let modules = lockfile_dir.join("node_modules");
+    assert_eq!(
+        result.direct_dependencies_by_importer_id["packages/foo"].get("b"),
+        Some(&modules.join("b")),
+        "the importer that declared the collapsed variant keeps its direct dependency",
+    );
+    assert_eq!(
+        result.graph[&modules.join("c")].children.get("b"),
+        Some(&modules.join("b")),
+        "a snapshot edge on the collapsed variant resolves to the surviving copy",
+    );
+}
