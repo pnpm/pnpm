@@ -472,14 +472,13 @@ where
             shim_node_path(pkg, &options.extra_node_paths)
         };
         let pkg_name = pkg.manifest.get("name").and_then(Value::as_str).unwrap_or("");
-        let make_powershell_shim = pkg_name != "pnpm";
         write_shim::<Sys>(
             &command.path,
             &bins_dir.join(bin_name),
             &node_path,
             options.prefer_symlinked_executables,
             style,
-            make_powershell_shim,
+            wants_powershell_shim(pkg_name),
         )
     })?;
 
@@ -516,6 +515,15 @@ fn shim_node_path(pkg: &PackageBinSource, extra_node_paths: &[String]) -> Vec<St
     merged
 }
 
+/// Whether the bins of `pkg_name` get a PowerShell shim next to the `.cmd`
+/// one. The pnpm CLI opts out, because PowerShell resolves `pnpm.ps1` ahead of
+/// `pnpm.cmd`: a shim written for one installation of the CLI would keep
+/// shadowing every later one, including an upgrade that ships a different
+/// executable.
+fn wants_powershell_shim(pkg_name: &str) -> bool {
+    pkg_name != "pnpm"
+}
+
 /// Return `true` when `candidate` should replace `existing` for `bin_name`.
 /// Applies a three-step direct-then-ownership-then-lexical comparison.
 fn pick_winner(
@@ -544,6 +552,10 @@ fn pick_winner(
 /// is Windows*. Idempotent on warm reinstalls via
 /// [`is_shim_pointing_at`].
 ///
+/// `make_powershell_shim` (see [`wants_powershell_shim`]) drops the
+/// `.ps1` sibling, and deletes any that an earlier install left
+/// behind.
+///
 /// The chmod step (`set_executable` for the canonical shim and
 /// `ensure_executable_bits` for the target binary) is wired through the
 /// [`FsSetExecutable`] / [`FsEnsureExecutableBits`] capability traits.
@@ -562,6 +574,15 @@ fn write_shim<Sys>(
 where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
 {
+    // Not writing a `.ps1` is not enough to keep one out of the bin
+    // dir: an install that did want one leaves it there, and
+    // PowerShell keeps preferring it over the `.cmd` sibling. Delete
+    // it up front, above the short-circuits below — they all return
+    // without touching the Windows siblings.
+    if !make_powershell_shim {
+        remove_stale_bin(&with_extension_appended(shim_path, "ps1"))?;
+    }
+
     // pnpm's warm-install short-circuit: an existing symlink that
     // already resolves to the target is correct as-is — regardless of
     // `preferSymlinkedExecutables` — so a relink pass that doesn't
@@ -629,13 +650,15 @@ where
     // off the `relative_target_windows` allocation path entirely.
     let windows_shims = cfg!(windows).then(|| {
         let cmd_path = with_extension_appended(shim_path, "cmd");
-        let ps1_path = with_extension_appended(shim_path, "ps1");
         let cmd_body =
             generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), node_path, style);
-        let ps1_body = make_powershell_shim.then(|| {
-            generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path, style)
+        let powershell_shim = make_powershell_shim.then(|| {
+            let ps1_path = with_extension_appended(shim_path, "ps1");
+            let ps1_body =
+                generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path, style);
+            (ps1_path, ps1_body)
         });
-        (cmd_path, cmd_body, ps1_path, ps1_body)
+        (cmd_path, cmd_body, powershell_shim)
     });
 
     // Idempotent skip fires only when every flavor that *should* be
@@ -667,18 +690,19 @@ where
     };
     let windows_ok = match &windows_shims {
         None => true,
-        Some((cmd_path, cmd_body, ps1_path, ps1_body)) => {
+        Some((cmd_path, cmd_body, powershell_shim)) => {
             let cmd_ok = matches!(
                 Sys::read_to_string(cmd_path),
                 Ok(existing) if &existing == cmd_body,
             );
-            let ps1_ok = match ps1_body {
-                Some(body) => matches!(
+            // A suppressed `.ps1` is already gone, so there is nothing
+            // left for this check to compare.
+            let ps1_ok = powershell_shim.as_ref().is_none_or(|(ps1_path, ps1_body)| {
+                matches!(
                     Sys::read_to_string(ps1_path),
-                    Ok(existing) if &existing == body,
-                ),
-                None => Sys::read_to_string(ps1_path).is_err(),
-            };
+                    Ok(existing) if &existing == ps1_body,
+                )
+            });
             cmd_ok && ps1_ok
         }
     };
@@ -693,13 +717,13 @@ where
         remove_stale_bin(shim_path)?;
         Sys::write(shim_path, sh_body.as_bytes())
             .map_err(|error| LinkBinsError::WriteShim { path: shim_path.to_path_buf(), error })?;
-        if let Some((cmd_path, cmd_body, ps1_path, ps1_body)) = &windows_shims {
+        if let Some((cmd_path, cmd_body, powershell_shim)) = &windows_shims {
             remove_stale_bin(cmd_path)?;
             Sys::write(cmd_path, cmd_body.as_bytes())
                 .map_err(|error| LinkBinsError::WriteShim { path: cmd_path.clone(), error })?;
-            remove_stale_bin(ps1_path)?;
-            if let Some(body) = ps1_body {
-                Sys::write(ps1_path, body.as_bytes())
+            if let Some((ps1_path, ps1_body)) = powershell_shim {
+                remove_stale_bin(ps1_path)?;
+                Sys::write(ps1_path, ps1_body.as_bytes())
                     .map_err(|error| LinkBinsError::WriteShim { path: ps1_path.clone(), error })?;
             }
         }

@@ -1483,8 +1483,13 @@ fn prefer_symlinked_executables_links_a_bin_whose_target_is_missing() {
     );
 }
 
+/// The pnpm CLI's own package opts out of the PowerShell shim
+/// ([`super::wants_powershell_shim`]), and a `.ps1` an earlier install
+/// wrote — a pre-v12 `@pnpm/exe` wrapper carried the same bin names —
+/// has to be deleted, not merely left unwritten: PowerShell would keep
+/// preferring it over the `.cmd` shim and run the version it points at.
 #[test]
-fn does_not_write_powershell_shim_for_pnpm_package_on_windows() {
+fn linking_the_pnpm_cli_deletes_a_stale_powershell_shim() {
     let tmp = tempdir().unwrap();
     let pkg_dir = tmp.path().join("node_modules/pnpm");
     create_dir_all(&pkg_dir).unwrap();
@@ -1497,28 +1502,33 @@ fn does_not_write_powershell_shim_for_pnpm_package_on_windows() {
     write_file(pkg_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
 
     let bins_dir = tmp.path().join("node_modules/.bin");
+    create_dir_all(&bins_dir).unwrap();
+    for bin_name in ["pnpm", "pn"] {
+        write_file(bins_dir.join(format!("{bin_name}.ps1")), "an older install wrote this")
+            .unwrap();
+    }
+
     let manifest_value: Value =
         serde_json::from_slice(&read_file(pkg_dir.join("package.json")).unwrap()).unwrap();
+    let packages = [PackageBinSource::new(pkg_dir, Arc::new(manifest_value))];
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
 
-    // Create a stale pnpm.ps1 to make sure it gets cleaned up
-    let stale_ps1 = bins_dir.join("pnpm.ps1");
-    create_dir_all(&bins_dir).unwrap();
-    write_file(&stale_ps1, "stale content").unwrap();
-
-    link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(pkg_dir, Arc::new(manifest_value))],
-        &bins_dir,
-        &LinkBinsOptions::default(),
-    )
-    .unwrap();
-
-    let sh = bins_dir.join("pnpm");
-    let cmd = bins_dir.join("pnpm.cmd");
-    let ps1 = bins_dir.join("pnpm.ps1");
-
-    assert!(sh.exists());
-    if cfg!(windows) {
-        assert!(cmd.exists());
-        assert!(!ps1.exists(), "stale pnpm.ps1 must be removed and not recreated");
+    for bin_name in ["pnpm", "pn"] {
+        assert!(bins_dir.join(bin_name).exists(), "{bin_name} must be linked");
+        assert!(
+            !bins_dir.join(format!("{bin_name}.ps1")).exists(),
+            "the stale {bin_name}.ps1 must be deleted, not left to shadow the linked bin",
+        );
+        assert_eq!(
+            bins_dir.join(format!("{bin_name}.cmd")).exists(),
+            cfg!(windows),
+            "{bin_name}.cmd is the Windows entry point and must survive the cleanup",
+        );
     }
+
+    // The warm-relink short-circuit must not let a `.ps1` planted
+    // after the first link survive.
+    write_file(bins_dir.join("pnpm.ps1"), "planted after the first link").unwrap();
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    assert!(!bins_dir.join("pnpm.ps1").exists());
 }

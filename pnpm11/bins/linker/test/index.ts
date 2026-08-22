@@ -154,21 +154,32 @@ test('linkBins() never creates a PowerShell shim for the pnpm CLI', async () => 
   expect(bins).not.toContain('pnpm.ps1')
 })
 
-test('linkBins() deletes any pre-existing/stale pnpm.ps1 shim for the pnpm CLI', async () => {
+test('linkBins() deletes a PowerShell shim left by an older install of the pnpm CLI', async () => {
   const binTarget = temporaryDirectory()
   const fixture = f.prepare('pnpm-cli')
   const warn = jest.fn()
 
-  const stalePs1 = path.join(binTarget, 'pnpm.ps1')
   fs.mkdirSync(binTarget, { recursive: true })
-  fs.writeFileSync(stalePs1, 'stale content')
+  for (const binName of ['pnpm', 'pn']) {
+    fs.writeFileSync(path.join(binTarget, `${binName}.ps1`), 'an older install wrote this')
+  }
 
   await linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })
 
   const bins = fs.readdirSync(binTarget)
-  expect(bins).toContain('pnpm')
-  expect(bins).not.toContain('pnpm.ps1')
-  expect(fs.existsSync(stalePs1)).toBe(false)
+  for (const binName of ['pnpm', 'pn']) {
+    expect(bins).toContain(binName)
+    expect(bins).not.toContain(`${binName}.ps1`)
+    if (IS_WINDOWS) {
+      expect(bins).toContain(`${binName}.cmd`)
+    }
+  }
+
+  // The warm-relink short-circuit must not let a .ps1 planted after the first
+  // link survive.
+  fs.writeFileSync(path.join(binTarget, 'pnpm.ps1'), 'planted after the first link')
+  await linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })
+  expect(fs.readdirSync(binTarget)).not.toContain('pnpm.ps1')
 })
 
 test('linkBins() finds exotic manifests', async () => {

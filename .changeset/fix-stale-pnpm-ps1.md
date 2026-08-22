@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-Fix `pnpm self-update` leaving behind a stale `pnpm.ps1` shim on Windows. Any existing `.ps1` shim for `pnpm` (or other commands that disable the PowerShell shim) is now deleted during bin linking to prevent it from shadowing the updated binary [pnpm/pnpm#13919](https://github.com/pnpm/pnpm/issues/13919).
+On Windows, upgrading pnpm no longer leaves a stale `pnpm.ps1` behind. PowerShell resolves `pnpm.ps1` ahead of `pnpm.cmd`, so a shim written by an older installation kept running the previous version. Linking the pnpm CLI's bins now deletes it [#13919](https://github.com/pnpm/pnpm/issues/13919).
