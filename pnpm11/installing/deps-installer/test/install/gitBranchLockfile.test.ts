@@ -322,8 +322,10 @@ test('--merge-git-branch-lockfiles keeps the branch lockfiles on a check-only in
     dryRun: true,
   }))
 
-  // The run only reports what it would do, so it may not delete them.
+  // The run only reports what it would do, so neither the merge it made
+  // nor the deletion that would follow it may reach disk.
   expect(fs.existsSync(otherLockfilePath)).toBe(true)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
 })
 
 test('--merge-git-branch-lockfiles keeps the branch lockfiles under lockfileCheck', async () => {
@@ -351,6 +353,6 @@ test('--merge-git-branch-lockfiles keeps the branch lockfiles under lockfileChec
     lockfileCheck,
   }))
   expect(lockfileCheck).toHaveBeenCalled()
-
   expect(fs.existsSync(otherLockfilePath)).toBe(true)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
 })

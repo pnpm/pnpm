@@ -1,4 +1,4 @@
-use super::{CommandOutput, RunCommand, get_current_branch};
+use super::{CommandOutput, Host, RunCommand, get_current_branch};
 use std::{fs, io, path::Path};
 use tempfile::TempDir;
 
@@ -108,20 +108,47 @@ fn a_head_that_is_not_a_plain_file_is_not_read() {
     assert_eq!(get_current_branch::<GitFails>(&repo), None);
 }
 
-/// A FIFO at `HEAD` must be refused rather than opened: a plain
-/// `open` on one blocks until a writer appears, which would hang every
-/// install that consults the branch. This test hangs rather than fails if
-/// the non-blocking open is ever dropped.
+/// A FIFO at `HEAD` must be refused rather than opened: a plain `open`
+/// on one blocks until a writer appears, which would hang every install
+/// that consults the branch.
+///
+/// Refused metadata is a dead end rather than a reason to fall back, so
+/// the real provider is used here: handing the same path to `git
+/// symbolic-ref` would only move the same blocking read into the
+/// subprocess. Both tests hang rather than fail if either guard is
+/// dropped, which is the only way to observe an open that never returns.
 #[cfg(unix)]
 #[test]
 fn a_head_that_is_a_fifo_does_not_block_the_read() {
-    let repo = TempDir::new().unwrap();
-    fs::create_dir(repo.path().join(".git")).unwrap();
-    let status = std::process::Command::new("mkfifo")
-        .arg(repo.path().join(".git/HEAD"))
-        .status()
-        .expect("run mkfifo");
-    assert!(status.success(), "mkfifo failed");
+    let repo = repo_with_fifo_head();
 
     assert_eq!(get_current_branch::<GitFails>(repo.path()), None);
+    assert_eq!(get_current_branch::<Host>(repo.path()), None);
+}
+
+/// The `.git` pointer file of a worktree gets the same treatment: a FIFO
+/// there is refused, and git is not asked to read it either.
+#[cfg(unix)]
+#[test]
+fn a_gitdir_pointer_that_is_a_fifo_does_not_block_the_read() {
+    let dir = TempDir::new().unwrap();
+    let worktree = dir.path().join("worktree");
+    fs::create_dir(&worktree).unwrap();
+    make_fifo(&worktree.join(".git"));
+
+    assert_eq!(get_current_branch::<Host>(&worktree), None);
+}
+
+#[cfg(unix)]
+fn repo_with_fifo_head() -> TempDir {
+    let repo = TempDir::new().unwrap();
+    fs::create_dir(repo.path().join(".git")).unwrap();
+    make_fifo(&repo.path().join(".git/HEAD"));
+    repo
+}
+
+#[cfg(unix)]
+fn make_fifo(path: &std::path::Path) {
+    let status = std::process::Command::new("mkfifo").arg(path).status().expect("run mkfifo");
+    assert!(status.success(), "mkfifo failed");
 }
