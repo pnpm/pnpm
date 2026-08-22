@@ -1,5 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{fs, process::Command};
 
@@ -50,13 +51,18 @@ fn setting_a_project_runtime_creates_a_project_aware_global_bin() {
         .with_env("PNPM_HOME", &pnpm_home)
         .with_env("XDG_STATE_HOME", root.path().join("state"))
         .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "true")
         .with_args(["runtime", "set", "node", version])
         .assert()
         .success();
 
     let shim = fs::read_to_string(global_bin.join("node")).expect("read the Node.js shim");
     assert!(shim.contains("cmd-shim-target=pkg:node"), "shim was:\n{shim}");
-    assert!(global_bin.join(".pnpm-shim-v1").is_file());
+    assert!(
+        global_bin
+            .join(format!("{CONTEXT_AWARE_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX))
+            .is_file(),
+    );
 
     #[cfg(unix)]
     Command::new(global_bin.join("node"))
@@ -64,6 +70,7 @@ fn setting_a_project_runtime_creates_a_project_aware_global_bin() {
         .with_env("PNPM_HOME", &pnpm_home)
         .with_env("XDG_STATE_HOME", root.path().join("state"))
         .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "true")
         .with_env("PNPM_AUTO_APPROVE_PROJECT_BINS_FOR_TESTS", "1")
         .assert()
         .success();
