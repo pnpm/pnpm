@@ -160,14 +160,85 @@ fn ignore_pnpmfile_skips_the_custom_resolver_on_install() {
     drop((root, mock_instance)); // cleanup
 }
 
-fn configure_fetcher_project(workspace: &Path, registry: &str, pnpmfile: &str) {
+/// pnpm's `requireHooks` fails a configured pnpmfile that is not on disk with
+/// `ERR_PNPM_PNPMFILE_NOT_FOUND`; only the default `.pnpmfile.cjs` is optional.
+/// A generic execution failure here would read as a broken pnpmfile rather than
+/// a misconfigured path.
+#[test]
+fn a_configured_pnpmfile_that_is_missing_names_itself() {
+    let CommandTempCwd { root: _root, workspace, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let (metadata, original) = mock_fetcher_package(&mut registry, None);
+    configure_fetcher_project(&workspace, &registry.url(), Some("absent.cjs"));
+
+    let output = pacquet_at(&workspace).with_arg("install").assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_PNPMFILE_NOT_FOUND"), "stderr: {stderr}");
+    assert!(stderr.contains("is not found"), "stderr: {stderr}");
+    assert!(stderr.contains("absent.cjs"), "stderr: {stderr}");
+    drop((metadata, original));
+}
+
+/// A configured path that names no module extension is checked with `.cjs`
+/// appended, the way pnpm's `pnpmFileExistsSync` does. Such a path is present,
+/// so whatever happens next is an execution failure — `require` resolves
+/// `.js`/`.json`/`.node` but not `.cjs` — and reporting it as a missing file
+/// would blame the setting for a pnpmfile that is right there on disk.
+#[test]
+fn an_extensionless_configured_pnpmfile_is_not_reported_as_missing() {
+    let CommandTempCwd { root: _root, workspace, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let (metadata, original) = mock_fetcher_package(&mut registry, None);
+    configure_fetcher_project(&workspace, &registry.url(), Some("hooks/custom"));
+    fs::create_dir_all(workspace.join("hooks")).expect("create hooks dir");
+    fs::write(workspace.join("hooks/custom.cjs"), "module.exports = { hooks: {} };\n")
+        .expect("write pnpmfile");
+
+    let output = pacquet_at(&workspace).with_arg("install").assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(!stderr.contains("ERR_PNPM_PNPMFILE_NOT_FOUND"), "stderr: {stderr}");
+    assert!(stderr.contains("Error during pnpmfile execution"), "stderr: {stderr}");
+    drop((metadata, original));
+}
+
+/// Only a configured path is required to exist. With the setting absent the
+/// loader discovers `.pnpmfile.mjs` / `.pnpmfile.cjs`, and finding neither means
+/// the project has no pnpmfile rather than a misconfiguration. An empty list is
+/// configured-but-empty, reaching the same "no hooks" outcome down the other
+/// branch, so both are pinned here.
+#[test]
+fn a_project_without_a_pnpmfile_installs() {
+    for pnpmfile in [None, Some("[]")] {
+        let CommandTempCwd { root: _root, workspace, .. } = CommandTempCwd::init();
+        let mut registry = mockito::Server::new();
+        let tarball = minimal_tarball("fetcher-pkg", "1.0.0");
+        let (metadata, _original) =
+            mock_fetcher_package(&mut registry, Some(&sha512_integrity(&tarball)));
+        let archive = registry.mock("GET", "/original.tgz").with_body(tarball).create();
+        configure_fetcher_project(&workspace, &registry.url(), pnpmfile);
+        assert!(!workspace.join(".pnpmfile.mjs").exists());
+        assert!(!workspace.join(".pnpmfile.cjs").exists());
+
+        pacquet_at(&workspace).with_arg("install").assert().success();
+        assert!(
+            workspace.join("node_modules/fetcher-pkg/package.json").is_file(),
+            "pnpmfile: {pnpmfile:?}",
+        );
+        drop((metadata, archive));
+    }
+}
+
+fn configure_fetcher_project(workspace: &Path, registry: &str, pnpmfile: Option<&str>) {
     fs::write(workspace.join(".npmrc"), format!("registry={registry}/\n"))
         .expect("write registry configuration");
+    // `None` leaves the setting out of the file, which is the only way to reach
+    // the discovery branch: `pnpmfile: []` still counts as configured.
+    let pnpmfile = pnpmfile.map_or_else(String::new, |value| format!("pnpmfile: {value}\n"));
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!(
             "registry: {registry}/\nstoreDir: ../store\ncacheDir: ../cache\nenableGlobalVirtualStore: false\n\
-             fetchRetries: 0\npnpmfile: {pnpmfile}\n",
+             fetchRetries: 0\n{pnpmfile}",
         ),
     )
     .expect("write workspace configuration");
@@ -268,7 +339,7 @@ fn configured_fetchers_intercept_fresh_and_frozen_tarball_downloads() {
             .with_status(503)
             .expect(if pinned { 0 } else { 2 })
             .create();
-        configure_fetcher_project(&workspace, &registry.url(), pnpmfile);
+        configure_fetcher_project(&workspace, &registry.url(), Some(pnpmfile));
         fs::write(workspace.join("fixture.tgz"), tarball).expect("write local tarball fixture");
         fs::write(
             workspace.join("tls.key"),
@@ -373,7 +444,7 @@ fn declining_fetcher_rewrites_the_builtin_tarball_url() {
     let (metadata, original) =
         mock_fetcher_package(&mut registry, Some(&sha512_integrity(&tarball)));
     let mirror = registry.mock("GET", "/mirror.tgz").with_body(tarball).expect(1).create();
-    configure_fetcher_project(&workspace, &registry.url(), "configured.cjs");
+    configure_fetcher_project(&workspace, &registry.url(), Some("configured.cjs"));
     fs::write(
         workspace.join("configured.cjs"),
         r"module.exports = { fetchers: [{
@@ -414,7 +485,7 @@ fn a_declining_fetcher_cannot_swap_a_locked_archive_for_a_directory() {
     let tarball = minimal_tarball("fetcher-pkg", "1.0.0");
     let (metadata, original) =
         mock_fetcher_package(&mut registry, Some(&sha512_integrity(&tarball)));
-    configure_fetcher_project(&workspace, &registry.url(), "configured.cjs");
+    configure_fetcher_project(&workspace, &registry.url(), Some("configured.cjs"));
     fs::write(
         workspace.join("configured.cjs"),
         r"module.exports = { fetchers: [{
@@ -488,7 +559,7 @@ fn custom_fetchers_cannot_replace_locked_integrity_or_return_unverified_files() 
             .with_body(tarball)
             .expect(usize::from(name == "modified callback map"))
             .create();
-        configure_fetcher_project(&workspace, &registry.url(), "configured.cjs");
+        configure_fetcher_project(&workspace, &registry.url(), Some("configured.cjs"));
         fs::write(workspace.join("configured.cjs"), fetcher_pnpmfile(&body))
             .expect("write rejecting fetcher");
 

@@ -152,6 +152,11 @@ pub struct Update<'a> {
 /// Error type of [`Update`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum UpdateError {
+    /// A path named by the `pnpmfile` setting is not on disk. pnpm reports the
+    /// same code and message from `requireHooks`.
+    #[display("{_0}")]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_NOT_FOUND))]
+    MissingPnpmfile(#[error(not(source))] pnpm_hooks::finder::MissingPnpmfileError),
     /// `--latest` was combined with a versioned selector (`foo@2`).
     #[display("Specs are not allowed to be used with --latest ({_0})")]
     #[diagnostic(code(ERR_PNPM_LATEST_WITH_SPEC))]
@@ -295,6 +300,7 @@ impl Update<'_> {
             .map_err(UpdateError::FindWorkspaceDir)?;
         let read_package_hook = (!save && !config.ignore_pnpmfile)
             .then(|| update_read_package_hook::<Reporter>(&workspace_root, config))
+            .transpose()?
             .flatten();
         let mut read_package_hooked_manifest_paths = HashSet::new();
         if let Some((hook, log)) = read_package_hook.as_ref() {
@@ -484,6 +490,7 @@ impl Update<'_> {
         .map_err(UpdateError::FindWorkspaceDir)?;
         let read_package_hook = (!save && !config.ignore_pnpmfile)
             .then(|| update_read_package_hook::<Reporter>(&workspace_root, config))
+            .transpose()?
             .flatten();
         let mut read_package_hooked_manifest_paths = HashSet::new();
         if let Some((hook, log)) = read_package_hook.as_ref() {
@@ -670,11 +677,19 @@ struct SelectedUpdatePreparation {
     any_work: bool,
 }
 
+/// A loaded `readPackage` hook paired with the log sink its `context.log`
+/// calls are forwarded to.
+type ReadPackageHook = (Arc<dyn pnpm_hooks::PnpmfileHooks>, pnpm_hooks::LogFn);
+
 fn update_read_package_hook<Reporter: self::Reporter>(
     workspace_root: &Path,
     config: &Config,
-) -> Option<(Arc<dyn pnpm_hooks::PnpmfileHooks>, pnpm_hooks::LogFn)> {
-    let hook = pnpm_hooks::finder::load_pnpmfiles(workspace_root, config.pnpmfile.as_deref())?;
+) -> Result<Option<ReadPackageHook>, UpdateError> {
+    let Some(hook) = pnpm_hooks::finder::load_pnpmfiles(workspace_root, config.pnpmfile.as_deref())
+        .map_err(UpdateError::MissingPnpmfile)?
+    else {
+        return Ok(None);
+    };
     let log = hook.source_path().map_or_else(
         || Arc::new(|_| {}) as pnpm_hooks::LogFn,
         |from| {
@@ -685,7 +700,7 @@ fn update_read_package_hook<Reporter: self::Reporter>(
             )
         },
     );
-    Some((hook, log))
+    Ok(Some((hook, log)))
 }
 
 async fn apply_read_package_hook_to_update_manifest(

@@ -36,7 +36,8 @@ pub(crate) async fn resolve_finders(
     if find_by.is_empty() {
         return Ok(Vec::new());
     }
-    let pnpmfiles = crate::config_deps::load_before_packing_hooks(config, lockfile_dir);
+    let pnpmfiles = crate::config_deps::load_before_packing_hooks(config, lockfile_dir)
+        .map_err(|error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"))?;
     let mut finders_by_name: HashMap<String, Arc<dyn PnpmfileHooks>> = HashMap::new();
     for hooks in pnpmfiles {
         let names = hooks

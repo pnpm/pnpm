@@ -4,6 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use derive_more::{Display, Error};
 use serde_json::Value;
 
 use super::{
@@ -45,18 +46,63 @@ pub fn find_pnpmfiles(root: &Path, configured: Option<&[PathBuf]>) -> Vec<PathBu
     paths
 }
 
-#[must_use]
+/// A pnpmfile named by the `pnpmfile` setting that is not on disk. Discovery of
+/// the default `.pnpmfile.mjs` / `.pnpmfile.cjs` cannot produce this: an absent
+/// default simply means the project has no pnpmfile, while a configured path
+/// that resolves to nothing is a misconfiguration the install has to report.
+#[derive(Debug, Display, Error)]
+#[display("pnpmfile at \"{}\" is not found", path.display())]
+pub struct MissingPnpmfileError {
+    pub path: PathBuf,
+}
+
+/// Report the first path named by the `pnpmfile` setting that is not on disk.
+/// Every loader validates before it hands a path to Node, so a misconfigured
+/// setting is reported the same way whichever hook the command reaches first.
+pub fn validate_configured_pnpmfiles(
+    configured: Option<&[PathBuf]>,
+) -> Result<(), MissingPnpmfileError> {
+    let Some(configured) = configured else { return Ok(()) };
+    match configured.iter().find(|path| !pnpmfile_exists(path)) {
+        Some(missing) => Err(MissingPnpmfileError { path: missing.clone() }),
+        None => Ok(()),
+    }
+}
+
+/// Whether a configured path names a pnpmfile at all, mirroring pnpm's
+/// `pnpmFileExistsSync`. The question is only "is there something here", not
+/// "will Node load it": a path that exists but fails to evaluate — because the
+/// pnpmfile itself requires a missing module, say — is an execution failure and
+/// must keep reporting as one. Hence a bare existence test rather than
+/// [`Path::is_file`], and the `.cjs` suffix pnpm appends to a path that names
+/// neither module extension itself.
+fn pnpmfile_exists(path: &Path) -> bool {
+    let names_a_module = path
+        .extension()
+        .and_then(std::ffi::OsStr::to_str)
+        .is_some_and(|extension| matches!(extension, "cjs" | "mjs"));
+    if names_a_module {
+        return path.exists();
+    }
+    let mut with_suffix = path.as_os_str().to_owned();
+    with_suffix.push(".cjs");
+    Path::new(&with_suffix).exists()
+}
+
+/// Load every pnpmfile the project runs, in the order the `pnpmfile` setting
+/// lists them. `Ok(None)` means the project has no pnpmfile at all.
 pub fn load_pnpmfiles(
     root: &Path,
     configured: Option<&[PathBuf]>,
-) -> Option<Arc<dyn PnpmfileHooks>> {
-    let mut hooks: Vec<_> =
-        find_pnpmfiles(root, configured).into_iter().map(load_pnpmfile_at).collect();
-    match hooks.len() {
+) -> Result<Option<Arc<dyn PnpmfileHooks>>, MissingPnpmfileError> {
+    let paths = find_pnpmfiles(root, configured);
+    validate_configured_pnpmfiles(configured)?;
+    let mut hooks: Vec<_> = paths.into_iter().map(load_pnpmfile_at).collect();
+    Ok(match hooks.len() {
         0 => None,
         1 => hooks.pop(),
         _ => Some(Arc::new(CombinedPnpmfileHooks { hooks })),
-    }
+    })
 }
 
 struct CombinedPnpmfileHooks {
