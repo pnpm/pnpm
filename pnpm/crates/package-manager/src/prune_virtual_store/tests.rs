@@ -140,7 +140,7 @@ fn prune_target_must_be_inside_node_modules() {
     fs::create_dir_all(&inside).unwrap();
     assert_eq!(
         prune_target_within_modules(&inside, &modules),
-        Some(fs::canonicalize(&inside).unwrap()),
+        Some(dunce::canonicalize(&inside).unwrap()),
     );
 
     assert_eq!(prune_target_within_modules(&modules, &modules), None);
@@ -152,7 +152,7 @@ fn prune_target_must_be_inside_node_modules() {
     let not_created = modules.join("not-created-yet");
     assert_eq!(
         prune_target_within_modules(&not_created, &modules),
-        Some(fs::canonicalize(&modules).unwrap().join("not-created-yet")),
+        Some(dunce::canonicalize(&modules).unwrap().join("not-created-yet")),
     );
 
     // A not-yet-created path that escapes node_modules is refused even though
