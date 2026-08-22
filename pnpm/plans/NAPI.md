@@ -189,7 +189,8 @@ build on it; `--find-by` finders, which run JavaScript from a `.pnpmfile.cjs`,
 stay in the CLI.
 
 The two exports mirror the two npm packages: `getDependents` returns the trees as
-plain JSON, `renderDependents` prints them. That split is also what replaces the
+plain JSON, `renderDependents` returns them rendered as a string (it prints
+nothing itself). That split is also what replaces the
 TypeScript API's `nameFormatter` callback — the walk is synchronous Rust and
 cannot call into JS — so a consumer asks for the manifest fields it renames by
 (`manifestFields`), writes `displayName` onto the returned trees, and hands them

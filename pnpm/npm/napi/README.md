@@ -25,7 +25,7 @@ See [`index.d.ts`](./index.d.ts) for the full typed contract.
 | `pack(options, onLog?)` | Build a publishable `.tgz` from a project directory. |
 | `parseBareSpecifier(spec, alias?)` | Split/validate a dependency specifier; `null` when unparsable. |
 | `getDependents(options)` | Every package matching `packages`, each with the reverse tree of what depends on it — the engine side of `pnpm why`. |
-| `renderDependents(trees, options?)` | Render those trees as `pnpm why` does: `tree`, `parseable`, or `json`. |
+| `renderDependents(trees, options?)` | Return those trees rendered as `pnpm why` renders its own: `tree`, `parseable`, or `json`. |
 | `engineVersion()` | Version string of the underlying Rust engine (pacquet). |
 | `getPeerDependencyIssues(options)` | **Not yet implemented** — throws `ERR_PNPM_NAPI_UNIMPLEMENTED`. Peer-issue reporting is not ported in pacquet's CLI either; consumers should degrade gracefully. |
 
@@ -47,7 +47,8 @@ up.
 ### Dependents (`pnpm why`)
 
 `getDependents` returns the reverse trees as plain data and
-`renderDependents` prints them, mirroring the split between
+`renderDependents` returns them rendered as a string — it prints nothing
+itself — mirroring the split between
 `@pnpm/deps.inspection.tree-builder` and `@pnpm/deps.inspection.list`. The
 split is also what replaces that API's `nameFormatter` callback: the tree
 walk is synchronous Rust and cannot call back into JavaScript, so a host

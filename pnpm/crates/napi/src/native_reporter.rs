@@ -133,6 +133,19 @@ impl Destination {
             Destination::Buffer(_) => false,
         }
     }
+
+    /// The terminal width of *this* destination. Measuring stdout while
+    /// rendering to stderr would size the frame from an unrelated stream —
+    /// they are separately redirectable and need not be the same width.
+    fn terminal_columns(&self) -> Option<usize> {
+        match self {
+            Destination::Stdout => terminal_columns(StreamFd::Stdout),
+            Destination::Stderr => terminal_columns(StreamFd::Stderr),
+            Destination::Callback(_) => None,
+            #[cfg(test)]
+            Destination::Buffer(_) => None,
+        }
+    }
 }
 
 /// One engine call's renderer: the folded reporter state plus the frame
@@ -168,7 +181,13 @@ impl NativeRenderer {
         let append_only = options.append_only.unwrap_or(!is_terminal);
         // pnpm's `outputMaxWidth`: the terminal's columns less 2, or 80.
         let width = options.width.map_or_else(
-            || if is_terminal { terminal_columns().unwrap_or(82).saturating_sub(2) } else { 80 },
+            || {
+                if is_terminal {
+                    destination.terminal_columns().unwrap_or(82).saturating_sub(2)
+                } else {
+                    80
+                }
+            },
             |width| width as usize,
         );
         let colors = Colors {
@@ -285,19 +304,30 @@ fn parse_log_level(level: Option<&str>) -> MaxLogLevel {
     }
 }
 
+/// Which standard stream a width query is about.
+#[derive(Clone, Copy)]
+enum StreamFd {
+    Stdout,
+    Stderr,
+}
+
 #[cfg(unix)]
-fn terminal_columns() -> Option<usize> {
+fn terminal_columns(stream: StreamFd) -> Option<usize> {
+    let fd = match stream {
+        StreamFd::Stdout => libc::STDOUT_FILENO,
+        StreamFd::Stderr => libc::STDERR_FILENO,
+    };
     // SAFETY: `winsize` is plain-old-data; `ioctl` only writes into it and
     // the return code is checked before it is read.
     unsafe {
         let mut ws: libc::winsize = std::mem::zeroed();
-        (libc::ioctl(libc::STDOUT_FILENO, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0)
+        (libc::ioctl(fd, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0)
             .then_some(ws.ws_col as usize)
     }
 }
 
 #[cfg(not(unix))]
-fn terminal_columns() -> Option<usize> {
+fn terminal_columns(_stream: StreamFd) -> Option<usize> {
     None
 }
 

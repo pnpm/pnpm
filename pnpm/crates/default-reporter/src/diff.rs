@@ -26,11 +26,20 @@ pub struct Diff {
 }
 
 impl Diff {
+    /// A differ for frames `width` columns wide. Every frame handed to
+    /// [`Self::update_into`] is wrapped at this width, so it has to be the
+    /// terminal's real column count: a differ narrower than the terminal
+    /// computes cursor moves for wraps that never happened.
     #[must_use]
     pub fn new(width: usize) -> Self {
         Diff { col: 0, row: 0, width, lines: Vec::new() }
     }
 
+    /// Forget the previous frame and the tracked cursor position, so the
+    /// next [`Self::update_into`] emits a full redraw. Call it whenever
+    /// something other than this differ wrote to the terminal — an
+    /// interactive prompt, a spawned process — and its own idea of where
+    /// the cursor is no longer holds.
     pub fn reset(&mut self) {
         self.col = 0;
         self.row = 0;

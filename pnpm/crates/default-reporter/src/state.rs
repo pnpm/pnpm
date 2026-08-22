@@ -1139,7 +1139,7 @@ impl ReporterState {
         }
         let list = log.package_names.join(", ");
         let instruction = self.ignored_builds_instruction_text.as_deref().unwrap_or(
-            "Run \"pnpm approve-builds\" to pick which dependencies should be allowed to run scripts.",
+            r#"Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts."#,
         );
         self.push_block(format!("Ignored build scripts: {list}.\n{instruction}"));
     }
