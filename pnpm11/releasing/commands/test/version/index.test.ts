@@ -263,6 +263,84 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
     )
   })
 
+  describe('dry run', () => {
+    it('should report the bump without writing the manifest', async () => {
+      const manifestPath = path.join(tempDir, 'package.json')
+      fs.writeFileSync(manifestPath, JSON.stringify({ name: 'test-pkg', version: '1.0.0' }))
+      const manifestBefore = fs.readFileSync(manifestPath, 'utf-8')
+
+      const result = await handler({
+        dir: tempDir,
+        workspaceDir: tempDir,
+        dryRun: true,
+        gitChecks: false,
+        gitTagVersion: false,
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      expect(result).toContain('Version bump plan:')
+      expect(result).toContain('1.0.0 → 1.0.1')
+      expect(fs.readFileSync(manifestPath, 'utf-8')).toBe(manifestBefore)
+    })
+
+    it('should not write any workspace manifest in recursive mode', async () => {
+      const pkgADir = path.join(tempDir, 'packages', 'pkg-a')
+      const pkgBDir = path.join(tempDir, 'packages', 'pkg-b')
+      fs.mkdirSync(pkgADir, { recursive: true })
+      fs.mkdirSync(pkgBDir, { recursive: true })
+
+      fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({ name: 'my-workspace', version: '1.0.0' }))
+      fs.writeFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n')
+      fs.writeFileSync(path.join(pkgADir, 'package.json'), JSON.stringify({ name: 'pkg-a', version: '1.0.0' }))
+      fs.writeFileSync(path.join(pkgBDir, 'package.json'), JSON.stringify({ name: 'pkg-b', version: '2.0.0' }))
+      const manifestsBefore = [tempDir, pkgADir, pkgBDir].map(dir => fs.readFileSync(path.join(dir, 'package.json'), 'utf-8'))
+
+      const result = await handler({
+        dir: tempDir,
+        workspaceDir: tempDir,
+        dryRun: true,
+        gitChecks: false,
+        gitTagVersion: false,
+        recursive: true,
+        selectedProjectsGraph: {
+          [pkgADir]: { dependencies: [], package: {} },
+          [pkgBDir]: { dependencies: [], package: {} },
+        },
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      const resultStr = result as string
+      expect(resultStr).toContain('pkg-a: 1.0.0 → 1.0.1')
+      expect(resultStr).toContain('pkg-b: 2.0.0 → 2.0.1')
+      expect([tempDir, pkgADir, pkgBDir].map(dir => fs.readFileSync(path.join(dir, 'package.json'), 'utf-8'))).toEqual(manifestsBefore)
+    })
+
+    it('should not run version lifecycle scripts', async () => {
+      const lifecycleLog = path.join(tempDir, 'lifecycle.log')
+      const logLifecycleScript = path.join(tempDir, 'log-lifecycle.cjs')
+      fs.writeFileSync(logLifecycleScript, `const fs = require('fs')
+fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
+`)
+      fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
+        name: 'test-pkg',
+        version: '1.0.0',
+        scripts: {
+          preversion: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} preversion`,
+          version: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} version`,
+          postversion: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} postversion`,
+        },
+      }))
+
+      await handler({
+        dir: tempDir,
+        workspaceDir: tempDir,
+        dryRun: true,
+        gitChecks: false,
+        gitTagVersion: false,
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      expect(fs.existsSync(lifecycleLog)).toBe(false)
+    })
+  })
+
   describe('git integration', () => {
     let origCwd: string
 
@@ -424,6 +502,23 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
         workspaceDir: tempDir,
         gitTagVersion: false,
       } as any, ['0.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
+      expect(tags).toBe('')
+
+      const { stdout: commitsAfter } = await execa('git', ['rev-list', '--count', 'HEAD'], { cwd: tempDir })
+      expect(commitsAfter).toBe(commitsBefore)
+    })
+
+    it('should skip the working tree check, the commit and the tag with --dry-run', async () => {
+      const { stdout: commitsBefore } = await execa('git', ['rev-list', '--count', 'HEAD'], { cwd: tempDir })
+      fs.writeFileSync(path.join(tempDir, 'dirty.txt'), 'x')
+
+      await handler({
+        dir: tempDir,
+        workspaceDir: tempDir,
+        dryRun: true,
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
 
       const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
       expect(tags).toBe('')
