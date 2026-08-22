@@ -119,7 +119,7 @@ pub fn prune_target_within_modules(
     virtual_store_dir: &Path,
     modules_dir: &Path,
 ) -> Option<PathBuf> {
-    let modules_dir = pnpm_fs::realpath_missing(modules_dir).ok()?;
+    let modules_dir = dunce::canonicalize(modules_dir).ok()?;
     let virtual_store_dir = pnpm_fs::realpath_missing(virtual_store_dir).ok()?;
     (virtual_store_dir != modules_dir && virtual_store_dir.starts_with(&modules_dir))
         .then_some(virtual_store_dir)

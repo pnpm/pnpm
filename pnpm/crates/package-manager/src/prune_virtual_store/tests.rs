@@ -162,6 +162,14 @@ fn prune_target_must_be_inside_node_modules() {
 }
 
 #[test]
+fn missing_modules_dir_is_not_a_prune_root() {
+    let root = tempfile::tempdir().unwrap();
+    let modules = root.path().join("node_modules");
+
+    assert_eq!(prune_target_within_modules(&modules.join(".pnpm"), &modules), None);
+}
+
+#[test]
 fn same_dir_matches_equivalent_paths() {
     let dir = tempfile::tempdir().unwrap();
     let store = dir.path().join("store");
