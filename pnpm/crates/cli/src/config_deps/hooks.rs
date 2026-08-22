@@ -168,6 +168,9 @@ fn seed_hook_input(
     let Some(object) = input.as_object_mut() else {
         return Ok(());
     };
+    for (key, val) in &config.explicit_settings {
+        object.insert(key.clone(), val.clone());
+    }
     object.insert("catalogs".to_string(), catalogs);
     // PnpmBuild's `updateConfig` appends its bin dir to `extraBinPaths`
     // and sets `npm_config_nodedir` in `extraEnv`, so both have to arrive
