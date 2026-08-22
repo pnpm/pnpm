@@ -56,11 +56,12 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   /**
    * Package name → the versions the freshly resolved lockfile records.
    * Supplied when a freshly resolved shared lockfile is available.
-   * `minimumReleaseAgeExcludePrune` gates only minimum-release-age cleanup;
-   * `allowBuilds` cleanup runs whenever this map is present.
+   * `minimumReleaseAgeExcludePrune` and `trustPolicyExcludePrune` gate their
+   * cleanups; `allowBuilds` cleanup runs whenever this map is present.
    */
   resolvedPackageVersions?: ReadonlyMap<string, ReadonlySet<string>>
   minimumReleaseAgeExcludePrune?: boolean
+  trustPolicyExcludePrune?: boolean
 }): Promise<void> {
   const fileName = opts.fileName ?? DEFAULT_FILENAME
 
@@ -115,7 +116,10 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   }
   if (opts.resolvedPackageVersions != null) {
     if (opts.minimumReleaseAgeExcludePrune) {
-      shouldBeUpdated = pruneMinimumReleaseAgeExcludes(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
+      shouldBeUpdated = pruneExcludeList(manifest, 'minimumReleaseAgeExclude', opts.resolvedPackageVersions) || shouldBeUpdated
+    }
+    if (opts.trustPolicyExcludePrune) {
+      shouldBeUpdated = pruneExcludeList(manifest, 'trustPolicyExclude', opts.resolvedPackageVersions) || shouldBeUpdated
     }
     shouldBeUpdated = pruneAllowBuilds(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
   }
@@ -284,18 +288,21 @@ function addPackageReference (packageReferences: Record<string, Set<string>>, pk
   packageReferences[pkgName].add(version)
 }
 
-// The `minimumReleaseAgeExcludePrune` pass. An entry is dropped when the
-// freshly resolved lockfile no longer contains what it names: exact versions
-// that were not resolved are dropped (the entry goes away once none remain),
-// and a bare-name entry goes away when the package is absent entirely. Glob
-// patterns always stay — they are forward-looking and can't be proven stale.
-// Entries that fail to parse stay untouched so cleanup never breaks an
-// install.
-function pruneMinimumReleaseAgeExcludes (
-  manifest: Partial<WorkspaceManifest> & { minimumReleaseAgeExclude?: string[] },
+// The `minimumReleaseAgeExcludePrune` / `trustPolicyExcludePrune` pass over
+// an exclude list. An entry is dropped when the freshly resolved lockfile no
+// longer contains what it names: exact versions that were not resolved are
+// dropped (the entry goes away once none remain), and a bare-name entry goes
+// away when the package is absent entirely. Glob patterns always stay — they
+// are forward-looking and can't be proven stale. Entries that fail to parse
+// stay untouched so cleanup never breaks an install.
+type ExcludeListField = 'minimumReleaseAgeExclude' | 'trustPolicyExclude'
+
+function pruneExcludeList (
+  manifest: Partial<WorkspaceManifest> & { [key in ExcludeListField]?: string[] },
+  field: ExcludeListField,
   resolvedPackageVersions: ReadonlyMap<string, ReadonlySet<string>>
 ): boolean {
-  const excludes = manifest.minimumReleaseAgeExclude
+  const excludes = manifest[field]
   if (excludes == null || excludes.length === 0) {
     return false
   }
@@ -335,9 +342,9 @@ function pruneMinimumReleaseAgeExcludes (
     return false
   }
   if (survivingSpecs.length === 0) {
-    delete manifest.minimumReleaseAgeExclude
+    delete manifest[field]
   } else {
-    manifest.minimumReleaseAgeExclude = survivingSpecs
+    manifest[field] = survivingSpecs
   }
   return true
 }

@@ -42,6 +42,9 @@ pub(crate) struct Manifest {
     /// `minimumReleaseAgeExclude:` list. Consulted to detect a no-op write
     /// of an already-present list.
     pub(crate) minimum_release_age_exclude: Option<Vec<String>>,
+    /// `trustPolicyExclude:` list. Consulted to detect a no-op write
+    /// of an already-present list.
+    pub(crate) trust_policy_exclude: Option<Vec<String>>,
 }
 
 #[derive(Default, Deserialize)]
@@ -62,6 +65,8 @@ struct CatalogData {
     audit_config: Option<AuditConfigData>,
     #[serde(default, rename = "minimumReleaseAgeExclude")]
     minimum_release_age_exclude: Option<Vec<String>>,
+    #[serde(default, rename = "trustPolicyExclude")]
+    trust_policy_exclude: Option<Vec<String>>,
 }
 
 /// The `auditConfig` slice consulted for no-op detection.
@@ -124,6 +129,7 @@ impl Manifest {
                 non_scalar_overrides: HashSet::new(),
                 audit_ignore_ghsas: None,
                 minimum_release_age_exclude: None,
+                trust_policy_exclude: None,
             });
         }
 
@@ -178,6 +184,7 @@ impl Manifest {
             non_scalar_overrides,
             audit_ignore_ghsas,
             minimum_release_age_exclude: data.minimum_release_age_exclude,
+            trust_policy_exclude: data.trust_policy_exclude,
         })
     }
 

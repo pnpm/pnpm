@@ -324,6 +324,7 @@ export interface Config extends OptionsFromRootManifest {
   trustLockfile?: boolean
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
+  trustPolicyExcludePrune?: boolean
   trustPolicyIgnoreAfter?: number
   auditLevel?: 'info' | 'low' | 'moderate' | 'high' | 'critical'
 

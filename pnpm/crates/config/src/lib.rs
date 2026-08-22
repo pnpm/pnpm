@@ -1994,6 +1994,14 @@ pub struct Config {
     /// [`trust_policy`]: Self::trust_policy
     pub trust_policy_exclude: Option<Vec<String>>,
 
+    /// When `true`, `add` / `remove` / `update` prune
+    /// [`Self::trust_policy_exclude`] entries in
+    /// `pnpm-workspace.yaml` whose versions the freshly resolved
+    /// lockfile no longer records, once the install has written that
+    /// lockfile. The `trustPolicyExcludePrune` setting; default
+    /// `false`, matching pnpm.
+    pub trust_policy_exclude_prune: bool,
+
     /// Cutoff in minutes after which the trust check skips a
     /// version that's old enough — once a package has been published
     /// for long enough, the supply-chain assumption is that any

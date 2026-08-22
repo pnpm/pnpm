@@ -98,6 +98,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'trustLockfile'
 | 'catalogPrune'
 | 'minimumReleaseAgeExcludePrune'
+| 'trustPolicyExcludePrune'
 | 'packageConfigs'
 | 'updateConfig'
 > & Pick<ConfigContext,
@@ -366,6 +367,7 @@ export async function recursive (
         catalogPrune: opts.catalogPrune,
         resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
         minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
+        trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
         allProjects,
         ...policyUpdates,
       }))

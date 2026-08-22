@@ -5254,6 +5254,25 @@ test('catalogPrune overrides its former name', async () => {
   expect(config.catalogPrune).toBe(false)
 })
 
+test('trustPolicyExcludePrune is read from pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    trustPolicyExcludePrune: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.trustPolicyExcludePrune).toBe(true)
+})
+
 test('getConfig() routes the scopes and the prefix a registry declares', async () => {
   prepareEmpty()
 
