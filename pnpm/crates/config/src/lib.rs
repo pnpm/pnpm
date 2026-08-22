@@ -1791,6 +1791,12 @@ pub struct Config {
     /// project. CLI-only, like [`Self::filter`].
     pub workspace_root: bool,
 
+    /// `--fail-if-no-match`: exit with code 1 when the `--filter` /
+    /// `--filter-prod` selectors select no workspace project, instead of
+    /// letting the command run over an empty selection. CLI-only, like
+    /// [`Self::filter`].
+    pub fail_if_no_match: bool,
+
     /// `testPattern` from `pnpm-workspace.yaml` /
     /// `PNPM_CONFIG_TEST_PATTERN`, overridable by the `--test-pattern`
     /// CLI flag. Glob patterns naming test files: when a `[<since>]`

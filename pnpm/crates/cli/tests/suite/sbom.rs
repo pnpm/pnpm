@@ -842,3 +842,187 @@ fn sbom_dev_flag_includes_only_dev() {
         "prod dep should be excluded with --dev",
     );
 }
+
+/// The names of the root components of a `--split` run's NDJSON lines, in
+/// output order — one per selected workspace importer.
+fn split_root_names(stdout: &str) -> Vec<String> {
+    stdout
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            let parsed: serde_json::Value = serde_json::from_str(line).expect("valid JSON");
+            parsed["metadata"]["component"]["name"].as_str().expect("root name").to_string()
+        })
+        .collect()
+}
+
+/// `--filter <pkg>...` walks every dependency edge, so a workspace
+/// project reachable only through `devDependencies` is covered too.
+#[test]
+fn sbom_filter_selects_dev_dependency_projects() {
+    let tmp = copy_fixture("workspace-sbom-filter-prod");
+    let output = pacquet(
+        tmp.path(),
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split", "--filter", "app..."],
+    )
+    .output()
+    .expect("run pacquet");
+    assert!(
+        output.status.success(),
+        "pacquet sbom failed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert_eq!(split_root_names(&String::from_utf8_lossy(&output.stdout)), ["app", "dev-lib"]);
+}
+
+/// `--filter-prod <pkg>...` walks production dependencies only, so
+/// `dev-lib` — a `devDependencies`-only workspace dependency of `app` —
+/// is left out.
+#[test]
+fn sbom_filter_prod_follows_production_deps_only() {
+    let tmp = copy_fixture("workspace-sbom-filter-prod");
+    let output = pacquet(
+        tmp.path(),
+        [
+            "sbom",
+            "--sbom-format",
+            "cyclonedx",
+            "--lockfile-only",
+            "--split",
+            "--filter-prod",
+            "app...",
+        ],
+    )
+    .output()
+    .expect("run pacquet");
+    assert!(
+        output.status.success(),
+        "pacquet sbom failed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert_eq!(split_root_names(&String::from_utf8_lossy(&output.stdout)), ["app"]);
+}
+
+/// Selectors that match no workspace project skip the command entirely:
+/// pnpm prints the notice and writes no SBOM, exiting zero.
+#[test]
+fn sbom_filter_matching_nothing_writes_no_sbom() {
+    let tmp = copy_fixture("workspace-sbom-populated");
+    let output = pacquet(
+        tmp.path(),
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--filter", "no-such-package"],
+    )
+    .output()
+    .expect("run pacquet");
+    assert!(output.status.success(), "no match alone must not fail the run");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.starts_with("No projects matched the filters in"), "stdout:\n{stdout}");
+    assert!(!stdout.contains("bomFormat"), "no SBOM should be written:\n{stdout}");
+}
+
+/// `--fail-if-no-match` turns the same empty selection into an exit-code-1
+/// failure.
+#[test]
+fn sbom_fail_if_no_match_exits_non_zero() {
+    let tmp = copy_fixture("workspace-sbom-populated");
+    let output = pacquet(
+        tmp.path(),
+        [
+            "sbom",
+            "--sbom-format",
+            "cyclonedx",
+            "--lockfile-only",
+            "--filter-prod",
+            "no-such-package",
+            "--fail-if-no-match",
+        ],
+    )
+    .output()
+    .expect("run pacquet");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.starts_with("No projects matched the filters in"), "stdout:\n{stdout}");
+}
+
+/// `--workspace-root` narrows the SBOM to the root project, even though
+/// the workspace package patterns don't name it — the root project is
+/// always part of the workspace, so the `{<workspace-root>}` selector the
+/// flag adds finds it.
+#[test]
+fn sbom_workspace_root_selects_only_the_root() {
+    let tmp = copy_fixture("workspace-sbom-filter-prod");
+    let output = pacquet(
+        tmp.path(),
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--workspace-root"],
+    )
+    .output()
+    .expect("run pacquet");
+    assert!(
+        output.status.success(),
+        "pacquet sbom failed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("parse JSON output");
+    assert_eq!(parsed["metadata"]["component"]["name"], "workspace-sbom-filter-prod-root");
+    assert!(
+        parsed["components"].as_array().expect("components").is_empty(),
+        "the root project has no dependencies, so nothing from app / dev-lib may leak in: {}",
+        parsed["components"],
+    );
+}
+
+/// A lockfile with no importer for a selected project is out of date, and
+/// walking what is left would under-report the selection's dependencies —
+/// so the run fails instead of writing that SBOM.
+#[test]
+fn sbom_fails_when_the_lockfile_has_no_importer_for_a_selected_project() {
+    let tmp = copy_fixture("workspace-sbom-filter-prod");
+    let added = tmp.path().join("newpkg");
+    fs::create_dir_all(&added).expect("create the added package dir");
+    fs::write(added.join("package.json"), r#"{ "name": "newpkg", "version": "1.0.0" }"#)
+        .expect("write the added package.json");
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - app\n  - dev-lib\n  - newpkg\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let output = pacquet(
+        tmp.path(),
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--filter", "newpkg"],
+    )
+    .output()
+    .expect("run pacquet");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(output.status.code(), Some(1), "stdout:\n{stdout}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_SBOM_MISSING_IMPORTERS"), "stderr:\n{stderr}");
+    assert!(stderr.contains("newpkg"), "the error should name the missing project:\n{stderr}");
+    assert!(!stdout.contains("bomFormat"), "no SBOM may be written for an out-of-date lockfile");
+}
+
+/// No lockfile at all is a different failure from a lockfile that is merely
+/// out of date, and keeps its own error even under a `--filter`.
+#[test]
+fn sbom_without_a_lockfile_reports_the_missing_lockfile_not_missing_importers() {
+    let tmp = copy_fixture("workspace-sbom-filter-prod");
+    fs::remove_file(tmp.path().join("pnpm-lock.yaml")).expect("remove the lockfile");
+
+    let output = pacquet(
+        tmp.path(),
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--filter", "app"],
+    )
+    .output()
+    .expect("run pacquet");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_SBOM_NO_LOCKFILE"), "stderr:\n{stderr}");
+}

@@ -194,6 +194,11 @@ pub struct CliArgs {
     #[clap(short = 'w', long = "workspace-root", global = true)]
     pub workspace_root: bool,
 
+    /// Exit with code 1 when the `--filter` / `--filter-prod` selectors
+    /// match no workspace project.
+    #[clap(long = "fail-if-no-match", global = true)]
+    pub fail_if_no_match: bool,
+
     /// Glob patterns naming test files, used by the `[since]` `--filter`
     /// selector to decide which changes count.
     #[clap(long = "test-pattern", global = true)]
