@@ -296,6 +296,10 @@ fn trusted_shim_settings() -> TrustedShimSettings {
     }
 }
 
+pub(crate) fn global_shims_setting() -> GlobalShims {
+    trusted_shim_settings().shims
+}
+
 #[derive(Debug, Display)]
 pub(crate) enum LoadGlobalShimsSettingError {
     #[display("{_0}")]

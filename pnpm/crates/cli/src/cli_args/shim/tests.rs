@@ -1,5 +1,5 @@
-use super::{installed_shims, virtual_shim_package, virtual_shims};
-use pnpm_cmd_shim::{Host as CmdShimHost, link_virtual_shims};
+use super::{install_runtime_shim, installed_shims, virtual_shim_package, virtual_shims};
+use pnpm_cmd_shim::{CONTEXT_AWARE_DISPATCHER_NAME, Host as CmdShimHost, link_virtual_shims};
 use std::{collections::HashMap, fs};
 use tempfile::tempdir;
 
@@ -105,4 +105,15 @@ fn a_bin_name_with_an_extension_is_still_discovered() {
     link_virtual_shims::<CmdShimHost>("tool", &["tool.js"], dir.path()).expect("link the shim");
 
     assert_eq!(installed_shims(dir.path(), "tool"), ["tool.js"]);
+}
+
+#[test]
+fn setting_a_runtime_locally_creates_its_project_aware_shim() {
+    let dir = tempdir().unwrap();
+    let bin_dir = dir.path().join("bin");
+
+    install_runtime_shim(&bin_dir, "node").expect("create the runtime shim");
+
+    assert_eq!(installed_shims(&bin_dir, "node"), ["node"]);
+    assert!(bin_dir.join(CONTEXT_AWARE_DISPATCHER_NAME).is_file());
 }

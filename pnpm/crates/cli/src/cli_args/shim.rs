@@ -8,9 +8,11 @@
 //! machine that has only pnpm — the shim resolves the project's
 //! `packageManager` pin and provisions it.
 //!
-//! Creating one is deliberate. Nothing here happens as a side effect of
-//! `pnpm setup` or an install: a shim shadows whatever the user's `PATH`
-//! resolved before it, so it is added only when asked for.
+//! Creating one is deliberate. `pnpm shim add` creates it explicitly, and
+//! `pnpm runtime set` creates one for the runtime it pins. Nothing here
+//! happens as a side effect of `pnpm setup` or a plain install: a shim
+//! shadows whatever the user's `PATH` resolved before it, so it is added
+//! only when asked for.
 
 use clap::Args;
 use derive_more::{Display, Error};
@@ -296,6 +298,31 @@ mod policy;
 
 pub(crate) use policy::record_package_manager_shims;
 use policy::{global_config_dir, set_policy, shims_disabled_globally, would_dispatch};
+
+pub(crate) fn ensure_runtime_shim(config: &Config, runtime_name: &str) -> miette::Result<()> {
+    let Some(bin_dir) = config.global_bin.as_deref() else {
+        return Ok(());
+    };
+    if !crate::shim_dispatch::global_shims_setting().is_enabled(runtime_name)
+        || taken_by_another(bin_dir, runtime_name, runtime_name)
+    {
+        return Ok(());
+    }
+    install_runtime_shim(bin_dir, runtime_name)
+}
+
+fn install_runtime_shim(bin_dir: &Path, runtime_name: &str) -> miette::Result<()> {
+    fs::create_dir_all(bin_dir)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("create {}", bin_dir.display()))?;
+    crate::shim_dispatch::install_dispatcher(bin_dir)
+        .into_diagnostic()
+        .wrap_err("install the runtime shim dispatcher")?;
+    link_virtual_shims::<CmdShimHost>(runtime_name, &[runtime_name], bin_dir)
+        .map_err(miette::Report::new)
+        .wrap_err_with(|| format!("link the {runtime_name} runtime shim"))?;
+    Ok(())
+}
 
 #[cfg(test)]
 mod tests;

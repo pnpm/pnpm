@@ -1,6 +1,6 @@
 use crate::{
     State,
-    cli_args::{add::add_package, global::handle_global_add},
+    cli_args::{add::add_package, global::handle_global_add, shim::ensure_runtime_shim},
 };
 use clap::Args;
 use derive_more::{Display, Error};
@@ -67,6 +67,7 @@ pub enum RuntimeError {
 
 #[derive(Debug)]
 struct RuntimeSetRequest {
+    runtime_name: String,
     package_name: String,
     dependency_group: DependencyGroup,
 }
@@ -77,6 +78,7 @@ impl RuntimeArgs {
     /// `pnpm add <name>@runtime:<version>` in the project directory.
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let request = self.set_request()?;
+        let config = state.config;
         add_package::<Reporter, _>(
             state,
             &request.package_name,
@@ -86,7 +88,8 @@ impl RuntimeArgs {
             None,
             [request.dependency_group],
         )
-        .await
+        .await?;
+        ensure_runtime_shim(config, &request.runtime_name)
     }
 
     /// `pnpm runtime set <name> <version> -g`: install the runtime into the
@@ -150,6 +153,7 @@ impl RuntimeArgs {
             DependencyGroup::Prod
         };
         Ok(RuntimeSetRequest {
+            runtime_name: runtime_name.to_string(),
             package_name: format!("{runtime_name}@runtime:{version_spec}"),
             dependency_group,
         })
