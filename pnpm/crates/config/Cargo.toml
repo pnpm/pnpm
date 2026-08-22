@@ -26,6 +26,7 @@ pnpm-versioning             = { workspace = true }
 pnpm-workspace-state        = { workspace = true }
 
 derive_more   = { workspace = true }
+dunce         = { workspace = true }
 home          = { workspace = true }
 indexmap      = { workspace = true }
 is_ci         = { workspace = true }
