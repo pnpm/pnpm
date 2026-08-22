@@ -115,5 +115,9 @@ fn setting_a_runtime_locally_creates_its_project_aware_shim() {
     install_runtime_shim(&bin_dir, "node").expect("create the runtime shim");
 
     assert_eq!(installed_shims(&bin_dir, "node"), ["node"]);
-    assert!(bin_dir.join(CONTEXT_AWARE_DISPATCHER_NAME).is_file());
+    assert!(
+        bin_dir
+            .join(format!("{CONTEXT_AWARE_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX))
+            .is_file(),
+    );
 }
