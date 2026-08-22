@@ -118,6 +118,13 @@ pub struct ShimArgs {
     pub params: Vec<String>,
 }
 
+struct VirtualShimPublication<'a> {
+    config: &'a Config,
+    bin_dir: &'a Path,
+    package: &'a str,
+    bins: &'a [String],
+}
+
 impl ShimArgs {
     /// Returns what to print; the caller writes it.
     pub async fn run(self, config: &'static Config) -> miette::Result<String> {
@@ -168,44 +175,29 @@ async fn add(
                 ShimError::BinConflict { package: package.clone(), bin: bin.clone() }.into()
             );
         }
-        let bin_refs: Vec<&str> = bins.iter().map(String::as_str).collect();
         // The shims are useless without the dispatcher they call into, and
         // a user who never ran a global install has none yet.
         crate::shim_dispatch::install_dispatcher(bin_dir)
             .into_diagnostic()
             .wrap_err("install the shim dispatcher")?;
-        let repairing = !installed_shims(bin_dir, package).is_empty();
-        link_virtual_shims::<CmdShimHost>(package, &bin_refs, bin_dir)
-            .map_err(miette::Report::new)
-            .wrap_err_with(|| format!("link the {package} shims"))?;
-        if let Err(error) = record_virtual_shim_state(bin_dir, package, &bins) {
-            if !repairing {
-                for bin in &bins {
-                    let _ = remove_virtual_shim_if_owned(bin_dir, bin, package);
-                }
-            }
-            return Err(error);
-        }
-        if let Err(error) =
-            set_policy(config, package, Some(ShimPolicyValue::Named(NamedShimPolicy::Auto)))
-        {
-            // A shim the setting does not govern shadows the command
-            // without dispatching, so an add that cannot record the
-            // opt-in leaves nothing behind. Repairing an existing set is
-            // different: those shims were already on `PATH`, governed by
-            // the entry this failed to rewrite, and removing them would
-            // break what was working.
-            if !repairing {
-                for bin in &bins {
-                    let _ = remove_virtual_shim_if_owned(bin_dir, bin, package);
-                }
-                let _ = remove_virtual_shim_state(bin_dir, package);
-            }
-            return Err(error);
-        }
+        publish_virtual_shims(&VirtualShimPublication { config, bin_dir, package, bins: &bins })?;
         writeln!(report, "Added {} for {package}", bins.join(", ")).unwrap();
     }
     Ok(report)
+}
+
+fn publish_virtual_shims(publication: &VirtualShimPublication<'_>) -> miette::Result<()> {
+    let VirtualShimPublication { config, bin_dir, package, bins } = *publication;
+    // Commit the governing records first. If publishing a shim later
+    // fails, a retry can repair it without rollback racing a process
+    // that replaced the public bin slot.
+    set_policy(config, package, Some(ShimPolicyValue::Named(NamedShimPolicy::Auto)))?;
+    record_virtual_shim_state(bin_dir, package, bins)?;
+    let bin_refs = bins.iter().map(String::as_str).collect::<Vec<_>>();
+    link_virtual_shims::<CmdShimHost>(package, &bin_refs, bin_dir)
+        .map_err(miette::Report::new)
+        .wrap_err_with(|| format!("link the {package} shims"))?;
+    Ok(())
 }
 
 /// Remove the shims for every package in `packages`, and with them the
@@ -322,15 +314,6 @@ pub(crate) fn virtual_shim_owner(path: &Path) -> io::Result<Option<String>> {
     let owner =
         std::str::from_utf8(&bytes).ok().and_then(virtual_shim_package).map(ToString::to_string);
     Ok(owner)
-}
-
-fn remove_virtual_shim_if_owned(bin_dir: &Path, bin: &str, package: &str) -> io::Result<bool> {
-    let path = bin_dir.join(bin);
-    if virtual_shim_owner(&path)?.as_deref() != Some(package) {
-        return Ok(false);
-    }
-    remove_bin(&path)?;
-    Ok(true)
 }
 
 pub(crate) fn virtual_shim_bins_to_restore(
