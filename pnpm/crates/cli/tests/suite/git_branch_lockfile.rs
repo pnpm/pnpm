@@ -177,3 +177,30 @@ fn merging_keeps_the_branch_lockfiles_when_lockfiles_are_disabled() {
 
     drop((root, mock_instance));
 }
+
+/// `dedupe --check` reports what a dedupe would change and takes its
+/// lockfile back afterwards, so the merge it ran never reaches disk — and
+/// the branch lockfiles it merged from have to survive it.
+#[test]
+fn merging_keeps_the_branch_lockfiles_on_a_check_only_dedupe() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    set_branch(&workspace, "main");
+    write_dependencies(&workspace, &serde_json::json!({ "@pnpm.e2e/foo": "1.0.0" }));
+    pacquet.with_arg("install").assert().success();
+
+    let branch_lockfile = workspace.join("pnpm-lock.other.yaml");
+    fs::write(&branch_lockfile, "lockfileVersion: '9.0'\n").unwrap();
+    append_workspace_yaml_key(&workspace, "mergeGitBranchLockfiles", true);
+
+    pacquet_in(&workspace).with_args(["dedupe", "--check"]).assert().success();
+
+    assert!(
+        branch_lockfile.exists(),
+        "a check-only run takes its lockfile back, so it cannot have merged them",
+    );
+
+    drop((root, mock_instance));
+}

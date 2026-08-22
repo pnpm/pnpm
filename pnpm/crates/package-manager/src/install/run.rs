@@ -35,12 +35,14 @@ where
         options: InstallRunOptions<'a, '_>,
     ) -> Result<(), InstallError> {
         // The branch lockfiles become disposable only once the merge has
-        // been written somewhere. An install that neither reads nor saves
-        // a lockfile never merged them, and deleting them there would drop
-        // resolutions no file is left holding.
+        // been written for good. An install that neither reads nor saves a
+        // lockfile never merged them, and one that only reports what it
+        // would do has its lockfile taken back afterwards — deleting them
+        // in either case drops resolutions no file is left holding.
         let merge_will_be_saved = self.config.merge_git_branch_lockfiles
             && self.config.lockfile
             && options.save_lockfile
+            && !options.lockfile_check
             && !self.dry_run;
         let branch_lockfiles_to_clean = merge_will_be_saved
             .then(|| {
@@ -69,6 +71,7 @@ where
             lockfile_specifier_project_manifests,
             read_package_hooked_manifest_paths,
             save_lockfile,
+            lockfile_check: _,
             manifest_spec_bumps,
             prompt_eligibility_override,
         } = options;

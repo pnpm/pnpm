@@ -89,7 +89,7 @@ impl DedupeArgs {
             .flatten()
             .collect();
 
-        Install {
+        let install = Install {
             tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
             http_client,
             http_client_arc: std::sync::Arc::clone(http_client),
@@ -140,9 +140,12 @@ impl DedupeArgs {
             disable_optimistic_repeat_install: false,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+        };
+        if self.check {
+            install.run_lockfile_check::<Reporter>().await
+        } else {
+            install.run::<Reporter>().await
         }
-        .run::<Reporter>()
-        .await
         .wrap_err("deduplicating dependencies")?;
 
         let current = read_lockfile_snapshot(lockfile_path)?;
