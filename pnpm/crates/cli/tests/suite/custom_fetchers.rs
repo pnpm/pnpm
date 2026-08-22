@@ -169,7 +169,7 @@ fn a_configured_pnpmfile_that_is_missing_names_itself() {
     let CommandTempCwd { root: _root, workspace, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let (metadata, original) = mock_fetcher_package(&mut registry, None);
-    configure_fetcher_project(&workspace, &registry.url(), "absent.cjs");
+    configure_fetcher_project(&workspace, &registry.url(), Some("absent.cjs"));
 
     let output = pacquet_at(&workspace).with_arg("install").assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
@@ -179,31 +179,44 @@ fn a_configured_pnpmfile_that_is_missing_names_itself() {
     drop((metadata, original));
 }
 
-/// The default pnpmfile stays optional: a project that configures nothing and
-/// ships no `.pnpmfile.cjs` installs normally.
+/// Only a configured path is required to exist. With the setting absent the
+/// loader discovers `.pnpmfile.mjs` / `.pnpmfile.cjs`, and finding neither means
+/// the project has no pnpmfile rather than a misconfiguration. An empty list is
+/// configured-but-empty, reaching the same "no hooks" outcome down the other
+/// branch, so both are pinned here.
 #[test]
-fn an_absent_default_pnpmfile_is_not_an_error() {
-    let CommandTempCwd { root: _root, workspace, .. } = CommandTempCwd::init();
-    let mut registry = mockito::Server::new();
-    let tarball = minimal_tarball("fetcher-pkg", "1.0.0");
-    let (metadata, _original) =
-        mock_fetcher_package(&mut registry, Some(&sha512_integrity(&tarball)));
-    let custom = registry.mock("GET", "/original.tgz").with_body(tarball).create();
-    configure_fetcher_project(&workspace, &registry.url(), "[]");
+fn a_project_without_a_pnpmfile_installs() {
+    for pnpmfile in [None, Some("[]")] {
+        let CommandTempCwd { root: _root, workspace, .. } = CommandTempCwd::init();
+        let mut registry = mockito::Server::new();
+        let tarball = minimal_tarball("fetcher-pkg", "1.0.0");
+        let (metadata, _original) =
+            mock_fetcher_package(&mut registry, Some(&sha512_integrity(&tarball)));
+        let archive = registry.mock("GET", "/original.tgz").with_body(tarball).create();
+        configure_fetcher_project(&workspace, &registry.url(), pnpmfile);
+        assert!(!workspace.join(".pnpmfile.mjs").exists());
+        assert!(!workspace.join(".pnpmfile.cjs").exists());
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
-    assert!(workspace.join("node_modules/fetcher-pkg/package.json").is_file());
-    drop((metadata, custom));
+        pacquet_at(&workspace).with_arg("install").assert().success();
+        assert!(
+            workspace.join("node_modules/fetcher-pkg/package.json").is_file(),
+            "pnpmfile: {pnpmfile:?}",
+        );
+        drop((metadata, archive));
+    }
 }
 
-fn configure_fetcher_project(workspace: &Path, registry: &str, pnpmfile: &str) {
+fn configure_fetcher_project(workspace: &Path, registry: &str, pnpmfile: Option<&str>) {
     fs::write(workspace.join(".npmrc"), format!("registry={registry}/\n"))
         .expect("write registry configuration");
+    // `None` leaves the setting out of the file, which is the only way to reach
+    // the discovery branch: `pnpmfile: []` still counts as configured.
+    let pnpmfile = pnpmfile.map_or_else(String::new, |value| format!("pnpmfile: {value}\n"));
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!(
             "registry: {registry}/\nstoreDir: ../store\ncacheDir: ../cache\nenableGlobalVirtualStore: false\n\
-             fetchRetries: 0\npnpmfile: {pnpmfile}\n",
+             fetchRetries: 0\n{pnpmfile}",
         ),
     )
     .expect("write workspace configuration");
@@ -304,7 +317,7 @@ fn configured_fetchers_intercept_fresh_and_frozen_tarball_downloads() {
             .with_status(503)
             .expect(if pinned { 0 } else { 2 })
             .create();
-        configure_fetcher_project(&workspace, &registry.url(), pnpmfile);
+        configure_fetcher_project(&workspace, &registry.url(), Some(pnpmfile));
         fs::write(workspace.join("fixture.tgz"), tarball).expect("write local tarball fixture");
         fs::write(
             workspace.join("tls.key"),
@@ -409,7 +422,7 @@ fn declining_fetcher_rewrites_the_builtin_tarball_url() {
     let (metadata, original) =
         mock_fetcher_package(&mut registry, Some(&sha512_integrity(&tarball)));
     let mirror = registry.mock("GET", "/mirror.tgz").with_body(tarball).expect(1).create();
-    configure_fetcher_project(&workspace, &registry.url(), "configured.cjs");
+    configure_fetcher_project(&workspace, &registry.url(), Some("configured.cjs"));
     fs::write(
         workspace.join("configured.cjs"),
         r"module.exports = { fetchers: [{
@@ -450,7 +463,7 @@ fn a_declining_fetcher_cannot_swap_a_locked_archive_for_a_directory() {
     let tarball = minimal_tarball("fetcher-pkg", "1.0.0");
     let (metadata, original) =
         mock_fetcher_package(&mut registry, Some(&sha512_integrity(&tarball)));
-    configure_fetcher_project(&workspace, &registry.url(), "configured.cjs");
+    configure_fetcher_project(&workspace, &registry.url(), Some("configured.cjs"));
     fs::write(
         workspace.join("configured.cjs"),
         r"module.exports = { fetchers: [{
@@ -524,7 +537,7 @@ fn custom_fetchers_cannot_replace_locked_integrity_or_return_unverified_files() 
             .with_body(tarball)
             .expect(usize::from(name == "modified callback map"))
             .create();
-        configure_fetcher_project(&workspace, &registry.url(), "configured.cjs");
+        configure_fetcher_project(&workspace, &registry.url(), Some("configured.cjs"));
         fs::write(workspace.join("configured.cjs"), fetcher_pnpmfile(&body))
             .expect("write rejecting fetcher");
 
