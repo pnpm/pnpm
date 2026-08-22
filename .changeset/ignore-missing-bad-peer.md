@@ -1,8 +1,8 @@
 ---
-"@pnpm/installing.deps-installer": patch
-"@pnpm/deps.inspection.peers-checker": patch
-"pnpm": patch
-"pacquet": patch
+"@pnpm/installing.deps-installer": minor
+"@pnpm/deps.inspection.peers-checker": minor
+"pnpm": minor
+"pacquet": minor
 ---
 
-`peerDependencyRules.ignoreMissing` now also suppresses peer dependency errors when the peer is found but doesn't satisfy the required version range, not just when it's absent.
+`peerDependencyRules.ignoreMissing` now suppresses every peer dependency issue for a matched peer, including when the peer is present but resolves to a version outside its wanted range. Use `peerDependencyRules.allowAny` to accept any resolved version while still being told about absent peers.

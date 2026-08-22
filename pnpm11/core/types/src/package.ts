@@ -154,10 +154,14 @@ export type PackageExtension = Pick<BaseManifest, 'dependencies' | 'optionalDepe
 
 export interface PeerDependencyRules {
   /**
-   * Peer name patterns for which pnpm should not report peer dependency issues,
-   * whether the peer is absent or resolves to a version outside its wanted range.
+   * Peer name patterns whose issues are never reported, whether the peer is
+   * absent or resolves to a version outside its wanted range.
    */
   ignoreMissing?: string[]
+  /**
+   * Peer name patterns whose resolved version is accepted whatever range the
+   * dependent asks for. Unlike `ignoreMissing`, an absent peer is still reported.
+   */
   allowAny?: string[]
   allowedVersions?: Record<string, string>
 }
