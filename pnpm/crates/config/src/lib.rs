@@ -1419,6 +1419,21 @@ pub struct Config {
     #[default = true]
     pub verify_store_integrity: bool,
 
+    /// Whether a store row whose bundled `package.json` names a
+    /// different package than the row was recorded for fails the
+    /// install. When `true` (pnpm's default) the read raises
+    /// `ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE`; when `false` the row
+    /// is used and the disagreement is only warned about.
+    ///
+    /// A lockfile that pairs an integrity with the wrong package, and a
+    /// registry (or proxy) serving a tarball that does not match the
+    /// metadata it was listed under, both surface here.
+    ///
+    /// The `strictStorePkgContentCheck` camelCase key in
+    /// `pnpm-workspace.yaml` (default `true`).
+    #[default = true]
+    pub strict_store_pkg_content_check: bool,
+
     /// Opt-in assertion that the package store is complete and will not
     /// be written during this install — for running against a store on a
     /// read-only filesystem (a Nix store, a read-only bind mount, an OCI

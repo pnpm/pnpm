@@ -67,6 +67,13 @@ pub struct DownloadTarballToStore<'a> {
     ///
     /// [#273]: https://github.com/pnpm/pacquet/issues/273
     pub verify_store_integrity: bool,
+    /// Mirrors pnpm's `strictStorePkgContentCheck` setting (default
+    /// `true`). A store row whose bundled manifest names a package other
+    /// than the row's key does fails the install under it, and is used
+    /// with a warning without it. See
+    /// [`pnpm_store_dir::pkg_content_mismatch`] for what counts as a
+    /// disagreement.
+    pub strict_store_pkg_content_check: bool,
     /// Install-scoped dedup cache shared across every cached-tarball
     /// lookup. Ports pnpm's `verifiedFilesCache: Set<string>`: a CAFS
     /// path that one snapshot's verify pass has already stat'ed (and
@@ -245,6 +252,12 @@ pub(crate) fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetry
             // surface that does run this error through the retry
             // logger renders the right code.
             out.code = Some("ERR_PNPM_NO_OFFLINE_TARBALL".to_string());
+        }
+        TarballError::UnexpectedPkgContentInStore { .. } => {
+            // Same "for exhaustiveness" stance as the arm above: the
+            // store read this comes from happens before the retry loop,
+            // and re-reading the same row would only reproduce it.
+            out.code = Some("ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE".to_string());
         }
     }
     out

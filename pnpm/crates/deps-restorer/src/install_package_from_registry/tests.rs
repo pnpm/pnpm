@@ -100,6 +100,7 @@ fn create_config(
         resolve_peers_from_workspace_root: false,
         block_exotic_subdeps: false,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         frozen_store: false,
         force: false,
         side_effects_cache: true,

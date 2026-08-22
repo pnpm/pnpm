@@ -359,6 +359,7 @@ impl<'a> DownloadTarballToStore<'a> {
             package_id,
             requester,
             verify_store_integrity,
+            strict_store_pkg_content_check,
             prefetched_cas_paths,
             retry_opts,
             auth_headers,
@@ -406,19 +407,21 @@ impl<'a> DownloadTarballToStore<'a> {
             emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
             return Ok((**cas_paths).clone());
         }
-        if let Some(cache_key) = cache_key.clone()
-            && let Some(cas_paths) = load_cached_cas_paths(
+        if let Some(cache_key) = cache_key.clone() {
+            let cached = load_cached_cas_paths::<Reporter>(
                 store_index,
                 store_dir,
                 cache_key,
                 verify_store_integrity,
+                strict_store_pkg_content_check,
                 verified_files_cache,
             )
-            .await
-        {
-            tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping download");
-            emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
-            return Ok(cas_paths);
+            .await?;
+            if let Some(cas_paths) = cached {
+                tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping download");
+                emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
+                return Ok(cas_paths);
+            }
         }
 
         // Offline-mode gate: both cache lookups missed. pnpm gates

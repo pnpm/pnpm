@@ -561,6 +561,22 @@ fn parses_verify_store_integrity_from_yaml_and_applies() {
     assert!(!config.verify_store_integrity, "yaml override wins");
 }
 
+/// `strictStorePkgContentCheck` decides whether a store row that holds
+/// another package fails the install. Same camelCase rename +
+/// `apply_to` wiring as `verifyStoreIntegrity`, and the same
+/// default-true polarity.
+#[test]
+fn parses_strict_store_pkg_content_check_from_yaml_and_applies() {
+    let yaml = "strictStorePkgContentCheck: false\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.strict_store_pkg_content_check, Some(false));
+
+    let mut config = Config::new();
+    assert!(config.strict_store_pkg_content_check, "the default is `true` to match pnpm");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(!config.strict_store_pkg_content_check, "yaml override wins");
+}
+
 /// `sideEffectsCache` is the side-effects cache READ-path knob from
 /// pnpm-workspace.yaml. Same shape as `verifyStoreIntegrity`:
 /// camelCase rename + `apply_to` wiring. Parsing a yaml that flips
