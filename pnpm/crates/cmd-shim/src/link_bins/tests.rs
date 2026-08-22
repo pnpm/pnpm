@@ -5,25 +5,19 @@ use super::{
 use crate::{
     capabilities::{
         FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-        FsRemoveFile, FsSetExecutable, FsWalkFiles, FsWrite, FsWriteNewAtomic, Host,
+        FsSetExecutable, FsWalkFiles, FsWrite, FsWriteNewAtomic, Host,
     },
     shim::{generate_virtual_sh_shim, is_shim_pointing_at},
 };
 use serde_json::{Value, json};
+#[cfg(unix)]
+use std::fs::metadata;
 use std::{
-    fs::{create_dir_all, read as read_file, read_to_string, write as write_file},
+    fs::{create_dir_all, read as read_file, read_to_string, remove_file, write as write_file},
     iter::{Empty, empty},
     path::{Path, PathBuf},
     sync::Arc,
 };
-// `metadata` is only used by Unix-only permission-mode assertions,
-// and `remove_file` is only used by the Windows-only upgrade-recovery
-// test. Importing either one unconditionally trips `unused-imports`
-// on the opposite platform.
-#[cfg(unix)]
-use std::fs::metadata;
-#[cfg(windows)]
-use std::fs::remove_file;
 use tempfile::tempdir;
 
 #[test]
@@ -39,53 +33,69 @@ fn virtual_shims_do_not_replace_an_occupied_slot() {
 }
 
 #[test]
-fn virtual_shims_roll_back_when_a_later_slot_is_claimed() {
-    use std::io;
-    use std::sync::{
-        Mutex,
-        atomic::{AtomicUsize, Ordering},
-    };
+fn virtual_shims_reject_marker_only_lookalikes() {
+    let dir = tempdir().unwrap();
+    let shim = dir.path().join("node");
+    let lookalike = format!("echo compromised\n{}", generate_virtual_sh_shim("node", &shim));
+    write_file(&shim, &lookalike).unwrap();
 
-    static WRITES: AtomicUsize = AtomicUsize::new(0);
-    static REMOVED: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+    let error = link_virtual_shims::<Host>("node", &["node"], dir.path()).unwrap_err();
+
+    assert!(matches!(error, LinkBinsError::VirtualShimConflict { .. }));
+    assert_eq!(read_to_string(shim).unwrap(), lookalike);
+}
+
+#[test]
+fn virtual_shims_reuse_completed_writes_after_a_later_slot_is_claimed() {
+    use std::io;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    static CLAIM_BUN: AtomicBool = AtomicBool::new(false);
+    static NODE_WRITES: AtomicUsize = AtomicUsize::new(0);
 
     struct FailsSecondWrite;
     impl FsCreateDirAll for FailsSecondWrite {
-        fn create_dir_all(_: &Path) -> io::Result<()> {
-            Ok(())
+        fn create_dir_all(path: &Path) -> io::Result<()> {
+            create_dir_all(path)
         }
     }
     impl FsReadFile for FailsSecondWrite {
         fn read_file(path: &Path) -> io::Result<Vec<u8>> {
-            if WRITES.load(Ordering::SeqCst) >= 2 && path.ends_with("node") {
-                return Ok(generate_virtual_sh_shim("runtime", path).into_bytes());
-            }
-            Err(io::Error::from(io::ErrorKind::NotFound))
+            read_file(path)
         }
     }
     impl FsWriteNewAtomic for FailsSecondWrite {
-        fn write_new_atomic(_: &Path, _: &[u8], _: bool) -> io::Result<()> {
-            if WRITES.fetch_add(1, Ordering::SeqCst) == 1 {
+        fn write_new_atomic(path: &Path, bytes: &[u8], executable: bool) -> io::Result<()> {
+            if path.file_name().is_some_and(|name| name == "node") {
+                NODE_WRITES.fetch_add(1, Ordering::SeqCst);
+            }
+            if path.file_name().is_some_and(|name| name == "bun")
+                && CLAIM_BUN.swap(false, Ordering::SeqCst)
+            {
+                write_file(path, "claimed").unwrap();
                 return Err(io::Error::from(io::ErrorKind::AlreadyExists));
             }
-            Ok(())
-        }
-    }
-    impl FsRemoveFile for FailsSecondWrite {
-        fn remove_file(path: &Path) -> io::Result<()> {
-            REMOVED.lock().unwrap().push(path.to_path_buf());
-            Ok(())
+            Host::write_new_atomic(path, bytes, executable)
         }
     }
 
-    WRITES.store(0, Ordering::SeqCst);
-    REMOVED.lock().unwrap().clear();
+    CLAIM_BUN.store(true, Ordering::SeqCst);
+    NODE_WRITES.store(0, Ordering::SeqCst);
     let dir = tempdir().unwrap();
     let error = link_virtual_shims::<FailsSecondWrite>("runtime", &["node", "bun"], dir.path())
         .unwrap_err();
 
     assert!(matches!(error, LinkBinsError::VirtualShimConflict { .. }));
-    assert_eq!(*REMOVED.lock().unwrap(), vec![dir.path().join("node")]);
+    assert_eq!(
+        read_to_string(dir.path().join("node")).unwrap(),
+        generate_virtual_sh_shim("runtime", &dir.path().join("node")),
+    );
+    assert_eq!(NODE_WRITES.load(Ordering::SeqCst), 1);
+
+    remove_file(dir.path().join("bun")).unwrap();
+    link_virtual_shims::<FailsSecondWrite>("runtime", &["node", "bun"], dir.path()).unwrap();
+
+    assert_eq!(NODE_WRITES.load(Ordering::SeqCst), 1);
 }
 
 #[test]

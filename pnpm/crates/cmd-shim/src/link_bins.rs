@@ -2,12 +2,12 @@ use crate::{
     bin_resolver::{Command, get_bins_from_package_manifest, pkg_owns_bin},
     capabilities::{
         FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-        FsRemoveFile, FsSetExecutable, FsWalkFiles, FsWrite, FsWriteNewAtomic,
+        FsSetExecutable, FsWalkFiles, FsWrite, FsWriteNewAtomic,
     },
     shim::{
         ShimStyle, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
         generate_virtual_cmd_shim, generate_virtual_pwsh_shim, generate_virtual_sh_shim,
-        is_context_aware_shim, is_shim_pointing_at, is_virtual_shim_for, search_script_runtime,
+        is_context_aware_shim, is_shim_pointing_at, search_script_runtime,
     },
 };
 use derive_more::{Display, Error};
@@ -1055,7 +1055,7 @@ pub fn link_virtual_shims<Sys>(
     bins_dir: &Path,
 ) -> Result<Vec<PathBuf>, LinkBinsError>
 where
-    Sys: FsCreateDirAll + FsReadFile + FsRemoveFile + FsWriteNewAtomic,
+    Sys: FsCreateDirAll + FsReadFile + FsWriteNewAtomic,
 {
     Sys::create_dir_all(bins_dir)
         .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?;
@@ -1071,16 +1071,9 @@ where
         }
     }
     let mut missing = Vec::with_capacity(flavors.len());
-    for (path, body, primary) in &flavors {
+    for (path, body, _) in &flavors {
         match Sys::read_file(path) {
             Ok(existing) if existing == body.as_bytes() => missing.push(false),
-            Ok(existing)
-                if *primary
-                    && str::from_utf8(&existing)
-                        .is_ok_and(|content| is_virtual_shim_for(content, package)) =>
-            {
-                missing.push(false);
-            }
             Ok(_) => return Err(LinkBinsError::VirtualShimConflict { path: path.clone() }),
             Err(error) if error.kind() == io::ErrorKind::NotFound => missing.push(true),
             Err(error) => {
@@ -1088,48 +1081,19 @@ where
             }
         }
     }
-    let mut created = Vec::new();
     for ((path, body, executable), missing) in flavors.iter().zip(missing) {
         if !missing {
             continue;
         }
-        let result = Sys::write_new_atomic(path, body.as_bytes(), *executable).map_err(|error| {
+        Sys::write_new_atomic(path, body.as_bytes(), *executable).map_err(|error| {
             if error.kind() == io::ErrorKind::AlreadyExists {
                 LinkBinsError::VirtualShimConflict { path: path.clone() }
             } else {
                 LinkBinsError::WriteShim { path: path.clone(), error }
             }
-        });
-        if let Err(error) = result {
-            rollback_virtual_shims::<Sys>(&created)?;
-            return Err(error);
-        }
-        created.push((path.clone(), body.as_bytes().to_vec()));
+        })?;
     }
     Ok(flavors.into_iter().map(|(path, _, _)| path).collect())
-}
-
-fn rollback_virtual_shims<Sys>(created: &[(PathBuf, Vec<u8>)]) -> Result<(), LinkBinsError>
-where
-    Sys: FsReadFile + FsRemoveFile,
-{
-    for (path, expected) in created.iter().rev() {
-        match Sys::read_file(path) {
-            Ok(current) if current != *expected => continue,
-            Ok(_) => match Sys::remove_file(path) {
-                Ok(()) => {}
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) => {
-                    return Err(LinkBinsError::RemoveStaleBin { path: path.clone(), error });
-                }
-            },
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => {
-                return Err(LinkBinsError::ProbeShimSource { path: path.clone(), error });
-            }
-        }
-    }
-    Ok(())
 }
 
 /// Remove a bin shim previously written by [`link_bins_of_packages`].
