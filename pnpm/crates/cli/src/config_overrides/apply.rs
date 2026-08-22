@@ -133,7 +133,7 @@ impl ConfigOverrides {
             optional,
         );
         self.apply_lockfile_overrides(config);
-        copy_overrides!(self, config, pending, recursive_install, reverse);
+        copy_overrides!(self, config, pending, progress, recursive_install, reverse);
         self.apply_hoist_overrides(config);
         copy_overrides!(
             self,

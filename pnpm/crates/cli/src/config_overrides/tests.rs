@@ -54,6 +54,17 @@ fn extract_reads_the_login_scope() {
 }
 
 #[test]
+fn extract_applies_progress_override() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.progress=false", "install"]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+    let mut config = Config::default();
+    assert!(config.progress);
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(!config.progress);
+}
+
+#[test]
 fn extract_leaves_config_tokens_after_the_separator_for_the_child() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
         "pacquet",
