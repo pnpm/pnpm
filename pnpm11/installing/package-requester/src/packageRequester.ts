@@ -266,16 +266,18 @@ async function resolveAndFetch (
         })
     )
   )
-  const fetcherForResolution = resolution.type === 'variations'
-    ? undefined
-    : await pickFetcher(ctx.fetchers, resolution as AtomicResolution, {
+  let fetcherForResolution: PickedFetcher | undefined
+  let resolutionNeedsFetch = false
+  if (shouldPickFetcherBeforeSkipFetch(resolution, ctx.customFetchers)) {
+    fetcherForResolution = await pickFetcher(ctx.fetchers, resolution as AtomicResolution, {
       customFetchers: ctx.customFetchers,
       packageId: id,
     })
-  const resolutionNeedsFetchHook = fetcherForResolution?.resolutionNeedsFetch
-  const resolutionNeedsFetch = typeof resolutionNeedsFetchHook === 'function'
-    ? resolutionNeedsFetchHook(resolution)
-    : false
+    const resolutionNeedsFetchHook = fetcherForResolution.resolutionNeedsFetch
+    resolutionNeedsFetch = typeof resolutionNeedsFetchHook === 'function'
+      ? resolutionNeedsFetchHook(resolution)
+      : false
+  }
   // Fetching can be skipped only when the manifest is available, the package content
   // did not change, and the resolution does not need fetch-derived data.
   if ((options.skipFetch === true || isInstallable === false) && !resolutionNeedsFetch && !integrityChanged && (manifest != null)) {
@@ -432,6 +434,15 @@ function findResolution (resolutionVariants: PlatformAssetResolution[], supporte
     throw new PnpmError('NO_RESOLUTION_MATCHED', `Cannot find a resolution variant for the current platform in these resolutions: ${JSON.stringify(resolutionTargets)}`)
   }
   return variant.resolution
+}
+
+function shouldPickFetcherBeforeSkipFetch (
+  resolution: Resolution,
+  customFetchers: CustomFetcher[] | undefined
+): boolean {
+  if (resolution.type === 'variations') return false
+  if (customFetchers != null && customFetchers.length > 0) return true
+  return resolution.type == null && getExpectedIntegrity(resolution) == null
 }
 
 function fetchToStore (
