@@ -128,12 +128,6 @@ pub trait FsWriteNewAtomic {
     fn write_new_atomic(path: &Path, bytes: &[u8], executable: bool) -> io::Result<()>;
 }
 
-/// Remove a file. Used to roll back the files published by an incomplete
-/// virtual-shim set.
-pub trait FsRemoveFile {
-    fn remove_file(path: &Path) -> io::Result<()>;
-}
-
 /// Replace the permission bits at `path` with `0o755`. Used to chmod
 /// the freshly written shim file so it is executable.
 ///
@@ -224,12 +218,6 @@ impl FsWrite for Host {
 impl FsWriteNewAtomic for Host {
     fn write_new_atomic(path: &Path, bytes: &[u8], executable: bool) -> io::Result<()> {
         pnpm_fs::write_new_atomic(path, bytes, executable.then_some(0o755))
-    }
-}
-
-impl FsRemoveFile for Host {
-    fn remove_file(path: &Path) -> io::Result<()> {
-        std::fs::remove_file(path)
     }
 }
 
