@@ -22,10 +22,11 @@ pub use crate::{
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
 };
 
-use crate::npmrc_auth::NpmrcAuth;
+use crate::{matcher::create_matcher, npmrc_auth::NpmrcAuth};
 use indexmap::IndexMap;
 use pipe_trait::Pipe;
-use pnpm_lockfile::RegistryOptions;
+use pnpm_git_utils::{Host as GitHost, get_current_branch};
+use pnpm_lockfile::{Lockfile, RegistryOptions, WantedLockfileSelection};
 use pnpm_patching::{
     CalcPatchHashError, PatchGroupRecord, ResolvePatchedDependenciesError, calc_patch_hashes,
     resolve_and_group,
@@ -1178,6 +1179,37 @@ pub struct Config {
     /// `sharedWorkspaceLockfile` setting; default `true`.
     #[default = true]
     pub shared_workspace_lockfile: bool,
+
+    /// `gitBranchLockfile` — give each git branch its own
+    /// `pnpm-lock.<branch>.yaml` instead of sharing `pnpm-lock.yaml`, so
+    /// two branches can hold different resolutions without conflicting on
+    /// one file. Default `false`.
+    ///
+    /// The name the install actually reads and writes is
+    /// [`Self::git_branch_lockfile_name`]; this flag alone does not decide
+    /// it, because the branch may be unknown and
+    /// [`Self::merge_git_branch_lockfiles`] overrides it.
+    pub use_git_branch_lockfile: bool,
+
+    /// `mergeGitBranchLockfiles` — fold every `pnpm-lock.<branch>.yaml`
+    /// into `pnpm-lock.yaml` and delete them, which is what a branch's
+    /// merge back into the mainline needs. Default `false`, or whatever
+    /// [`Self::merge_git_branch_lockfiles_branch_pattern`] decides for the
+    /// current branch.
+    pub merge_git_branch_lockfiles: bool,
+
+    /// `mergeGitBranchLockfilesBranchPattern` — glob patterns naming the
+    /// branches that merge the per-branch lockfiles, so the mainline
+    /// branches need not pass `--merge-git-branch-lockfiles` by hand.
+    /// Consulted only when `mergeGitBranchLockfiles` is not set outright.
+    pub merge_git_branch_lockfiles_branch_pattern: Vec<String>,
+
+    /// The `pnpm-lock.<branch>.yaml` the current git branch resolves to
+    /// under [`Self::use_git_branch_lockfile`]. `None` when the setting is
+    /// off or the branch cannot be determined (a detached HEAD, or no
+    /// repository at all), in which case the install stays on
+    /// `pnpm-lock.yaml`.
+    pub git_branch_lockfile_name: Option<String>,
 
     /// Refuse network requests during install. The `offline` flag gates
     /// the metadata-fetch path with `ERR_PNPM_NO_OFFLINE_META` when no
@@ -2689,6 +2721,60 @@ impl Config {
         self.public_hoist_pattern = Some(Vec::new());
     }
 
+    /// The lockfile file name this install reads first and writes back:
+    /// the branch lockfile under `gitBranchLockfile`, `pnpm-lock.yaml`
+    /// otherwise.
+    ///
+    /// `mergeGitBranchLockfiles` wins over the branch name — the point of
+    /// that mode is to collapse the per-branch lockfiles back into the
+    /// shared one.
+    #[must_use]
+    pub fn wanted_lockfile_name(&self) -> &str {
+        match &self.git_branch_lockfile_name {
+            Some(name) if !self.merge_git_branch_lockfiles => name,
+            _ => Lockfile::FILE_NAME,
+        }
+    }
+
+    /// [`Self::wanted_lockfile_name`] paired with the merge flag, as the
+    /// lockfile loader wants them.
+    #[must_use]
+    pub fn wanted_lockfile_selection(&self) -> WantedLockfileSelection {
+        WantedLockfileSelection {
+            file_name: self.wanted_lockfile_name().to_owned(),
+            merge_git_branch_lockfiles: self.merge_git_branch_lockfiles,
+        }
+    }
+
+    /// Resolve the per-branch lockfile settings against the git branch the
+    /// process is on: which `pnpm-lock.<branch>.yaml` an install under
+    /// `gitBranchLockfile` uses, and whether
+    /// `mergeGitBranchLockfilesBranchPattern` puts this branch in merge
+    /// mode.
+    ///
+    /// The branch is read from the process's working directory, which is
+    /// where pnpm reads it from too — not from the workspace root, which
+    /// may sit in a different repository than the one the user is in.
+    pub fn apply_git_branch_lockfile_derivation<Sys: GetCurrentDir>(&mut self) {
+        // An explicit `mergeGitBranchLockfiles` — including an explicit
+        // `false` — settles the question without consulting the pattern.
+        let merge_is_explicit = self.explicit_settings.contains_key("mergeGitBranchLockfiles");
+        let pattern_decides =
+            !merge_is_explicit && !self.merge_git_branch_lockfiles_branch_pattern.is_empty();
+        if !self.use_git_branch_lockfile && !pattern_decides {
+            return;
+        }
+        let Ok(cwd) = Sys::current_dir() else { return };
+        let Some(branch) = get_current_branch::<GitHost>(&cwd) else { return };
+        if pattern_decides {
+            self.merge_git_branch_lockfiles =
+                create_matcher(&self.merge_git_branch_lockfiles_branch_pattern).matches(&branch);
+        }
+        if self.use_git_branch_lockfile {
+            self.git_branch_lockfile_name = Some(Lockfile::git_branch_file_name(&branch));
+        }
+    }
+
     /// Apply the legacy `shamefullyHoist` setting to the public hoist pattern.
     ///
     /// This runs after all config sources have been merged because an explicit
@@ -3299,6 +3385,7 @@ impl Config {
             global_virtual_store_dir_explicit,
         );
 
+        self.apply_git_branch_lockfile_derivation::<Sys>();
         self.apply_shamefully_hoist_derivation();
         self.apply_virtual_store_only_derivation();
 

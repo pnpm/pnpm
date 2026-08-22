@@ -24,7 +24,42 @@ impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
+    /// Runs the install, then deletes the per-branch lockfiles it has
+    /// just folded into the wanted lockfile.
+    ///
+    /// The cleanup lives out here because every success path of
+    /// [`Self::run_inner_impl`] — including the short-circuits that do
+    /// nothing but rewrite the lockfile — has to leave them gone.
     pub(super) async fn run_inner<Reporter: self::Reporter + 'static>(
+        self,
+        options: InstallRunOptions<'a, '_>,
+    ) -> Result<(), InstallError> {
+        // The branch lockfiles become disposable only once the merge has
+        // been written for good. An install that neither reads nor saves a
+        // lockfile never merged them, and one that only reports what it
+        // would do has its lockfile taken back afterwards — deleting them
+        // in either case drops resolutions no file is left holding.
+        let merge_will_be_saved = self.config.merge_git_branch_lockfiles
+            && self.config.lockfile
+            && options.save_lockfile
+            && !options.lockfile_check
+            && !self.dry_run;
+        let branch_lockfiles_to_clean = merge_will_be_saved
+            .then(|| {
+                let manifest_dir =
+                    self.manifest.path().parent().expect("manifest path always has a parent dir");
+                lockfile_root_dir(self.config, manifest_dir).map_err(InstallError::FindWorkspaceDir)
+            })
+            .transpose()?;
+        Box::pin(self.run_inner_impl::<Reporter>(options)).await?;
+        if let Some(lockfile_dir) = branch_lockfiles_to_clean {
+            Lockfile::clean_git_branch_lockfiles(&lockfile_dir)
+                .map_err(InstallError::CleanGitBranchLockfiles)?;
+        }
+        Ok(())
+    }
+
+    async fn run_inner_impl<Reporter: self::Reporter + 'static>(
         self,
         options: InstallRunOptions<'a, '_>,
     ) -> Result<(), InstallError> {
@@ -36,6 +71,7 @@ where
             lockfile_specifier_project_manifests,
             read_package_hooked_manifest_paths,
             save_lockfile,
+            lockfile_check: _,
             manifest_spec_bumps,
             prompt_eligibility_override,
         } = options;
@@ -733,8 +769,10 @@ where
             .map_err(InstallError::BuildVerifiers)?
         };
         let derived_lockfile_path = lockfile.map(|_| {
-            lockfile_path
-                .map_or_else(|| workspace_root.join(Lockfile::FILE_NAME), Path::to_path_buf)
+            lockfile_path.map_or_else(
+                || workspace_root.join(config.wanted_lockfile_name()),
+                Path::to_path_buf,
+            )
         });
 
         // `@pnpm/cli.default-reporter` renders these fields in the install header;
@@ -947,7 +985,7 @@ where
             }
             if config.lockfile {
                 lockfile
-                    .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
+                    .save_to_path(&workspace_root.join(config.wanted_lockfile_name()))
                     .map_err(InstallError::SaveWantedLockfile)?;
             }
             Reporter::emit(&LogEvent::Stage(StageLog {

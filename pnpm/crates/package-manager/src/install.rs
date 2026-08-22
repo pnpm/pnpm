@@ -652,6 +652,14 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     SaveWantedLockfile(#[error(source)] SaveLockfileError),
 
+    /// Surfaces a failure to delete the per-branch lockfiles an install
+    /// under `mergeGitBranchLockfiles` has just folded into
+    /// `pnpm-lock.yaml`. Leaving them behind would make the next install
+    /// merge the same resolutions again.
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CLEAN_GIT_BRANCH_LOCKFILES))]
+    #[display("Failed to remove the git branch lockfiles: {_0}")]
+    CleanGitBranchLockfiles(#[error(source)] std::io::Error),
+
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR))]
     #[display("Failed to remove modules directory contents: {_0}")]
     RemoveModulesDir(#[error(source)] std::io::Error),
@@ -852,6 +860,10 @@ struct InstallRunOptions<'install, 'selection> {
     /// whose resolution belongs to a project other than the one that
     /// owns that lockfile, so the run must leave it untouched.
     save_lockfile: bool,
+    /// pnpm's `lockfileCheck`: the caller restores the lockfile and diffs
+    /// it once the install returns, so the run must leave nothing else on
+    /// disk changed either. Only `pacquet dedupe --check` sets it.
+    lockfile_check: bool,
     /// See [`crate::ManifestSpecBumps`]. Only `pacquet update` sets it.
     manifest_spec_bumps: Option<&'install crate::ManifestSpecBumps>,
     /// Forces the interactive-prompt eligibility that is otherwise derived
@@ -869,6 +881,7 @@ impl Default for InstallRunOptions<'_, '_> {
             lockfile_specifier_project_manifests: None,
             read_package_hooked_manifest_paths: HashSet::new(),
             save_lockfile: true,
+            lockfile_check: false,
             manifest_spec_bumps: None,
             prompt_eligibility_override: None,
         }
@@ -882,6 +895,20 @@ where
     /// Execute the subroutine.
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions::default())).await
+    }
+
+    /// Execute as a check: the caller compares the lockfile the run
+    /// produced against the one it snapshotted and restores that snapshot,
+    /// so nothing else on disk may be left changed. pnpm's
+    /// `lockfileCheck`.
+    pub async fn run_lockfile_check<Reporter: self::Reporter + 'static>(
+        self,
+    ) -> Result<(), InstallError> {
+        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
+            lockfile_check: true,
+            ..Default::default()
+        }))
+        .await
     }
 
     pub(crate) async fn run_with_lockfile_specifier_project_manifests<

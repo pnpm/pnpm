@@ -24,7 +24,7 @@ use std::{
 use indexmap::IndexMap;
 use napi_derive::napi;
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
+use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
 use pnpm_network::{NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
 use pnpm_package_manager::{
     DepsRequiringBuildSink, Install, ProjectMutation, RebuildOptions, ResolvedPackages,
@@ -402,13 +402,14 @@ fn run_install_inner(
         .with_max_sockets_per_host(config.max_sockets),
     );
     let lazy_lockfile = if config.lockfile {
-        LazyLockfile::deferred(dir.clone())
+        LazyLockfile::deferred(dir.clone(), config.wanted_lockfile_selection())
     } else {
         LazyLockfile::disabled()
     };
     let resolved_packages = ResolvedPackages::new();
     let tarball_mem_cache = Arc::new(MemCache::new());
-    let lockfile_path = manifest.path().parent().map(|parent| parent.join(Lockfile::FILE_NAME));
+    let lockfile_path =
+        manifest.path().parent().map(|parent| parent.join(config.wanted_lockfile_name()));
 
     let mut groups = vec![DependencyGroup::Prod, DependencyGroup::Dev];
     if options.include_optional_deps != Some(false) {

@@ -417,7 +417,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             // their cache on, so the next install's stat shortcut hits.
             let lockfile_path = derived_lockfile_path
                 .clone()
-                .unwrap_or_else(|| workspace_root.join(Lockfile::FILE_NAME));
+                .unwrap_or_else(|| workspace_root.join(config.wanted_lockfile_name()));
             record_lockfile_verified(
                 Some(&config.cache_dir),
                 &lockfile_path,

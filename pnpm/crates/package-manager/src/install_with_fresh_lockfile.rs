@@ -1648,7 +1648,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let (wanted_lockfile, can_record_lockfile_verification) = if !config.lockfile {
             (None, false)
         } else if save_lockfile {
-            let target = lockfile_dir.join(Lockfile::FILE_NAME);
+            let target = lockfile_dir.join(config.wanted_lockfile_name());
             let can_record_lockfile_verification = save_wanted_lockfile(
                 &built_lockfile,
                 &target,
@@ -1855,7 +1855,7 @@ async fn finish_lockfile_only<Reporter: self::Reporter>(
     } else if config.lockfile {
         let can_record_lockfile_verification = save_wanted_lockfile(
             &built_lockfile,
-            &lockfile_dir.join(Lockfile::FILE_NAME),
+            &lockfile_dir.join(config.wanted_lockfile_name()),
             after_all_resolved_hook,
             after_all_resolved_log,
         )

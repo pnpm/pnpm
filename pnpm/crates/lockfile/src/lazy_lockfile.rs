@@ -1,4 +1,4 @@
-use crate::{LoadLockfileError, Lockfile};
+use crate::{LoadLockfileError, Lockfile, WantedLockfileSelection};
 use std::{path::PathBuf, sync::OnceLock};
 
 /// Wanted lockfile (`pnpm-lock.yaml`) whose read + parse are deferred
@@ -12,17 +12,16 @@ use std::{path::PathBuf, sync::OnceLock};
 /// [`LazyLockfile::get`] immediately and behave as if it were loaded
 /// eagerly.
 pub struct LazyLockfile {
-    dir: Option<PathBuf>,
+    source: Option<(PathBuf, WantedLockfileSelection)>,
     cell: OnceLock<Option<Lockfile>>,
 }
 
 impl LazyLockfile {
-    /// A lockfile that will be loaded from `<dir>/pnpm-lock.yaml` (the
-    /// same source as [`Lockfile::load_wanted_from_dir`]) on first
-    /// [`Self::get`].
+    /// A lockfile that will be loaded from `dir` (the same source as
+    /// [`Lockfile::load_wanted`]) on first [`Self::get`].
     #[must_use]
-    pub fn deferred(dir: PathBuf) -> Self {
-        LazyLockfile { dir: Some(dir), cell: OnceLock::new() }
+    pub fn deferred(dir: PathBuf, selection: WantedLockfileSelection) -> Self {
+        LazyLockfile { source: Some((dir, selection)), cell: OnceLock::new() }
     }
 
     /// A lockfile that is never loaded — [`Self::get`] yields `None`
@@ -30,7 +29,7 @@ impl LazyLockfile {
     /// config.
     #[must_use]
     pub fn disabled() -> Self {
-        LazyLockfile { dir: None, cell: OnceLock::new() }
+        LazyLockfile { source: None, cell: OnceLock::new() }
     }
 
     /// A lockfile that is already in memory; [`Self::get`] returns it
@@ -39,7 +38,7 @@ impl LazyLockfile {
     pub fn preloaded(lockfile: Option<Lockfile>) -> Self {
         let cell = OnceLock::new();
         cell.set(lockfile).expect("a fresh OnceLock accepts the first set");
-        LazyLockfile { dir: None, cell }
+        LazyLockfile { source: None, cell }
     }
 
     /// The parsed wanted lockfile, loading it on first call. `None`
@@ -50,8 +49,8 @@ impl LazyLockfile {
         if let Some(lockfile) = self.cell.get() {
             return Ok(lockfile.as_ref());
         }
-        let loaded = match self.dir.as_deref() {
-            Some(dir) => Lockfile::load_wanted_from_dir(dir)?,
+        let loaded = match self.source.as_ref() {
+            Some((dir, selection)) => Lockfile::load_wanted(dir, selection)?,
             None => None,
         };
         Ok(self.cell.get_or_init(|| loaded).as_ref())
@@ -59,7 +58,7 @@ impl LazyLockfile {
 
     /// Whether a wanted lockfile is known to be available: the parsed
     /// document when already loaded, otherwise
-    /// [`Lockfile::wanted_exists_in_dir`]'s semantic-presence probe —
+    /// [`Lockfile::wanted_exists`]'s semantic-presence probe —
     /// the same absence rules as the loader (an empty or env-only
     /// file counts as absent), without paying for the YAML parse on
     /// the repeat-install fast path.
@@ -68,7 +67,9 @@ impl LazyLockfile {
         if let Some(lockfile) = self.cell.get() {
             return lockfile.is_some();
         }
-        self.dir.as_deref().is_some_and(Lockfile::wanted_exists_in_dir)
+        self.source
+            .as_ref()
+            .is_some_and(|(dir, selection)| Lockfile::wanted_exists(dir, &selection.file_name))
     }
 }
 

@@ -15,7 +15,7 @@ use pnpm_lockfile::{
     DirectoryResolution, ImporterDepVersion, LazyLockfile, Lockfile, LockfileResolution,
     MaybeLazyLockfile, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot,
     ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
-    TarballResolution, VersionPart,
+    TarballResolution, VersionPart, WantedLockfileSelection,
 };
 use pnpm_package_manager::{
     ImportIndexedDirOpts, Install, ProjectMutation, UpdateSeedPolicy, import_indexed_dir,
@@ -323,9 +323,12 @@ impl DeployArgs {
             // The deployed project is not one of the source workspace's
             // importers — the deploy hook rewrites the copied manifest —
             // so its resolution must not be seeded from the workspace
-            // lockfile.
+            // lockfile. Plain `pnpm-lock.yaml` whatever the branch settings
+            // say, for the same reason: they describe that workspace
+            // resolution, and pnpm's deploy reads and writes the deployed
+            // lockfile under the plain name too.
             state.lockfile = if state.config.lockfile || frozen_lockfile {
-                LazyLockfile::deferred(deploy_dir.to_path_buf())
+                LazyLockfile::deferred(deploy_dir.to_path_buf(), WantedLockfileSelection::default())
             } else {
                 LazyLockfile::disabled()
             };

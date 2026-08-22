@@ -1,4 +1,4 @@
-use crate::{Lockfile, extract_main_document};
+use crate::{Lockfile, extract_main_document, merge_lockfile_changes};
 use derive_more::{Display, Error};
 use pipe_trait::Pipe;
 use pnpm_diagnostics::miette::{self, Diagnostic};
@@ -86,6 +86,31 @@ impl Lockfile {
         Self::load_from_path(&dir.join(Lockfile::FILE_NAME))
     }
 
+    /// Load the wanted lockfile an install reads, honoring the per-branch
+    /// lockfile settings.
+    ///
+    /// A branch-suffixed selection falls back to `pnpm-lock.yaml` when the
+    /// branch has no lockfile of its own yet, so the first install on a
+    /// new branch starts from the shared resolution rather than from
+    /// nothing. Under `mergeGitBranchLockfiles` every branch lockfile in
+    /// `dir` is then folded into whichever file was read.
+    pub fn load_wanted(
+        dir: &Path,
+        selection: &WantedLockfileSelection,
+    ) -> Result<Option<Self>, LoadLockfileError> {
+        for file_name in selection.read_order() {
+            let Some(lockfile) = Self::load_from_path(&dir.join(file_name))? else {
+                continue;
+            };
+            return if selection.merge_git_branch_lockfiles {
+                merge_git_branch_lockfiles(lockfile, dir).map(Some)
+            } else {
+                Ok(Some(lockfile))
+            };
+        }
+        Ok(None)
+    }
+
     /// Whether `<dir>/pnpm-lock.yaml` would load as `Some`: the file
     /// exists and its main document is non-empty. The same absence
     /// rules as [`Self::load_wanted_from_dir`] (a missing file, an
@@ -101,7 +126,18 @@ impl Lockfile {
     /// actually needed.
     #[must_use]
     pub fn wanted_exists_in_dir(dir: &Path) -> bool {
-        match fs::read_to_string(dir.join(Lockfile::FILE_NAME)) {
+        Self::wanted_exists(dir, Lockfile::FILE_NAME)
+    }
+
+    /// [`Self::wanted_exists_in_dir`] for a caller-chosen file name.
+    ///
+    /// Deliberately no fallback to `pnpm-lock.yaml`: pnpm's
+    /// `existsNonEmptyWantedLockfile` asks about the one file the install
+    /// would write, so a branch that has not been installed on yet reads
+    /// as having no lockfile even when the shared one is on disk.
+    #[must_use]
+    pub fn wanted_exists(dir: &Path, file_name: &str) -> bool {
+        match fs::read_to_string(dir.join(file_name)) {
             Ok(content) => !extract_main_document(&content).trim().is_empty(),
             Err(error) => error.kind() != ErrorKind::NotFound,
         }
@@ -154,3 +190,46 @@ impl Lockfile {
 
 #[cfg(test)]
 mod tests;
+
+/// Which wanted-lockfile file an install reads and writes, and whether the
+/// other branches' lockfiles are folded into it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WantedLockfileSelection {
+    /// The file the install reads first and writes back:
+    /// `pnpm-lock.yaml`, or the `pnpm-lock.<branch>.yaml` that
+    /// `useGitBranchLockfile` picked.
+    pub file_name: String,
+    /// `mergeGitBranchLockfiles`: fold every `pnpm-lock.<branch>.yaml`
+    /// next to the file that was read into the loaded lockfile. The
+    /// install deletes them once it has written the merge back.
+    pub merge_git_branch_lockfiles: bool,
+}
+
+impl Default for WantedLockfileSelection {
+    fn default() -> Self {
+        WantedLockfileSelection {
+            file_name: Lockfile::FILE_NAME.to_owned(),
+            merge_git_branch_lockfiles: false,
+        }
+    }
+}
+
+impl WantedLockfileSelection {
+    /// The file names to try, most specific first.
+    fn read_order(&self) -> impl Iterator<Item = &str> {
+        let branch_file = (self.file_name != Lockfile::FILE_NAME).then_some(&*self.file_name);
+        branch_file.into_iter().chain([Lockfile::FILE_NAME])
+    }
+}
+
+fn merge_git_branch_lockfiles(base: Lockfile, dir: &Path) -> Result<Lockfile, LoadLockfileError> {
+    let branch_lockfiles =
+        Lockfile::git_branch_lockfiles(dir).map_err(LoadLockfileError::ReadFile)?;
+    let mut merged = base;
+    for path in branch_lockfiles {
+        if let Some(branch_lockfile) = Lockfile::load_from_path(&path)? {
+            merged = merge_lockfile_changes(&merged, &branch_lockfile);
+        }
+    }
+    Ok(merged)
+}

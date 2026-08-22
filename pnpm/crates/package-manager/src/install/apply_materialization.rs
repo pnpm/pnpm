@@ -457,13 +457,15 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
     // `.modules.yaml` was wiped or inconsistent and the frozen install
     // had to relink.
     if take_frozen_path
-        && (lockfile_synthesized_from_current || lockfile_was_fast_updated)
+        && (lockfile_synthesized_from_current
+            || lockfile_was_fast_updated
+            || config.merge_git_branch_lockfiles)
         && config.lockfile
         && save_lockfile
         && let Some(updated) = loaded_wanted_lockfile
     {
         updated
-            .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
+            .save_to_path(&workspace_root.join(config.wanted_lockfile_name()))
             .map_err(InstallError::SaveWantedLockfile)?;
     }
 

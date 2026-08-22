@@ -31,7 +31,7 @@ pub struct State {
     pub config: &'static Config,
     /// Data from the `package.json` file.
     pub manifest: PackageManifest,
-    /// The `pnpm-lock.yaml` file, read + parsed on first access so the
+    /// The wanted lockfile, read + parsed on first access so the
     /// repeat-install fast path (which never needs its contents) skips
     /// the YAML parse.
     pub lockfile: LazyLockfile,
@@ -74,7 +74,7 @@ impl State {
                 .expect("manifest path always has a parent dir")
                 .pipe(|manifest_dir| config.lockfile_dir_for(manifest_dir))
                 .to_path_buf()
-                .pipe(LazyLockfile::deferred)
+                .pipe(|dir| LazyLockfile::deferred(dir, config.wanted_lockfile_selection()))
         } else {
             LazyLockfile::disabled()
         };
@@ -108,7 +108,7 @@ impl State {
     }
 
     pub fn lockfile_path(&self) -> PathBuf {
-        self.lockfile_dir().join(pnpm_lockfile::Lockfile::FILE_NAME)
+        self.lockfile_dir().join(self.config.wanted_lockfile_name())
     }
 
     pub fn active_importer_id(&self) -> String {

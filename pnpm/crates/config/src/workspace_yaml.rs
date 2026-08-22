@@ -219,6 +219,9 @@ pub struct WorkspaceSettings {
     pub deploy_all_files: Option<bool>,
     pub force_legacy_deploy: Option<bool>,
     pub shared_workspace_lockfile: Option<bool>,
+    pub git_branch_lockfile: Option<bool>,
+    pub merge_git_branch_lockfiles: Option<bool>,
+    pub merge_git_branch_lockfiles_branch_pattern: Option<Vec<String>>,
     pub offline: Option<bool>,
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
@@ -1175,6 +1178,9 @@ impl WorkspaceSettings {
         self.deploy_all_files = None;
         self.force_legacy_deploy = None;
         self.shared_workspace_lockfile = None;
+        self.git_branch_lockfile = None;
+        self.merge_git_branch_lockfiles = None;
+        self.merge_git_branch_lockfiles_branch_pattern = None;
         self.offline = None;
         self.lockfile_include_tarball_url = None;
         self.auto_install_peers = None;
@@ -1412,6 +1418,13 @@ impl WorkspaceSettings {
             config.catalog_prune = v;
         }
 
+        // pnpm spells the setting `gitBranchLockfile` and exposes the
+        // resolved answer as `useGitBranchLockfile`; the macro below can
+        // only apply fields the two structs name identically.
+        if let Some(v) = self.git_branch_lockfile {
+            config.use_git_branch_lockfile = v;
+        }
+
         // `virtualStoreType` is the canonical spelling of the boolean
         // `enableGlobalVirtualStore`, which the macro below applies. Both
         // land in the same field, so applying this after the macro is what
@@ -1434,6 +1447,7 @@ impl WorkspaceSettings {
             peers_suffix_max_length,
             lockfile, prefer_frozen_lockfile,
             deploy_all_files, force_legacy_deploy, shared_workspace_lockfile,
+            merge_git_branch_lockfiles, merge_git_branch_lockfiles_branch_pattern,
             offline, prefer_offline,
             lockfile_include_tarball_url,
             auto_install_peers, auto_install_peers_from_highest_match,

@@ -43,6 +43,7 @@ mod exec;
 mod exec_recursive;
 mod fetch;
 mod find_hash;
+mod git_branch_lockfile;
 mod git_hosted_install;
 mod global;
 mod global_shims;

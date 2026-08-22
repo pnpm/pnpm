@@ -77,7 +77,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     let lockfile_root = lockfile_root_for(config, workspace_dir_opt.as_deref(), manifest_dir);
     let state_root = config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.clone());
     let lockfile = if config.lockfile {
-        LazyLockfile::deferred(lockfile_root.clone())
+        LazyLockfile::deferred(lockfile_root.clone(), config.wanted_lockfile_selection())
     } else {
         LazyLockfile::disabled()
     };
@@ -200,7 +200,7 @@ pub fn check_deps_status_before_run_at(
     let project_manifests =
         build_project_manifests_list(&root_manifest, workspace_projects.as_deref());
     let lockfile = if config.lockfile {
-        LazyLockfile::deferred(lockfile_root.clone())
+        LazyLockfile::deferred(lockfile_root.clone(), config.wanted_lockfile_selection())
     } else {
         LazyLockfile::disabled()
     };
