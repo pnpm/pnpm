@@ -95,6 +95,51 @@ fn deploy_from_shared_lockfile_installs_selected_project() {
     drop((root, mock_instance));
 }
 
+/// A pinned `lockfileDir` moves the shared lockfile `deploy` reads and
+/// the importer id naming the selected project in it. Reading either from
+/// the workspace root instead drops the deploy to its "shared lockfile not
+/// found" fallback, which installs the project without a lockfile and can
+/// resolve versions the workspace never pinned.
+#[test]
+fn deploy_from_shared_lockfile_follows_a_pinned_lockfile_dir() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_reachability_workspace(&workspace);
+    let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
+    workspace_yaml.push_str("lockfileDir: ..\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+
+    pacquet.with_arg("install").assert().success();
+    assert!(
+        root.path().join("pnpm-lock.yaml").is_file(),
+        "the install must have written the lockfile at the pin",
+    );
+
+    let output = pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy"])
+        .output()
+        .expect("spawn pacquet deploy");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "deploy must succeed:\n{stdout}");
+    assert!(
+        !stdout.contains("Shared lockfile not found"),
+        "deploy must find the lockfile at the pin:\n{stdout}",
+    );
+
+    let deploy_dir = workspace.join("deploy");
+    assert!(
+        deploy_dir.join("pnpm-lock.yaml").is_file(),
+        "the deployed project gets its own lockfile, not the pinned one",
+    );
+    assert!(
+        is_symlink_or_junction(&deploy_dir.join("node_modules/lib")).unwrap(),
+        "the prod workspace dependency must be linked into the deploy dir",
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn production_deploy_does_not_require_dev_only_workspace_sources() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
