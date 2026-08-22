@@ -384,6 +384,18 @@ fn add_can_disable_progress_output() {
             false,
         ),
         (
+            "--config.progress=false",
+            [
+                "--reporter=append-only",
+                "add",
+                "@pnpm.e2e/hello-world-js-bin",
+                "--config.progress=false",
+            ]
+            .as_slice(),
+            None,
+            false,
+        ),
+        (
             "progress: false",
             ["--reporter=append-only", "add", "@pnpm.e2e/hello-world-js-bin"].as_slice(),
             None,
