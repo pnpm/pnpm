@@ -367,6 +367,7 @@ async fn fetcher_blocks_build_when_not_allowed() {
         GitFetcherError::Prepare(crate::error::PreparePackageError::NotAllowed {
             name,
             version,
+            ..
         }) => {
             assert_eq!(name, "naughty");
             assert_eq!(version, "2.0.0");
@@ -794,6 +795,7 @@ async fn fetcher_rejects_untrusted_manifest_identity() {
         GitFetcherError::Prepare(crate::error::PreparePackageError::NotAllowed {
             name,
             version,
+            ..
         }) => {
             assert_eq!(name, "x");
             assert_eq!(version, "1.0.0");
