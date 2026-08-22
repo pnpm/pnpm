@@ -207,10 +207,21 @@ pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> 
     let host = parsed
         .host_str()
         .ok_or_else(|| EncodeRegistryError::MissingHost { url: registry.to_string() })?;
-    Ok(match parsed.port() {
+    let base = match parsed.port() {
         Some(port) => format!("{host}+{port}"),
         None => host.to_string(),
-    })
+    };
+    let path = parsed.path().trim_matches('/');
+    if path.is_empty() {
+        Ok(base)
+    } else {
+        let encoded_path = path
+            .replace('%', "%25")
+            .replace('+', "%2B")
+            .replace(':', "%3A")
+            .replace('/', "+");
+        Ok(format!("{base}-{encoded_path}"))
+    }
 }
 
 /// Filesystem-safe form of a package name. A mixed-case name gets a
