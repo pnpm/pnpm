@@ -119,6 +119,18 @@ pub struct InstallArgs {
     #[clap(flatten)]
     pub lockfile_dir: LockfileDirArg,
 
+    /// Fold every per-branch lockfile (`pnpm-lock.<branch>.yaml`, written
+    /// under the `gitBranchLockfile` setting) into `pnpm-lock.yaml` and
+    /// delete them.
+    #[clap(long = "merge-git-branch-lockfiles")]
+    pub merge_git_branch_lockfiles: bool,
+
+    /// Glob patterns naming the branches that merge the per-branch
+    /// lockfiles, so a mainline branch does not have to pass
+    /// `--merge-git-branch-lockfiles` by hand.
+    #[clap(long = "merge-git-branch-lockfiles-branch-pattern")]
+    pub merge_git_branch_lockfiles_branch_pattern: Vec<String>,
+
     /// Show what an install would change without writing anything to disk.
     #[clap(long = "dry-run")]
     pub dry_run: bool,
@@ -284,6 +296,8 @@ impl InstallArgs {
             no_frozen_lockfile: true,
             lockfile_only: false,
             lockfile_dir: LockfileDirArg::default(),
+            merge_git_branch_lockfiles: false,
+            merge_git_branch_lockfiles_branch_pattern: Vec::new(),
             dry_run: false,
             force: false,
             prefer_frozen_lockfile: false,
@@ -344,6 +358,13 @@ impl InstallArgs {
             || self.lockfile_only
             || self.force
             || self.verify_deps_before_run_install
+        {
+            return false;
+        }
+        // The merge flags reach `config` only in the dispatch, after this
+        // check; and merging is work no up-to-date verdict can skip.
+        if self.merge_git_branch_lockfiles
+            || !self.merge_git_branch_lockfiles_branch_pattern.is_empty()
         {
             return false;
         }
@@ -470,6 +491,10 @@ impl InstallArgs {
             // before the state is built, so the install reads it from
             // `config`, not from here.
             lockfile_dir: _,
+            // Resolved against `config.merge_git_branch_lockfiles` by
+            // `apply_install_cli_config` in the dispatch.
+            merge_git_branch_lockfiles: _,
+            merge_git_branch_lockfiles_branch_pattern: _,
             dry_run,
             // Resolved against config by `apply_install_cli_config` in
             // the dispatch, like `ignore_scripts` below.
@@ -868,9 +893,10 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let lockfile_dir = link.lockfile_path.and_then(|path| path.parent()).unwrap_or_else(|| {
         state.manifest.path().parent().expect("manifest path always has a parent dir")
     });
-    let lockfile_path = link
-        .lockfile_path
-        .map_or_else(|| lockfile_dir.join(Lockfile::FILE_NAME), std::path::Path::to_path_buf);
+    let lockfile_path = link.lockfile_path.map_or_else(
+        || lockfile_dir.join(state.config.wanted_lockfile_name()),
+        std::path::Path::to_path_buf,
+    );
 
     if (satisfied_without_server
         || (link.frozen_lockfile && (selection.is_some() || !link.lockfile_only)))

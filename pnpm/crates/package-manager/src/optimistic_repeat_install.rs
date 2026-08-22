@@ -178,6 +178,12 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
         return Decision::Skipped { reason: "optimistic_repeat_install disabled" };
     }
 
+    // The merge has to run, and it rewrites the wanted lockfile and
+    // deletes the per-branch ones — neither of which any fast path does.
+    if config.merge_git_branch_lockfiles {
+        return Decision::Skipped { reason: "the git branch lockfiles have to be merged" };
+    }
+
     // No workspace state means no previous install has completed
     // (or the file was deleted) — there's no `lastValidatedTimestamp`
     // to compare against.
@@ -273,8 +279,17 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     // scan `continue`s on ENOENT, and the missing lockfile is restored
     // from the current one rather than failing). The mtime side of that
     // probe is handled by `wanted_lockfile_modified` below.
+    // The current lockfile is not a stand-in for a missing *branch*
+    // lockfile: it records what the previous branch's install
+    // materialized, and pnpm refuses the substitution for the same
+    // reason.
+    if config.use_git_branch_lockfile
+        && !workspace_root.join(config.wanted_lockfile_name()).exists()
+    {
+        return Decision::Skipped { reason: "the branch lockfile is missing" };
+    }
     if !is_workspace_install
-        && !workspace_root.join(Lockfile::FILE_NAME).exists()
+        && !workspace_root.join(config.wanted_lockfile_name()).exists()
         && !current_lockfile_file_has_content(&config.virtual_store_dir)
     {
         return Decision::Skipped { reason: "wanted lockfile missing" };
@@ -321,7 +336,7 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     // lockfile's mtime before the manifest-mtime exit so a lockfile
     // modification is not missed.
     let lockfile_modified =
-        wanted_lockfile_modified(workspace_root, state.last_validated_timestamp);
+        wanted_lockfile_modified(workspace_root, config, state.last_validated_timestamp);
 
     match current_lockfile_unusable_with_non_empty_wanted(check) {
         Ok(true) => return Decision::Skipped { reason: "current lockfile missing" },
@@ -412,7 +427,7 @@ fn regenerate_wanted_lockfile_if_missing(
         return Ok(());
     };
     current
-        .save_to_path(&check.workspace_root.join(Lockfile::FILE_NAME))
+        .save_to_path(&check.workspace_root.join(check.config.wanted_lockfile_name()))
         .map_err(|_| "failed to regenerate pnpm-lock.yaml from the current lockfile")
 }
 

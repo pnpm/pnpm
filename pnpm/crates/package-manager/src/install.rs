@@ -652,6 +652,14 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     SaveWantedLockfile(#[error(source)] SaveLockfileError),
 
+    /// Surfaces a failure to delete the per-branch lockfiles an install
+    /// under `mergeGitBranchLockfiles` has just folded into
+    /// `pnpm-lock.yaml`. Leaving them behind would make the next install
+    /// merge the same resolutions again.
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CLEAN_GIT_BRANCH_LOCKFILES))]
+    #[display("Failed to remove the git branch lockfiles: {_0}")]
+    CleanGitBranchLockfiles(#[error(source)] std::io::Error),
+
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR))]
     #[display("Failed to remove modules directory contents: {_0}")]
     RemoveModulesDir(#[error(source)] std::io::Error),

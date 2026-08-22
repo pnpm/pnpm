@@ -1,0 +1,147 @@
+use crate::_utils;
+pub use _utils::*;
+
+use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use std::{fs, path::Path};
+
+fn set_branch(workspace: &Path, branch: &str) {
+    let git_dir = workspace.join(".git");
+    fs::create_dir_all(&git_dir).expect("create .git");
+    fs::write(git_dir.join("HEAD"), format!("ref: refs/heads/{branch}\n"))
+        .expect("write .git/HEAD");
+}
+
+fn write_dependencies(workspace: &Path, dependencies: &serde_json::Value) {
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": dependencies }).to_string(),
+    )
+    .expect("write package.json");
+}
+
+#[test]
+fn git_branch_lockfile_writes_the_lockfile_of_the_current_branch() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    set_branch(&workspace, "feature/Login");
+    append_workspace_yaml_key(&workspace, "gitBranchLockfile", true);
+    write_dependencies(&workspace, &serde_json::json!({ "@pnpm.e2e/foo": "1.0.0" }));
+
+    pacquet.with_arg("install").assert().success();
+
+    assert!(
+        workspace.join("pnpm-lock.feature!login.yaml").exists(),
+        "the branch lockfile is written under the sanitized branch name",
+    );
+    assert!(
+        !workspace.join("pnpm-lock.yaml").exists(),
+        "the shared lockfile is left for the branches that have no lockfile of their own",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A branch installs for the first time against whatever the shared
+/// lockfile already resolved, rather than from nothing.
+#[test]
+fn a_branch_without_a_lockfile_starts_from_the_shared_one() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    set_branch(&workspace, "main");
+    write_dependencies(&workspace, &serde_json::json!({ "@pnpm.e2e/foo": "1.0.0" }));
+    pacquet.with_arg("install").assert().success();
+    let shared = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(shared.contains("@pnpm.e2e/foo@1.0.0"));
+
+    set_branch(&workspace, "other");
+    append_workspace_yaml_key(&workspace, "gitBranchLockfile", true);
+    write_dependencies(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/foo": "1.0.0", "@pnpm.e2e/bar": "100.0.0" }),
+    );
+    pacquet_in(&workspace).with_arg("install").assert().success();
+
+    let branch_lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.other.yaml")).expect("read branch lockfile");
+    assert!(branch_lockfile.contains("@pnpm.e2e/foo@1.0.0"), "{branch_lockfile}");
+    assert!(branch_lockfile.contains("@pnpm.e2e/bar@100.0.0"), "{branch_lockfile}");
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("re-read pnpm-lock.yaml"),
+        shared,
+        "the branch install leaves the shared lockfile alone",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn merging_folds_the_branch_lockfiles_into_the_shared_one_and_deletes_them() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    set_branch(&workspace, "main");
+    write_dependencies(&workspace, &serde_json::json!({ "@pnpm.e2e/foo": "1.0.0" }));
+    pacquet.with_arg("install").assert().success();
+
+    set_branch(&workspace, "other");
+    append_workspace_yaml_key(&workspace, "gitBranchLockfile", true);
+    write_dependencies(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/foo": "1.0.0", "@pnpm.e2e/bar": "100.0.0" }),
+    );
+    pacquet_in(&workspace).with_arg("install").assert().success();
+    assert!(workspace.join("pnpm-lock.other.yaml").exists());
+
+    set_branch(&workspace, "main");
+    pacquet_in(&workspace)
+        .with_args(["install", "--merge-git-branch-lockfiles"])
+        .assert()
+        .success();
+
+    assert!(
+        !workspace.join("pnpm-lock.other.yaml").exists(),
+        "the merged branch lockfiles are deleted",
+    );
+    let shared = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(shared.contains("@pnpm.e2e/bar@100.0.0"), "{shared}");
+
+    drop((root, mock_instance));
+}
+
+/// The branch pattern saves the mainline branches from passing
+/// `--merge-git-branch-lockfiles` by hand.
+#[test]
+fn the_branch_pattern_merges_without_the_flag() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    set_branch(&workspace, "main");
+    write_dependencies(&workspace, &serde_json::json!({ "@pnpm.e2e/foo": "1.0.0" }));
+    pacquet.with_arg("install").assert().success();
+
+    set_branch(&workspace, "other");
+    append_workspace_yaml_key(&workspace, "gitBranchLockfile", true);
+    write_dependencies(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/foo": "1.0.0", "@pnpm.e2e/bar": "100.0.0" }),
+    );
+    pacquet_in(&workspace).with_arg("install").assert().success();
+
+    set_branch(&workspace, "main");
+    append_workspace_yaml_key(&workspace, "mergeGitBranchLockfilesBranchPattern", "[main]");
+    pacquet_in(&workspace).with_arg("install").assert().success();
+
+    assert!(!workspace.join("pnpm-lock.other.yaml").exists());
+    let shared = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(shared.contains("@pnpm.e2e/bar@100.0.0"), "{shared}");
+
+    drop((root, mock_instance));
+}

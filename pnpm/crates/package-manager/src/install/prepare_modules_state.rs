@@ -371,12 +371,16 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
             prefix: prefix.to_string(),
             stage: Stage::ImportingDone,
         }));
-        if (lockfile_synthesized_from_current || lockfile_was_fast_updated)
+        // A merge produced a lockfile that no file on disk holds, so it
+        // has to be written back even when nothing else changed.
+        if (lockfile_synthesized_from_current
+            || lockfile_was_fast_updated
+            || config.merge_git_branch_lockfiles)
             && config.lockfile
             && save_lockfile
         {
             wanted_lockfile
-                .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
+                .save_to_path(&workspace_root.join(config.wanted_lockfile_name()))
                 .map_err(InstallError::SaveWantedLockfile)?;
         }
         update_workspace_state(

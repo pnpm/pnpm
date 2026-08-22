@@ -24,7 +24,7 @@ use crate::{
     config_deps,
 };
 use miette::Context;
-use pnpm_config::Config;
+use pnpm_config::{Config, Host};
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, ScopeLog};
 use std::{
     collections::{BTreeMap, HashSet},
@@ -666,6 +666,17 @@ pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
     if let Some(pnpr_server) = args.pnpr_server.clone() {
         cfg.pnpr_server = Some(pnpr_server);
     }
+    // pnpm merges its CLI options into the config *before* deciding
+    // `mergeGitBranchLockfiles`, so a pattern given on the command line
+    // still gets matched against the current branch — and an explicit
+    // `--merge-git-branch-lockfiles` settles the question without it.
+    if args.merge_git_branch_lockfiles {
+        cfg.merge_git_branch_lockfiles = true;
+    } else if !args.merge_git_branch_lockfiles_branch_pattern.is_empty() {
+        cfg.merge_git_branch_lockfiles_branch_pattern
+            .clone_from(&args.merge_git_branch_lockfiles_branch_pattern);
+        cfg.apply_git_branch_lockfile_derivation::<Host>();
+    }
 }
 
 /// The reporter-generic body of `pacquet dedupe`: snapshots the lockfile
@@ -686,7 +697,7 @@ impl DedupePipeline {
         let DedupePipeline { args, cfg, config_root, package_manager_to_sync, manifest_path } =
             self;
 
-        let lockfile_path = config_root.join(pnpm_lockfile::Lockfile::FILE_NAME);
+        let lockfile_path = config_root.join(cfg.wanted_lockfile_name());
 
         // Snapshot before any config-dep writes so --check detects lockfile
         // changes made by config-dependency syncing as well.

@@ -164,6 +164,12 @@ impl WorkspaceSettings {
         json_field!(deploy_all_files, "DEPLOY_ALL_FILES");
         json_field!(force_legacy_deploy, "FORCE_LEGACY_DEPLOY");
         json_field!(shared_workspace_lockfile, "SHARED_WORKSPACE_LOCKFILE");
+        json_field!(git_branch_lockfile, "GIT_BRANCH_LOCKFILE");
+        json_field!(merge_git_branch_lockfiles, "MERGE_GIT_BRANCH_LOCKFILES");
+        json_field!(
+            merge_git_branch_lockfiles_branch_pattern,
+            "MERGE_GIT_BRANCH_LOCKFILES_BRANCH_PATTERN"
+        );
         json_field!(offline, "OFFLINE");
         json_field!(prefer_offline, "PREFER_OFFLINE");
         json_field!(lockfile_include_tarball_url, "LOCKFILE_INCLUDE_TARBALL_URL");

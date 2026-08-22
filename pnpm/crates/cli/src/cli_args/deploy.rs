@@ -15,7 +15,7 @@ use pnpm_lockfile::{
     DirectoryResolution, ImporterDepVersion, LazyLockfile, Lockfile, LockfileResolution,
     MaybeLazyLockfile, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot,
     ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
-    TarballResolution, VersionPart,
+    TarballResolution, VersionPart, WantedLockfileSelection,
 };
 use pnpm_package_manager::{
     ImportIndexedDirOpts, Install, ProjectMutation, UpdateSeedPolicy, import_indexed_dir,
@@ -325,7 +325,7 @@ impl DeployArgs {
             // so its resolution must not be seeded from the workspace
             // lockfile.
             state.lockfile = if state.config.lockfile || frozen_lockfile {
-                LazyLockfile::deferred(deploy_dir.to_path_buf())
+                LazyLockfile::deferred(deploy_dir.to_path_buf(), WantedLockfileSelection::default())
             } else {
                 LazyLockfile::disabled()
             };

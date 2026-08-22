@@ -4429,6 +4429,7 @@ dependencies = [
  "pnpm-detect-libc",
  "pnpm-env-replace",
  "pnpm-fs",
+ "pnpm-git-utils",
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-package-is-installable",
@@ -4814,6 +4815,13 @@ dependencies = [
  "tokio",
  "tracing",
  "which 8.0.4",
+]
+
+[[package]]
+name = "pnpm-git-utils"
+version = "0.0.1"
+dependencies = [
+ "tempfile",
 ]
 
 [[package]]
@@ -5303,6 +5311,7 @@ dependencies = [
  "pipe-trait",
  "pnpm-diagnostics",
  "pnpm-executor",
+ "pnpm-git-utils",
  "pnpm-network",
  "pnpm-network-web-auth",
  "pnpm-network-web-auth-testing",

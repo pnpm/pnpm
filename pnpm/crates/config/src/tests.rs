@@ -3883,3 +3883,144 @@ pub fn global_config_yaml_null_key_is_silent_and_the_warnings_are_ordered() {
         ],
     );
 }
+
+/// A scratch git repository whose branch the per-branch lockfile
+/// derivation reads: a `.git/HEAD` is all `get_current_branch` needs, so
+/// the fixture is a directory rather than a real `git init`.
+fn repo_on_branch(head: &str) -> tempfile::TempDir {
+    let dir = tempdir().unwrap();
+    fs::create_dir(dir.path().join(".git")).unwrap();
+    fs::write(dir.path().join(".git/HEAD"), head).unwrap();
+    dir
+}
+
+/// The derivation reads the branch from the process's working directory,
+/// so a test that wants a specific branch has to answer
+/// [`GetCurrentDir`] with its own fixture rather than the real cwd.
+macro_rules! host_in_repo {
+    ($name:ident) => {
+        struct $name;
+        impl EnvVar for $name {
+            fn var(name: &str) -> Option<String> {
+                safe_host_var(name)
+            }
+        }
+        impl EnvVarOs for $name {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for $name {
+            fn home_dir() -> Option<PathBuf> {
+                None
+            }
+        }
+        inert_link_probe!($name);
+        impl GetCurrentDir for $name {
+            fn current_dir() -> io::Result<PathBuf> {
+                REPO_DIR.get().cloned().ok_or_else(|| io::Error::other("no repo fixture"))
+            }
+        }
+    };
+}
+
+#[test]
+pub fn git_branch_lockfile_names_the_lockfile_after_the_current_branch() {
+    let repo = repo_on_branch("ref: refs/heads/feat/Login\n");
+    fs::write(repo.path().join("pnpm-workspace.yaml"), "gitBranchLockfile: true\n").unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostOnBranch);
+
+    let config = Config::new().current::<HostOnBranch>(repo.path()).expect("yaml is valid");
+    assert!(config.use_git_branch_lockfile);
+    assert_eq!(config.git_branch_lockfile_name.as_deref(), Some("pnpm-lock.feat!login.yaml"));
+    assert_eq!(config.wanted_lockfile_name(), "pnpm-lock.feat!login.yaml");
+}
+
+/// Merging collapses the per-branch lockfiles into the shared one, so the
+/// install has to be reading and writing `pnpm-lock.yaml` while it does.
+#[test]
+pub fn merging_puts_the_install_back_on_the_shared_lockfile() {
+    let repo = repo_on_branch("ref: refs/heads/main\n");
+    fs::write(
+        repo.path().join("pnpm-workspace.yaml"),
+        "gitBranchLockfile: true\nmergeGitBranchLockfiles: true\n",
+    )
+    .unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostMerging);
+
+    let config = Config::new().current::<HostMerging>(repo.path()).expect("yaml is valid");
+    assert!(config.merge_git_branch_lockfiles);
+    assert_eq!(config.git_branch_lockfile_name.as_deref(), Some("pnpm-lock.main.yaml"));
+    assert_eq!(config.wanted_lockfile_name(), "pnpm-lock.yaml");
+}
+
+#[test]
+pub fn the_branch_pattern_decides_merging_for_the_current_branch() {
+    let repo = repo_on_branch("ref: refs/heads/release/1.0.0\n");
+    fs::write(
+        repo.path().join("pnpm-workspace.yaml"),
+        "mergeGitBranchLockfilesBranchPattern:\n  - main\n  - release/*\n",
+    )
+    .unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostOnRelease);
+
+    let config = Config::new().current::<HostOnRelease>(repo.path()).expect("yaml is valid");
+    assert!(config.merge_git_branch_lockfiles);
+}
+
+#[test]
+pub fn the_branch_pattern_leaves_an_unmatched_branch_alone() {
+    let repo = repo_on_branch("ref: refs/heads/develop\n");
+    fs::write(
+        repo.path().join("pnpm-workspace.yaml"),
+        "mergeGitBranchLockfilesBranchPattern:\n  - main\n  - release/*\n",
+    )
+    .unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostOnDevelop);
+
+    let config = Config::new().current::<HostOnDevelop>(repo.path()).expect("yaml is valid");
+    assert!(!config.merge_git_branch_lockfiles);
+}
+
+/// pnpm consults the pattern only when `mergeGitBranchLockfiles` is not
+/// set outright, so an explicit `false` survives a matching branch.
+#[test]
+pub fn an_explicit_merge_setting_wins_over_the_branch_pattern() {
+    let repo = repo_on_branch("ref: refs/heads/main\n");
+    fs::write(
+        repo.path().join("pnpm-workspace.yaml"),
+        "mergeGitBranchLockfiles: false\nmergeGitBranchLockfilesBranchPattern:\n  - main\n",
+    )
+    .unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostExplicitlyNotMerging);
+
+    let config =
+        Config::new().current::<HostExplicitlyNotMerging>(repo.path()).expect("yaml is valid");
+    assert!(!config.merge_git_branch_lockfiles);
+}
+
+/// A detached HEAD has no branch to name a lockfile after, so the install
+/// stays on `pnpm-lock.yaml` rather than inventing one.
+#[test]
+pub fn a_detached_head_leaves_the_install_on_the_shared_lockfile() {
+    let repo = repo_on_branch("0123456789abcdef0123456789abcdef01234567\n");
+    fs::write(repo.path().join("pnpm-workspace.yaml"), "gitBranchLockfile: true\n").unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostDetached);
+
+    let config = Config::new().current::<HostDetached>(repo.path()).expect("yaml is valid");
+    assert!(config.use_git_branch_lockfile);
+    assert_eq!(config.git_branch_lockfile_name, None);
+    assert_eq!(config.wanted_lockfile_name(), "pnpm-lock.yaml");
+}

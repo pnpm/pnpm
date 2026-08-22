@@ -93,7 +93,7 @@ pub(crate) fn validation_baseline_ms(
     config: &Config,
     project_manifests: &[(PathBuf, &PackageManifest)],
 ) -> Option<i64> {
-    let lockfile = mtime_ms(&workspace_root.join(Lockfile::FILE_NAME))
+    let lockfile = mtime_ms(&workspace_root.join(config.wanted_lockfile_name()))
         .or_else(|| mtime_ms(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)));
     project_manifests
         .iter()
@@ -118,9 +118,10 @@ pub(crate) fn validation_baseline_ms(
 /// millisecond, so millisecond precision still catches it.
 pub(crate) fn wanted_lockfile_modified(
     workspace_root: &Path,
+    config: &Config,
     last_validated_timestamp: i64,
 ) -> bool {
-    file_mtime(&workspace_root.join(Lockfile::FILE_NAME))
+    file_mtime(&workspace_root.join(config.wanted_lockfile_name()))
         .is_some_and(|mtime| lockfile_modified_since(mtime, last_validated_timestamp))
 }
 

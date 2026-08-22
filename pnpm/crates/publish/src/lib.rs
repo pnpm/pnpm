@@ -27,15 +27,15 @@ pub use extract_manifest_from_packed::{
     extract_publish_manifest_from_packed, is_tarball_path,
 };
 pub use failed_to_publish_error::FailedToPublishError;
-pub use git_checks::{
-    GitCheckError, get_current_branch, is_git_repo, is_remote_history_clean, is_working_tree_clean,
-    run_git_checks,
-};
+pub use git_checks::{GitCheckError, run_git_checks};
 pub use oidc::{
     AuthTokenError, DetermineProvenanceError, GetIdTokenError, IdTokenError, OidcHttpOptions,
     ProvenanceError, determine_provenance, fetch_auth_token, get_id_token,
 };
 pub use otp_env::resolve_otp_from_env;
+pub use pnpm_git_utils::{
+    get_current_branch, is_git_repo, is_remote_history_clean, is_working_tree_clean,
+};
 pub use provenance_gen::{ProvenanceAttachment, ProvenanceGenError, generate_provenance};
 pub use publish_options::{
     Access, CreatePublishOptionsError, CreatePublishOptionsInput, FetchTokenAndProvenanceError,
