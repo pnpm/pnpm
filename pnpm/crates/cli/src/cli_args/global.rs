@@ -8,7 +8,9 @@
 
 mod activation;
 
-use self::activation::{ArtifactCleanupError, activate_global_install, hash_linked_packages};
+use self::activation::{
+    ArtifactCleanupError, activate_global_install, hash_linked_packages, replace_global_bin_slots,
+};
 use crate::{
     State,
     cli_args::{
@@ -454,7 +456,10 @@ fn is_plain_version_spec(spec: &str) -> bool {
 
 /// `pnpm remove -g`. Removes the bins, hash symlinks, and install dirs of
 /// every group that contains one of the requested packages.
-pub fn handle_global_remove(base_config: &'static Config, params: &[String]) -> miette::Result<()> {
+pub fn handle_global_remove<Reporter: self::Reporter>(
+    base_config: &'static Config,
+    params: &[String],
+) -> miette::Result<()> {
     let (global_pkg_dir, global_bin_dir) = global_dirs(base_config)?;
     check_bin_dir(&global_bin_dir)?;
 
@@ -485,20 +490,33 @@ pub fn handle_global_remove(base_config: &'static Config, params: &[String]) -> 
             .wrap_err("install the global shim dispatcher")?;
     }
 
-    // Keep every group installed until all replacement shims are ready so
-    // a publication failure can be repaired by retrying the removal.
+    let restored_bin_names = shims_to_restore.values().flatten().cloned().collect::<HashSet<_>>();
+    if !restored_bin_names.is_empty() {
+        let leftover_backup =
+            replace_global_bin_slots::<CmdShimHost>(&global_bin_dir, &restored_bin_names, || {
+                for (package, bins) in &shims_to_restore {
+                    let bin_refs = bins.iter().map(String::as_str).collect::<Vec<_>>();
+                    link_virtual_shims::<CmdShimHost>(package, &bin_refs, &global_bin_dir)
+                        .map_err(miette::Report::new)
+                        .wrap_err_with(|| format!("restore the {package} shims"))?;
+                }
+                Ok(())
+            })?;
+        if let Some(leftover) = leftover_backup {
+            warn_global::<Reporter>(&leftover.to_string());
+        }
+    }
+
     let mut bins_to_keep = protected;
-    for (package, bins) in &shims_to_restore {
-        let bin_refs = bins.iter().map(String::as_str).collect::<Vec<_>>();
-        link_virtual_shims::<CmdShimHost>(package, &bin_refs, &global_bin_dir)
-            .map_err(miette::Report::new)
-            .wrap_err_with(|| format!("restore the {package} shims"))?;
-        bins_to_keep.extend(bins.iter().cloned());
-    }
-    for pkg in &groups {
-        remove_group(&global_pkg_dir, &global_bin_dir, pkg, &bins_to_keep);
-    }
-    Ok(())
+    bins_to_keep.extend(restored_bin_names);
+    let cleanup = GlobalInstallCleanup {
+        global_pkg_dir: &global_pkg_dir,
+        global_bin_dir: &global_bin_dir,
+        bins_to_keep: &bins_to_keep,
+        hash_to_keep: None,
+        context: "global",
+    };
+    remove_global_installs(&groups, &cleanup)
 }
 
 fn check_virtual_shim_conflicts(
@@ -773,6 +791,22 @@ struct ReplacedGlobalInstallCleanupError {
     cleanup_reports: Vec<ArtifactCleanupError>,
 }
 
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Failed to remove global packages")]
+struct RemovedGlobalInstallCleanupError {
+    #[error(not(source))]
+    #[related]
+    cleanup_reports: Vec<ArtifactCleanupError>,
+}
+
+struct GlobalInstallCleanup<'a> {
+    global_pkg_dir: &'a Path,
+    global_bin_dir: &'a Path,
+    bins_to_keep: &'a HashSet<String>,
+    hash_to_keep: Option<&'a str>,
+    context: &'static str,
+}
+
 // Activation already succeeded when this runs, so every removal is
 // attempted even after one fails; the failures are aggregated instead of
 // aborting the remaining cleanup.
@@ -785,58 +819,16 @@ fn cleanup_replaced_global_installs(
     protected_bins: &HashSet<String>,
 ) -> miette::Result<()> {
     let mut cleanup_reports = Vec::new();
+    let bins_to_keep = activated_bins.union(protected_bins).cloned().collect();
+    let cleanup = GlobalInstallCleanup {
+        global_pkg_dir,
+        global_bin_dir,
+        bins_to_keep: &bins_to_keep,
+        hash_to_keep: Some(active_hash),
+        context: "replaced global",
+    };
     for group in groups {
-        let mut bin_removal_failed = false;
-        for bin_name in get_installed_bin_names(group) {
-            if activated_bins.contains(&bin_name) || protected_bins.contains(&bin_name) {
-                continue;
-            }
-            let bin_path = global_bin_dir.join(&bin_name);
-            if let Err(error) = remove_bin(&bin_path) {
-                cleanup_reports.push(ArtifactCleanupError {
-                    context: format!("remove replaced global bin at {}", bin_path.display()),
-                    source: error,
-                });
-                bin_removal_failed = true;
-            }
-        }
-        // A bin that could not be removed is only discoverable through the
-        // group's manifests, so keep the group until every one of them is
-        // gone.
-        if bin_removal_failed {
-            continue;
-        }
-        if group.hash != active_hash {
-            let hash_link = get_hash_link(global_pkg_dir, &group.hash);
-            match remove_symlink_dir(&hash_link) {
-                Ok(()) => {}
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => {
-                    cleanup_reports.push(ArtifactCleanupError {
-                        context: format!(
-                            "remove replaced global hash link at {}",
-                            hash_link.display(),
-                        ),
-                        source: error,
-                    });
-                }
-            }
-        }
-        if is_subdir(global_pkg_dir, &group.install_dir) {
-            match fs::remove_dir_all(&group.install_dir) {
-                Ok(()) => {}
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => {
-                    cleanup_reports.push(ArtifactCleanupError {
-                        context: format!(
-                            "remove replaced global install directory at {}",
-                            group.install_dir.display(),
-                        ),
-                        source: error,
-                    });
-                }
-            }
-        }
+        cleanup_reports.extend(cleanup_global_install(group, &cleanup));
     }
     if cleanup_reports.is_empty() {
         return Ok(());
@@ -846,6 +838,79 @@ fn cleanup_replaced_global_installs(
         return Err(miette::Report::new(report));
     }
     Err(ReplacedGlobalInstallCleanupError { cleanup_reports }.into())
+}
+
+fn remove_global_installs(
+    groups: &[GlobalPackageInfo],
+    cleanup: &GlobalInstallCleanup<'_>,
+) -> miette::Result<()> {
+    let mut cleanup_reports =
+        groups.iter().flat_map(|group| cleanup_global_install(group, cleanup)).collect::<Vec<_>>();
+    if cleanup_reports.is_empty() {
+        return Ok(());
+    }
+    if cleanup_reports.len() == 1 {
+        return Err(miette::Report::new(cleanup_reports.remove(0)));
+    }
+    Err(RemovedGlobalInstallCleanupError { cleanup_reports }.into())
+}
+
+fn cleanup_global_install(
+    group: &GlobalPackageInfo,
+    cleanup: &GlobalInstallCleanup<'_>,
+) -> Vec<ArtifactCleanupError> {
+    let mut cleanup_reports = Vec::new();
+    for bin_name in get_installed_bin_names(group) {
+        if cleanup.bins_to_keep.contains(&bin_name) {
+            continue;
+        }
+        let bin_path = cleanup.global_bin_dir.join(&bin_name);
+        if let Err(source) = remove_bin(&bin_path) {
+            cleanup_reports.push(ArtifactCleanupError {
+                context: format!("remove {} bin at {}", cleanup.context, bin_path.display()),
+                source,
+            });
+        }
+    }
+    // A bin that could not be removed is only discoverable through the
+    // group's manifests, so keep the group until every one of them is gone.
+    if !cleanup_reports.is_empty() {
+        return cleanup_reports;
+    }
+
+    if cleanup.hash_to_keep != Some(group.hash.as_str()) {
+        let hash_link = get_hash_link(cleanup.global_pkg_dir, &group.hash);
+        match remove_symlink_dir(&hash_link) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(source) => {
+                cleanup_reports.push(ArtifactCleanupError {
+                    context: format!(
+                        "remove {} hash link at {}",
+                        cleanup.context,
+                        hash_link.display(),
+                    ),
+                    source,
+                });
+                return cleanup_reports;
+            }
+        }
+    }
+    if is_subdir(cleanup.global_pkg_dir, &group.install_dir) {
+        match fs::remove_dir_all(&group.install_dir) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(source) => cleanup_reports.push(ArtifactCleanupError {
+                context: format!(
+                    "remove {} install directory at {}",
+                    cleanup.context,
+                    group.install_dir.display(),
+                ),
+                source,
+            }),
+        }
+    }
+    cleanup_reports
 }
 
 fn replacement_aliases(aliases: &[String]) -> Vec<String> {
@@ -880,26 +945,6 @@ fn is_pnpm_cli_only_group(pkg: &GlobalPackageInfo) -> bool {
 
 fn is_pnpm_cli_package_alias(alias: &str) -> bool {
     matches!(alias, "pnpm" | "@pnpm/exe")
-}
-
-/// Remove a group's bins except those that must remain available, then its
-/// hash symlink and install dir.
-fn remove_group(
-    global_pkg_dir: &Path,
-    global_bin_dir: &Path,
-    pkg: &GlobalPackageInfo,
-    bins_to_keep: &HashSet<String>,
-) {
-    for bin in get_installed_bin_names(pkg) {
-        if bins_to_keep.contains(&bin) {
-            continue;
-        }
-        let _ = remove_bin(&global_bin_dir.join(&bin));
-    }
-    let _ = fs::remove_file(get_hash_link(global_pkg_dir, &pkg.hash));
-    if is_subdir(global_pkg_dir, &pkg.install_dir) {
-        let _ = fs::remove_dir_all(&pkg.install_dir);
-    }
 }
 
 /// The set of bin names provided by global package groups other than those

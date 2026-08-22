@@ -23,6 +23,17 @@ fn a_generated_shim_names_the_package_it_stands_for() {
     );
 }
 
+#[cfg(windows)]
+#[test]
+fn a_virtual_shim_removes_the_native_executable_flavor() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("node.exe"), b"native node").unwrap();
+
+    link_virtual_shims::<CmdShimHost>("node", &["node"], dir.path()).expect("link the shim");
+
+    assert!(!dir.path().join("node.exe").exists());
+}
+
 /// A bin whose shim points at an installed target is somebody else's —
 /// removing it would break a global install.
 #[test]

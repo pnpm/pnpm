@@ -1,12 +1,14 @@
 use super::{
-    super::cleanup_replaced_global_installs, BinSlotKind, FsArtifactProbe, FsRename,
-    FsSwapHashLink, SavedBinSlot, activate_global_install, directory_symlink_slots,
-    hash_linked_packages, needs_directory_symlink_removal,
+    super::{GlobalInstallCleanup, cleanup_replaced_global_installs, remove_global_installs},
+    BinSlotKind, FsArtifactProbe, FsRename, FsSwapHashLink, SavedBinSlot, activate_global_install,
+    directory_symlink_slots, hash_linked_packages, needs_directory_symlink_removal,
+    replace_global_bin_slots,
 };
 use miette::IntoDiagnostic;
 use pnpm_cmd_shim::{
     FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
     FsWalkFiles, FsWrite, Host, PackageBinSource, link_bins_of_packages_with_excludes,
+    link_virtual_shims,
 };
 use pnpm_fs::{force_symlink_dir, read_symlink_dir, remove_symlink_dir};
 use pnpm_global::GlobalPackageInfo;
@@ -391,6 +393,26 @@ fn partial_shim_failure_restores_exact_slots_and_hash_target() {
 }
 
 #[test]
+fn failed_batch_bin_replacement_restores_earlier_slots() {
+    let fixture = ActivationFixture::new(&["first", "second"]);
+    let first = fixture.seed_file_slot("first", b"old first\n", 0o751);
+    let second = fixture.seed_link_or_file_slot("second");
+    let bin_names = HashSet::from(["first".to_string(), "second".to_string()]);
+
+    let error = replace_global_bin_slots::<Host>(&fixture.global_bin_dir, &bin_names, || {
+        link_virtual_shims::<Host>("first-package", &["first"], &fixture.global_bin_dir)
+            .into_diagnostic()?;
+        Err(miette::miette!("injected later replacement failure"))
+    })
+    .expect_err("the injected replacement must fail");
+
+    assert!(format!("{error:?}").contains("injected later replacement failure"));
+    assert_eq!(slot_state(&fixture.global_bin_dir.join("first")), first);
+    assert_eq!(slot_state(&fixture.global_bin_dir.join("second")), second);
+    assert!(backup_dirs(&fixture.global_bin_dir).is_empty());
+}
+
+#[test]
 fn hash_swap_failure_restores_bins_and_hash_target() {
     let _guard = hash_failure_guard();
     HASH_FAILURE_CALLS.store(0, Ordering::SeqCst);
@@ -647,6 +669,36 @@ fn cleanup_removes_the_other_bins_but_keeps_a_group_whose_bin_removal_failed() {
     // group's manifests, so the group has to outlive the failure.
     assert!(blocked_bin.exists());
     assert!(install_dir.exists());
+}
+
+#[test]
+fn global_removal_reports_cleanup_failure_and_keeps_the_group() {
+    let root = tempfile::tempdir().expect("create global removal fixture");
+    let global_pkg_dir = root.path().join("global");
+    let global_bin_dir = root.path().join("bin");
+    let install_dir = global_pkg_dir.join("install");
+    fs::create_dir_all(global_bin_dir.join("blocked")).expect("create blocked bin directory");
+    let group = global_package_with_bins(&install_dir, "group-hash", &["blocked", "stale"]);
+    fs::write(global_bin_dir.join("stale"), b"stale\n").expect("seed stale bin");
+    let hash_link = pnpm_global::get_hash_link(&global_pkg_dir, "group-hash");
+    force_symlink_dir(&install_dir, &hash_link).expect("seed global hash link");
+    let bins_to_keep = HashSet::new();
+    let cleanup = GlobalInstallCleanup {
+        global_pkg_dir: &global_pkg_dir,
+        global_bin_dir: &global_bin_dir,
+        bins_to_keep: &bins_to_keep,
+        hash_to_keep: None,
+        context: "global",
+    };
+
+    let error = remove_global_installs(std::slice::from_ref(&group), &cleanup)
+        .expect_err("a directory cannot be removed as a bin file");
+
+    assert!(error.to_string().contains("remove global bin"));
+    assert!(global_bin_dir.join("blocked").is_dir());
+    assert!(!global_bin_dir.join("stale").exists());
+    assert!(hash_link.exists());
+    assert!(group.install_dir.exists());
 }
 
 #[cfg(windows)]

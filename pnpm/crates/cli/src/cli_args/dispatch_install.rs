@@ -140,7 +140,17 @@ pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<C
     if args.global {
         let config = (ctx.global_config)()?;
         args.lockfile_dir.apply_to_global(config)?;
-        global::handle_global_remove(config, &args.package_names)?;
+        match ctx.reporter {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                global::handle_global_remove::<DefaultReporter>(config, &args.package_names)?;
+            }
+            ReporterType::Ndjson => {
+                global::handle_global_remove::<NdjsonReporter>(config, &args.package_names)?;
+            }
+            ReporterType::Silent => {
+                global::handle_global_remove::<SilentReporter>(config, &args.package_names)?;
+            }
+        }
         return Ok(Box::pin(std::future::ready(Ok(()))));
     }
     let dir = ctx.dir;

@@ -104,6 +104,19 @@ enum GlobalActivationError {
         activation_error: Box<dyn Diagnostic + Send + Sync>,
     },
 
+    #[display(
+        "Failed to restore global bins after replacement failed. Recovery files remain at {}. Rollback error: {rollback_error}",
+        backup_dir.display()
+    )]
+    #[diagnostic(code(ERR_PNPM_GLOBAL_BIN_ROLLBACK_FAILED))]
+    BinReplacementRollbackFailed {
+        backup_dir: PathBuf,
+        rollback_error: String,
+        #[error(source)]
+        #[diagnostic_source]
+        replacement_error: Box<dyn Diagnostic + Send + Sync>,
+    },
+
     #[display("Failed to clean up after global bin activation failed.{remaining_artifacts}")]
     RollbackCleanupFailed {
         remaining_artifacts: String,
@@ -226,6 +239,58 @@ where
     Ok(Activation { activated_bins: actual_bin_names, leftover_backup })
 }
 
+/// Replace a batch of public bin slots as one recoverable operation.
+/// Every original shell flavor is backed up before the callback runs, and
+/// any callback failure restores the complete batch.
+pub(super) fn replace_global_bin_slots<Sys>(
+    global_bin_dir: &Path,
+    bin_names: &HashSet<String>,
+    replace_bins: impl FnOnce() -> miette::Result<()>,
+) -> miette::Result<Option<ArtifactCleanupError>>
+where
+    Sys: FsRename,
+{
+    let backup_dir = tempfile::Builder::new()
+        .prefix(".pnpm-bin-backup-")
+        .tempdir_in(global_bin_dir)
+        .into_diagnostic()
+        .wrap_err_with(|| {
+            format!("create global bin backup directory in {}", global_bin_dir.display())
+        })?;
+    let saved_bin_slots = backup_bin_slots(bin_names, backup_dir.path(), global_bin_dir)?;
+    if let Err(replacement_error) = replace_bins() {
+        if let Err(rollback_error) =
+            restore_bin_slots::<Sys>(global_bin_dir, bin_names, &saved_bin_slots)
+        {
+            let backup_dir = backup_dir.keep();
+            return Err(GlobalActivationError::BinReplacementRollbackFailed {
+                backup_dir,
+                rollback_error: format!("{rollback_error:?}"),
+                replacement_error: replacement_error.into(),
+            }
+            .into());
+        }
+        let backup_path = backup_dir.path().to_path_buf();
+        return match backup_dir.close() {
+            Ok(()) => Err(replacement_error),
+            Err(error) => Err(replacement_error.wrap_err(format!(
+                "Failed to remove the global bin backup directory at {}: {error}",
+                backup_path.display(),
+            ))),
+        };
+    }
+
+    let backup_path = backup_dir.path().to_path_buf();
+    let leftover_backup = backup_dir.close().err().map(|source| ArtifactCleanupError {
+        context: format!(
+            "Failed to remove the global bin backup directory at {}",
+            backup_path.display(),
+        ),
+        source,
+    });
+    Ok(leftover_backup)
+}
+
 fn activate_prepared_global_install<Sys: FsSwapHashLink>(
     install_dir: &Path,
     hash_link: &Path,
@@ -292,22 +357,11 @@ fn restore_global_install<Sys>(
 where
     Sys: FsSwapHashLink + FsRename,
 {
-    remove_current_bin_slots(
+    restore_bin_slots::<Sys>(
         global_bin_dir,
         &prepared.actual_bin_names,
         &prepared.saved_bin_slots,
     )?;
-    for saved_bin_slot in &prepared.saved_bin_slots {
-        Sys::rename(&saved_bin_slot.backup, &saved_bin_slot.original)
-            .into_diagnostic()
-            .wrap_err_with(|| {
-                format!(
-                    "restore global bin slot from {} to {}",
-                    saved_bin_slot.backup.display(),
-                    saved_bin_slot.original.display(),
-                )
-            })?;
-    }
     if let Some(old_hash_target) = &prepared.old_hash_target {
         Sys::swap_hash_link(old_hash_target, hash_link).into_diagnostic().wrap_err_with(|| {
             format!("restore global package hash link at {}", hash_link.display())
@@ -322,6 +376,26 @@ where
                 });
             }
         }
+    }
+    Ok(())
+}
+
+fn restore_bin_slots<Sys: FsRename>(
+    global_bin_dir: &Path,
+    bin_names: &HashSet<String>,
+    saved_bin_slots: &[SavedBinSlot],
+) -> miette::Result<()> {
+    remove_current_bin_slots(global_bin_dir, bin_names, saved_bin_slots)?;
+    for saved_bin_slot in saved_bin_slots {
+        Sys::rename(&saved_bin_slot.backup, &saved_bin_slot.original)
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!(
+                    "restore global bin slot from {} to {}",
+                    saved_bin_slot.backup.display(),
+                    saved_bin_slot.original.display(),
+                )
+            })?;
     }
     Ok(())
 }
