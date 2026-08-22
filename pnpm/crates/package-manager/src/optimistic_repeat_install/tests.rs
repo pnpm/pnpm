@@ -2404,7 +2404,7 @@ fn workspace_content_check_resolves_same_millisecond_mtime_collision_and_converg
     // Stamp the workspace state's last_validated_timestamp to the EXACT SAME
     // millisecond as the manifest's mtime (simulating a collision).
     let settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         dir.path().to_string_lossy().into_owned(),
@@ -2422,7 +2422,7 @@ fn workspace_content_check_resolves_same_millisecond_mtime_collision_and_converg
     assert_eq!(decision, Decision::UpToDate);
 
     // Verify the state was written.
-    let after_state = pacquet_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
+    let after_state = pnpm_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
     assert!(after_state.last_validated_timestamp > manifest_mtime_ms);
 
     // Second check: because the reference now post-dates the manifest's mtime,
@@ -2431,7 +2431,7 @@ fn workspace_content_check_resolves_same_millisecond_mtime_collision_and_converg
         content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
     assert_eq!(decision2, Decision::UpToDate);
 
-    let after_state2 = pacquet_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
+    let after_state2 = pnpm_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
     assert_eq!(after_state2.last_validated_timestamp, after_state.last_validated_timestamp);
 }
 
@@ -2462,7 +2462,7 @@ fn workspace_content_check_resolves_same_second_mtime_collision_and_converges() 
     // Stamp the workspace state's last_validated_timestamp to the EXACT SAME
     // millisecond as the manifest's mtime (simulating a collision).
     let settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         dir.path().to_string_lossy().into_owned(),
@@ -2481,7 +2481,7 @@ fn workspace_content_check_resolves_same_second_mtime_collision_and_converges() 
     assert_eq!(decision, Decision::UpToDate);
 
     // Verify the state was written.
-    let after_state = pacquet_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
+    let after_state = pnpm_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
     assert!(after_state.last_validated_timestamp >= manifest_mtime_ms + 1000);
 
     // Second check: because the reference now post-dates the manifest's mtime + 1s,
@@ -2490,7 +2490,7 @@ fn workspace_content_check_resolves_same_second_mtime_collision_and_converges() 
         content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
     assert_eq!(decision2, Decision::UpToDate);
 
-    let after_state2 = pacquet_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
+    let after_state2 = pnpm_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
     assert_eq!(after_state2.last_validated_timestamp, after_state.last_validated_timestamp);
 }
 
