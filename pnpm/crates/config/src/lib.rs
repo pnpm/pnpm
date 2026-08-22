@@ -834,6 +834,10 @@ pub struct Config {
     #[default(_code = "default_ci::<Host>(is_ci::cached)")]
     pub ci: bool,
 
+    /// Whether the default reporter renders dependency and download progress.
+    #[default = true]
+    pub progress: bool,
+
     /// The problem keys of the project's own `pnpm-workspace.yaml` (see
     /// [`WorkspaceKeyIssues`]), for the CLI to report. Empty when there is no
     /// workspace manifest or it is clean.

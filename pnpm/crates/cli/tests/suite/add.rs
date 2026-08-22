@@ -1,8 +1,8 @@
 use crate::_utils;
 
 use _utils::{
-    bravo_dep_mature_up_to_1_0_1_minimum_release_age, read_current_lockfile,
-    set_minimum_release_age,
+    append_workspace_yaml_key, bravo_dep_mature_up_to_1_0_1_minimum_release_age,
+    read_current_lockfile, set_minimum_release_age,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -364,6 +364,64 @@ fn add_runs_with_ndjson_and_silent_reporters() {
         );
 
         drop((root, npmrc_info)); // cleanup
+    }
+}
+
+#[test]
+fn add_can_disable_progress_output() {
+    for (name, args, env, workspace_config) in [
+        (
+            "--no-progress",
+            ["--reporter=append-only", "add", "@pnpm.e2e/hello-world-js-bin", "--no-progress"]
+                .as_slice(),
+            None,
+            false,
+        ),
+        (
+            "PNPM_CONFIG_PROGRESS=false",
+            ["--reporter=append-only", "add", "@pnpm.e2e/hello-world-js-bin"].as_slice(),
+            Some(("PNPM_CONFIG_PROGRESS", "false")),
+            false,
+        ),
+        (
+            "--config.progress=false",
+            [
+                "--reporter=append-only",
+                "add",
+                "@pnpm.e2e/hello-world-js-bin",
+                "--config.progress=false",
+            ]
+            .as_slice(),
+            None,
+            false,
+        ),
+        (
+            "progress: false",
+            ["--reporter=append-only", "add", "@pnpm.e2e/hello-world-js-bin"].as_slice(),
+            None,
+            true,
+        ),
+    ] {
+        let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        if let Some((key, value)) = env {
+            pacquet.env(key, value);
+        }
+        if workspace_config {
+            append_workspace_yaml_key(&workspace, "progress", false);
+        }
+
+        let output = pacquet.with_args(args).output().expect("run pacquet add");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "{name} failed\nstdout:\n{stdout}\nstderr:\n{stderr}");
+        assert!(!stdout.contains("Progress:"), "{name} printed progress:\n{stdout}");
+        assert!(
+            stdout.contains("dependencies:\n+ @pnpm.e2e/hello-world-js-bin"),
+            "{name} should preserve non-progress output:\n{stdout}",
+        );
+
+        drop((root, npmrc_info));
     }
 }
 

@@ -44,6 +44,16 @@ fn extract_reads_the_login_scope() {
 }
 
 #[test]
+fn extract_applies_progress_override() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.progress=false", "install"]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+    let mut config = Config { progress: true, ..Config::default() };
+    overrides.apply(&mut config);
+    assert!(!config.progress);
+}
+
+#[test]
 fn extract_accepts_the_on_fail_settings_as_bare_flags() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
         "pacquet",

@@ -91,6 +91,7 @@ pub struct ConfigOverrides {
     minimum_release_age_strict: Option<bool>,
     node_linker: Option<NodeLinker>,
     pm_on_fail: Option<PmOnFail>,
+    progress: Option<bool>,
     runtime_on_fail: Option<RuntimeOnFail>,
     shared_workspace_lockfile: Option<bool>,
     verify_deps_before_run: Option<VerifyDepsBeforeRun>,
@@ -187,6 +188,10 @@ impl ConfigOverrides {
             self.pm_on_fail = parse_enum(value);
             return;
         }
+        if key == "progress" {
+            self.progress = parse_bool(value);
+            return;
+        }
         if key == "runtime-on-fail" {
             self.runtime_on_fail = parse_enum(value);
             return;
@@ -265,6 +270,9 @@ impl ConfigOverrides {
         }
         if let Some(value) = self.pm_on_fail {
             config.pm_on_fail = Some(value);
+        }
+        if let Some(value) = self.progress {
+            config.progress = value;
         }
         if let Some(value) = self.runtime_on_fail {
             config.runtime_on_fail = Some(value);
