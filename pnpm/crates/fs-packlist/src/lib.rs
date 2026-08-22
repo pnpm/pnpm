@@ -501,10 +501,11 @@ fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
     let mut added = 0;
     for entry in entries {
         let Some(raw) = entry.as_str() else { continue };
-        let pattern = anchor_files_entry(&normalize_field_path(raw));
-        if pattern.is_empty() {
+        let normalized = normalize_field_path(raw);
+        if normalized.is_empty() {
             continue;
         }
+        let pattern = anchor_files_entry(&normalized);
         if let Err(error) = builder.add_line(None, &pattern) {
             tracing::debug!(
                 target: "pacquet::fs_packlist",
@@ -532,15 +533,12 @@ fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
     }
 }
 
-/// Anchor a `files` entry at the package root, the way npm reads it: a
-/// bare `src` publishes the root `src` directory, not every directory
-/// named `src` in the tree. The matcher is rooted at the package
-/// directory, so the leading slash is what binds the pattern to it.
-///
-/// Exclusions keep gitignore's depth semantics: `npm pack --dry-run`
-/// drops `lib/index.js.map` for `files: ["lib", "!*.map"]`.
+/// Anchor a [`normalize_field_path`]-ed `files` entry at the package
+/// root — the matcher is rooted there, so the leading slash is what
+/// binds the pattern to it. An exclusion is left unanchored, matching
+/// how npm-packlist hands a negated entry to `ignore-walk`.
 fn anchor_files_entry(pattern: &str) -> String {
-    if pattern.is_empty() || pattern.starts_with('!') || pattern.starts_with('/') {
+    if pattern.starts_with('!') {
         return pattern.to_string();
     }
     format!("/{pattern}")

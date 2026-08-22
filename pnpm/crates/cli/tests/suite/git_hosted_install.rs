@@ -922,9 +922,7 @@ fn a_git_dependency_is_prepared_with_the_package_manager_it_pins() {
 }
 
 /// A git dependency is packed by pnpm rather than by its publisher, so
-/// the `files` field decides what lands in `node_modules`. Its entries
-/// name paths from the package root: a repository that keeps an example
-/// app under `example/src` publishes its own `src`, not both.
+/// its `files` field is what decides the installed file set.
 #[test]
 fn files_field_of_a_git_dependency_does_not_match_at_depth() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

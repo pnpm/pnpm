@@ -766,9 +766,6 @@ fn always_excluded_dir_segments_only_match_vcs() {
 
 #[test]
 fn files_field_bare_basename_is_root_only() {
-    // `npm pack --dry-run` on `files: ["cli"]` publishes the root `cli`
-    // and leaves `bin/cli` and `lib/cli/index.js` out: every entry is
-    // anchored at the package root.
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");
@@ -1110,6 +1107,26 @@ fn files_field_keeps_explicitly_deep_patterns() {
         "name": "x",
         "version": "0.0.0",
         "files": ["lib", "!**/__tests__"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, vec!["lib/index.js".to_string(), "package.json".into()]);
+}
+
+#[test]
+fn files_field_exclusions_are_not_anchored() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "lib/index.js");
+    touch(root, "lib/index.js.map");
+    touch(root, "lib/nested/deep.js.map");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["lib", "!*.map"],
     });
     let mut out = packlist(root, &manifest).unwrap();
     out.sort();

@@ -894,9 +894,8 @@ fn write_workspace(workspace: &Path, inject_workspace_packages: bool) {
 }
 
 /// `deploy` copies a project through the directory fetcher's packlist
-/// mode, which reads the `files` field. Those entries name paths from
-/// the package root, so a project that keeps an example app under
-/// `example/src` deploys its own `src` and leaves the example behind.
+/// mode, so the project's `files` field is what decides the deployed
+/// file set.
 #[test]
 fn deployed_files_field_does_not_match_at_depth() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
