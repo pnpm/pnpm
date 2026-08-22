@@ -739,6 +739,13 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     FindWorkspaceProjects(#[error(source)] pnpm_workspace::FindWorkspaceProjectsError),
 
+    /// `disallowWorkspaceCycles` and the projects this install covers
+    /// depend on each other in a cycle.
+    #[diagnostic(transparent)]
+    CyclicWorkspaceDependencies(
+        #[error(source)] crate::workspace_cycles::CyclicWorkspaceDependenciesError,
+    ),
+
     /// Building the verifier list from config rejected a
     /// `minimumReleaseAgeExclude` or `trustPolicyExclude` pattern.
     /// The `INVALID_MINIMUM_RELEASE_AGE_EXCLUDE` /

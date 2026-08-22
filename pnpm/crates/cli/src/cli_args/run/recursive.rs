@@ -12,9 +12,9 @@
 
 use super::{RunArgs, RunContext, ScriptSelector, render_project_commands, run_stages};
 use crate::cli_args::recursive::{
-    AutoExcludeRoot, ExecutionStatus, GraphPkg, Status, count_failures,
-    discover_workspace_projects, get_resumed_package_chunks, select_recursive_projects,
-    sort_filtered_projects, write_recursive_summary,
+    AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
+    get_resumed_package_chunks, select_recursive_projects, sort_filtered_projects,
+    write_recursive_summary,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -22,6 +22,7 @@ use miette::{Diagnostic, IntoDiagnostic, WrapErr};
 use pnpm_config::Config;
 use pnpm_package_manager::{make_node_package_map_option, package_map_path_for_execution};
 use pnpm_reporter::{LogEvent, LogLevel, ScopeLog};
+use pnpm_workspace::GraphPkg;
 use pnpm_workspace_projects_graph::ProjectGraph;
 use std::{
     collections::HashMap,

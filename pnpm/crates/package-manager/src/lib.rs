@@ -36,6 +36,7 @@ mod update;
 mod update_project_manifest;
 mod update_project_manifest_object;
 mod warn_on_stale_convergence_overrides;
+mod workspace_cycles;
 
 pub use add::*;
 pub use build_resolution_verifiers::*;
@@ -64,6 +65,10 @@ pub use tarball_prefetch::*;
 pub use update::*;
 pub use update_project_manifest::*;
 pub use update_project_manifest_object::*;
+pub use workspace_cycles::{
+    CyclicWorkspaceDependenciesError, install_scope_cycles, report_workspace_cycles,
+    workspace_cycles,
+};
 
 /// The dependency groups a project installs directly — `dependencies`,
 /// `devDependencies`, `optionalDependencies` — in the order pnpm's

@@ -12,17 +12,16 @@ use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::{Config, LinkWorkspacePackages};
 use pnpm_package_manager::{GraphSequencerResult, graph_sequencer};
-use pnpm_package_manifest::DependencyGroup;
 use pnpm_workspace::{
-    FindWorkspaceProjectsOpts, Project, find_workspace_projects, importer_id_from_root_dir,
-    read_workspace_manifest, workspace_package_patterns,
+    FindWorkspaceProjectsOpts, GraphPkg, Project, find_workspace_projects,
+    importer_id_from_root_dir, read_workspace_manifest, workspace_package_patterns,
 };
 use pnpm_workspace_projects_filter::{
     FilterWorkspaceProjectsOptions, ProjectSelector, filter_workspace_projects,
     parse_project_selector,
 };
 use pnpm_workspace_projects_graph::{
-    BaseProject, CreateProjectsGraphOptions, GraphProject, ProjectGraph, create_projects_graph,
+    BaseProject, CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
 };
 use serde::Serialize;
 use std::{
@@ -541,8 +540,9 @@ impl AutoExcludeRoot<'_> {
         let AutoExcludeRoot::Enabled { workspace_patterns } = self else {
             return None;
         };
-        // pnpm additionally suppresses the exclusion under
-        // `--include-workspace-root`, which pacquet does not surface yet.
+        if config.include_workspace_root {
+            return None;
+        }
         // An inclusion selector already pins the selected set, so the
         // root is kept only if it matches one.
         if config
@@ -577,49 +577,6 @@ fn relative_workspace_dir(config: &Config, prefix: &Path) -> String {
 /// Whether the workspace enumerates the root project only.
 fn is_root_only_patterns(patterns: &[String]) -> bool {
     patterns.len() == 1 && patterns[0] == "."
-}
-
-/// Adapter that lets a [`Project`] feed `create_projects_graph`. Owns
-/// nothing beyond a borrow of the project; the graph reads the manifest
-/// name, version, and dependency groups through it.
-#[derive(Clone, Copy)]
-pub struct GraphPkg<'a> {
-    pub project: &'a Project,
-}
-
-impl BaseProject for GraphPkg<'_> {
-    fn root_dir(&self) -> &Path {
-        &self.project.root_dir
-    }
-
-    fn manifest_name(&self) -> Option<&str> {
-        self.project.manifest.value().get("name").and_then(|name| name.as_str())
-    }
-}
-
-impl GraphProject for GraphPkg<'_> {
-    fn manifest_version(&self) -> Option<&str> {
-        self.project.manifest.value().get("version").and_then(|version| version.as_str())
-    }
-
-    fn merged_dependencies(&self, ignore_dev_deps: bool) -> Vec<(String, String)> {
-        // Precedence: peer, then dev (unless excluded), then optional,
-        // then prod, with a later group overwriting an earlier
-        // duplicate's specifier while keeping the first-seen position.
-        let mut merged: IndexMap<String, String> = IndexMap::new();
-        let mut absorb = |group: DependencyGroup| {
-            for (name, spec) in self.project.manifest.dependencies([group]) {
-                merged.insert(name.to_string(), spec.to_string());
-            }
-        };
-        absorb(DependencyGroup::Peer);
-        if !ignore_dev_deps {
-            absorb(DependencyGroup::Dev);
-        }
-        absorb(DependencyGroup::Optional);
-        absorb(DependencyGroup::Prod);
-        merged.into_iter().collect()
-    }
 }
 
 /// `pnpm-exec-summary.json` top-level shape: `{ "executionStatus": { ... } }`.

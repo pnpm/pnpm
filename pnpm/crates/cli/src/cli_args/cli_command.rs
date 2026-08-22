@@ -199,6 +199,24 @@ pub struct CliArgs {
     #[clap(long = "fail-if-no-match", global = true)]
     pub fail_if_no_match: bool,
 
+    /// Also run a recursive command on the root workspace project, which
+    /// `run` / `exec` / `add` / `test` otherwise leave out.
+    #[clap(
+        long = "include-workspace-root",
+        global = true,
+        overrides_with = "no_include_workspace_root"
+    )]
+    pub include_workspace_root: bool,
+
+    /// Leave the root workspace project out of a recursive command,
+    /// overriding an `includeWorkspaceRoot: true` setting.
+    #[clap(
+        long = "no-include-workspace-root",
+        global = true,
+        overrides_with = "include_workspace_root"
+    )]
+    pub no_include_workspace_root: bool,
+
     /// Glob patterns naming test files, used by the `[since]` `--filter`
     /// selector to decide which changes count.
     #[clap(long = "test-pattern", global = true)]

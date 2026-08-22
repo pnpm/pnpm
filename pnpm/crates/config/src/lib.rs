@@ -1797,6 +1797,26 @@ pub struct Config {
     /// [`Self::filter`].
     pub fail_if_no_match: bool,
 
+    /// `includeWorkspaceRoot` — whether a recursive command also runs on
+    /// the workspace root project. `run`, `exec`, `add`, and `test`
+    /// exclude the root from an unnarrowed recursive selection; this
+    /// setting keeps it in. Universal `--include-workspace-root` /
+    /// `--no-include-workspace-root` flag, `pnpm-workspace.yaml` key, and
+    /// `PNPM_CONFIG_INCLUDE_WORKSPACE_ROOT`.
+    pub include_workspace_root: bool,
+
+    /// `ignoreWorkspaceCycles` — suppress the report a recursive install
+    /// makes when the selected workspace projects depend on each other
+    /// in a cycle. See [`Self::disallow_workspace_cycles`] for what the
+    /// report is.
+    pub ignore_workspace_cycles: bool,
+
+    /// `disallowWorkspaceCycles` — make a cycle among the selected
+    /// workspace projects an error (`ERR_PNPM_DISALLOW_WORKSPACE_CYCLES`)
+    /// rather than a warning. [`Self::ignore_workspace_cycles`] wins over
+    /// it: nothing is reported at all under that setting.
+    pub disallow_workspace_cycles: bool,
+
     /// `testPattern` from `pnpm-workspace.yaml` /
     /// `PNPM_CONFIG_TEST_PATTERN`, overridable by the `--test-pattern`
     /// CLI flag. Glob patterns naming test files: when a `[<since>]`

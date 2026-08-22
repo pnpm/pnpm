@@ -125,5 +125,6 @@ mod view;
 mod whoami;
 mod why;
 mod with;
+mod workspace_cycles;
 mod workspace_install;
 mod workspace_settings_check;

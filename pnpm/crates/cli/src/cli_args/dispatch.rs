@@ -1,6 +1,7 @@
 use super::{
     cli_command::{CliArgs, CliCommand},
     dispatch_install, dispatch_query, dispatch_script,
+    install::resolve_bool_override,
     reporter::{ReporterType, configure_default_reporter, configure_max_log_level, reporter_emit},
 };
 use crate::{
@@ -178,6 +179,9 @@ impl CliArgs {
             filter_prod,
             workspace_root,
             fail_if_no_match,
+
+            include_workspace_root,
+            no_include_workspace_root,
             test_pattern,
             changed_files_ignore_pattern,
             version: _,
@@ -269,6 +273,12 @@ impl CliArgs {
                 cfg.filter_prod.clone_from(&filter_prod);
                 cfg.workspace_root = workspace_root;
                 cfg.fail_if_no_match = fail_if_no_match;
+
+                cfg.include_workspace_root = resolve_bool_override(
+                    include_workspace_root,
+                    no_include_workspace_root,
+                    cfg.include_workspace_root,
+                );
                 // Unlike the CLI-only selectors above, these two are
                 // genuine config keys — the flag overrides yaml / env
                 // only when actually given.
