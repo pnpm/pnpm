@@ -109,20 +109,6 @@ pub fn sort_filtered_projects<Pkg>(
     }
 }
 
-/// The dependency cycles among the selected workspace projects, or `None`
-/// when they can be ordered.
-///
-/// Edges are read from the selection alone — two selected projects
-/// connected only through an unselected one are not a cycle here, matching
-/// what pnpm reports. The cycle list can be empty for an unorderable
-/// selection, which is why the verdict is the `Option` rather than the
-/// list's emptiness.
-#[must_use]
-pub fn workspace_cycles<Pkg>(selected: &ProjectGraph<Pkg>) -> Option<Vec<Vec<PathBuf>>> {
-    let sequenced = sequence_graph(selected, selected);
-    (!sequenced.safe).then_some(sequenced.cycles)
-}
-
 /// Sort `graph` into topologically ordered chunks: every project in chunk
 /// `i` depends only on projects in earlier chunks, so chunk `i` may run
 /// after chunks `0..i`.

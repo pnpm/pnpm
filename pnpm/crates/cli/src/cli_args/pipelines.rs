@@ -7,7 +7,7 @@ use super::{
     prune::PruneArgs,
     recursive::{
         AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
-        sort_filtered_projects, workspace_cycles,
+        sort_filtered_projects,
     },
     remove::RemoveArgs,
     update::UpdateArgs,
@@ -25,7 +25,7 @@ use crate::{
 };
 use miette::Context;
 use pnpm_config::Config;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter, ScopeLog};
+use pnpm_reporter::{LogEvent, LogLevel, Reporter, ScopeLog};
 use std::{
     collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
@@ -147,8 +147,9 @@ pub(crate) fn select_workspace_projects(
         let selected_dirs = Arc::new(selection.selected.keys().cloned().collect());
         // Skipped outright under `ignoreWorkspaceCycles`: nothing reports
         // the verdict then, so nothing has to compute it.
-        let workspace_cycles =
-            (!cfg.ignore_workspace_cycles).then(|| workspace_cycles(&selection.selected)).flatten();
+        let workspace_cycles = (!cfg.ignore_workspace_cycles)
+            .then(|| pnpm_package_manager::workspace_cycles(&selection.selected))
+            .flatten();
         (ordered_groups, ordered_dirs, selected_dirs, workspace_cycles)
     };
 
@@ -173,51 +174,19 @@ pub(crate) fn select_workspace_projects(
     }))
 }
 
-/// Report workspace projects that depend on each other in a cycle: an
-/// error under `disallowWorkspaceCycles`, otherwise a warning against the
-/// workspace root. `ignoreWorkspaceCycles` already left
-/// [`InstallFamilySelection::workspace_cycles`] as `None`, so a selection
-/// carrying cycles here is one the user asked to hear about.
+/// Report workspace projects that depend on each other in a cycle over
+/// the resolved selection. A full install reports over the whole
+/// workspace instead, from the installer.
 fn report_workspace_cycles<Reporter: self::Reporter>(
     cfg: &Config,
     selection: &InstallFamilySelection,
 ) -> miette::Result<()> {
-    let Some(cycles) = selection.workspace_cycles.as_deref() else {
-        return Ok(());
-    };
-    let message = format!("There are cyclic workspace dependencies{}", render_cycles(cycles));
-    if cfg.disallow_workspace_cycles {
-        return Err(WorkspaceCyclesError { message }.into());
-    }
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Warn,
-        message,
-        prefix: selection.workspace_root.to_string_lossy().into_owned(),
-    }));
-    Ok(())
-}
-
-/// The `: <cycle>; <cycle>` tail of the cyclic-dependencies message, with
-/// each cycle rendered as its comma-separated project directories. Empty
-/// when the sequencer could not name the cycles.
-fn render_cycles(cycles: &[Vec<PathBuf>]) -> String {
-    if cycles.is_empty() {
-        return String::new();
-    }
-    let rendered = cycles
-        .iter()
-        .map(|cycle| cycle.iter().map(|dir| dir.to_string_lossy()).collect::<Vec<_>>().join(", "))
-        .collect::<Vec<_>>()
-        .join("; ");
-    format!(": {rendered}")
-}
-
-#[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
-#[display("{message}")]
-#[diagnostic(code(ERR_PNPM_DISALLOW_WORKSPACE_CYCLES))]
-struct WorkspaceCyclesError {
-    #[error(not(source))]
-    message: String,
+    pnpm_package_manager::report_workspace_cycles::<Reporter>(
+        cfg,
+        &selection.workspace_root,
+        selection.workspace_cycles.as_deref(),
+    )
+    .map_err(miette::Report::new)
 }
 
 /// Build the project-anchored `State` for one project of a

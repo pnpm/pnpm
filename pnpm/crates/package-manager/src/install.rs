@@ -57,7 +57,6 @@ mod materialize;
 mod modules_state;
 mod prepare_modules_state;
 mod run;
-mod workspace_cycles;
 mod workspace_state;
 
 use apply_materialization::{ApplyMaterializationInputs, apply_materialization_result};
@@ -87,8 +86,6 @@ use modules_state::{
 use prepare_modules_state::{
     PrepareModulesStateInputs, PreparedModulesState, prepare_modules_state,
 };
-pub use workspace_cycles::CyclicWorkspaceDependenciesError;
-use workspace_cycles::report_workspace_cycles;
 use workspace_state::{
     ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,
     build_selected_project_manifests_list, configured_or_discovered_workspace_dir,
@@ -742,10 +739,12 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     FindWorkspaceProjects(#[error(source)] pnpm_workspace::FindWorkspaceProjectsError),
 
-    /// `disallowWorkspaceCycles` and the selected projects depend on
-    /// each other in a cycle.
+    /// `disallowWorkspaceCycles` and the projects this install covers
+    /// depend on each other in a cycle.
     #[diagnostic(transparent)]
-    CyclicWorkspaceDependencies(#[error(source)] CyclicWorkspaceDependenciesError),
+    CyclicWorkspaceDependencies(
+        #[error(source)] crate::workspace_cycles::CyclicWorkspaceDependenciesError,
+    ),
 
     /// Building the verifier list from config rejected a
     /// `minimumReleaseAgeExclude` or `trustPolicyExclude` pattern.

@@ -7,7 +7,7 @@
 //! selection resolves through the prod-pruned graph so the dev edges it
 //! dropped are not pulled back in.
 
-use super::{sequence_graph, sort_filtered_projects, sort_projects, workspace_cycles};
+use super::{sequence_graph, sort_filtered_projects, sort_projects};
 use pnpm_workspace_projects_graph::{ProjectGraph, ProjectGraphNode};
 use pretty_assertions::assert_eq;
 use std::{collections::HashSet, path::PathBuf};
@@ -173,28 +173,4 @@ fn detects_a_cycle_that_passes_through_unselected_projects() {
     let result = sequence_graph(&select(&graph, &["a", "c"]), &graph);
     dbg!(&result);
     assert!(!result.safe, "a -> b -> c -> a is a cycle once b is tunneled through");
-}
-
-/// The cycle report reads edges from the selection alone, so two selected
-/// projects joined only through an unselected one are not reported — even
-/// though the *order* is still resolved through that project (the test
-/// above). pnpm reports the same way: its check sequences the selected
-/// graph on its own.
-#[test]
-fn workspace_cycles_reads_edges_from_the_selection_alone() {
-    let graph = make_graph(&[("a", &["b"]), ("b", &["c"]), ("c", &["a"])]);
-    assert_eq!(workspace_cycles(&select(&graph, &["a", "c"])), None);
-}
-
-#[test]
-fn workspace_cycles_names_the_projects_of_a_cycle() {
-    let graph = make_graph(&[("a", &["b"]), ("b", &["a"]), ("c", &[])]);
-    let cycles = workspace_cycles(&graph).expect("a <-> b is a cycle");
-    assert_eq!(cycles, vec![dirs(&["a", "b"])]);
-}
-
-#[test]
-fn an_orderable_selection_has_no_cycles() {
-    let graph = make_graph(&[("a", &["b"]), ("b", &[])]);
-    assert_eq!(workspace_cycles(&graph), None);
 }

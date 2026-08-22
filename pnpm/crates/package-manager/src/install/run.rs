@@ -12,8 +12,8 @@ use super::{
     dev_preinstall_already_ran, emit_initial_package_manifest,
     get_catalogs_from_workspace_manifest, gvs_build_marker_present,
     gvs_build_markers_may_require_recovery, load_workspace_projects, lockfile_root_dir,
-    map_frozen_lockfile_error, materialize, prepare_modules_state, report_workspace_cycles,
-    run_dev_preinstall, selected_manifest_freshness_inputs, try_fast_update_lockfile,
+    map_frozen_lockfile_error, materialize, prepare_modules_state, run_dev_preinstall,
+    selected_manifest_freshness_inputs, try_fast_update_lockfile,
     unapproved_recorded_ignored_builds, verify_lockfile_eagerly,
 };
 use pnpm_config::Config;
@@ -228,9 +228,15 @@ where
             // `update`, ...) has no set to cycle within.
             if let Some((workspace_dir, projects)) =
                 workspace_dir_opt.as_deref().zip(workspace_wide)
+                && !config.ignore_workspace_cycles
             {
-                report_workspace_cycles::<Reporter>(config, workspace_dir, projects)
-                    .map_err(InstallError::CyclicWorkspaceDependencies)?;
+                let cycles = crate::workspace_wide_cycles(config, projects);
+                crate::report_workspace_cycles::<Reporter>(
+                    config,
+                    workspace_dir,
+                    cycles.as_deref(),
+                )
+                .map_err(InstallError::CyclicWorkspaceDependencies)?;
             }
             Reporter::emit(&LogEvent::Scope(ScopeLog {
                 level: LogLevel::Debug,
