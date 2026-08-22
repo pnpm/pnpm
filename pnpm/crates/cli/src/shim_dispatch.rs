@@ -261,7 +261,7 @@ fn bypass_requested() -> bool {
 /// and never a discovered ancestor of the pnpm home. (The env override
 /// is only as trustworthy as the environment itself; tools like direnv
 /// can scope it per directory.)
-fn global_shims_setting() -> GlobalShims {
+pub(crate) fn global_shims_setting() -> GlobalShims {
     match load_global_shims_setting() {
         Ok(shims) => shims,
         Err(error) => {
