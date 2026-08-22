@@ -72,9 +72,9 @@ use crate::{
         scoped_meta_dir,
     },
     pick_package_from_meta::{
-        PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
-        RegistryPackageSpecType, dominant_lockfile_version, filter_pkg_metadata_versions,
-        pick_lowest_version_by_version_range, pick_package_from_meta,
+        EngineConstraint, PickPackageFromMetaError, PickPackageFromMetaOptions,
+        RegistryPackageSpec, RegistryPackageSpecType, dominant_lockfile_version,
+        filter_pkg_metadata_versions, pick_lowest_version_by_version_range, pick_package_from_meta,
         pick_stable_cached_range_version, pick_version_by_version_range,
     },
     registry_url::to_registry_url,
@@ -351,6 +351,7 @@ pub struct PickPackageOptions<'a> {
     /// candidate, the caller asks the normal picker to try again over
     /// the same packument with that version filtered out.
     pub blocked_versions: Option<&'a HashSet<String>>,
+    pub engine_constraint: Option<EngineConstraint<'a>>,
 }
 
 /// Outcome of a successful [`pick_package`] call. `meta` is shared as
@@ -466,6 +467,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         pick_lowest_version: opts.pick_lowest_version,
         include_latest_tag: opts.include_latest_tag,
         ignore_missing_time_field: ctx.ignore_missing_time_field,
+        engine_constraint: opts.engine_constraint.clone(),
     };
 
     // The per-registry answer is authoritative when the caller can give one:
@@ -932,6 +934,7 @@ struct PickerOpts<'a> {
     pick_lowest_version: bool,
     include_latest_tag: bool,
     ignore_missing_time_field: bool,
+    engine_constraint: Option<EngineConstraint<'a>>,
 }
 
 /// Picker that may throw a recoverable
@@ -1013,6 +1016,7 @@ fn pick_matching_version_final(
                 pick_lowest_version: picker_opts.pick_lowest_version,
                 include_latest_tag: picker_opts.include_latest_tag,
                 ignore_missing_time_field: picker_opts.ignore_missing_time_field,
+                engine_constraint: picker_opts.engine_constraint.clone(),
             };
             pick_matching_version_fast(&fallback, spec, meta)
         }
@@ -1045,6 +1049,7 @@ fn pick_respecting_min_release_age(
             preferred_version_selectors: picker_opts.preferred_version_selectors,
             published_by: None,
             published_by_exclude: None,
+            engine_constraint: picker_opts.engine_constraint.clone(),
         };
         pick_package_from_meta(
             pick_lowest_version_by_version_range,
@@ -1126,6 +1131,7 @@ fn meta_opts<'a>(picker_opts: &'a PickerOpts<'_>) -> PickPackageFromMetaOptions<
         preferred_version_selectors: picker_opts.preferred_version_selectors,
         published_by: picker_opts.published_by,
         published_by_exclude: picker_opts.published_by_exclude,
+        engine_constraint: picker_opts.engine_constraint.clone(),
     }
 }
 

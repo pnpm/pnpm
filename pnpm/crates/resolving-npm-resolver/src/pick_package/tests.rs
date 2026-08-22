@@ -141,6 +141,7 @@ fn default_opts(registry: &str) -> PickPackageOptions<'_> {
         update_checksums: false,
         trust_policy: None,
         blocked_versions: None,
+        engine_constraint: None,
     }
 }
 

@@ -29,6 +29,7 @@ export const pnpmTypes = {
   'enable-global-virtual-store': Boolean,
   'exclude-links-from-lockfile': Boolean,
   'extend-node-path': Boolean,
+  'engines-filtering': ['strict', 'none'],
   'fetch-timeout': Number,
   'fetch-warn-timeout-ms': Number,
   'fetch-min-speed-ki-bps': Number,

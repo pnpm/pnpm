@@ -134,6 +134,7 @@ export interface Config extends OptionsFromRootManifest {
   force?: boolean
   depth?: number
   engineStrict?: boolean
+  enginesFiltering?: 'strict' | 'none'
   nodeVersion?: string
   nodeDownloadMirrors?: Record<string, string>
   offline?: boolean

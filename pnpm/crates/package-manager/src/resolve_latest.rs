@@ -110,6 +110,7 @@ impl<'a> LatestPicker<'a> {
             update_checksums: false,
             trust_policy: Some(self.config.trust_policy),
             blocked_versions: None,
+            engine_constraint: None,
         };
         let ctx = pick_package_context(
             self.http_client,

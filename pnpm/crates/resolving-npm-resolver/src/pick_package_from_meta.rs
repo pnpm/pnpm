@@ -79,6 +79,19 @@ impl RegistryPackageSpec {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum EnginesFiltering {
+    #[default]
+    None,
+    Strict,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct EngineConstraint<'a> {
+    pub node_version: Option<&'a str>,
+    pub engines_filtering: EnginesFiltering,
+}
+
 /// Options bundle for [`pick_package_from_meta`].
 #[derive(Debug, Default)]
 pub struct PickPackageFromMetaOptions<'a> {
@@ -95,6 +108,7 @@ pub struct PickPackageFromMetaOptions<'a> {
     /// restricts it to a trusted-versions allowlist
     /// (`ExactVersions`).
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
+    pub engine_constraint: Option<EngineConstraint<'a>>,
 }
 
 /// Error from [`pick_package_from_meta`] and friends. The codes are
@@ -209,6 +223,7 @@ where
                     version_range: &spec.fetch_spec,
                     preferred_version_selectors: opts.preferred_version_selectors,
                     published_by: opts.published_by,
+                    engine_constraint: opts.engine_constraint.clone(),
                 })
             }
         };
@@ -272,6 +287,78 @@ pub struct PickVersionByVersionRangeOptions<'a> {
     /// but the field stays on the options so a custom picker (e.g.
     /// the min-release-age picker) can branch on it.
     pub published_by: Option<chrono::DateTime<chrono::Utc>>,
+    pub engine_constraint: Option<EngineConstraint<'a>>,
+}
+
+pub fn is_engine_compatible(
+    manifest_node_engine: Option<&str>,
+    target_node_version: Option<&str>,
+) -> bool {
+    let (Some(wanted_node), Some(node_ver)) = (manifest_node_engine, target_node_version) else {
+        return true;
+    };
+    let Ok(wanted_range) = Range::parse(wanted_node) else {
+        return true;
+    };
+    if let Ok(ver) = Version::parse(node_ver) {
+        return wanted_range.satisfies(&ver);
+    }
+    if let Ok(target_range) = Range::parse(node_ver) {
+        return wanted_range.allows_any(&target_range);
+    }
+    true
+}
+
+pub fn filter_meta_by_engine(
+    meta: &Package,
+    constraint: Option<&EngineConstraint<'_>>,
+) -> Option<Package> {
+    let constraint = constraint?;
+    if constraint.engines_filtering != EnginesFiltering::Strict {
+        return None;
+    }
+    let target_node = constraint.node_version?;
+    let all_keys: Vec<_> = meta.versions.keys().cloned().collect();
+    let compatible_keys: Vec<_> = all_keys
+        .iter()
+        .filter(|version_key| {
+            let engine_node = meta.versions.get(version_key.as_str()).and_then(|ver| {
+                ver.other
+                    .get("engines")
+                    .and_then(|e| e.get("node"))
+                    .and_then(|n| n.as_str())
+                    .map(str::to_string)
+            });
+            is_engine_compatible(engine_node.as_deref(), Some(target_node))
+        })
+        .cloned()
+        .collect();
+
+    if compatible_keys.len() == all_keys.len() {
+        return None;
+    }
+
+    let mut filtered = Package {
+        name: meta.name.clone(),
+        dist_tags: meta.dist_tags.clone(),
+        versions: meta
+            .versions
+            .filtered(|candidate| compatible_keys.iter().any(|k| k == candidate)),
+        time: meta.time.clone(),
+        modified: meta.modified.clone(),
+        etag: meta.etag.clone(),
+        homepage: meta.homepage.clone(),
+        mutex: Arc::default(),
+        derived: DerivedPackuments::default(),
+    };
+
+    if let Some(latest) = meta.dist_tag("latest")
+        && !compatible_keys.iter().any(|k| k == latest)
+    {
+        filtered.dist_tags.remove("latest");
+    }
+
+    Some(filtered)
 }
 
 /// Pick the **highest** version in `meta.versions` satisfying
@@ -281,12 +368,20 @@ pub struct PickVersionByVersionRangeOptions<'a> {
 pub fn pick_version_by_version_range(
     opts: &PickVersionByVersionRangeOptions<'_>,
 ) -> Option<String> {
-    let latest = opts.meta.dist_tag("latest");
+    let filtered_meta;
+    let meta =
+        if let Some(filtered) = filter_meta_by_engine(opts.meta, opts.engine_constraint.as_ref()) {
+            filtered_meta = filtered;
+            &filtered_meta
+        } else {
+            opts.meta
+        };
+    let latest = meta.dist_tag("latest");
 
     if let Some(selectors) = opts.preferred_version_selectors
         && !selectors.is_empty()
     {
-        let groups = prioritize_preferred_versions(opts.meta, opts.version_range, Some(selectors));
+        let groups = prioritize_preferred_versions(meta, opts.version_range, Some(selectors));
         for group in groups {
             if let Some(latest) = latest
                 && group.iter().any(|version| version == latest)
@@ -310,16 +405,16 @@ pub fn pick_version_by_version_range(
         }
     }
 
-    let all_versions: Vec<&str> = opts.meta.versions.keys().map(String::as_str).collect();
+    let all_versions: Vec<&str> = meta.versions.keys().map(String::as_str).collect();
     let max_pick = max_satisfying(&all_versions, opts.version_range);
 
     if let Some(ref picked) = max_pick {
-        let picked_is_deprecated = opts.meta.versions.is_deprecated(picked);
+        let picked_is_deprecated = meta.versions.is_deprecated(picked);
         if picked_is_deprecated && all_versions.len() > 1 {
             let non_deprecated: Vec<&str> = all_versions
                 .iter()
                 .copied()
-                .filter(|version| !opts.meta.versions.is_deprecated(version))
+                .filter(|version| !meta.versions.is_deprecated(version))
                 .collect();
             if let Some(non_deprecated_max) = max_satisfying(&non_deprecated, opts.version_range) {
                 return Some(non_deprecated_max);
@@ -336,10 +431,18 @@ pub fn pick_version_by_version_range(
 pub fn pick_lowest_version_by_version_range(
     opts: &PickVersionByVersionRangeOptions<'_>,
 ) -> Option<String> {
+    let filtered_meta;
+    let meta =
+        if let Some(filtered) = filter_meta_by_engine(opts.meta, opts.engine_constraint.as_ref()) {
+            filtered_meta = filtered;
+            &filtered_meta
+        } else {
+            opts.meta
+        };
     if let Some(selectors) = opts.preferred_version_selectors
         && !selectors.is_empty()
     {
-        let groups = prioritize_preferred_versions(opts.meta, opts.version_range, Some(selectors));
+        let groups = prioritize_preferred_versions(meta, opts.version_range, Some(selectors));
         for group in groups {
             if let Some(pick) = min_satisfying(&group, opts.version_range) {
                 return Some(pick);
@@ -347,7 +450,7 @@ pub fn pick_lowest_version_by_version_range(
         }
     }
 
-    let all_versions: Vec<&str> = opts.meta.versions.keys().map(String::as_str).collect();
+    let all_versions: Vec<&str> = meta.versions.keys().map(String::as_str).collect();
     if opts.version_range == "*" {
         let mut parsed: Vec<(Version, &str)> = all_versions
             .iter()
@@ -376,6 +479,7 @@ pub fn pick_stable_cached_range_version(
         version_range,
         preferred_version_selectors,
         published_by: None,
+        engine_constraint: None,
     })?;
     (picked == dominant).then_some(dominant)
 }

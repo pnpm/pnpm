@@ -13,11 +13,17 @@ import semver from 'semver'
 
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 
+export interface EngineConstraint {
+  nodeVersion?: string
+  enginesFiltering?: 'strict' | 'none'
+}
+
 export interface PickVersionByVersionRangeOptions {
   meta: PackageMeta
   versionRange: string
   preferredVersionSelectors?: VersionSelectors
   publishedBy?: Date
+  engineConstraint?: EngineConstraint
 }
 
 export type PickVersionByVersionRange = (options: PickVersionByVersionRangeOptions) => string | null
@@ -26,6 +32,7 @@ export interface PickPackageFromMetaOptions {
   preferredVersionSelectors: VersionSelectors | undefined
   publishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
+  engineConstraint?: EngineConstraint
 }
 
 export function pickPackageFromMeta (
@@ -34,6 +41,7 @@ export function pickPackageFromMeta (
     preferredVersionSelectors,
     publishedBy,
     publishedByExclude,
+    engineConstraint,
   }: PickPackageFromMetaOptions,
   meta: PackageMeta,
   spec: RegistryPackageSpec
@@ -78,6 +86,7 @@ export function pickPackageFromMeta (
           versionRange: spec.fetchSpec,
           preferredVersionSelectors,
           publishedBy,
+          engineConstraint,
         })
         break
     }
@@ -160,9 +169,54 @@ function parseModifiedDate (modified: string | undefined): Date | null {
   return date
 }
 
+export function isEngineCompatible (
+  manifest: { engines?: { node?: string } },
+  nodeVersion?: string
+): boolean {
+  if (!nodeVersion) return true
+  const wantedNode = manifest.engines?.node
+  if (!wantedNode) return true
+  if (semver.valid(nodeVersion)) {
+    return semver.satisfies(nodeVersion, wantedNode, { includePrerelease: true })
+  }
+  if (semver.validRange(nodeVersion)) {
+    return semver.intersects(nodeVersion, wantedNode, { includePrerelease: true })
+  }
+  return true
+}
+
+export function filterMetaByEngine (meta: PackageMeta, engineConstraint?: EngineConstraint): PackageMeta {
+  if (!engineConstraint || engineConstraint.enginesFiltering !== 'strict' || !engineConstraint.nodeVersion) {
+    return meta
+  }
+  const { nodeVersion } = engineConstraint
+  const allVersions = Object.keys(meta.versions)
+  const compatibleVersions = allVersions.filter((v) => isEngineCompatible(meta.versions[v], nodeVersion))
+  if (compatibleVersions.length === allVersions.length) {
+    return meta
+  }
+
+  const filteredVersions: Record<string, PackageInRegistry> = {}
+  for (const v of compatibleVersions) {
+    filteredVersions[v] = meta.versions[v]
+  }
+
+  const distTags = { ...meta['dist-tags'] }
+  if (distTags.latest && !filteredVersions[distTags.latest]) {
+    delete distTags.latest
+  }
+
+  return {
+    ...meta,
+    'dist-tags': distTags,
+    versions: filteredVersions,
+  }
+}
+
 export function pickLowestVersionByVersionRange (
-  { meta, versionRange, preferredVersionSelectors }: PickVersionByVersionRangeOptions
+  { meta, versionRange, preferredVersionSelectors, engineConstraint }: PickVersionByVersionRangeOptions
 ): string | null {
+  meta = filterMetaByEngine(meta, engineConstraint)
   if (preferredVersionSelectors != null && Object.keys(preferredVersionSelectors).length > 0) {
     const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVersionSelectors)
     for (const preferredVersions of prioritizedPreferredVersions) {
@@ -178,7 +232,8 @@ export function pickLowestVersionByVersionRange (
   return minSatisfyingLoose(Object.keys(meta.versions), versionRange)
 }
 
-export function pickVersionByVersionRange ({ meta, versionRange, preferredVersionSelectors }: PickVersionByVersionRangeOptions): string | null {
+export function pickVersionByVersionRange ({ meta, versionRange, preferredVersionSelectors, engineConstraint }: PickVersionByVersionRangeOptions): string | null {
+  meta = filterMetaByEngine(meta, engineConstraint)
   const latest: string | undefined = meta['dist-tags'].latest
 
   if (preferredVersionSelectors != null && Object.keys(preferredVersionSelectors).length > 0) {
@@ -223,11 +278,12 @@ export function pickStableCachedRangeVersion ({
   meta,
   preferredVersionSelectors,
   versionRange,
+  engineConstraint,
 }: PickVersionByVersionRangeOptions): string | null {
   const dominantLockfileVersion = getDominantLockfileVersion(versionRange, preferredVersionSelectors)
   if (dominantLockfileVersion == null || meta.versions[dominantLockfileVersion] == null) return null
   try {
-    const pickedVersion = pickVersionByVersionRange({ meta, preferredVersionSelectors, versionRange })
+    const pickedVersion = pickVersionByVersionRange({ meta, preferredVersionSelectors, versionRange, engineConstraint })
     return pickedVersion === dominantLockfileVersion ? dominantLockfileVersion : null
   } catch {
     return null
