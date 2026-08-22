@@ -1,5 +1,8 @@
-use super::{installed_shims, virtual_shim_package, virtual_shims};
-use pnpm_cmd_shim::{Host as CmdShimHost, link_virtual_shims};
+use super::{
+    installed_shims, record_virtual_shim_state, remove_virtual_shim_state,
+    virtual_shim_bins_to_restore, virtual_shim_owner, virtual_shim_state_path, virtual_shims,
+};
+use pnpm_cmd_shim::{Host as CmdShimHost, link_virtual_shims, virtual_shim_package};
 use std::{collections::HashMap, fs};
 use tempfile::tempdir;
 
@@ -47,6 +50,15 @@ fn only_the_named_package_s_shims_are_reported() {
 #[test]
 fn a_body_that_only_mentions_the_marker_is_not_a_shim() {
     assert_eq!(virtual_shim_package("echo '# cmd-shim-target=pkg:yarn'\n"), None);
+}
+
+#[test]
+fn a_binary_in_the_global_bin_slot_is_not_a_virtual_shim() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("tool");
+    fs::write(&path, [0xff, 0xfe]).unwrap();
+
+    assert_eq!(virtual_shim_owner(&path).unwrap(), None);
 }
 
 /// A globally installed package manager opts into project-aware
@@ -105,4 +117,23 @@ fn a_bin_name_with_an_extension_is_still_discovered() {
     link_virtual_shims::<CmdShimHost>("tool", &["tool.js"], dir.path()).expect("link the shim");
 
     assert_eq!(installed_shims(dir.path(), "tool"), ["tool.js"]);
+}
+
+#[test]
+fn restoration_state_round_trips_scoped_packages_and_bins() {
+    let dir = tempdir().unwrap();
+    let bins = vec!["tool".to_string(), "tool.js".to_string()];
+
+    record_virtual_shim_state(dir.path(), "@scope/tool", &bins).expect("record state");
+
+    assert_eq!(virtual_shim_bins_to_restore(dir.path(), "@scope/tool").expect("read state"), bins);
+    let state_path = virtual_shim_state_path(dir.path(), "@scope/tool");
+    assert_eq!(state_path.parent(), Some(dir.path()));
+
+    remove_virtual_shim_state(dir.path(), "@scope/tool").expect("remove state");
+    assert!(
+        virtual_shim_bins_to_restore(dir.path(), "@scope/tool")
+            .expect("read removed state")
+            .is_empty(),
+    );
 }

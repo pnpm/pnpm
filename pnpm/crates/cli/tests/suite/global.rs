@@ -53,6 +53,15 @@ fn global_command(workspace: &Path, pnpm_home: &Path) -> Command {
 }
 
 #[cfg(unix)]
+fn global_shim_command(workspace: &Path, pnpm_home: &Path, root: &Path, registry: &str) -> Command {
+    global_command(workspace, pnpm_home)
+        .with_env("XDG_STATE_HOME", root.join("state"))
+        .with_env("XDG_CONFIG_HOME", root.join("config"))
+        .with_env("XDG_CACHE_HOME", root.join("cache-home"))
+        .with_env("PNPM_CONFIG_REGISTRY", registry)
+}
+
+#[cfg(unix)]
 fn symlink_entries(dir: &Path) -> Vec<PathBuf> {
     let Ok(entries) = fs::read_dir(dir) else { return Vec::new() };
     entries
@@ -198,6 +207,96 @@ fn global_shims_all_prefers_local_bins() {
         .with_env("XDG_CONFIG_HOME", root.path().join("config"))
         .assert()
         .success();
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn global_install_preserves_virtual_shim_ownership_and_restores_it_on_remove() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let shim_path = global_bin.join("touch-file-one-bin");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    let registry = npmrc_info.mock_instance.url();
+
+    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+        .with_args(["shim", "add", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    let virtual_shim = fs::read_to_string(&shim_path).expect("read virtual shim");
+    assert!(
+        virtual_shim.contains("# cmd-shim-target=pkg:@foo/touch-file-one-bin"),
+        "shim was:\n{virtual_shim}",
+    );
+
+    let unrelated = root.path().join("unrelated");
+    fs::create_dir_all(&unrelated).expect("create unrelated package");
+    fs::write(
+        unrelated.join("package.json"),
+        serde_json::json!({
+            "name": "unrelated",
+            "version": "1.0.0",
+            "bin": { "touch-file-one-bin": "cli.js" },
+        })
+        .to_string(),
+    )
+    .expect("write unrelated manifest");
+    fs::write(unrelated.join("cli.js"), "#!/usr/bin/env node\n").expect("write unrelated bin");
+    let unrelated_selector = format!("file:{}", unrelated.display());
+    let collision = global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+        .with_args(["add", "-g", &unrelated_selector])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&collision.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_GLOBAL_BIN_CONFLICT"), "{stderr}");
+    assert!(stderr.contains("pnpm shim rm @foo/touch-file-one-bin"), "{stderr}");
+    assert_eq!(fs::read_to_string(&shim_path).unwrap(), virtual_shim);
+
+    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+        .with_args(["add", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    let backed_shim = fs::read_to_string(&shim_path).expect("read backed shim");
+    assert!(backed_shim.contains("# pnpm-shim-style=context-aware"), "{backed_shim}");
+    assert!(!backed_shim.contains("cmd-shim-target=pkg:"), "{backed_shim}");
+
+    let collision = global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+        .with_args(["add", "-g", &unrelated_selector])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&collision.get_output().stderr);
+    assert!(stderr.contains("pnpm shim rm @foo/touch-file-one-bin"), "{stderr}");
+    assert_eq!(fs::read_to_string(&shim_path).unwrap(), backed_shim);
+
+    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+        .with_args(["remove", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    let restored_shim = fs::read_to_string(&shim_path).expect("read restored virtual shim");
+    assert!(
+        restored_shim.contains("# cmd-shim-target=pkg:@foo/touch-file-one-bin"),
+        "shim was:\n{restored_shim}",
+    );
+
+    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+        .with_args(["add", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+        .with_args(["shim", "rm", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+        .with_args(["remove", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    assert!(!shim_path.exists(), "shim rm must cancel restoration after global removal");
 
     drop(npmrc_info);
     drop(root);

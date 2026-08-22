@@ -2,7 +2,7 @@ use super::{
     ScriptRuntime, ShimStyle, escape_msys_cmd_switches, extension_program, generate_cmd_shim,
     generate_pwsh_shim, generate_sh_shim, is_context_aware_shim, is_shim_pointing_at,
     parse_shebang, parse_shebang_from_bytes, read_head_filled, relative_target,
-    search_script_runtime, strip_exe_suffix,
+    search_script_runtime, strip_exe_suffix, virtual_shim_package,
 };
 use crate::{
     capabilities::{FsReadHead, Host},
@@ -43,6 +43,14 @@ fn parses_direct_shebang() {
 fn rejects_non_shebang_lines() {
     assert!(parse_shebang("just text").is_none());
     assert!(parse_shebang("#! ").is_none());
+}
+
+#[test]
+fn reads_the_package_from_a_generated_virtual_shim() {
+    let body = super::generate_virtual_sh_shim("@scope/tool", Path::new("/bin/tool"));
+
+    assert_eq!(virtual_shim_package(&body), Some("@scope/tool"));
+    assert_eq!(virtual_shim_package("echo '# cmd-shim-target=pkg:@scope/tool'\n"), None);
 }
 
 #[test]

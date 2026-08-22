@@ -16,7 +16,10 @@ use crate::{
         approve_builds::ApproveBuildsArgs,
         ignored_builds::get_automatically_ignored_builds,
         rebuild::run_rebuild,
-        shim::record_package_manager_shims,
+        shim::{
+            record_package_manager_shims, virtual_shim_bins_to_restore, virtual_shim_owner,
+            virtual_shim_restoration_owners,
+        },
     },
     engine_pm::selector::tool_install_selector,
     shim_dispatch::install_dispatcher,
@@ -25,7 +28,7 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_cmd_shim::{
     Host as CmdShimHost, LinkBinsOptions, PackageBinSource, link_bins_of_packages_context_aware,
-    link_bins_of_packages_with_excludes, remove_bin,
+    link_bins_of_packages_with_excludes, link_virtual_shims, remove_bin,
 };
 use pnpm_config::{
     CatalogMode, Config, WorkspaceSettings, check_global_bin_dir, decided_allow_builds,
@@ -45,7 +48,7 @@ use pnpm_resolving_parse_wanted_dependency::{
     is_valid_old_npm_package_name, parse_wanted_dependency,
 };
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fs,
     io::IsTerminal,
     path::{Path, PathBuf},
@@ -81,6 +84,15 @@ pub enum GlobalError {
     #[display(r#"Invalid package name "{name}"."#)]
     #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_NAME))]
     InvalidPackageName { name: String },
+
+    #[display(
+        r#"Cannot install {packages}: binary "{bin}" is reserved by the project-aware shim for "{shim_package}""#
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_GLOBAL_BIN_CONFLICT),
+        help(r#"Remove the shim first with "pnpm shim rm {shim_package}"."#)
+    )]
+    VirtualShimBinConflict { packages: String, bin: String, shim_package: String },
 }
 
 /// Resolve the global packages and global bin directories, erroring with
@@ -243,6 +255,11 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         let aliases = dependencies.iter().map(|(alias, _)| alias.clone()).collect::<Vec<_>>();
         let aliases_to_replace = replacement_aliases(&aliases);
 
+        if let Err(error) = check_virtual_shim_conflicts(&pkgs, &global_bin_dir) {
+            let _ = fs::remove_dir_all(&install_dir);
+            return Err(error);
+        }
+
         let bins_to_skip = match check_global_bin_conflicts(
             &global_pkg_dir,
             &global_bin_dir,
@@ -352,6 +369,10 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
 
         let pkgs = read_installed_packages(&install_dir);
         let dependencies = read_direct_dependencies(&install_dir);
+        if let Err(error) = check_virtual_shim_conflicts(&pkgs, &global_bin_dir) {
+            let _ = fs::remove_dir_all(&install_dir);
+            return Err(error);
+        }
         let bins_to_skip = match check_global_bin_conflicts(
             &global_pkg_dir,
             &global_bin_dir,
@@ -457,11 +478,98 @@ pub fn handle_global_remove(base_config: &'static Config, params: &[String]) -> 
     let protected = bin_names_of_other_groups(&global_pkg_dir, &exclude)
         .into_diagnostic()
         .wrap_err("scan global packages")?;
+    let shims_to_restore = virtual_shims_to_restore(&groups, &global_bin_dir, &protected)?;
+    if !shims_to_restore.is_empty() {
+        install_dispatcher(&global_bin_dir)
+            .into_diagnostic()
+            .wrap_err("install the global shim dispatcher")?;
+    }
 
     for pkg in &groups {
         remove_group(&global_pkg_dir, &global_bin_dir, pkg, &protected);
     }
+    for (package, bins) in shims_to_restore {
+        let bin_refs = bins.iter().map(String::as_str).collect::<Vec<_>>();
+        link_virtual_shims::<CmdShimHost>(&package, &bin_refs, &global_bin_dir)
+            .map_err(miette::Report::new)
+            .wrap_err_with(|| format!("restore the {package} shims"))?;
+    }
     Ok(())
+}
+
+fn check_virtual_shim_conflicts(
+    packages: &[PackageBinSource],
+    global_bin_dir: &Path,
+) -> miette::Result<()> {
+    let mut providers_by_bin: HashMap<String, BTreeSet<String>> = HashMap::new();
+    for package in packages {
+        let package_name =
+            package.manifest.get("name").and_then(serde_json::Value::as_str).unwrap_or("");
+        for command in pnpm_cmd_shim::get_bins_from_package_manifest::<CmdShimHost>(
+            &package.manifest,
+            &package.location,
+        ) {
+            providers_by_bin.entry(command.name).or_default().insert(package_name.to_string());
+        }
+    }
+    if providers_by_bin.is_empty() {
+        return Ok(());
+    }
+    let restoration_owners = virtual_shim_restoration_owners(global_bin_dir)?;
+    for (bin, providers) in providers_by_bin {
+        let bin_path = global_bin_dir.join(&bin);
+        let owner = virtual_shim_owner(&bin_path)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("inspect global bin at {}", bin_path.display()))?;
+        let owner = owner.as_ref().or_else(|| restoration_owners.get(&bin));
+        let Some(owner) = owner else { continue };
+        if providers.len() == 1 && providers.contains(owner) {
+            continue;
+        }
+        return Err(GlobalError::VirtualShimBinConflict {
+            packages: providers.into_iter().collect::<Vec<_>>().join(", "),
+            bin,
+            shim_package: owner.clone(),
+        }
+        .into());
+    }
+    Ok(())
+}
+
+fn virtual_shims_to_restore(
+    groups: &[GlobalPackageInfo],
+    global_bin_dir: &Path,
+    protected: &HashSet<String>,
+) -> miette::Result<BTreeMap<String, BTreeSet<String>>> {
+    let enabled = crate::shim_dispatch::global_shims_setting();
+    let mut shims = BTreeMap::<String, BTreeSet<String>>::new();
+    for group in groups {
+        for package in read_installed_packages(&group.install_dir) {
+            let Some(package_name) =
+                package.manifest.get("name").and_then(serde_json::Value::as_str)
+            else {
+                continue;
+            };
+            if !enabled.is_enabled(package_name) {
+                continue;
+            }
+            let recorded = virtual_shim_bins_to_restore(global_bin_dir, package_name)?
+                .into_iter()
+                .collect::<HashSet<_>>();
+            if recorded.is_empty() {
+                continue;
+            }
+            for command in pnpm_cmd_shim::get_bins_from_package_manifest::<CmdShimHost>(
+                &package.manifest,
+                &package.location,
+            ) {
+                if recorded.contains(&command.name) && !protected.contains(&command.name) {
+                    shims.entry(package_name.to_string()).or_default().insert(command.name);
+                }
+            }
+        }
+    }
+    Ok(shims)
 }
 
 /// Install `selectors` into a fresh group directory under `global_pkg_dir`,

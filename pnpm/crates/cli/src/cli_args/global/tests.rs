@@ -1,9 +1,18 @@
 use super::{
-    infer_local_package_alias, is_windows_drive_path, replacement_aliases, resolve_local_param,
-    should_replace_existing_package, split_comma_separated, update_selectors,
+    check_virtual_shim_conflicts, infer_local_package_alias, is_windows_drive_path,
+    replacement_aliases, resolve_local_param, should_replace_existing_package,
+    split_comma_separated, update_selectors,
 };
+use pnpm_cmd_shim::{Host as CmdShimHost, PackageBinSource, link_virtual_shims};
 use pnpm_global::GlobalPackageInfo;
-use std::path::{Path, PathBuf};
+use serde_json::json;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
+use crate::cli_args::shim::record_virtual_shim_state;
 
 #[test]
 fn comma_splits_into_selectors() {
@@ -19,6 +28,43 @@ fn urls_are_kept_whole() {
         split_comma_separated("https://example.com/a,b.tgz", base),
         vec!["https://example.com/a,b.tgz"],
     );
+}
+
+#[test]
+fn a_virtual_shim_only_yields_to_its_own_package() {
+    let root = tempfile::tempdir().expect("create temp directory");
+    let bin_dir = root.path().join("bin");
+    let package_dir = root.path().join("package");
+    fs::create_dir_all(&package_dir).expect("create package directory");
+    fs::write(package_dir.join("cli.js"), "").expect("write package bin");
+    link_virtual_shims::<CmdShimHost>("owner", &["tool"], &bin_dir).expect("link virtual shim");
+
+    let owner = PackageBinSource::new(
+        package_dir.clone(),
+        Arc::new(json!({ "name": "owner", "bin": { "tool": "cli.js" } })),
+    );
+    check_virtual_shim_conflicts(&[owner], &bin_dir).expect("allow the owning package");
+
+    let unrelated = PackageBinSource::new(
+        package_dir.clone(),
+        Arc::new(json!({ "name": "unrelated", "bin": { "tool": "cli.js" } })),
+    );
+    let error = check_virtual_shim_conflicts(std::slice::from_ref(&unrelated), &bin_dir)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains(r#"project-aware shim for "owner""#), "{error}");
+
+    fs::write(bin_dir.join("tool"), "globally installed shim").expect("replace virtual shim");
+    record_virtual_shim_state(&bin_dir, "owner", &["tool".to_string()])
+        .expect("record restoration state");
+    let error = check_virtual_shim_conflicts(&[unrelated], &bin_dir).unwrap_err().to_string();
+    assert!(error.contains(r#"project-aware shim for "owner""#), "{error}");
+
+    let owner = PackageBinSource::new(
+        package_dir,
+        Arc::new(json!({ "name": "owner", "bin": { "tool": "cli.js" } })),
+    );
+    check_virtual_shim_conflicts(&[owner], &bin_dir).expect("allow the recorded owner");
 }
 
 #[test]
