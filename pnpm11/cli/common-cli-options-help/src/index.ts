@@ -152,7 +152,7 @@ export const OUTPUT_OPTIONS = {
       name: '--reporter ndjson',
     },
     {
-      description: 'Disable dependency progress output',
+      description: 'Disable dependency and download progress output',
       name: '--no-progress',
     },
   ],
