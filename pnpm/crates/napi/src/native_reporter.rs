@@ -57,7 +57,7 @@ pub struct ReporterOptions {
     /// Keep dependency build-script output in its collapsed block instead
     /// of streaming every line.
     pub hide_lifecycle_output: Option<bool>,
-    /// Replaces the "Run \"pnpm approve-builds\"…" line under the list of
+    /// Replaces the `Run "pnpm approve-builds" ...` line under the list of
     /// packages whose build scripts were blocked. For an embedder whose
     /// users approve builds through its own configuration.
     pub ignored_builds_instruction_text: Option<String>,
