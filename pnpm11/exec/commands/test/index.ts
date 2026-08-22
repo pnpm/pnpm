@@ -825,6 +825,29 @@ test('RegExp script matching executes multiple scripts in package.json order whe
   expect(outputLog).toBe('zam')
 })
 
+test('RegExp script matching executes multiple scripts in alphabetical order when sequential is not set', async () => {
+  prepare({
+    scripts: {
+      'build:z': 'node -e "require(\'fs\').appendFileSync(\'./order.log\', \'z\')"',
+      'build:a': 'node -e "require(\'fs\').appendFileSync(\'./order.log\', \'a\')"',
+      'build:m': 'node -e "require(\'fs\').appendFileSync(\'./order.log\', \'m\')"',
+    },
+  })
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    pnpmHomeDir: '',
+    workspaceConcurrency: 1,
+  }, ['/^build:.*/'])
+
+  const outputLog = fs.readFileSync(path.join(process.cwd(), 'order.log'), 'utf-8')
+  expect(outputLog).toBe('amz')
+})
+
 test('passing --sequential option sets effective workspaceConcurrency to 1 for matched scripts without timing flakes', async () => {
   prepare({
     scripts: {
