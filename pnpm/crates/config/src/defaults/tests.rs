@@ -8,7 +8,7 @@ use super::{
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
 use pnpm_store_dir::{STORE_VERSION, StoreDir};
 use pretty_assertions::assert_eq;
-use std::{io, path::PathBuf};
+use std::{fs, io, path::PathBuf};
 
 #[cfg(windows)]
 use super::{default_store_dir_windows, get_drive_letter};
@@ -21,7 +21,8 @@ fn display_store_dir(store_dir: &StoreDir) -> String {
 
 #[test]
 fn configured_relative_state_dir_stays_inside_machine_state_root() {
-    let state_root = std::env::temp_dir().join("pnpm-state-root");
+    let root = tempfile::tempdir().unwrap();
+    let state_root = root.path().join("pnpm-state-root");
     let default_state_dir = state_root.join("pnpm");
 
     assert_eq!(
@@ -33,6 +34,22 @@ fn configured_relative_state_dir_stays_inside_machine_state_root() {
         PathBuf::new(),
     );
     assert!(resolve_configured_state_dir(&default_state_dir, "../outside").as_os_str().is_empty());
+}
+
+#[test]
+fn configured_relative_state_dir_rejects_a_symlink_escape() {
+    let root = tempfile::tempdir().unwrap();
+    let state_root = root.path().join("state");
+    let outside = root.path().join("project");
+    fs::create_dir_all(&state_root).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    pnpm_fs::symlink_dir(&outside, &state_root.join("project-link")).unwrap();
+
+    assert!(
+        resolve_configured_state_dir(&state_root.join("pnpm"), "project-link")
+            .as_os_str()
+            .is_empty(),
+    );
 }
 
 /// The `home_dir` and `current_dir` capability impls call

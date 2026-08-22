@@ -186,9 +186,10 @@ where
 
 /// Resolve a configured `stateDir` without making its meaning depend on the
 /// current project. Relative values replace the default directory's `pnpm`
-/// leaf under the machine state root. Values that escape that root, or lack a
-/// stable absolute root, resolve to an empty path so trust and runtime
-/// consumers fail closed.
+/// leaf under the machine state root. Existing symlinks are resolved before
+/// containment is checked and the resolved path is returned. Values that
+/// escape that root, or cannot be resolved from a stable absolute root,
+/// produce an empty path so trust and runtime consumers fail closed.
 #[must_use]
 pub fn resolve_configured_state_dir(default_state_dir: &Path, configured: &str) -> PathBuf {
     let configured = Path::new(configured);
@@ -201,6 +202,15 @@ pub fn resolve_configured_state_dir(default_state_dir: &Path, configured: &str) 
     };
     let state_root = pnpm_fs::lexical_normalize(state_root);
     let resolved = pnpm_fs::lexical_normalize(&state_root.join(configured));
+    if !resolved.starts_with(&state_root) {
+        return PathBuf::new();
+    }
+    let Ok(state_root) = pnpm_fs::realpath_missing(&state_root) else {
+        return PathBuf::new();
+    };
+    let Ok(resolved) = pnpm_fs::realpath_missing(&resolved) else {
+        return PathBuf::new();
+    };
     if resolved.starts_with(&state_root) { resolved } else { PathBuf::new() }
 }
 
