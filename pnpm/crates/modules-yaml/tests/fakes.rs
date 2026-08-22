@@ -9,8 +9,8 @@
 use chrono::{TimeZone, Utc};
 use pipe_trait::Pipe;
 use pnpm_modules_yaml::{
-    Clock, DepPath, FsCreateDirAll, FsReadToString, FsWrite, Modules, read_modules_manifest,
-    write_modules_manifest,
+    Clock, DepPath, FsCreateDirAll, FsReadToString, FsWrite, Modules, read_modules_layout,
+    read_modules_manifest, write_modules_manifest,
 };
 use pretty_assertions::assert_eq;
 use std::{path::Path, time::SystemTime};
@@ -172,6 +172,16 @@ fn read_reports_an_incompatible_layout_version_as_no_layout() {
         .expect("manifest exists");
     dbg!(&manifest.layout_version);
     assert_eq!(manifest.layout_version, None);
+
+    // `ModulesLayout` carries its own copy of the field, and it is the
+    // one the install's drift check reads.
+    let layout = "/dev/null/unused"
+        .pipe(Path::new)
+        .pipe(read_modules_layout::<LegacyVersion>)
+        .expect("read layout")
+        .expect("layout exists");
+    dbg!(&layout.layout_version);
+    assert_eq!(layout.layout_version, None);
 }
 
 /// `ignoredBuilds` deserializes into an [`IndexSet`]: the on-disk array

@@ -7,7 +7,8 @@
 use indexmap::IndexMap;
 use pipe_trait::Pipe;
 use pnpm_modules_yaml::{
-    HoistKind, Host, Modules, read_modules_layout, read_modules_manifest, write_modules_manifest,
+    HoistKind, Host, LayoutVersion, Modules, read_modules_layout, read_modules_manifest,
+    write_modules_manifest,
 };
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
@@ -248,6 +249,37 @@ fn yaml_fallback_keeps_depth_budget() {
     ] {
         let error = result.expect_err("excessive depth must be rejected");
         assert!(error.to_string().to_lowercase().contains("depth"), "{error}");
+    }
+}
+
+/// A `layoutVersion` naming a layout this build does not emit reads as
+/// `None` through both readers — the install rebuilds `node_modules`
+/// rather than failing on a manifest it could otherwise read. `5.0` is
+/// the same number as `5` in JSON, so it is the same version here.
+#[test]
+fn incompatible_layout_versions_read_as_no_layout_version() {
+    let temp_dir = tempfile::tempdir().expect("create temporary directory");
+    let modules_dir = temp_dir.path();
+    for (recorded, expected) in [
+        (json!(5), Some(LayoutVersion)),
+        (json!(5.0), Some(LayoutVersion)),
+        (json!(4), None),
+        (json!(-1), None),
+        (json!(1e9), None),
+    ] {
+        eprintln!("CASE: layoutVersion {recorded}");
+        fs::write(
+            modules_dir.join(".modules.yaml"),
+            json!({ "layoutVersion": recorded }).to_string(),
+        )
+        .expect("write manifest");
+        let manifest = read_modules_manifest::<Host>(modules_dir)
+            .expect("read manifest")
+            .expect("manifest exists");
+        assert_eq!(manifest.layout_version, expected);
+        let layout =
+            read_modules_layout::<Host>(modules_dir).expect("read layout").expect("layout exists");
+        assert_eq!(layout.layout_version, expected);
     }
 }
 

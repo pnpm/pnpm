@@ -328,20 +328,25 @@ impl TryFrom<u32> for LayoutVersion {
     }
 }
 
-/// Read `layoutVersion`, reporting a version this build does not support
-/// as `None` — the same "layout predates this pnpm" signal a missing
-/// field carries, which the caller reacts to by rebuilding
-/// `node_modules`. Rejecting it at parse time instead would make the
-/// whole manifest unreadable, and an unreadable manifest fails the
-/// install. pnpm reads any number here too and defers the decision to
+/// Read `layoutVersion`, reporting any number that is not the version
+/// this build supports as `None` — the same "layout predates this pnpm"
+/// signal a missing field carries, which the caller reacts to by
+/// rebuilding `node_modules`. Rejecting it at parse time instead would
+/// make the whole manifest unreadable, and an unreadable manifest fails
+/// the install. pnpm reads any number here too and defers the decision to
 /// its own compatibility check.
+///
+/// The number is read as `f64` because that is the one JSON numeric type,
+/// so `5` and `5.0` are the same version to pnpm and must be here too.
 fn deserialize_layout_version<'de, Deser>(
     deserializer: Deser,
 ) -> Result<Option<LayoutVersion>, Deser::Error>
 where
     Deser: serde::Deserializer<'de>,
 {
-    Ok(Option::<u32>::deserialize(deserializer)?
+    Ok(Option::<f64>::deserialize(deserializer)?
+        .filter(|found| found.fract() == 0.0)
+        .and_then(|found| u32::try_from(found as i64).ok())
         .and_then(|found| LayoutVersion::try_from(found).ok()))
 }
 

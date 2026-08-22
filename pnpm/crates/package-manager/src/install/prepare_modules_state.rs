@@ -76,12 +76,11 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
     } = inputs;
     // A no-op still refreshes workspace state so `verifyDepsBeforeRun`
     // does not treat the materialized tree as stale.
-    // An unreadable state file fails the install rather than being read
-    // as layout drift. Treating it as drift would purge `node_modules`
-    // — including whatever the user put there themselves — and silently
-    // relink the whole tree on every run, which is how a manifest the
-    // reader could not parse surfaced as an endless re-link
-    // (<https://github.com/pnpm/pnpm/issues/14062>). The TypeScript CLI's
+    // An unreadable state file fails the install rather than reading as
+    // layout drift: the drift path purges `node_modules` — the entries
+    // the user keeps there included — and relinks the whole tree, and it
+    // would do so on every run, because the manifest it rewrites is no
+    // more readable than the one it replaced. The TypeScript CLI's
     // `readModulesManifest` rethrows everything but `ENOENT` for the same
     // reason.
     let old_modules = if !resolve_only || take_frozen_path {
