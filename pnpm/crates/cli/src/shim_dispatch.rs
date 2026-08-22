@@ -33,6 +33,7 @@ use pnpm_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
 use pnpm_config::{
     Config, GlobalShims, GlobalShimsSetting, Host, LoadWorkspaceYamlError, ShimPolicy,
     WorkspaceSettings, default_config_dir, default_pnpm_home_dir, default_state_dir,
+    resolve_configured_state_dir,
 };
 use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes};
 use pnpm_engine_runtime_node_resolver::parse_node_specifier;
@@ -304,15 +305,19 @@ pub(crate) enum LoadGlobalShimsSettingError {
 }
 
 fn load_trusted_shim_settings() -> Result<TrustedShimSettings, LoadGlobalShimsSettingError> {
-    let base_dir = std::env::current_dir().unwrap_or_default();
     let mut shims = GlobalShims::default();
-    let mut state_dir = default_state_dir::<Host>().unwrap_or_default();
+    let default_state_dir = default_state_dir::<Host>().unwrap_or_default();
+    let mut state_dir = default_state_dir.clone();
     if let Some(config_dir) = default_config_dir::<Host>() {
         let mut settings = WorkspaceSettings::load_global(&config_dir)
             .map_err(LoadGlobalShimsSettingError::Workspace)?;
         if let Some(settings) = settings.as_mut() {
             settings.substitute_env_trusted::<Host>();
-            apply_state_dir_setting(&mut state_dir, settings.state_dir.as_deref(), &base_dir);
+            apply_state_dir_setting(
+                &mut state_dir,
+                settings.state_dir.as_deref(),
+                &default_state_dir,
+            );
             if let Some(layer) = settings.global_shims.as_ref() {
                 shims.apply(layer);
             }
@@ -321,14 +326,17 @@ fn load_trusted_shim_settings() -> Result<TrustedShimSettings, LoadGlobalShimsSe
     apply_settings_above_global_config(&mut shims)?;
     let mut env_settings = WorkspaceSettings::from_pnpm_config_env::<Host>();
     env_settings.substitute_env_trusted::<Host>();
-    apply_state_dir_setting(&mut state_dir, env_settings.state_dir.as_deref(), &base_dir);
+    apply_state_dir_setting(&mut state_dir, env_settings.state_dir.as_deref(), &default_state_dir);
     Ok(TrustedShimSettings { shims, state_dir })
 }
 
-fn apply_state_dir_setting(state_dir: &mut PathBuf, setting: Option<&str>, base_dir: &Path) {
+fn apply_state_dir_setting(
+    state_dir: &mut PathBuf,
+    setting: Option<&str>,
+    default_state_dir: &Path,
+) {
     let Some(setting) = setting.filter(|setting| !setting.is_empty()) else { return };
-    let setting = Path::new(setting);
-    *state_dir = if setting.is_absolute() { setting.to_path_buf() } else { base_dir.join(setting) };
+    *state_dir = resolve_configured_state_dir(default_state_dir, setting);
 }
 
 /// Apply the `globalShims` layers that outrank the global `config.yaml`:

@@ -1576,9 +1576,6 @@ impl WorkspaceSettings {
         if let Some(v) = self.store_dir {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));
         }
-        if let Some(v) = self.state_dir.filter(|value| !value.is_empty()) {
-            config.state_dir = resolve(base_dir, &v);
-        }
         let mut declared_prefixes = false;
         if let Some(entries) = self.registries {
             let lookups = registries::into_lookups(entries);

@@ -1,9 +1,12 @@
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
 use pnpm_store_dir::StoreDir;
-use std::{env, path::PathBuf};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 #[cfg(windows)]
-use std::path::{Component, Path};
+use std::path::Component;
 
 pub fn default_hoist_pattern() -> Vec<String> {
     vec!["*".to_string()]
@@ -179,6 +182,21 @@ where
         local_app_data.as_deref(),
         Sys::home_dir,
     )
+}
+
+/// Resolve a configured `stateDir` without making its meaning depend on the
+/// current project. Relative values replace the default directory's `pnpm`
+/// leaf under the machine state root; without a stable absolute root they
+/// resolve to an empty path so trust and runtime consumers fail closed.
+pub fn resolve_configured_state_dir(default_state_dir: &Path, configured: &str) -> PathBuf {
+    let configured = Path::new(configured);
+    if configured.is_absolute() {
+        return configured.to_path_buf();
+    }
+    default_state_dir
+        .parent()
+        .filter(|state_root| state_root.is_absolute())
+        .map_or_else(PathBuf::new, |state_root| state_root.join(configured))
 }
 
 /// Resolve the default packument-cache directory.

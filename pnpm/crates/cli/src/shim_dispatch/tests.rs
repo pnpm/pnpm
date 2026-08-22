@@ -27,13 +27,22 @@ fn non_shim_argv_is_not_intercepted() {
 }
 
 #[test]
-fn configured_state_dir_resolves_relative_to_the_invocation() {
-    let mut state_dir = Path::new("/default/state").to_path_buf();
-    apply_state_dir_setting(&mut state_dir, Some("custom-state"), Path::new("/project"));
-    assert_eq!(state_dir, Path::new("/project/custom-state"));
+fn configured_state_dir_resolves_relative_to_the_machine_state_root() {
+    let root = tempfile::tempdir().unwrap();
+    let default_state_dir = root.path().join("state/pnpm");
+    let mut state_dir = default_state_dir.clone();
+    apply_state_dir_setting(&mut state_dir, Some("custom-state"), &default_state_dir);
+    assert_eq!(state_dir, root.path().join("state/custom-state"));
 
-    apply_state_dir_setting(&mut state_dir, Some(""), Path::new("/elsewhere"));
-    assert_eq!(state_dir, Path::new("/project/custom-state"));
+    apply_state_dir_setting(&mut state_dir, Some(""), &default_state_dir);
+    assert_eq!(state_dir, root.path().join("state/custom-state"));
+
+    let absolute_state_dir = root.path().join("absolute-state");
+    apply_state_dir_setting(&mut state_dir, absolute_state_dir.to_str(), &default_state_dir);
+    assert_eq!(state_dir, absolute_state_dir);
+
+    apply_state_dir_setting(&mut state_dir, Some("relative"), Path::new(""));
+    assert!(state_dir.as_os_str().is_empty());
 }
 
 #[test]
