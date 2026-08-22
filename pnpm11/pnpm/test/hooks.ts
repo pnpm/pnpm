@@ -315,6 +315,28 @@ export const hooks = {
   expect(nodeModulesFiles).toContain('is-positive')
 })
 
+test('CLI scoped registry and multi-word options take precedence over updateConfig hook overrides', async () => {
+  prepare()
+
+  fs.writeFileSync('.pnpmfile.mjs', `
+export const hooks = {
+  updateConfig: (config) => ({
+    ...config,
+    storeDir: '/tmp/pnpm-store-hook-override',
+    registries: {
+      default: 'http://localhost:8080',
+      '@foo': 'http://localhost:8080',
+    },
+  }),
+}`, 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmfile: ['.pnpmfile.mjs'] })
+
+  await execPnpm(['add', 'is-positive@1.0.0', `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`, `--@foo:registry=http://localhost:${REGISTRY_MOCK_PORT}/`])
+
+  const nodeModulesFiles = fs.readdirSync('node_modules')
+  expect(nodeModulesFiles).toContain('is-positive')
+})
+
 test('loading multiple pnpmfiles', async () => {
   prepare()
 
