@@ -304,9 +304,14 @@ where
         // excluded through its seed policy: a compatible bump leaves
         // the manifest byte-identical, which the check would likewise
         // read as up to date and skip the registry re-resolution.
+        //
+        // A `--filter` narrowing does not disqualify the run: the check
+        // validates the whole workspace (`project_manifests` covers every
+        // project even when only a subset is selected), and it refuses a
+        // workspace state a filtered install wrote, so "nothing changed"
+        // still means every selected project is materialized.
         let optimistic_decision = mutation.is_full_install()
             && matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
-            && !filtered_install
             && !frozen_lockfile
             && !config.force
             && !disable_optimistic_repeat_install

@@ -185,6 +185,16 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
         return Decision::Skipped { reason: "no workspace state on disk" };
     };
 
+    // A filtered install refreshes `lastValidatedTimestamp` while
+    // materializing only the projects it selected, so its state cannot
+    // prove anything about the rest of the workspace: an unselected
+    // project's manifest edit is already older than the recorded
+    // timestamp. Every install must re-validate once against a state a
+    // filtered install wrote — pnpm's `ignoreFilteredInstallCache`.
+    if state.filtered_install {
+        return Decision::Skipped { reason: "the previous install was filtered" };
+    }
+
     if first_lockfile_requiring_conflict_safe_install(check, state.last_validated_timestamp)
         .is_some()
     {
