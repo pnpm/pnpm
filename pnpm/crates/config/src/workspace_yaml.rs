@@ -431,9 +431,11 @@ pub struct WorkspaceSettings {
     /// CLI flag ORs on top of this. Default `false`.
     pub ignore_scripts: Option<bool>,
 
-    /// `ignorePnpmfile`. When `true`, no pnpmfile hooks run. See
-    /// [`Config::ignore_pnpmfile`]. The `--ignore-pnpmfile` CLI flag ORs on
-    /// top of this. Default `false`.
+    /// `ignorePnpmfile` from `pnpm-workspace.yaml`. When `true`, no pnpmfile
+    /// hooks run. See [`Config::ignore_pnpmfile`]. The `--ignore-pnpmfile` CLI
+    /// flag ORs on top of this. Cleared by
+    /// [`Self::clear_workspace_only_fields`], so the global `config.yaml`
+    /// cannot set it. Default `false`.
     pub ignore_pnpmfile: Option<bool>,
 
     /// `gitChecks` from `pnpm-workspace.yaml`. When `false`, `pnpm publish`
@@ -1182,6 +1184,11 @@ impl WorkspaceSettings {
         self.versioning = None;
         self.packages = None;
         self.catalog = None;
+        // A pnpmfile belongs to the project that ships it, and pnpm reads
+        // `ignorePnpmfile` from `pnpm-workspace.yaml` and the environment but
+        // not from here. Honoring it globally would silently drop a
+        // repository's hooks on one machine and resolve a different graph.
+        self.ignore_pnpmfile = None;
         self.catalogs = None;
         self.only_built_dependencies = None;
         self.never_built_dependencies = None;

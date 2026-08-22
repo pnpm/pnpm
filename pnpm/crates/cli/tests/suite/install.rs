@@ -2183,10 +2183,9 @@ fn an_unmigrated_package_json_pnpm_field_is_not_reported() {
     drop(root);
 }
 
-/// `ignorePnpmfile` is a setting, not only a flag. pnpm lists
-/// `ignore-pnpmfile` among the keys a config file may carry and exposes it
-/// through `PNPM_CONFIG_IGNORE_PNPMFILE`, so a project or a machine can turn
-/// hooks off without every command growing the flag.
+/// `ignorePnpmfile` is a setting, not only a flag: pnpm reads it from
+/// `pnpm-workspace.yaml` and from `PNPM_CONFIG_IGNORE_PNPMFILE`, so a project
+/// or a machine can turn hooks off without every command growing the flag.
 #[test]
 fn ignore_pnpmfile_is_settable_without_the_flag() {
     for source in ["pnpm-workspace.yaml", "PNPM_CONFIG_IGNORE_PNPMFILE"] {
@@ -2203,10 +2202,7 @@ fn ignore_pnpmfile_is_settable_without_the_flag() {
 
         let mut command = pacquet_in(&workspace);
         if source == "pnpm-workspace.yaml" {
-            let path = workspace.join("pnpm-workspace.yaml");
-            let mut yaml = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
-            yaml.push_str("ignorePnpmfile: true\n");
-            fs::write(&path, yaml).expect("write pnpm-workspace.yaml");
+            append_workspace_setting(&workspace, "ignorePnpmfile: true");
         } else {
             command = command.with_env("PNPM_CONFIG_IGNORE_PNPMFILE", "true");
         }
@@ -2217,15 +2213,98 @@ fn ignore_pnpmfile_is_settable_without_the_flag() {
         // above cannot pass on a fixture whose hook never worked.
         fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
         if source == "pnpm-workspace.yaml" {
-            let path = workspace.join("pnpm-workspace.yaml");
-            let yaml = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
-            fs::write(&path, yaml.replace("ignorePnpmfile: true\n", "")).expect("rewrite yaml");
+            remove_workspace_setting(&workspace, "ignorePnpmfile");
         }
         pacquet_in(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
         assert!(read_package_hook_applied(&workspace), "{source}: the hook otherwise applies");
 
         drop((root, mock_instance));
     }
+}
+
+/// The global `config.yaml` is not one of the places pnpm reads it from, and it
+/// should not be: a pnpmfile belongs to the project that ships it, so honoring
+/// this globally would drop a repository's hooks on one machine and resolve a
+/// different graph there than everywhere else.
+#[test]
+fn ignore_pnpmfile_in_the_global_config_does_not_disable_hooks() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_read_package_pnpmfile(&workspace);
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .expect("write package.json");
+    let config_home = workspace.join(".config");
+    fs::create_dir_all(config_home.join("pnpm")).expect("create global config dir");
+    fs::write(config_home.join("pnpm/config.yaml"), "ignorePnpmfile: true\n")
+        .expect("write global config");
+
+    pacquet_in(&workspace)
+        .with_env("XDG_CONFIG_HOME", &config_home)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    assert!(read_package_hook_applied(&workspace), "the hook still runs");
+
+    drop((root, mock_instance));
+}
+
+/// The flag ORs on top, so it still turns hooks off for a project whose
+/// configuration leaves them on.
+#[test]
+fn the_ignore_pnpmfile_flag_wins_over_a_configured_false() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_read_package_pnpmfile(&workspace);
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .expect("write package.json");
+    append_workspace_setting(&workspace, "ignorePnpmfile: false");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only", "--ignore-pnpmfile"])
+        .assert()
+        .success();
+    assert!(!read_package_hook_applied(&workspace), "the flag turns the hook off anyway");
+
+    drop((root, mock_instance));
+}
+
+/// Drop every line of the fixture's `pnpm-workspace.yaml` that sets `key`,
+/// leaving the rest of the file as it was.
+fn remove_workspace_setting(workspace: &Path, key: &str) {
+    let path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
+    let prefix = format!("{key}:");
+    let kept: String = yaml.lines().filter(|line| !line.trim_start().starts_with(&prefix)).fold(
+        String::new(),
+        |mut kept, line| {
+            let _ = writeln!(kept, "{line}");
+            kept
+        },
+    );
+    fs::write(&path, kept).expect("write pnpm-workspace.yaml");
+}
+
+/// Append one setting to the fixture's `pnpm-workspace.yaml`, starting a line
+/// of its own whether or not the file it is joining ends in a newline.
+fn append_workspace_setting(workspace: &Path, setting: &str) {
+    let path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
+    if !yaml.is_empty() && !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str(setting);
+    yaml.push('\n');
+    fs::write(&path, yaml).expect("write pnpm-workspace.yaml");
 }
 
 /// `--ignore-pnpmfile` disables the hooks the workspace pnpmfile
