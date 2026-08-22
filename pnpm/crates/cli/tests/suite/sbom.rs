@@ -1007,3 +1007,22 @@ fn sbom_fails_when_the_lockfile_has_no_importer_for_a_selected_project() {
     assert!(stderr.contains("newpkg"), "the error should name the missing project:\n{stderr}");
     assert!(!stdout.contains("bomFormat"), "no SBOM may be written for an out-of-date lockfile");
 }
+
+/// No lockfile at all is a different failure from a lockfile that is merely
+/// out of date, and keeps its own error even under a `--filter`.
+#[test]
+fn sbom_without_a_lockfile_reports_the_missing_lockfile_not_missing_importers() {
+    let tmp = copy_fixture("workspace-sbom-filter-prod");
+    fs::remove_file(tmp.path().join("pnpm-lock.yaml")).expect("remove the lockfile");
+
+    let output = pacquet(
+        tmp.path(),
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--filter", "app"],
+    )
+    .output()
+    .expect("run pacquet");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_SBOM_NO_LOCKFILE"), "stderr:\n{stderr}");
+}

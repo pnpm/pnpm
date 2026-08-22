@@ -865,8 +865,13 @@ impl SbomArgs {
             // produces — pnpm writes an entry for every project, `{}` for one
             // with no dependencies. Walking what is left would answer with an
             // SBOM that under-reports the selection's dependencies, so the run
-            // fails instead.
-            let missing = missing_importers(&selected, &all_importer_ids);
+            // fails instead. No lockfile at all is a different failure, left
+            // to `collect_components` so it keeps its own error.
+            let missing = if lockfile.is_some() {
+                missing_importers(&selected, &all_importer_ids)
+            } else {
+                Vec::new()
+            };
             if !missing.is_empty() {
                 let plural = if missing.len() == 1 { "" } else { "s" };
                 let names = missing.join(", ");
