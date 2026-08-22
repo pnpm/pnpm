@@ -1,5 +1,11 @@
 //! `--lockfile-dir`, the install-family flag that pins where
 //! `pnpm-lock.yaml` is created.
+//!
+//! [`LockfileDirArg`] is flattened into every install-family command that
+//! accepts the flag and applied to the loaded [`Config`] through
+//! [`LockfileDirArg::apply_to`] before the state is built, so the whole
+//! install — the lockfile, the root `node_modules`, the virtual store, and
+//! the importer ids — is anchored at the pinned directory.
 
 use clap::Args;
 use derive_more::{Display, Error};
@@ -7,12 +13,9 @@ use miette::Diagnostic;
 use pnpm_config::Config;
 use std::path::{Path, PathBuf};
 
-/// The `--lockfile-dir <dir>` option, flattened into every install-family
-/// command that accepts it. Applied to the loaded [`Config`] through
-/// [`LockfileDirArg::apply_to`] before the state is built, so the whole
-/// install — the lockfile, the root `node_modules`, the virtual store, and
-/// the importer ids — is anchored at the pinned directory.
-#[derive(Debug, Clone, Default, Args)]
+// Doc comments on a clap-derived type reach `--help`, so the contract
+// lives in the module doc above rather than in intra-doc links here.
+#[derive(Debug, Default, Clone, Args)]
 pub struct LockfileDirArg {
     /// The directory in which `pnpm-lock.yaml` is created. Several
     /// projects may share a single lockfile.
