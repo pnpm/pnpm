@@ -779,22 +779,24 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     } else {
         None
     };
+    // Importer ids name projects relative to the lockfile, which
+    // `lockfileDir` can pin somewhere other than the workspace the
+    // selection was resolved in. The server request, the merge below, and
+    // the lockfile on disk all have to agree on them.
     let selection_importer_ids = selection.map(|selection| {
+        let importer_root = state.config.lockfile_dir_for(&selection.workspace_root);
         let real_importer_ids = selection
             .projects
             .iter()
             .map(|project| {
-                pnpm_workspace::importer_id_from_root_dir(
-                    &selection.workspace_root,
-                    &project.root_dir,
-                )
+                pnpm_workspace::importer_id_from_root_dir(importer_root, &project.root_dir)
             })
             .collect();
         let selected_importer_ids = selection
             .selected_dirs
             .iter()
             .map(|project_dir| {
-                pnpm_workspace::importer_id_from_root_dir(&selection.workspace_root, project_dir)
+                pnpm_workspace::importer_id_from_root_dir(importer_root, project_dir)
             })
             .collect();
         (real_importer_ids, selected_importer_ids)
@@ -1144,7 +1146,8 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         selection_importer_ids.as_ref().or(full_workspace_importer_ids.as_ref()),
         selection
             .map(|selection| selection.workspace_root.as_path())
-            .or(state.config.workspace_dir.as_deref()),
+            .or(state.config.workspace_dir.as_deref())
+            .map(|root| state.config.lockfile_dir_for(root)),
     ) {
         outcome.lockfile = merge_filtered_wanted_lockfile(
             previous_wanted,
@@ -1282,14 +1285,20 @@ fn resolve_projects_for_pnpr(
     use_state_lockfile: bool,
 ) -> miette::Result<Vec<ResolveProject>> {
     if let Some(selection) = selection {
-        return Ok(resolve_workspace_projects(&selection.workspace_root, &selection.projects));
+        return Ok(resolve_workspace_projects(
+            state.config.lockfile_dir_for(&selection.workspace_root),
+            &selection.projects,
+        ));
     }
     if use_state_lockfile
         && state.config.shares_one_lockfile()
         && let Some(workspace_root) = state.config.workspace_dir.as_deref()
     {
         let (projects, _) = discover_workspace_projects(workspace_root)?;
-        return Ok(resolve_workspace_projects(workspace_root, &projects));
+        return Ok(resolve_workspace_projects(
+            state.config.lockfile_dir_for(workspace_root),
+            &projects,
+        ));
     }
     Ok(vec![resolve_project(".".to_string(), &state.manifest)])
 }

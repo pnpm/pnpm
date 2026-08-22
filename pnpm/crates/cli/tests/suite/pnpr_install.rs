@@ -635,6 +635,40 @@ fn workspace_install_via_pnpr_resolves_catalog_references() {
     drop((root, mock_instance));
 }
 
+/// The importer ids the server request carries, and the ones the
+/// filtered-lockfile merge keys on, are relative to the lockfile — which
+/// `lockfileDir` can pin outside the workspace. Deriving them from the
+/// workspace root instead leaves the two sides naming different projects.
+#[test]
+fn workspace_install_via_pnpr_names_importers_relative_to_a_pinned_lockfile_dir() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    configure_workspace(&workspace);
+    let path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
+    yaml.push_str("lockfileDir: ..\n");
+    fs::write(&path, yaml).expect("write pnpm-workspace.yaml");
+    write_workspace_project(&workspace, "app", "app", (WORKSPACE_HELLO, "1.0.0"));
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+
+    let wanted = read_workspace_lockfile(root.path());
+    assert_eq!(
+        wanted.importers.keys().cloned().collect::<std::collections::BTreeSet<_>>(),
+        std::collections::BTreeSet::from(["workspace/packages/app".to_string()]),
+    );
+    assert!(workspace_has_link(&workspace, "app", WORKSPACE_HELLO));
+
+    drop(mock_instance);
+}
+
 #[test]
 fn standard_workspace_install_via_pnpr_from_root_resolves_every_real_importer() {
     assert_standard_workspace_pnpr_from(None);
