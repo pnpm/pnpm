@@ -33,6 +33,7 @@ fn create_config(
     Config {
         bail: true,
         ci: false,
+        progress: true,
         update_notifier: true,
         color: Default::default(),
         embed_readme: false,

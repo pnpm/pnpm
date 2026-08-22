@@ -76,10 +76,16 @@ fn registry_is_a_universal_global_option() {
 
 #[test]
 fn progress_is_a_universal_global_option() {
-    let disabled = CliArgs::try_parse_from(["pacquet", "install", "--no-progress"])
-        .expect("parses --no-progress");
-    assert!(disabled.no_progress);
-    assert!(!disabled.progress);
+    for (argv, progress, no_progress) in [
+        (["pacquet", "--progress", "install"].as_slice(), true, false),
+        (["pacquet", "install", "--progress"].as_slice(), true, false),
+        (["pacquet", "--no-progress", "install"].as_slice(), false, true),
+        (["pacquet", "install", "--no-progress"].as_slice(), false, true),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses progress option");
+        assert_eq!(parsed.progress, progress);
+        assert_eq!(parsed.no_progress, no_progress);
+    }
 
     let enabled = CliArgs::try_parse_from(["pacquet", "install", "--no-progress", "--progress"])
         .expect("parses --progress");
