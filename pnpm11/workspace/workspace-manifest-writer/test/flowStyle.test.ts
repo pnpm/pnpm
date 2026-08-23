@@ -35,17 +35,17 @@ test('a catalog entry is updated in a flow mapping, keeping its trailing comment
 })
 
 test('a named catalog entry is added to a nested flow mapping', async () => {
-  const out = await editManifest('catalogs: { mycat: { foo: ^1.0.0 } }\n', {
-    updatedCatalogs: { mycat: { bar: '^2.0.0' } },
+  const out = await editManifest('catalogs: { myCatalog: { foo: ^1.0.0 } }\n', {
+    updatedCatalogs: { myCatalog: { bar: '^2.0.0' } },
   })
-  expect(out).toBe('catalogs: { mycat: { bar: ^2.0.0, foo: ^1.0.0 } }\n')
+  expect(out).toBe('catalogs: { myCatalog: { bar: ^2.0.0, foo: ^1.0.0 } }\n')
 })
 
 test('a new named catalog is added to a flow catalogs mapping', async () => {
-  const out = await editManifest('catalogs: { mycat: { foo: ^1.0.0 } }\n', {
-    updatedCatalogs: { newcat: { bar: '^2.0.0' } },
+  const out = await editManifest('catalogs: { myCatalog: { foo: ^1.0.0 } }\n', {
+    updatedCatalogs: { newCatalog: { bar: '^2.0.0' } },
   })
-  expect(out).toBe('catalogs: { mycat: { foo: ^1.0.0 }, newcat: { bar: ^2.0.0 } }\n')
+  expect(out).toBe('catalogs: { myCatalog: { foo: ^1.0.0 }, newCatalog: { bar: ^2.0.0 } }\n')
 })
 
 test('a config dependency is added to a flow mapping', async () => {

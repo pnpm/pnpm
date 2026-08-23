@@ -1703,21 +1703,21 @@ mod flow_style {
     #[test]
     fn named_catalog_entry_is_added_to_a_nested_flow_mapping() {
         let out = run(
-            Some("catalogs: { mycat: { foo: ^1.0.0 } }\n"),
-            &catalogs(&[("mycat", &[("bar", "^2.0.0")])]),
+            Some("catalogs: { myCatalog: { foo: ^1.0.0 } }\n"),
+            &catalogs(&[("myCatalog", &[("bar", "^2.0.0")])]),
         );
-        assert_eq!(out.as_deref(), Some("catalogs: { mycat: { bar: ^2.0.0, foo: ^1.0.0 } }\n"));
+        assert_eq!(out.as_deref(), Some("catalogs: { myCatalog: { bar: ^2.0.0, foo: ^1.0.0 } }\n"));
     }
 
     #[test]
     fn a_new_named_catalog_is_added_to_a_flow_catalogs_mapping() {
         let out = run(
-            Some("catalogs: { mycat: { foo: ^1.0.0 } }\n"),
-            &catalogs(&[("newcat", &[("bar", "^2.0.0")])]),
+            Some("catalogs: { myCatalog: { foo: ^1.0.0 } }\n"),
+            &catalogs(&[("newCatalog", &[("bar", "^2.0.0")])]),
         );
         assert_eq!(
             out.as_deref(),
-            Some("catalogs: { mycat: { foo: ^1.0.0 }, newcat: { bar: ^2.0.0 } }\n"),
+            Some("catalogs: { myCatalog: { foo: ^1.0.0 }, newCatalog: { bar: ^2.0.0 } }\n"),
         );
     }
 
