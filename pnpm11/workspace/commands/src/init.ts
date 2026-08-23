@@ -57,16 +57,16 @@ export function help (): string {
 export type InitOptions =
   & Pick<ConfigContext, 'cliOptions'>
   & Partial<Pick<Config,
+  | 'initAuthorEmail'
+  | 'initAuthorName'
+  | 'initAuthorUrl'
+  | 'initLicense'
   | 'initPackageManager'
   | 'initType'
+  | 'initVersion'
   | 'workspaceDir'
   >> & {
     bare?: boolean
-    initAuthorName?: string
-    initAuthorEmail?: string
-    initAuthorUrl?: string
-    initLicense?: string
-    initVersion?: string
   }
 
 export async function handler (opts: InitOptions, params?: string[]): Promise<string> {

@@ -310,11 +310,6 @@ export async function getConfig (opts: {
     warnings.push(`Directory "${cwd}" contains the path delimiter character (${path.delimiter}), so binaries from node_modules/.bin will not be accessible via PATH. Consider renaming the directory.`)
   }
 
-  // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
-  pnpmConfig.maxSockets = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets'] ?? npmDefaults.maxsockets
-  // @ts-expect-error
-  delete pnpmConfig['maxsockets']
-
   pnpmConfig.configDir = configDir
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.workspaceRoot = cliOptions['workspace-root'] as boolean // This is needed to prevent pnpm reading workspaceRoot from env variables
@@ -608,8 +603,6 @@ export async function getConfig (opts: {
   }
 
   const envPnpmTypes = omit([
-    // Keep pnpm and pacquet's init behavior aligned until pacquet reads init config.
-    'init-version',
     // npm interprets leading-zero values as octal, while the Number schema does not.
     'umask',
   ], types)
@@ -652,6 +645,15 @@ export async function getConfig (opts: {
   // `registries.default` above, and an entry matching it must not be reported
   // as unused.
   warnAboutUnmatchedRegistryOptions(pnpmConfig, warnings)
+
+  // Also after the env loop, and after the config files were applied: npm
+  // spells the setting `maxsockets`, so every source may carry either
+  // spelling and both have to be folded into the one field the rest of pnpm
+  // reads. npm's own default stands in when neither was set.
+  // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
+  pnpmConfig.maxSockets = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets'] ?? npmDefaults.maxsockets
+  // @ts-expect-error
+  delete pnpmConfig['maxsockets']
 
   // When the user explicitly sets `minimumReleaseAge`, treat it as strict by
   // default. Without this, a user-set value would silently fall back to

@@ -29,6 +29,7 @@ use super::{
     runtime::RuntimeArgs,
     unlink::UnlinkArgs,
     update::UpdateArgs,
+    update_notifier,
 };
 use miette::Context;
 use pnpm_config::Config;
@@ -42,13 +43,19 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
         args.lockfile_dir.apply_to_global(config)?;
         args.apply_cli_config(config);
         let dir = ctx.dir;
-        return Ok(match ctx.reporter {
+        let update_check = update_notifier::spawn(config, reporter_emit(ctx.reporter));
+        let install: CommandFuture<'a> = match ctx.reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(args.run_global::<DefaultReporter>(config, dir))
             }
             ReporterType::Ndjson => Box::pin(args.run_global::<NdjsonReporter>(config, dir)),
             ReporterType::Silent => Box::pin(args.run_global::<SilentReporter>(config, dir)),
-        });
+        };
+        return Ok(Box::pin(async move {
+            let installed = install.await;
+            update_notifier::join(update_check).await;
+            installed
+        }));
     }
     // Parsed up front: `AddPipeline::run` scaffolds a `package.json` through
     // `State::init`, and an invalid selector must be rejected before that.
@@ -73,6 +80,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
         // root elsewhere.
         let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());
         apply_allow_build(cfg, &args.allow_build, &allow_build_root)?;
+        let update_check = update_notifier::spawn(cfg, reporter_emit(reporter));
         let pipeline = AddPipeline {
             args,
             cfg,
@@ -90,6 +98,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
             ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await?,
             ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await?,
         }
+        update_notifier::join(update_check).await;
         Ok(())
     }))
 }
@@ -225,6 +234,7 @@ pub(super) fn install<'a>(
             let (config_root, package_manager_to_sync) =
                 derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                     .wrap_err("derive workspace root and package manager policy")?;
+            let update_check = update_notifier::spawn(cfg, reporter_emit(reporter));
             // Resolve + install configurational dependencies, then
             // run their `updateConfig` plugin hooks, before the main
             // install. The env lockfile must land at the top of
@@ -255,6 +265,7 @@ pub(super) fn install<'a>(
                     Box::pin(pipeline.run::<SilentReporter>()).await?;
                 }
             }
+            update_notifier::join(update_check).await;
         }
         Ok(())
     }))

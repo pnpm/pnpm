@@ -362,9 +362,7 @@ pub fn select_recursive_projects<'a>(
         // `!{<workspace-root>}` augmentation: glob matching excludes only
         // the project whose dir equals the workspace root, whereas the
         // legacy subtree match would also drop every nested package.
-        // `legacyDirFiltering` is not surfaced by `Config` yet, so this
-        // stays at the default.
-        use_glob_dir_filtering: true,
+        use_glob_dir_filtering: !config.legacy_dir_filtering,
         workspace_dir: config.workspace_dir.as_deref().unwrap_or(prefix).to_path_buf(),
         test_pattern: config.test_pattern.clone(),
         changed_files_ignore_pattern: config.changed_files_ignore_pattern.clone(),

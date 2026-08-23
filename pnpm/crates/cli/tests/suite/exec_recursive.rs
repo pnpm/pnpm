@@ -362,6 +362,32 @@ fn no_reporter_hide_prefix_labels_each_project() {
     drop(root);
 }
 
+/// A `{<dir>}` selector matches the directory as a glob, so it selects the
+/// project living in that directory and not the ones nested below it.
+#[test]
+fn a_dir_selector_selects_the_project_in_that_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["nested", "nested/inner"]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("{nested}")
+        .with_arg("exec")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .assert()
+        .success();
+
+    assert!(workspace.join("nested/ran.txt").exists(), "the project at {{nested}} should run");
+    assert!(
+        !workspace.join("nested/inner/ran.txt").exists(),
+        "a project below {{nested}} is not selected by the glob match",
+    );
+
+    drop(root);
+}
+
 /// Port of upstream's `pnpm exec --recursive does not print prefixes by
 /// default`: unlike `run`, `exec` inherits the terminal unless the user
 /// turns the hiding off explicitly. `--stream` does not change that.
@@ -395,4 +421,41 @@ fn sorted_lines(stdout: &[u8]) -> Vec<String> {
     let mut lines = stdout.trim().lines().map(str::to_string).collect::<Vec<_>>();
     lines.sort();
     lines
+}
+
+/// `legacyDirFiltering` swaps the glob match for the subtree match pnpm
+/// used before: the selector then names everything strictly below the
+/// directory, and not the project in the directory itself.
+#[test]
+fn legacy_dir_filtering_selects_the_subtree_below_the_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["nested", "nested/inner"]);
+    let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("read pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("{workspace_yaml}legacyDirFiltering: true\n"),
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("{nested}")
+        .with_arg("exec")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("nested/inner/ran.txt").exists(),
+        "the project below {{nested}} should run under legacyDirFiltering",
+    );
+    assert!(
+        !workspace.join("nested/ran.txt").exists(),
+        "the subtree match excludes the directory it starts from",
+    );
+
+    drop(root);
 }

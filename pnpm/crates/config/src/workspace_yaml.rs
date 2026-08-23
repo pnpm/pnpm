@@ -169,6 +169,7 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 pub struct WorkspaceSettings {
     pub bail: Option<bool>,
     pub ci: Option<bool>,
+    pub update_notifier: Option<bool>,
     pub color: Option<crate::ColorMode>,
     pub embed_readme: Option<bool>,
     pub ignore_workspace_root_check: Option<bool>,
@@ -347,6 +348,10 @@ pub struct WorkspaceSettings {
     pub network_concurrency: Option<usize>,
     /// `maxSockets` — per-origin concurrent-connection cap. See
     /// [`Config::max_sockets`]. Default unset (no per-origin cap).
+    ///
+    /// npm spells the setting `maxsockets`, and pnpm accepts that
+    /// spelling too, so both land in this field.
+    #[serde(alias = "maxsockets")]
     pub max_sockets: Option<usize>,
     pub fetch_timeout: Option<u64>,
     /// The `fetchWarnTimeoutMs` YAML value in milliseconds. [`None`] leaves
@@ -537,6 +542,12 @@ pub struct WorkspaceSettings {
     /// [`Config::changed_files_ignore_pattern`].
     pub changed_files_ignore_pattern: Option<Vec<String>>,
 
+    /// `legacyDirFiltering` from `pnpm-workspace.yaml` — see
+    /// [`Config::legacy_dir_filtering`].
+    ///
+    /// [`Config::legacy_dir_filtering`]: crate::Config::legacy_dir_filtering
+    pub legacy_dir_filtering: Option<bool>,
+
     /// `syncInjectedDepsAfterScripts` from `pnpm-workspace.yaml` — see
     /// [`Config::sync_injected_deps_after_scripts`].
     pub sync_injected_deps_after_scripts: Option<Vec<String>>,
@@ -633,6 +644,36 @@ pub struct WorkspaceSettings {
     /// `initType` from `pnpm-workspace.yaml` /
     /// `~/.config/pnpm/config.yaml`. See [`InitType`].
     pub init_type: Option<InitType>,
+
+    /// `initAuthorName` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_author_name`].
+    ///
+    /// [`Config::init_author_name`]: crate::Config::init_author_name
+    pub init_author_name: Option<String>,
+
+    /// `initAuthorEmail` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_author_email`].
+    ///
+    /// [`Config::init_author_email`]: crate::Config::init_author_email
+    pub init_author_email: Option<String>,
+
+    /// `initAuthorUrl` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_author_url`].
+    ///
+    /// [`Config::init_author_url`]: crate::Config::init_author_url
+    pub init_author_url: Option<String>,
+
+    /// `initLicense` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_license`].
+    ///
+    /// [`Config::init_license`]: crate::Config::init_license
+    pub init_license: Option<String>,
+
+    /// `initVersion` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_version`].
+    ///
+    /// [`Config::init_version`]: crate::Config::init_version
+    pub init_version: Option<String>,
 
     /// `pmOnFail` from `pnpm-workspace.yaml`. See [`PmOnFail`].
     pub pm_on_fail: Option<PmOnFail>,
@@ -1263,6 +1304,7 @@ impl WorkspaceSettings {
         self.package_extensions = None;
         self.test_pattern = None;
         self.changed_files_ignore_pattern = None;
+        self.legacy_dir_filtering = None;
         self.sync_injected_deps_after_scripts = None;
         self.allow_unused_patches = None;
         self.save_catalog_name = None;
@@ -1501,7 +1543,7 @@ impl WorkspaceSettings {
         }
 
         apply! {
-            bail, ci, color, embed_readme, ignore_workspace_root_check,
+            bail, ci, update_notifier, color, embed_readme, ignore_workspace_root_check,
             optional, package_lock, pending, recursive_install, reverse,
             stream, aggregate_output, use_stderr, ignore_workspace, shell_emulator,
             skip_manifest_obfuscation, sort, use_beta_cli,
@@ -1544,7 +1586,7 @@ impl WorkspaceSettings {
             enable_global_virtual_store,
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
-            test_pattern, changed_files_ignore_pattern,
+            test_pattern, changed_files_ignore_pattern, legacy_dir_filtering,
             sync_injected_deps_after_scripts,
             resolution_mode, catalog_mode, catalog_prune,
             minimum_release_age_exclude_prune, save_peer, save_exact,
@@ -1592,6 +1634,21 @@ impl WorkspaceSettings {
         }
         if let Some(save_catalog_name) = self.save_catalog_name {
             config.save_catalog_name = Some(save_catalog_name);
+        }
+        if let Some(init_author_name) = self.init_author_name {
+            config.init_author_name = Some(init_author_name);
+        }
+        if let Some(init_author_email) = self.init_author_email {
+            config.init_author_email = Some(init_author_email);
+        }
+        if let Some(init_author_url) = self.init_author_url {
+            config.init_author_url = Some(init_author_url);
+        }
+        if let Some(init_license) = self.init_license {
+            config.init_license = Some(init_license);
+        }
+        if let Some(init_version) = self.init_version {
+            config.init_version = Some(init_version);
         }
         if let Some(save_prefix) = self.save_prefix {
             config.save_prefix = Some(save_prefix);

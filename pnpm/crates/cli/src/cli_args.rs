@@ -93,6 +93,7 @@ pub mod unstar;
 pub mod update;
 mod update_changeset;
 pub mod update_interactive;
+pub(crate) mod update_notifier;
 pub mod version;
 pub mod view;
 pub mod whoami;

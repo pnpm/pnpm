@@ -1,5 +1,5 @@
 use std::{
-    fs,
+    fmt, fs,
     io::{self, Write},
     path::{Path, PathBuf},
 };
@@ -114,6 +114,42 @@ pub struct InitOptions<'a> {
     /// The pnpm version to record as the project's package-manager pin, or
     /// `None` to leave the project unpinned. See [`PackageManifest::init`].
     pub pinned_pnpm_version: Option<&'a str>,
+
+    /// Who to credit in the `author` field. An [`InitAuthor`] with no part
+    /// set renders empty, and the scaffold's empty `author` stands.
+    pub author: InitAuthor<'a>,
+
+    /// The `license` the scaffold records instead of its `ISC` default.
+    /// The `initLicense` setting.
+    pub license: Option<&'a str>,
+
+    /// The `version` the scaffold records instead of its `1.0.0` default.
+    /// The `initVersion` setting.
+    pub version: Option<&'a str>,
+}
+
+/// The `initAuthorName` / `initAuthorEmail` / `initAuthorUrl` settings,
+/// which together make up the `author` field `pnpm init` writes.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct InitAuthor<'a> {
+    pub name: Option<&'a str>,
+    pub email: Option<&'a str>,
+    pub url: Option<&'a str>,
+}
+
+impl fmt::Display for InitAuthor<'_> {
+    /// Renders npm's `name <email> (url)` shape, omitting each part that is
+    /// unset. All three unset renders the empty string.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.name.unwrap_or_default())?;
+        if let Some(email) = self.email {
+            write!(f, " <{email}>")?;
+        }
+        if let Some(url) = self.url {
+            write!(f, " ({url})")?;
+        }
+        Ok(())
+    }
 }
 
 impl PackageManifest {
@@ -152,6 +188,18 @@ impl PackageManifest {
         }
         if options.es_module {
             fields.insert("type".to_string(), json!("module"));
+        }
+        // The `init*` settings overwrite the scaffold's placeholders in
+        // place, so the key order the scaffold fixes is preserved.
+        if let Some(version) = options.version {
+            fields.insert("version".to_string(), json!(version));
+        }
+        if let Some(license) = options.license {
+            fields.insert("license".to_string(), json!(license));
+        }
+        let author = options.author.to_string();
+        if !author.is_empty() {
+            fields.insert("author".to_string(), json!(author));
         }
         manifest
     }

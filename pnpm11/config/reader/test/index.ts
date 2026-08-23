@@ -170,6 +170,48 @@ test('nodeVersion from config takes priority over PNPM_CONFIG_NODE_VERSION', asy
   expect(config.nodeVersion).toBe('20.0.0')
 })
 
+test('initVersion is read from the PNPM_CONFIG_INIT_VERSION environment variable', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_INIT_VERSION: '2.0.0',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.initVersion).toBe('2.0.0')
+})
+
+test('maxSockets falls back to npm\'s default', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.maxSockets).toBe(50)
+})
+
+test('maxSockets is read from npm\'s lowercase spelling of the setting', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_MAXSOCKETS: '7',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.maxSockets).toBe(7)
+})
+
 test('runtimeOnFail=download overrides devEngines.runtime.onFail and adds node to devDependencies', async () => {
   prepare({
     devEngines: {

@@ -878,6 +878,12 @@ pub struct Config {
     #[default(_code = "default_ci::<Host>(is_ci::cached)")]
     pub ci: bool,
 
+    /// `updateNotifier` — whether `pnpm install` / `pnpm add` may check
+    /// the registry once a day for a newer pnpm and print a notice when
+    /// one exists. Setting it to `false` silences the check entirely.
+    #[default = true]
+    pub update_notifier: bool,
+
     /// ANSI color policy for human-readable output.
     pub color: ColorMode,
 
@@ -2015,6 +2021,13 @@ pub struct Config {
     /// all match, the project is selected without its dependents.
     pub test_pattern: Vec<String>,
 
+    /// `legacyDirFiltering` — match a `{<dir>}` filter selector by
+    /// directory subtree instead of by glob. Glob matching, the default,
+    /// selects the project whose own directory matches the pattern; the
+    /// legacy subtree matching selects the projects strictly below that
+    /// directory instead.
+    pub legacy_dir_filtering: bool,
+
     /// `syncInjectedDepsAfterScripts` from `pnpm-workspace.yaml` /
     /// `PNPM_CONFIG_SYNC_INJECTED_DEPS_AFTER_SCRIPTS`. Names the scripts
     /// after which every injected copy of the package that ran them is
@@ -2194,6 +2207,26 @@ pub struct Config {
     ///
     /// Defaults to `module`.
     pub init_type: InitType,
+
+    /// `init-author-name` / `initAuthorName` config: the name part of the
+    /// `name <email> (url)` author `pnpm init` writes.
+    pub init_author_name: Option<String>,
+
+    /// `init-author-email` / `initAuthorEmail` config: the email part of
+    /// the author `pnpm init` writes. See [`Self::init_author_name`].
+    pub init_author_email: Option<String>,
+
+    /// `init-author-url` / `initAuthorUrl` config: the url part of the
+    /// author `pnpm init` writes. See [`Self::init_author_name`].
+    pub init_author_url: Option<String>,
+
+    /// `init-license` / `initLicense` config: the `license` field
+    /// `pnpm init` writes, replacing the `ISC` the scaffold carries.
+    pub init_license: Option<String>,
+
+    /// `init-version` / `initVersion` config: the `version` field
+    /// `pnpm init` writes, replacing the `1.0.0` the scaffold carries.
+    pub init_version: Option<String>,
 
     /// `pm-on-fail` / `pmOnFail` config: what to do when the project's
     /// `packageManager` / `devEngines.packageManager` pin doesn't match the

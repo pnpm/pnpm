@@ -123,6 +123,13 @@ pub enum LogEvent {
     #[serde(rename = "pnpm:ignored-scripts")]
     IgnoredScripts(IgnoredScriptsLog),
 
+    /// The latest pnpm the registry offers, next to the running one
+    /// (`pnpm:update-check`). Emitted at most once a day by the
+    /// install-family commands the update notifier covers; the default
+    /// reporter prints a notice only when the latest version is newer.
+    #[serde(rename = "pnpm:update-check")]
+    UpdateCheck(UpdateCheckLog),
+
     /// One per optional-dependency pacquet decided to skip rather
     /// than fail the install over. Reason discriminates the cause —
     /// pacquet currently only emits `build_failure` (from
@@ -589,6 +596,16 @@ pub struct IgnoredScriptsLog {
     /// the package names, matching pnpm's `ignoredScriptsLogger.debug`.
     #[serde(skip)]
     pub strict_dep_builds: bool,
+}
+
+/// `pnpm:update-check` payload: the running pnpm version and the latest
+/// one the registry resolved for the `latest` tag.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCheckLog {
+    pub level: LogLevel,
+    pub current_version: String,
+    pub latest_version: String,
 }
 
 /// `pnpm:skipped-optional-dependency` payload.
