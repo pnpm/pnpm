@@ -544,14 +544,15 @@ fn satisfies(version: &str, range: &str) -> bool {
     if !parsed_version.is_prerelease() {
         return false;
     }
-    let base = Version {
-        major: parsed_version.major,
-        minor: parsed_version.minor,
-        patch: parsed_version.patch,
-        pre_release: Vec::new(),
-        build: Vec::new(),
-    };
-    base.satisfies(&parsed_range)
+    // pnpm asks semver for `includePrerelease`, which drops the rule
+    // that a prerelease only satisfies a comparator carrying a
+    // prerelease of its own `major.minor.patch` — `node-semver`'s Rust
+    // port applies that rule unconditionally. What is left is the plain
+    // bound check, and ordering still holds: `18.3.0-canary` satisfies
+    // `^18.0.0`, while `2.0.0-beta.1` stays below `>=2.0.0`.
+    parse_range_to_intervals(&preprocess_hyphen_ranges(range)).is_some_and(|intervals| {
+        intervals.iter().any(|interval| interval.contains(&parsed_version))
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -567,8 +568,41 @@ struct Interval {
     upper: Bound<Version>,
 }
 
+impl Interval {
+    fn contains(&self, version: &Version) -> bool {
+        let above_lower = match &self.lower {
+            Bound::Inclusive(lower) => lower <= version,
+            Bound::Exclusive(lower) => lower < version,
+            Bound::Unbounded => true,
+        };
+        let below_upper = match &self.upper {
+            Bound::Inclusive(upper) => version <= upper,
+            Bound::Exclusive(upper) => version < upper,
+            Bound::Unbounded => true,
+        };
+        above_lower && below_upper
+    }
+}
+
+/// The bound as a user reads it: the `-0` [`derived_upper`] adds is an
+/// implementation detail of prerelease matching, and pnpm's own
+/// intersections are spelled without it.
+fn without_derived_suffix(version: &Version) -> String {
+    if version.pre_release == [node_semver::Identifier::Numeric(0)] {
+        format!("{}.{}.{}", version.major, version.minor, version.patch)
+    } else {
+        version.to_string()
+    }
+}
+
 impl fmt::Display for Interval {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let upper = match &self.upper {
+            Bound::Inclusive(version) | Bound::Exclusive(version) => {
+                without_derived_suffix(version)
+            }
+            Bound::Unbounded => String::new(),
+        };
         match (&self.lower, &self.upper) {
             (Bound::Unbounded, Bound::Unbounded) => write!(formatter, "*"),
             (Bound::Inclusive(version_lower), Bound::Unbounded) => {
@@ -577,27 +611,23 @@ impl fmt::Display for Interval {
             (Bound::Exclusive(version_lower), Bound::Unbounded) => {
                 write!(formatter, ">{version_lower}")
             }
-            (Bound::Unbounded, Bound::Inclusive(version_upper)) => {
-                write!(formatter, "<={version_upper}")
-            }
-            (Bound::Unbounded, Bound::Exclusive(version_upper)) => {
-                write!(formatter, "<{version_upper}")
-            }
+            (Bound::Unbounded, Bound::Inclusive(_)) => write!(formatter, "<={upper}"),
+            (Bound::Unbounded, Bound::Exclusive(_)) => write!(formatter, "<{upper}"),
             (Bound::Inclusive(version_lower), Bound::Inclusive(version_upper)) => {
                 if version_lower == version_upper {
                     write!(formatter, "{version_lower}")
                 } else {
-                    write!(formatter, ">={version_lower} <={version_upper}")
+                    write!(formatter, ">={version_lower} <={upper}")
                 }
             }
-            (Bound::Inclusive(version_lower), Bound::Exclusive(version_upper)) => {
-                write!(formatter, ">={version_lower} <{version_upper}")
+            (Bound::Inclusive(version_lower), Bound::Exclusive(_)) => {
+                write!(formatter, ">={version_lower} <{upper}")
             }
-            (Bound::Exclusive(version_lower), Bound::Inclusive(version_upper)) => {
-                write!(formatter, ">{version_lower} <={version_upper}")
+            (Bound::Exclusive(version_lower), Bound::Inclusive(_)) => {
+                write!(formatter, ">{version_lower} <={upper}")
             }
-            (Bound::Exclusive(version_lower), Bound::Exclusive(version_upper)) => {
-                write!(formatter, ">{version_lower} <{version_upper}")
+            (Bound::Exclusive(version_lower), Bound::Exclusive(_)) => {
+                write!(formatter, ">{version_lower} <{upper}")
             }
         }
     }
@@ -757,15 +787,25 @@ fn at(major: u64, minor: u64, patch: u64) -> Version {
     Version { major, minor, patch, build: Vec::new(), pre_release: Vec::new() }
 }
 
+/// An upper bound npm derived rather than the user writing it out:
+/// `^1.2.3` desugars to `<2.0.0-0`, not `<2.0.0`, so that no prerelease
+/// of 2.0.0 slips in. A bound the user spelled in full (`<2.0.0`) keeps
+/// its plain form and does admit `2.0.0-rc.1`. The suffix is dropped
+/// again when the interval is rendered — see [`Interval`]'s `Display`.
+fn derived_upper(version: Version) -> Version {
+    Version { pre_release: vec![node_semver::Identifier::Numeric(0)], ..version }
+}
+
 /// The exclusive upper bound of the level `specificity` leaves
 /// unpinned: the next major for a bare major, the next minor for
 /// `major.minor`.
 fn next_unpinned(version: &Version, specificity: usize) -> Version {
-    if specificity >= 2 {
+    let next = if specificity >= 2 {
         at(version.major, version.minor + 1, 0)
     } else {
         at(version.major + 1, 0, 0)
-    }
+    };
+    derived_upper(next)
 }
 
 fn parse_comparator(comparator: &str) -> Option<Interval> {
@@ -827,7 +867,14 @@ fn parse_comparator(comparator: &str) -> Option<Interval> {
             lower: Bound::Unbounded,
             upper: Bound::Exclusive(next_unpinned(&version, specificity)),
         }),
-        "<" => Some(Interval { lower: Bound::Unbounded, upper: Bound::Exclusive(version) }),
+        "<" if specificity == 3 => {
+            Some(Interval { lower: Bound::Unbounded, upper: Bound::Exclusive(version) })
+        }
+        // `<1.2` excludes all of 1.2.x, prereleases included.
+        "<" => Some(Interval {
+            lower: Bound::Unbounded,
+            upper: Bound::Exclusive(derived_upper(version)),
+        }),
         "^" => {
             let upper_version = if specificity == 1 || version.major > 0 {
                 at(version.major + 1, 0, 0)
@@ -836,6 +883,7 @@ fn parse_comparator(comparator: &str) -> Option<Interval> {
             } else {
                 at(0, 0, version.patch + 1)
             };
+            let upper_version = derived_upper(upper_version);
             Some(Interval {
                 lower: Bound::Inclusive(version),
                 upper: Bound::Exclusive(upper_version),

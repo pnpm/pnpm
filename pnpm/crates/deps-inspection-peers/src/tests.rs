@@ -37,9 +37,36 @@ fn test_satisfies_fails() {
     assert!(!satisfies("2.0.0", "^1.0.0"));
 }
 
+/// pnpm matches peers with semver's `includePrerelease`, which admits a
+/// prerelease anywhere inside the range's bounds but still orders it
+/// below the release it precedes. Values checked against
+/// `semver.satisfies(v, r, { includePrerelease: true, loose: true })`.
 #[test]
-fn test_satisfies_prerelease_tolerance() {
-    assert!(satisfies("1.0.0-beta", "^1.0.0"));
+fn test_satisfies_prerelease_matches_include_prerelease() {
+    let cases = [
+        // Inside the bounds: admitted, though no comparator carries a
+        // prerelease of its own.
+        ("1.5.0-beta", "^1.0.0", true),
+        ("18.3.0-canary", "^18.0.0", true),
+        ("1.0.0-rc.1", ">=0.9.0", true),
+        ("2.0.0-beta.1", "^2.0.0-alpha", true),
+        // Below the lower bound: a prerelease precedes its release.
+        ("2.0.0-beta.1", "^2.0.0", false),
+        ("1.0.0-rc.1", ">=1.0.0", false),
+        ("1.0.0-beta", "^1.0.0", false),
+        // At an upper bound npm derived rather than the user spelling
+        // it out: `^2.0.0` reaches `<3.0.0-0`, so no prerelease of
+        // 3.0.0 counts, while an explicit `<3.0.0` admits one.
+        ("3.0.0-next.1", "^2.0.0", false),
+        ("3.0.0-next.1", "<3.0.0", true),
+        ("2.0.0-beta", "~1.9.0", false),
+        ("1.9.5-beta", "~1.9.0", true),
+        // Outside the range entirely.
+        ("19.0.0-rc.1", "^16.8.4 || ^17.0.0 || ^18.0.0", false),
+    ];
+    for (version, range, expected) in cases {
+        assert_eq!(satisfies(version, range), expected, "{version} against {range}");
+    }
 }
 
 #[test]
