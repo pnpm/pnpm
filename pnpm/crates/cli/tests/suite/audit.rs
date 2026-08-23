@@ -1130,11 +1130,9 @@ fn audit_fix_cleanup_reports_the_write_error_for_an_inline_audit_config() {
     .create();
     // A flow-style auditConfig can't be edited entry by entry; the writer
     // refuses rather than risk corrupting it.
-    write_audit_workspace(
-        &workspace,
-        &registry.url(),
-        "auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [GHSA-test-1111-2222, GHSA-test-9999-9999] }\n",
-    );
+    let flow_style_config =
+        "auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [GHSA-test-1111-2222, GHSA-test-9999-9999] }\n";
+    write_audit_workspace(&workspace, &registry.url(), flow_style_config);
 
     let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
 
@@ -1143,6 +1141,11 @@ fn audit_fix_cleanup_reports_the_write_error_for_an_inline_audit_config() {
         stderr(&output).contains("inline (flow) YAML value"),
         "stderr should report the write failure:\n{}",
         stderr(&output),
+    );
+    // The failed write must not have touched the manifest.
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest"),
+        format!("fetchRetries: 0\n{flow_style_config}"),
     );
     mock.assert();
 }
