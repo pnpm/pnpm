@@ -9,7 +9,8 @@
 mod activation;
 
 use self::activation::{
-    ArtifactCleanupError, activate_global_install, hash_linked_packages, replace_global_bin_slots,
+    ArtifactCleanupError, FsRename, activate_global_install, hash_linked_packages,
+    replace_global_bin_slots,
 };
 use crate::{
     State,
@@ -30,12 +31,12 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_cmd_shim::{
     Host as CmdShimHost, LinkBinsOptions, PackageBinSource, link_bins_of_packages_context_aware,
-    link_bins_of_packages_with_excludes, link_virtual_shims, remove_bin,
+    link_bins_of_packages_with_excludes, link_virtual_shims, remove_bin as remove_cmd_shim,
 };
 use pnpm_config::{
     CatalogMode, Config, WorkspaceSettings, check_global_bin_dir, decided_allow_builds,
 };
-use pnpm_fs::{is_subdir, lexical_normalize, remove_symlink_dir};
+use pnpm_fs::{is_subdir, lexical_normalize, remove_symlink_dir, symlink_dir};
 use pnpm_global::{
     GlobalPackageInfo, check_global_bin_conflicts, clean_orphaned_install_dirs,
     create_global_cache_key, create_install_dir, find_global_package, get_hash_link,
@@ -52,7 +53,7 @@ use pnpm_resolving_parse_wanted_dependency::{
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fs,
-    io::IsTerminal,
+    io::{self, IsTerminal},
     path::{Path, PathBuf},
 };
 
@@ -491,22 +492,11 @@ pub fn handle_global_remove<Reporter: self::Reporter>(
     }
 
     let restored_bin_names = shims_to_restore.values().flatten().cloned().collect::<HashSet<_>>();
-    if !restored_bin_names.is_empty() {
-        let leftover_backup =
-            replace_global_bin_slots::<CmdShimHost>(&global_bin_dir, &restored_bin_names, || {
-                for (package, bins) in &shims_to_restore {
-                    let bin_refs = bins.iter().map(String::as_str).collect::<Vec<_>>();
-                    link_virtual_shims::<CmdShimHost>(package, &bin_refs, &global_bin_dir)
-                        .map_err(miette::Report::new)
-                        .wrap_err_with(|| format!("restore the {package} shims"))?;
-                }
-                Ok(())
-            })?;
-        if let Some(leftover) = leftover_backup {
-            warn_global::<Reporter>(&leftover.to_string());
-        }
-    }
-
+    let affected_bin_names = groups
+        .iter()
+        .flat_map(get_installed_bin_names)
+        .filter(|bin| !protected.contains(bin))
+        .collect::<HashSet<_>>();
     let mut bins_to_keep = protected;
     bins_to_keep.extend(restored_bin_names);
     let cleanup = GlobalInstallCleanup {
@@ -516,7 +506,24 @@ pub fn handle_global_remove<Reporter: self::Reporter>(
         hash_to_keep: None,
         context: "global",
     };
-    remove_global_installs(&groups, &cleanup)
+    let transaction = GlobalRemovalTransaction {
+        groups: &groups,
+        cleanup: &cleanup,
+        affected_bin_names: &affected_bin_names,
+    };
+    let leftover_backup = commit_global_removal::<CmdShimHost>(&transaction, || {
+        for (package, bins) in &shims_to_restore {
+            let bin_refs = bins.iter().map(String::as_str).collect::<Vec<_>>();
+            link_virtual_shims::<CmdShimHost>(package, &bin_refs, &global_bin_dir)
+                .map_err(miette::Report::new)
+                .wrap_err_with(|| format!("restore the {package} shims"))?;
+        }
+        Ok(())
+    })?;
+    if let Some(leftover) = leftover_backup {
+        warn_global::<Reporter>(&leftover.to_string());
+    }
+    removed_global_install_result(cleanup_removed_global_install_dirs(&groups, &cleanup))
 }
 
 fn check_virtual_shim_conflicts(
@@ -807,6 +814,28 @@ struct GlobalInstallCleanup<'a> {
     context: &'static str,
 }
 
+struct GlobalRemovalTransaction<'a> {
+    groups: &'a [GlobalPackageInfo],
+    cleanup: &'a GlobalInstallCleanup<'a>,
+    affected_bin_names: &'a HashSet<String>,
+}
+
+trait FsGlobalRemoval: FsRename {
+    fn remove_bin_slot(path: &Path) -> io::Result<()> {
+        remove_cmd_shim(path)
+    }
+
+    fn remove_hash_link(path: &Path) -> io::Result<()> {
+        remove_symlink_dir(path)
+    }
+
+    fn restore_hash_link(target: &Path, link: &Path) -> io::Result<()> {
+        symlink_dir(target, link)
+    }
+}
+
+impl FsGlobalRemoval for CmdShimHost {}
+
 // Activation already succeeded when this runs, so every removal is
 // attempted even after one fails; the failures are aggregated instead of
 // aborting the remaining cleanup.
@@ -840,12 +869,68 @@ fn cleanup_replaced_global_installs(
     Err(ReplacedGlobalInstallCleanupError { cleanup_reports }.into())
 }
 
-fn remove_global_installs(
+fn commit_global_removal<Sys: FsGlobalRemoval>(
+    transaction: &GlobalRemovalTransaction<'_>,
+    replace_bins: impl FnOnce() -> miette::Result<()>,
+) -> miette::Result<Option<ArtifactCleanupError>> {
+    replace_global_bin_slots::<Sys>(
+        transaction.cleanup.global_bin_dir,
+        transaction.affected_bin_names,
+        || {
+            replace_bins()?;
+            remove_global_install_entries::<Sys>(transaction)
+        },
+    )
+}
+
+fn remove_global_install_entries<Sys: FsGlobalRemoval>(
+    transaction: &GlobalRemovalTransaction<'_>,
+) -> miette::Result<()> {
+    let cleanup = transaction.cleanup;
+    let cleanup_reports = cleanup_global_bin_names::<Sys>(transaction.affected_bin_names, cleanup);
+    if !cleanup_reports.is_empty() {
+        return removed_global_install_result(cleanup_reports);
+    }
+
+    let mut removed_hash_groups = Vec::new();
+    for group in transaction.groups {
+        match remove_global_hash_link::<Sys>(group, cleanup) {
+            Ok(true) => removed_hash_groups.push(group),
+            Ok(false) => {}
+            Err(report) => {
+                let mut cleanup_reports = vec![report];
+                for removed_group in removed_hash_groups.into_iter().rev() {
+                    let hash_link = get_hash_link(cleanup.global_pkg_dir, &removed_group.hash);
+                    if let Err(source) =
+                        Sys::restore_hash_link(&removed_group.install_dir, &hash_link)
+                    {
+                        cleanup_reports.push(ArtifactCleanupError {
+                            context: format!(
+                                "restore {} hash link at {}",
+                                cleanup.context,
+                                hash_link.display(),
+                            ),
+                            source,
+                        });
+                    }
+                }
+                return removed_global_install_result(cleanup_reports);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn cleanup_removed_global_install_dirs(
     groups: &[GlobalPackageInfo],
     cleanup: &GlobalInstallCleanup<'_>,
+) -> Vec<ArtifactCleanupError> {
+    groups.iter().filter_map(|group| cleanup_global_install_dir(group, cleanup)).collect()
+}
+
+fn removed_global_install_result(
+    mut cleanup_reports: Vec<ArtifactCleanupError>,
 ) -> miette::Result<()> {
-    let mut cleanup_reports =
-        groups.iter().flat_map(|group| cleanup_global_install(group, cleanup)).collect::<Vec<_>>();
     if cleanup_reports.is_empty() {
         return Ok(());
     }
@@ -859,32 +944,62 @@ fn cleanup_global_install(
     group: &GlobalPackageInfo,
     cleanup: &GlobalInstallCleanup<'_>,
 ) -> Vec<ArtifactCleanupError> {
-    let mut cleanup_reports = Vec::new();
-    for bin_name in get_installed_bin_names(group) {
-        if cleanup.bins_to_keep.contains(&bin_name) {
-            continue;
-        }
-        let bin_path = cleanup.global_bin_dir.join(&bin_name);
-        if let Err(source) = remove_bin(&bin_path) {
-            cleanup_reports.push(ArtifactCleanupError {
-                context: format!("remove {} bin at {}", cleanup.context, bin_path.display()),
-                source,
-            });
-        }
-    }
-    // A bin that could not be removed is only discoverable through the
-    // group's manifests, so keep the group until every one of them is gone.
+    let mut cleanup_reports = cleanup_global_install_bins::<CmdShimHost>(group, cleanup);
     if !cleanup_reports.is_empty() {
         return cleanup_reports;
     }
+    if let Err(report) = remove_global_hash_link::<CmdShimHost>(group, cleanup) {
+        cleanup_reports.push(report);
+        return cleanup_reports;
+    }
+    if let Some(report) = cleanup_global_install_dir(group, cleanup) {
+        cleanup_reports.push(report);
+    }
+    cleanup_reports
+}
 
+fn cleanup_global_install_bins<Sys: FsGlobalRemoval>(
+    group: &GlobalPackageInfo,
+    cleanup: &GlobalInstallCleanup<'_>,
+) -> Vec<ArtifactCleanupError> {
+    get_installed_bin_names(group)
+        .iter()
+        .filter_map(|bin_name| cleanup_global_bin::<Sys>(bin_name, cleanup))
+        .collect()
+}
+
+fn cleanup_global_bin_names<Sys: FsGlobalRemoval>(
+    bin_names: &HashSet<String>,
+    cleanup: &GlobalInstallCleanup<'_>,
+) -> Vec<ArtifactCleanupError> {
+    bin_names.iter().filter_map(|bin_name| cleanup_global_bin::<Sys>(bin_name, cleanup)).collect()
+}
+
+fn cleanup_global_bin<Sys: FsGlobalRemoval>(
+    bin_name: &str,
+    cleanup: &GlobalInstallCleanup<'_>,
+) -> Option<ArtifactCleanupError> {
+    if cleanup.bins_to_keep.contains(bin_name) {
+        return None;
+    }
+    let bin_path = cleanup.global_bin_dir.join(bin_name);
+    Sys::remove_bin_slot(&bin_path).err().map(|source| ArtifactCleanupError {
+        context: format!("remove {} bin at {}", cleanup.context, bin_path.display()),
+        source,
+    })
+}
+
+fn remove_global_hash_link<Sys: FsGlobalRemoval>(
+    group: &GlobalPackageInfo,
+    cleanup: &GlobalInstallCleanup<'_>,
+) -> Result<bool, ArtifactCleanupError> {
     if cleanup.hash_to_keep != Some(group.hash.as_str()) {
         let hash_link = get_hash_link(cleanup.global_pkg_dir, &group.hash);
-        match remove_symlink_dir(&hash_link) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        match Sys::remove_hash_link(&hash_link) {
+            Ok(()) => return Ok(true),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(source) => {
-                cleanup_reports.push(ArtifactCleanupError {
+                return Err(ArtifactCleanupError {
                     context: format!(
                         "remove {} hash link at {}",
                         cleanup.context,
@@ -892,25 +1007,33 @@ fn cleanup_global_install(
                     ),
                     source,
                 });
-                return cleanup_reports;
             }
         }
     }
+    Ok(false)
+}
+
+fn cleanup_global_install_dir(
+    group: &GlobalPackageInfo,
+    cleanup: &GlobalInstallCleanup<'_>,
+) -> Option<ArtifactCleanupError> {
     if is_subdir(cleanup.global_pkg_dir, &group.install_dir) {
         match fs::remove_dir_all(&group.install_dir) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(source) => cleanup_reports.push(ArtifactCleanupError {
-                context: format!(
-                    "remove {} install directory at {}",
-                    cleanup.context,
-                    group.install_dir.display(),
-                ),
-                source,
-            }),
+            Ok(()) => return None,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
+            Err(source) => {
+                return Some(ArtifactCleanupError {
+                    context: format!(
+                        "remove {} install directory at {}",
+                        cleanup.context,
+                        group.install_dir.display(),
+                    ),
+                    source,
+                });
+            }
         }
     }
-    cleanup_reports
+    None
 }
 
 fn replacement_aliases(aliases: &[String]) -> Vec<String> {

@@ -1,5 +1,8 @@
 use super::{
-    super::{GlobalInstallCleanup, cleanup_replaced_global_installs, remove_global_installs},
+    super::{
+        GlobalInstallCleanup, GlobalRemovalTransaction, cleanup_replaced_global_installs,
+        remove_global_install_entries,
+    },
     BinSlotKind, FsArtifactProbe, FsRename, FsSwapHashLink, SavedBinSlot, activate_global_install,
     directory_symlink_slots, hash_linked_packages, needs_directory_symlink_removal,
     replace_global_bin_slots, restore_bin_slots,
@@ -786,8 +789,14 @@ fn global_removal_reports_cleanup_failure_and_keeps_the_group() {
         hash_to_keep: None,
         context: "global",
     };
+    let affected_bin_names = HashSet::from(["blocked".to_string(), "stale".to_string()]);
+    let transaction = GlobalRemovalTransaction {
+        groups: std::slice::from_ref(&group),
+        cleanup: &cleanup,
+        affected_bin_names: &affected_bin_names,
+    };
 
-    let error = remove_global_installs(std::slice::from_ref(&group), &cleanup)
+    let error = remove_global_install_entries::<Host>(&transaction)
         .expect_err("a directory cannot be removed as a bin file");
 
     assert!(error.to_string().contains("remove global bin"));
