@@ -2,7 +2,7 @@ use super::{
     super::{GlobalInstallCleanup, cleanup_replaced_global_installs, remove_global_installs},
     BinSlotKind, FsArtifactProbe, FsRename, FsSwapHashLink, SavedBinSlot, activate_global_install,
     directory_symlink_slots, hash_linked_packages, needs_directory_symlink_removal,
-    replace_global_bin_slots,
+    replace_global_bin_slots, restore_bin_slots,
 };
 use miette::IntoDiagnostic;
 use pnpm_cmd_shim::{
@@ -91,6 +91,7 @@ struct RenameRollbackFailure;
 struct BackupCleanupFailure;
 struct ArtifactProbeFailure;
 struct TrackingActivation;
+struct FirstRestoreFailure;
 
 delegate_cmd_shim_capabilities!(PartialWriteFailure);
 delegate_cmd_shim_capabilities!(HashSwapFailure);
@@ -286,6 +287,18 @@ impl FsRename for TrackingActivation {
     }
 }
 
+impl FsRename for FirstRestoreFailure {
+    fn rename(source: &Path, target: &Path) -> io::Result<()> {
+        if target.ends_with("first") {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "injected first-slot restore failure",
+            ));
+        }
+        <Host as FsRename>::rename(source, target)
+    }
+}
+
 #[test]
 fn packages_are_addressed_through_the_hash_link() {
     let install_dir = Path::new("/global/v11/install-1");
@@ -410,6 +423,89 @@ fn failed_batch_bin_replacement_restores_earlier_slots() {
     assert_eq!(slot_state(&fixture.global_bin_dir.join("first")), first);
     assert_eq!(slot_state(&fixture.global_bin_dir.join("second")), second);
     assert!(backup_dirs(&fixture.global_bin_dir).is_empty());
+}
+
+#[test]
+fn rollback_continues_after_bin_removal_failure() {
+    let root = tempfile::tempdir().expect("create rollback fixture");
+    let global_bin_dir = root.path().join("bin");
+    let backup_dir = root.path().join("backup");
+    fs::create_dir_all(global_bin_dir.join("first")).expect("create obstructing bin directory");
+    fs::create_dir_all(&backup_dir).expect("create backup directory");
+    fs::write(global_bin_dir.join("second"), b"replacement second\n")
+        .expect("write replacement bin");
+    fs::write(backup_dir.join("first"), b"old first\n").expect("write first backup");
+    fs::write(backup_dir.join("second"), b"old second\n").expect("write second backup");
+    let saved_bin_slots = vec![
+        SavedBinSlot {
+            original: global_bin_dir.join("first"),
+            backup: backup_dir.join("first"),
+            kind: BinSlotKind::RegularFile,
+        },
+        SavedBinSlot {
+            original: global_bin_dir.join("second"),
+            backup: backup_dir.join("second"),
+            kind: BinSlotKind::RegularFile,
+        },
+    ];
+
+    let error = restore_bin_slots::<Host>(
+        &global_bin_dir,
+        &HashSet::from(["first".to_string(), "second".to_string()]),
+        &saved_bin_slots,
+    )
+    .expect_err("the obstructing directory must prevent complete rollback");
+
+    assert!(format!("{error:?}").contains("remove global bin"));
+    assert!(global_bin_dir.join("first").is_dir());
+    assert_eq!(
+        fs::read(global_bin_dir.join("second")).expect("read restored second bin"),
+        b"old second\n",
+    );
+    assert!(backup_dir.join("first").exists());
+    assert!(!backup_dir.join("second").exists());
+}
+
+#[test]
+fn rollback_continues_after_backup_rename_failure() {
+    let root = tempfile::tempdir().expect("create rollback fixture");
+    let global_bin_dir = root.path().join("bin");
+    let backup_dir = root.path().join("backup");
+    fs::create_dir_all(&global_bin_dir).expect("create global bin directory");
+    fs::create_dir_all(&backup_dir).expect("create backup directory");
+    for name in ["first", "second"] {
+        fs::write(global_bin_dir.join(name), format!("replacement {name}\n"))
+            .expect("write replacement bin");
+        fs::write(backup_dir.join(name), format!("old {name}\n")).expect("write bin backup");
+    }
+    let saved_bin_slots = vec![
+        SavedBinSlot {
+            original: global_bin_dir.join("first"),
+            backup: backup_dir.join("first"),
+            kind: BinSlotKind::RegularFile,
+        },
+        SavedBinSlot {
+            original: global_bin_dir.join("second"),
+            backup: backup_dir.join("second"),
+            kind: BinSlotKind::RegularFile,
+        },
+    ];
+
+    let error = restore_bin_slots::<FirstRestoreFailure>(
+        &global_bin_dir,
+        &HashSet::from(["first".to_string(), "second".to_string()]),
+        &saved_bin_slots,
+    )
+    .expect_err("the injected rename must prevent complete rollback");
+
+    assert!(format!("{error:?}").contains("injected first-slot restore failure"));
+    assert!(!global_bin_dir.join("first").exists());
+    assert_eq!(
+        fs::read(global_bin_dir.join("second")).expect("read restored second bin"),
+        b"old second\n",
+    );
+    assert!(backup_dir.join("first").exists());
+    assert!(!backup_dir.join("second").exists());
 }
 
 #[test]

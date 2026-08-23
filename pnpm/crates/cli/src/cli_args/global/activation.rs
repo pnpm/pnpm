@@ -117,6 +117,13 @@ enum GlobalActivationError {
         replacement_error: Box<dyn Diagnostic + Send + Sync>,
     },
 
+    #[display("Failed to restore all global bin slots")]
+    BinSlotRestorationFailed {
+        #[error(not(source))]
+        #[related]
+        failures: Vec<ArtifactCleanupError>,
+    },
+
     #[display("Failed to clean up after global bin activation failed.{remaining_artifacts}")]
     RollbackCleanupFailed {
         remaining_artifacts: String,
@@ -385,17 +392,21 @@ fn restore_bin_slots<Sys: FsRename>(
     bin_names: &HashSet<String>,
     saved_bin_slots: &[SavedBinSlot],
 ) -> miette::Result<()> {
-    remove_current_bin_slots(global_bin_dir, bin_names, saved_bin_slots)?;
+    let mut failures = remove_current_bin_slots(global_bin_dir, bin_names, saved_bin_slots);
     for saved_bin_slot in saved_bin_slots {
-        Sys::rename(&saved_bin_slot.backup, &saved_bin_slot.original)
-            .into_diagnostic()
-            .wrap_err_with(|| {
-                format!(
+        if let Err(source) = Sys::rename(&saved_bin_slot.backup, &saved_bin_slot.original) {
+            failures.push(ArtifactCleanupError {
+                context: format!(
                     "restore global bin slot from {} to {}",
                     saved_bin_slot.backup.display(),
                     saved_bin_slot.original.display(),
-                )
-            })?;
+                ),
+                source,
+            });
+        }
+    }
+    if !failures.is_empty() {
+        return Err(GlobalActivationError::BinSlotRestorationFailed { failures }.into());
     }
     Ok(())
 }
@@ -450,36 +461,47 @@ fn remove_current_bin_slots(
     global_bin_dir: &Path,
     actual_bin_names: &HashSet<String>,
     saved_bin_slots: &[SavedBinSlot],
-) -> miette::Result<()> {
+) -> Vec<ArtifactCleanupError> {
+    let mut failures = Vec::new();
     for path in directory_symlink_slots(saved_bin_slots) {
         let current_kind = match fs::symlink_metadata(path) {
             Ok(metadata) => bin_slot_kind(&metadata),
             Err(error) if error.kind() == io::ErrorKind::NotFound => None,
             Err(error) => {
-                return Err(error).into_diagnostic().wrap_err_with(|| {
-                    format!("read current global bin slot metadata from {}", path.display())
+                failures.push(ArtifactCleanupError {
+                    context: format!(
+                        "read current global bin slot metadata from {}",
+                        path.display(),
+                    ),
+                    source: error,
                 });
+                continue;
             }
         };
         if needs_directory_symlink_removal(current_kind) {
             match remove_symlink_dir(path) {
                 Ok(()) => {}
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) => {
-                    return Err(error).into_diagnostic().wrap_err_with(|| {
-                        format!("remove directory-symlink global bin slot at {}", path.display())
-                    });
-                }
+                Err(source) => failures.push(ArtifactCleanupError {
+                    context: format!(
+                        "remove directory-symlink global bin slot at {}",
+                        path.display(),
+                    ),
+                    source,
+                }),
             }
         }
     }
     for name in actual_bin_names {
         let bin_path = global_bin_dir.join(name);
-        remove_bin(&bin_path)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("remove global bin at {}", bin_path.display()))?;
+        if let Err(source) = remove_bin(&bin_path) {
+            failures.push(ArtifactCleanupError {
+                context: format!("remove global bin at {}", bin_path.display()),
+                source,
+            });
+        }
     }
-    Ok(())
+    failures
 }
 
 fn needs_directory_symlink_removal(current_kind: Option<BinSlotKind>) -> bool {
