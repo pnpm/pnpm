@@ -229,8 +229,7 @@ export async function requireHooks (
       cookedHooks.importPackage = fileHooks.importPackage
       globalWarn(
         `The "importPackage" hook (defined in ${redactAndSanitize(file)}) is deprecated and will be removed in the next major version of pnpm. ` +
-        'It keeps working until then, but it opts the installation out of the parallel package importer, making it slower. ' +
-        'If you rely on this hook, comment on https://github.com/pnpm/pnpm/issues/14101'
+        'It keeps working until then, but it opts the installation out of the parallel package importer, making it slower.'
       )
     }
   }
