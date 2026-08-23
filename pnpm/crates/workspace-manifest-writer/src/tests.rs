@@ -1796,16 +1796,8 @@ mod flow_style {
 
     #[test]
     fn ignore_ghsas_are_added_to_a_flow_audit_config() {
-        let out = run_ignore_ghsas(
-            Some("auditConfig: { cleanupUnusedIgnoredGhsas: true }\n"),
-            &["GHSA-aaaa-bbbb-cccc"],
-        );
-        assert_eq!(
-            out.as_deref(),
-            Some(
-                "auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [ GHSA-aaaa-bbbb-cccc ] }\n"
-            ),
-        );
+        let out = run_ignore_ghsas(Some("auditConfig: {}\n"), &["GHSA-aaaa-bbbb-cccc"]);
+        assert_eq!(out.as_deref(), Some("auditConfig: { ignoreGhsas: [ GHSA-aaaa-bbbb-cccc ] }\n"));
     }
 
     #[test]

@@ -3,7 +3,9 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
+import { prepare } from '@pnpm/prepare'
 import { tempDir } from '@pnpm/prepare-temp-dir'
+import { findPackages } from '@pnpm/workspace.projects-reader'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 
 // The Rust CLI's workspace-manifest-writer edits single-line flow
@@ -96,26 +98,27 @@ test('ignoreGhsas stays a flow sequence under a block auditConfig', async () => 
 })
 
 test('ignoreGhsas is added to a flow auditConfig', async () => {
-  const out = await editManifest('auditConfig: { cleanupUnusedIgnoredGhsas: true }\n', {
-    updatedFields: { auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: ['GHSA-aaaa-bbbb-cccc'] } },
+  const out = await editManifest('auditConfig: {}\n', {
+    updatedFields: { auditConfig: { ignoreGhsas: ['GHSA-aaaa-bbbb-cccc'] } },
   })
-  expect(out).toBe('auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [ GHSA-aaaa-bbbb-cccc ] }\n')
+  expect(out).toBe('auditConfig: { ignoreGhsas: [ GHSA-aaaa-bbbb-cccc ] }\n')
 })
 
 test('the entries of a flow named catalog are pruned in place', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  prepare({ dependencies: { abc: 'catalog:foo' } }, { tempDir: dir })
   fs.writeFileSync(filePath, 'catalogs: { foo: { abc: 0.1.2, ghi: 7.8.9 } }\n')
   await updateWorkspaceManifest(dir, {
     catalogPrune: true,
-    allProjects: [{ rootDir: dir as never, manifest: { name: 'x', dependencies: { abc: 'catalog:foo' } } }],
+    allProjects: await findPackages(dir),
   })
   expect(fs.readFileSync(filePath, 'utf8')).toBe('catalogs: { foo: { abc: 0.1.2 } }\n')
 })
 
-test('an entry removed from a flow mapping leaves the entries it cannot decode alone', async () => {
+test('an entry removed from a flow mapping leaves a parent-scoped override alone', async () => {
   const out = await editManifest('overrides: { foo: link:../foo, bar: { nested: value } }\n', {
-    updatedFields: { overrides: { bar: { nested: 'value' } } as never },
+    updatedFields: { overrides: { bar: { nested: 'value' } } as unknown as Record<string, string> },
   })
   expect(out).toBe('overrides: { bar: { nested: value } }\n')
 })
