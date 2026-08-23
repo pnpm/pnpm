@@ -146,11 +146,26 @@ pub struct OutdatedQuery<'a> {
     /// When present, restricts the walk to dependency keys the matcher
     /// accepts (pnpm's `outdated <pattern>` arguments).
     pub match_names: Option<&'a Matcher>,
+    /// When present, drops the dependency keys the matcher accepts —
+    /// `updateConfig.ignoreDependencies`, which takes a dependency out of
+    /// both the report and the interactive update list.
+    pub ignore_names: Option<&'a Matcher>,
     /// Also report a dependency whose `target` is deprecated even when it
     /// is not strictly newer than `current`. `outdated` sets this;
     /// `update` does not (a deprecated-but-current dependency has no
     /// newer version to move to).
     pub include_deprecated: bool,
+}
+
+/// The matcher for `updateConfig.ignoreDependencies`, or [`None`] when
+/// nothing is ignored.
+pub(crate) fn ignored_dependencies_matcher(config: &Config) -> Option<Matcher> {
+    config
+        .update_config
+        .ignore_dependencies
+        .as_deref()
+        .filter(|patterns| !patterns.is_empty())
+        .map(create_matcher)
 }
 
 /// Gather the direct dependencies whose `target` version is newer than
@@ -231,7 +246,9 @@ pub(crate) async fn collect_outdated_for_importer_in_run(
         .iter()
         .flat_map(move |&group| {
             manifest.dependencies([group]).filter_map(move |(alias, bare_specifier)| {
-                if query.match_names.is_some_and(|matcher| !matcher.matches(alias)) {
+                if query.match_names.is_some_and(|matcher| !matcher.matches(alias))
+                    || query.ignore_names.is_some_and(|matcher| matcher.matches(alias))
+                {
                     return None;
                 }
                 let current = current_versions.get(alias).cloned()?;
@@ -520,10 +537,12 @@ impl OutdatedArgs {
             (!package_patterns.is_empty()).then(|| create_matcher(&package_patterns));
         let action_matcher = github_actions::selector_matcher(&self.packages);
 
+        let ignored = ignored_dependencies_matcher(config);
         let query = OutdatedQuery {
             target_version,
             include_direct: &include,
             match_names: package_matcher.as_ref(),
+            ignore_names: ignored.as_ref(),
             include_deprecated: true,
         };
         let mut outdated = if check_packages {
@@ -583,10 +602,12 @@ impl OutdatedArgs {
         let target_version =
             if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest };
         let matcher = (!self.packages.is_empty()).then(|| create_matcher(&self.packages));
+        let ignored = ignored_dependencies_matcher(config);
         let query = OutdatedQuery {
             target_version,
             include_direct: &include,
             match_names: matcher.as_ref(),
+            ignore_names: ignored.as_ref(),
             include_deprecated: true,
         };
 
@@ -740,10 +761,12 @@ impl OutdatedArgs {
         let target_version =
             if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest };
         let matcher = (!self.packages.is_empty()).then(|| create_matcher(&self.packages));
+        let ignored = ignored_dependencies_matcher(config);
         let query = OutdatedQuery {
             target_version,
             include_direct: &include,
             match_names: matcher.as_ref(),
+            ignore_names: ignored.as_ref(),
             include_deprecated: true,
         };
 

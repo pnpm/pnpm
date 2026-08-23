@@ -5861,6 +5861,7 @@ name = "pnpr-fixtures"
 version = "0.0.1"
 dependencies = [
  "base64 0.23.1",
+ "chrono",
  "clap",
  "flate2",
  "node-semver",

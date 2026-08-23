@@ -53,8 +53,26 @@ pub struct AddMockedRegistry {
     pub store_dir: PathBuf,
     /// Absolute path to the cache directory as defined by the `.npmrc` file.
     pub cache_dir: PathBuf,
-    /// Handle to the process-scoped mocked registry used by this test.
+    /// Handle to the mocked registry this test uses — the process-scoped
+    /// instance, or one of the test's own.
     pub mock_instance: TestRegistry,
+}
+
+impl AddMockedRegistry {
+    /// Move `tag` to `version` on the mocked registry, the way the JS
+    /// harness's `addDistTag` does — the setup behind every upstream test
+    /// where a newer version is published after the install.
+    ///
+    /// The packument the last command cached goes with it, so the next one
+    /// resolves against the moved tag. Whether a client notices a tag that
+    /// moves under a packument it already holds is a caching question of
+    /// its own, and not what any of these tests are about.
+    pub fn set_dist_tag(&self, package: &str, version: &str, tag: &str) {
+        self.mock_instance.set_dist_tag(package, version, tag);
+        if self.cache_dir.exists() {
+            fs::remove_dir_all(&self.cache_dir).expect("drop the cached registry metadata");
+        }
+    }
 }
 
 impl CommandTempCwd<()> {
@@ -90,10 +108,31 @@ impl CommandTempCwd<()> {
         self.add_mocked_registry_with_substitutions_and_mode(substitutions, false)
     }
 
+    /// Create a mock registry over fixture storage this test owns, so it may
+    /// re-tag packages through [`AddMockedRegistry::set_dist_tag`] without
+    /// any other test seeing the change.
+    #[must_use]
+    pub fn add_mocked_registry_with_own_storage(self) -> CommandTempCwd<AddMockedRegistry> {
+        let mock_instance = TestRegistry::start_with_own_storage(self.root.path());
+        self.write_registry_config(mock_instance)
+    }
+
     fn add_mocked_registry_with_substitutions_and_mode(
         self,
         substitutions: &[(&str, &str)],
         static_registry: bool,
+    ) -> CommandTempCwd<AddMockedRegistry> {
+        let mock_instance = if substitutions.is_empty() {
+            TestRegistry::start()
+        } else {
+            TestRegistry::start_over_built_storage(self.root.path(), substitutions, static_registry)
+        };
+        self.write_registry_config(mock_instance)
+    }
+
+    fn write_registry_config(
+        self,
+        mock_instance: TestRegistry,
     ) -> CommandTempCwd<AddMockedRegistry> {
         let store_dir = self.root.path().join("pacquet-store");
         let cache_dir = self.root.path().join("pacquet-cache");
@@ -101,21 +140,6 @@ impl CommandTempCwd<()> {
         let npmrc_text = text_block_fnl! {
             "store-dir=../pacquet-store"
             "cache-dir=../pacquet-cache"
-        };
-        let mock_instance = if substitutions.is_empty() {
-            TestRegistry::start()
-        } else {
-            let registry_storage = self.root.path().join("registry-storage");
-            pnpr_fixtures::build_storage_at_with_substitutions(
-                &pnpr_fixtures::packages_dir(),
-                &registry_storage,
-                substitutions,
-            );
-            if static_registry {
-                TestRegistry::start_static_with_storage(&registry_storage)
-            } else {
-                TestRegistry::start_with_storage(&registry_storage)
-            }
         };
         let mocked_registry = mock_instance.url();
         let npmrc_text = format!("registry={mocked_registry}\n{npmrc_text}");

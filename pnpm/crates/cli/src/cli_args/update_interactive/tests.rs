@@ -1,10 +1,19 @@
-use super::{InteractiveUpdateProject, collect_choices};
+use super::{InteractiveUpdateProject, PromptRow, UpdatePrompt, collect_choices};
+use crate::cli_args::update::UpdateArgs;
+use clap::Parser;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use serde_json::json;
-use std::sync::Arc;
+use pnpm_testing_utils::registry::TestRegistry;
+use serde_json::{Value, json};
+use std::{
+    collections::VecDeque,
+    fs,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
+use tempfile::TempDir;
 
 const TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==";
 /// The default release-age policy fetches abbreviated metadata, then upgrades
@@ -428,12 +437,12 @@ mod selection {
         let groups =
             [group("dependencies", &[("Package Current", None), ("foo 1 ❯ 2", Some("foo"))])];
 
-        let (labels, values) = flatten_groups(&groups);
+        let rows = flatten_groups(&groups);
 
-        assert_eq!(labels.len(), 3, "heading, header row, and one package");
+        assert_eq!(rows.len(), 3, "heading, header row, and one package");
         // 0 is the heading, 1 the column header, 2 the package.
-        assert_eq!(selected_packages(&values, &[0, 1]), Vec::<String>::new());
-        assert_eq!(selected_packages(&values, &[2]), vec!["foo".to_string()]);
+        assert_eq!(selected_packages(&rows, &[0, 1]), Vec::<String>::new());
+        assert_eq!(selected_packages(&rows, &[2]), vec!["foo".to_string()]);
     }
 
     /// The same package offered by two importers is returned once, in the
@@ -445,11 +454,11 @@ mod selection {
             group("devDependencies", &[("hdr", None), ("bar", Some("bar")), ("foo", Some("foo"))]),
         ];
 
-        let (_, values) = flatten_groups(&groups);
+        let rows = flatten_groups(&groups);
 
         // 2 = foo (prod), 5 = bar, 6 = foo (dev).
         assert_eq!(
-            selected_packages(&values, &[2, 5, 6]),
+            selected_packages(&rows, &[2, 5, 6]),
             vec!["foo".to_string(), "bar".to_string()],
         );
     }
@@ -459,8 +468,351 @@ mod selection {
     fn an_unknown_index_is_ignored() {
         let groups = [group("dependencies", &[("hdr", None), ("foo", Some("foo"))])];
 
-        let (_, values) = flatten_groups(&groups);
+        let rows = flatten_groups(&groups);
 
-        assert_eq!(selected_packages(&values, &[99]), Vec::<String>::new());
+        assert_eq!(selected_packages(&rows, &[99]), Vec::<String>::new());
     }
+}
+
+// ---------------------------------------------------------------------
+// The scripted prompt behind [`UpdatePrompt::Scripted`], and the ports of
+// `pnpm11/installing/commands/test/update/interactive.ts` it carries.
+// ---------------------------------------------------------------------
+
+/// What one prompt put in front of the user.
+struct SeenPrompt {
+    message: String,
+    /// The label of each row, paired with the package checking it
+    /// updates — [`None`] for a group heading or a header row.
+    rows: Vec<(String, Option<String>)>,
+}
+
+struct PromptScript {
+    /// The packages to check, one entry per prompt, in call order.
+    answers: VecDeque<Vec<String>>,
+    seen: Vec<SeenPrompt>,
+}
+
+static SCRIPT: Mutex<PromptScript> =
+    Mutex::new(PromptScript { answers: VecDeque::new(), seen: Vec::new() });
+
+fn script() -> std::sync::MutexGuard<'static, PromptScript> {
+    SCRIPT.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+static SCRIPT_LOCK: Mutex<()> = Mutex::new(());
+
+/// One test's claim on the scripted prompt.
+///
+/// [`SCRIPT`] is process-global, which `cargo nextest run` — a process
+/// per test — makes invisible, but `cargo test` does not. Holding this
+/// for the test's lifetime keeps two tests from consuming each other's
+/// answers.
+struct ScriptedPrompts {
+    script: &'static Mutex<PromptScript>,
+    _claim: std::sync::MutexGuard<'static, ()>,
+}
+
+/// Claim the scripted prompt, with nothing answered and nothing seen.
+fn scripted_prompts() -> ScriptedPrompts {
+    let claim = SCRIPT_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut script = script();
+    script.answers.clear();
+    script.seen.clear();
+    drop(script);
+    ScriptedPrompts { script: &SCRIPT, _claim: claim }
+}
+
+impl ScriptedPrompts {
+    /// Answer the next prompt by checking the rows for these packages,
+    /// the way the upstream suite resolves its `@inquirer/prompts` mock.
+    fn answer_next(&self, packages: &[&str]) {
+        let answer = packages.iter().map(|package| (*package).to_string()).collect();
+        self.claimed().answers.push_back(answer);
+    }
+
+    /// Take the prompts shown since the last call.
+    fn seen(&self) -> Vec<SeenPrompt> {
+        std::mem::take(&mut self.claimed().seen)
+    }
+
+    fn claimed(&self) -> std::sync::MutexGuard<'static, PromptScript> {
+        self.script.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+pub(super) fn answer_prompt(message: &str, rows: &[PromptRow]) -> Vec<usize> {
+    let mut script = script();
+    let answer = script
+        .answers
+        .pop_front()
+        .unwrap_or_else(|| panic!("the test scripted no answer for the prompt {message:?}"));
+    script.seen.push(SeenPrompt {
+        message: message.to_string(),
+        rows: rows.iter().map(|row| (row.label.clone(), row.value.clone())).collect(),
+    });
+    rows.iter()
+        .enumerate()
+        .filter(|(_, row)| {
+            row.value.as_ref().is_some_and(|value| answer.iter().any(|name| name == value))
+        })
+        .map(|(index, _)| index)
+        .collect()
+}
+
+/// `(package, current, target)` for every row the user could check. The
+/// versions are read back out of the padded label; how that table is laid
+/// out is pinned by the `choices` ports.
+fn offered(prompt: &SeenPrompt) -> Vec<(String, String, String)> {
+    prompt
+        .rows
+        .iter()
+        .filter_map(|(label, value)| {
+            let package = value.as_ref()?;
+            let columns = label.split_whitespace().collect::<Vec<_>>();
+            let arrow = columns.iter().position(|column| *column == "❯")?;
+            Some((package.clone(), columns[arrow - 1].to_string(), columns[arrow + 1].to_string()))
+        })
+        .collect()
+}
+
+/// The group headings a prompt showed, in order. A heading is the row
+/// that opens a group: the one unselectable row followed by another
+/// unselectable one, the group's column header.
+fn headings(prompt: &SeenPrompt) -> Vec<String> {
+    prompt
+        .rows
+        .windows(2)
+        .filter(|pair| pair[0].1.is_none() && pair[1].1.is_none())
+        .map(|pair| pair[0].0.trim().to_string())
+        .collect()
+}
+
+/// Published at 1.0.0, 1.0.1, 2.0.0, and 2.1.0.
+const MULTI_A: &str = "@pnpm.e2e/multi-version-a";
+/// Published at 1.0.0, 2.0.0, 3.0.0, and 3.1.0.
+const MULTI_B: &str = "@pnpm.e2e/multi-version-b";
+/// Published at 3.0.0, 3.1.10, and 4.0.0.
+const MULTI_C: &str = "@pnpm.e2e/multi-version-c";
+
+/// A single-project workspace against a mocked registry of its own,
+/// driven through the same `UpdateArgs` the CLI dispatches.
+struct UpdateFixture {
+    _dir: TempDir,
+    project: PathBuf,
+    cache_dir: PathBuf,
+    config: &'static Config,
+    registry: TestRegistry,
+}
+
+impl UpdateFixture {
+    fn new() -> Self {
+        Self::with_config(|_| {})
+    }
+
+    fn with_config(customize: impl FnOnce(&mut Config)) -> Self {
+        let dir = tempfile::tempdir().expect("create temporary workspace");
+        let registry = TestRegistry::start_with_own_storage(dir.path());
+        let project = dir.path().join("project");
+        fs::create_dir_all(&project).expect("create the project dir");
+        let cache_dir = dir.path().join("cache");
+        let mut config = Config::new();
+        config.registry = registry.url();
+        config.store_dir = dir.path().join("store").into();
+        config.cache_dir = cache_dir.clone();
+        config.modules_dir = project.join("node_modules");
+        config.virtual_store_dir = project.join("node_modules/.pnpm");
+        config.enable_global_virtual_store = false;
+        customize(&mut config);
+        let config = Config::leak(config);
+        Self { _dir: dir, project, cache_dir, config, registry }
+    }
+
+    fn write_manifest(&self, dependencies: &Value) {
+        let manifest =
+            json!({ "name": "project", "version": "1.0.0", "dependencies": dependencies });
+        fs::write(self.project.join("package.json"), manifest.to_string())
+            .expect("write package.json");
+    }
+
+    /// Move a dist tag, and drop the packument the last run cached so the
+    /// next one resolves against the move — the same pairing as
+    /// `AddMockedRegistry::set_dist_tag`.
+    fn set_dist_tag(&self, package: &str, version: &str, tag: &str) {
+        self.registry.set_dist_tag(package, version, tag);
+        if self.cache_dir.exists() {
+            fs::remove_dir_all(&self.cache_dir).expect("drop the cached registry metadata");
+        }
+    }
+
+    async fn update(&self, args: &[&str]) {
+        #[derive(Parser)]
+        struct Harness {
+            #[clap(flatten)]
+            args: UpdateArgs,
+        }
+        let mut parsed =
+            Harness::try_parse_from(std::iter::once("pacquet-test").chain(args.iter().copied()))
+                .expect("parse update arguments")
+                .args;
+        parsed.prompt = UpdatePrompt::Scripted;
+        let state = crate::State::init(self.project.join("package.json"), self.config, false)
+            .expect("initialize the state");
+        parsed.run::<pnpm_reporter::SilentReporter>(state).await.expect("run pacquet update");
+    }
+
+    /// The `packages:` keys of the lockfile the last run wrote.
+    fn lockfile_packages(&self) -> Vec<String> {
+        let text = fs::read_to_string(self.project.join("pnpm-lock.yaml"))
+            .expect("read the wanted lockfile");
+        let lockfile: Lockfile = serde_saphyr::from_str(&text).expect("parse the wanted lockfile");
+        let mut keys = lockfile
+            .packages
+            .into_iter()
+            .flatten()
+            .map(|(key, _)| key.to_string())
+            .collect::<Vec<_>>();
+        keys.sort();
+        keys
+    }
+}
+
+/// Ports `interactively update`.
+#[tokio::test]
+async fn interactively_update() {
+    let fixture = UpdateFixture::new();
+    fixture.set_dist_tag(MULTI_A, "2.1.0", "latest");
+    fixture.set_dist_tag(MULTI_C, "4.0.0", "latest");
+
+    fixture.write_manifest(&json!({ MULTI_A: "1.0.0", MULTI_B: "2.0.0", MULTI_C: "3.0.0" }));
+    fixture.update(&["update"]).await;
+    fixture.write_manifest(&json!({ MULTI_A: "^1.0.0", MULTI_B: "^2.0.0", MULTI_C: "^3.0.0" }));
+
+    let scripted = scripted_prompts();
+    scripted.answer_next(&[MULTI_A]);
+    fixture.update(&["update", "--interactive"]).await;
+
+    let prompts = scripted.seen();
+    assert_eq!(prompts.len(), 1);
+    assert_eq!(
+        prompts[0].message,
+        "Choose which dependencies to update (space to select, enter to confirm)",
+    );
+    assert_eq!(headings(&prompts[0]), ["dependencies"]);
+    assert_eq!(
+        offered(&prompts[0]),
+        [
+            (MULTI_A.to_string(), "1.0.0".to_string(), "1.0.1".to_string()),
+            (MULTI_C.to_string(), "3.0.0".to_string(), "3.1.10".to_string()),
+        ],
+    );
+    assert_eq!(
+        fixture.lockfile_packages(),
+        [format!("{MULTI_A}@1.0.1"), format!("{MULTI_B}@2.0.0"), format!("{MULTI_C}@3.0.0")],
+    );
+
+    scripted.answer_next(&[MULTI_A]);
+    fixture.update(&["update", "--interactive", "--latest"]).await;
+
+    let prompts = scripted.seen();
+    assert_eq!(prompts.len(), 1);
+    assert_eq!(
+        offered(&prompts[0]),
+        [
+            (MULTI_A.to_string(), "1.0.1".to_string(), "2.1.0".to_string()),
+            (MULTI_B.to_string(), "2.0.0".to_string(), "3.1.0".to_string()),
+            (MULTI_C.to_string(), "3.0.0".to_string(), "4.0.0".to_string()),
+        ],
+    );
+    assert_eq!(
+        fixture.lockfile_packages(),
+        [format!("{MULTI_A}@2.1.0"), format!("{MULTI_B}@2.0.0"), format!("{MULTI_C}@3.0.0")],
+    );
+}
+
+/// Ports `interactively update should ignore dependencies from the
+/// ignoreDependencies field`.
+#[tokio::test]
+async fn interactively_update_skips_ignored_dependencies() {
+    let fixture = UpdateFixture::with_config(|config| {
+        config.update_config.ignore_dependencies = Some(vec![MULTI_A.to_string()]);
+    });
+
+    fixture.write_manifest(&json!({ MULTI_A: "1.0.0", MULTI_B: "2.0.0", MULTI_C: "3.0.0" }));
+    fixture.update(&["update"]).await;
+    fixture.write_manifest(&json!({ MULTI_A: "^1.0.0", MULTI_B: "^2.0.0", MULTI_C: "^3.0.0" }));
+
+    let scripted = scripted_prompts();
+    scripted.answer_next(&[MULTI_C]);
+    fixture.update(&["update", "--interactive"]).await;
+
+    let prompts = scripted.seen();
+    assert_eq!(prompts.len(), 1);
+    assert_eq!(
+        offered(&prompts[0]),
+        [(MULTI_C.to_string(), "3.0.0".to_string(), "3.1.10".to_string())],
+    );
+    assert_eq!(
+        fixture.lockfile_packages(),
+        [format!("{MULTI_A}@1.0.0"), format!("{MULTI_B}@2.0.0"), format!("{MULTI_C}@3.1.10")],
+    );
+}
+
+/// Ports `global interactive update handles an empty global directory`.
+#[tokio::test]
+async fn global_interactive_update_handles_an_empty_global_directory() {
+    let dir = tempfile::tempdir().expect("create temporary global dir");
+    let mut config = Config::new();
+    config.global_pkg_dir = Some(dir.path().to_path_buf());
+    let config = Config::leak(config);
+    let scripted = scripted_prompts();
+
+    let selected = super::select_global_package_groups(config, &[], true, UpdatePrompt::Scripted)
+        .await
+        .expect("select global package groups");
+
+    assert!(selected.is_none());
+    assert!(scripted.seen().is_empty(), "an empty global directory must not prompt");
+}
+
+/// Ports `interactive recursive should not error on git specifier
+/// override` (<https://github.com/pnpm/pnpm/issues/7415>). The override
+/// upstream sets leaves the lockfile recording a resolution that names no
+/// version, which is what the fixture below stands in for.
+#[tokio::test]
+async fn choices_walk_past_a_dependency_overridden_to_a_git_specifier() {
+    let temp = tempfile::tempdir().expect("create temporary workspace");
+    let manifest =
+        manifest_with_dependency_spec(temp.path(), "project-1", ("is-negative", "2.1.0"));
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        r"
+lockfileVersion: '9.0'
+importers:
+  project-1:
+    dependencies:
+      is-negative:
+        specifier: 2.1.0
+        version: https://codeload.github.com/kevva/is-negative/tar.gz/2.1.0
+",
+    )
+    .expect("parse workspace lockfile");
+    let mut config = Config::new();
+    // Any request would be a bug: a resolution that names no version has
+    // nothing to compare a registry version against.
+    config.registry = "http://127.0.0.1:1/".to_string();
+    let projects =
+        [InteractiveUpdateProject { manifest: &manifest, importer_id: "project-1".to_string() }];
+
+    let choices = collect_choices(
+        &projects,
+        Some(&lockfile),
+        &config,
+        &Arc::new(ThrottledClient::default()),
+        true,
+        &[DependencyGroup::Prod],
+    )
+    .await
+    .expect("collect interactive choices");
+
+    assert!(choices.is_empty());
 }
