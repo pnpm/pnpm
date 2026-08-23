@@ -46,10 +46,6 @@ enum ApproveBuildsError {
     #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_ALL_WITH_ARGS))]
     AllWithArgs,
 
-    #[display("The following packages are not awaiting approval: {}", _0.join(", "))]
-    #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_UNKNOWN_PACKAGES))]
-    UnknownPackages(#[error(not(source))] Vec<String>),
-
     #[display("The following packages are both approved and denied: {}", _0.join(", "))]
     #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_CONTRADICTING_ARGS))]
     ContradictingArgs(#[error(not(source))] Vec<String>),
@@ -85,10 +81,11 @@ impl ApproveBuildsArgs {
 
         let initial_config: &Config = config()?;
         let scan = get_automatically_ignored_builds(initial_config)?;
-        let Some(pending) = scan.names.filter(|names| !names.is_empty()) else {
+        let pending = scan.names.unwrap_or_default();
+        if pending.is_empty() && packages.is_empty() {
             println!("There are no packages awaiting approval");
             return Ok(None);
-        };
+        }
 
         let (approved, denied) = partition_params(&packages, &pending)?;
 
@@ -172,14 +169,18 @@ fn partition_params(
         let name = param.strip_prefix('!').unwrap_or(param);
         if !automatically_ignored_builds.iter().any(|build| build == name) {
             unknown.push(name.to_string());
-        } else if param.starts_with('!') {
+        }
+        if param.starts_with('!') {
             denied.push(name.to_string());
         } else {
             approved.push(name.to_string());
         }
     }
     if !unknown.is_empty() {
-        return Err(ApproveBuildsError::UnknownPackages(unknown));
+        eprintln!(
+            "warning: The following packages are not awaiting approval: {}",
+            unknown.join(", "),
+        );
     }
     let contradictions: Vec<String> =
         approved.iter().filter(|pkg| denied.contains(pkg)).cloned().collect();

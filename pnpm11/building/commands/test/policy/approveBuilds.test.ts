@@ -323,7 +323,7 @@ test('deny-only via !pkg keeps other builds pending', async () => {
   expect(ignoredNames.some((dp) => dp.includes('pre-and-postinstall-scripts-example'))).toBe(true)
 })
 
-test('positional arguments with unknown package throws error', async () => {
+test('positional arguments with unknown package updates allowBuilds setting without error', async () => {
   prepare({
     dependencies: {
       '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
@@ -333,12 +333,15 @@ test('positional arguments with unknown package throws error', async () => {
   await execPnpmInstall()
   const config = await getApproveBuildsConfig()
 
-  await expect(
-    approveBuilds.handler(config, ['@pnpm.e2e/nonexistent-package'], {})
-  ).rejects.toThrow('not awaiting approval')
+  await approveBuilds.handler(config, ['@pnpm.e2e/nonexistent-package'], {})
+
+  const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  expect(workspaceManifest.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/nonexistent-package': true,
+  })
 })
 
-test('!pkg with unknown package throws error', async () => {
+test('!pkg with unknown package preemptively denies build without error', async () => {
   prepare({
     dependencies: {
       '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
@@ -348,9 +351,12 @@ test('!pkg with unknown package throws error', async () => {
   await execPnpmInstall()
   const config = await getApproveBuildsConfig()
 
-  await expect(
-    approveBuilds.handler(config, ['!@pnpm.e2e/nonexistent-package'], {})
-  ).rejects.toThrow('not awaiting approval')
+  await approveBuilds.handler(config, ['!@pnpm.e2e/nonexistent-package'], {})
+
+  const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  expect(workspaceManifest.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/nonexistent-package': false,
+  })
 })
 
 test('contradictory arguments throw error', async () => {

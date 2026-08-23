@@ -467,10 +467,19 @@ pub(crate) fn apply_allow_build(
     if allow_build.is_empty() {
         return Ok(());
     }
-    let overlap: Vec<&str> = allow_build
-        .iter()
-        .filter(|pkg| config.allow_builds.get(pkg.as_str()) == Some(&false))
-        .map(String::as_str)
+    let mut allow_build_map: Vec<(&str, bool)> = Vec::with_capacity(allow_build.len());
+    let mut allowed_only: Vec<&str> = Vec::new();
+    for pkg in allow_build {
+        if let Some(stripped) = pkg.strip_prefix('!') {
+            allow_build_map.push((stripped, false));
+        } else {
+            allow_build_map.push((pkg.as_str(), true));
+            allowed_only.push(pkg.as_str());
+        }
+    }
+    let overlap: Vec<&str> = allowed_only
+        .into_iter()
+        .filter(|pkg| config.allow_builds.get(*pkg) == Some(&false))
         .collect();
     if !overlap.is_empty() {
         return Err(AllowBuildError::OverridingIgnoredBuiltDependencies {
@@ -478,10 +487,9 @@ pub(crate) fn apply_allow_build(
         }
         .into());
     }
-    set_allow_builds(settings_dir, allow_build.iter().map(|pkg| (pkg.as_str(), true)))
-        .into_diagnostic()?;
-    for pkg in allow_build {
-        config.allow_builds.insert(pkg.clone(), true);
+    set_allow_builds(settings_dir, allow_build_map.iter().copied()).into_diagnostic()?;
+    for (name, is_allow) in allow_build_map {
+        config.allow_builds.insert(name.to_string(), is_allow);
     }
     Ok(())
 }
