@@ -275,6 +275,32 @@ test('update <pkg> without a version still updates a transitive dependency', asy
   expect(Object.keys(lockfile.packages ?? {})).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
 })
 
+test('recursive update --latest reports the spec ban before judging whether a selector is direct', async () => {
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        // Declares `@pnpm.e2e/dep-of-pkg-with-1-dep` transitively only, so the
+        // selector below would also be rejected as unrecordable.
+        '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['recursive', 'install', '--lockfile-only'])
+
+  const result = execPnpmSync(['recursive', 'update', '--latest', '--lockfile-only', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+  expect(result.status).toBe(1)
+  const output = result.stdout.toString() + result.stderr.toString()
+  expect(output).toContain('ERR_PNPM_LATEST_WITH_SPEC')
+  expect(output).not.toContain('ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP')
+})
+
 test('recursive update alias@npm:<pkg>@<version> --lockfile-only --no-save scopes by version line', async () => {
   await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 

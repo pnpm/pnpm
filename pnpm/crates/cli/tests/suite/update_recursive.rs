@@ -617,3 +617,35 @@ fn recursive_update_latest_with_dedicated_lockfiles_only_touches_the_declaring_p
 
     drop((root, anchor));
 }
+
+/// `--latest` rejects every versioned selector on its own, direct or not, and
+/// has to report that ahead of the indirect-version check.
+#[test]
+fn recursive_update_latest_reports_the_spec_ban_first() {
+    let (root, workspace, anchor) = setup();
+
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({ "name": "project-1", "version": "1.0.0",
+            "dependencies": { PKG_WITH_DEP: "100.0.0" } }),
+        )],
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let (status, rendered) =
+        pacquet_output(&workspace, &["-r", "update", "--latest", &format!("{DEP}@100.1.0")]);
+
+    assert!(!status.success(), "a versioned selector with --latest should fail");
+    assert!(
+        rendered.contains("ERR_PNPM_LATEST_WITH_SPEC"),
+        "--latest owns this failure: {rendered}",
+    );
+    assert!(
+        !rendered.contains("ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP"),
+        "the indirect-version check must not preempt it",
+    );
+
+    drop((root, anchor));
+}

@@ -247,8 +247,10 @@ export async function recursive (
   }
   // At `--depth 0` a selector that matches no direct dependency is already
   // `NO_PACKAGE_IN_DEPENDENCIES` below; only a deeper update reaches the
-  // transitive copy whose version cannot be recorded.
-  if (updateMatch != null && (opts.depth ?? Infinity) > 0) {
+  // transitive copy whose version cannot be recorded. `--latest` rejects every
+  // versioned selector on its own, direct or not, and has to report that
+  // first.
+  if (updateMatch != null && !opts.latest && (opts.depth ?? Infinity) > 0) {
     failOnVersionsOfIndirectUpdateSpecs(params, pkgs.map(({ manifest }) => manifest), includeDirect)
   }
   // For a workspace with shared lockfile
