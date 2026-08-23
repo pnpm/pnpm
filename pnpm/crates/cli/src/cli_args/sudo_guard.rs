@@ -88,6 +88,14 @@ fn sudo_blocked_operation(command: &CliCommand) -> Option<String> {
         CliCommand::Config(ConfigArgs { command: ConfigSubcommand::Delete(args), .. }) => {
             global_write(super::config::resolve_global(args.flags), "config delete")
         }
+        CliCommand::Set(args) => global_write(super::config::resolve_global(args.flags), "set"),
+        // `env use --global` installs a runtime into the global packages
+        // directory, the same write `runtime set --global` makes. Its
+        // sibling `env list` only queries a mirror, so it stays allowed
+        // like every other global read.
+        CliCommand::Env(args) if args.params.first().is_some_and(|param| param == "use") => {
+            global_write(args.global, "env use")
+        }
         _ => None,
     }
 }

@@ -12,7 +12,7 @@ use super::{
     ci::CiArgs,
     clean::CleanArgs,
     completion::{CompletionArgs, CompletionServerArgs},
-    config::ConfigArgs,
+    config::{ConfigArgs, ConfigGetArgs, ConfigSetArgs},
     create::CreateArgs,
     dedupe::DedupeArgs,
     deploy::DeployArgs,
@@ -21,6 +21,7 @@ use super::{
     dlx::DlxArgs,
     docs::DocsArgs,
     doctor::DoctorArgs,
+    env::EnvArgs,
     exec::ExecArgs,
     fetch::FetchArgs,
     find_hash::FindHashArgs,
@@ -35,6 +36,7 @@ use super::{
     list::ListArgs,
     login::LoginArgs,
     logout::LogoutArgs,
+    not_implemented::NotImplementedArgs,
     outdated::OutdatedArgs,
     owner::OwnerArgs,
     pack::PackArgs,
@@ -612,6 +614,8 @@ pub enum CliCommand {
     /// Manage runtimes.
     #[clap(visible_alias = "rt")]
     Runtime(RuntimeArgs),
+    /// Manage Node.js versions. Deprecated in favour of `pnpm runtime`.
+    Env(EnvArgs),
     /// Manage context-aware shims for packages that are not installed
     /// globally, so a project decides which version runs.
     Shim(ShimArgs),
@@ -636,6 +640,12 @@ pub enum CliCommand {
     /// Manage the pnpm configuration files.
     #[clap(visible_alias = "c")]
     Config(ConfigArgs),
+    /// Print the config value for the provided key. Shorthand for
+    /// `pnpm config get`.
+    Get(ConfigGetArgs),
+    /// Set the config key to the value provided. Shorthand for
+    /// `pnpm config set`.
+    Set(ConfigSetArgs),
     /// Manages your package.json.
     Pkg(PkgArgs),
     /// Pack a `CommonJS` entry file into a standalone executable for one or more target platforms.
@@ -694,6 +704,16 @@ pub enum CliCommand {
     /// single invocation, ignoring the "packageManager" and
     /// "devEngines.packageManager" fields of the project's manifest.
     With(WithArgs),
+    /// Not implemented in pnpm. Use the npm CLI directly.
+    // Registered rather than left to the external-subcommand fallback so
+    // it names npm instead of failing as a missing package script.
+    Edit(NotImplementedArgs),
+    /// Not implemented in pnpm. Use the npm CLI directly.
+    Profile(NotImplementedArgs),
+    /// Not implemented in pnpm. Use the npm CLI directly.
+    Token(NotImplementedArgs),
+    /// Not implemented in pnpm. Use the npm CLI directly.
+    Xmas(NotImplementedArgs),
     #[clap(external_subcommand)]
     External(Vec<String>),
 }
@@ -707,6 +727,9 @@ impl CliCommand {
             CliCommand::ApproveBuilds(args) => args.global,
             CliCommand::Bin(args) => args.global,
             CliCommand::Config(args) => args.is_global(),
+            CliCommand::Env(args) => args.global,
+            CliCommand::Get(args) => args.flags.global,
+            CliCommand::Set(args) => args.flags.global,
             CliCommand::List(args) | CliCommand::Ll(args) => args.global,
             CliCommand::Outdated(args) => args.global,
             CliCommand::Prefix(args) => args.global,
@@ -755,14 +778,15 @@ impl CliCommand {
 
     /// Whether reporter output (warnings, progress) goes to stderr so this
     /// command's stdout stays a clean, machine-readable value — pnpm's
-    /// `COMMANDS_WITH_STDERR_REPORTER`. pnpm's set also lists the top-level
-    /// `set` / `get` commands, which pacquet does not have.
+    /// `COMMANDS_WITH_STDERR_REPORTER`.
     pub(crate) fn uses_stderr_reporter(&self) -> bool {
         matches!(
             self,
             CliCommand::Dlx(_)
                 | CliCommand::Create(_)
                 | CliCommand::Config(_)
+                | CliCommand::Get(_)
+                | CliCommand::Set(_)
                 | CliCommand::Sbom(_)
                 | CliCommand::Shim(_)
                 | CliCommand::With(_)
@@ -782,6 +806,7 @@ impl CliCommand {
             CliCommand::Add(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Remove(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Runtime(args) if args.global => SummaryScope::AllPrefixes,
+            CliCommand::Env(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Update(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Dlx(_) | CliCommand::Create(_) => SummaryScope::AllPrefixes,
             _ => SummaryScope::CurrentPrefix,

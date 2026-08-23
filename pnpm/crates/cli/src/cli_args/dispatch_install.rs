@@ -7,6 +7,7 @@ use super::{
     deploy::DeployArgs,
     dispatch::{CommandFuture, RunCtx},
     dlx::DlxArgs,
+    env::{EnvArgs, EnvSubcommand},
     fetch::FetchArgs,
     global,
     import::ImportArgs,
@@ -30,8 +31,10 @@ use super::{
     update::UpdateArgs,
 };
 use miette::Context;
+use pnpm_config::Config;
 use pnpm_default_reporter::DefaultReporter;
 use pnpm_reporter::{NdjsonReporter, SilentReporter};
+use std::path::Path;
 
 pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
     if args.global {
@@ -547,6 +550,39 @@ pub(super) fn runtime<'a>(
         }
         ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
         ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
+    })
+}
+
+// `pnpm env use` installs a runtime globally, so it takes the same
+// global-config load `runtime set -g` does; `pnpm env list` only queries a
+// mirror and needs no install pipeline at all.
+pub(super) fn env<'a>(ctx: &RunCtx<'a>, args: EnvArgs) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.global_config)()?;
+    let dir = ctx.dir;
+    // The reporter is chosen before the subcommand is classified because
+    // classifying `env use` already emits its deprecation warning.
+    match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            env_with_reporter::<DefaultReporter>(args, config, dir)
+        }
+        ReporterType::Ndjson => env_with_reporter::<NdjsonReporter>(args, config, dir),
+        ReporterType::Silent => env_with_reporter::<SilentReporter>(args, config, dir),
+    }
+}
+
+fn env_with_reporter<'a, Reporter: pnpm_reporter::Reporter + 'static>(
+    args: EnvArgs,
+    config: &'static Config,
+    dir: &'a Path,
+) -> miette::Result<CommandFuture<'a>> {
+    Ok(match args.subcommand::<Reporter>(config)? {
+        EnvSubcommand::Use { package_name } => {
+            Box::pin(EnvArgs::run_use::<Reporter>(package_name, config, dir))
+        }
+        EnvSubcommand::List { version_spec } => Box::pin(async move {
+            println!("{}", EnvArgs::run_list(version_spec, config).await?);
+            Ok(())
+        }),
     })
 }
 
