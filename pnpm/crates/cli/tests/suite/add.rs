@@ -35,6 +35,38 @@ where
     (root, workspace, npmrc_info)
 }
 
+#[test]
+fn add_to_multi_pattern_workspace_root_requires_workspace_root_flag() {
+    let root = TempDir::new().unwrap();
+    std::fs::write(root.path().join("package.json"), r#"{"name":"root","version":"1.0.0"}"#)
+        .unwrap();
+    std::fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\n  - tools/*\n",
+    )
+    .unwrap();
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(root.path())
+        .with_args(["add", "foo"])
+        .output()
+        .expect("run pnpm add");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "adding to the workspace root must fail");
+    assert!(stderr.contains("ERR_PNPM_ADDING_TO_ROOT"), "unexpected stderr: {stderr}");
+
+    let local = root.path().join("local");
+    std::fs::create_dir(&local).unwrap();
+    std::fs::write(local.join("package.json"), r#"{"name":"local","version":"1.0.0"}"#).unwrap();
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(root.path())
+        .with_args(["add", "--ignore-workspace-root-check", "local@file:./local"])
+        .assert()
+        .success();
+}
+
 /// Regression test for the Tag release operator's invocation (pnpm/pnpm#13242).
 #[test]
 fn add_accepts_dir_allow_build_and_registry_after_the_subcommand() {

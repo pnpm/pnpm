@@ -25,6 +25,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use pnpm_config::ColorMode;
 use pnpm_reporter::{FetchingProgressMessage, LogEvent, PromptAction, Reporter};
 
 use crate::{
@@ -41,6 +42,7 @@ static REPORTS_SCOPE: OnceLock<bool> = OnceLock::new();
 static HIDE_ADDED_PKGS_PROGRESS: OnceLock<bool> = OnceLock::new();
 static IS_RECURSIVE: OnceLock<bool> = OnceLock::new();
 static MAX_LOG_LEVEL: OnceLock<MaxLogLevel> = OnceLock::new();
+static COLOR_MODE: OnceLock<ColorMode> = OnceLock::new();
 
 /// Verbosity ceiling for the rendered output, from pnpm's `--loglevel`
 /// setting. Mirrors `LOG_LEVEL_NUMBER` in `@pnpm/cli.default-reporter`
@@ -134,6 +136,19 @@ pub fn set_max_log_level(level: MaxLogLevel) {
     let _ = MAX_LOG_LEVEL.set(level);
 }
 
+/// Configure ANSI color rendering. Call before the first reporter event.
+pub fn set_color_mode(mode: ColorMode) {
+    let _ = COLOR_MODE.set(mode);
+}
+
+pub fn colors_enabled(is_terminal: bool) -> bool {
+    match COLOR_MODE.get().copied().unwrap_or_default() {
+        ColorMode::Always => true,
+        ColorMode::Auto => is_terminal && std::env::var_os("NO_COLOR").is_none(),
+        ColorMode::Never => false,
+    }
+}
+
 fn cwd() -> String {
     CWD.get().cloned().unwrap_or_else(|| {
         std::env::current_dir().map(|path| path.to_string_lossy().into_owned()).unwrap_or_default()
@@ -196,7 +211,7 @@ impl Sink {
         let columns = if is_tty { terminal_columns().unwrap_or(80) } else { 80 };
         // pnpm's `outputMaxWidth`: `columns - 2` on a TTY, else 80.
         let width = if is_tty { columns.saturating_sub(2) } else { 80 };
-        let colors = Colors { enabled: is_tty && std::env::var_os("NO_COLOR").is_none() };
+        let colors = Colors { enabled: colors_enabled(is_tty) };
         let state = ReporterState::new_with_options(
             cwd(),
             width,

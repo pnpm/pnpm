@@ -65,24 +65,31 @@ pub struct InstallDependencyOptions {
     /// removed if already installed, regardless of `NODE_ENV`.
     #[arg(short = 'D', long)]
     dev: bool,
+    /// Include optionalDependencies even when the configured default excludes them.
+    #[arg(long, overrides_with = "no_optional")]
+    optional: bool,
     /// Don't install optionalDependencies.
-    #[arg(long)]
+    #[arg(long, overrides_with = "optional")]
     no_optional: bool,
 }
 
 impl InstallDependencyOptions {
     /// Convert the dependency options to an iterator of [`DependencyGroup`]
     /// which filters the types of dependencies to install.
-    pub(crate) fn dependency_groups(&self) -> impl Iterator<Item = DependencyGroup> {
-        let &InstallDependencyOptions { prod, dev, no_optional } = self;
+    pub(crate) fn dependency_groups(
+        &self,
+        include_optional: bool,
+    ) -> impl Iterator<Item = DependencyGroup> {
+        let &InstallDependencyOptions { prod, dev, optional, no_optional } = self;
+        let include_optional = resolve_bool_override(optional, no_optional, include_optional);
         // `--prod` wins over `--dev`, and a dev-only install drops optional
         // dependencies along with the production ones.
         let (has_prod, has_dev, has_optional) = if prod {
-            (true, false, !no_optional)
+            (true, false, include_optional)
         } else if dev {
             (false, true, false)
         } else {
-            (true, true, !no_optional)
+            (true, true, include_optional)
         };
         std::iter::empty()
             .chain(has_prod.then_some(DependencyGroup::Prod))
@@ -289,6 +296,7 @@ impl InstallArgs {
             dependency_options: InstallDependencyOptions {
                 prod: false,
                 dev: false,
+                optional: false,
                 no_optional: false,
             },
             supported_architectures: SupportedArchitecturesArgs::default(),
@@ -398,7 +406,7 @@ impl InstallArgs {
         let Some(up_to_date) = install_already_up_to_date(&UpToDateFastPathCheck {
             config,
             manifest: &manifest,
-            dependency_groups: self.dependency_options.dependency_groups().collect(),
+            dependency_groups: self.dependency_options.dependency_groups(config.optional).collect(),
             node_linker,
             supported_architectures: self
                 .supported_architectures
@@ -602,7 +610,9 @@ impl InstallArgs {
                 pnpr_server,
                 selection.as_ref(),
                 PnprLink {
-                    dependency_groups: dependency_options.dependency_groups().collect(),
+                    dependency_groups: dependency_options
+                        .dependency_groups(config.optional)
+                        .collect(),
                     supported_architectures,
                     node_linker,
                     skip_runtimes,
@@ -628,7 +638,7 @@ impl InstallArgs {
             emit_initial_manifest: true,
             lockfile: MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: Some(&lockfile_path),
-            dependency_groups: dependency_options.dependency_groups(),
+            dependency_groups: dependency_options.dependency_groups(config.optional),
             frozen_lockfile,
             prefer_frozen_lockfile,
             ignore_manifest_check,
@@ -868,11 +878,13 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let catalogs = pnpr_catalogs(state)?;
 
     // Filtered installs keep the server exchange even when satisfied:
-    // their merge semantics live there.
+    // their merge semantics live there. A workspace-wide install has a
+    // selection too — every project — and skips the server like any
+    // single-project one.
     let satisfied_without_server = !link.frozen_lockfile
         && !link.lockfile_only
         && link.prefer_frozen_lockfile
-        && selection.is_none()
+        && !partial_selection
         && match previous_wanted {
             Some(lockfile) => {
                 wanted_lockfile_satisfies_workspace(&WantedLockfileSatisfactionCheck {

@@ -981,3 +981,67 @@ fn run_exports_node_path_from_a_custom_virtual_store_dir() {
 
     drop(root);
 }
+
+/// `shellEmulator` runs scripts in pacquet's own shell instead of the
+/// platform's, which is what makes a script written for `sh` portable to
+/// Windows. The tests prove the emulator took over by pointing
+/// `scriptShell` at a path that could never be spawned: the script still
+/// runs, and without the setting the same configuration fails.
+mod shell_emulator {
+    use assert_cmd::prelude::*;
+    use command_extra::CommandExtra;
+    use pnpm_testing_utils::bin::CommandTempCwd;
+    use serde_json::json;
+    use std::{fs, path::Path};
+
+    fn write_project(workspace: &Path, scripts: &serde_json::Value, shell_emulator: bool) {
+        let manifest =
+            json!({ "name": "test", "version": "0.0.0", "scripts": scripts }).to_string();
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+        let unspawnable_shell = workspace.join("no-such-shell");
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!(
+                "scriptShell: {}\nshellEmulator: {shell_emulator}\n",
+                unspawnable_shell.display(),
+            ),
+        )
+        .expect("write pnpm-workspace.yaml");
+    }
+
+    #[test]
+    fn runs_the_script_without_the_configured_shell() {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        write_project(&workspace, &json!({ "build": "echo emulated > marker.txt" }), true);
+
+        pacquet.with_args(["run", "build"]).assert().success();
+
+        let marker =
+            fs::read_to_string(workspace.join("marker.txt")).expect("read the script's output");
+        assert_eq!(marker.trim(), "emulated");
+
+        drop(root);
+    }
+
+    #[test]
+    fn without_the_setting_the_same_project_cannot_spawn_its_shell() {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        write_project(&workspace, &json!({ "build": "echo emulated > marker.txt" }), false);
+
+        pacquet.with_args(["run", "build"]).assert().failure();
+        assert!(!workspace.join("marker.txt").exists(), "the script must not have run");
+
+        drop(root);
+    }
+
+    #[test]
+    fn propagates_a_failing_scripts_exit_code() {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        write_project(&workspace, &json!({ "fail": "exit 5" }), true);
+
+        let output = pacquet.with_args(["run", "fail"]).output().expect("spawn pacquet run");
+        assert_eq!(output.status.code(), Some(5), "the script's exit code must propagate");
+
+        drop(root);
+    }
+}

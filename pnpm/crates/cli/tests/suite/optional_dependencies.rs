@@ -9,7 +9,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::{Lockfile, PkgName};
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, io, path::Path};
+use std::{fs, io, path::Path, process::Command};
 
 /// Nothing at `path` at all. `Path::exists` follows links, so it also reports
 /// `false` for a link whose target is missing — an excluded dependency that was
@@ -806,6 +806,35 @@ fn not_installing_optional_dependencies_when_optional_is_false() {
     );
 
     drop((root, npmrc_info)); // cleanup
+}
+
+#[test]
+fn optional_setting_excludes_optional_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "dependencies": { "is-positive": "1.0.0" },
+            "optionalDependencies": { "@pnpm.e2e/pkg-with-optional": "1.0.0" },
+        }),
+    );
+    append_workspace_yaml_key(&workspace, "optional", "false");
+
+    pacquet.with_arg("install").assert().success();
+
+    assert!(workspace.join("node_modules/is-positive/package.json").exists());
+    assert!(is_absent(&workspace.join("node_modules/@pnpm.e2e/pkg-with-optional")));
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--optional"])
+        .assert()
+        .success();
+    assert!(workspace.join("node_modules/@pnpm.e2e/pkg-with-optional/package.json").exists());
+
+    drop((root, npmrc_info));
 }
 
 /// TS: `optional dependency has bigger priority than regular dependency`

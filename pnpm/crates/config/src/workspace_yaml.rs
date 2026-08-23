@@ -167,7 +167,20 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 #[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorkspaceSettings {
+    pub bail: Option<bool>,
     pub ci: Option<bool>,
+    pub color: Option<crate::ColorMode>,
+    pub embed_readme: Option<bool>,
+    pub ignore_workspace_root_check: Option<bool>,
+    pub optional: Option<bool>,
+    pub package_lock: Option<bool>,
+    pub pending: Option<bool>,
+    pub recursive_install: Option<bool>,
+    pub reverse: Option<bool>,
+    pub shell_emulator: Option<bool>,
+    pub skip_manifest_obfuscation: Option<bool>,
+    pub sort: Option<bool>,
+    pub use_beta_cli: Option<bool>,
     pub hoist: Option<bool>,
 
     /// Tri-state `hoistPattern` — see `deserialize_double_option`.
@@ -1194,6 +1207,13 @@ impl WorkspaceSettings {
         self.never_built_dependencies = None;
         self.ignored_built_dependencies = None;
         self.hoist = None;
+        self.embed_readme = None;
+        self.ignore_workspace_root_check = None;
+        self.pending = None;
+        self.recursive_install = None;
+        self.reverse = None;
+        self.skip_manifest_obfuscation = None;
+        self.sort = None;
         self.hoist_pattern = None;
         self.public_hoist_pattern = None;
         self.shamefully_hoist = None;
@@ -1469,7 +1489,10 @@ impl WorkspaceSettings {
         }
 
         apply! {
-            ci, hoist, shamefully_hoist,
+            bail, ci, color, embed_readme, ignore_workspace_root_check,
+            optional, package_lock, pending, recursive_install, reverse, shell_emulator,
+            skip_manifest_obfuscation, sort, use_beta_cli,
+            hoist, shamefully_hoist,
             node_linker, node_experimental_package_map, node_package_map_type,
             symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,

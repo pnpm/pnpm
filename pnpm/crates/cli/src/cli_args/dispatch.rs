@@ -2,7 +2,10 @@ use super::{
     cli_command::{CliArgs, CliCommand},
     dispatch_install, dispatch_query, dispatch_script,
     install::resolve_bool_override,
-    reporter::{ReporterType, configure_default_reporter, configure_max_log_level, reporter_emit},
+    reporter::{
+        ReporterType, configure_color, configure_default_reporter, configure_max_log_level,
+        reporter_emit,
+    },
 };
 use crate::{
     State,
@@ -12,7 +15,7 @@ use crate::{
     },
 };
 use miette::{Context, IntoDiagnostic};
-use pnpm_config::{Config, Host, default_pnpm_home_dir};
+use pnpm_config::{ColorMode, Config, Host, default_pnpm_home_dir};
 use pnpm_network_web_auth::OtpNonInteractiveError;
 use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
 use std::{future::Future, path::Path, pin::Pin};
@@ -38,8 +41,6 @@ pub(crate) struct RunCtx<'a> {
     pub(crate) recursive: bool,
     pub(crate) recursive_resume_from: Option<&'a str>,
     pub(crate) recursive_report_summary: bool,
-    pub(crate) recursive_no_bail: bool,
-    pub(crate) recursive_sort: bool,
     pub(crate) recursive_parallel: bool,
     /// The top-level `--if-present` spelling (`pnpm --if-present test`);
     /// merged with the flag the script subcommands declare themselves.
@@ -61,7 +62,11 @@ impl CliArgs {
     /// Seed the process-global default-reporter state from the parsed
     /// arguments. The entry point calls this before the pre-command
     /// checks, which are the first thing that can emit — the state is set
-    /// once, so whoever emits first must already see the real values.
+    /// once, so whoever emits first must already see the real values. A
+    /// `--color` / `--no-color` on the command line is seeded here for
+    /// that reason; the `color` *setting* can only be read once the
+    /// configuration is loaded, and reaches the reporter in
+    /// [`Self::run`].
     /// [`Self::run`] and the install fast path call it again so a direct
     /// in-process caller is configured too; the repeat calls are no-ops.
     ///
@@ -69,6 +74,9 @@ impl CliArgs {
     /// path fails with a proper diagnostic in [`Self::run`], and the
     /// reporter only uses it to shorten the paths it prints.
     pub fn configure_reporter(&self) {
+        if let Some(color) = self.color.or_else(|| self.no_color.then_some(ColorMode::Never)) {
+            configure_color(color);
+        }
         let dir = dunce::canonicalize(&self.dir).unwrap_or_else(|_| self.dir.clone());
         configure_default_reporter(
             self.effective_reporter(),
@@ -105,14 +113,16 @@ impl CliArgs {
     ///
     /// Mirrors the install arm of [`Self::run`]'s dispatch: the same
     /// canonicalized `--dir`, the same config layering (`.npmrc` auth
-    /// file seed + `--config.<key>` overrides). Workspace-filtered and
-    /// recursive installs always take the full path.
+    /// file seed + `--config.<key>` overrides). Filtered installs always
+    /// take the full path; an unfiltered recursive one does not — inside
+    /// a workspace every install is recursive, and the up-to-date check
+    /// speaks for the whole workspace.
     pub fn finished_via_install_fast_path(&self, config_overrides: &ConfigOverrides) -> bool {
         let started_at = now_millis();
         let CliCommand::Install(install_args) = &self.command else {
             return false;
         };
-        if self.recursive || !self.filter.is_empty() || !self.filter_prod.is_empty() {
+        if !self.filter.is_empty() || !self.filter_prod.is_empty() {
             return false;
         }
         let Ok(dir) = dunce::canonicalize(&self.dir) else {
@@ -193,15 +203,19 @@ impl CliArgs {
             test_pattern,
             changed_files_ignore_pattern,
             version: _,
-            color: _,
+            color,
+            no_color,
             yes: _,
-            sort: _,
+            sort,
             no_sort,
+            reverse,
+            no_reverse,
             workspace_concurrency,
             parallel,
             resume_from,
             report_summary,
             no_bail,
+            bail,
             if_present,
         } = self;
 
@@ -243,6 +257,7 @@ impl CliArgs {
                 | CliCommand::PatchRemove(_),
         );
         let print_json_errors = prints_json_errors(&command);
+        let recursive_by_default_command = command.recursive_by_default();
         let manifest_path = dir.join("package.json");
         // Load config anchored at `anchor`, reading `.npmrc` /
         // `pnpm-workspace.yaml` from there.
@@ -259,6 +274,17 @@ impl CliArgs {
         let finalize_config =
             |mut cfg: Config, anchor: &Path| -> miette::Result<&'static mut Config> {
                 config_overrides.apply(&mut cfg);
+                cfg.color = if let Some(color) = color {
+                    color
+                } else if no_color {
+                    pnpm_config::ColorMode::Never
+                } else {
+                    cfg.color
+                };
+                configure_color(cfg.color);
+                if cfg.ci {
+                    pnpm_default_reporter::force_append_only();
+                }
                 cfg.apply_proxy_cli_overrides(
                     https_proxy.as_deref(),
                     http_proxy.as_deref(),
@@ -282,8 +308,19 @@ impl CliArgs {
                 cfg.recursive = recursive;
                 cfg.filter.clone_from(&filter);
                 cfg.filter_prod.clone_from(&filter_prod);
+                if recursive_by_default_command
+                    && cfg.recursive
+                    && !cfg.recursive_install
+                    && cfg.filter.is_empty()
+                    && cfg.filter_prod.is_empty()
+                {
+                    cfg.filter.push("{.}...".to_string());
+                }
                 cfg.workspace_root = workspace_root;
                 cfg.fail_if_no_match = fail_if_no_match;
+                cfg.bail = resolve_bool_override(bail, no_bail, cfg.bail);
+                cfg.sort = resolve_bool_override(sort, no_sort, cfg.sort);
+                cfg.reverse = resolve_bool_override(reverse, no_reverse, cfg.reverse);
 
                 cfg.include_workspace_root = resolve_bool_override(
                     include_workspace_root,
@@ -353,8 +390,6 @@ impl CliArgs {
             recursive,
             recursive_resume_from: resume_from.as_deref(),
             recursive_report_summary: report_summary,
-            recursive_no_bail: no_bail,
-            recursive_sort: !no_sort,
             recursive_parallel: parallel,
             if_present,
             config: &config,

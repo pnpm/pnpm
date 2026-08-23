@@ -12,6 +12,35 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{fs, path::Path};
 
+#[test]
+fn pack_uses_embed_readme_and_manifest_obfuscation_settings() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "scripts": { "prepublishOnly": "echo kept" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(workspace.join("README.md"), "# Packed README\n").unwrap();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "embedReadme: true\nskipManifestObfuscation: true\n",
+    )
+    .unwrap();
+
+    pacquet.with_arg("pack").assert().success();
+
+    let manifest = read_manifest_from_tarball(&workspace.join("pkg-1.0.0.tgz"));
+    assert_eq!(manifest["readme"], "# Packed README\n");
+    assert_eq!(manifest["scripts"]["prepublishOnly"], "echo kept");
+
+    drop(root);
+}
+
 /// A `beforePacking` hook that deletes `devDependencies` and stamps a
 /// marker rewrites the manifest packed into the tarball.
 #[test]

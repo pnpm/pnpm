@@ -20,6 +20,35 @@ use std::{
 };
 
 #[test]
+fn package_lock_false_disables_the_pnpm_lockfile() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "project",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str("packageLock: false\n");
+    fs::write(workspace_yaml_path, workspace_yaml).expect("write workspace settings");
+
+    pacquet.with_arg("install").assert().success();
+
+    assert!(workspace.join("node_modules/is-positive/package.json").exists());
+    assert!(!workspace.join("pnpm-lock.yaml").exists());
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn should_install_dependencies() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

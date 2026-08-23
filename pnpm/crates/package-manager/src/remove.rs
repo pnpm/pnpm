@@ -1,11 +1,12 @@
 use crate::{
-    DIRECT_GROUPS, Install, InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy,
+    Install, InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy,
     WorkspaceInstallSelection,
     catalog_cleanup::{
         WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
-    emit_initial_package_manifest, package_manifest_prefix, selected_project_indices,
+    emit_initial_package_manifest, included_direct_groups, package_manifest_prefix,
+    selected_project_indices,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -114,7 +115,7 @@ impl Remove<'_> {
             // `pnpm remove`'s `include` defaults to every dependency
             // group (`production`/`dev`/`optional` !== false), so the
             // re-resolve walks all three.
-            dependency_groups: DIRECT_GROUPS,
+            dependency_groups: included_direct_groups(config.optional),
             frozen_lockfile: false,
             // The manifest was just edited, but the drift is exactly the
             // deleted importer edges, which the removal handler of the
@@ -213,7 +214,7 @@ impl Remove<'_> {
             emit_initial_manifest: false,
             lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
-            dependency_groups: DIRECT_GROUPS,
+            dependency_groups: included_direct_groups(config.optional),
             frozen_lockfile: false,
             prefer_frozen_lockfile: None,
             ignore_manifest_check: false,

@@ -43,6 +43,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     user_agent: &str,
     scripts_prepend_node_path: ScriptsPrependNodePath,
     script_shell: Option<&Path>,
+    shell_emulator: bool,
     unsafe_perm: bool,
     frozen_store: bool,
     ignore_scripts: bool,
@@ -401,6 +402,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
             node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
             scripts_prepend_node_path,
             script_shell,
+            shell_emulator,
             optional,
         });
 

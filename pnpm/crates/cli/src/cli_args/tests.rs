@@ -13,6 +13,7 @@ use super::{
     unlink::UnlinkArgs,
 };
 use clap::Parser;
+use pnpm_config::ColorMode;
 use pnpm_default_reporter::SummaryScope;
 use std::path::Path;
 use tempfile::TempDir;
@@ -472,7 +473,7 @@ fn recursive_by_default_command_is_promoted_inside_workspace() {
     let workspace = tempfile::tempdir().expect("creates workspace");
     std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages: []\n")
         .expect("writes workspace manifest");
-    for command in ["list", "why", "peers"] {
+    for command in ["install", "list", "why", "peers"] {
         let mut parsed = CliArgs::try_parse_from([
             "pacquet",
             "--dir",
@@ -485,6 +486,25 @@ fn recursive_by_default_command_is_promoted_inside_workspace() {
 
         assert!(parsed.recursive, "{command} should be recursive inside a workspace");
     }
+}
+
+#[test]
+fn color_accepts_modes_and_boolean_spellings() {
+    for (value, expected) in [
+        ("always", ColorMode::Always),
+        ("auto", ColorMode::Auto),
+        ("never", ColorMode::Never),
+        ("true", ColorMode::Always),
+        ("false", ColorMode::Never),
+    ] {
+        let color = format!("--color={value}");
+        let parsed = CliArgs::try_parse_from(["pacquet", color.as_str(), "install"])
+            .expect("color mode parses");
+        assert_eq!(parsed.color, Some(expected));
+    }
+    let parsed =
+        CliArgs::try_parse_from(["pacquet", "--color", "install"]).expect("bare color parses");
+    assert_eq!(parsed.color, Some(ColorMode::Always));
 }
 
 #[test]

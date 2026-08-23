@@ -26,8 +26,9 @@
 //! keeps catching the next default that needs porting.
 
 use crate::{
-    CatalogMode, Config, InitType, LinkWorkspacePackages, NodeLinker, NodePackageMapType,
-    ResolutionMode, SaveWorkspaceProtocol, ScriptsPrependNodePath, VerifyDepsBeforeRun,
+    CatalogMode, ColorMode, Config, InitType, LinkWorkspacePackages, NodeLinker,
+    NodePackageMapType, ResolutionMode, SaveWorkspaceProtocol, ScriptsPrependNodePath,
+    VerifyDepsBeforeRun,
 };
 use std::collections::BTreeSet;
 
@@ -54,32 +55,19 @@ fn s(value: &str) -> Scalar {
 /// is nothing to string-compare against, so they are exercised by the
 /// dedicated `current::<Host>()` config-loading tests instead.
 const NON_LITERAL: &[&str] = &[
+    "ci",                           // detected from the process environment
+    "package-lock",                 // npmDefaults['package-lock']
     "registry",                     // npmDefaults.registry
     "unsafe-perm",                  // npmDefaults['unsafe-perm']
     "userconfig",                   // npmDefaults.userconfig (home-derived path)
     "virtual-store-dir-max-length", // isWindows() ? 60 : 120
     "workspace-concurrency",        // derived from CPU count
+    "workspace-prefix",             // the discovered workspace directory
 ];
 
 /// pnpm settings pacquet has no `Config` field for yet. Porting one
 /// means moving its key from here into a `mapped` row.
-const NOT_PORTED: &[&str] = &[
-    "bail",
-    "ci",
-    "color",
-    "embed-readme",
-    "ignore-workspace-root-check",
-    "optional",
-    "package-lock",
-    "pending",
-    "recursive-install",
-    "reverse",
-    "shell-emulator",
-    "skip-manifest-obfuscation",
-    "sort",
-    "use-beta-cli",
-    "workspace-prefix",
-];
+const NOT_PORTED: &[&str] = &[];
 
 /// Settings both stacks implement but deliberately default differently,
 /// with the reason each divergence is intended. Entries here are exempt
@@ -103,6 +91,18 @@ fn divergent_rows(_cfg: &Config) -> Vec<(&'static str, Scalar, &'static str)> {
 fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
     use Scalar::{Bool, Int};
     vec![
+        ("bail", Bool(cfg.bail)),
+        ("color", color_mode_scalar(cfg.color)),
+        ("embed-readme", Bool(cfg.embed_readme)),
+        ("ignore-workspace-root-check", Bool(cfg.ignore_workspace_root_check)),
+        ("optional", Bool(cfg.optional)),
+        ("pending", Bool(cfg.pending)),
+        ("recursive-install", Bool(cfg.recursive_install)),
+        ("reverse", Bool(cfg.reverse)),
+        ("shell-emulator", Bool(cfg.shell_emulator)),
+        ("skip-manifest-obfuscation", Bool(cfg.skip_manifest_obfuscation)),
+        ("sort", Bool(cfg.sort)),
+        ("use-beta-cli", Bool(cfg.use_beta_cli)),
         ("auto-install-peers", Bool(cfg.auto_install_peers)),
         ("block-exotic-subdeps", Bool(cfg.block_exotic_subdeps)),
         ("dangerously-allow-all-builds", Bool(cfg.dangerously_allow_all_builds)),
@@ -187,6 +187,14 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ),
         ("git-shallow-hosts", Scalar::Set(cfg.git_shallow_hosts.iter().cloned().collect())),
     ]
+}
+
+fn color_mode_scalar(value: ColorMode) -> Scalar {
+    match value {
+        ColorMode::Always => s("always"),
+        ColorMode::Auto => s("auto"),
+        ColorMode::Never => s("never"),
+    }
 }
 
 fn init_type_scalar(value: InitType) -> Scalar {

@@ -3,7 +3,9 @@ mod extend_path;
 mod lifecycle;
 mod make_env;
 mod run_script;
+mod script_exit;
 mod shell;
+mod shell_emulator;
 
 pub use bundled_node_gyp::bundled_node_gyp_bin;
 pub use extend_path::{ScriptsPrependNodePath, extend_path};
@@ -14,7 +16,9 @@ pub use lifecycle::{
 };
 pub use make_env::{EnvBuild, EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env};
 pub use run_script::{RunScript, RunScriptError, run_script};
+pub use script_exit::ScriptExit;
 pub use shell::{ScriptShellError, SelectedShell, select_shell};
+pub use shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;

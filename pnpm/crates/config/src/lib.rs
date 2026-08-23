@@ -76,6 +76,44 @@ fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
         || detect_ci()
 }
 
+/// Controls ANSI color rendering in CLI output.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ColorMode {
+    Always,
+    #[default]
+    Auto,
+    Never,
+}
+
+impl<'de> Deserialize<'de> for ColorMode {
+    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
+    where
+        Deserializer: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Value {
+            Bool(bool),
+            Mode(Mode),
+        }
+
+        #[derive(Deserialize)]
+        #[serde(rename_all = "kebab-case")]
+        enum Mode {
+            Always,
+            Auto,
+            Never,
+        }
+
+        Ok(match Value::deserialize(deserializer)? {
+            Value::Bool(true) | Value::Mode(Mode::Always) => ColorMode::Always,
+            Value::Bool(false) | Value::Mode(Mode::Never) => ColorMode::Never,
+            Value::Mode(Mode::Auto) => ColorMode::Auto,
+        })
+    }
+}
+
 /// `virtualStoreType`: where the virtual store lives, and therefore who
 /// shares it.
 ///
@@ -830,11 +868,55 @@ pub enum PackageImportMethod {
 /// (project-structural settings).
 #[derive(Debug, Clone, SmartDefault)]
 pub struct Config {
+    /// Whether recursive commands stop after the first failure.
+    #[default = true]
+    pub bail: bool,
+
     /// Whether pnpm is running in a continuous-integration environment.
     /// Defaults to automatic CI detection and may be overridden through
     /// configuration.
     #[default(_code = "default_ci::<Host>(is_ci::cached)")]
     pub ci: bool,
+
+    /// ANSI color policy for human-readable output.
+    pub color: ColorMode,
+
+    /// Include a package's README in the generated manifest when packing.
+    pub embed_readme: bool,
+
+    /// Permit `add` to modify a multi-package workspace root without `-w`.
+    pub ignore_workspace_root_check: bool,
+
+    /// Include optional dependencies in install-family operations.
+    #[default = true]
+    pub optional: bool,
+
+    /// npm-compatible alias used when `lockfile` was not set explicitly.
+    #[default = true]
+    pub package_lock: bool,
+
+    /// Rebuild only dependencies and projects whose builds are pending.
+    pub pending: bool,
+
+    /// Make an unfiltered workspace install operate recursively.
+    #[default = true]
+    pub recursive_install: bool,
+
+    /// Reverse the project order of recursive commands.
+    pub reverse: bool,
+
+    /// Run lifecycle scripts through pnpm's portable shell emulator.
+    pub shell_emulator: bool,
+
+    /// Preserve publish-only manifest fields in packed manifests.
+    pub skip_manifest_obfuscation: bool,
+
+    /// Sort recursive workspace projects topologically.
+    #[default = true]
+    pub sort: bool,
+
+    /// Select the beta CLI implementation when one is available.
+    pub use_beta_cli: bool,
 
     /// The problem keys of the project's own `pnpm-workspace.yaml` (see
     /// [`WorkspaceKeyIssues`]), for the CLI to report. Empty when there is no
@@ -3375,6 +3457,10 @@ impl Config {
             self.registries_by_scope.insert("default".to_string(), normalized.clone());
             self.package_manager_bootstrap.registry.clone_from(&normalized);
             self.package_manager_bootstrap.registries.insert("default".to_string(), normalized);
+        }
+
+        if !self.explicit_settings.contains_key("lockfile") {
+            self.lockfile = self.package_lock;
         }
 
         // A pinned `lockfileDir` moves the root `node_modules` and the

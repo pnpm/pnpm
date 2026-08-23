@@ -465,7 +465,10 @@ fn listing_packages_prints_tree_with_legend_and_summary() {
 
 /// Port of upstream's `listing packages of a project that has an
 /// external pnpm-lock.yaml`
-/// (`deps/inspection/commands/test/listing/index.ts`).
+/// (`deps/inspection/commands/test/listing/index.ts`). Upstream calls
+/// the handler for the one project; going through the CLI from inside a
+/// workspace member makes the run recursive by default, so the summary
+/// counts the projects too — verified against `pnpm ls` in pnpm 11.
 #[test]
 fn listing_packages_of_a_project_with_an_external_lockfile() {
     let (_root, workspace, _registry) = setup_registry();
@@ -495,7 +498,7 @@ fn listing_packages_of_a_project_with_an_external_lockfile() {
     assert_eq!(
         output,
         format!(
-            "{LEGEND}\n\npkg@1.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package\n"
+            "{LEGEND}\n\npkg@1.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package in 2 projects\n"
         ),
     );
 }

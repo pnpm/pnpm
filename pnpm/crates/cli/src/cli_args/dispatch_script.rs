@@ -68,16 +68,17 @@ pub(super) fn test<'a>(
 }
 
 pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<CommandFuture<'a>> {
-    let args = with_recursive_run_options(ctx, args);
+    let config = (ctx.config)()?;
+    let args = with_recursive_run_options(ctx, args, config);
     if ctx.recursive {
         args.run_recursive(
-            (ctx.config)()?,
+            config,
             ctx.dir,
             reporter_emit(ctx.reporter),
             matches!(ctx.reporter, ReporterType::Ndjson | ReporterType::Silent),
         )?;
     } else {
-        args.run(ctx.dir, (ctx.config)()?, matches!(ctx.reporter, ReporterType::Silent))?;
+        args.run(ctx.dir, config, matches!(ctx.reporter, ReporterType::Silent))?;
     }
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
@@ -93,48 +94,53 @@ pub(super) fn fallback<'a>(
         report_summary: false,
         no_bail: false,
         sort: true,
+        reverse: false,
         parallel: false,
         sequential: false,
     };
-    let args = with_recursive_run_options(ctx, args);
+    let config = (ctx.config)()?;
+    let args = with_recursive_run_options(ctx, args, config);
     if ctx.recursive {
         args.run_recursive(
-            (ctx.config)()?,
+            config,
             ctx.dir,
             reporter_emit(ctx.reporter),
             matches!(ctx.reporter, ReporterType::Ndjson | ReporterType::Silent),
         )?;
     } else {
-        args.run_fallback(ctx.dir, (ctx.config)()?, matches!(ctx.reporter, ReporterType::Silent))?;
+        args.run_fallback(ctx.dir, config, matches!(ctx.reporter, ReporterType::Silent))?;
     }
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
 pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<CommandFuture<'a>> {
-    let args = with_recursive_exec_options(ctx, args);
+    let config = (ctx.config)()?;
+    let args = with_recursive_exec_options(ctx, args, config);
     if ctx.recursive {
-        args.run_recursive((ctx.config)()?, ctx.dir)?;
+        args.run_recursive(config, ctx.dir)?;
     } else {
-        args.run(ctx.dir, (ctx.config)()?)?;
+        args.run(ctx.dir, config)?;
     }
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
-fn with_recursive_run_options(ctx: &RunCtx<'_>, mut args: RunArgs) -> RunArgs {
+fn with_recursive_run_options(ctx: &RunCtx<'_>, mut args: RunArgs, config: &Config) -> RunArgs {
     args.resume_from = ctx.recursive_resume_from.map(str::to_string);
     args.report_summary = ctx.recursive_report_summary;
-    args.no_bail = ctx.recursive_no_bail;
-    args.sort = ctx.recursive_sort;
+    args.no_bail = !config.bail;
+    args.sort = config.sort;
+    args.reverse = config.reverse;
     args.parallel = ctx.recursive_parallel;
     args.if_present |= ctx.if_present;
     args
 }
 
-fn with_recursive_exec_options(ctx: &RunCtx<'_>, mut args: ExecArgs) -> ExecArgs {
+fn with_recursive_exec_options(ctx: &RunCtx<'_>, mut args: ExecArgs, config: &Config) -> ExecArgs {
     args.resume_from = ctx.recursive_resume_from.map(str::to_string);
     args.report_summary = ctx.recursive_report_summary;
-    args.no_bail = ctx.recursive_no_bail;
-    args.sort = ctx.recursive_sort;
+    args.no_bail = !config.bail;
+    args.sort = config.sort;
+    args.reverse = config.reverse;
     args
 }
 

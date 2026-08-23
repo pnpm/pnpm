@@ -8,8 +8,9 @@
 //! include and exclude selectors) narrow the selected set via
 //! [`select_recursive_projects`]; the selection is then sorted
 //! topologically by default, or kept in workspace order under `--no-sort`,
-//! and run sequentially. `--workspace-concurrency` parallelism is not ported
-//! yet, matching the recursive `run` runner.
+//! reversed under `--reverse`, and run sequentially.
+//! `--workspace-concurrency` parallelism is not ported yet, matching the
+//! recursive `run` runner.
 
 use super::{ExecArgs, prepare_command, spawn_in_dir};
 use crate::cli_args::recursive::{
@@ -89,6 +90,9 @@ pub fn exec_recursive(args: &ExecArgs, config: &Config, dir: &Path) -> miette::R
     } else {
         graph.keys().cloned().map(|root| vec![root]).collect()
     };
+    if args.reverse {
+        chunks.reverse();
+    }
     if let Some(resume_from) = &args.resume_from {
         chunks = get_resumed_package_chunks(resume_from, chunks, graph)?;
     }

@@ -1,7 +1,9 @@
 use crate::{
     extend_path::{ScriptsPrependNodePath, extend_path},
     make_env::{EnvOptions, build_env, path_value},
-    shell::{ScriptShellError, select_shell},
+    script_exit::ScriptExit,
+    shell::{ScriptShellError, SelectedShell, select_shell},
+    shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -15,7 +17,7 @@ use std::{
     fs,
     io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
-    process::{Command, ExitStatus, Stdio},
+    process::{Command, Stdio},
     thread,
 };
 
@@ -33,7 +35,7 @@ pub enum LifecycleScriptError {
 
     #[display("{dep_path} {stage}: `{script}` exited with {status}")]
     #[diagnostic(code(ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED))]
-    ScriptFailed { dep_path: String, stage: String, script: String, status: ExitStatus },
+    ScriptFailed { dep_path: String, stage: String, script: String, status: ScriptExit },
 
     #[display("Failed to spawn lifecycle script for {dep_path} {stage}: {source}")]
     #[diagnostic(code(ERR_PNPM_EXECUTOR_SPAWN_LIFECYCLE))]
@@ -61,6 +63,9 @@ pub enum LifecycleScriptError {
         #[error(source)]
         source: ScriptShellError,
     },
+
+    #[diagnostic(transparent)]
+    ShellEmulator(#[error(source)] ShellEmulatorError),
 }
 
 /// Options for [`run_postinstall_hooks`] — the subset of lifecycle-hook
@@ -108,6 +113,11 @@ pub struct RunPostinstallHooks<'a> {
     /// `/usr/local/bin/bash`). `None` means use the platform default
     /// (`sh -c` on POSIX, `cmd /d /s /c` on Windows).
     pub script_shell: Option<&'a Path>,
+    /// The `shellEmulator` config: run the script through pacquet's
+    /// built-in shell rather than the platform's. Callers that mirror a
+    /// pnpm call site which does not thread the setting — publishing,
+    /// packing, patching, git package preparation — pass `false`.
+    pub shell_emulator: bool,
     /// Whether the dep is reachable only through optional edges
     /// (`snapshots[<key>].optional` in the v9 lockfile).
     /// Does NOT affect failure handling — `BuildModules` consults the
@@ -317,7 +327,9 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
     // Pick the shell up front so a misconfigured `scriptShell` fails
     // before we touch the filesystem (TMPDIR etc. already created
     // above — that's a minor leak, but the env is built before the
-    // shell pick anyway).
+    // shell pick anyway). The pick also runs when the emulator will
+    // take over below, because pnpm rejects a `.bat` / `.cmd`
+    // `scriptShell` regardless of `shellEmulator`.
     let shell = select_shell(opts.script_shell, cfg!(windows)).map_err(|source| {
         LifecycleScriptError::ScriptShell {
             dep_path: opts.dep_path.to_string(),
@@ -335,64 +347,11 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
     child_env.retain(|key, _| !key.eq_ignore_ascii_case("PATH"));
     child_env.insert("PATH".to_string(), path_env.to_string_lossy().into_owned());
 
-    let mut cmd = Command::new(&shell.program);
-    cmd.args(&shell.args);
-    // Append the script body. The chain is broken here because the
-    // Windows `cmd /d /s /c` path needs `raw_arg` rather than `arg`
-    // (see [`push_script_arg`]) — a branch the method chain can't
-    // express.
-    push_script_arg(&mut cmd, script, shell.windows_verbatim_args);
-    cmd.current_dir(opts.pkg_root)
-        // Stripping inherited env so leftover npm_* keys from a wrapping
-        // invocation cannot leak in. `build_env` already folded the
-        // surviving parent keys into `built.env`.
-        .env_clear()
-        .envs(&child_env)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let mut child = cmd.spawn().map_err(|error| LifecycleScriptError::Spawn {
-        dep_path: opts.dep_path.to_string(),
-        stage: stage.to_string(),
-        source: error,
-    })?;
-
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
-
-    let stdout_handle = stdout.map(|stream| {
-        spawn_line_pump::<Reporter>(
-            stream,
-            LifecycleStdio::Stdout,
-            opts.dep_path,
-            stage,
-            &pkg_root_str,
-        )
-    });
-    let stderr_handle = stderr.map(|stream| {
-        spawn_line_pump::<Reporter>(
-            stream,
-            LifecycleStdio::Stderr,
-            opts.dep_path,
-            stage,
-            &pkg_root_str,
-        )
-    });
-
-    let status = child.wait().map_err(|error| LifecycleScriptError::Wait {
-        dep_path: opts.dep_path.to_string(),
-        stage: stage.to_string(),
-        source: error,
-    })?;
-
-    // Joining the pumps after `wait` ensures every line they read is
-    // emitted before the `Exit` event below, matching pnpm's ordering.
-    if let Some(h) = stdout_handle {
-        let _ = h.join();
-    }
-    if let Some(h) = stderr_handle {
-        let _ = h.join();
-    }
+    let status = if opts.shell_emulator {
+        run_in_emulator::<Reporter>(script, opts, stage, &child_env, &pkg_root_str)?
+    } else {
+        run_in_shell::<Reporter>(&shell, script, opts, stage, &child_env, &pkg_root_str)?
+    };
 
     Reporter::emit(&LogEvent::Lifecycle(LifecycleLog {
         level: LogLevel::Debug,
@@ -415,6 +374,82 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
     }
 
     Ok(())
+}
+
+/// Spawn `script` under `shell`, pumping the child's output to the
+/// reporter line by line, and return how it exited.
+fn run_in_shell<Reporter: self::Reporter>(
+    shell: &SelectedShell,
+    script: &str,
+    opts: &RunPostinstallHooks<'_>,
+    stage: &str,
+    env: &HashMap<String, String>,
+    wd: &str,
+) -> Result<ScriptExit, LifecycleScriptError> {
+    let mut cmd = Command::new(&shell.program);
+    cmd.args(&shell.args);
+    // Append the script body. The chain is broken here because the
+    // Windows `cmd /d /s /c` path needs `raw_arg` rather than `arg`
+    // (see [`push_script_arg`]) — a branch the method chain can't
+    // express.
+    push_script_arg(&mut cmd, script, shell.windows_verbatim_args);
+    cmd.current_dir(opts.pkg_root)
+        // Stripping inherited env so leftover npm_* keys from a wrapping
+        // invocation cannot leak in. `build_env` already folded the
+        // surviving parent keys into `built.env`.
+        .env_clear()
+        .envs(env)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut child = cmd.spawn().map_err(|error| LifecycleScriptError::Spawn {
+        dep_path: opts.dep_path.to_string(),
+        stage: stage.to_string(),
+        source: error,
+    })?;
+
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+
+    let stdout_handle = stdout.map(|stream| {
+        spawn_line_pump::<Reporter>(stream, LifecycleStdio::Stdout, opts.dep_path, stage, wd)
+    });
+    let stderr_handle = stderr.map(|stream| {
+        spawn_line_pump::<Reporter>(stream, LifecycleStdio::Stderr, opts.dep_path, stage, wd)
+    });
+
+    let status = child.wait().map_err(|error| LifecycleScriptError::Wait {
+        dep_path: opts.dep_path.to_string(),
+        stage: stage.to_string(),
+        source: error,
+    })?;
+
+    // Joining the pumps after `wait` ensures every line they read is
+    // emitted before the caller's `Exit` event, matching pnpm's ordering.
+    if let Some(handle) = stdout_handle {
+        let _ = handle.join();
+    }
+    if let Some(handle) = stderr_handle {
+        let _ = handle.join();
+    }
+
+    Ok(ScriptExit::Process(status))
+}
+
+/// Run `script` in the built-in shell (`shellEmulator`), emitting the
+/// same per-line events as [`run_in_shell`], and return how it exited.
+fn run_in_emulator<Reporter: self::Reporter>(
+    script: &str,
+    opts: &RunPostinstallHooks<'_>,
+    stage: &str,
+    env: &HashMap<String, String>,
+    wd: &str,
+) -> Result<ScriptExit, LifecycleScriptError> {
+    let emit_line =
+        |stdio, line| emit_stdio_line::<Reporter>(opts.dep_path, stage, wd, stdio, line);
+    execute_emulated(script, opts.pkg_root, env, EmulatedOutput::Lines(&emit_line))
+        .map(ScriptExit::Emulated)
+        .map_err(LifecycleScriptError::ShellEmulator)
 }
 
 /// Append the script body as the shell command's final argument.
@@ -442,6 +477,27 @@ pub fn push_script_arg(cmd: &mut Command, script: &str, _windows_verbatim_args: 
     cmd.arg(script);
 }
 
+/// Emit one line of a script's output as a `LifecycleMessage::Stdio`
+/// event.
+fn emit_stdio_line<Reporter: self::Reporter>(
+    dep_path: &str,
+    stage: &str,
+    wd: &str,
+    stdio: LifecycleStdio,
+    line: String,
+) {
+    Reporter::emit(&LogEvent::Lifecycle(LifecycleLog {
+        level: LogLevel::Debug,
+        message: LifecycleMessage::Stdio {
+            dep_path: dep_path.to_string(),
+            line,
+            stage: stage.to_string(),
+            stdio,
+            wd: wd.to_string(),
+        },
+    }));
+}
+
 /// Spawn a thread that reads `reader` line-by-line and emits a
 /// `LifecycleMessage::Stdio` event per line.
 fn spawn_line_pump<Reporter: self::Reporter>(
@@ -464,16 +520,7 @@ fn spawn_line_pump<Reporter: self::Reporter>(
                 // exit code if the child failed because of them.
                 break;
             };
-            Reporter::emit(&LogEvent::Lifecycle(LifecycleLog {
-                level: LogLevel::Debug,
-                message: LifecycleMessage::Stdio {
-                    dep_path: dep_path.clone(),
-                    line,
-                    stage: stage.clone(),
-                    stdio,
-                    wd: wd.clone(),
-                },
-            }));
+            emit_stdio_line::<Reporter>(&dep_path, &stage, &wd, stdio, line);
         }
     })
 }

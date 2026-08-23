@@ -10,7 +10,7 @@ use super::{
     fetch::FetchArgs,
     global,
     import::ImportArgs,
-    install::InstallArgs,
+    install::{InstallArgs, resolve_bool_override},
     install_test,
     link::LinkArgs,
     patch::PatchArgs,
@@ -53,10 +53,13 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
     let dir = ctx.dir;
     let manifest_path = ctx.manifest_path;
     let reporter = ctx.reporter;
-    let recursive_sort = ctx.recursive_sort;
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        let recursive_sort = cfg.sort;
+        if config_dependencies.is_none() {
+            args.check_workspace_root(cfg, dir)?;
+        }
         args.lockfile_dir.apply_to(cfg, dir);
         args.apply_cli_config(cfg);
         let (config_root, package_manager_to_sync) =
@@ -104,10 +107,10 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
     let dir = ctx.dir;
     let manifest_path = ctx.manifest_path;
     let reporter = ctx.reporter;
-    let recursive_sort = ctx.recursive_sort;
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        let recursive_sort = cfg.sort;
         args.lockfile_dir.apply_to(cfg, dir);
         args.apply_cli_config(cfg);
         let (config_root, package_manager_to_sync) =
@@ -143,10 +146,10 @@ pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<C
     let dir = ctx.dir;
     let manifest_path = ctx.manifest_path;
     let reporter = ctx.reporter;
-    let recursive_sort = ctx.recursive_sort;
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        let recursive_sort = cfg.sort;
         args.lockfile_dir.apply_to(cfg, dir);
         let (config_root, package_manager_to_sync) =
             derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
@@ -178,7 +181,6 @@ pub(super) fn install<'a>(
     let dir = ctx.dir;
     let manifest_path = ctx.manifest_path;
     let reporter = ctx.reporter;
-    let recursive_sort = ctx.recursive_sort;
     let config = ctx.config;
     Ok(Box::pin(async move {
         // Boxed for `clippy::large_stack_frames`: the three
@@ -195,6 +197,7 @@ pub(super) fn install<'a>(
             // mutable through `Config::leak`'s
             // `&'static mut Config` return.
             let cfg = config()?;
+            let recursive_sort = cfg.sort;
             args.lockfile_dir.apply_to(cfg, dir);
             apply_install_cli_config(cfg, &args);
             let frozen_lockfile = args.effective_frozen_lockfile(cfg);
@@ -249,13 +252,14 @@ pub(super) fn install_test<'a>(
     args: install_test::InstallTestArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let install_args = args.install_args;
-    let run_args = super::run::RunArgs {
+    let mut run_args = super::run::RunArgs {
         script: super::run::RunArgs::script("test", args.args),
         if_present: ctx.if_present,
         resume_from: ctx.recursive_resume_from.map(str::to_string),
         report_summary: ctx.recursive_report_summary,
-        no_bail: ctx.recursive_no_bail,
-        sort: ctx.recursive_sort,
+        no_bail: false,
+        sort: true,
+        reverse: false,
         parallel: ctx.recursive_parallel,
         sequential: false,
     };
@@ -271,6 +275,9 @@ pub(super) fn install_test<'a>(
         install_future.await?;
 
         let cfg = config()?;
+        run_args.no_bail = !cfg.bail;
+        run_args.sort = cfg.sort;
+        run_args.reverse = cfg.reverse;
         if recursive {
             run_args.run_recursive(
                 cfg,
@@ -429,10 +436,10 @@ pub(super) fn unlink<'a>(ctx: &RunCtx<'a>, args: UnlinkArgs) -> miette::Result<C
     let dir = ctx.dir;
     let manifest_path = ctx.manifest_path;
     let reporter = ctx.reporter;
-    let recursive_sort = ctx.recursive_sort;
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        let recursive_sort = cfg.sort;
         args.apply_cli_config(cfg);
         // Strip the matching `link:` overrides; stop early when there is
         // nothing to unlink.
@@ -471,19 +478,21 @@ pub(super) fn unlink<'a>(ctx: &RunCtx<'a>, args: UnlinkArgs) -> miette::Result<C
 
 pub(super) fn rebuild<'a>(
     ctx: &RunCtx<'a>,
-    args: RebuildArgs,
+    mut args: RebuildArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.dir;
     let manifest_path = ctx.manifest_path;
     let reporter = ctx.reporter;
-    let recursive_sort = ctx.recursive_sort;
-    let recursive_no_bail = ctx.recursive_no_bail;
     let config = ctx.config;
     Ok(Box::pin(async move {
+        let cfg = config()?;
+        let recursive_sort = cfg.sort;
+        let recursive_no_bail = !cfg.bail;
+        args.pending = resolve_bool_override(args.pending, args.no_pending, cfg.pending);
         match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(args.run_from_cli::<DefaultReporter>(
-                    config()?,
+                    cfg,
                     dir.to_path_buf(),
                     manifest_path.to_path_buf(),
                     recursive_sort,
@@ -493,7 +502,7 @@ pub(super) fn rebuild<'a>(
             }
             ReporterType::Ndjson => {
                 Box::pin(args.run_from_cli::<NdjsonReporter>(
-                    config()?,
+                    cfg,
                     dir.to_path_buf(),
                     manifest_path.to_path_buf(),
                     recursive_sort,
@@ -503,7 +512,7 @@ pub(super) fn rebuild<'a>(
             }
             ReporterType::Silent => {
                 Box::pin(args.run_from_cli::<SilentReporter>(
-                    config()?,
+                    cfg,
                     dir.to_path_buf(),
                     manifest_path.to_path_buf(),
                     recursive_sort,

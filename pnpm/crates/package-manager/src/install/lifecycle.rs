@@ -225,6 +225,7 @@ pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
         node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
         script_shell: config.script_shell.as_deref().map(Path::new),
+        shell_emulator: config.shell_emulator,
         optional: false,
     })
     .map(drop)
@@ -279,6 +280,7 @@ pub(super) fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
                 node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
                 scripts_prepend_node_path,
                 script_shell: config.script_shell.as_deref().map(Path::new),
+                shell_emulator: config.shell_emulator,
                 optional: false,
             })
             .map_err(InstallError::ProjectLifecycleScript)?;

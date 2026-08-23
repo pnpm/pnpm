@@ -19,6 +19,7 @@ use crate::cli_args::{
         search::Searcher,
     },
     deps_tree_finders::{evaluate_finders, finder_candidates, resolve_finders},
+    install::resolve_bool_override,
     recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
 };
 
@@ -91,8 +92,12 @@ pub struct ListArgs {
     pub dev: bool,
 
     /// Don't display packages from `optionalDependencies`.
-    #[clap(long)]
+    #[clap(long, overrides_with = "optional")]
     pub no_optional: bool,
+
+    /// Include packages from `optionalDependencies`.
+    #[clap(long, overrides_with = "no_optional")]
+    pub optional: bool,
 
     /// Exclude peer dependencies.
     #[clap(long)]
@@ -250,12 +255,16 @@ impl ListArgs {
         }
     }
 
-    fn include(&self) -> IncludedDependencies {
+    fn include(&self, include_optional: bool) -> IncludedDependencies {
         let has_both = self.production == self.dev;
         IncludedDependencies {
             dependencies: has_both || self.production,
             dev_dependencies: has_both || self.dev,
-            optional_dependencies: !self.no_optional,
+            optional_dependencies: resolve_bool_override(
+                self.optional,
+                self.no_optional,
+                include_optional,
+            ),
         }
     }
 
@@ -267,7 +276,7 @@ impl ListArgs {
         lockfile_dir: &Path,
         always_print_root_package: bool,
     ) -> miette::Result<String> {
-        let include = self.include();
+        let include = self.include(config.optional);
         let searching = !params.is_empty() || !self.find_by.is_empty();
 
         let state = LoadedState::load(
