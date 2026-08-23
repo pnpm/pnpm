@@ -509,6 +509,7 @@ static SCRIPT_LOCK: Mutex<()> = Mutex::new(());
 /// for the test's lifetime keeps two tests from consuming each other's
 /// answers.
 struct ScriptedPrompts {
+    script: &'static Mutex<PromptScript>,
     _claim: std::sync::MutexGuard<'static, ()>,
 }
 
@@ -519,19 +520,24 @@ fn scripted_prompts() -> ScriptedPrompts {
     script.answers.clear();
     script.seen.clear();
     drop(script);
-    ScriptedPrompts { _claim: claim }
+    ScriptedPrompts { script: &SCRIPT, _claim: claim }
 }
 
 impl ScriptedPrompts {
     /// Answer the next prompt by checking the rows for these packages,
     /// the way the upstream suite resolves its `@inquirer/prompts` mock.
     fn answer_next(&self, packages: &[&str]) {
-        script().answers.push_back(packages.iter().map(|package| (*package).to_string()).collect());
+        let answer = packages.iter().map(|package| (*package).to_string()).collect();
+        self.claimed().answers.push_back(answer);
     }
 
     /// Take the prompts shown since the last call.
     fn seen(&self) -> Vec<SeenPrompt> {
-        std::mem::take(&mut script().seen)
+        std::mem::take(&mut self.claimed().seen)
+    }
+
+    fn claimed(&self) -> std::sync::MutexGuard<'static, PromptScript> {
+        self.script.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
 
