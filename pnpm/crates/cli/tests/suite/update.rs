@@ -1870,7 +1870,7 @@ fn update_selectors_override_ignore_dependencies() {
     anchor.set_dist_tag(FOO, "100.0.0", "latest");
     anchor.set_dist_tag(BAR, "100.0.0", "latest");
 
-    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "100.0.0", "{BAR}": "100.0.0" }}"#));
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "100.0.0", "{BAR}": "^100.0.0" }}"#));
     set_ignore_dependencies(&workspace, &[FOO]);
     pacquet(&workspace, ["install"]).assert().success();
 
@@ -1888,6 +1888,72 @@ fn update_selectors_override_ignore_dependencies() {
     let packages = lockfile_package_keys(&workspace);
     assert!(packages.contains(&format!("{FOO}@100.1.0")), "{packages:?}");
     assert!(packages.contains(&format!("{BAR}@100.1.0")), "{packages:?}");
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("100.1.0"));
+    assert_eq!(dep_spec(&workspace, BAR).as_deref(), Some("^100.1.0"));
+
+    drop((root, anchor));
+}
+
+/// A `catalog:` entry declares a reference, not a range, so it is not
+/// something a resolved version can replace. The catalog entry keeps
+/// bounding the dependency, and the update moves the lockfile within it.
+#[test]
+fn update_tag_selector_preserves_catalog_reference() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+    anchor.set_dist_tag(FOO, "100.0.0", "latest");
+    set_named_catalog(&workspace, "grp1", &[(FOO, "^100.0.0")]);
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:grp1" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{FOO}@100.0.0")), "{packages:?}");
+
+    anchor.set_dist_tag(FOO, "100.1.0", "latest");
+    pacquet(&workspace, ["update", &format!("{FOO}@latest")]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:grp1"));
+    let yaml = read_workspace_yaml(&workspace);
+    assert!(yaml.contains("^100.0.0"), "catalog entry should be untouched: {yaml}");
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{FOO}@100.1.0")), "{packages:?}");
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// The selector names the tag to resolve, which need not be the tag the
+/// registry publishes as `latest`, nor the highest published version.
+#[test]
+fn update_tag_selector_resolves_the_named_tag() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    anchor.set_dist_tag(FOO, "100.0.0", "canary");
+    pacquet(&workspace, ["update", &format!("{FOO}@canary")]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("^100.0.0"));
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{FOO}@100.0.0")), "{packages:?}");
+
+    drop((root, anchor));
+}
+
+/// A manifest that already tracks a dist tag keeps tracking one, so the
+/// selector's tag replaces it rather than being resolved into a range.
+#[test]
+fn update_tag_selector_replaces_a_declared_tag() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+    anchor.set_dist_tag(FOO, "100.1.0", "latest");
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "latest" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    anchor.set_dist_tag(FOO, "100.0.0", "canary");
+    pacquet(&workspace, ["update", &format!("{FOO}@canary")]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("canary"));
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{FOO}@100.0.0")), "{packages:?}");
 
     drop((root, anchor));
 }

@@ -15,6 +15,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use node_semver::Version;
 use pnpm_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
@@ -38,7 +39,10 @@ use pnpm_reporter::{
 };
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets, VersionLine, real_package_name_of};
-use pnpm_resolving_npm_resolver::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
+use pnpm_resolving_npm_resolver::{
+    DeclaredSpecifiers, calc_specifier_for_workspace_dep, calc_version_range,
+    infer_range_spec_style,
+};
 use pnpm_resolving_resolver_base::{
     PreferredVersions, ResolveOptions, Resolver, UpdateBehavior, VersionSelectorType,
     WantedDependency, WorkspacePackages, WorkspacePackagesByVersion,
@@ -187,6 +191,17 @@ pub enum UpdateError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UPDATE_RESOLVE_LATEST))]
     ResolveLatest {
         name: String,
+        #[error(source)]
+        error: pnpm_resolving_resolver_base::ResolveError,
+    },
+
+    /// A resolver failed while resolving the dist tag an explicit
+    /// `<name>@<tag>` update selector named.
+    #[display("Failed to resolve {name}@{tag}: {error}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UPDATE_RESOLVE_TAG))]
+    ResolveTag {
+        name: String,
+        tag: String,
         #[error(source)]
         error: pnpm_resolving_resolver_base::ResolveError,
     },
@@ -959,8 +974,10 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                         .iter()
                         .find(|selector| matcher_one(&selector.pattern).matches(name))
                         .and_then(|selector| selector.version.clone());
-                    // A cataloged dependency writes `catalog:` to the manifest, so a version
-                    // named on the command line only reaches the lockfile as a preference.
+                    // Seeded whatever the manifest ends up recording, so the
+                    // install locks the version that was asked for. A selector
+                    // naming a range or a tag is not a version and seeds
+                    // nothing.
                     if let Some(version) = requested.as_deref() {
                         crate::install_with_fresh_lockfile::prefer_requested_version(
                             &mut preferred_versions_override,
@@ -996,6 +1013,45 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                                 None
                             }
                         }
+                    } else if save
+                        && let Some(tag) = requested.as_deref().filter(|specifier| {
+                            get_version_selector_type(specifier) == Some(VersionSelectorType::Tag)
+                        })
+                    {
+                        // A dist tag names no version until it is resolved, so
+                        // an entry pinning a version or a range records what the
+                        // tag resolved to, keeping the operator it already pins.
+                        // An entry that already tracks a tag keeps tracking one.
+                        // Anything else — a `catalog:` reference, a `workspace:`
+                        // or `npm:` alias, a path or git dependency — declares
+                        // something no version round-trips, so it stands and the
+                        // selector reaches the install as a preference only.
+                        let rewritten = match get_version_selector_type(previous) {
+                            Some(VersionSelectorType::Version | VersionSelectorType::Range) => {
+                                match tag_version(&rewrite_ctx, latest_chain, name, tag).await? {
+                                    Some(version) => {
+                                        crate::install_with_fresh_lockfile::prefer_requested_version(
+                                            &mut preferred_versions_override,
+                                            name,
+                                            &version.to_string(),
+                                        );
+                                        Some(calc_version_range(
+                                            &version,
+                                            infer_range_spec_style(previous),
+                                            None,
+                                            range_spec_style,
+                                        ))
+                                    }
+                                    None => requested,
+                                }
+                            }
+                            Some(VersionSelectorType::Tag) => requested,
+                            None => None,
+                        };
+                        // A declaration that already says what the selector
+                        // settles on is not a rewrite; recording it would mark
+                        // the manifest dirty and persist it for nothing.
+                        rewritten.filter(|specifier| specifier != previous)
                     } else {
                         if save && requested.is_none() {
                             bump_targets.insert(name.clone());
@@ -1762,6 +1818,42 @@ async fn latest_specifier(
     Ok(resolved
         .and_then(|result| result.normalized_bare_specifier)
         .filter(|specifier| *specifier != effective))
+}
+
+/// The version dist tag `tag` names for `name`, or `None` when no resolver
+/// in the chain claims the dependency.
+///
+/// An explicit `<name>@<tag>` selector asks for the version behind exactly
+/// that tag, so — unlike [`latest_specifier`], which reaches for whichever
+/// of the declared range and the `latest` tag is higher — the tag is the
+/// whole specifier resolved here.
+async fn tag_version(
+    ctx: &LatestRewriteCtx<'_, '_>,
+    chain: &mut Option<LatestResolverChain>,
+    name: &str,
+    tag: &str,
+) -> Result<Option<Version>, UpdateError> {
+    let chain = ensure_latest_resolver_chain(chain, ctx)?;
+    let wanted = WantedDependency {
+        alias: Some(name.to_string()),
+        bare_specifier: Some(tag.to_string()),
+        ..WantedDependency::default()
+    };
+    let manifest_dir =
+        ctx.manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+    let opts = ResolveOptions {
+        project_dir: manifest_dir.clone(),
+        lockfile_dir: manifest_dir,
+        default_tag: Some(tag.to_string()),
+        published_by: chain.published_by,
+        published_by_exclude: chain.published_by_exclude.clone(),
+        dry_run: ctx.lockfile_only,
+        ..ResolveOptions::default()
+    };
+    let resolved = Resolver::resolve(&chain.resolver, &wanted, &opts).await.map_err(|error| {
+        UpdateError::ResolveTag { name: name.to_string(), tag: tag.to_string(), error }
+    })?;
+    Ok(resolved.and_then(|result| result.name_ver).map(|name_ver| name_ver.suffix))
 }
 
 /// The resolvers that can answer "what is the latest for this dependency",
