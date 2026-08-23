@@ -1,15 +1,12 @@
 //! `pacquet store add` — fetch packages into the store without installing
 //! them anywhere.
-//!
-//! Each specifier is resolved and its tarball extracted into the store, so
-//! a later install of the same version finds it warm. Nothing outside the
-//! store is written: no manifest, no lockfile, no `node_modules`.
 
 use crate::cli_args::registry_client::build_registry_client;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
-use pnpm_deps_restorer::{extract_tarball, manifest_file_count, manifest_unpacked_size};
+use pnpm_deps_restorer::{manifest_file_count, manifest_unpacked_size};
+use pnpm_lockfile::LockfileResolution;
 use pnpm_network::ThrottledClient;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, emit_global_warning};
 use pnpm_resolving_default_resolver::standalone::{StandaloneChainOptions, build_standalone_chain};
@@ -17,17 +14,63 @@ use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pnpm_resolving_resolver_base::{ResolveOptions, WantedDependency};
 use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
 use pnpm_tarball::DownloadTarballToStore;
+use ssri::Integrity;
 use std::{path::Path, sync::Arc};
 
 /// At least one specifier could not be added.
 ///
-/// Each failure is reported on the warning channel as it happens, the way
-/// pnpm logs them, so this only has to say that the command as a whole did
-/// not succeed.
+/// Each failure is reported as it happens, the way pnpm logs them, so this
+/// only has to say the command as a whole did not succeed.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("Some packages have not been added correctly")]
 #[diagnostic(code(ERR_PNPM_STORE_ADD_FAILURE))]
 pub struct StoreAddFailureError;
+
+/// A specifier that resolved to something this command cannot put in the
+/// store.
+///
+/// The resolver chain claims every protocol pnpm supports, but warming the
+/// store means extracting an archive into it, and a git checkout or a
+/// local directory does not name one. pacquet has fetchers for those on
+/// the install path; routing them through here needs a package name the
+/// standalone chain does not resolve, so they are refused by name instead
+/// of failing further down as a shape mismatch.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Cannot add \"{package}\" to the store: a {resolved_via} dependency has no archive to fetch"
+)]
+#[diagnostic(
+    code(ERR_PNPM_STORE_ADD_UNSUPPORTED_SPEC),
+    help(
+        "`pnpm store add` takes registry and tarball specifiers, e.g. `pnpm store add express@4`."
+    )
+)]
+pub struct UnsupportedSpecError {
+    pub package: String,
+    #[error(not(source))]
+    pub resolved_via: String,
+}
+
+/// The archive a resolution points at, if it points at one.
+///
+/// A tarball published without an integrity hash is still fetchable —
+/// pnpm fetches those unverified — so the hash is optional.
+fn archive_to_fetch(resolution: &LockfileResolution) -> Option<(&str, Option<Integrity>)> {
+    match resolution {
+        LockfileResolution::Tarball(tarball) => {
+            Some((tarball.tarball.as_str(), tarball.integrity.clone()))
+        }
+        // A registry resolution records only the hash; the URL that goes
+        // with it is the lockfile's, derived from the configured
+        // registry. The npm resolver hands this path a `Tarball`.
+        LockfileResolution::Registry(_)
+        | LockfileResolution::Binary(_)
+        | LockfileResolution::Directory(_)
+        | LockfileResolution::Git(_)
+        | LockfileResolution::Variations(_)
+        | LockfileResolution::Custom(_) => None,
+    }
+}
 
 pub(super) async fn run<Reporter: self::Reporter>(
     config: &'static Config,
@@ -53,8 +96,11 @@ pub(super) async fn run<Reporter: self::Reporter>(
         ..ResolveOptions::default()
     };
 
-    let store_index = StoreIndex::shared_readonly_in(&config.store_dir);
-    let (store_index_writer, writer_task) = StoreIndexWriter::spawn(&config.store_dir);
+    // Both halves honour `frozenStore`, so a read-only store root gains
+    // neither an `index.db` write nor its WAL / SHM sidecars.
+    let store_index = StoreIndex::open_shared(&config.store_dir, config.frozen_store).await;
+    let (store_index_writer, writer_task) =
+        StoreIndexWriter::spawn_for(&config.store_dir, config.frozen_store);
     let verified_files_cache = SharedVerifiedFilesCache::default();
     let requester = dir.display().to_string();
 
@@ -79,9 +125,14 @@ pub(super) async fn run<Reporter: self::Reporter>(
                     message: format!("+ {package_id}"),
                 }));
             }
+            // The command keeps going so one bad specifier doesn't strand
+            // the rest, which leaves this line as the only place the cause
+            // is reported — so it carries the code the top-level handler
+            // would otherwise have printed.
             Err(error) => {
                 has_failures = true;
-                emit_global_warning::<Reporter>(&error.to_string());
+                let code = error.code().map_or_else(String::new, |code| format!("{code}: "));
+                emit_global_warning::<Reporter>(&format!("{code}{error}"));
             }
         }
     }
@@ -133,8 +184,13 @@ async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<S
         .await
         .map_err(|error| miette::miette!("{package}: {error}"))?;
     let package_id = resolved.id.to_string();
-    let (package_url, integrity) =
-        extract_tarball(&resolved.resolution).map_err(miette::Report::new)?;
+    let Some((package_url, integrity)) = archive_to_fetch(&resolved.resolution) else {
+        return Err(UnsupportedSpecError {
+            package: package.to_owned(),
+            resolved_via: resolved.resolved_via,
+        }
+        .into());
+    };
 
     DownloadTarballToStore {
         http_client,
@@ -144,7 +200,7 @@ async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<S
         verify_store_integrity: config.verify_store_integrity,
         strict_store_pkg_content_check: config.strict_store_pkg_content_check,
         verified_files_cache,
-        package_integrity: Some(&integrity),
+        package_integrity: integrity.as_ref(),
         package_unpacked_size: manifest_unpacked_size(resolved.manifest.as_deref()),
         package_file_count: manifest_file_count(resolved.manifest.as_deref()),
         package_url,

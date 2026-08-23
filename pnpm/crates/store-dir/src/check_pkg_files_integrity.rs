@@ -490,10 +490,30 @@ fn check_file(path: &Path, checked_at: Option<u64>) -> Option<(bool, u64)> {
 /// a missing, unreadable, or re-hashed file all read as mutated.
 #[must_use]
 pub fn package_dir_matches_index(dir: &Path, index: &PackageFilesIndex) -> bool {
-    index
-        .files
-        .iter()
-        .all(|(path, file)| verify_file_integrity(&dir.join(path), &file.digest, &index.algo))
+    index.files.iter().all(|(path, file)| {
+        join_inside(dir, path)
+            .is_some_and(|path| verify_file_integrity(&path, &file.digest, &index.algo))
+    })
+}
+
+/// `dir` joined with a recorded in-package path, or `None` if that path is
+/// anything other than a sequence of plain names.
+///
+/// The recorded paths come from archive entries. Extraction rejects a
+/// leading separator and `..`, but not a Windows drive prefix — and
+/// [`Path::join`] discards its base when the argument has one, which would
+/// point the hash at a file outside the package. Rejecting here keeps that
+/// decision local to the one caller that joins index keys onto a
+/// directory rather than reading them out of the CAS.
+fn join_inside(dir: &Path, relative: &str) -> Option<PathBuf> {
+    let mut joined = dir.to_path_buf();
+    for component in Path::new(relative).components() {
+        match component {
+            std::path::Component::Normal(segment) => joined.push(segment),
+            _ => return None,
+        }
+    }
+    Some(joined)
 }
 
 /// Streams the file through the hasher in 64 KiB chunks and compares

@@ -1,11 +1,5 @@
 //! `pacquet env` — the deprecated Node.js-only front end to
-//! [`super::runtime`].
-//!
-//! `env use --global <version>` is `runtime set node <version> --global`
-//! with a deprecation warning in front of it, and shares that command's
-//! install path. `env list` has no `runtime` counterpart: it enumerates the
-//! versions a selector accepts on the configured Node.js mirror without
-//! installing anything.
+//! [`super::runtime`], kept because pnpm still ships it.
 
 use super::{global::handle_global_add, registry_client::build_registry_client};
 use clap::Args;
@@ -34,6 +28,10 @@ pub struct EnvArgs {
     /// Subcommand (`use`, `list`) and its arguments.
     pub params: Vec<String>,
 }
+
+/// Emitted before `env use` does anything else, matching where pnpm warns.
+const DEPRECATION_WARNING: &str =
+    r#""pnpm env use" is deprecated. Use "pnpm runtime set node <version> -g" instead."#;
 
 /// Errors raised by `pacquet env`.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -70,25 +68,24 @@ pub enum EnvError {
     MissingNodeVersion,
 }
 
-/// What [`EnvArgs`] resolved its parameters to. `env use` and `env list`
-/// need different resources — the global config and install pipeline
-/// versus a registry client — so the parse is separated from the run and
-/// the dispatcher picks the path.
+/// What [`EnvArgs`] resolved its parameters to.
+///
+/// The two subcommands need different resources — the global config and
+/// the install pipeline versus a registry client — so parsing is split
+/// from running and the dispatcher picks the path.
 #[derive(Debug)]
 pub enum EnvSubcommand {
-    /// `env use <version>`: the `node@runtime:<version>` selector to
-    /// install globally.
     Use { package_name: String },
-    /// `env list [<selector>]`: the selector to enumerate, or `None` for
-    /// every published version.
     List { version_spec: Option<String> },
 }
 
 impl EnvArgs {
     /// Classify the subcommand, applying the checks pnpm runs before it
-    /// dispatches: a subcommand is required, and managing Node.js at all
-    /// needs a global bin directory to link it into.
-    pub fn subcommand(self, config: &Config) -> Result<EnvSubcommand, EnvError> {
+    /// dispatches.
+    pub fn subcommand<Reporter: self::Reporter>(
+        self,
+        config: &Config,
+    ) -> Result<EnvSubcommand, EnvError> {
         let Some(subcommand) = self.params.first() else {
             return Err(EnvError::NoSubcommand);
         };
@@ -97,6 +94,7 @@ impl EnvArgs {
         }
         match subcommand.as_str() {
             "use" => {
+                emit_global_warning::<Reporter>(DEPRECATION_WARNING);
                 if !self.global {
                     return Err(EnvError::LocalUseUnsupported);
                 }
@@ -120,17 +118,14 @@ impl EnvArgs {
         }
     }
 
-    /// `pnpm env use --global <version>`: install the Node.js runtime into
-    /// the global packages directory, the same way
-    /// [`super::runtime::RuntimeArgs::run_global`] does.
+    /// Installs the runtime the same way
+    /// [`super::runtime::RuntimeArgs::run_global`] does, so the deprecated
+    /// spelling and its replacement cannot diverge.
     pub async fn run_use<Reporter: self::Reporter + 'static>(
         package_name: String,
         config: &'static Config,
         dir: &Path,
     ) -> miette::Result<()> {
-        emit_global_warning::<Reporter>(
-            r#""pnpm env use" is deprecated. Use "pnpm runtime set node <version> -g" instead."#,
-        );
         Box::pin(handle_global_add::<Reporter>(
             config,
             std::slice::from_ref(&package_name),
@@ -143,13 +138,12 @@ impl EnvArgs {
         .await
     }
 
-    /// `pnpm env list [<selector>]`: the Node.js versions the selector
-    /// accepts on the configured mirror, oldest first so the newest one
-    /// ends up next to the prompt.
+    /// Oldest first, so the newest version ends up next to the prompt.
     ///
     /// An absent selector reads as the empty one, which the mirror
     /// resolver treats as `latest` — a bare `pnpm env list` prints the
-    /// newest version alone, not the whole index.
+    /// newest version alone, not the whole index. Verified against the
+    /// TypeScript CLI, which passes `''` rather than `undefined`.
     pub async fn run_list(version_spec: Option<String>, config: &Config) -> miette::Result<String> {
         let specifier = parse_node_specifier(version_spec.as_deref().unwrap_or_default())
             .map_err(miette::Report::new)?;

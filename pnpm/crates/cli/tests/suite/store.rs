@@ -248,3 +248,25 @@ fn store_add_fails_when_a_package_cannot_be_fetched() {
     assert!(!output.status.success(), "store add must fail when a package cannot be fetched");
     assert!(stderr.contains("ERR_PNPM_STORE_ADD_FAILURE"), "stderr={stderr}");
 }
+
+/// The resolver chain claims every protocol pnpm supports, but only an
+/// archive can be put in the store. A local dependency is refused by name
+/// rather than failing further down as a resolution-shape mismatch.
+#[test]
+fn store_add_refuses_a_specifier_with_no_archive_to_fetch() {
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let local_package = workspace.join("local-pkg");
+    fs::create_dir_all(&local_package).expect("create the local package");
+    fs::write(local_package.join("package.json"), r#"{"name":"local-pkg","version":"1.0.0"}"#)
+        .expect("write the local package manifest");
+
+    let output = pacquet
+        .with_args(["store", "add", "./local-pkg"])
+        .output()
+        .expect("run pacquet store add for a local dependency");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_STORE_ADD_UNSUPPORTED_SPEC"), "stderr={stderr}");
+}

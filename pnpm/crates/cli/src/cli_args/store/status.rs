@@ -1,10 +1,8 @@
 //! `pacquet store status` — find packages something edited after they
 //! were expanded out of the store.
 //!
-//! Every package the lockfile records is compared against the store row it
-//! came from: the row lists the files and their digests, and the copy in
-//! the virtual store has to still match them. A package the store has no
-//! row for is not checked — there is nothing to compare it against.
+//! A package the store has no row for is skipped: there is nothing to
+//! compare it against.
 
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
@@ -20,8 +18,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// The packages whose files no longer match the store.
-///
 /// pnpm renders this as a title plus the list, so the message carries the
 /// dep paths one per line and the remedy is the diagnostic's help.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -35,8 +31,6 @@ pub struct ModifiedDependencyError {
     pub modified: Vec<String>,
 }
 
-/// One package to re-verify: where it was expanded to, and which store row
-/// says what it should contain.
 struct PackageToCheck {
     dep_path: String,
     package_dir: PathBuf,

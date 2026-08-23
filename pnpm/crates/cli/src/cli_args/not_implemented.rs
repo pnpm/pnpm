@@ -8,9 +8,9 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 
-/// Arguments of an unimplemented command. Everything after the command
-/// name is swallowed, so `pnpm token create --read-only` reaches the same
-/// error as a bare `pnpm token`.
+/// Everything after the command name is swallowed, so
+/// `pnpm token create --read-only` reaches the same error as a bare
+/// `pnpm token` rather than an argument-parsing one.
 #[derive(Debug, Args)]
 pub struct NotImplementedArgs {
     #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
