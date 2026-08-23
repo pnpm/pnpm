@@ -103,14 +103,21 @@ export function getChangelogEntry (changelog: string, version: string): Changelo
       <td align="center" valign="middle">
         <a href="https://bit.cloud/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/bit.svg" width="80" alt="Bit"></a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://openai.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/openai_dark.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/openai_light.svg" />
             <img src="https://pnpm.io/img/users/openai_dark.svg" width="160" alt="OpenAI" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://notion.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/notion.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/notion_light.svg" />
+            <img src="https://pnpm.io/img/users/notion.svg" width="80" alt="Notion" />
           </picture>
         </a>
       </td>
@@ -192,6 +199,9 @@ export function getChangelogEntry (changelog: string, version: string): Changelo
             <img src="https://pnpm.io/img/users/nx.svg" width="50" alt="Nx" />
           </picture>
         </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://latitude.so/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/latitude.svg" width="160" alt="Latitude"></a>
       </td>
     </tr>
   </tbody>
