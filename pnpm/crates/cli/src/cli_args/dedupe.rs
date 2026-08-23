@@ -12,6 +12,7 @@ use crate::{
         deps_tree::render::{
             TreeNode, blue_bright_underline, gray, green, plain, red, render_archy,
         },
+        install::resolve_bool_override,
         peers::peer_issues_warrant_warning,
     },
 };
@@ -37,8 +38,46 @@ use tempfile::NamedTempFile;
 
 #[derive(Debug, Args)]
 pub struct DedupeArgs {
+    /// Check if running dedupe would result in changes without installing
+    /// packages or editing the lockfile. Exits with a non-zero status code
+    /// if changes are possible.
     #[clap(long)]
     pub check: bool,
+
+    /// Only update `pnpm-lock.yaml`. Don't download packages or write
+    /// `node_modules`.
+    #[clap(long = "lockfile-only")]
+    pub lockfile_only: bool,
+
+    /// Don't run lifecycle scripts of the project or its dependencies.
+    /// Packages are still installed; only their build scripts are skipped,
+    /// and the install won't fail because of it.
+    #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
+    pub ignore_scripts: bool,
+
+    /// Run lifecycle scripts even when the configuration disables them.
+    #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
+    pub no_ignore_scripts: bool,
+
+    /// Fail on a cache miss instead of fetching from the registry, using
+    /// only packages already in the store.
+    #[clap(long, overrides_with = "no_offline")]
+    pub offline: bool,
+
+    /// Allow network fetches even when the configuration enables offline
+    /// mode.
+    #[clap(long = "no-offline", overrides_with = "offline")]
+    pub no_offline: bool,
+
+    /// Prefer packages already in the cache over the network, even past
+    /// their freshness window.
+    #[clap(long, overrides_with = "no_prefer_offline")]
+    pub prefer_offline: bool,
+
+    /// Don't prefer cached packages even when the configuration enables
+    /// it.
+    #[clap(long = "no-prefer-offline", overrides_with = "prefer_offline")]
+    pub no_prefer_offline: bool,
 
     /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
     /// pnpmfiles of config dependencies.
@@ -49,6 +88,17 @@ pub struct DedupeArgs {
 impl DedupeArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
+        config.ignore_scripts = resolve_bool_override(
+            self.ignore_scripts,
+            self.no_ignore_scripts,
+            config.ignore_scripts,
+        );
+        config.offline = resolve_bool_override(self.offline, self.no_offline, config.offline);
+        config.prefer_offline = resolve_bool_override(
+            self.prefer_offline,
+            self.no_prefer_offline,
+            config.prefer_offline,
+        );
     }
 
     /// Run the deduplication install pipeline. In `--check` mode the method
@@ -115,11 +165,12 @@ impl DedupeArgs {
             resolved_packages,
             supported_architectures: config.supported_architectures.clone(),
             node_linker: config.node_linker,
-            lockfile_only: true,
+            lockfile_only: self.lockfile_only || self.check,
             dry_run: false,
-            // `--check` must leave the working tree untouched: the lockfile
-            // guard restores `pnpm-lock.yaml`, and this gate keeps loose
-            // minimumReleaseAge picks out of `pnpm-workspace.yaml`.
+            // `--check` must leave the working tree untouched: `lockfile_only`
+            // above keeps `node_modules` out of it, the lockfile guard restores
+            // `pnpm-lock.yaml`, and this gate keeps loose minimumReleaseAge
+            // picks out of `pnpm-workspace.yaml`.
             persist_policy_excludes: !self.check,
             update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
             preferred_versions_override: None,

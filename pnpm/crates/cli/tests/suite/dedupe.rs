@@ -35,6 +35,46 @@ fn dedupe_writes_lockfile() {
 }
 
 #[test]
+fn dedupe_materializes_node_modules_unless_lockfile_only() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_args(["dedupe", "--lockfile-only"]).assert().success();
+
+    assert!(
+        workspace.join("pnpm-lock.yaml").exists(),
+        "dedupe --lockfile-only must write pnpm-lock.yaml",
+    );
+    assert!(
+        !workspace.join("node_modules").exists(),
+        "dedupe --lockfile-only must not create node_modules",
+    );
+
+    let pacquet =
+        Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(&workspace);
+    pacquet.with_arg("dedupe").assert().success();
+
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep").exists(),
+        "dedupe must link the dependency into node_modules",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn dedupe_check_does_not_materialize_nor_write_lockfile() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -52,8 +92,7 @@ fn dedupe_check_does_not_materialize_nor_write_lockfile() {
     )
     .expect("write package.json");
 
-    // Create a lockfile first by running dedupe
-    pacquet.with_arg("dedupe").assert().success();
+    pacquet.with_args(["dedupe", "--lockfile-only"]).assert().success();
 
     // Recreate a pacquet command for the --check invocation
     let pacquet_check =
