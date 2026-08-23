@@ -954,6 +954,49 @@ fn every_command_pnpm_takes_ignore_pnpmfile_on_takes_it() {
     }
 }
 
+/// The `dedupe` options pnpm documents beyond `--check`. `dedupe` takes
+/// `pnpm install`'s rc options, so Renovate's `pnpm dedupe
+/// --lockfile-only` has to parse.
+#[test]
+fn dedupe_takes_the_install_options_pnpm_documents_for_it() {
+    let args = dedupe_args(&[
+        "pacquet",
+        "dedupe",
+        "--lockfile-only",
+        "--ignore-scripts",
+        "--offline",
+        "--prefer-offline",
+    ]);
+    assert!(args.lockfile_only);
+    assert!(args.ignore_scripts);
+    assert!(args.offline);
+    assert!(args.prefer_offline);
+
+    let mut config = pnpm_config::Config::default();
+    args.apply_cli_config(&mut config);
+    assert!(config.ignore_scripts);
+    assert!(config.offline);
+    assert!(config.prefer_offline);
+
+    let negated = dedupe_args(&[
+        "pacquet",
+        "dedupe",
+        "--no-ignore-scripts",
+        "--no-offline",
+        "--no-prefer-offline",
+    ]);
+    let mut config = pnpm_config::Config {
+        ignore_scripts: true,
+        offline: true,
+        prefer_offline: true,
+        ..pnpm_config::Config::default()
+    };
+    negated.apply_cli_config(&mut config);
+    assert!(!config.ignore_scripts, "the CLI negation turns a yaml `true` back off");
+    assert!(!config.offline);
+    assert!(!config.prefer_offline);
+}
+
 #[test]
 fn dedupe_ignore_pnpmfile_flag_applies_to_config() {
     let mut config = pnpm_config::Config::default();
