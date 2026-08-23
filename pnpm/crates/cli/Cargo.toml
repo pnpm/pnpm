@@ -42,6 +42,7 @@ pnpm-config                            = { workspace = true }
 pnpm-config-parse-overrides            = { workspace = true }
 pnpm-default-reporter                  = { workspace = true }
 pnpm-deps-inspection                   = { workspace = true }
+pnpm-deps-inspection-peers             = { workspace = true }
 pnpm-deps-path                         = { workspace = true }
 pnpm-deps-restorer                     = { workspace = true }
 pnpm-pack                              = { workspace = true }

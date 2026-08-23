@@ -13,7 +13,6 @@ use crate::{
             TreeNode, blue_bright_underline, gray, green, plain, red, render_archy,
         },
         install::resolve_bool_override,
-        peers::{PeerIssuesReport, peer_issues_for_lockfile},
     },
 };
 use clap::Args;
@@ -29,8 +28,7 @@ use pnpm_package_manager::{
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{
-    DedupeCheckLog, GlobalLog, LogEvent, LogLevel, PnpmErrorLog, ProgressLog, ProgressMessage,
-    Reporter,
+    DedupeCheckLog, LogEvent, LogLevel, PnpmErrorLog, ProgressLog, ProgressMessage, Reporter,
 };
 use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
 use serde_json::{Map, Value, json};
@@ -202,23 +200,6 @@ impl DedupeArgs {
         let current = read_lockfile_snapshot(lockfile_path)?;
         let deduped = parse_snapshot(current.as_deref(), lockfile_path);
 
-        let lockfile_dir = lockfile_path.parent().unwrap_or_else(|| Path::new("."));
-        if let Some(deduped) = &deduped
-            && let Some(peer_issues) =
-                peer_issues_for_lockfile(deduped, lockfile_dir, &config.peer_dependency_rules)
-        {
-            if config.strict_peer_dependencies {
-                emit_peer_dependency_issues_error::<Reporter>(&peer_issues);
-                return Err(DedupeError::PeerDependencyIssues.into());
-            }
-            Reporter::emit(&LogEvent::Global(GlobalLog {
-                level: LogLevel::Warn,
-                message:
-                    r#"Issues with peer dependencies found. Run "pnpm peers check" to list them."#
-                        .to_string(),
-            }));
-        }
-
         if self.check {
             let mut guard = guard.unwrap();
             if existing == current {
@@ -244,9 +225,6 @@ enum DedupeError {
     #[display("Dedupe --check found changes to the lockfile")]
     #[diagnostic(code(ERR_PNPM_DEDUPE_CHECK_ISSUES))]
     CheckIssues,
-    #[display("Unmet peer dependencies")]
-    #[diagnostic(code(ERR_PNPM_PEER_DEP_ISSUES))]
-    PeerDependencyIssues,
 }
 
 struct DedupeResolutionReporter<Reporter> {
@@ -300,29 +278,6 @@ fn reusable_skipped_package_id(
     Ok(package_metadata_is_installable(package_key, metadata, installability_host)
         .into_diagnostic()?
         .then(|| package_key.pkg_id()))
-}
-
-fn emit_peer_dependency_issues_error<Reporter: self::Reporter>(issues: &PeerIssuesReport) {
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Error,
-        message: render_peer_dependency_issues_error(issues),
-    }));
-}
-
-fn render_peer_dependency_issues_error(issues: &PeerIssuesReport) -> String {
-    let mut hints = Vec::new();
-    if issues.has_missing_peer {
-        hints.push(
-            "hint: To auto-install peer dependencies, add the following to \"pnpm-workspace.yaml\" in your project root:\n\n  autoInstallPeers: true",
-        );
-    }
-    hints.push(
-        "hint: To disable failing on peer dependency issues, add the following to pnpm-workspace.yaml in your project root:\n\n  strictPeerDependencies: false",
-    );
-    let hints = hints.join("\n");
-    let rendered = issues.render();
-    let body = if rendered.is_empty() { hints } else { format!("{rendered}\n{hints}") };
-    format!("[ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies\n\n{body}\n")
 }
 
 fn emit_dedupe_check_error<Reporter: self::Reporter>(diff: &LockfileDiff) {

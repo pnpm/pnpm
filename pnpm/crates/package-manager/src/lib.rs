@@ -25,6 +25,7 @@ mod optimistic_repeat_install;
 mod overrides;
 mod package_extender;
 mod patch;
+mod peer_dependency_issues;
 mod prefetching_resolver;
 mod prune_virtual_store;
 mod remove;

@@ -59,6 +59,7 @@ pnpm-directory-fetcher                 = { path = "pnpm/crates/directory-fetcher
 pnpm-git-fetcher                       = { path = "pnpm/crates/git-fetcher" }
 pnpm-global                            = { path = "pnpm/crates/global" }
 pnpm-deps-inspection                   = { path = "pnpm/crates/deps-inspection" }
+pnpm-deps-inspection-peers             = { path = "pnpm/crates/deps-inspection-peers" }
 pnpm-deps-path                         = { path = "pnpm/crates/deps-path" }
 pnpm-deps-restorer                     = { path = "pnpm/crates/deps-restorer" }
 pnpm-detect-libc                       = { path = "pnpm/crates/detect-libc" }

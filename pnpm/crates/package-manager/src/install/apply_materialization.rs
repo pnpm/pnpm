@@ -9,6 +9,7 @@ use super::{
     projects_running_own_scripts, run_projects_lifecycle_scripts, update_workspace_state,
     write_modules_manifest,
 };
+use crate::peer_dependency_issues::report_peer_dependency_issues;
 use pnpm_store_dir::VerifiedFileIntegrity;
 use std::time::Duration;
 
@@ -19,6 +20,8 @@ struct ResolveOnlyCompletionInputs<'a> {
     existing_wanted_lockfile: Option<&'a Lockfile>,
     fresh_lockfile: Option<&'a Lockfile>,
     prefix: &'a str,
+    config: &'static Config,
+    workspace_root: &'a Path,
 }
 
 fn complete_resolve_only<Reporter: self::Reporter>(
@@ -40,6 +43,15 @@ fn complete_resolve_only<Reporter: self::Reporter>(
         let mut stdout = std::io::stdout();
         let _ = writeln!(stdout, "{report}");
         let _ = stdout.flush();
+    }
+    // A programmatic peer-issue query asks for the issues; it must not
+    // also be told about them, nor fail over them.
+    if inputs.peer_issues_sink_is_none {
+        report_peer_dependency_issues::<Reporter>(
+            inputs.fresh_lockfile,
+            inputs.workspace_root,
+            inputs.config,
+        )?;
     }
     Reporter::emit(&LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,
@@ -576,6 +588,10 @@ struct ReportInstallCompletionInputs<'a> {
     prefix: String,
     ignored_builds: Vec<String>,
     verified_file_integrity_baseline: VerifiedFileIntegrity,
+    /// The lockfile this install resolved, or `None` when it skipped
+    /// resolution — which is what decides whether peer-dependency
+    /// issues are reported at all.
+    resolved_lockfile: Option<&'a Lockfile>,
 }
 
 fn report_install_completion<Reporter: self::Reporter>(
@@ -588,7 +604,12 @@ fn report_install_completion<Reporter: self::Reporter>(
         prefix,
         ignored_builds,
         verified_file_integrity_baseline,
+        resolved_lockfile,
     } = inputs;
+    // Reported before the summary and before the ignored-builds
+    // failure below, matching where pnpm places the verdict: last in
+    // the install, first among the ways it can still fail.
+    report_peer_dependency_issues::<Reporter>(resolved_lockfile, workspace_root, config)?;
     // `pnpm:summary` closes the install and lets the reporter render
     // the accumulated `pnpm:root` events as a "+N -M" block. Must
     // come after `importing_done`.
@@ -770,6 +791,8 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         existing_wanted_lockfile,
         fresh_lockfile: fresh_lockfile.as_ref(),
         prefix: &prefix,
+        config,
+        workspace_root: &workspace_root,
     })? {
         return Ok(());
     }
@@ -872,5 +895,6 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         prefix,
         ignored_builds,
         verified_file_integrity_baseline,
+        resolved_lockfile: fresh_lockfile.as_ref(),
     })
 }

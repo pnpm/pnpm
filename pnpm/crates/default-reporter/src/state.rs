@@ -340,6 +340,8 @@ pub struct ReporterState {
 
     deprecated_subdeps: Vec<DeprecationLog>,
     deprecated_slot: BlockSlot,
+
+    reported_peer_dependency_issues: bool,
 }
 
 const MAX_SHOWN_WARNINGS: usize = 5;
@@ -450,6 +452,7 @@ impl ReporterState {
             collapsed_warn_slot: BlockSlot::default(),
             deprecated_subdeps: Vec::new(),
             deprecated_slot: BlockSlot::default(),
+            reported_peer_dependency_issues: false,
             hide_lifecycle_output,
             stream_lifecycle_output,
             aggregate_output,
@@ -498,6 +501,7 @@ impl ReporterState {
             LogEvent::ExecutionTime(log) => self.on_execution_time(log),
             LogEvent::Hook(log) => self.on_hook(log),
             LogEvent::Deprecation(log) => self.on_deprecation(log),
+            LogEvent::PeerDependencyIssues(_) => self.on_peer_dependency_issues(),
             // Debug-only / non-rendered channels in pnpm's default reporter.
             LogEvent::BrokenModules(_) => {}
         }
@@ -528,9 +532,9 @@ impl ReporterState {
     fn level_permits(&self, event: &LogEvent) -> bool {
         match event {
             LogEvent::Pnpm(_) | LogEvent::Global(_) | LogEvent::DedupeCheck(_) => true,
-            LogEvent::RequestRetry(_) | LogEvent::Deprecation(_) => {
-                self.max_log_level >= MaxLogLevel::Warn
-            }
+            LogEvent::RequestRetry(_)
+            | LogEvent::Deprecation(_)
+            | LogEvent::PeerDependencyIssues(_) => self.max_log_level >= MaxLogLevel::Warn,
             _ => self.max_log_level >= MaxLogLevel::Info,
         }
     }
@@ -1428,6 +1432,19 @@ impl ReporterState {
             let zoomed = zoom_out(&self.cwd, &log.prefix, &msg);
             self.push_block(zoomed);
         }
+    }
+
+    /// Mirrors pnpm's `reportPeerDependencyIssues`: the detail lives in
+    /// the event payload, and the terminal gets one line naming the
+    /// command that prints it. Upstream `take(1)`s the stream, so a
+    /// recursive run that installs several projects still warns once.
+    fn on_peer_dependency_issues(&mut self) {
+        if std::mem::replace(&mut self.reported_peer_dependency_issues, true) {
+            return;
+        }
+        self.push_warning(
+            r#"Issues with peer dependencies found. Run "pnpm peers check" to list them."#,
+        );
     }
 
     /// A warning, honoring pnpm's "only show the first
