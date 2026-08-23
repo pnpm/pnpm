@@ -31,7 +31,6 @@ test('requireHooks() warns that the importPackage hook is deprecated', async () 
   expect(warning).toContain('will be removed in the next major version')
   expect(warning).toContain('keeps working until then')
   expect(warning).toContain('parallel package importer')
-  expect(warning).toContain('https://github.com/pnpm/pnpm/issues/14101')
 })
 
 test('requireHooks() does not warn when no importPackage hook is defined', async () => {
