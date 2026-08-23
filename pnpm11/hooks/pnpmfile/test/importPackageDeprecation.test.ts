@@ -46,7 +46,11 @@ testOnPosix('requireHooks() strips control characters from the pnpmfile path in 
   const pnpmfile = path.join(dir, 'spoofed\u001b[2K\nnot-really-a-hook.pnpmfile.cjs')
   fs.copyFileSync(path.join(import.meta.dirname, '__fixtures__/importPackage.js'), pnpmfile)
 
-  await requireHooks(dir, { pnpmfiles: [pnpmfile] })
+  try {
+    await requireHooks(dir, { pnpmfiles: [pnpmfile] })
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 
   const warning = jest.mocked(globalWarn).mock.calls[0][0]
   expect(warning).not.toContain('\u001b')
