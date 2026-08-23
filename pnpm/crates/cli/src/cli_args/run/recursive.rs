@@ -21,6 +21,7 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
 use pnpm_config::Config;
+use pnpm_executor::ScriptOutput;
 use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
     pnp_path_for_execution,
@@ -88,7 +89,7 @@ pub fn run_recursive(
 ) -> miette::Result<()> {
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
-    let (projects, patterns) = discover_workspace_projects(workspace_root)?;
+    let (projects, patterns) = discover_workspace_projects(workspace_root, config)?;
     let selection = select_recursive_projects(
         &projects,
         config,
@@ -179,6 +180,7 @@ pub fn run_recursive(
                                 extra_env: &extra_env,
                                 bail,
                                 silent,
+                                emit,
                             })
                         })
                         .into_diagnostic()
@@ -223,6 +225,7 @@ pub fn run_recursive(
                     extra_env: &extra_env,
                     bail,
                     silent,
+                    emit,
                 })?;
                 has_command += execution.has_command;
                 let failed = execution.status.status == Status::Failure;
@@ -281,6 +284,7 @@ struct RunProjectOptions<'a, 'project> {
     extra_env: &'a HashMap<String, String>,
     bail: bool,
     silent: bool,
+    emit: fn(&LogEvent),
 }
 
 fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExecution> {
@@ -294,6 +298,7 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
         extra_env,
         bail,
         silent,
+        emit,
     } = options;
     let manifest = &graph[root].package.project.manifest;
     let specified = selector.select(manifest.value());
@@ -316,6 +321,10 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
         );
     }
 
+    // pnpm names the project directory as the `depPath` of a recursive
+    // run's lifecycle events; the reporter renders `wd` and only groups
+    // by this.
+    let root_str = root.to_string_lossy().into_owned();
     let mut execution = ProjectExecution { status: ExecutionStatus::queued(), has_command: 0 };
     let mut project_failed = false;
     for selected in &specified {
@@ -347,6 +356,11 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
             extra_env: &extra_env,
             silent,
             sequential: args.sequential,
+            output: if config.stream {
+                ScriptOutput::Streamed { dep_path: &root_str, emit }
+            } else {
+                ScriptOutput::Inherit
+            },
         };
         let status = run_stages(&ctx, selected, script, args.script_args())?;
         let duration = start.elapsed().as_secs_f64() * 1e3;

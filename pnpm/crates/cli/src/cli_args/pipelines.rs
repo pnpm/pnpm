@@ -141,7 +141,7 @@ pub(crate) fn select_workspace_projects(
     }
 
     let workspace_root = cfg.workspace_dir.as_deref().unwrap_or(prefix).to_path_buf();
-    let (mut projects, workspace_patterns) = discover_workspace_projects(&workspace_root)?;
+    let (mut projects, workspace_patterns) = discover_workspace_projects(&workspace_root, cfg)?;
     if let Some(runtime_on_fail) = cfg.runtime_on_fail {
         for project in &mut projects {
             pnpm_package_manifest::apply_runtime_on_fail_override(
@@ -615,7 +615,7 @@ async fn run_dedicated_lockfile_workspace_install<Reporter: self::Reporter + 'st
     workspace_root: &Path,
     require_lockfile: bool,
 ) -> miette::Result<()> {
-    let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
+    let (projects, _patterns) = discover_workspace_projects(workspace_root, cfg)?;
     let normalized_root = pnpm_fs::lexical_normalize(workspace_root);
     let mut project_dirs: Vec<PathBuf> = Vec::with_capacity(projects.len() + 1);
     if workspace_root.join("package.json").is_file()

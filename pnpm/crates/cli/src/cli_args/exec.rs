@@ -5,15 +5,16 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
-use pnpm_executor::{push_script_arg, select_shell};
+use pnpm_executor::{ScriptOutput, StreamedScript, push_script_arg, select_shell};
 use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
     pnp_path_for_execution,
 };
+use pnpm_reporter::LogEvent;
 use pnpm_workspace::safe_read_project_manifest_only;
 use std::{
     path::Path,
-    process::{Command, ExitStatus},
+    process::{Command, ExitStatus, Stdio},
 };
 
 /// Run a shell command in the context of a project.
@@ -97,7 +98,7 @@ impl ExecArgs {
     pub fn run(self, dir: &Path, config: &Config) -> miette::Result<()> {
         let command = prepare_command(self.command)?;
         super::verify_deps::verify_deps_before_run(dir, config, false)?;
-        let status = spawn_in_dir(&command, dir, config, self.shell_mode)?;
+        let status = spawn_in_dir(&command, dir, config, self.shell_mode, ScriptOutput::Inherit)?;
         if !status.success() {
             // Propagate the child's exit code. A signal-terminated child
             // has no code; fall back to 1, matching pnpm's `exitCode ?? 1`.
@@ -109,9 +110,14 @@ impl ExecArgs {
     /// Execute the command across the `--filter`-selected workspace
     /// projects, in topological order. The recursive counterpart of
     /// [`Self::run`], selected when the global `-r` / `--recursive` flag is set.
-    pub fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
+    pub fn run_recursive(
+        &self,
+        config: &Config,
+        dir: &Path,
+        emit: fn(&LogEvent),
+    ) -> miette::Result<()> {
         super::verify_deps::verify_deps_before_run(dir, config, false)?;
-        recursive::exec_recursive(self, config, dir)
+        recursive::exec_recursive(self, config, dir, emit)
     }
 }
 
@@ -137,11 +143,17 @@ fn prepare_command(mut command: Vec<String>) -> Result<Vec<String>, ExecError> {
 /// the single-project path can `process::exit` while the recursive path
 /// records the per-project status. `command` is assumed non-empty (see
 /// [`prepare_command`]).
+///
+/// `output` decides where the child writes: a recursive `exec` under
+/// `--no-reporter-hide-prefix` streams, so the reporter can label each
+/// line with the project it came from; every other invocation inherits
+/// the terminal.
 pub(super) fn spawn_in_dir(
     command: &[String],
     dir: &Path,
     config: &Config,
     shell_mode: bool,
+    output: ScriptOutput<'_>,
 ) -> Result<ExitStatus, ExecError> {
     // Prepend `./node_modules/.bin` (resolved against the project
     // directory) and then the `extraBinPaths`.
@@ -202,8 +214,29 @@ pub(super) fn spawn_in_dir(
         cmd.env("NODE_OPTIONS", node_options);
     }
 
-    cmd.status().map_err(|source| ExecError::Spawn { command: command[0].clone(), source })
+    let ScriptOutput::Streamed { dep_path, emit } = output else {
+        return cmd
+            .status()
+            .map_err(|source| ExecError::Spawn { command: command[0].clone(), source });
+    };
+    // pnpm labels an exec'd command with a `(exec)` stage rather than a
+    // script name, since there is no script.
+    let wd = dir.to_string_lossy();
+    let streamed = StreamedScript { dep_path, stage: EXEC_STAGE, wd: &wd, emit };
+    let mut child = cmd
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
+    let status = streamed
+        .pump(&mut child)
+        .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
+    streamed.finished(status.code().unwrap_or(-1));
+    Ok(status)
 }
+
+/// The `stage` pnpm stamps on the lifecycle events of an exec'd command.
+pub(super) const EXEC_STAGE: &str = "(exec)";
 
 fn configured_node_options(config: &Config) -> Option<String> {
     match config.node_options.as_deref() {
@@ -221,7 +254,7 @@ fn configured_node_options(config: &Config) -> Option<String> {
 ///
 /// Used only to stamp `PNPM_PACKAGE_NAME`; a missing or nameless manifest
 /// is not an error for `exec` (it can run a command in any directory).
-fn read_package_name(dir: &Path) -> Option<String> {
+pub(super) fn read_package_name(dir: &Path) -> Option<String> {
     safe_read_project_manifest_only(dir).ok()??.value().get("name")?.as_str().map(str::to_string)
 }
 

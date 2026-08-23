@@ -308,6 +308,39 @@ Rust port notes:
 - [x] `TypeScript repo: pnpm/test/recursive/run.ts:8` `pnpm recursive run finds bins from the root of the workspace` — the run-related assertions are ported as `recursive_run_finds_workspace_root_bin_on_path` and `recursive_run_prefers_project_bin_over_workspace_root_bin` (`crates/cli/tests/run_recursive.rs`) plus `run_finds_workspace_root_bin_on_path` for the member-dir `pnpm run` step (`crates/cli/tests/run.rs`). The upstream test's `-r install` postinstall and `recursive rebuild` steps are install/rebuild coverage, tracked with those features.
 - [x] `TypeScript repo: config/reader/test/index.ts:2421` `extraBinPaths` — ported as `extra_bin_paths_lists_workspace_root_bin_only_inside_a_workspace` (`crates/config/src/tests.rs`).
 
+## Recursive Script Output (`--stream`, `--aggregate-output`, `--reporter-hide-prefix`, `--use-stderr`)
+
+Reporter unit tests (`crates/default-reporter/tests/render.rs`):
+
+- [x] `TypeScript repo: cli/default-reporter/test/reportingLifecycleScripts.ts:362` `groups lifecycle output when streamLifecycleOutput is used` — ported as `stream_lifecycle_output_streams_without_append_only`.
+- [x] `TypeScript repo: cli/default-reporter/test/reportingLifecycleScripts.ts:475` `groups lifecycle output when append-only and aggregate-output are used with mixed stages` — ported as `aggregate_output_withholds_each_script_until_it_exits`.
+- [x] `TypeScript repo: cli/default-reporter/test/reportingLifecycleScripts.ts:540` `groups lifecycle output when append-only and reporter-hide-prefix are used` — ported as `hide_lifecycle_prefix_only_drops_it_from_output_lines`.
+- [ ] `TypeScript repo: cli/default-reporter/test/reportingLifecycleScripts.ts:248` `groups lifecycle output when append-only and aggregate-output are used` — the single-stage case the mixed-stage port above subsumes.
+
+End-to-end:
+
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1694` `run --stream should prefix with dir name` — ported as `run_recursive::stream_prefixes_recursive_script_output_with_the_project`.
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1776` `run --reporter-hide-prefix should hide prefix` — ported as `run_recursive::reporter_hide_prefix_drops_the_prefix_from_streamed_script_output`.
+- [x] `TypeScript repo: pnpm/test/run.ts:239` `--reporter-hide-prefix should hide workspace prefix` — covered by the same port plus `run_recursive::parallel_implies_stream` for the `--parallel` spelling upstream uses.
+- [x] `TypeScript repo: exec/commands/test/exec.logs.ts:27` `pnpm exec --recursive --no-reporter-hide-prefix prints prefixes` — ported as `exec_recursive::no_reporter_hide_prefix_labels_each_project`.
+- [x] `TypeScript repo: exec/commands/test/exec.logs.ts:90` `pnpm exec --recursive --reporter-hide-prefix does not print prefixes` and `exec/commands/test/exec.logs.ts:127` `pnpm exec --recursive does not print prefixes by default` — ported together as `exec_recursive::recursive_exec_inherits_stdio_by_default`.
+
+Pacquet-only coverage: `run_recursive::recursive_run_inherits_stdio_without_stream`,
+`run_recursive::aggregate_output_keeps_each_project_in_one_block`, and
+`run_recursive::use_stderr_diverts_reporter_output`.
+
+## Standalone Runs (`--ignore-workspace`, `--workspace-packages`)
+
+Upstream has no end-to-end test for either flag; the pacquet coverage in
+`crates/cli/tests/ignore_workspace.rs` and
+`approve_builds::ignore_workspace_skips_the_allow_builds_scaffold` is
+written against `config/reader/src/index.ts` (`getWorkspaceDir`,
+`workspacePackagePatterns`) and `installing/commands/src/handleIgnoredBuilds.ts`.
+
+- [x] `--ignore-workspace` stops the workspace search — `ignore_workspace::ignore_workspace_drops_the_workspace_manifest_settings`.
+- [x] `--ignore-workspace` suppresses the `allowBuilds` scaffold — `approve_builds::ignore_workspace_skips_the_allow_builds_scaffold`.
+- [x] `--workspace-packages` replaces the manifest's patterns — `ignore_workspace::workspace_packages_overrides_the_manifest_patterns`.
+
 ## Workspace Project Filtering (`--filter`)
 
 Ported into the new `pnpm-workspace-projects-filter` and

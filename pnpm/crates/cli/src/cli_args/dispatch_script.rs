@@ -117,7 +117,7 @@ pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<Comma
     let config = (ctx.config)()?;
     let args = with_recursive_exec_options(ctx, args, config);
     if ctx.recursive {
-        args.run_recursive(config, ctx.dir)?;
+        args.run_recursive(config, ctx.dir, reporter_emit(ctx.reporter))?;
     } else {
         args.run(ctx.dir, config)?;
     }

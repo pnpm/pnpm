@@ -905,6 +905,34 @@ pub struct Config {
     /// Reverse the project order of recursive commands.
     pub reverse: bool,
 
+    /// Stream a recursive command's script output as it arrives, one
+    /// prefixed line at a time, instead of letting the child write to the
+    /// terminal directly.
+    pub stream: bool,
+
+    /// Hold each script's streamed output until the script exits, then
+    /// print it as one block. Only affects streamed output.
+    pub aggregate_output: bool,
+
+    /// Omit the project prefix from the streamed output lines of running
+    /// scripts. `None` means the user never asked either way, which
+    /// `exec` distinguishes from an explicit `false`.
+    pub reporter_hide_prefix: Option<bool>,
+
+    /// Route reporter output to stderr, leaving stdout for the command's
+    /// own machine-readable result.
+    pub use_stderr: bool,
+
+    /// Treat the project as standalone: no workspace root is discovered,
+    /// so `pnpm-workspace.yaml` contributes neither settings nor sibling
+    /// projects.
+    pub ignore_workspace: bool,
+
+    /// Glob patterns selecting the workspace's projects, from
+    /// `--workspace-packages` or `pnpm-workspace.yaml`'s `packages`.
+    /// `None` outside a workspace.
+    pub workspace_package_patterns: Option<Vec<String>>,
+
     /// Run lifecycle scripts through pnpm's portable shell emulator.
     pub shell_emulator: bool,
 
@@ -3101,11 +3129,18 @@ impl Config {
         // Resolve the workspace dir before reading the project `.npmrc`
         // so subdirectory invocations use the workspace-root config:
         // the workspace dir, falling back to the local prefix.
+        //
+        // `--ignore-workspace` stops the search outright, which is what
+        // makes the flag mean "standalone project": with no workspace dir
+        // there is no shared lockfile, no sibling projects, and no
+        // `pnpm-workspace.yaml` settings layer.
         let env_workspace_dir = Sys::var_os("NPM_CONFIG_WORKSPACE_DIR")
             .or_else(|| Sys::var_os("npm_config_workspace_dir"))
             .filter(|value| !value.is_empty())
             .map(PathBuf::from);
-        let workspace_yaml = if let Some(env_dir) = env_workspace_dir {
+        let workspace_yaml = if self.ignore_workspace {
+            None
+        } else if let Some(env_dir) = env_workspace_dir {
             // Env-var path: load yaml directly from the env dir. A
             // missing file is silent, but the re-anchor still fires
             // because the user has explicitly told us where the
@@ -3379,6 +3414,12 @@ impl Config {
             // path when the yaml file is missing and `apply_to` (which also
             // writes it) never runs.
             self.workspace_dir = Some(base_dir.clone());
+            self.workspace_package_patterns = Some(
+                settings
+                    .as_ref()
+                    .and_then(|settings| settings.packages.clone())
+                    .unwrap_or_else(|| vec![".".to_string()]),
+            );
             if let Some(mut settings) = settings {
                 // CI detection is process state. A repository-controlled
                 // manifest must not be able to turn it off; trusted global

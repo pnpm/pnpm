@@ -175,7 +175,7 @@ impl UpdateArgs {
         let workspace_packages = self
             .check_workspace_option(state.config.workspace_dir.as_deref())?
             .map(|workspace_root| {
-                recursive::discover_workspace_projects(workspace_root)
+                recursive::discover_workspace_projects(workspace_root, state.config)
                     .map(|(projects, _)| build_workspace_packages_map(Some(&projects)))
             })
             .transpose()?

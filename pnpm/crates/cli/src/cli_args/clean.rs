@@ -111,7 +111,7 @@ fn clean_builtin(ctx: &RunCtx<'_>, config: &Config, remove_lockfile: bool) -> mi
     let modules_leaf = config.modules_dir.strip_prefix(ctx.dir).unwrap_or(&config.modules_dir);
     let root_dir = config.workspace_dir.as_deref().unwrap_or(ctx.dir);
     let dirs: Vec<PathBuf> = if let Some(workspace_dir) = config.workspace_dir.as_deref() {
-        let (projects, _patterns) = discover_workspace_projects(workspace_dir)?;
+        let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
         projects.into_iter().map(|project| project.root_dir).collect()
     } else {
         vec![ctx.dir.to_path_buf()]

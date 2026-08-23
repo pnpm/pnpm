@@ -101,7 +101,7 @@ impl PeersArgs {
         let lockfile_dir = config.lockfile_dir_for(dir);
         let project_dirs = if recursive {
             let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
-            let (projects, _) = discover_workspace_projects(workspace_root)?;
+            let (projects, _) = discover_workspace_projects(workspace_root, config)?;
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?
                 .selected
                 .keys()

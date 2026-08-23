@@ -205,7 +205,7 @@ impl ListArgs {
 
     async fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<String> {
         let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-        let (projects, _) = discover_workspace_projects(&workspace_root)?;
+        let (projects, _) = discover_workspace_projects(&workspace_root, config)?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let project_dirs: Vec<PathBuf> = selection.selected.keys().cloned().collect();

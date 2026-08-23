@@ -287,6 +287,52 @@ pub struct CliArgs {
     /// Don't fail when the named script is undefined.
     #[clap(long = "if-present", hide = true)]
     pub if_present: bool,
+
+    /// Stream a recursive command's script output as it arrives, one
+    /// prefixed line at a time.
+    #[clap(long, global = true)]
+    pub stream: bool,
+
+    /// Hold each script's streamed output until the script exits, then
+    /// print it as one block.
+    #[clap(long = "aggregate-output", global = true)]
+    pub aggregate_output: bool,
+
+    /// Divert the reporter's output to stderr, leaving stdout for the
+    /// command's own result.
+    #[clap(long = "use-stderr", global = true)]
+    pub use_stderr: bool,
+
+    /// Omit the project prefix from the streamed output of running
+    /// scripts. A `run` / `exec` option pnpm accepts anywhere on the
+    /// command line, like the recursive-run flags above.
+    #[clap(
+        long = "reporter-hide-prefix",
+        global = true,
+        hide = true,
+        overrides_with = "no_reporter_hide_prefix"
+    )]
+    pub reporter_hide_prefix: bool,
+
+    /// Prefix the streamed output of running scripts with the project
+    /// it came from, overriding a `reporterHidePrefix: true` setting.
+    #[clap(
+        long = "no-reporter-hide-prefix",
+        global = true,
+        hide = true,
+        overrides_with = "reporter_hide_prefix"
+    )]
+    pub no_reporter_hide_prefix: bool,
+
+    /// Run as if the project were standalone, ignoring any
+    /// `pnpm-workspace.yaml` above it.
+    #[clap(long = "ignore-workspace", global = true)]
+    pub ignore_workspace: bool,
+
+    /// Glob patterns selecting the workspace's projects, overriding the
+    /// `packages` field of `pnpm-workspace.yaml`. Repeat to add more.
+    #[clap(long = "workspace-packages", global = true)]
+    pub workspace_packages: Vec<String>,
 }
 
 fn parse_store_dir(value: &str) -> Result<PathBuf, std::convert::Infallible> {
@@ -329,6 +375,12 @@ impl CliArgs {
         if self.parallel {
             self.validate_parallel_global_option()?;
         }
+        if self.reporter_hide_prefix {
+            self.validate_run_scoped_global_option("--reporter-hide-prefix")?;
+        }
+        if self.no_reporter_hide_prefix {
+            self.validate_run_scoped_global_option("--no-reporter-hide-prefix")?;
+        }
         Ok(())
     }
 
@@ -352,6 +404,7 @@ impl CliArgs {
         if self.parallel {
             self.recursive = true;
             self.no_sort = true;
+            self.stream = true;
         }
     }
 

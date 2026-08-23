@@ -40,6 +40,9 @@ static FORCE_APPEND_ONLY: OnceLock<bool> = OnceLock::new();
 static SUMMARY_SCOPE: OnceLock<SummaryScope> = OnceLock::new();
 static REPORTS_SCOPE: OnceLock<bool> = OnceLock::new();
 static HIDE_ADDED_PKGS_PROGRESS: OnceLock<bool> = OnceLock::new();
+static STREAM_LIFECYCLE_OUTPUT: OnceLock<bool> = OnceLock::new();
+static AGGREGATE_OUTPUT: OnceLock<bool> = OnceLock::new();
+static HIDE_LIFECYCLE_PREFIX: OnceLock<bool> = OnceLock::new();
 static IS_RECURSIVE: OnceLock<bool> = OnceLock::new();
 static MAX_LOG_LEVEL: OnceLock<MaxLogLevel> = OnceLock::new();
 static COLOR_MODE: OnceLock<ColorMode> = OnceLock::new();
@@ -119,6 +122,26 @@ pub fn set_reports_scope(reports_scope: bool) {
 /// configured value is retained.
 pub fn set_hide_added_pkgs_progress(hide_added_pkgs_progress: bool) {
     let _ = HIDE_ADDED_PKGS_PROGRESS.set(hide_added_pkgs_progress);
+}
+
+/// Stream lifecycle script output line by line instead of collecting it
+/// into a collapsible block — pnpm's `--stream`. Call once before the
+/// first event.
+pub fn stream_lifecycle_output() {
+    let _ = STREAM_LIFECYCLE_OUTPUT.set(true);
+}
+
+/// Hold each script's streamed output until it exits, then print the run
+/// as one block — pnpm's `--aggregate-output`. Call once before the first
+/// event.
+pub fn aggregate_output() {
+    let _ = AGGREGATE_OUTPUT.set(true);
+}
+
+/// Drop the project prefix from streamed script output lines — pnpm's
+/// `--reporter-hide-prefix`. Call once before the first event.
+pub fn hide_lifecycle_prefix() {
+    let _ = HIDE_LIFECYCLE_PREFIX.set(true);
 }
 
 /// Configure whether the running command operates recursively.
@@ -223,6 +246,9 @@ impl Sink {
                 hide_added_pkgs_progress: HIDE_ADDED_PKGS_PROGRESS.get().copied().unwrap_or(false),
                 is_recursive: IS_RECURSIVE.get().copied().unwrap_or(false),
                 max_log_level: MAX_LOG_LEVEL.get().copied().unwrap_or(MaxLogLevel::Info),
+                stream_lifecycle_output: STREAM_LIFECYCLE_OUTPUT.get().copied().unwrap_or(false),
+                aggregate_output: AGGREGATE_OUTPUT.get().copied().unwrap_or(false),
+                hide_lifecycle_prefix: HIDE_LIFECYCLE_PREFIX.get().copied().unwrap_or(false),
                 ..state::ReporterOptions::default()
             },
         );

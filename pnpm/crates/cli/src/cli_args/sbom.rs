@@ -797,7 +797,7 @@ fn selectors_narrow_the_run(config: &Config) -> bool {
 fn selected_workspace_importer_ids(state: &State) -> miette::Result<HashSet<String>> {
     let project_dir = state.project_dir();
     let workspace_root = state.config.workspace_dir.as_deref().unwrap_or(project_dir);
-    let (projects, _) = discover_workspace_projects(workspace_root)?;
+    let (projects, _) = discover_workspace_projects(workspace_root, state.config)?;
     let selection =
         select_recursive_projects(&projects, state.config, project_dir, AutoExcludeRoot::Disabled)?;
     Ok(selected_importer_ids(&selection, state.lockfile_dir()).into_iter().collect())

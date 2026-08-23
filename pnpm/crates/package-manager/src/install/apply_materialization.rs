@@ -610,7 +610,9 @@ fn report_install_completion<Reporter: self::Reporter>(
     // build this install blocked, so approving one is an edit rather
     // than recalling the `allowBuilds` shape. Written before the strict
     // failure below, which is the very run whose message it answers.
-    if !ignored_builds.is_empty() && !is_global_install {
+    // `--ignore-workspace` opts out: the run disowned the workspace
+    // manifest, so it must not write to one either.
+    if !ignored_builds.is_empty() && !is_global_install && !config.ignore_workspace {
         let allow_build_keys: BTreeSet<String> = ignored_builds
             .iter()
             .map(|dep_path| crate::allow_build_key_from_ignored_build(dep_path))

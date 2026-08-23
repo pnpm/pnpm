@@ -1947,3 +1947,219 @@ fn recursive_run_keeps_a_pass_when_a_later_selected_script_is_a_no_op() {
 
     drop(root);
 }
+
+/// Port of upstream's `pnpm run with --stream should prefix output`
+/// (`pnpm/test/monorepo/index.ts`).
+#[test]
+fn stream_prefixes_recursive_script_output_with_the_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("project-1", echoes_ok("project-1")), ("project-2", echoes_ok("project-2"))],
+    );
+
+    let output = pacquet
+        .with_args(["--stream", "--config.verify-deps-before-run=false", "-r", "run", "test"])
+        .output()
+        .expect("run test");
+    assert!(output.status.success(), "streamed run failed: {output:?}");
+    assert_eq!(
+        sorted_lines(&output.stdout),
+        [
+            "Scope: all 2 workspace projects",
+            "project-1 test$ echo OK",
+            "project-1 test: Done",
+            "project-1 test: OK",
+            "project-2 test$ echo OK",
+            "project-2 test: Done",
+            "project-2 test: OK",
+        ]
+    );
+
+    drop(root);
+}
+
+/// Port of upstream's `run --reporter-hide-prefix should hide prefix`
+/// (`pnpm/test/monorepo/index.ts`): only the script's own output loses
+/// the prefix — the command echo and the `Done` line keep theirs.
+#[test]
+fn reporter_hide_prefix_drops_the_prefix_from_streamed_script_output() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("project-1", echoes_ok("project-1")), ("project-2", echoes_ok("project-2"))],
+    );
+
+    let output = pacquet
+        .with_args([
+            "--stream",
+            "--reporter-hide-prefix",
+            "--config.verify-deps-before-run=false",
+            "-r",
+            "run",
+            "test",
+        ])
+        .output()
+        .expect("run test");
+    assert!(output.status.success(), "streamed run failed: {output:?}");
+    assert_eq!(
+        sorted_lines(&output.stdout),
+        [
+            "OK",
+            "OK",
+            "Scope: all 2 workspace projects",
+            "project-1 test$ echo OK",
+            "project-1 test: Done",
+            "project-2 test$ echo OK",
+            "project-2 test: Done",
+        ]
+    );
+
+    drop(root);
+}
+
+/// `--parallel` expands to `--stream` in pnpm's `run` shorthand table,
+/// so a parallel run is prefixed even without the flag — otherwise the
+/// interleaved output of concurrent projects is unattributable.
+#[test]
+fn parallel_implies_stream() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("project-1", echoes_ok("project-1")), ("project-2", echoes_ok("project-2"))],
+    );
+
+    let output = pacquet
+        .with_args(["--parallel", "--config.verify-deps-before-run=false", "run", "test"])
+        .output()
+        .expect("run test");
+    assert!(output.status.success(), "parallel run failed: {output:?}");
+    assert_eq!(
+        sorted_lines(&output.stdout),
+        [
+            "Scope: all 2 workspace projects",
+            "project-1 test$ echo OK",
+            "project-1 test: Done",
+            "project-1 test: OK",
+            "project-2 test$ echo OK",
+            "project-2 test: Done",
+            "project-2 test: OK",
+        ]
+    );
+
+    drop(root);
+}
+
+/// Without `--stream` the children inherit the terminal, so their output
+/// carries no prefix at all.
+#[test]
+fn recursive_run_inherits_stdio_without_stream() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("project-1", echoes_ok("project-1")), ("project-2", echoes_ok("project-2"))],
+    );
+
+    let output = pacquet
+        .with_args(["--config.verify-deps-before-run=false", "-r", "run", "test"])
+        .output()
+        .expect("run test");
+    assert!(output.status.success(), "recursive run failed: {output:?}");
+    assert_eq!(sorted_lines(&output.stdout), ["OK", "OK", "Scope: all 2 workspace projects"]);
+
+    drop(root);
+}
+
+/// `--aggregate-output` withholds each project's streamed lines until it
+/// exits, so a slow project cannot interleave into a fast one's block.
+#[test]
+fn aggregate_output_keeps_each_project_in_one_block() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let sleeps_between_lines = |name: &str, delay: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "scripts": { "test": format!("echo first; sleep {delay}; echo second") },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", sleeps_between_lines("project-1", "0.4")),
+            ("project-2", sleeps_between_lines("project-2", "0.2")),
+        ],
+    );
+
+    let output = pacquet
+        .with_args([
+            "--parallel",
+            "--aggregate-output",
+            "--config.verify-deps-before-run=false",
+            "run",
+            "test",
+        ])
+        .output()
+        .expect("run test");
+    assert!(output.status.success(), "aggregated run failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    // The faster project finishes first, and each project's four lines
+    // land together.
+    let blocks = stdout.trim().split("project-1 test$").collect::<Vec<_>>();
+    assert_eq!(blocks.len(), 2, "project-1's block must be contiguous: {stdout}");
+    assert!(
+        !blocks[1].contains("project-2"),
+        "project-2 must have flushed before project-1 started printing: {stdout}",
+    );
+
+    drop(root);
+}
+
+/// `--use-stderr` moves the reporter's own output to stderr, leaving
+/// stdout to the command — here, the scripts' streamed lines still reach
+/// stderr with it, since the reporter is what prints them.
+#[test]
+fn use_stderr_diverts_reporter_output() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &[("project-1", echoes_ok("project-1"))]);
+
+    let output = pacquet
+        .with_args([
+            "--use-stderr",
+            "--stream",
+            "--config.verify-deps-before-run=false",
+            "-r",
+            "run",
+            "test",
+        ])
+        .output()
+        .expect("run test");
+    assert!(output.status.success(), "run failed: {output:?}");
+    assert_eq!(sorted_lines(&output.stdout), Vec::<String>::new());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("project-1 test: OK"),
+        "the reporter must have written to stderr: {output:?}",
+    );
+
+    drop(root);
+}
+
+/// A package whose `test` script echoes a fixed marker, so a test can
+/// assert on the reporter's framing of it rather than on the payload.
+fn echoes_ok(name: &str) -> Value {
+    json!({
+        "name": name,
+        "version": "1.0.0",
+        "scripts": { "test": "echo OK" },
+    })
+}
+
+/// The stdout lines, sorted, so a test does not depend on the order two
+/// concurrent projects happen to finish in.
+fn sorted_lines(stdout: &[u8]) -> Vec<String> {
+    let stdout = String::from_utf8_lossy(stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    let mut lines = stdout.trim().lines().map(str::to_string).collect::<Vec<_>>();
+    lines.sort();
+    lines
+}

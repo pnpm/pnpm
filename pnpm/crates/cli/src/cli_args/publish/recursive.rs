@@ -56,7 +56,7 @@ impl PublishArgs {
         // (`run` / `exec` / `add` / `test`), so the workspace root stays in the
         // selection; its own name/version/private eligibility check drops it
         // below.
-        let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
+        let (projects, _patterns) = discover_workspace_projects(workspace_root, config)?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let graph = &selection.selected;

@@ -15,9 +15,9 @@ use std::{
     env,
     ffi::OsString,
     fs,
-    io::{BufRead, BufReader, Read},
+    io::{self, BufRead, BufReader, Read},
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::{Child, Command, ExitStatus, Stdio},
     thread,
 };
 
@@ -411,12 +411,9 @@ fn run_in_shell<Reporter: self::Reporter>(
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
 
-    let stdout_handle = stdout.map(|stream| {
-        spawn_line_pump::<Reporter>(stream, LifecycleStdio::Stdout, opts.dep_path, stage, wd)
-    });
-    let stderr_handle = stderr.map(|stream| {
-        spawn_line_pump::<Reporter>(stream, LifecycleStdio::Stderr, opts.dep_path, stage, wd)
-    });
+    let target = StreamedScript { dep_path: opts.dep_path, stage, wd, emit: Reporter::emit };
+    let stdout_handle = stdout.map(|stream| target.pump_stream(stream, LifecycleStdio::Stdout));
+    let stderr_handle = stderr.map(|stream| target.pump_stream(stream, LifecycleStdio::Stderr));
 
     let status = child.wait().map_err(|error| LifecycleScriptError::Wait {
         dep_path: opts.dep_path.to_string(),
@@ -445,8 +442,8 @@ fn run_in_emulator<Reporter: self::Reporter>(
     env: &HashMap<String, String>,
     wd: &str,
 ) -> Result<ScriptExit, LifecycleScriptError> {
-    let emit_line =
-        |stdio, line| emit_stdio_line::<Reporter>(opts.dep_path, stage, wd, stdio, line);
+    let target = StreamedScript { dep_path: opts.dep_path, stage, wd, emit: Reporter::emit };
+    let emit_line = |stdio, line| target.emit_line(stdio, line);
     execute_emulated(script, opts.pkg_root, env, EmulatedOutput::Lines(&emit_line))
         .map(ScriptExit::Emulated)
         .map_err(LifecycleScriptError::ShellEmulator)
@@ -477,52 +474,110 @@ pub fn push_script_arg(cmd: &mut Command, script: &str, _windows_verbatim_args: 
     cmd.arg(script);
 }
 
-/// Emit one line of a script's output as a `LifecycleMessage::Stdio`
-/// event.
-fn emit_stdio_line<Reporter: self::Reporter>(
-    dep_path: &str,
-    stage: &str,
-    wd: &str,
-    stdio: LifecycleStdio,
-    line: String,
-) {
-    Reporter::emit(&LogEvent::Lifecycle(LifecycleLog {
-        level: LogLevel::Debug,
-        message: LifecycleMessage::Stdio {
-            dep_path: dep_path.to_string(),
-            line,
-            stage: stage.to_string(),
-            stdio,
-            wd: wd.to_string(),
-        },
-    }));
+/// A script whose output is republished as `pnpm:lifecycle` events
+/// rather than written straight to the terminal.
+///
+/// The three identity fields travel on every event the script produces:
+/// `dep_path` groups them, `stage` names the script, and `wd` is what the
+/// reporter renders as the project prefix.
+#[derive(Clone, Copy)]
+pub struct StreamedScript<'a> {
+    pub dep_path: &'a str,
+    pub stage: &'a str,
+    pub wd: &'a str,
+    pub emit: fn(&LogEvent),
 }
 
-/// Spawn a thread that reads `reader` line-by-line and emits a
-/// `LifecycleMessage::Stdio` event per line.
-fn spawn_line_pump<Reporter: self::Reporter>(
-    reader: impl Read + Send + 'static,
-    stdio: LifecycleStdio,
-    dep_path: &str,
-    stage: &str,
-    wd: &str,
-) -> thread::JoinHandle<()> {
-    let dep_path = dep_path.to_string();
-    let stage = stage.to_string();
-    let wd = wd.to_string();
-    thread::spawn(move || {
-        let buf = BufReader::new(reader);
-        for line in buf.lines() {
-            let Ok(line) = line else {
-                // Stop pumping on read error — an EBADF or EPIPE means
-                // the child closed the stream. Errors are not fatal to
-                // the install; the wait below will surface a non-zero
-                // exit code if the child failed because of them.
-                break;
-            };
-            emit_stdio_line::<Reporter>(&dep_path, &stage, &wd, stdio, line);
+impl StreamedScript<'_> {
+    /// Announce the script that is about to run.
+    pub fn started(&self, script: &str) {
+        (self.emit)(&LogEvent::Lifecycle(LifecycleLog {
+            level: LogLevel::Debug,
+            message: LifecycleMessage::Script {
+                dep_path: self.dep_path.to_string(),
+                optional: false,
+                script: script.to_string(),
+                stage: self.stage.to_string(),
+                wd: self.wd.to_string(),
+            },
+        }));
+    }
+
+    /// Announce how the script ended. `-1` stands for a child killed by a
+    /// signal, which carries no exit code.
+    pub fn finished(&self, exit_code: i32) {
+        (self.emit)(&LogEvent::Lifecycle(LifecycleLog {
+            level: LogLevel::Debug,
+            message: LifecycleMessage::Exit {
+                dep_path: self.dep_path.to_string(),
+                exit_code,
+                optional: false,
+                stage: self.stage.to_string(),
+                wd: self.wd.to_string(),
+            },
+        }));
+    }
+
+    /// Drain `child`'s piped stdout and stderr into one event per line,
+    /// then wait for it. The pumps are joined after the wait, so every
+    /// line is emitted before the caller's [`Self::finished`] — the
+    /// ordering pnpm's reporter renders against.
+    ///
+    /// The child must have been spawned with both streams piped;
+    /// whichever is absent is simply not pumped.
+    pub fn pump(&self, child: &mut Child) -> io::Result<ExitStatus> {
+        let stdout_handle =
+            child.stdout.take().map(|stream| self.pump_stream(stream, LifecycleStdio::Stdout));
+        let stderr_handle =
+            child.stderr.take().map(|stream| self.pump_stream(stream, LifecycleStdio::Stderr));
+        let status = child.wait();
+        if let Some(handle) = stdout_handle {
+            let _ = handle.join();
         }
-    })
+        if let Some(handle) = stderr_handle {
+            let _ = handle.join();
+        }
+        status
+    }
+
+    /// Spawn a thread that reads `reader` line-by-line and republishes
+    /// each line.
+    fn pump_stream(
+        &self,
+        reader: impl Read + Send + 'static,
+        stdio: LifecycleStdio,
+    ) -> thread::JoinHandle<()> {
+        let (dep_path, stage, wd) =
+            (self.dep_path.to_string(), self.stage.to_string(), self.wd.to_string());
+        let emit = self.emit;
+        thread::spawn(move || {
+            let target = StreamedScript { dep_path: &dep_path, stage: &stage, wd: &wd, emit };
+            for line in BufReader::new(reader).lines() {
+                let Ok(line) = line else {
+                    // Stop pumping on read error — an EBADF or EPIPE
+                    // means the child closed the stream. Errors are not
+                    // fatal to the install; the wait surfaces a non-zero
+                    // exit code if the child failed because of them.
+                    break;
+                };
+                target.emit_line(stdio, line);
+            }
+        })
+    }
+
+    /// Republish one line of the script's output.
+    pub fn emit_line(&self, stdio: LifecycleStdio, line: String) {
+        (self.emit)(&LogEvent::Lifecycle(LifecycleLog {
+            level: LogLevel::Debug,
+            message: LifecycleMessage::Stdio {
+                dep_path: self.dep_path.to_string(),
+                line,
+                stage: self.stage.to_string(),
+                stdio,
+                wd: self.wd.to_string(),
+            },
+        }));
+    }
 }
 
 #[cfg(test)]
