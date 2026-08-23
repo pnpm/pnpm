@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { StringDecoder } from 'node:string_decoder'
 
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifestOnly, type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli.utils'
@@ -274,22 +275,29 @@ export async function handler (
               depPath: manifest.name ?? path.relative(opts.dir, prefix),
               stage: '(exec)',
             } satisfies Partial<LifecycleMessage>
-            // A chunk is not a line: it may end mid-line, and one that
-            // ends on a newline would otherwise report a trailing empty
-            // line. Hold the remainder until the next chunk, and flush
-            // whatever is left when the stream ends.
+            // A chunk is neither a line nor a whole number of
+            // characters: it may end mid-line, mid-character, or on a
+            // newline (which would otherwise report a trailing empty
+            // line). A StringDecoder holds back the bytes of a split
+            // character, and `pending` holds back a partial line; both
+            // are flushed when the stream ends.
             const logFn = (stdio: 'stdout' | 'stderr') => {
               const log = (line: string): void => {
                 lifecycleLogger.debug({ ...lifecycleOpts, stdio, line })
               }
+              const decoder = new StringDecoder('utf8')
               let pending = ''
+              const consume = (text: string): void => {
+                const lines = (pending + text).split('\n')
+                pending = lines.pop() ?? ''
+                lines.forEach(log)
+              }
               return {
-                onData (data: unknown): void {
-                  const lines = (pending + String(data)).split('\n')
-                  pending = lines.pop() ?? ''
-                  lines.forEach(log)
+                onData (data: Buffer | string): void {
+                  consume(typeof data === 'string' ? data : decoder.write(data))
                 },
                 onEnd (): void {
+                  consume(decoder.end())
                   if (pending !== '') {
                     log(pending)
                     pending = ''
