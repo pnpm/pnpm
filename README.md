@@ -53,8 +53,6 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://notion.com/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
           <picture>
