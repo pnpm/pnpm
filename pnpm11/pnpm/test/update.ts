@@ -284,7 +284,7 @@ test('recursive update --latest reports the spec ban before judging whether a se
       version: '1.0.0',
       dependencies: {
         // Declares `@pnpm.e2e/dep-of-pkg-with-1-dep` transitively only, so the
-        // selector below would also be rejected as unrecordable.
+        // selector below would be rejected by the indirect-version check too.
         '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
       },
     },
