@@ -300,20 +300,6 @@ where
             ),
             None => build_project_manifests_list(manifest, workspace_projects),
         };
-        // Only an unfiltered install of a whole workspace sees the complete
-        // project list, so only it may conclude that an importer the
-        // lockfile records belongs to a project that is gone. This is
-        // pnpm's `pruneLockfileImporters`, which its recursive install
-        // defaults to the same condition — outside a workspace there is no
-        // project list to compare against.
-        // A `NodeApiProject[]` handed in by an API consumer carries no
-        // promise of listing every workspace project, so it cannot stand
-        // in for the project list either.
-        let prune_stale_importers = selection.is_none()
-            && mutation.is_full_install()
-            && workspace_projects.is_some()
-            && !workspace_projects_are_overridden
-            && config.shares_one_lockfile();
         let selected_importer_ids = selection.as_ref().map(|selection| {
             selection
                 .selected_dirs
@@ -333,6 +319,21 @@ where
             .as_ref()
             .is_some_and(|selected_importer_ids| selected_importer_ids != &real_importer_ids);
         let requested_importer_ids = if filtered_install { selected_importer_ids } else { None };
+        // Only an install that covers a whole workspace sees the complete
+        // project list, so only it may conclude that an importer the
+        // lockfile records belongs to a project that is gone. This is
+        // pnpm's `pruneLockfileImporters`, which its recursive install
+        // defaults to the same condition (`pkgs.length ===
+        // allProjects.length`) — outside a workspace there is no project
+        // list to compare against.
+        // A `NodeApiProject[]` handed in by an API consumer carries no
+        // promise of listing every workspace project, so it cannot stand
+        // in for the project list either.
+        let prune_stale_importers = !filtered_install
+            && mutation.is_full_install()
+            && workspace_projects.is_some()
+            && !workspace_projects_are_overridden
+            && config.shares_one_lockfile();
         // Only a full `pacquet install` may short-circuit. `add` and
         // `remove` mutate the manifest in memory and persist it after
         // this run returns, so the on-disk mtimes the check reads still
