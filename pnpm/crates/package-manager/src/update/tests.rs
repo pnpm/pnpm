@@ -1,8 +1,8 @@
 use super::{
-    KeptRangeVerdict, apply_bumped_manifest_specs, expand_update_selectors, insert_update_target,
-    is_workspace_local_path_specifier, judge_against_kept_range, parse_update_param,
-    persist_selected_manifests, prepare_selected_manifests, selected_project_indices,
-    update_target_name,
+    KeptRangeVerdict, UpdateError, apply_bumped_manifest_specs, expand_update_selectors,
+    insert_update_target, is_workspace_local_path_specifier, judge_against_kept_range,
+    parse_update_param, persist_selected_manifests, prepare_selected_manifests,
+    selected_project_indices, update_target_name,
 };
 use pnpm_config::{CatalogMode, Config};
 use pnpm_network::ThrottledClient;
@@ -357,8 +357,11 @@ async fn selected_update_depth_zero_skips_projects_without_a_matching_dependency
     assert_eq!(prepared.persist_indices, vec![1]);
 }
 
+/// A recursive `--latest` that matches no project's dependencies at
+/// `--depth 0` fails, where the single-project one quietly returns: with
+/// no project left to mutate there is nothing for the run to have meant.
 #[tokio::test]
-async fn selected_update_latest_depth_zero_is_noop_when_no_project_matches() {
+async fn selected_update_latest_depth_zero_errors_when_no_project_matches() {
     let dir = tempdir().expect("create tempdir");
     let mut projects = [project_without_foo(dir.path(), "a"), project_without_foo(dir.path(), "b")];
     let selected_indices = [0, 1];
@@ -382,11 +385,12 @@ async fn selected_update_latest_depth_zero_is_noop_when_no_project_matches() {
         false,
         None,
     )
-    .await
-    .expect("unmatched latest update is a no-op");
+    .await;
 
-    assert!(!prepared.any_work);
-    assert!(prepared.persist_indices.is_empty());
+    assert!(
+        matches!(prepared, Err(UpdateError::NoPackageInDependencies)),
+        "an unmatched depth-0 selector must fail, whatever the preparation returned",
+    );
 }
 
 // No resolver in the latest-capable chain claims any of these, so none of

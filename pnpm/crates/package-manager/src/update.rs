@@ -1183,7 +1183,10 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
         }
     }
 
-    if depth == 0 && !packages.is_empty() && !latest && !any_work {
+    // A recursive `--latest` that matches nothing is an error, unlike the
+    // single-project one that quietly returns: with no project left to
+    // mutate there is nothing for the run to have meant.
+    if depth == 0 && !packages.is_empty() && !any_work {
         return Err(UpdateError::NoPackageInDependencies);
     }
 

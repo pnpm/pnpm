@@ -2,7 +2,7 @@ use crate::_utils;
 
 use _utils::{
     append_workspace_yaml_key, bravo_dep_mature_up_to_1_0_1_minimum_release_age,
-    set_minimum_release_age,
+    lockfile_package_keys, set_ignore_dependencies, set_minimum_release_age,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -14,6 +14,12 @@ use tempfile::TempDir;
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const FOO: &str = "@pnpm.e2e/foo";
+const BAR: &str = "@pnpm.e2e/bar";
+/// Declares `peer-a`, `peer-b`, and `peer-c` as peers, which an install
+/// auto-installs.
+const ABC: &str = "@pnpm.e2e/abc";
+const PEER_A: &str = "@pnpm.e2e/peer-a";
+const PEER_C: &str = "@pnpm.e2e/peer-c";
 const HAS_PRERELEASE: &str = "@pnpm.e2e/has-prerelease";
 /// Depends on `dep-of-pkg-with-1-dep@^100.0.0`, used to exercise
 /// indirect-dependency update behavior when the direct dep is ignored.
@@ -24,6 +30,14 @@ const PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
 fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
+    (root, workspace, npmrc_info)
+}
+
+/// [`setup`] over fixture storage this test owns, so it can move dist
+/// tags mid-test the way the upstream tests' `addDistTag` does.
+fn setup_with_own_registry() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
     (root, workspace, npmrc_info)
 }
 
@@ -42,27 +56,6 @@ fn write_manifest(workspace: &Path, dependencies: &str) {
         r#"{{ "name": "test-update", "version": "1.0.0", "dependencies": {dependencies} }}"#,
     );
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
-}
-
-/// Append an `updateConfig.ignoreDependencies` block to the
-/// `pnpm-workspace.yaml` the harness already wrote.
-fn set_ignore_dependencies(workspace: &Path, names: &[&str]) {
-    let yaml_path = workspace.join("pnpm-workspace.yaml");
-    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    // Fail loudly if the harness ever starts writing `updateConfig` —
-    // appending a second top-level mapping key produces invalid YAML.
-    assert!(
-        !yaml.contains("updateConfig:"),
-        "pnpm-workspace.yaml already has an `updateConfig:` key — update this helper",
-    );
-    if !yaml.ends_with('\n') {
-        yaml.push('\n');
-    }
-    yaml.push_str("updateConfig:\n  ignoreDependencies:\n");
-    for name in names {
-        writeln!(yaml, r#"    - "{name}""#).unwrap();
-    }
-    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
 
 /// Create a sibling workspace project and register its directory in
@@ -1759,6 +1752,150 @@ fn update_no_save_resolves_a_requested_range_within_the_kept_range() {
     assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
     assert!(!virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0"));
     pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// Ports `update to latest should not touch the automatically installed
+/// peer dependencies`: `--latest` on one direct dependency re-resolves
+/// that dependency, and the peers the install auto-installed keep the
+/// versions they were resolved to even though newer ones are now
+/// `latest`.
+#[test]
+fn update_latest_leaves_auto_installed_peers_alone() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+    anchor.set_dist_tag(PEER_A, "1.0.0", "latest");
+    anchor.set_dist_tag(PEER_C, "1.0.0", "latest");
+
+    write_manifest(&workspace, &format!(r#"{{ "{ABC}": "1.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    anchor.set_dist_tag(PEER_A, "1.0.1", "latest");
+    anchor.set_dist_tag(PEER_C, "1.0.1", "latest");
+    anchor.set_dist_tag(ABC, "2.0.0", "latest");
+
+    pacquet(&workspace, ["update", "--latest", ABC]).assert().success();
+
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{ABC}@2.0.0")), "{packages:?}");
+    assert!(packages.contains(&format!("{PEER_A}@1.0.0")), "{packages:?}");
+    assert!(!packages.contains(&format!("{PEER_A}@1.0.1")), "{packages:?}");
+    assert!(packages.contains(&format!("{PEER_C}@1.0.0")), "{packages:?}");
+    assert!(!packages.contains(&format!("{PEER_C}@1.0.1")), "{packages:?}");
+
+    drop((root, anchor));
+}
+
+/// Ports `update with "*" pattern`: a glob selector under `--latest`
+/// moves every dependency it matches to that package's `latest`, and
+/// nothing else.
+#[test]
+fn update_latest_with_glob_selector_is_scoped() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+    anchor.set_dist_tag(PEER_A, "1.0.1", "latest");
+    anchor.set_dist_tag(PEER_C, "2.0.0", "latest");
+    anchor.set_dist_tag(FOO, "2.0.0", "latest");
+
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{PEER_A}": "1.0.0", "{PEER_C}": "1.0.0", "{FOO}": "1.0.0" }}"#),
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest", "@pnpm.e2e/peer-*"]).assert().success();
+
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{PEER_A}@1.0.1")), "{packages:?}");
+    assert!(packages.contains(&format!("{PEER_C}@2.0.0")), "{packages:?}");
+    assert!(packages.contains(&format!("{FOO}@1.0.0")), "{packages:?}");
+
+    drop((root, anchor));
+}
+
+/// Ports `update should work normal when set empty string version`
+/// (<https://github.com/pnpm/pnpm/issues/4196>): a dependency declared
+/// with an empty specifier is updated like any other, in whichever
+/// group it is declared.
+#[test]
+fn update_latest_star_selector_updates_an_empty_specifier() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+    anchor.set_dist_tag(PEER_A, "1.0.1", "latest");
+    anchor.set_dist_tag(PEER_C, "2.0.0", "latest");
+    anchor.set_dist_tag(FOO, "2.0.0", "latest");
+
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{ "name": "test-update", "version": "1.0.0",
+              "dependencies": {{ "{PEER_A}": "1.0.0" }},
+              "devDependencies": {{ "{FOO}": "", "{PEER_C}": "" }} }}"#,
+        ),
+    )
+    .expect("write package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest", "*"]).assert().success();
+
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{PEER_A}@1.0.1")), "{packages:?}");
+    assert!(packages.contains(&format!("{PEER_C}@2.0.0")), "{packages:?}");
+    assert!(packages.contains(&format!("{FOO}@2.0.0")), "{packages:?}");
+
+    drop((root, anchor));
+}
+
+/// Ports `should not update tag version when --latest not set`: a
+/// specifier that names a dist tag is left alone by a compatible
+/// update, whichever tag it names.
+#[test]
+fn update_keeps_every_dist_tag_specifier_without_latest() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+    anchor.set_dist_tag(PEER_A, "1.0.1", "latest");
+    anchor.set_dist_tag(PEER_C, "2.0.0", "canary");
+    anchor.set_dist_tag(FOO, "2.0.0", "latest");
+
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{PEER_A}": "latest", "{PEER_C}": "canary", "{FOO}": "1.0.0" }}"#),
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, PEER_A).as_deref(), Some("latest"));
+    assert_eq!(dep_spec(&workspace, PEER_C).as_deref(), Some("canary"));
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("1.0.0"));
+
+    drop((root, anchor));
+}
+
+/// Ports `not ignore packages if these are specified in parameter even
+/// if these are listed in ... ignoreDependencies`: naming a dependency
+/// explicitly overrides its entry in `updateConfig.ignoreDependencies`.
+#[test]
+fn update_selectors_override_ignore_dependencies() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+    anchor.set_dist_tag(FOO, "100.0.0", "latest");
+    anchor.set_dist_tag(BAR, "100.0.0", "latest");
+
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "100.0.0", "{BAR}": "100.0.0" }}"#));
+    set_ignore_dependencies(&workspace, &[FOO]);
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{FOO}@100.0.0")), "{packages:?}");
+    assert!(packages.contains(&format!("{BAR}@100.0.0")), "{packages:?}");
+
+    anchor.set_dist_tag(FOO, "100.1.0", "latest");
+    anchor.set_dist_tag(BAR, "100.1.0", "latest");
+
+    pacquet(&workspace, ["update", &format!("{FOO}@latest"), &format!("{BAR}@latest")])
+        .assert()
+        .success();
+
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{FOO}@100.1.0")), "{packages:?}");
+    assert!(packages.contains(&format!("{BAR}@100.1.0")), "{packages:?}");
 
     drop((root, anchor));
 }

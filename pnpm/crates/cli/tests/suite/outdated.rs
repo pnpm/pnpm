@@ -1,6 +1,6 @@
 use crate::_utils::{
     append_workspace_yaml_key, bravo_dep_mature_up_to_1_0_1_minimum_release_age,
-    set_minimum_release_age,
+    set_ignore_dependencies, set_minimum_release_age,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -544,6 +544,27 @@ fn outdated_prod_dev_filtering() {
     let dev_out = String::from_utf8_lossy(&dev.stdout);
     assert!(dev_out.contains(FOO), "--dev includes the dev dep: {dev_out}");
     assert!(!dev_out.contains(DEP), "--dev excludes the prod dep: {dev_out}");
+
+    drop((root, anchor));
+}
+
+/// Ports `ignore packages in package.json > pnpm.updateConfig.ignoreDependencies
+/// in outdated command`: an ignored dependency is left out of the report,
+/// and the rest are still reported.
+#[test]
+fn outdated_leaves_out_ignored_dependencies() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    set_ignore_dependencies(&workspace, &[FOO]);
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+
+    assert_eq!(output.status.code(), Some(1), "the unignored dependency is still outdated");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(DEP), "report should mention the unignored package: {stdout}");
+    assert!(!stdout.contains(FOO), "report should leave out the ignored package: {stdout}");
 
     drop((root, anchor));
 }

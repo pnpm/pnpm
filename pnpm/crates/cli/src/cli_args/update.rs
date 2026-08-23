@@ -1,9 +1,11 @@
 use crate::{
     State,
     cli_args::{
-        lockfile_dir::LockfileDirArg, pipelines::InstallFamilySelection, recursive,
+        lockfile_dir::LockfileDirArg,
+        pipelines::InstallFamilySelection,
+        recursive,
         supported_architectures::SupportedArchitecturesArgs,
-        update_interactive::InteractiveUpdateOptions,
+        update_interactive::{InteractiveUpdateOptions, UpdatePrompt},
     },
     github_actions,
 };
@@ -135,6 +137,9 @@ pub struct UpdateArgs {
     /// pnpmfiles of config dependencies.
     #[clap(long = "ignore-pnpmfile")]
     pub ignore_pnpmfile: bool,
+
+    #[clap(skip)]
+    pub(crate) prompt: UpdatePrompt,
 }
 
 /// The option combinations `--workspace` rejects, checked before any
@@ -212,6 +217,7 @@ impl UpdateArgs {
                     latest: self.latest,
                     include_direct: &include_direct,
                     include_github_actions: update_actions,
+                    prompt: self.prompt,
                 },
             )
             .await?
@@ -318,6 +324,7 @@ impl UpdateArgs {
                     latest: self.latest,
                     include_direct: &include_direct,
                     include_github_actions: update_actions,
+                    prompt: self.prompt,
                 },
             )
             .await?
@@ -400,6 +407,7 @@ impl UpdateArgs {
                 config,
                 &self.packages,
                 self.latest,
+                self.prompt,
             )
             .await?
             {
