@@ -6,7 +6,10 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_executor::{push_script_arg, select_shell};
-use pnpm_package_manager::{make_node_package_map_option, package_map_path_for_execution};
+use pnpm_package_manager::{
+    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    pnp_path_for_execution,
+};
 use pnpm_workspace::safe_read_project_manifest_only;
 use std::{
     path::Path,
@@ -187,6 +190,9 @@ pub(super) fn spawn_in_dir(
             config.extra_env.get("NODE_OPTIONS").map(String::as_str),
         )
     });
+    if let Some(pnp_path) = pnp_path_for_execution(config, dir) {
+        node_options = Some(make_node_require_option(&pnp_path, node_options.as_deref()));
+    }
     if let Some(package_map_path) = package_map_path_for_execution(config, dir) {
         node_options =
             Some(make_node_package_map_option(&package_map_path, node_options.as_deref()));

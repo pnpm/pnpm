@@ -378,6 +378,17 @@ pub fn make_node_package_map_option(package_map_path: &Path, node_options: Optio
     parts.join(" ")
 }
 
+pub fn make_node_require_option(module_path: &Path, node_options: Option<&str>) -> String {
+    let node_options =
+        node_options.map(str::to_string).or_else(|| std::env::var("NODE_OPTIONS").ok());
+    let quoted_path = quote_path_if_needed(&module_path.to_string_lossy());
+    let require_option = format!("--require={quoted_path}");
+    match node_options.as_deref().map(str::trim).filter(|options| !options.is_empty()) {
+        Some(node_options) => format!("{node_options} {require_option}"),
+        None => require_option,
+    }
+}
+
 pub fn package_map_path_for_execution(config: &Config, dir: &Path) -> Option<PathBuf> {
     if !config.node_experimental_package_map {
         return None;
