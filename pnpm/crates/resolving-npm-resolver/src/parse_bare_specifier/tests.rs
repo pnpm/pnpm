@@ -23,6 +23,21 @@ fn version_selector_classified_as_version() {
 }
 
 #[test]
+fn version_selector_drops_build_metadata() {
+    // pnpm/pnpm#14096: `@parcel/codeframe` is published as
+    // `2.0.0-canary.1718`, but dependents declare it as
+    // `2.0.0-canary.1718+d8408010f`.
+    for (selector, expected) in
+        [("1.0.0+build1", "1.0.0"), ("1.0.0-canary.1+build1", "1.0.0-canary.1")]
+    {
+        let spec = parse_bare_specifier(selector, Some("foo"), DEFAULT_TAG, REGISTRY)
+            .unwrap_or_else(|| panic!("expected a spec for {selector:?}"));
+        assert_eq!(spec.fetch_spec, expected, "for {selector:?}");
+        assert_eq!(spec.spec_type, RegistryPackageSpecType::Version, "for {selector:?}");
+    }
+}
+
+#[test]
 fn range_selector_classified_as_range() {
     let spec = parse_bare_specifier("^1.0.0", Some("foo"), DEFAULT_TAG, REGISTRY).unwrap();
     assert_eq!(spec.name, "foo");

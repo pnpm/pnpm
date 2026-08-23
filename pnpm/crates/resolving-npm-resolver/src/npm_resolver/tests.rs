@@ -32,10 +32,20 @@ const PACKAGE_BODY: &str = r#"{
     "dist-tags": { "latest": "1.1.0" },
     "modified": "2025-01-15T12:00:00.000Z",
     "time": {
+        "1.0.0-canary.1": "2024-01-05T08:30:00.000Z",
         "1.0.0": "2024-01-10T08:30:00.000Z",
         "1.1.0": "2024-12-10T08:30:00.000Z"
     },
     "versions": {
+        "1.0.0-canary.1": {
+            "name": "acme",
+            "version": "1.0.0-canary.1",
+            "dist": {
+                "integrity": "sha512-EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE==",
+                "shasum": "4444444444444444444444444444444444444444",
+                "tarball": "https://registry/acme-1.0.0-canary.1.tgz"
+            }
+        },
         "1.0.0": {
             "name": "acme",
             "version": "1.0.0",
@@ -226,6 +236,32 @@ async fn empty_specifier_resolves_to_the_max_published_version() {
     let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
     assert_eq!(result.id.as_str(), "acme@1.1.0");
     assert_eq!(result.resolved_via, "npm-registry");
+}
+
+/// Regression test for pnpm/pnpm#14096: npm strips build metadata when
+/// it publishes a version, so a selector carrying it must still resolve
+/// to the published version — for a prerelease as much as for a stable
+/// release.
+#[tokio::test]
+async fn exact_version_with_build_metadata_resolves_to_the_published_version() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    for (bare_specifier, expected_id) in
+        [("1.0.0+build1", "acme@1.0.0"), ("1.0.0-canary.1+build1", "acme@1.0.0-canary.1")]
+    {
+        let wanted = WantedDependency {
+            alias: Some("acme".to_string()),
+            bare_specifier: Some(bare_specifier.to_string()),
+            ..WantedDependency::default()
+        };
+        let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+        assert_eq!(result.id.as_str(), expected_id, "for {bare_specifier:?}");
+        assert_eq!(result.resolved_via, "npm-registry", "for {bare_specifier:?}");
+    }
 }
 
 #[tokio::test]
