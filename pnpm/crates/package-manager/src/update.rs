@@ -166,7 +166,7 @@ pub enum UpdateError {
     NoPackageInDependencies,
 
     /// A versioned selector named a package no selected project declares
-    /// directly. See [`fn@reject_versions_of_indirect_update_specs`].
+    /// directly, so there is nowhere to record the requested version.
     #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP), help("{hint}"))]
     UpdateVersionOnIndirectDep {
