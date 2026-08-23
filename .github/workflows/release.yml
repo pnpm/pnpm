@@ -1018,6 +1018,12 @@ jobs:
         # under the release title. A missing changelog only warns: the draft is
         # still worth having for its artifacts, and a maintainer can fill in
         # the description before publishing.
+        #
+        # The sponsors table is appended from a checked-in fragment, the same
+        # one the v11 release text carries inline. It is regenerated from
+        # pnpm.io's sponsors.json, so a missing file means someone moved it,
+        # not that there are no sponsors — warn rather than fail, since the
+        # sponsors table is not worth losing a release over.
         env:
           VERSION: ${{ needs.plan.outputs.rust_version }}
         run: |
@@ -1027,6 +1033,13 @@ jobs:
           else
             echo "::warning::No pending changelog at ${changelog}; drafting the release with an empty description"
             : > RELEASE.md
+          fi
+          sponsors=".github/release-sponsors.md"
+          if [ -f "$sponsors" ]; then
+            printf '\n' >> RELEASE.md
+            cat "$sponsors" >> RELEASE.md
+          else
+            echo "::warning::No sponsors fragment at ${sponsors}; drafting the release without the sponsors table"
           fi
 
       - name: Release
