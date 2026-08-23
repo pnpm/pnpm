@@ -16,12 +16,13 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_cmd_shim::{
-    Host as CmdShimHost, get_bins_from_package_manifest, link_virtual_shims, remove_bin,
-    virtual_shim_package,
+    Host as CmdShimHost, get_bins_from_package_manifest, is_safe_bin_name, link_virtual_shims,
+    remove_bin, virtual_shim_package,
 };
 use pnpm_config::{Config, NamedShimPolicy, ShimPolicyValue};
 use pnpm_crypto_hash::create_short_hash;
 use pnpm_global::bin_slot_exists;
+use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -408,6 +409,18 @@ fn read_virtual_shim_state(path: &Path) -> miette::Result<Option<VirtualShimStat
     let state: VirtualShimState = serde_json::from_slice(&bytes)
         .into_diagnostic()
         .wrap_err_with(|| format!("parse virtual shim state from {}", path.display()))?;
+    if !is_valid_old_npm_package_name(&state.package) {
+        let path_display = path.display();
+        return Err(miette::miette!(
+            "Virtual shim state at {path_display} has an invalid package owner",
+        ));
+    }
+    if let Some(bin) = state.bins.iter().find(|bin| !is_safe_bin_name(bin)) {
+        let path_display = path.display();
+        return Err(miette::miette!(
+            "Virtual shim state at {path_display} contains invalid bin name {bin:?}",
+        ));
+    }
     Ok(Some(state))
 }
 

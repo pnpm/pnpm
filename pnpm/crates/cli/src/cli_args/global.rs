@@ -9,8 +9,8 @@
 mod activation;
 
 use self::activation::{
-    ArtifactCleanupError, FsRename, activate_global_install, hash_linked_packages,
-    replace_global_bin_slots,
+    ArtifactCleanupError, FsRename, activate_global_install_with_extra_bin_names,
+    get_actual_bin_names, hash_linked_packages, replace_global_bin_slots,
 };
 use crate::{
     State,
@@ -35,7 +35,7 @@ use pnpm_cmd_shim::{
     link_bins_of_packages_with_excludes, link_virtual_shims, remove_bin as remove_cmd_shim,
 };
 use pnpm_config::{
-    CatalogMode, Config, WorkspaceSettings, check_global_bin_dir, decided_allow_builds,
+    CatalogMode, Config, GlobalShims, WorkspaceSettings, check_global_bin_dir, decided_allow_builds,
 };
 use pnpm_fs::{is_subdir, lexical_normalize, remove_symlink_dir, symlink_dir};
 use pnpm_global::{
@@ -287,19 +287,49 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         };
 
         let existing =
-            collect_existing_global_installs(&global_pkg_dir, &aliases, &aliases_to_replace)
+            match collect_existing_global_installs(&global_pkg_dir, &aliases, &aliases_to_replace)
                 .into_diagnostic()
-                .wrap_err("scan existing global installs")?;
+                .wrap_err("scan existing global installs")
+            {
+                Ok(existing) => existing,
+                Err(error) => {
+                    let _ = fs::remove_dir_all(&install_dir);
+                    return Err(error);
+                }
+            };
+        let prospective_bins = get_actual_bin_names::<CmdShimHost>(&pkgs, &bins_to_skip);
+        let replacement_plan = match plan_replaced_global_bins(
+            &existing.groups_to_replace,
+            &global_bin_dir,
+            &prospective_bins,
+            &existing.protected_bins,
+            &crate::shim_dispatch::global_shims_setting(),
+        ) {
+            Ok(replacement_plan) => replacement_plan,
+            Err(error) => {
+                let _ = fs::remove_dir_all(&install_dir);
+                return Err(error);
+            }
+        };
+        if !replacement_plan.shims_to_restore.is_empty()
+            && let Err(error) = install_dispatcher(&global_bin_dir)
+                .into_diagnostic()
+                .wrap_err("install the global shim dispatcher")
+        {
+            let _ = fs::remove_dir_all(&install_dir);
+            return Err(error);
+        }
 
         let cache_hash = create_global_cache_key(&aliases, &registries_with_default(config));
         let hash_link = get_hash_link(&global_pkg_dir, &cache_hash);
         let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
-        let activation = activate_global_install::<CmdShimHost>(
+        let activation = activate_global_install_with_extra_bin_names::<CmdShimHost>(
             &install_dir,
             &hash_link,
             &global_bin_dir,
             &pkgs,
             &bins_to_skip,
+            &replacement_plan.affected_bin_names,
             || {
                 link_global_bins(
                     base_config,
@@ -307,7 +337,8 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
                     &dependencies,
                     &global_bin_dir,
                     &bins_to_skip,
-                )
+                )?;
+                restore_virtual_shims(&replacement_plan.shims_to_restore, &global_bin_dir)
             },
         )
         .wrap_err("activate global install")?;
@@ -315,15 +346,19 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
             warn_global::<Reporter>(&leftover.to_string());
         }
         let activated_bins = activation.activated_bins;
-        cleanup_replaced_global_installs(
+        if let Some(leftover) = cleanup_replaced_global_installs(
             &global_pkg_dir,
             &global_bin_dir,
             &existing.groups_to_replace,
             &cache_hash,
             &activated_bins,
             &existing.protected_bins,
+            &replacement_plan.restored_bin_names(),
         )
-        .wrap_err("remove existing global installs")?;
+        .wrap_err("remove existing global installs")?
+        {
+            warn_global::<Reporter>(&leftover.to_string());
+        }
     }
     Ok(())
 }
@@ -405,18 +440,48 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         };
 
         let protected =
-            bin_names_of_other_groups(&global_pkg_dir, &HashSet::from([pkg.hash.clone()]))
+            match bin_names_of_other_groups(&global_pkg_dir, &HashSet::from([pkg.hash.clone()]))
                 .into_diagnostic()
-                .wrap_err("scan global packages")?;
+                .wrap_err("scan global packages")
+            {
+                Ok(protected) => protected,
+                Err(error) => {
+                    let _ = fs::remove_dir_all(&install_dir);
+                    return Err(error);
+                }
+            };
+        let prospective_bins = get_actual_bin_names::<CmdShimHost>(&pkgs, &bins_to_skip);
+        let replacement_plan = match plan_replaced_global_bins(
+            std::slice::from_ref(pkg),
+            &global_bin_dir,
+            &prospective_bins,
+            &protected,
+            &crate::shim_dispatch::global_shims_setting(),
+        ) {
+            Ok(replacement_plan) => replacement_plan,
+            Err(error) => {
+                let _ = fs::remove_dir_all(&install_dir);
+                return Err(error);
+            }
+        };
+        if !replacement_plan.shims_to_restore.is_empty()
+            && let Err(error) = install_dispatcher(&global_bin_dir)
+                .into_diagnostic()
+                .wrap_err("install the global shim dispatcher")
+        {
+            let _ = fs::remove_dir_all(&install_dir);
+            return Err(error);
+        }
 
         let hash_link = get_hash_link(&global_pkg_dir, &pkg.hash);
         let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
-        let activation = activate_global_install::<CmdShimHost>(
+        let activation = activate_global_install_with_extra_bin_names::<CmdShimHost>(
             &install_dir,
             &hash_link,
             &global_bin_dir,
             &pkgs,
             &bins_to_skip,
+            &replacement_plan.affected_bin_names,
             || {
                 link_global_bins(
                     base_config,
@@ -424,7 +489,8 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
                     &dependencies,
                     &global_bin_dir,
                     &bins_to_skip,
-                )
+                )?;
+                restore_virtual_shims(&replacement_plan.shims_to_restore, &global_bin_dir)
             },
         )
         .wrap_err("activate global install")?;
@@ -432,15 +498,19 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             warn_global::<Reporter>(&leftover.to_string());
         }
         let activated_bins = activation.activated_bins;
-        cleanup_replaced_global_installs(
+        if let Some(leftover) = cleanup_replaced_global_installs(
             &global_pkg_dir,
             &global_bin_dir,
             std::slice::from_ref(pkg),
             &pkg.hash,
             &activated_bins,
             &protected,
+            &replacement_plan.restored_bin_names(),
         )
-        .wrap_err("remove existing global installs")?;
+        .wrap_err("remove existing global installs")?
+        {
+            warn_global::<Reporter>(&leftover.to_string());
+        }
     }
     Ok(())
 }
@@ -500,7 +570,12 @@ pub fn handle_global_remove<Reporter: self::Reporter>(
     let protected = bin_names_of_other_groups(&global_pkg_dir, &exclude)
         .into_diagnostic()
         .wrap_err("scan global packages")?;
-    let shims_to_restore = virtual_shims_to_restore(&groups, &global_bin_dir, &protected)?;
+    let shims_to_restore = virtual_shims_to_restore(
+        &groups,
+        &global_bin_dir,
+        &protected,
+        &crate::shim_dispatch::global_shims_setting(),
+    )?;
     if !shims_to_restore.is_empty() {
         install_dispatcher(&global_bin_dir)
             .into_diagnostic()
@@ -528,13 +603,7 @@ pub fn handle_global_remove<Reporter: self::Reporter>(
         affected_bin_names: &affected_bin_names,
     };
     let leftover_backup = commit_global_removal::<CmdShimHost>(&transaction, || {
-        for (package, bins) in &shims_to_restore {
-            let bin_refs = bins.iter().map(String::as_str).collect::<Vec<_>>();
-            link_virtual_shims::<CmdShimHost>(package, &bin_refs, &global_bin_dir)
-                .map_err(miette::Report::new)
-                .wrap_err_with(|| format!("restore the {package} shims"))?;
-        }
-        Ok(())
+        restore_virtual_shims(&shims_to_restore, &global_bin_dir)
     })?;
     if let Some(leftover) = leftover_backup {
         warn_global::<Reporter>(&leftover.to_string());
@@ -585,8 +654,8 @@ fn virtual_shims_to_restore(
     groups: &[GlobalPackageInfo],
     global_bin_dir: &Path,
     protected: &HashSet<String>,
+    enabled: &GlobalShims,
 ) -> miette::Result<BTreeMap<String, BTreeSet<String>>> {
-    let enabled = crate::shim_dispatch::global_shims_setting();
     let mut shims = BTreeMap::<String, BTreeSet<String>>::new();
     for group in groups {
         for package in read_installed_packages(&group.install_dir) {
@@ -615,6 +684,48 @@ fn virtual_shims_to_restore(
         }
     }
     Ok(shims)
+}
+
+struct ReplacedGlobalBinPlan {
+    shims_to_restore: BTreeMap<String, BTreeSet<String>>,
+    affected_bin_names: HashSet<String>,
+}
+
+impl ReplacedGlobalBinPlan {
+    fn restored_bin_names(&self) -> HashSet<String> {
+        self.shims_to_restore.values().flatten().cloned().collect()
+    }
+}
+
+fn plan_replaced_global_bins(
+    groups: &[GlobalPackageInfo],
+    global_bin_dir: &Path,
+    prospective_bins: &HashSet<String>,
+    protected_bins: &HashSet<String>,
+    enabled: &GlobalShims,
+) -> miette::Result<ReplacedGlobalBinPlan> {
+    let occupied_bins = prospective_bins.union(protected_bins).cloned().collect::<HashSet<_>>();
+    let shims_to_restore =
+        virtual_shims_to_restore(groups, global_bin_dir, &occupied_bins, enabled)?;
+    let affected_bin_names = groups
+        .iter()
+        .flat_map(get_installed_bin_names)
+        .filter(|bin| !occupied_bins.contains(bin))
+        .collect();
+    Ok(ReplacedGlobalBinPlan { shims_to_restore, affected_bin_names })
+}
+
+fn restore_virtual_shims(
+    shims_to_restore: &BTreeMap<String, BTreeSet<String>>,
+    global_bin_dir: &Path,
+) -> miette::Result<()> {
+    for (package, bins) in shims_to_restore {
+        let bin_refs = bins.iter().map(String::as_str).collect::<Vec<_>>();
+        link_virtual_shims::<CmdShimHost>(package, &bin_refs, global_bin_dir)
+            .map_err(miette::Report::new)
+            .wrap_err_with(|| format!("restore the {package} shims"))?;
+    }
+    Ok(())
 }
 
 /// Install `selectors` into a fresh group directory under `global_pkg_dir`,
@@ -807,14 +918,6 @@ fn collect_existing_global_installs(
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
-#[display("Failed to clean up replaced global installs")]
-struct ReplacedGlobalInstallCleanupError {
-    #[error(not(source))]
-    #[related]
-    cleanup_reports: Vec<ArtifactCleanupError>,
-}
-
-#[derive(Debug, Display, Error, Diagnostic)]
 #[display("Failed to remove global packages")]
 struct RemovedGlobalInstallCleanupError {
     #[error(not(source))]
@@ -852,9 +955,6 @@ trait FsGlobalRemoval: FsRename {
 
 impl FsGlobalRemoval for CmdShimHost {}
 
-// Activation already succeeded when this runs, so every removal is
-// attempted even after one fails; the failures are aggregated instead of
-// aborting the remaining cleanup.
 fn cleanup_replaced_global_installs(
     global_pkg_dir: &Path,
     global_bin_dir: &Path,
@@ -862,9 +962,18 @@ fn cleanup_replaced_global_installs(
     active_hash: &str,
     activated_bins: &HashSet<String>,
     protected_bins: &HashSet<String>,
-) -> miette::Result<()> {
-    let mut cleanup_reports = Vec::new();
-    let bins_to_keep = activated_bins.union(protected_bins).cloned().collect();
+    restored_bin_names: &HashSet<String>,
+) -> miette::Result<Option<ArtifactCleanupError>> {
+    if groups.is_empty() {
+        return Ok(None);
+    }
+    let mut bins_to_keep = activated_bins.union(protected_bins).cloned().collect::<HashSet<_>>();
+    bins_to_keep.extend(restored_bin_names.iter().cloned());
+    let affected_bin_names = groups
+        .iter()
+        .flat_map(get_installed_bin_names)
+        .filter(|bin| !bins_to_keep.contains(bin))
+        .collect::<HashSet<_>>();
     let cleanup = GlobalInstallCleanup {
         global_pkg_dir,
         global_bin_dir,
@@ -872,17 +981,14 @@ fn cleanup_replaced_global_installs(
         hash_to_keep: Some(active_hash),
         context: "replaced global",
     };
-    for group in groups {
-        cleanup_reports.extend(cleanup_global_install(group, &cleanup));
-    }
-    if cleanup_reports.is_empty() {
-        return Ok(());
-    }
-    if cleanup_reports.len() == 1 {
-        let report = cleanup_reports.remove(0);
-        return Err(miette::Report::new(report));
-    }
-    Err(ReplacedGlobalInstallCleanupError { cleanup_reports }.into())
+    let transaction = GlobalRemovalTransaction {
+        groups,
+        cleanup: &cleanup,
+        affected_bin_names: &affected_bin_names,
+    };
+    let leftover_backup = commit_global_removal::<CmdShimHost>(&transaction, || Ok(()))?;
+    removed_global_install_result(cleanup_removed_global_install_dirs(groups, &cleanup))?;
+    Ok(leftover_backup)
 }
 
 fn commit_global_removal<Sys: FsGlobalRemoval>(
@@ -954,34 +1060,6 @@ fn removed_global_install_result(
         return Err(miette::Report::new(cleanup_reports.remove(0)));
     }
     Err(RemovedGlobalInstallCleanupError { cleanup_reports }.into())
-}
-
-fn cleanup_global_install(
-    group: &GlobalPackageInfo,
-    cleanup: &GlobalInstallCleanup<'_>,
-) -> Vec<ArtifactCleanupError> {
-    let mut cleanup_reports = cleanup_global_install_bins::<CmdShimHost>(group, cleanup);
-    if !cleanup_reports.is_empty() {
-        return cleanup_reports;
-    }
-    if let Err(report) = remove_global_hash_link::<CmdShimHost>(group, cleanup) {
-        cleanup_reports.push(report);
-        return cleanup_reports;
-    }
-    if let Some(report) = cleanup_global_install_dir(group, cleanup) {
-        cleanup_reports.push(report);
-    }
-    cleanup_reports
-}
-
-fn cleanup_global_install_bins<Sys: FsGlobalRemoval>(
-    group: &GlobalPackageInfo,
-    cleanup: &GlobalInstallCleanup<'_>,
-) -> Vec<ArtifactCleanupError> {
-    get_installed_bin_names(group)
-        .iter()
-        .filter_map(|bin_name| cleanup_global_bin::<Sys>(bin_name, cleanup))
-        .collect()
 }
 
 fn cleanup_global_bin_names<Sys: FsGlobalRemoval>(

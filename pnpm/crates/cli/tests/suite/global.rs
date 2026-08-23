@@ -304,6 +304,55 @@ fn global_install_preserves_virtual_shim_ownership_and_restores_it_on_remove() {
 
 #[cfg(unix)]
 #[test]
+fn global_replacement_restores_a_virtual_shim_for_a_dropped_bin() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let shim_path = global_bin.join("touch-file-one-bin");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    let registry = npmrc_info.mock_instance.url();
+
+    let new_package = root.path().join("new-package");
+    fs::create_dir_all(&new_package).expect("create new package");
+    fs::write(
+        new_package.join("package.json"),
+        serde_json::json!({
+            "name": "@foo/touch-file-one-bin",
+            "version": "2.0.0",
+        })
+        .to_string(),
+    )
+    .expect("write new package manifest");
+
+    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+        .with_args(["shim", "add", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+        .with_args(["add", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    assert!(!fs::read_to_string(&shim_path).unwrap().contains("cmd-shim-target=pkg:"));
+
+    global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
+        .with_args(["add", "-g", &format!("file:{}", new_package.display())])
+        .assert()
+        .success();
+
+    let restored_shim = fs::read_to_string(&shim_path).expect("read restored virtual shim");
+    assert!(
+        restored_shim.contains("# cmd-shim-target=pkg:@foo/touch-file-one-bin"),
+        "shim was:\n{restored_shim}",
+    );
+
+    drop((root, npmrc_info));
+}
+
+#[cfg(unix)]
+#[test]
 fn failed_virtual_shim_restoration_leaves_global_removal_retryable() {
     use assert_cmd::assert::OutputAssertExt;
 

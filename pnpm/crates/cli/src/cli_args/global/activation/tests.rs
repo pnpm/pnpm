@@ -1,11 +1,11 @@
 use super::{
     super::{
         GlobalInstallCleanup, GlobalRemovalTransaction, cleanup_replaced_global_installs,
-        remove_global_install_entries,
+        plan_replaced_global_bins, remove_global_install_entries, restore_virtual_shims,
     },
-    BinSlotKind, FsArtifactProbe, FsRename, FsSwapHashLink, SavedBinSlot, activate_global_install,
-    directory_symlink_slots, hash_linked_packages, needs_directory_symlink_removal,
-    replace_global_bin_slots, restore_bin_slots,
+    BinSlotKind, FsArtifactProbe, FsRename, FsSwapHashLink, SavedBinSlot,
+    activate_global_install_with_extra_bin_names, directory_symlink_slots, hash_linked_packages,
+    needs_directory_symlink_removal, replace_global_bin_slots, restore_bin_slots,
 };
 use miette::IntoDiagnostic;
 use pnpm_cmd_shim::{
@@ -13,6 +13,7 @@ use pnpm_cmd_shim::{
     FsWalkFiles, FsWrite, Host, PackageBinSource, link_bins_of_packages_with_excludes,
     link_virtual_shims,
 };
+use pnpm_config::GlobalShims;
 use pnpm_fs::{force_symlink_dir, read_symlink_dir, remove_symlink_dir};
 use pnpm_global::GlobalPackageInfo;
 use serde_json::json;
@@ -26,6 +27,30 @@ use std::{
     },
 };
 use tempfile::TempDir;
+
+use crate::cli_args::shim::{record_virtual_shim_state, virtual_shim_owner};
+
+fn activate_global_install<Sys>(
+    install_dir: &Path,
+    hash_link: &Path,
+    global_bin_dir: &Path,
+    packages: &[PackageBinSource],
+    bins_to_skip: &HashSet<String>,
+    link_bins: impl FnOnce() -> miette::Result<()>,
+) -> miette::Result<super::Activation>
+where
+    Sys: FsWalkFiles + FsSwapHashLink + FsRename + FsArtifactProbe,
+{
+    activate_global_install_with_extra_bin_names::<Sys>(
+        install_dir,
+        hash_link,
+        global_bin_dir,
+        packages,
+        bins_to_skip,
+        &HashSet::new(),
+        link_bins,
+    )
+}
 
 macro_rules! delegate_cmd_shim_capabilities {
     ($system:ty) => {
@@ -681,15 +706,17 @@ fn cleanup_after_activation_preserves_current_state_and_external_install() {
     let active_hash_link = pnpm_global::get_hash_link(&global_pkg_dir, "active-hash");
     force_symlink_dir(&active_install_dir, &active_hash_link).expect("seed active hash link");
 
-    cleanup_replaced_global_installs(
+    let leftover = cleanup_replaced_global_installs(
         &global_pkg_dir,
         &global_bin_dir,
         &[active_group, external_group],
         "active-hash",
         &HashSet::from(["activated".to_string()]),
         &HashSet::from(["survivor".to_string()]),
+        &HashSet::new(),
     )
     .expect("clean up replaced installs after activation");
+    assert!(leftover.is_none());
 
     assert!(global_bin_dir.join("activated").exists());
     assert!(global_bin_dir.join("survivor").exists());
@@ -718,15 +745,17 @@ fn replacing_a_group_with_a_different_package_set_keeps_its_relinked_bins() {
     let old_hash_link = pnpm_global::get_hash_link(&global_pkg_dir, "old-hash");
     force_symlink_dir(&old_install_dir, &old_hash_link).expect("seed old hash link");
 
-    cleanup_replaced_global_installs(
+    let leftover = cleanup_replaced_global_installs(
         &global_pkg_dir,
         &global_bin_dir,
         &[replaced],
         "new-hash",
         &HashSet::from(["shared".to_string()]),
         &HashSet::new(),
+        &HashSet::new(),
     )
     .expect("clean up the replaced group");
+    assert!(leftover.is_none());
 
     // Changing the set of packages changes the hash, so `shared` was
     // rewritten to point at the new one just before this ran — unlinking the
@@ -741,7 +770,7 @@ fn replacing_a_group_with_a_different_package_set_keeps_its_relinked_bins() {
 }
 
 #[test]
-fn cleanup_removes_the_other_bins_but_keeps_a_group_whose_bin_removal_failed() {
+fn cleanup_failure_preserves_every_bin_and_the_group() {
     let root = tempfile::tempdir().expect("create cleanup error fixture");
     let global_pkg_dir = root.path().join("global");
     let global_bin_dir = root.path().join("bin");
@@ -757,17 +786,128 @@ fn cleanup_removes_the_other_bins_but_keeps_a_group_whose_bin_removal_failed() {
         "active-hash",
         &HashSet::new(),
         &HashSet::new(),
+        &HashSet::new(),
     )
     .expect_err("a directory cannot be removed as a bin file");
 
     let blocked_bin = global_bin_dir.join("blocked");
-    assert!(error.to_string().contains("remove replaced global bin"));
+    assert!(error.to_string().contains("Cannot replace global bin slot"));
     assert!(error.to_string().contains(&blocked_bin.display().to_string()));
-    assert!(!global_bin_dir.join("stale").exists());
-    // The bin that could not be removed is only discoverable through the
-    // group's manifests, so the group has to outlive the failure.
+    assert!(global_bin_dir.join("stale").exists());
     assert!(blocked_bin.exists());
     assert!(install_dir.exists());
+}
+
+#[test]
+fn replacing_a_package_that_drops_a_bin_restores_its_recorded_shim() {
+    let root = tempfile::tempdir().expect("create replacement fixture");
+    let global_pkg_dir = root.path().join("global");
+    let global_bin_dir = root.path().join("bin");
+    let install_dir = global_pkg_dir.join("old-install");
+    let fresh_install_dir = global_pkg_dir.join("fresh-install");
+    let package_dir = install_dir.join("node_modules/node");
+    fs::create_dir_all(&package_dir).expect("create installed package directory");
+    fs::create_dir_all(&global_bin_dir).expect("create global bin directory");
+    fs::write(
+        install_dir.join("package.json"),
+        serde_json::to_vec(&json!({ "dependencies": { "node": "1.0.0" } }))
+            .expect("serialize global group manifest"),
+    )
+    .expect("write global group manifest");
+    fs::write(
+        package_dir.join("package.json"),
+        serde_json::to_vec(&json!({
+            "name": "node",
+            "version": "1.0.0",
+            "bin": { "node": "node.js" },
+        }))
+        .expect("serialize installed package manifest"),
+    )
+    .expect("write installed package manifest");
+    fs::write(package_dir.join("node.js"), b"").expect("write package bin");
+    fs::write(global_bin_dir.join("node"), b"old global bin\n").expect("seed global bin");
+    record_virtual_shim_state(&global_bin_dir, "node", &["node".to_string()])
+        .expect("record shim restoration state");
+    let group = GlobalPackageInfo {
+        hash: "old-hash".to_string(),
+        install_dir: install_dir.clone(),
+        dependencies: vec![("node".to_string(), "1.0.0".to_string())],
+    };
+    let old_hash_link = pnpm_global::get_hash_link(&global_pkg_dir, "old-hash");
+    force_symlink_dir(&install_dir, &old_hash_link).expect("seed old hash link");
+    fs::create_dir_all(&fresh_install_dir).expect("create fresh install directory");
+
+    let plan = plan_replaced_global_bins(
+        std::slice::from_ref(&group),
+        &global_bin_dir,
+        &HashSet::new(),
+        &HashSet::new(),
+        &GlobalShims::default(),
+    )
+    .expect("plan dropped-bin replacement");
+    let activation = activate_global_install_with_extra_bin_names::<Host>(
+        &fresh_install_dir,
+        &old_hash_link,
+        &global_bin_dir,
+        &[],
+        &HashSet::new(),
+        &plan.affected_bin_names,
+        || restore_virtual_shims(&plan.shims_to_restore, &global_bin_dir),
+    )
+    .expect("activate replacement");
+    assert!(activation.activated_bins.is_empty());
+
+    let leftover = cleanup_replaced_global_installs(
+        &global_pkg_dir,
+        &global_bin_dir,
+        &[group],
+        "old-hash",
+        &HashSet::new(),
+        &HashSet::new(),
+        &plan.restored_bin_names(),
+    )
+    .expect("clean up replaced package");
+
+    assert!(leftover.is_none());
+    assert_eq!(
+        virtual_shim_owner(&global_bin_dir.join("node")).expect("inspect restored shim").as_deref(),
+        Some("node"),
+    );
+    assert_eq!(resolved_hash_target(&old_hash_link), canonical(&fresh_install_dir));
+    assert!(!install_dir.exists());
+}
+
+#[test]
+fn dropped_bin_failure_restores_its_command_and_hash_target() {
+    let root = tempfile::tempdir().expect("create dropped-bin rollback fixture");
+    let global_bin_dir = root.path().join("bin");
+    let old_install_dir = root.path().join("old-install");
+    let fresh_install_dir = root.path().join("fresh-install");
+    let hash_link = root.path().join("hash-link");
+    fs::create_dir_all(&global_bin_dir).expect("create global bin directory");
+    fs::create_dir_all(&old_install_dir).expect("create old install directory");
+    fs::create_dir_all(&fresh_install_dir).expect("create fresh install directory");
+    fs::write(global_bin_dir.join("dropped"), b"old command\n").expect("seed old command");
+    force_symlink_dir(&old_install_dir, &hash_link).expect("seed old hash link");
+
+    let error = activate_global_install_with_extra_bin_names::<Host>(
+        &fresh_install_dir,
+        &hash_link,
+        &global_bin_dir,
+        &[],
+        &HashSet::new(),
+        &HashSet::from(["dropped".to_string()]),
+        || Err(miette::miette!("injected restoration failure")),
+    )
+    .expect_err("restoration must fail");
+
+    assert!(format!("{error:?}").contains("injected restoration failure"));
+    assert_eq!(resolved_hash_target(&hash_link), canonical(&old_install_dir));
+    assert_eq!(
+        fs::read(global_bin_dir.join("dropped")).expect("read restored command"),
+        b"old command\n",
+    );
+    assert!(!fresh_install_dir.exists());
 }
 
 #[test]

@@ -54,6 +54,16 @@ fn reads_the_package_from_a_generated_virtual_shim() {
 }
 
 #[test]
+fn rejects_malformed_virtual_shim_packages() {
+    for package in ["", "bad package", "../tool", "@scope/../tool"] {
+        let body = format!(
+            "#!/bin/sh\n# pnpm-shim-style=context-aware\n# cmd-shim-target=pkg:{package}\n",
+        );
+        assert_eq!(virtual_shim_package(&body), None, "accepted {package:?}");
+    }
+}
+
+#[test]
 fn extension_fallback_picks_node_for_js() {
     assert_eq!(extension_program("js"), Some("node"));
     assert_eq!(extension_program("cjs"), Some("node"));

@@ -148,7 +148,8 @@ fn commands_from_bin(bin: &Value, pkg_name: Option<&str>, pkg_path: &Path) -> Ve
 /// `.` and `..` survive `encodeURIComponent` unchanged but resolve to the bin
 /// directory itself or its parent when joined to a target dir, so they are
 /// rejected explicitly.
-fn is_safe_bin_name(name: &str) -> bool {
+#[must_use]
+pub fn is_safe_bin_name(name: &str) -> bool {
     if name == "$" {
         return true;
     }

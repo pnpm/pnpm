@@ -162,6 +162,7 @@ enum BinSlotKind {
 struct PreparedGlobalInstall {
     actual_bins: BTreeMap<String, PathBuf>,
     actual_bin_names: HashSet<String>,
+    affected_bin_names: HashSet<String>,
     backup_dir: TempDir,
     saved_bin_slots: Vec<SavedBinSlot>,
     old_hash_target: Option<PathBuf>,
@@ -177,12 +178,13 @@ pub(super) struct Activation {
     pub(super) leftover_backup: Option<ArtifactCleanupError>,
 }
 
-pub(super) fn activate_global_install<Sys>(
+pub(super) fn activate_global_install_with_extra_bin_names<Sys>(
     install_dir: &Path,
     hash_link: &Path,
     global_bin_dir: &Path,
     packages: &[PackageBinSource],
     bins_to_skip: &HashSet<String>,
+    extra_bin_names: &HashSet<String>,
     link_bins: impl FnOnce() -> miette::Result<()>,
 ) -> miette::Result<Activation>
 where
@@ -194,6 +196,7 @@ where
         global_bin_dir,
         packages,
         bins_to_skip,
+        extra_bin_names,
     )?;
     let activation_result = activate_prepared_global_install::<Sys>(
         install_dir,
@@ -366,7 +369,7 @@ where
 {
     restore_bin_slots::<Sys>(
         global_bin_dir,
-        &prepared.actual_bin_names,
+        &prepared.affected_bin_names,
         &prepared.saved_bin_slots,
     )?;
     if let Some(old_hash_target) = &prepared.old_hash_target {
@@ -522,9 +525,11 @@ fn prepare_global_install<Sys: FsWalkFiles>(
     global_bin_dir: &Path,
     packages: &[PackageBinSource],
     bins_to_skip: &HashSet<String>,
+    extra_bin_names: &HashSet<String>,
 ) -> miette::Result<PreparedGlobalInstall> {
     let actual_bins = get_actual_bins::<Sys>(packages, bins_to_skip);
     let actual_bin_names: HashSet<String> = actual_bins.keys().cloned().collect();
+    let affected_bin_names = actual_bin_names.union(extra_bin_names).cloned().collect();
     let backup_dir =
         match tempfile::Builder::new().prefix(".pnpm-bin-backup-").tempdir_in(global_bin_dir) {
             Ok(backup_dir) => backup_dir,
@@ -537,7 +542,7 @@ fn prepare_global_install<Sys: FsWalkFiles>(
             }
         };
     let saved_bin_slots =
-        match backup_bin_slots(&actual_bin_names, backup_dir.path(), global_bin_dir) {
+        match backup_bin_slots(&affected_bin_names, backup_dir.path(), global_bin_dir) {
             Ok(saved_bin_slots) => saved_bin_slots,
             Err(error) => return cleanup_failed_preparation(install_dir, Some(backup_dir), error),
         };
@@ -548,6 +553,7 @@ fn prepare_global_install<Sys: FsWalkFiles>(
     Ok(PreparedGlobalInstall {
         actual_bins,
         actual_bin_names,
+        affected_bin_names,
         backup_dir,
         saved_bin_slots,
         old_hash_target,
@@ -609,6 +615,13 @@ fn get_actual_bins<Sys: FsWalkFiles>(
         .filter(|command| !bins_to_skip.contains(&command.name))
         .map(|command| (command.name, command.path))
         .collect()
+}
+
+pub(super) fn get_actual_bin_names<Sys: FsWalkFiles>(
+    packages: &[PackageBinSource],
+    bins_to_skip: &HashSet<String>,
+) -> HashSet<String> {
+    get_actual_bins::<Sys>(packages, bins_to_skip).into_keys().collect()
 }
 
 fn backup_bin_slots(

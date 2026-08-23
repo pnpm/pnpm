@@ -4497,6 +4497,7 @@ dependencies = [
  "pipe-trait",
  "pnpm-fs",
  "pnpm-package-manifest",
+ "pnpm-resolving-parse-wanted-dependency",
  "rayon",
  "same-file",
  "serde_json",

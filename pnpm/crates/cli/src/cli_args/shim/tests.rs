@@ -175,3 +175,40 @@ fn restoration_state_round_trips_scoped_packages_and_bins() {
             .is_empty(),
     );
 }
+
+#[test]
+fn restoration_state_rejects_unsafe_bin_names() {
+    let dir = tempdir().unwrap();
+    let state_path = virtual_shim_state_path(dir.path(), "tool");
+    fs::write(
+        &state_path,
+        serde_json::to_vec(&serde_json::json!({
+            "package": "tool",
+            "bins": ["../outside"],
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let error = virtual_shim_bins_to_restore(dir.path(), "tool").unwrap_err();
+    let error = error.to_string();
+    assert!(error.contains(r#"invalid bin name "../outside""#), "{error}");
+}
+
+#[test]
+fn restoration_state_rejects_invalid_package_owners() {
+    let dir = tempdir().unwrap();
+    let state_path = virtual_shim_state_path(dir.path(), "../tool");
+    fs::write(
+        &state_path,
+        serde_json::to_vec(&serde_json::json!({
+            "package": "../tool",
+            "bins": ["tool"],
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let error = virtual_shim_bins_to_restore(dir.path(), "../tool").unwrap_err().to_string();
+    assert!(error.contains("invalid package owner"), "{error}");
+}
