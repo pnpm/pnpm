@@ -17,6 +17,15 @@ fn run(
     (code, lines.into_inner().expect("the sink is never poisoned"))
 }
 
+/// The lines `stdio` carried, in the order the sink saw them.
+fn lines_from(lines: &[(LifecycleStdio, String)], stdio: LifecycleStdio) -> Vec<&str> {
+    lines
+        .iter()
+        .filter(|(line_stdio, _)| *line_stdio == stdio)
+        .map(|(_, line)| line.as_str())
+        .collect()
+}
+
 #[test]
 fn captures_stdout_line_by_line() {
     let dir = tempdir().expect("create a temp dir");
@@ -32,19 +41,17 @@ fn captures_stdout_line_by_line() {
     );
 }
 
+/// Each stream keeps its own order, but the two are pumped
+/// independently, so which of them reaches the sink first is a race and
+/// is deliberately not asserted.
 #[test]
 fn separates_stderr_from_stdout() {
     let dir = tempdir().expect("create a temp dir");
     let (code, lines) = run("echo out && echo err 1>&2", dir.path(), &HashMap::new());
     dbg!(&lines);
     assert_eq!(code, 0);
-    assert_eq!(
-        lines,
-        vec![
-            (LifecycleStdio::Stdout, "out".to_string()),
-            (LifecycleStdio::Stderr, "err".to_string()),
-        ]
-    );
+    assert_eq!(lines_from(&lines, LifecycleStdio::Stdout), vec!["out"]);
+    assert_eq!(lines_from(&lines, LifecycleStdio::Stderr), vec!["err"]);
 }
 
 /// A script's last line often arrives without a trailing newline; it must

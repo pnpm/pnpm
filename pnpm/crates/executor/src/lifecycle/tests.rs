@@ -1,10 +1,9 @@
 use super::{LifecycleScriptError, RunPostinstallHooks, run_postinstall_hooks};
 use crate::extend_path::ScriptsPrependNodePath;
 use pnpm_package_manifest::PackageManifestError;
-use pnpm_reporter::{LifecycleMessage, LogEvent, Reporter, SilentReporter};
-#[cfg(unix)]
-use pnpm_reporter::{LifecycleStdio, LogLevel};
-#[cfg(unix)]
+use pnpm_reporter::{
+    LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter, SilentReporter,
+};
 use pretty_assertions::assert_eq;
 use std::{collections::HashMap, fs, sync::Mutex};
 use tempfile::tempdir;
@@ -457,4 +456,102 @@ fn malformed_manifest_propagates_error() {
         panic!("expected ReadManifest(Parse), got {err:?}")
     };
     assert_eq!(path, &pkg_root.join("package.json"));
+}
+
+/// The emulator path pumps output through its own line sink rather than
+/// the child-process pumps, so it needs its own proof that a script's
+/// stdout, stderr, and non-zero exit still reach the reporter. Runs
+/// everywhere: the emulated shell is the same on every platform.
+#[test]
+fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().expect("lock").clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().expect("lock").push(event.clone());
+        }
+    }
+
+    let dir = tempdir().expect("create temp dir");
+    let pkg_root = dir.path();
+    let manifest = serde_json::json!({
+        "name": "emulated",
+        "version": "1.0.0",
+        "scripts": { "postinstall": "echo HELLO && echo BAD 1>&2 && exit 3" },
+    });
+    fs::write(pkg_root.join("package.json"), manifest.to_string()).expect("write manifest");
+
+    let extra_env: HashMap<String, String> = HashMap::new();
+    let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
+    let opts = RunPostinstallHooks {
+        dep_path: "/emulated@1.0.0",
+        pkg_root,
+        root_modules_dir: pkg_root,
+        init_cwd: pkg_root,
+        extra_bin_paths: &extra_bin_paths,
+        extra_env: &extra_env,
+        node_execpath: None,
+        npm_execpath: None,
+        node_gyp_path: None,
+        user_agent: None,
+        unsafe_perm: true,
+        node_gyp_bin: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
+        shell_emulator: true,
+        optional: false,
+    };
+
+    let error = run_postinstall_hooks::<RecordingReporter>(&opts)
+        .expect_err("a script that exits 3 fails the build");
+    dbg!(&error);
+    assert!(
+        matches!(
+            &error,
+            LifecycleScriptError::ScriptFailed { stage, status, .. }
+                if stage == "postinstall" && status.code() == Some(3),
+        ),
+        "the emulated exit code must reach the caller: {error:?}",
+    );
+
+    let captured = EVENTS.lock().expect("lock").clone();
+    dbg!(&captured);
+
+    let last = captured.last().expect("at least one event");
+    let LogEvent::Lifecycle(last) = last else {
+        panic!("last event must be Lifecycle, got {last:?}");
+    };
+    assert_eq!(last.level, LogLevel::Debug);
+    assert!(
+        matches!(
+            &last.message,
+            LifecycleMessage::Exit { dep_path, exit_code, stage, .. }
+                if dep_path == "/emulated@1.0.0" && *exit_code == 3 && stage == "postinstall",
+        ),
+        "last event must be Exit(3): {last:?}",
+    );
+
+    // Matched by content for the same reason as the spawned-shell test:
+    // the two streams are pumped independently.
+    let stdio: Vec<_> = captured
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Lifecycle(l) => match &l.message {
+                LifecycleMessage::Stdio { line, stdio, .. } => Some((stdio, line.as_str())),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    dbg!(&stdio);
+    assert!(
+        stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stdout && *l == "HELLO"),
+        "stdout 'HELLO' must be emitted: {stdio:?}",
+    );
+    assert!(
+        stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
+        "stderr 'BAD' must be emitted: {stdio:?}",
+    );
 }

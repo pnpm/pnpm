@@ -15,7 +15,7 @@ use crate::{
     },
 };
 use miette::{Context, IntoDiagnostic};
-use pnpm_config::{Config, Host, default_pnpm_home_dir};
+use pnpm_config::{ColorMode, Config, Host, default_pnpm_home_dir};
 use pnpm_network_web_auth::OtpNonInteractiveError;
 use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
 use std::{future::Future, path::Path, pin::Pin};
@@ -62,7 +62,11 @@ impl CliArgs {
     /// Seed the process-global default-reporter state from the parsed
     /// arguments. The entry point calls this before the pre-command
     /// checks, which are the first thing that can emit — the state is set
-    /// once, so whoever emits first must already see the real values.
+    /// once, so whoever emits first must already see the real values. A
+    /// `--color` / `--no-color` on the command line is seeded here for
+    /// that reason; the `color` *setting* can only be read once the
+    /// configuration is loaded, and reaches the reporter in
+    /// [`Self::run`].
     /// [`Self::run`] and the install fast path call it again so a direct
     /// in-process caller is configured too; the repeat calls are no-ops.
     ///
@@ -70,6 +74,9 @@ impl CliArgs {
     /// path fails with a proper diagnostic in [`Self::run`], and the
     /// reporter only uses it to shorten the paths it prints.
     pub fn configure_reporter(&self) {
+        if let Some(color) = self.color.or_else(|| self.no_color.then_some(ColorMode::Never)) {
+            configure_color(color);
+        }
         let dir = dunce::canonicalize(&self.dir).unwrap_or_else(|_| self.dir.clone());
         configure_default_reporter(
             self.effective_reporter(),
