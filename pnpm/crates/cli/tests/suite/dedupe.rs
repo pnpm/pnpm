@@ -268,6 +268,8 @@ fn dedupe_fails_on_peer_dependency_issues_when_strict() {
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     assert!(stdout.contains("ERR_PNPM_PEER_DEP_ISSUES"), "stdout:\n{stdout}");
     assert!(stdout.contains("Unmet peer dependencies"), "stdout:\n{stdout}");
+    assert!(stdout.contains("@pnpm.e2e/foo"), "stdout:\n{stdout}");
+    assert!(stdout.contains("Wanted:"), "stdout:\n{stdout}");
     assert!(stdout.contains("strictPeerDependencies: false"), "stdout:\n{stdout}");
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
