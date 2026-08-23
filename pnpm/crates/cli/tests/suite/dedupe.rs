@@ -237,6 +237,45 @@ fn dedupe_warns_about_peer_dependency_issues() {
     drop((root, mock_instance));
 }
 
+/// `strictPeerDependencies: true` turns the same peer-dependency issues
+/// `dedupe_warns_about_peer_dependency_issues` only warns about into a hard
+/// failure, matching the TypeScript CLI's `ERR_PNPM_PEER_DEP_ISSUES`.
+#[test]
+fn dedupe_fails_on_peer_dependency_issues_when_strict() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(workspace.join("pnpm-workspace.yaml"), "strictPeerDependencies: true\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/has-foo100-peer": "1.0.0",
+                "@pnpm.e2e/foo": "2.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let output = pacquet.with_arg("dedupe").output().expect("run pnpm dedupe");
+    assert!(
+        !output.status.success(),
+        "dedupe must fail when strictPeerDependencies is true: {output:?}",
+    );
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(stdout.contains("ERR_PNPM_PEER_DEP_ISSUES"), "stdout:\n{stdout}");
+    assert!(stdout.contains("Unmet peer dependencies"), "stdout:\n{stdout}");
+    assert!(stdout.contains("strictPeerDependencies: false"), "stdout:\n{stdout}");
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    assert!(lockfile_path.exists(), "dedupe still writes the lockfile before failing");
+
+    drop((root, mock_instance));
+}
+
 /// A `--check` run that would rewrite the lockfile reports what it would
 /// change, under pnpm's `ERR_PNPM_DEDUPE_CHECK_ISSUES`.
 #[test]

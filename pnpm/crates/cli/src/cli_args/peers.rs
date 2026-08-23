@@ -47,14 +47,14 @@ struct BadPeerIssue {
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct PeerIssues {
+pub(crate) struct PeerIssues {
     bad: BTreeMap<String, Vec<BadPeerIssue>>,
     missing: BTreeMap<String, Vec<MissingPeerIssue>>,
     conflicts: Vec<String>,
     intersections: BTreeMap<String, String>,
 }
 
-type IssuesByProjects = BTreeMap<String, PeerIssues>;
+pub(crate) type IssuesByProjects = BTreeMap<String, PeerIssues>;
 
 #[derive(Debug, Args)]
 pub struct PeersArgs {
@@ -152,24 +152,28 @@ impl PeersArgs {
     }
 }
 
-/// Whether an install over `lockfile` should point the user at
-/// `pnpm peers check`. Mirrors pnpm's install-time gate: a bad peer, or a
-/// missing peer that at least one parent requires non-optionally, once
-/// `peerDependencyRules` have been applied.
+/// The same issue set `pnpm peers check` reports, filtered by
+/// `peerDependencyRules`, for an install's already-written lockfile.
 ///
 /// Every importer the lockfile records is checked, since an install writes
 /// them all — no workspace scan needed to name them.
-pub(crate) fn peer_issues_warrant_warning(
+pub(crate) fn peer_dependency_issues_for_lockfile(
     lockfile: &Lockfile,
     lockfile_dir: &std::path::Path,
     rules: &PeerDependencyRules,
-) -> bool {
+) -> IssuesByProjects {
     let mut importer_ids: Vec<String> = lockfile.importers.keys().cloned().collect();
     importer_ids.sort();
-    let issues = filter_peer_issues(
+    filter_peer_issues(
         check_peer_dependencies_of_importers(lockfile, lockfile_dir, &importer_ids),
         rules,
-    );
+    )
+}
+
+/// Whether `issues` is worth acting on: a bad peer, or a missing peer that
+/// at least one parent requires non-optionally. Mirrors pnpm's install-time
+/// gate.
+pub(crate) fn peer_dependency_issues_exist(issues: &IssuesByProjects) -> bool {
     issues.values().any(|project_issues| {
         !project_issues.bad.is_empty()
             || project_issues
@@ -1074,7 +1078,7 @@ fn parse_allowed_versions(
     (match_all, by_parent)
 }
 
-fn render_peer_issues(issues_by_projects: &IssuesByProjects) -> String {
+pub(crate) fn render_peer_issues(issues_by_projects: &IssuesByProjects) -> String {
     let mut sections: Vec<String> = Vec::new();
 
     for project_issues in issues_by_projects.values() {

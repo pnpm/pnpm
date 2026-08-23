@@ -53,7 +53,9 @@ fn is_reported_error(error: &miette::Report) -> bool {
     error.code().is_some_and(|code| {
         matches!(
             code.to_string().as_str(),
-            "ERR_PNPM_DEDUPE_CHECK_ISSUES" | cli_args::recursive::NO_MATCHING_PROJECTS_CODE,
+            "ERR_PNPM_DEDUPE_CHECK_ISSUES"
+                | "ERR_PNPM_PEER_DEP_ISSUES"
+                | cli_args::recursive::NO_MATCHING_PROJECTS_CODE,
         )
     })
 }
