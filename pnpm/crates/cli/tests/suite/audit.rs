@@ -1142,10 +1142,11 @@ fn audit_fix_cleanup_reports_the_write_error_for_an_inline_audit_config() {
         stderr(&output),
     );
     // The failed write must not have touched the manifest.
-    assert_eq!(
-        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest"),
-        format!("fetchRetries: 0\n{flow_style_config}"),
-    );
+    let actual_manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    let expected_manifest = format!("fetchRetries: 0\n{flow_style_config}");
+    eprintln!("actual manifest:\n{actual_manifest}\nexpected manifest:\n{expected_manifest}");
+    assert_eq!(actual_manifest, expected_manifest);
     mock.assert();
 }
 
