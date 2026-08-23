@@ -46,6 +46,10 @@ pub struct ExecArgs {
     /// Sort recursive workspace projects topologically before running.
     #[clap(skip = true)]
     pub sort: bool,
+
+    /// Reverse the project order of a recursive exec.
+    #[clap(skip = true)]
+    pub reverse: bool,
 }
 
 /// Errors from `pacquet exec`.

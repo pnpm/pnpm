@@ -12,21 +12,21 @@ use tempfile::TempDir;
 fn test_include_logic() {
     let opts =
         LicensesDependencyOptions { prod: false, dev: false, no_optional: false, optional: false };
-    let include = opts.include();
+    let include = opts.include(true);
     assert!(include.dependencies);
     assert!(include.dev_dependencies);
     assert!(include.optional_dependencies);
 
     let opts_prod =
         LicensesDependencyOptions { prod: true, dev: false, no_optional: false, optional: false };
-    let include_prod = opts_prod.include();
+    let include_prod = opts_prod.include(true);
     assert!(include_prod.dependencies);
     assert!(!include_prod.dev_dependencies);
     assert!(!include_prod.optional_dependencies);
 
     let opts_no_optional =
         LicensesDependencyOptions { prod: false, dev: false, no_optional: true, optional: false };
-    let include_no_optional = opts_no_optional.include();
+    let include_no_optional = opts_no_optional.include(true);
     assert!(include_no_optional.dependencies);
     assert!(include_no_optional.dev_dependencies);
     assert!(!include_no_optional.optional_dependencies);

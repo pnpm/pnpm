@@ -260,8 +260,11 @@ impl DeployArgs {
         };
 
         let project_id = importer_id_from_root_dir(lockfile_dir, &selected.project.root_dir);
-        let dependency_groups =
-            self.install_args.dependency_options.dependency_groups().collect::<Vec<_>>();
+        let dependency_groups = self
+            .install_args
+            .dependency_options
+            .dependency_groups(config.optional)
+            .collect::<Vec<_>>();
         let deploy_files = create_deploy_files(
             &lockfile,
             selected,
@@ -360,8 +363,11 @@ impl DeployArgs {
         );
         let lockfile_path = config.lockfile.then(|| deploy_dir.join(Lockfile::FILE_NAME));
         let prefer_frozen_lockfile = frozen_lockfile.then_some(true).or(Some(false));
-        let dependency_groups =
-            self.install_args.dependency_options.dependency_groups().collect::<Vec<_>>();
+        let dependency_groups = self
+            .install_args
+            .dependency_options
+            .dependency_groups(config.optional)
+            .collect::<Vec<_>>();
 
         let install = Install {
             tarball_mem_cache: Arc::clone(tarball_mem_cache),

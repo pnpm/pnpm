@@ -1054,6 +1054,77 @@ fn recursive_run_no_sort_uses_workspace_order() {
     drop(root);
 }
 
+#[test]
+fn recursive_run_reads_sort_from_workspace_config() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "app",
+                json!({
+                    "name": "app",
+                    "version": "1.0.0",
+                    "scripts": { "build": "echo app >> ../order.log" },
+                    "dependencies": { "lib": "workspace:*" },
+                }),
+            ),
+            ("lib", build_appends_run_order("lib")),
+        ],
+    );
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - app\n  - lib\nsort: false\n")
+        .expect("write workspace settings");
+
+    pacquet.with_args(["-r", "run", "build"]).assert().success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "app\nlib\n");
+
+    drop(root);
+}
+
+#[test]
+fn recursive_run_reads_reverse_from_workspace_config() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "app",
+                json!({
+                    "name": "app",
+                    "version": "1.0.0",
+                    "scripts": { "build": "echo app >> ../order.log" },
+                    "dependencies": { "lib": "workspace:*" },
+                }),
+            ),
+            ("lib", build_appends_run_order("lib")),
+        ],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - app\n  - lib\nreverse: true\n",
+    )
+    .expect("write workspace settings");
+
+    pacquet.with_args(["-r", "run", "build"]).assert().success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "app\nlib\n");
+
+    fs::remove_file(workspace.join("order.log")).expect("clear order log");
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["-r", "--no-reverse", "run", "build"])
+        .assert()
+        .success();
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "lib\napp\n");
+
+    drop(root);
+}
+
 /// `pacquet -r run --resume-from <pkg>` skips every chunk that sorts
 /// before the chunk containing `<pkg>`. With `project-2` and `project-3`
 /// both depending on `project-1`, the sorted chunks are
@@ -1165,6 +1236,48 @@ fn recursive_run_report_summary_records_every_package_status() {
     for (name, status) in expected {
         assert_eq!(statuses.get(name).map(String::as_str), Some(status), "status of {name}");
     }
+
+    drop(root);
+}
+
+#[test]
+fn recursive_run_reads_bail_from_workspace_config() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "fails",
+                json!({
+                    "name": "fails",
+                    "version": "1.0.0",
+                    "scripts": { "build": "exit 1" },
+                }),
+            ),
+            (
+                "continues",
+                json!({
+                    "name": "continues",
+                    "version": "1.0.0",
+                    "dependencies": { "fails": "workspace:*" },
+                    "scripts": { "build": "touch ran.txt" },
+                }),
+            ),
+        ],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - fails\n  - continues\nbail: false\n",
+    )
+    .expect("write workspace settings");
+
+    let output = pacquet.with_args(["-r", "run", "build"]).output().expect("run recursive script");
+
+    assert!(!output.status.success(), "the failed project must still fail the command");
+    assert!(
+        workspace.join("continues/ran.txt").exists(),
+        "bail: false must continue with later topological chunks",
+    );
 
     drop(root);
 }

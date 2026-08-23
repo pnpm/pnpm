@@ -6,7 +6,7 @@ use crate::{
         WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
-    decide_catalog, emit_initial_package_manifest,
+    decide_catalog, emit_initial_package_manifest, included_direct_groups,
     manifest_spec_bumps::ManifestSpecBumps,
     package_manifest_prefix,
     resolution_policy::{PickPolicy, create_configured_npm_resolver},
@@ -368,7 +368,7 @@ impl Update<'_> {
             // `include` is always all-true for updates: the materialized
             // `node_modules` layout must not change just because the
             // update scope was narrowed.
-            dependency_groups: DIRECT_GROUPS,
+            dependency_groups: included_direct_groups(config.optional),
             frozen_lockfile: false,
             // `update` always re-resolves against the registry, so the
             // auto-frozen / repeat-install fast paths must not fire.
@@ -555,7 +555,7 @@ impl Update<'_> {
             emit_initial_manifest: false,
             lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
-            dependency_groups: DIRECT_GROUPS,
+            dependency_groups: included_direct_groups(config.optional),
             frozen_lockfile: false,
             prefer_frozen_lockfile: Some(false),
             ignore_manifest_check: false,

@@ -77,29 +77,33 @@ fn classify_detects_each_bump_kind() {
 
 #[test]
 fn include_default_covers_all_three_groups() {
-    let opts = OutdatedDependencyOptions { prod: false, dev: false, no_optional: false };
+    let opts =
+        OutdatedDependencyOptions { prod: false, dev: false, no_optional: false, optional: false };
     assert_eq!(
-        opts.include(),
+        opts.include(true),
         vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
     );
 }
 
 #[test]
 fn include_prod_keeps_dependencies_and_optional() {
-    let opts = OutdatedDependencyOptions { prod: true, dev: false, no_optional: false };
-    assert_eq!(opts.include(), vec![DependencyGroup::Prod, DependencyGroup::Optional]);
+    let opts =
+        OutdatedDependencyOptions { prod: true, dev: false, no_optional: false, optional: false };
+    assert_eq!(opts.include(true), vec![DependencyGroup::Prod, DependencyGroup::Optional]);
 }
 
 #[test]
 fn include_dev_keeps_only_dev() {
-    let opts = OutdatedDependencyOptions { prod: false, dev: true, no_optional: false };
-    assert_eq!(opts.include(), vec![DependencyGroup::Dev]);
+    let opts =
+        OutdatedDependencyOptions { prod: false, dev: true, no_optional: false, optional: false };
+    assert_eq!(opts.include(true), vec![DependencyGroup::Dev]);
 }
 
 #[test]
 fn include_no_optional_drops_optional() {
-    let opts = OutdatedDependencyOptions { prod: false, dev: false, no_optional: true };
-    assert_eq!(opts.include(), vec![DependencyGroup::Prod, DependencyGroup::Dev]);
+    let opts =
+        OutdatedDependencyOptions { prod: false, dev: false, no_optional: true, optional: false };
+    assert_eq!(opts.include(true), vec![DependencyGroup::Prod, DependencyGroup::Dev]);
 }
 
 #[test]

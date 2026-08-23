@@ -104,8 +104,20 @@ pub struct CliArgs {
     pub version: Option<bool>,
 
     /// Force colored output.
-    #[clap(long, global = true)]
-    pub color: bool,
+    #[clap(
+        long,
+        global = true,
+        num_args = 0..=1,
+        require_equals = true,
+        default_missing_value = "always",
+        value_parser = parse_color_mode,
+        overrides_with = "no_color"
+    )]
+    pub color: Option<pnpm_config::ColorMode>,
+
+    /// Disable colored output.
+    #[clap(long = "no-color", global = true, hide = true, overrides_with = "color")]
+    pub no_color: bool,
 
     /// Automatically answer yes to prompts.
     #[clap(short = 'y', long, global = true)]
@@ -239,6 +251,14 @@ pub struct CliArgs {
     #[clap(long = "no-sort", global = true, overrides_with = "sort")]
     pub no_sort: bool,
 
+    /// Process recursive workspace projects in reverse order.
+    #[clap(long, global = true, overrides_with = "no_reverse")]
+    pub reverse: bool,
+
+    /// Process recursive workspace projects in their normal order.
+    #[clap(long = "no-reverse", global = true, hide = true, overrides_with = "reverse")]
+    pub no_reverse: bool,
+
     /// Maximum number of workspace projects to process in parallel.
     #[clap(long = "workspace-concurrency", global = true)]
     pub workspace_concurrency: Option<i32>,
@@ -257,8 +277,12 @@ pub struct CliArgs {
     pub report_summary: bool,
 
     /// Recursive only: keep going after a project fails.
-    #[clap(long = "no-bail", global = true, hide = true)]
+    #[clap(long = "no-bail", global = true, hide = true, overrides_with = "bail")]
     pub no_bail: bool,
+
+    /// Stop a recursive command after the first failure.
+    #[clap(long, global = true, hide = true, overrides_with = "no_bail")]
+    pub bail: bool,
 
     /// Don't fail when the named script is undefined.
     #[clap(long = "if-present", hide = true)]
@@ -267,6 +291,15 @@ pub struct CliArgs {
 
 fn parse_store_dir(value: &str) -> Result<PathBuf, std::convert::Infallible> {
     Ok(PathBuf::from(value))
+}
+
+fn parse_color_mode(value: &str) -> Result<pnpm_config::ColorMode, &'static str> {
+    match value {
+        "always" | "true" => Ok(pnpm_config::ColorMode::Always),
+        "auto" => Ok(pnpm_config::ColorMode::Auto),
+        "never" | "false" => Ok(pnpm_config::ColorMode::Never),
+        _ => Err("expected one of: auto, always, never"),
+    }
 }
 
 impl CliArgs {
@@ -359,9 +392,13 @@ impl CliArgs {
     /// Promote commands marked recursive-by-default by pnpm when they run
     /// inside a workspace.
     pub fn promote_recursive_by_default(&mut self) {
+        let dir = dunce::canonicalize(&self.dir)
+            .or_else(|_| std::path::absolute(&self.dir))
+            .unwrap_or_else(|_| self.dir.clone())
+            .pipe_deref(pnpm_fs::lexical_normalize);
         if !self.recursive
             && self.command.recursive_by_default()
-            && pnpm_workspace::find_workspace_dir(&self.dir).is_ok_and(|dir| dir.is_some())
+            && pnpm_workspace::find_workspace_dir(&dir).is_ok_and(|dir| dir.is_some())
         {
             self.recursive = true;
         }
@@ -681,10 +718,12 @@ impl CliCommand {
         }
     }
 
-    fn recursive_by_default(&self) -> bool {
+    pub(super) fn recursive_by_default(&self) -> bool {
         matches!(
             self,
-            CliCommand::List(_)
+            CliCommand::Install(_)
+                | CliCommand::InstallTest(_)
+                | CliCommand::List(_)
                 | CliCommand::Ll(_)
                 | CliCommand::Why(_)
                 | CliCommand::Peers(_)

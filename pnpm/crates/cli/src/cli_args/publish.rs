@@ -28,6 +28,8 @@ use pnpm_publish::{
 use pnpm_reporter::Reporter;
 use serde_json::Value;
 
+use crate::cli_args::install::resolve_bool_override;
+
 use crate::cli_args::registry_client::build_registry_client;
 
 /// Publish a package to the registry.
@@ -67,10 +69,24 @@ pub struct PublishFlags {
     #[clap(long = "ignore-scripts")]
     pub ignore_scripts: bool,
 
+    /// Embed the README contents in the published manifest.
+    #[clap(long = "embed-readme", overrides_with = "no_embed_readme")]
+    pub embed_readme: bool,
+    /// Do not embed README contents in the published manifest.
+    #[clap(long = "no-embed-readme", hide = true, overrides_with = "embed_readme")]
+    pub no_embed_readme: bool,
+
     /// Keep the original `packageManager` field and publish-lifecycle scripts
     /// in the published manifest instead of stripping them.
-    #[clap(long = "skip-manifest-obfuscation")]
+    #[clap(long = "skip-manifest-obfuscation", overrides_with = "no_skip_manifest_obfuscation")]
     pub skip_manifest_obfuscation: bool,
+    /// Apply pnpm's normal published-manifest filtering.
+    #[clap(
+        long = "no-skip-manifest-obfuscation",
+        hide = true,
+        overrides_with = "skip_manifest_obfuscation"
+    )]
+    pub no_skip_manifest_obfuscation: bool,
 
     /// One-time password for two-factor-authenticated registries.
     #[clap(long)]
@@ -305,10 +321,18 @@ impl PublishArgs {
             catalogs: crate::cli_args::catalogs::configured_catalogs(config)?,
             ignore_scripts: self.should_ignore_scripts(config),
             unsafe_perm: config.unsafe_perm,
-            embed_readme: false,
+            embed_readme: resolve_bool_override(
+                self.flags.embed_readme,
+                self.flags.no_embed_readme,
+                config.embed_readme,
+            ),
             pack_gzip_level: None,
             node_linker: config.node_linker,
-            skip_manifest_obfuscation: self.flags.skip_manifest_obfuscation,
+            skip_manifest_obfuscation: resolve_bool_override(
+                self.flags.skip_manifest_obfuscation,
+                self.flags.no_skip_manifest_obfuscation,
+                config.skip_manifest_obfuscation,
+            ),
             user_agent: config.user_agent.clone(),
             extra_bin_paths: config.extra_bin_paths.clone(),
             extra_env: config.extra_env.clone(),

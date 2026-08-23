@@ -2,7 +2,10 @@ use super::{
     cli_command::{CliArgs, CliCommand},
     dispatch_install, dispatch_query, dispatch_script,
     install::resolve_bool_override,
-    reporter::{ReporterType, configure_default_reporter, configure_max_log_level, reporter_emit},
+    reporter::{
+        ReporterType, configure_color, configure_default_reporter, configure_max_log_level,
+        reporter_emit,
+    },
 };
 use crate::{
     State,
@@ -38,8 +41,6 @@ pub(crate) struct RunCtx<'a> {
     pub(crate) recursive: bool,
     pub(crate) recursive_resume_from: Option<&'a str>,
     pub(crate) recursive_report_summary: bool,
-    pub(crate) recursive_no_bail: bool,
-    pub(crate) recursive_sort: bool,
     pub(crate) recursive_parallel: bool,
     /// The top-level `--if-present` spelling (`pnpm --if-present test`);
     /// merged with the flag the script subcommands declare themselves.
@@ -193,15 +194,19 @@ impl CliArgs {
             test_pattern,
             changed_files_ignore_pattern,
             version: _,
-            color: _,
+            color,
+            no_color,
             yes: _,
-            sort: _,
+            sort,
             no_sort,
+            reverse,
+            no_reverse,
             workspace_concurrency,
             parallel,
             resume_from,
             report_summary,
             no_bail,
+            bail,
             if_present,
         } = self;
 
@@ -243,6 +248,7 @@ impl CliArgs {
                 | CliCommand::PatchRemove(_),
         );
         let print_json_errors = prints_json_errors(&command);
+        let recursive_by_default_command = command.recursive_by_default();
         let manifest_path = dir.join("package.json");
         // Load config anchored at `anchor`, reading `.npmrc` /
         // `pnpm-workspace.yaml` from there.
@@ -259,6 +265,17 @@ impl CliArgs {
         let finalize_config =
             |mut cfg: Config, anchor: &Path| -> miette::Result<&'static mut Config> {
                 config_overrides.apply(&mut cfg);
+                cfg.color = if let Some(color) = color {
+                    color
+                } else if no_color {
+                    pnpm_config::ColorMode::Never
+                } else {
+                    cfg.color
+                };
+                configure_color(cfg.color);
+                if cfg.ci {
+                    pnpm_default_reporter::force_append_only();
+                }
                 cfg.apply_proxy_cli_overrides(
                     https_proxy.as_deref(),
                     http_proxy.as_deref(),
@@ -282,8 +299,19 @@ impl CliArgs {
                 cfg.recursive = recursive;
                 cfg.filter.clone_from(&filter);
                 cfg.filter_prod.clone_from(&filter_prod);
+                if recursive_by_default_command
+                    && cfg.recursive
+                    && !cfg.recursive_install
+                    && cfg.filter.is_empty()
+                    && cfg.filter_prod.is_empty()
+                {
+                    cfg.filter.push("{.}...".to_string());
+                }
                 cfg.workspace_root = workspace_root;
                 cfg.fail_if_no_match = fail_if_no_match;
+                cfg.bail = resolve_bool_override(bail, no_bail, cfg.bail);
+                cfg.sort = resolve_bool_override(sort, no_sort, cfg.sort);
+                cfg.reverse = resolve_bool_override(reverse, no_reverse, cfg.reverse);
 
                 cfg.include_workspace_root = resolve_bool_override(
                     include_workspace_root,
@@ -353,8 +381,6 @@ impl CliArgs {
             recursive,
             recursive_resume_from: resume_from.as_deref(),
             recursive_report_summary: report_summary,
-            recursive_no_bail: no_bail,
-            recursive_sort: !no_sort,
             recursive_parallel: parallel,
             if_present,
             config: &config,

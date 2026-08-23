@@ -12,7 +12,7 @@
 //! as a low-priority auth-file fallback.
 
 use crate::{
-    AuditLevel, CatalogMode, HoistingLimits, InitType, NodeLinker, NodePackageMapType,
+    AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, NodeLinker, NodePackageMapType,
     PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol,
     ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings,
     api::EnvVar,
@@ -136,8 +136,21 @@ impl WorkspaceSettings {
             };
         }
 
+        json_field!(bail, "BAIL");
         json_field!(ci, "CI");
+        enum_field!(color, "COLOR", ColorMode);
+        json_field!(embed_readme, "EMBED_README");
         json_field!(ignore_pnpmfile, "IGNORE_PNPMFILE");
+        json_field!(ignore_workspace_root_check, "IGNORE_WORKSPACE_ROOT_CHECK");
+        json_field!(optional, "OPTIONAL");
+        json_field!(package_lock, "PACKAGE_LOCK");
+        json_field!(pending, "PENDING");
+        json_field!(recursive_install, "RECURSIVE_INSTALL");
+        json_field!(reverse, "REVERSE");
+        json_field!(shell_emulator, "SHELL_EMULATOR");
+        json_field!(skip_manifest_obfuscation, "SKIP_MANIFEST_OBFUSCATION");
+        json_field!(sort, "SORT");
+        json_field!(use_beta_cli, "USE_BETA_CLI");
         json_field!(hoist, "HOIST");
         tri_array_field!(hoist_pattern, "HOIST_PATTERN");
         tri_array_field!(public_hoist_pattern, "PUBLIC_HOIST_PATTERN");

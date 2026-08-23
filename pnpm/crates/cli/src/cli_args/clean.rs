@@ -59,6 +59,7 @@ impl CleanArgs {
                 report_summary: false,
                 no_bail: false,
                 sort: true,
+                reverse: false,
                 parallel: false,
                 sequential: false,
             }

@@ -34,7 +34,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_config::{Config, Host, PNPM_VERSION, PmOnFail};
+use pnpm_config::{ColorMode, Config, Host, PNPM_VERSION, PmOnFail};
 use pnpm_default_reporter::DefaultReporter;
 use pnpm_env_installer::is_package_manager_resolved;
 use pnpm_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
@@ -210,6 +210,13 @@ fn pre_command_plan_from_input(
             .map_err(miette::Report::new)
             .wrap_err("load configuration")?;
     config_overrides.apply(&mut config);
+    if let Some(color) = switch.color {
+        config.color = color;
+    }
+    super::reporter::configure_color(config.color);
+    if config.ci {
+        pnpm_default_reporter::force_append_only();
+    }
     if let Some(state_dir) = switch.state_dir.as_deref() {
         apply_state_dir_override::<Host>(&mut config, state_dir, &dir);
     }
@@ -992,6 +999,7 @@ struct SwitchInput {
     /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command
     /// line. `None` leaves the `frozenLockfile` setting to answer.
     frozen_lockfile: Option<bool>,
+    color: Option<ColorMode>,
 }
 
 impl SwitchInput {
@@ -1002,6 +1010,7 @@ impl SwitchInput {
             npmrc_auth_file: args.npmrc_auth_file.clone(),
             command: Some(command_name(&args.command).to_string()),
             frozen_lockfile: frozen_lockfile_flag(&args.command),
+            color: args.color.or(args.no_color.then_some(ColorMode::Never)),
         }
     }
 
@@ -1013,6 +1022,7 @@ impl SwitchInput {
             npmrc_auth_file: None,
             command: None,
             frozen_lockfile: None,
+            color: None,
         };
         let mut index = 1;
         while index < argv.len() {

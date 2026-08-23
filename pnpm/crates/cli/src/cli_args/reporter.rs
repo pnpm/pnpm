@@ -1,4 +1,5 @@
 use clap::ValueEnum;
+use pnpm_config::ColorMode;
 use pnpm_default_reporter::{DefaultReporter, MaxLogLevel, SummaryScope};
 use pnpm_reporter::{LogEvent, NdjsonReporter, Reporter, SilentReporter};
 use std::path::Path;
@@ -88,5 +89,14 @@ pub(crate) fn configure_default_reporter(
 pub(crate) fn configure_max_log_level(loglevel: Option<LogLevelSetting>) {
     if let Some(level) = loglevel.and_then(LogLevelSetting::as_max_log_level) {
         pnpm_default_reporter::set_max_log_level(level);
+    }
+}
+
+pub(crate) fn configure_color(mode: ColorMode) {
+    pnpm_default_reporter::set_color_mode(mode);
+    match mode {
+        ColorMode::Always => owo_colors::set_override(true),
+        ColorMode::Auto => owo_colors::unset_override(),
+        ColorMode::Never => owo_colors::set_override(false),
     }
 }

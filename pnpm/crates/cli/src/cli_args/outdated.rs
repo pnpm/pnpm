@@ -19,6 +19,7 @@ use crate::{
     State,
     cli_args::{
         catalogs::configured_catalogs,
+        install::resolve_bool_override,
         recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
         sanitize::sanitize_inline,
     },
@@ -391,13 +392,16 @@ pub struct OutdatedDependencyOptions {
     #[clap(short = 'D', long)]
     dev: bool,
     /// Don't check "optionalDependencies".
-    #[clap(long)]
+    #[clap(long, overrides_with = "optional")]
     no_optional: bool,
+    /// Include "optionalDependencies".
+    #[clap(long, overrides_with = "no_optional")]
+    optional: bool,
 }
 
 impl OutdatedDependencyOptions {
-    fn include(&self) -> Vec<DependencyGroup> {
-        let mut optional = !self.no_optional;
+    fn include(&self, include_optional: bool) -> Vec<DependencyGroup> {
+        let mut optional = resolve_bool_override(self.optional, self.no_optional, include_optional);
         let (production, dev) = if self.prod {
             (true, false)
         } else if self.dev {
@@ -530,7 +534,7 @@ impl OutdatedArgs {
             return Err(no_lockfile_error(dir));
         }
 
-        let include = self.dependency_options.include();
+        let include = self.dependency_options.include(config.optional);
         let target_version =
             if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest };
         let package_matcher =
@@ -598,7 +602,7 @@ impl OutdatedArgs {
         let prefix = state.manifest.path().parent().unwrap_or_else(|| state.manifest.path());
         let selection =
             select_recursive_projects(&projects, config, prefix, AutoExcludeRoot::Disabled)?;
-        let include = self.dependency_options.include();
+        let include = self.dependency_options.include(config.optional);
         let target_version =
             if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest };
         let matcher = (!self.packages.is_empty()).then(|| create_matcher(&self.packages));
@@ -757,7 +761,7 @@ impl OutdatedArgs {
         isolated_config.lockfile = true;
         let config = Config::leak(isolated_config);
 
-        let include = self.dependency_options.include();
+        let include = self.dependency_options.include(config.optional);
         let target_version =
             if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest };
         let matcher = (!self.packages.is_empty()).then(|| create_matcher(&self.packages));

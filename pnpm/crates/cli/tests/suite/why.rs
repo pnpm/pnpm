@@ -546,6 +546,25 @@ fn why_styles_the_tree_without_corrupting_it() {
     assert_eq!(strip_ansi_codes(&colored_stdout), plain_stdout);
 }
 
+#[test]
+fn color_modes_override_terminal_environment_hints() {
+    let (_root, workspace, _anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{PKG}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let always = without_colors(pacquet(&workspace, ["--color=always", "why", PKG]))
+        .output()
+        .expect("run color=always");
+    assert!(always.status.success(), "color=always should succeed: {always:?}");
+    assert!(String::from_utf8_lossy(&always.stdout).contains('\u{1b}'));
+
+    let never = with_colors(pacquet(&workspace, ["--color=never", "why", PKG]))
+        .output()
+        .expect("run color=never");
+    assert!(never.status.success(), "color=never should succeed: {never:?}");
+    assert!(!String::from_utf8_lossy(&never.stdout).contains('\u{1b}'));
+}
+
 fn write_finder_pnpmfile(workspace: &Path, message_expr: &str) {
     fs::write(
         workspace.join(".pnpmfile.cjs"),

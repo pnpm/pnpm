@@ -292,6 +292,30 @@ pub fn have_default_values() {
 }
 
 #[test]
+fn package_lock_is_the_lockfile_fallback() {
+    let package_lock_only = tempdir().unwrap();
+    fs::write(package_lock_only.path().join("pnpm-workspace.yaml"), "packageLock: false\n")
+        .unwrap();
+    let config = Config::new()
+        .current::<HostNoHome>(package_lock_only.path())
+        .expect("packageLock config loads");
+    assert!(!config.package_lock);
+    assert!(!config.lockfile);
+
+    let explicit_lockfile = tempdir().unwrap();
+    fs::write(
+        explicit_lockfile.path().join("pnpm-workspace.yaml"),
+        "packageLock: false\nlockfile: true\n",
+    )
+    .unwrap();
+    let config = Config::new()
+        .current::<HostNoHome>(explicit_lockfile.path())
+        .expect("lockfile config loads");
+    assert!(!config.package_lock);
+    assert!(config.lockfile);
+}
+
+#[test]
 pub fn state_dir_uses_only_trusted_config_sources() {
     fake_env!(load_with_fake_env);
     let xdg = tempdir().expect("xdg tempdir");

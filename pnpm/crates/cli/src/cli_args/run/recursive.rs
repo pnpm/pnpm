@@ -137,6 +137,9 @@ pub fn run_recursive(
     } else {
         graph.keys().cloned().map(|root| vec![root]).collect()
     };
+    if args.reverse {
+        chunks.reverse();
+    }
     if let Some(resume_from) = &args.resume_from {
         chunks = get_resumed_package_chunks(resume_from, chunks, graph)?;
     }

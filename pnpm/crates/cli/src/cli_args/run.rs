@@ -62,6 +62,10 @@ pub struct RunArgs {
     #[clap(skip = true)]
     pub sort: bool,
 
+    /// Reverse the project order of a recursive run.
+    #[clap(skip = true)]
+    pub reverse: bool,
+
     /// Start scripts in all selected projects concurrently.
     #[clap(skip = true)]
     pub parallel: bool,
@@ -262,6 +266,7 @@ fn exec_fallback(
         report_summary: false,
         no_bail: false,
         sort: true,
+        reverse: false,
     }
     .run(dir, config)
 }

@@ -89,6 +89,9 @@ pub fn exec_recursive(args: &ExecArgs, config: &Config, dir: &Path) -> miette::R
     } else {
         graph.keys().cloned().map(|root| vec![root]).collect()
     };
+    if args.reverse {
+        chunks.reverse();
+    }
     if let Some(resume_from) = &args.resume_from {
         chunks = get_resumed_package_chunks(resume_from, chunks, graph)?;
     }

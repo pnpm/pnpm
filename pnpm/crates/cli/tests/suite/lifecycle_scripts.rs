@@ -1081,7 +1081,7 @@ mod dependency_build_scripts {
 /// `--ignore-scripts` deferred, which `pacquet rebuild --pending`
 /// later drains.
 mod pending_builds {
-    use super::workspace_yaml::allow_builds;
+    use super::workspace_yaml::{allow_builds, append_workspace_yaml_key};
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
     use pnpm_modules_yaml::{Host, read_modules_manifest};
@@ -1241,10 +1241,11 @@ mod pending_builds {
             [".", "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
         );
         assert!(!marker.exists(), "--ignore-scripts must defer the project's own script");
+        append_workspace_yaml_key(&workspace, "pending", true);
 
         let CommandTempCwd { pacquet: rebuild, root: rebuild_root, .. } =
             CommandTempCwd::init().add_mocked_registry();
-        rebuild.with_current_dir(&workspace).with_args(["rebuild", "--pending"]).assert().success();
+        rebuild.with_current_dir(&workspace).arg("rebuild").assert().success();
 
         assert!(marker.exists(), "the deferred project script must run");
         assert!(

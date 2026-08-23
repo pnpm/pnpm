@@ -1,6 +1,7 @@
 use crate::{
     State,
     cli_args::{
+        install::resolve_bool_override,
         lockfile_dir::LockfileDirArg,
         pipelines::InstallFamilySelection,
         recursive,
@@ -29,8 +30,11 @@ pub struct UpdateDependencyOptions {
     /// Update packages only in "devDependencies".
     #[clap(short = 'D', long)]
     dev: bool,
+    /// Update packages only in "optionalDependencies".
+    #[clap(long, overrides_with = "no_optional")]
+    optional: bool,
     /// Don't update packages in "optionalDependencies".
-    #[clap(long)]
+    #[clap(long, overrides_with = "optional")]
     no_optional: bool,
 }
 
@@ -43,9 +47,7 @@ impl UpdateDependencyOptions {
         // CLI flags are read rather than the merged config.
         let production = self.prod.then_some(true);
         let dev = self.dev.then_some(true);
-        // There is no positive `--optional` flag for update; `--no-optional`
-        // sets it to `false`, otherwise it stays unset.
-        let optional = self.no_optional.then_some(false);
+        let optional = self.optional.then_some(true).or(self.no_optional.then_some(false));
 
         let ne_true = |flag: Option<bool>| flag != Some(true);
         let dependencies = production == Some(true) || (ne_true(dev) && ne_true(optional));
@@ -159,6 +161,11 @@ enum WorkspaceUpdateError {
 impl UpdateArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
+        config.optional = resolve_bool_override(
+            self.dependency_options.optional,
+            self.dependency_options.no_optional,
+            config.optional,
+        );
     }
 
     pub async fn run<Reporter: self::Reporter + 'static>(

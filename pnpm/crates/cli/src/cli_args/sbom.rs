@@ -5,10 +5,13 @@
 
 use crate::{
     State,
-    cli_args::recursive::{
-        AutoExcludeRoot, RecursiveSharedLockfileUnsupported, discover_workspace_projects,
-        no_projects_matched_message, notice_workspace_dir, select_recursive_projects,
-        selected_importer_ids,
+    cli_args::{
+        install::resolve_bool_override,
+        recursive::{
+            AutoExcludeRoot, RecursiveSharedLockfileUnsupported, discover_workspace_projects,
+            no_projects_matched_message, notice_workspace_dir, select_recursive_projects,
+            selected_importer_ids,
+        },
     },
 };
 use clap::Args;
@@ -78,8 +81,12 @@ pub struct SbomArgs {
     pub dev: bool,
 
     /// Exclude optional dependencies.
-    #[clap(long = "no-optional")]
+    #[clap(long = "no-optional", overrides_with = "optional")]
     pub no_optional: bool,
+
+    /// Include optional dependencies.
+    #[clap(long, overrides_with = "no_optional")]
+    pub optional: bool,
 
     /// Exclude peer dependencies.
     #[clap(long = "exclude-peers")]
@@ -102,11 +109,12 @@ struct IncludeFilter {
 }
 
 impl SbomArgs {
-    fn include_filter(&self) -> IncludeFilter {
+    fn include_filter(&self, include_optional: bool) -> IncludeFilter {
         IncludeFilter {
             dependencies: !self.dev,
             dev_dependencies: !self.prod,
-            optional_dependencies: !self.prod && !self.no_optional,
+            optional_dependencies: !self.prod
+                && resolve_bool_override(self.optional, self.no_optional, include_optional),
         }
     }
 }
@@ -827,7 +835,7 @@ impl SbomArgs {
             }
         }
 
-        let include = self.include_filter();
+        let include = self.include_filter(state.config.optional);
         let authors: Vec<String> = self
             .authors
             .as_deref()
