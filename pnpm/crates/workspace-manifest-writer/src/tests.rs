@@ -1680,7 +1680,11 @@ fn prune_allow_builds_prunes_an_escaped_quoted_key() {
 /// matching what the TypeScript writer's yaml library emits, and refuses a
 /// multi-line one rather than dropping the comments between its entries.
 mod flow_style {
-    use super::*;
+    use super::{
+        TempDir, UpdateWorkspaceManifestOptions, WORKSPACE_MANIFEST_FILENAME, catalogs, fs, run,
+        run_age_excludes, run_allow_builds, run_config_dep, run_ignore_ghsas, run_patched_deps,
+        run_scaffold_allow_builds, update_workspace_manifest,
+    };
 
     #[test]
     fn catalog_entry_is_added_to_a_flow_mapping() {
