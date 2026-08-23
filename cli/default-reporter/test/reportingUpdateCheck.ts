@@ -99,3 +99,51 @@ test('print update notification that suggests to use the standalone scripts for 
   const output = await firstValueFrom(output$)
   expect(stripAnsi(output)).toMatchSnapshot()
 })
+
+test('print update notification that suggests to install @pnpm/exe when the standalone build updates within v11', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { recursive: true } as Config,
+      env: {},
+      process: {
+        pkg: true,
+      } as any, // eslint-disable-line
+    },
+    streamParser: createStreamParser(),
+  })
+
+  updateCheckLogger.debug({
+    currentVersion: '10.0.0',
+    latestVersion: '11.0.0',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(stripAnsi(output)).toMatchSnapshot()
+})
+
+test('print update notification that suggests to install pnpm when the standalone build updates to v12', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { recursive: true } as Config,
+      env: {},
+      process: {
+        pkg: true,
+      } as any, // eslint-disable-line
+    },
+    streamParser: createStreamParser(),
+  })
+
+  updateCheckLogger.debug({
+    currentVersion: '10.0.0',
+    latestVersion: '12.0.0',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(stripAnsi(output)).toMatchSnapshot()
+})

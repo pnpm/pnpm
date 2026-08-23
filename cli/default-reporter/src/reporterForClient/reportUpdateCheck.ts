@@ -55,6 +55,16 @@ function renderUpdateCommand (opts: UpdateMessageOptions): string {
   if (opts.env.PNPM_HOME) {
     return 'pnpm self-update'
   }
-  const pkgName = opts.currentPkgIsExecutable ? '@pnpm/exe' : 'pnpm'
-  return `pnpm add -g ${pkgName}`
+  return `pnpm add -g ${updatePkgName(opts)}`
+}
+
+/**
+ * The package to install for an update to `latestVersion`. From v12 the
+ * unscoped `pnpm` package is itself the native executable and `@pnpm/exe` is
+ * no longer published alongside it, so suggesting `@pnpm/exe` there would
+ * resolve to the newest v11 and silently strand the user on v11.
+ */
+function updatePkgName ({ currentPkgIsExecutable, latestVersion }: UpdateMessageOptions): string {
+  if (!currentPkgIsExecutable || semver.major(latestVersion) >= 12) return 'pnpm'
+  return '@pnpm/exe'
 }
