@@ -1516,7 +1516,9 @@ fn selector_matches_a_direct_dependency(
 /// the caller a zero exit status to read.
 ///
 /// A range or a tag names no single version to record, so updating within the
-/// dependents' ranges is a reasonable reading of it: those only warn.
+/// dependents' ranges is a reasonable reading of it: those only warn. A
+/// negated selector excludes names rather than requesting one, so it is not
+/// judged here at all.
 ///
 /// The override the hint recommends is scoped to the dependents' declared
 /// range so it cannot violate any consumer's range; that range lives in the
@@ -1531,7 +1533,10 @@ fn reject_versions_of_indirect_update_specs<Reporter: self::Reporter>(
     let mut pinned = Vec::new();
     for selector in selectors {
         let Some(version) = selector.version.as_deref() else { continue };
-        if selector_matches_a_direct_dependency(selector, manifests, include_direct) {
+        // A negated selector excludes names; a version on one asks for nothing.
+        if selector.pattern.starts_with('!')
+            || selector_matches_a_direct_dependency(selector, manifests, include_direct)
+        {
             continue;
         }
         let pattern = &selector.pattern;

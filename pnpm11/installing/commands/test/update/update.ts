@@ -172,6 +172,33 @@ test('update of a transitive dependency rejects the requested version', async ()
   expect(project.readLockfile().packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeTruthy()
 })
 
+test('update --depth 0 leaves an indirect selector out of scope', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '100.0.0',
+      '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  // One selector matches a direct dependency and one only a transitive copy.
+  // At depth 0 the transitive one is never traversed, so it is out of scope
+  // rather than an unrecordable request.
+  await update.handler({
+    ...DEFAULT_OPTS,
+    depth: 0,
+    dir: process.cwd(),
+  }, ['@pnpm.e2e/foo@100.0.0', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+  expect(project.readLockfile().packages['@pnpm.e2e/foo@100.0.0']).toBeTruthy()
+})
+
 test('update of a transitive dependency without a version resolves like a fresh install', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 

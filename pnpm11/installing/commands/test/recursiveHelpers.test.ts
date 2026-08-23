@@ -1,6 +1,16 @@
 import { expect, test } from '@jest/globals'
+import type { PnpmError } from '@pnpm/error'
+import type { ProjectManifest } from '@pnpm/types'
 
-import { createUpdateMatching } from '../lib/recursive.js'
+import { createUpdateMatching, failOnVersionsOfIndirectUpdateSpecs } from '../lib/recursive.js'
+
+const INCLUDE_ALL = {
+  dependencies: true,
+  devDependencies: true,
+  optionalDependencies: true,
+}
+
+const MANIFESTS: ProjectManifest[] = [{ dependencies: { foo: '^1.0.0' } }]
 
 test('createUpdateMatching() does not match other major versions for pinned selectors', () => {
   const updateMatching = createUpdateMatching(['js-yaml@3.15.1'])
@@ -59,4 +69,40 @@ test('createUpdateMatching() scopes exact alias selectors by version line', () =
   // Unrelated packages are not matched at all
   expect(updateMatching('other-pkg', '100.0.0')).toBeFalsy()
   expect(updateMatching('other-pkg', '1.0.0')).toBeFalsy()
+})
+
+test('failOnVersionsOfIndirectUpdateSpecs() rejects an exact version nothing declares directly', () => {
+  let err!: PnpmError
+  try {
+    failOnVersionsOfIndirectUpdateSpecs(['bar@1.2.3'], MANIFESTS, INCLUDE_ALL)
+  } catch (_err: unknown) {
+    err = _err as PnpmError
+  }
+
+  expect(err.code).toBe('ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP')
+  expect(err.message).toContain('"bar" (requested "1.2.3")')
+  expect(err.hint).toContain('bar@<declared range>: 1.2.3')
+})
+
+test('failOnVersionsOfIndirectUpdateSpecs() accepts a version any manifest declares directly', () => {
+  expect(() => {
+    failOnVersionsOfIndirectUpdateSpecs(['foo@1.2.3'], MANIFESTS, INCLUDE_ALL)
+  }).not.toThrow()
+})
+
+test('failOnVersionsOfIndirectUpdateSpecs() ignores negated selectors', () => {
+  // `!bar` excludes a name; the version on it requests nothing, and the
+  // "everything but bar" matcher must not decide whether `bar` is direct.
+  expect(() => {
+    failOnVersionsOfIndirectUpdateSpecs(['!bar@1.2.3'], MANIFESTS, INCLUDE_ALL)
+    failOnVersionsOfIndirectUpdateSpecs(['!bar@1.2.3'], [], INCLUDE_ALL)
+  }).not.toThrow()
+})
+
+test('failOnVersionsOfIndirectUpdateSpecs() lets a range or a tag through', () => {
+  for (const spec of ['bar@^1.2.3', 'bar@latest']) {
+    expect(() => {
+      failOnVersionsOfIndirectUpdateSpecs([spec], MANIFESTS, INCLUDE_ALL)
+    }).not.toThrow()
+  }
 })

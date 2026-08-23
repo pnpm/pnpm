@@ -546,6 +546,37 @@ fn recursive_update_latest_only_reaches_the_named_packages() {
     drop((root, anchor));
 }
 
+/// At `--depth 0` a transitive dependency is never traversed, so a selector
+/// that names one is out of scope rather than an unrecordable request — even
+/// alongside a selector that does match a direct dependency.
+#[test]
+fn recursive_update_depth_zero_leaves_an_indirect_selector_out_of_scope() {
+    let (root, workspace, anchor) = setup();
+
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({ "name": "project-1", "version": "1.0.0",
+            "dependencies": { PKG_WITH_DEP: "100.0.0", FOO: "100.0.0" } }),
+        )],
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let (status, rendered) = pacquet_output(
+        &workspace,
+        &["-r", "update", "--depth", "0", &format!("{FOO}@100.0.0"), &format!("{DEP}@100.1.0")],
+    );
+
+    assert!(status.success(), "an untraversed selector must not fail the command");
+    assert!(
+        !rendered.contains("ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP"),
+        "depth 0 leaves the indirect selector out of scope",
+    );
+
+    drop((root, anchor));
+}
+
 /// Ports `recursive update --latest foo should only update packages that
 /// have foo`, over a lockfile per project.
 #[test]

@@ -249,10 +249,7 @@ export async function recursive (
   // `NO_PACKAGE_IN_DEPENDENCIES` below; only a deeper update reaches the
   // transitive copy whose version cannot be recorded.
   if (updateMatch != null && (opts.depth ?? Infinity) > 0) {
-    const manifests = pkgs.map(({ manifest }) => manifest)
-    failOnVersionsOfIndirectUpdateSpecs(
-      params.filter((param) => !selectorMatchesADirectDependency(param, manifests, includeDirect))
-    )
+    failOnVersionsOfIndirectUpdateSpecs(params, pkgs.map(({ manifest }) => manifest), includeDirect)
   }
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
@@ -677,11 +674,17 @@ function parseVersionLine (versionSpec: string): { major: number, minor: number 
  * dependents' manifests, which this layer does not read, hence the
  * placeholder.
  */
-export function failOnVersionsOfIndirectUpdateSpecs (updateSpecs: string[]): void {
+export function failOnVersionsOfIndirectUpdateSpecs (
+  updateSpecs: string[],
+  manifests: ProjectManifest[],
+  include: IncludedDependencies
+): void {
   const pinned: Array<{ pattern: string, version: string }> = []
   for (const spec of updateSpecs) {
     const { pattern, versionSpec } = parseUpdateParam(spec)
-    if (versionSpec == null) continue
+    // A negated selector excludes names; a version on one asks for nothing.
+    if (versionSpec == null || pattern[0] === '!') continue
+    if (matchesADirectDependency(pattern, manifests, include)) continue
     const version = parseExactVersion(versionSpec)
     if (version == null) {
       globalWarn(`"${pattern}" is not a direct dependency, so the requested "${versionSpec}" is ignored — "${pattern}" is updated to what a fresh install would resolve.`)
@@ -705,18 +708,17 @@ To update it within the range its dependents already declare, drop the version: 
 }
 
 /**
- * Whether any of `manifests` declares a dependency `selector` names, so the
- * update has a manifest entry to write the requested version into. A selector
+ * Whether any of `manifests` declares a dependency `pattern` names, so the
+ * update has a manifest entry to write the requested version into. A pattern
  * that matches nothing directly reaches its target only through the resolver,
- * which the version cannot steer — see
- * {@link failOnVersionsOfIndirectUpdateSpecs}.
+ * which the version cannot steer.
  */
-export function selectorMatchesADirectDependency (
-  selector: string,
+function matchesADirectDependency (
+  pattern: string,
   manifests: ProjectManifest[],
   include: IncludedDependencies
 ): boolean {
-  const match = createMatcher([parseUpdateParam(selector).pattern])
+  const match = createMatcher([pattern])
   return manifests.some((manifest) => matchDependencies(match, manifest, include).length > 0)
 }
 

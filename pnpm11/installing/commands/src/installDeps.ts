@@ -53,7 +53,6 @@ import {
   matchDependencies,
   recursive,
   type RecursiveOptions,
-  selectorMatchesADirectDependency,
   type UpdateDepsMatcher,
 } from './recursive.js'
 import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
@@ -394,9 +393,12 @@ export async function installDeps (
       updatePackageManifest = false
       updateMatching = (pkgName: string) => updateMatch!(pkgName) != null
     }
-    failOnVersionsOfIndirectUpdateSpecs(
-      updateSpecs.filter((spec) => !selectorMatchesADirectDependency(spec, [manifest], includeDirect))
-    )
+    // At `--depth 0` an indirect dependency is never traversed, so a selector
+    // that names one is simply out of scope rather than an unrecordable
+    // request.
+    if ((opts.depth ?? Infinity) > 0) {
+      failOnVersionsOfIndirectUpdateSpecs(updateSpecs, [manifest], includeDirect)
+    }
   }
 
   if (opts.update && opts.latest && (!params || (params.length === 0))) {
