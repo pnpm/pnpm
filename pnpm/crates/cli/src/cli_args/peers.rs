@@ -152,31 +152,44 @@ impl PeersArgs {
     }
 }
 
-/// Whether an install over `lockfile` should point the user at
-/// `pnpm peers check`. Mirrors pnpm's install-time gate: a bad peer, or a
-/// missing peer that at least one parent requires non-optionally, once
-/// `peerDependencyRules` have been applied.
+/// [`peer_issues_for_lockfile`]'s result when the lockfile has issues worth
+/// acting on: a bad peer, or a missing peer that at least one parent
+/// requires non-optionally. Mirrors pnpm's install-time gate.
+pub(crate) struct PeerIssuesReport {
+    issues: IssuesByProjects,
+    pub(crate) has_missing_peer: bool,
+}
+
+impl PeerIssuesReport {
+    /// The listing `pnpm peers check` prints for the same issues. Empty
+    /// when every issue is one that listing leaves out — a missing peer no
+    /// parent conflicts over, say — so callers must handle an empty body.
+    pub(crate) fn render(&self) -> String {
+        render_peer_issues(&self.issues)
+    }
+}
+
+/// The same issue set `pnpm peers check` reports, filtered by
+/// `peerDependencyRules`, for every importer the lockfile records.
 ///
-/// Every importer the lockfile records is checked, since an install writes
-/// them all — no workspace scan needed to name them.
-pub(crate) fn peer_issues_warrant_warning(
+/// Returns `None` when there is nothing worth acting on.
+pub(crate) fn peer_issues_for_lockfile(
     lockfile: &Lockfile,
     lockfile_dir: &std::path::Path,
     rules: &PeerDependencyRules,
-) -> bool {
+) -> Option<PeerIssuesReport> {
     let mut importer_ids: Vec<String> = lockfile.importers.keys().cloned().collect();
     importer_ids.sort();
     let issues = filter_peer_issues(
         check_peer_dependencies_of_importers(lockfile, lockfile_dir, &importer_ids),
         rules,
     );
-    issues.values().any(|project_issues| {
-        !project_issues.bad.is_empty()
-            || project_issues
-                .missing
-                .values()
-                .any(|entries| entries.iter().any(|entry| !entry.optional))
-    })
+    let has_missing_peer = issues.values().any(|project_issues| {
+        project_issues.missing.values().any(|entries| entries.iter().any(|entry| !entry.optional))
+    });
+    let has_issues =
+        has_missing_peer || issues.values().any(|project_issues| !project_issues.bad.is_empty());
+    has_issues.then_some(PeerIssuesReport { issues, has_missing_peer })
 }
 
 fn check_peer_dependencies_from_lockfile(
