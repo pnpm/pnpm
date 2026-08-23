@@ -480,6 +480,22 @@ fn check_file(path: &Path, checked_at: Option<u64>) -> Option<(bool, u64)> {
     Some((is_modified, meta.len()))
 }
 
+/// Whether the materialized package under `dir` still matches the store
+/// row it was expanded from.
+///
+/// This is pnpm's `dint.check`, and answers what `pnpm store status`
+/// asks: has anything edited the package after it was linked out of the
+/// store. Only the files the row records are checked — a file *added*
+/// under `dir` afterwards is not a change to what the store holds — and
+/// a missing, unreadable, or re-hashed file all read as mutated.
+#[must_use]
+pub fn package_dir_matches_index(dir: &Path, index: &PackageFilesIndex) -> bool {
+    index
+        .files
+        .iter()
+        .all(|(path, file)| verify_file_integrity(&dir.join(path), &file.digest, &index.algo))
+}
+
 /// Streams the file through the hasher in 64 KiB chunks and compares
 /// the digest against the stored hex `digest`.
 ///

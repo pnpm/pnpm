@@ -7,6 +7,7 @@ use super::{
     deploy::DeployArgs,
     dispatch::{CommandFuture, RunCtx},
     dlx::DlxArgs,
+    env::{EnvArgs, EnvSubcommand},
     fetch::FetchArgs,
     global,
     import::ImportArgs,
@@ -548,6 +549,31 @@ pub(super) fn runtime<'a>(
         ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
         ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
     })
+}
+
+// `pnpm env use` installs a runtime globally, so it takes the same
+// global-config load `runtime set -g` does; `pnpm env list` only queries a
+// mirror and needs no install pipeline at all.
+pub(super) fn env<'a>(ctx: &RunCtx<'a>, args: EnvArgs) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.global_config)()?;
+    let dir = ctx.dir;
+    match args.subcommand(config)? {
+        EnvSubcommand::Use { package_name } => Ok(match ctx.reporter {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                Box::pin(EnvArgs::run_use::<DefaultReporter>(package_name, config, dir))
+            }
+            ReporterType::Ndjson => {
+                Box::pin(EnvArgs::run_use::<NdjsonReporter>(package_name, config, dir))
+            }
+            ReporterType::Silent => {
+                Box::pin(EnvArgs::run_use::<SilentReporter>(package_name, config, dir))
+            }
+        }),
+        EnvSubcommand::List { version_spec } => Ok(Box::pin(async move {
+            println!("{}", EnvArgs::run_list(version_spec, config).await?);
+            Ok(())
+        })),
+    }
 }
 
 pub(super) fn patch<'a>(ctx: &RunCtx<'a>, args: PatchArgs) -> miette::Result<CommandFuture<'a>> {

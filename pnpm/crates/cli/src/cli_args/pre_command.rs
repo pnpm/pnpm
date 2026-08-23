@@ -585,10 +585,12 @@ enum KeyIssueReporting {
 
 fn key_issue_reporting(command: &CliCommand) -> KeyIssueReporting {
     match command {
+        CliCommand::Get(get) if get.key.is_some() => KeyIssueReporting::Skip,
         CliCommand::Config(args) => match &args.command {
             ConfigSubcommand::Get(get) if get.key.is_some() => KeyIssueReporting::Skip,
             _ => KeyIssueReporting::WarnOnly,
         },
+        CliCommand::Get(_) | CliCommand::Set(_) => KeyIssueReporting::WarnOnly,
         _ => KeyIssueReporting::Enforce,
     }
 }
@@ -639,6 +641,9 @@ fn is_global(command: &CliCommand) -> bool {
             ConfigSubcommand::Delete(args) => args.flags.global,
             ConfigSubcommand::List(args) => args.flags.global,
         },
+        CliCommand::Get(args) => args.flags.global,
+        CliCommand::Set(args) => args.flags.global,
+        CliCommand::Env(args) => args.global,
         CliCommand::List(args) | CliCommand::Ll(args) => args.global,
         CliCommand::Outdated(args) => args.global,
         CliCommand::Prefix(args) => args.global,
@@ -891,6 +896,11 @@ fn should_skip_command(command: &CliCommand) -> bool {
             | CliCommand::Doctor(_)
             | CliCommand::FindHash(_)
             | CliCommand::Runtime(_)
+            | CliCommand::Env(_)
+            | CliCommand::Edit(_)
+            | CliCommand::Profile(_)
+            | CliCommand::Token(_)
+            | CliCommand::Xmas(_)
             | CliCommand::SelfUpdate(_)
             | CliCommand::Setup(_)
             | CliCommand::Shim(_)
@@ -908,15 +918,19 @@ fn should_skip_command_name(command: &str) -> bool {
             | "completion-server"
             | "dlx"
             | "doctor"
+            | "edit"
             | "env"
             | "find-hash"
+            | "profile"
             | "runtime"
             | "rt"
             | "self-update"
             | "setup"
             | "shim"
             | "store"
-            | "with",
+            | "token"
+            | "with"
+            | "xmas",
     )
 }
 
@@ -1141,6 +1155,13 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Root(_) => "root",
         CliCommand::Prefix(_) => "prefix",
         CliCommand::Config(_) => "config",
+        CliCommand::Get(_) => "get",
+        CliCommand::Set(_) => "set",
+        CliCommand::Env(_) => "env",
+        CliCommand::Edit(_) => "edit",
+        CliCommand::Profile(_) => "profile",
+        CliCommand::Token(_) => "token",
+        CliCommand::Xmas(_) => "xmas",
         CliCommand::Pkg(_) => "pkg",
         CliCommand::PackApp(_) => "pack-app",
         CliCommand::Store(_) => "store",

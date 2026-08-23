@@ -10,6 +10,7 @@ use super::{
         read_manifest_json,
     },
     reporter::{LogLevelSetting, ReporterType},
+    store::StoreCommand,
     unlink::UnlinkArgs,
 };
 use clap::Parser;
@@ -985,4 +986,69 @@ fn unlink_args(argv: &[&str]) -> UnlinkArgs {
         CliCommand::Unlink(unlink) => unlink,
         other => panic!("expected unlink, got {other:?}"),
     }
+}
+
+#[test]
+fn get_and_set_are_top_level_spellings_of_the_config_subcommands() {
+    let CliCommand::Get(get) = command(&["pacquet", "get", "store-dir"]) else {
+        panic!("expected get");
+    };
+    assert_eq!(get.key.as_deref(), Some("store-dir"));
+
+    let CliCommand::Set(set) = command(&["pacquet", "set", "store-dir", "/tmp/store", "--global"])
+    else {
+        panic!("expected set");
+    };
+    assert_eq!(set.key.as_deref(), Some("store-dir"));
+    assert_eq!(set.value.as_deref(), Some("/tmp/store"));
+    assert!(set.flags.global);
+}
+
+#[test]
+fn get_and_set_report_through_stderr_like_config_does() {
+    for argv in [
+        ["pacquet", "get", "store-dir"].as_slice(),
+        ["pacquet", "set", "store-dir", "/tmp/store"].as_slice(),
+        ["pacquet", "config", "get", "store-dir"].as_slice(),
+    ] {
+        assert!(command(argv).uses_stderr_reporter(), "{argv:?}");
+    }
+}
+
+#[test]
+fn env_collects_its_subcommand_and_arguments() {
+    let CliCommand::Env(env) = command(&["pacquet", "env", "use", "24", "--global"]) else {
+        panic!("expected env");
+    };
+    assert!(env.global);
+    assert_eq!(env.params, ["use", "24"]);
+}
+
+#[test]
+fn the_unimplemented_npm_commands_parse_instead_of_falling_through_to_a_script() {
+    assert!(matches!(command(&["pacquet", "edit", "foo"]), CliCommand::Edit(_)));
+    assert!(matches!(command(&["pacquet", "profile", "get"]), CliCommand::Profile(_)));
+    assert!(matches!(
+        command(&["pacquet", "token", "create", "--read-only"]),
+        CliCommand::Token(_),
+    ));
+    assert!(matches!(command(&["pacquet", "xmas"]), CliCommand::Xmas(_)));
+}
+
+#[test]
+fn store_status_and_add_are_subcommands_of_store() {
+    let CliCommand::Store(StoreCommand::Status) = command(&["pacquet", "store", "status"]) else {
+        panic!("expected store status");
+    };
+
+    let CliCommand::Store(StoreCommand::Add(add)) =
+        command(&["pacquet", "store", "add", "express@4", "typescript@2.1.0"])
+    else {
+        panic!("expected store add");
+    };
+    assert_eq!(add.packages, ["express@4", "typescript@2.1.0"]);
+}
+
+fn command(argv: &[&str]) -> CliCommand {
+    CliArgs::try_parse_from(argv).expect("parses").command
 }
