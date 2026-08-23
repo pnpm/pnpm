@@ -130,6 +130,20 @@ fn test_intersect_widens_partial_versions_like_npm() {
     }
 }
 
+/// A `-0` the user wrote out is honored where it decides anything —
+/// matching — and dropped where pnpm drops it: `semver-range-intersect`
+/// renders `intersect("<2.0.0-0", ">=1.0.0")` as `>=1.0.0 <2.0.0`, so
+/// rendering the suffix here would be the divergence, not hiding it.
+#[test]
+fn test_explicit_prerelease_upper_bound() {
+    assert!(!satisfies("2.0.0-rc", "<2.0.0-0"));
+    assert!(satisfies("2.0.0-rc", "<2.0.0"));
+    assert!(satisfies("1.9.9", "<2.0.0-0"));
+
+    let ranges = ["<2.0.0-0".to_string(), ">=1.0.0".to_string()];
+    assert_eq!(intersect_multiple_ranges(&ranges).as_deref(), Some(">=1.0.0 <2.0.0"));
+}
+
 #[test]
 fn test_have_common_version_empty() {
     assert!(have_common_version(&[]));

@@ -584,9 +584,15 @@ impl Interval {
     }
 }
 
-/// The bound as a user reads it: the `-0` [`derived_upper`] adds is an
-/// implementation detail of prerelease matching, and pnpm's own
-/// intersections are spelled without it.
+/// The bound as a user reads it, without the trailing `-0`.
+///
+/// For a bound [`derived_upper`] built, the suffix is an implementation
+/// detail of prerelease matching. For one the user wrote out it is not
+/// — but pnpm drops it too (`semver-range-intersect` renders
+/// `intersect("<2.0.0-0", ">=1.0.0")` as `>=1.0.0 <2.0.0`), so telling
+/// the two apart here would diverge rather than converge. Only the
+/// rendering loses it: matching compares the parsed version, where the
+/// suffix still excludes every prerelease of that release.
 fn without_derived_suffix(version: &Version) -> String {
     if version.pre_release == [node_semver::Identifier::Numeric(0)] {
         format!("{}.{}.{}", version.major, version.minor, version.patch)
