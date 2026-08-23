@@ -297,7 +297,9 @@ impl PublishArgs {
     ) -> miette::Result<PackResult> {
         let pnpmfile_root = config.workspace_dir.as_deref().unwrap_or(dir);
         let before_packing_hooks =
-            crate::config_deps::load_before_packing_hooks(config, pnpmfile_root);
+            crate::config_deps::load_before_packing_hooks(config, pnpmfile_root).map_err(
+                |error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"),
+            )?;
         let mut options = PackOptions {
             dir: dir.to_path_buf(),
             catalogs: crate::cli_args::catalogs::configured_catalogs(config)?,

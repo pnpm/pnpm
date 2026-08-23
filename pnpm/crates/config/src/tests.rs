@@ -3,7 +3,7 @@ use super::{
     NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, WorkspaceSettings,
     default_ci, fs,
 };
-use crate::defaults::default_store_dir;
+use crate::defaults::{default_state_dir, default_store_dir};
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::env_guard::EnvGuard;
 use pretty_assertions::assert_eq;
@@ -287,7 +287,52 @@ pub fn have_default_values() {
     // behaviour of `default_store_dir` is exercised with fake-`Sys`
     // structs in `defaults::tests`.
     assert_eq!(value.store_dir, default_store_dir::<Host>());
+    assert_eq!(value.state_dir, default_state_dir::<Host>().unwrap_or_default());
     assert_eq!(value.registry, "https://registry.npmjs.org/");
+}
+
+#[test]
+pub fn state_dir_uses_only_trusted_config_sources() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    let state_root = xdg.path().join("state");
+    let resolved_state_root = dunce::canonicalize(xdg.path()).unwrap().join("state");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), "stateDir: from-global\n")
+        .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "stateDir: from-project\n")
+        .expect("write workspace yaml");
+
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("XDG_STATE_HOME", state_root.to_str().unwrap()),
+    ]);
+    let config = load_with_fake_env(project.path());
+    assert_eq!(config.state_dir, resolved_state_root.join("from-global"));
+    assert_eq!(config.workspace_key_issues.refused, ["stateDir"]);
+
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("XDG_STATE_HOME", state_root.to_str().unwrap()),
+        ("PNPM_CONFIG_STATE_DIR", "from-env"),
+    ]);
+    let config = load_with_fake_env(project.path());
+    assert_eq!(config.state_dir, resolved_state_root.join("from-env"));
+    assert_eq!(
+        config.explicit_settings.get("stateDir"),
+        Some(&serde_json::Value::String("from-env".to_string())),
+    );
+
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("XDG_STATE_HOME", state_root.to_str().unwrap()),
+        ("PNPM_CONFIG_STATE_DIR", "../outside"),
+    ]);
+    let config = load_with_fake_env(project.path());
+    assert!(config.state_dir.as_os_str().is_empty());
 }
 
 #[test]
@@ -304,8 +349,27 @@ pub fn network_settings_defaults_match_pnpm() {
     let value = Config::new();
     assert_eq!(value.network_concurrency, pnpm_network::default_network_concurrency());
     assert_eq!(value.fetch_timeout, 60_000);
+    assert_eq!(value.fetch_warn_timeout_ms, 10_000);
+    assert_eq!(value.fetch_min_speed_ki_bps, 50);
     assert!(value.user_agent.starts_with("pnpm/"), "user-agent: {:?}", value.user_agent);
     assert_eq!(value.npmrc_auth_file, None);
+}
+
+#[test]
+pub fn network_settings_maps_custom_config_values() {
+    let mut config = Config::new();
+    config.network_concurrency = 8;
+    config.fetch_timeout = 120_000;
+    config.fetch_warn_timeout_ms = 2_345;
+    config.fetch_min_speed_ki_bps = 12;
+    config.user_agent = "pnpm-test".to_string();
+
+    let settings = config.network_settings();
+    assert_eq!(settings.network_concurrency, 8);
+    assert_eq!(settings.fetch_timeout, std::time::Duration::from_mins(2));
+    assert_eq!(settings.fetch_warn_timeout, std::time::Duration::from_millis(2_345));
+    assert_eq!(settings.fetch_min_speed_ki_bps, 12);
+    assert_eq!(settings.user_agent, "pnpm-test");
 }
 
 #[test]
@@ -2859,6 +2923,45 @@ pub fn pnpm_config_env_var_overrides_workspace_yaml() {
 }
 
 #[test]
+pub fn materialization_env_vars_override_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "virtualStoreOnly: false\nenableModulesDir: true\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    struct HostWithMaterializationEnv;
+    impl EnvVar for HostWithMaterializationEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_VIRTUAL_STORE_ONLY" => Some("true".to_owned()),
+                "PNPM_CONFIG_ENABLE_MODULES_DIR" => Some("false".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithMaterializationEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithMaterializationEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithMaterializationEnv);
+    host_current_dir!(HostWithMaterializationEnv);
+
+    let config = Config::new().current::<HostWithMaterializationEnv>(tmp.path()).expect("loads");
+    assert!(config.virtual_store_only);
+    assert!(!config.enable_modules_dir);
+    assert_eq!(config.hoist_pattern, Some(vec![]));
+    assert_eq!(config.public_hoist_pattern, Some(vec![]));
+}
+
+#[test]
 pub fn self_update_config_ignores_a_workspace_manifest_that_raises_the_cutoff() {
     let tmp = tempdir().unwrap();
     fs::write(
@@ -3279,6 +3382,70 @@ pub fn virtual_store_dir_max_length_env_var_overrides_yaml() {
         config.virtual_store_dir_max_length, 50,
         "env var must win over pnpm-workspace.yaml",
     );
+}
+
+/// `lockfileDir` moves the paths pnpm resolves against it: the root
+/// `node_modules` and the virtual store follow the pin, and the config
+/// root the install reads its root manifest and pnpmfile from becomes the
+/// pin rather than the workspace root.
+#[test]
+pub fn lockfile_dir_from_workspace_yaml_moves_the_paths_anchored_on_it() {
+    let tmp = tempdir().unwrap();
+    let workspace = tmp.path().join("workspace");
+    fs::create_dir(&workspace).expect("create the workspace dir");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "lockfileDir: ..
+",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    let config = Config::new().current::<HostNoHome>(&workspace).expect("yaml is valid");
+
+    assert_eq!(config.lockfile_dir.as_deref(), Some(tmp.path()));
+    assert_eq!(config.lockfile_dir_for(&workspace), tmp.path());
+    assert_eq!(config.root_project_manifest_dir(&workspace), tmp.path());
+    assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
+    assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules").join(".pnpm"));
+}
+
+/// `PNPM_CONFIG_LOCKFILE_DIR` overrides the yaml setting, and a relative
+/// value resolves against the directory the config was loaded for.
+#[test]
+pub fn lockfile_dir_env_var_overrides_yaml() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "lockfileDir: from-yaml
+",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    struct HostWithLockfileDirEnv;
+    impl EnvVar for HostWithLockfileDirEnv {
+        fn var(name: &str) -> Option<String> {
+            if name == "PNPM_CONFIG_LOCKFILE_DIR" {
+                return Some("from-env".to_owned());
+            }
+            safe_host_var(name)
+        }
+    }
+    impl EnvVarOs for HostWithLockfileDirEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithLockfileDirEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithLockfileDirEnv);
+    host_current_dir!(HostWithLockfileDirEnv);
+
+    let config = Config::new().current::<HostWithLockfileDirEnv>(tmp.path()).expect("loads");
+    assert_eq!(config.lockfile_dir.as_deref(), Some(tmp.path().join("from-env").as_path()));
+    assert_eq!(config.modules_dir, tmp.path().join("from-env").join("node_modules"));
 }
 
 #[test]
@@ -3810,4 +3977,145 @@ pub fn global_config_yaml_null_key_is_silent_and_the_warnings_are_ordered() {
             ),
         ],
     );
+}
+
+/// A scratch git repository whose branch the per-branch lockfile
+/// derivation reads: a `.git/HEAD` is all `get_current_branch` needs, so
+/// the fixture is a directory rather than a real `git init`.
+fn repo_on_branch(head: &str) -> tempfile::TempDir {
+    let dir = tempdir().unwrap();
+    fs::create_dir(dir.path().join(".git")).unwrap();
+    fs::write(dir.path().join(".git/HEAD"), head).unwrap();
+    dir
+}
+
+/// The derivation reads the branch from the process's working directory,
+/// so a test that wants a specific branch has to answer
+/// [`GetCurrentDir`] with its own fixture rather than the real cwd.
+macro_rules! host_in_repo {
+    ($name:ident) => {
+        struct $name;
+        impl EnvVar for $name {
+            fn var(name: &str) -> Option<String> {
+                safe_host_var(name)
+            }
+        }
+        impl EnvVarOs for $name {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for $name {
+            fn home_dir() -> Option<PathBuf> {
+                None
+            }
+        }
+        inert_link_probe!($name);
+        impl GetCurrentDir for $name {
+            fn current_dir() -> io::Result<PathBuf> {
+                REPO_DIR.get().cloned().ok_or_else(|| io::Error::other("no repo fixture"))
+            }
+        }
+    };
+}
+
+#[test]
+pub fn git_branch_lockfile_names_the_lockfile_after_the_current_branch() {
+    let repo = repo_on_branch("ref: refs/heads/feat/Login\n");
+    fs::write(repo.path().join("pnpm-workspace.yaml"), "gitBranchLockfile: true\n").unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostOnBranch);
+
+    let config = Config::new().current::<HostOnBranch>(repo.path()).expect("yaml is valid");
+    assert!(config.use_git_branch_lockfile);
+    assert_eq!(config.git_branch_lockfile_name.as_deref(), Some("pnpm-lock.feat!login.yaml"));
+    assert_eq!(config.wanted_lockfile_name(), "pnpm-lock.feat!login.yaml");
+}
+
+/// Merging collapses the per-branch lockfiles into the shared one, so the
+/// install has to be reading and writing `pnpm-lock.yaml` while it does.
+#[test]
+pub fn merging_puts_the_install_back_on_the_shared_lockfile() {
+    let repo = repo_on_branch("ref: refs/heads/main\n");
+    fs::write(
+        repo.path().join("pnpm-workspace.yaml"),
+        "gitBranchLockfile: true\nmergeGitBranchLockfiles: true\n",
+    )
+    .unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostMerging);
+
+    let config = Config::new().current::<HostMerging>(repo.path()).expect("yaml is valid");
+    assert!(config.merge_git_branch_lockfiles);
+    assert_eq!(config.git_branch_lockfile_name.as_deref(), Some("pnpm-lock.main.yaml"));
+    assert_eq!(config.wanted_lockfile_name(), "pnpm-lock.yaml");
+}
+
+#[test]
+pub fn the_branch_pattern_decides_merging_for_the_current_branch() {
+    let repo = repo_on_branch("ref: refs/heads/release/1.0.0\n");
+    fs::write(
+        repo.path().join("pnpm-workspace.yaml"),
+        "mergeGitBranchLockfilesBranchPattern:\n  - main\n  - release/*\n",
+    )
+    .unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostOnRelease);
+
+    let config = Config::new().current::<HostOnRelease>(repo.path()).expect("yaml is valid");
+    assert!(config.merge_git_branch_lockfiles);
+}
+
+#[test]
+pub fn the_branch_pattern_leaves_an_unmatched_branch_alone() {
+    let repo = repo_on_branch("ref: refs/heads/develop\n");
+    fs::write(
+        repo.path().join("pnpm-workspace.yaml"),
+        "mergeGitBranchLockfilesBranchPattern:\n  - main\n  - release/*\n",
+    )
+    .unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostOnDevelop);
+
+    let config = Config::new().current::<HostOnDevelop>(repo.path()).expect("yaml is valid");
+    assert!(!config.merge_git_branch_lockfiles);
+}
+
+/// pnpm consults the pattern only when `mergeGitBranchLockfiles` is not
+/// set outright, so an explicit `false` survives a matching branch.
+#[test]
+pub fn an_explicit_merge_setting_wins_over_the_branch_pattern() {
+    let repo = repo_on_branch("ref: refs/heads/main\n");
+    fs::write(
+        repo.path().join("pnpm-workspace.yaml"),
+        "mergeGitBranchLockfiles: false\nmergeGitBranchLockfilesBranchPattern:\n  - main\n",
+    )
+    .unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostExplicitlyNotMerging);
+
+    let config =
+        Config::new().current::<HostExplicitlyNotMerging>(repo.path()).expect("yaml is valid");
+    assert!(!config.merge_git_branch_lockfiles);
+}
+
+/// A detached HEAD has no branch to name a lockfile after, so the install
+/// stays on `pnpm-lock.yaml` rather than inventing one.
+#[test]
+pub fn a_detached_head_leaves_the_install_on_the_shared_lockfile() {
+    let repo = repo_on_branch("0123456789abcdef0123456789abcdef01234567\n");
+    fs::write(repo.path().join("pnpm-workspace.yaml"), "gitBranchLockfile: true\n").unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostDetached);
+
+    let config = Config::new().current::<HostDetached>(repo.path()).expect("yaml is valid");
+    assert!(config.use_git_branch_lockfile);
+    assert_eq!(config.git_branch_lockfile_name, None);
+    assert_eq!(config.wanted_lockfile_name(), "pnpm-lock.yaml");
 }

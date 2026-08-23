@@ -1,6 +1,6 @@
 import { packageManager } from '@pnpm/cli.meta'
 import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, shouldPersistLockfile } from '@pnpm/config.reader'
-import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
+import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import semver from 'semver'
@@ -15,8 +15,9 @@ import semver from 'semver'
  * The currently running pnpm version has already been verified by
  * checkPackageManager to satisfy the wanted range, so recording it is safe.
  *
- * No-op when the project does not pin a pnpm version or when the recorded
- * version still satisfies the wanted range.
+ * No-op when the project does not pin a pnpm version, or when the recorded
+ * entry both satisfies the wanted range and pins every package that version
+ * is installed from.
  */
 export async function syncEnvLockfile (config: Config, context: ConfigContext): Promise<void> {
   const pm = context.wantedPackageManager
@@ -27,20 +28,25 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
   // checkPackageManager has already surfaced the mismatch to the user.
   if (!semver.satisfies(packageManager.version, pm.version, { includePrerelease: true })) return
 
-  const envLockfile = await readEnvLockfile(context.rootProjectManifestDir)
+  const envLockfile = await readEnvLockfile(context.rootProjectManifestDir) ?? undefined
   const lockedVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
-  if (lockedVersion != null && semver.satisfies(lockedVersion, pm.version, { includePrerelease: true })) return
+  if (
+    lockedVersion != null &&
+    semver.satisfies(lockedVersion, pm.version, { includePrerelease: true }) &&
+    isPackageManagerResolved(envLockfile, lockedVersion)
+  ) return
 
   const packageManagerConfig = getPackageManagerBootstrapConfig(config)
   const store = await createStoreController({ ...config, ...context, ...packageManagerConfig })
   try {
     await resolvePackageManagerIntegrities(packageManager.version, {
-      envLockfile: envLockfile ?? undefined,
+      envLockfile,
       registriesByScope: packageManagerConfig.registriesByScope,
       rootDir: context.rootProjectManifestDir,
       storeController: store.ctrl,
       storeDir: store.dir,
       save: true,
+      frozenLockfile: config.frozenLockfile,
     })
   } finally {
     await store.ctrl.close()

@@ -133,6 +133,39 @@ describe('pnpm dedupe', () => {
     expect(server.getLines()).toStrictEqual([])
   })
 
+  test('dedupe --check does not move node_modules files in hoisted mode', async () => {
+    const project = prepare({
+      name: 'test-dedupe-check-hoisted',
+      version: '0.0.0',
+      dependencies: {
+        'is-positive': '3.1.0',
+      },
+    })
+
+    const opts = {
+      ...DEFAULT_OPTS,
+      dir: project.dir(),
+      lockfileDir: project.dir(),
+      workspaceDir: project.dir(),
+      nodeLinker: 'hoisted' as const,
+    }
+
+    await install.handler(opts)
+
+    const isPositivePath = path.join(project.dir(), 'node_modules/is-positive')
+    expect(fs.existsSync(isPositivePath)).toBeTruthy()
+    expect(fs.lstatSync(isPositivePath).isDirectory()).toBeTruthy()
+
+    await dedupe.handler({
+      ...opts,
+      check: true,
+    })
+
+    expect(fs.existsSync(isPositivePath)).toBeTruthy()
+    const ignoredPath = path.join(project.dir(), 'node_modules/.ignored/is-positive')
+    expect(fs.existsSync(ignoredPath)).toBeFalsy()
+  })
+
   describe('cliOptionsTypes', () => {
     test('trivially contains command line arguments from install command', () => {
       // Using --store-dir and --registry as a gut check to ensure the "pnpm

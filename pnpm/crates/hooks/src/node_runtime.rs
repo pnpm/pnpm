@@ -452,16 +452,32 @@ impl crate::CustomFetcher for NodeJsCustomFetcher {
     }
 
     async fn can_fetch(&self, pkg_id: &str, resolution: Value) -> Result<bool, HookError> {
-        let res = self
+        let (can_fetch, _) = self.can_fetch_with_resolution(pkg_id, resolution).await?;
+        Ok(can_fetch)
+    }
+
+    async fn can_fetch_with_resolution(
+        &self,
+        pkg_id: &str,
+        resolution: Value,
+    ) -> Result<(bool, Value), HookError> {
+        let response = self
             .worker
             .call_fetcher(
                 self.index,
                 "canFetch",
-                serde_json::json!([pkg_id, resolution]),
+                serde_json::json!([pkg_id, &resolution]),
                 Arc::new(|_| {}),
+                None,
             )
             .await?;
-        Ok(is_js_truthy(&res))
+        let can_fetch = response.get("value").is_some_and(is_js_truthy);
+        // A worker that answers without a `resolution` — the reply shape for a
+        // fetcher whose `canFetch` went missing between capability probe and
+        // call — leaves the caller's resolution untouched rather than blanking
+        // it for every fetcher behind this one.
+        let resolution = response.get("resolution").cloned().unwrap_or(resolution);
+        Ok((can_fetch, resolution))
     }
 
     async fn fetch(
@@ -470,17 +486,39 @@ impl crate::CustomFetcher for NodeJsCustomFetcher {
         resolution: Value,
         opts: Value,
     ) -> Result<Value, HookError> {
-        // Positional parity with the TypeScript hook signature
-        // `fetch(cafs, resolution, opts, fetchers)`: `cafs` and
-        // `fetchers` cannot cross the IPC boundary, so they are `null`
-        // placeholders — a portable pnpmfile fetcher detects their
-        // absence and answers with `{ delegate: <resolution> }`.
+        self.call_fetch(resolution, opts, None).await
+    }
+
+    async fn fetch_with_callbacks(
+        &self,
+        _pkg_id: &str,
+        resolution: Value,
+        opts: Value,
+        callbacks: crate::FetcherCallbackSender,
+    ) -> Result<Value, HookError> {
+        self.call_fetch(resolution, opts, Some(callbacks)).await
+    }
+}
+
+impl NodeJsCustomFetcher {
+    /// The payload is positional to match the TypeScript hook signature
+    /// `fetch(cafs, resolution, opts, fetchers)`. Slots 0 and 3 are placeholders
+    /// the worker fills in: with `callbacks`, it substitutes a CAFS handle and
+    /// the native tarball fetchers before calling the hook; without them, the
+    /// hook sees `null` in both and answers with a `delegate` envelope instead.
+    async fn call_fetch(
+        &self,
+        resolution: Value,
+        opts: Value,
+        callbacks: Option<crate::FetcherCallbackSender>,
+    ) -> Result<Value, HookError> {
         self.worker
             .call_fetcher(
                 self.index,
                 "fetch",
                 serde_json::json!([Value::Null, resolution, opts, Value::Null]),
                 Arc::new(|_| {}),
+                callbacks,
             )
             .await
     }

@@ -91,6 +91,7 @@ fn lockfile(root: ProjectSnapshot, snapshots: &[(&str, SnapshotEntry)]) -> Lockf
         packages: None,
         snapshots: Some(snapshots.iter().map(|(id, entry)| (key(id), entry.clone())).collect()),
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 

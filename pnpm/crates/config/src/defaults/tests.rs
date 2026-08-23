@@ -3,11 +3,12 @@ use super::{
     default_child_concurrency_with_parallelism, default_config_dir, default_fetch_timeout,
     default_store_dir, default_unsafe_perm, default_user_agent, default_workspace_concurrency,
     is_unsafe_perm_posix, resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
+    resolve_configured_state_dir,
 };
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
 use pnpm_store_dir::{STORE_VERSION, StoreDir};
 use pretty_assertions::assert_eq;
-use std::{io, path::PathBuf};
+use std::{fs, io, path::PathBuf};
 
 #[cfg(windows)]
 use super::{default_store_dir_windows, get_drive_letter};
@@ -16,6 +17,41 @@ use std::path::Path;
 
 fn display_store_dir(store_dir: &StoreDir) -> String {
     store_dir.display().to_string().replace('\\', "/")
+}
+
+#[test]
+fn configured_relative_state_dir_stays_inside_machine_state_root() {
+    let root = tempfile::tempdir().unwrap();
+    let state_root = root.path().join("pnpm-state-root");
+    let default_state_dir = state_root.join("pnpm");
+    let expected_state_dir =
+        dunce::canonicalize(root.path()).unwrap().join("pnpm-state-root/configured");
+
+    assert_eq!(
+        resolve_configured_state_dir(&default_state_dir, "nested/../configured"),
+        expected_state_dir,
+    );
+    assert_eq!(
+        resolve_configured_state_dir(&default_state_dir, "nested/../../outside"),
+        PathBuf::new(),
+    );
+    assert!(resolve_configured_state_dir(&default_state_dir, "../outside").as_os_str().is_empty());
+}
+
+#[test]
+fn configured_relative_state_dir_rejects_a_symlink_escape() {
+    let root = tempfile::tempdir().unwrap();
+    let state_root = root.path().join("state");
+    let outside = root.path().join("project");
+    fs::create_dir_all(&state_root).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    pnpm_fs::symlink_dir(&outside, &state_root.join("project-link")).unwrap();
+
+    assert!(
+        resolve_configured_state_dir(&state_root.join("pnpm"), "project-link")
+            .as_os_str()
+            .is_empty(),
+    );
 }
 
 /// The `home_dir` and `current_dir` capability impls call

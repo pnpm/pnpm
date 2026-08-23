@@ -11,7 +11,9 @@ use super::{
     read_local_tarball_buffer, should_stream_extract, stream_extract_gzipped_channel,
     stream_extract_gzipped_tarball, streaming_extract_semaphore,
 };
-use pnpm_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient, redact_url_for_display,
+};
 use pnpm_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
     Reporter, RequestRetryError, RequestRetryLog,
@@ -67,6 +69,13 @@ pub struct DownloadTarballToStore<'a> {
     ///
     /// [#273]: https://github.com/pnpm/pacquet/issues/273
     pub verify_store_integrity: bool,
+    /// Mirrors pnpm's `strictStorePkgContentCheck` setting (default
+    /// `true`). A store row whose bundled manifest names a package other
+    /// than the row's key does fails the install under it, and is used
+    /// with a warning without it. See
+    /// [`pnpm_store_dir::pkg_content_mismatch`] for what counts as a
+    /// disagreement.
+    pub strict_store_pkg_content_check: bool,
     /// Install-scoped dedup cache shared across every cached-tarball
     /// lookup. Ports pnpm's `verifiedFilesCache: Set<string>`: a CAFS
     /// path that one snapshot's verify pass has already stat'ed (and
@@ -82,11 +91,13 @@ pub struct DownloadTarballToStore<'a> {
     /// archives before it pinned their hash; pnpm fetches those
     /// unverified, so pacquet does too.
     ///
-    /// An unverified fetch neither reads nor writes an `index.db` row.
-    /// The key such a package is addressed by belongs to the *prepared*
-    /// file set that `GitHostedTarballFetcher` writes after running
-    /// `prepare` + packlist over this download; claiming it here would
-    /// leave the raw archive in the row whenever that pass failed.
+    /// [`Self::run_without_mem_cache`] neither reads nor writes an
+    /// `index.db` row for an unpinned archive. Its fallback key belongs
+    /// to the *prepared* file set that `GitHostedTarballFetcher` writes
+    /// after running `prepare` + packlist; claiming it here would leave
+    /// the raw archive in the row whenever that pass failed.
+    /// [`Self::fetch_and_extract`] can instead index a plain archive by
+    /// its computed integrity.
     pub package_integrity: Option<&'a Integrity>,
     pub package_unpacked_size: Option<usize>,
     /// `dist.fileCount` when the registry published one. Combined with
@@ -246,6 +257,12 @@ pub(crate) fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetry
             // logger renders the right code.
             out.code = Some("ERR_PNPM_NO_OFFLINE_TARBALL".to_string());
         }
+        TarballError::UnexpectedPkgContentInStore { .. } => {
+            // Same "for exhaustiveness" stance as the arm above: the
+            // store read this comes from happens before the retry loop,
+            // and re-reading the same row would only reproduce it.
+            out.code = Some("ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE".to_string());
+        }
     }
     out
 }
@@ -347,6 +364,7 @@ pub(crate) fn verify_tarball_integrity(
 /// could show it.
 struct BodyProgress<'a> {
     emit: bool,
+    started_at: Instant,
     last_emit: Option<Instant>,
     last_emitted_downloaded: u64,
     downloaded: u64,
@@ -360,6 +378,7 @@ impl<'a> BodyProgress<'a> {
     fn new(expected_size: Option<u64>, package_id: &'a str) -> Self {
         Self {
             emit: expected_size.is_some_and(|size| size >= Self::BIG_TARBALL_SIZE),
+            started_at: Instant::now(),
             last_emit: None,
             last_emitted_downloaded: 0,
             downloaded: 0,
@@ -398,6 +417,39 @@ impl<'a> BodyProgress<'a> {
             self.last_emitted_downloaded = self.downloaded;
         }
     }
+
+    fn warn_if_slow(&self, http_client: &ThrottledClient, package_url: &str) {
+        if let Some(message) = slow_download_warning(
+            self.downloaded,
+            self.started_at.elapsed(),
+            http_client.fetch_min_speed_ki_bps(),
+            package_url,
+        ) {
+            http_client.warn(&message);
+        }
+    }
+}
+
+pub(crate) fn slow_download_warning(
+    downloaded: u64,
+    elapsed: Duration,
+    fetch_min_speed_ki_bps: u64,
+    package_url: &str,
+) -> Option<String> {
+    let elapsed_ms = elapsed.as_millis();
+    if downloaded == 0 || elapsed_ms <= 1_000 {
+        return None;
+    }
+    let avg_ki_bps =
+        u128::from(downloaded).saturating_mul(1_000) / elapsed_ms.saturating_mul(1_024);
+    if avg_ki_bps >= u128::from(fetch_min_speed_ki_bps) {
+        return None;
+    }
+    let size_ki_b = downloaded / 1_024;
+    Some(format!(
+        "Tarball download average speed {avg_ki_bps} KiB/s (size {size_ki_b} KiB) is below {fetch_min_speed_ki_bps} KiB/s: {} (GET)",
+        redact_url_for_display(package_url),
+    ))
 }
 
 /// Run one full tarball-fetch attempt: network, body, integrity hash,
@@ -609,6 +661,9 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
                 None => break,
             }
         }
+        if body_error.is_none() {
+            progress.warn_if_slow(http_client, package_url);
+        }
         // Close the channel so the extractor sees end-of-stream. Release
         // the network permit before waiting on CPU work because the body is
         // done or abandoned after a network error.
@@ -640,6 +695,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
             buf.extend_from_slice(&chunk);
             progress.on_chunk::<Reporter>(chunk.len());
         }
+        progress.warn_if_slow(http_client, package_url);
         progress.finish::<Reporter>();
         buf
     };

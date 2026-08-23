@@ -119,28 +119,10 @@ pub fn prune_target_within_modules(
     virtual_store_dir: &Path,
     modules_dir: &Path,
 ) -> Option<PathBuf> {
-    let modules_dir = fs::canonicalize(modules_dir).ok()?;
-    let virtual_store_dir = resolve_through_existing_ancestor(virtual_store_dir)?;
+    let modules_dir = dunce::canonicalize(modules_dir).ok()?;
+    let virtual_store_dir = pnpm_fs::realpath_missing(virtual_store_dir).ok()?;
     (virtual_store_dir != modules_dir && virtual_store_dir.starts_with(&modules_dir))
         .then_some(virtual_store_dir)
-}
-
-/// Resolve `path` to an absolute, symlink-free form even when its trailing
-/// components don't exist yet: canonicalize the deepest existing ancestor
-/// and re-append the missing tail. Returns `None` when no ancestor can be
-/// canonicalized, or when a trailing component is not a normal name (e.g.
-/// `..`), so an unprovable path is refused rather than trusted.
-fn resolve_through_existing_ancestor(path: &Path) -> Option<PathBuf> {
-    let mut tail = Vec::new();
-    let mut current = path;
-    loop {
-        if let Ok(mut base) = fs::canonicalize(current) {
-            base.extend(tail.iter().rev());
-            return Some(base);
-        }
-        tail.push(current.file_name()?.to_owned());
-        current = current.parent()?;
-    }
 }
 
 /// Whether two paths refer to the same directory. Compares canonicalized

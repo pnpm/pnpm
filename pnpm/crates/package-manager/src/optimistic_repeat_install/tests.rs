@@ -228,6 +228,30 @@ fn returns_up_to_date_when_state_and_manifests_agree() {
     assert_eq!(decision, Decision::UpToDate);
 }
 
+/// A filtered install refreshes `lastValidatedTimestamp` while leaving
+/// the projects it did not select untouched, so its state cannot prove
+/// the workspace is current: the next install re-validates for real.
+#[test]
+fn returns_skipped_when_the_previous_install_was_filtered() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    let mut state = load_workspace_state(dir.path()).expect("read state").expect("state on disk");
+    state.filtered_install = true;
+    update_workspace_state(dir.path(), &state).expect("write workspace state");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("previous install was filtered")),
+        "unexpected decision: {decision:?}",
+    );
+}
+
 /// A `file:` dependency must never short-circuit: nothing the fast
 /// path stats covers the dependency's *contents*, so the full install
 /// path has to run and refetch it.

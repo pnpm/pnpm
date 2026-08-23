@@ -158,11 +158,7 @@ async fn resolve_yarn_binary_version(
         &bootstrap.proxy,
         &bootstrap.tls,
         &bootstrap.tls_by_uri,
-        &pnpm_network::NetworkSettings {
-            network_concurrency: config.network_concurrency,
-            fetch_timeout: std::time::Duration::from_millis(config.fetch_timeout),
-            user_agent: config.user_agent.clone(),
-        },
+        &config.network_settings(),
     )
     .into_diagnostic()
     .wrap_err("build the network client to resolve the Yarn release")?;

@@ -1,7 +1,8 @@
 use super::{
-    KeptRangeVerdict, apply_bumped_manifest_specs, is_workspace_local_path_specifier,
-    judge_against_kept_range, parse_update_param, persist_selected_manifests,
-    prepare_selected_manifests, selected_project_indices, update_target_name,
+    KeptRangeVerdict, UpdateError, apply_bumped_manifest_specs, expand_update_selectors,
+    insert_update_target, is_workspace_local_path_specifier, judge_against_kept_range,
+    parse_update_param, persist_selected_manifests, prepare_selected_manifests,
+    selected_project_indices, update_target_name,
 };
 use pnpm_config::{CatalogMode, Config};
 use pnpm_network::ThrottledClient;
@@ -356,8 +357,11 @@ async fn selected_update_depth_zero_skips_projects_without_a_matching_dependency
     assert_eq!(prepared.persist_indices, vec![1]);
 }
 
+/// A recursive `--latest` that matches no project's dependencies at
+/// `--depth 0` fails, where the single-project one quietly returns: with
+/// no project left to mutate there is nothing for the run to have meant.
 #[tokio::test]
-async fn selected_update_latest_depth_zero_is_noop_when_no_project_matches() {
+async fn selected_update_latest_depth_zero_errors_when_no_project_matches() {
     let dir = tempdir().expect("create tempdir");
     let mut projects = [project_without_foo(dir.path(), "a"), project_without_foo(dir.path(), "b")];
     let selected_indices = [0, 1];
@@ -381,11 +385,12 @@ async fn selected_update_latest_depth_zero_is_noop_when_no_project_matches() {
         false,
         None,
     )
-    .await
-    .expect("unmatched latest update is a no-op");
+    .await;
 
-    assert!(!prepared.any_work);
-    assert!(prepared.persist_indices.is_empty());
+    assert!(
+        matches!(prepared, Err(UpdateError::NoPackageInDependencies)),
+        "an unmatched depth-0 selector must fail, whatever the preparation returned",
+    );
 }
 
 // No resolver in the latest-capable chain claims any of these, so none of
@@ -554,4 +559,72 @@ fn only_a_requested_version_gets_a_verdict() {
             "{requested:?} against {kept:?} should be undecided",
         );
     }
+}
+
+/// The update targets `selectors` produce for the lockfile name `name`,
+/// rendered as `(covers 1.x, covers 2.x)` — the shape the reuse walk asks
+/// [`UpdateTargets::covers`] for.
+fn covers(selectors: &[&str], name: &str, versions: &[&str]) -> Vec<bool> {
+    let parsed = selectors.iter().map(|selector| parse_update_param(selector)).collect::<Vec<_>>();
+    let expanded = expand_update_selectors(&parsed);
+    let mut targets = pnpm_resolving_deps_resolver::UpdateTargets::default();
+    insert_update_target(&mut targets, &expanded, name);
+    versions
+        .iter()
+        .map(|version| targets.covers(name, Some(&version.parse().expect("parse version"))))
+        .collect()
+}
+
+#[test]
+fn a_pinned_selector_targets_only_its_version_line() {
+    assert_eq!(
+        covers(&["js-yaml@3.15.1"], "js-yaml", &["3.15.0", "3.15.1", "4.3.0"]),
+        [true, true, false],
+    );
+}
+
+#[test]
+fn a_pinned_zero_x_selector_targets_only_its_minor_line() {
+    assert_eq!(covers(&["foo@0.2.5"], "foo", &["0.2.1", "0.3.0", "1.0.0"]), [true, false, false]);
+}
+
+#[test]
+fn a_selector_that_names_no_single_version_targets_every_line() {
+    for selector in ["foo", "foo@^3.15.1", "foo@latest"] {
+        assert_eq!(covers(&[selector], "foo", &["3.15.0", "4.3.0"]), [true, true], "{selector}");
+    }
+}
+
+#[test]
+fn every_selector_that_claims_a_name_widens_its_lines() {
+    assert_eq!(
+        covers(&["foo@1.0.0", "foo@2.0.0"], "foo", &["1.5.0", "2.5.0", "3.0.0"]),
+        [true, true, false],
+    );
+}
+
+#[test]
+fn an_alias_selector_scopes_the_aliased_package_by_version_line() {
+    // `expand_update_selectors` turns `alias@npm:foo@100.1.0` into a
+    // selector for `foo` on the 100.x line, which is the name the resolver
+    // resolves the edge under.
+    assert_eq!(covers(&["alias@npm:foo@100.1.0"], "foo", &["100.0.0", "101.0.0"]), [true, false]);
+}
+
+#[test]
+fn expands_an_alias_selector_to_the_aliased_package() {
+    let parsed = [parse_update_param("alias@npm:foo@100.1.0")];
+    let expanded = expand_update_selectors(&parsed);
+
+    assert_eq!(expanded.len(), 2);
+    assert_eq!(expanded[1].pattern, "foo");
+    assert_eq!(expanded[1].version.as_deref(), Some("100.1.0"));
+}
+
+#[test]
+fn keeps_a_negated_alias_selector_negated() {
+    let parsed = [parse_update_param("!alias@npm:foo@100.1.0")];
+    let expanded = expand_update_selectors(&parsed);
+
+    assert_eq!(expanded[1].pattern, "!foo");
 }

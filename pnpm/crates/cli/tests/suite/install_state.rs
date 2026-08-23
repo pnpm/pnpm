@@ -166,6 +166,49 @@ fn public_hoist_uses_the_project_root_when_the_lockfile_is_external() {
     drop((root, mock_instance));
 }
 
+/// A `.modules.yaml` the reader cannot parse must fail the install
+/// rather than read as layout drift: the drift path purges
+/// `node_modules` and relinks the whole tree on every run, taking the
+/// user's own entries with it (<https://github.com/pnpm/pnpm/issues/14062>).
+#[test]
+fn unreadable_modules_manifest_fails_the_install_without_purging_node_modules() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/hello-world-js-bin":"1.0.0"}}"#,
+    )
+    .expect("write manifest");
+    pacquet.with_arg("install").assert().success();
+
+    let modules_dir = workspace.join("node_modules");
+    let vendored = modules_dir.join("vendored");
+    fs::create_dir(&vendored).expect("create a directory pnpm does not manage");
+    fs::write(modules_dir.join(".modules.yaml"), "not: [valid").expect("corrupt modules manifest");
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .output()
+        .expect("run pnpm install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "an unparsable .modules.yaml must fail the install");
+    assert!(
+        stderr.contains("ERR_PNPM_MODULES_YAML_PARSE_YAML") && stderr.contains(".modules.yaml"),
+        "the install must report the unparsable modules manifest:\n{stderr}",
+    );
+    assert!(vendored.is_dir(), "the failed install must not purge node_modules:\n{stderr}");
+    assert!(
+        modules_dir.join("@pnpm.e2e/hello-world-js-bin/package.json").exists(),
+        "the failed install must leave the materialized tree alone:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// TS: `the modules cache is pruned when it expires and headless install
 /// is used` (`deps-installer/test/install/modulesCache.ts:52`).
 #[test]

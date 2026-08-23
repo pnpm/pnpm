@@ -31,9 +31,11 @@ pnpm-env-installer                     = { path = "pnpm/crates/env-installer" }
 pnpm-env-replace                       = { path = "pnpm/crates/env-replace" }
 pnpm-fs                                = { path = "pnpm/crates/fs" }
 pnpm-fs-packlist                       = { path = "pnpm/crates/fs-packlist" }
+pnpm-git-utils                         = { path = "pnpm/crates/git-utils" }
 pnpm-registry                          = { path = "pnpm/crates/registry" }
 pnpm-tarball                           = { path = "pnpm/crates/tarball" }
 pnpm-testing-utils                     = { path = "pnpm/crates/testing-utils" }
+pnpm-text-sanitize                     = { path = "pnpm/crates/text-sanitize" }
 pnpm-pack                              = { path = "pnpm/crates/pack" }
 pnpm-publish                           = { path = "pnpm/crates/publish" }
 pnpm-package-manifest                  = { path = "pnpm/crates/package-manifest" }
@@ -56,6 +58,7 @@ pnpm-exportable-manifest               = { path = "pnpm/crates/exportable-manife
 pnpm-directory-fetcher                 = { path = "pnpm/crates/directory-fetcher" }
 pnpm-git-fetcher                       = { path = "pnpm/crates/git-fetcher" }
 pnpm-global                            = { path = "pnpm/crates/global" }
+pnpm-deps-inspection                   = { path = "pnpm/crates/deps-inspection" }
 pnpm-deps-path                         = { path = "pnpm/crates/deps-path" }
 pnpm-deps-restorer                     = { path = "pnpm/crates/deps-restorer" }
 pnpm-detect-libc                       = { path = "pnpm/crates/detect-libc" }
@@ -167,6 +170,7 @@ same-file = { version = "1.0.6" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.150", features = ["preserve_order", "raw_value"] }
 rustc-hash = { version = "2.1.1" }
+rustls = { version = "0.23", default-features = false, features = ["std"] }
 serde-saphyr = { version = "0.0.29" }
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls"] }
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up

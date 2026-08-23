@@ -17,6 +17,23 @@ fn bool_env_var_only_accepts_lowercase_true_false() {
     assert_eq!(settings.enable_global_virtual_store, None);
 }
 
+#[test]
+fn materialization_settings_read_from_the_environment() {
+    struct EnvMaterialization;
+    impl EnvVar for EnvMaterialization {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_VIRTUAL_STORE_ONLY" => Some("true".to_owned()),
+                "PNPM_CONFIG_ENABLE_MODULES_DIR" => Some("false".to_owned()),
+                _ => None,
+            }
+        }
+    }
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvMaterialization>();
+    assert_eq!(settings.virtual_store_only, Some(true));
+    assert_eq!(settings.enable_modules_dir, Some(false));
+}
+
 /// An exported-but-empty `PNPM_CONFIG_STORE_DIR=` shouldn't clobber
 /// the configured store path.
 #[test]
@@ -134,6 +151,8 @@ fn network_settings_parse_from_env() {
             match name {
                 "PNPM_CONFIG_NETWORK_CONCURRENCY" => Some("12".to_owned()),
                 "PNPM_CONFIG_FETCH_TIMEOUT" => Some("90000".to_owned()),
+                "PNPM_CONFIG_FETCH_WARN_TIMEOUT_MS" => Some("15000".to_owned()),
+                "PNPM_CONFIG_FETCH_MIN_SPEED_KI_BPS" => Some("75".to_owned()),
                 "PNPM_CONFIG_USER_AGENT" => Some("custom-ua/1.0".to_owned()),
                 _ => None,
             }
@@ -142,6 +161,8 @@ fn network_settings_parse_from_env() {
     let settings = WorkspaceSettings::from_pnpm_config_env::<EnvNetwork>();
     assert_eq!(settings.network_concurrency, Some(12));
     assert_eq!(settings.fetch_timeout, Some(90_000));
+    assert_eq!(settings.fetch_warn_timeout_ms, Some(15_000));
+    assert_eq!(settings.fetch_min_speed_ki_bps, Some(75));
     assert_eq!(settings.user_agent.as_deref(), Some("custom-ua/1.0"));
 }
 

@@ -1,9 +1,12 @@
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
 use pnpm_store_dir::StoreDir;
-use std::{env, path::PathBuf};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 #[cfg(windows)]
-use std::path::{Component, Path};
+use std::path::Component;
 
 pub fn default_hoist_pattern() -> Vec<String> {
     vec!["*".to_string()]
@@ -181,6 +184,36 @@ where
     )
 }
 
+/// Resolve a configured `stateDir` without making its meaning depend on the
+/// current project. Relative values replace the default directory's `pnpm`
+/// leaf under the machine state root. Existing symlinks are resolved before
+/// containment is checked and the resolved path is returned. Values that
+/// escape that root, or cannot be resolved from a stable absolute root,
+/// produce an empty path so trust and runtime consumers fail closed.
+#[must_use]
+pub fn resolve_configured_state_dir(default_state_dir: &Path, configured: &str) -> PathBuf {
+    let configured = Path::new(configured);
+    if configured.is_absolute() {
+        return configured.to_path_buf();
+    }
+    let Some(state_root) = default_state_dir.parent().filter(|state_root| state_root.is_absolute())
+    else {
+        return PathBuf::new();
+    };
+    let state_root = pnpm_fs::lexical_normalize(state_root);
+    let resolved = pnpm_fs::lexical_normalize(&state_root.join(configured));
+    if !resolved.starts_with(&state_root) {
+        return PathBuf::new();
+    }
+    let Ok(state_root) = pnpm_fs::realpath_missing(&state_root) else {
+        return PathBuf::new();
+    };
+    let Ok(resolved) = pnpm_fs::realpath_missing(&resolved) else {
+        return PathBuf::new();
+    };
+    if resolved.starts_with(&state_root) { resolved } else { PathBuf::new() }
+}
+
 /// Resolve the default packument-cache directory.
 ///
 /// Generic over [`EnvVar`] and [`GetHomeDir`] for the same reason
@@ -298,6 +331,20 @@ pub const PNPM_VERSION: &str = "12.0.0-rc.8";
 
 pub fn default_fetch_timeout() -> u64 {
     pnpm_network::DEFAULT_FETCH_TIMEOUT_MS
+}
+
+/// Returns the shared `fetchWarnTimeoutMs` default in milliseconds.
+///
+/// See [`pnpm_network::DEFAULT_FETCH_WARN_TIMEOUT_MS`].
+pub fn default_fetch_warn_timeout_ms() -> u64 {
+    pnpm_network::DEFAULT_FETCH_WARN_TIMEOUT_MS
+}
+
+/// Returns the shared `fetchMinSpeedKiBps` default in KiB/s.
+///
+/// See [`pnpm_network::DEFAULT_FETCH_MIN_SPEED_KI_BPS`].
+pub fn default_fetch_min_speed_ki_bps() -> u64 {
+    pnpm_network::DEFAULT_FETCH_MIN_SPEED_KI_BPS
 }
 
 /// Default `User-Agent`, in the format

@@ -1,5 +1,5 @@
 use super::{LazyLockfile, MaybeLazyLockfile};
-use crate::Lockfile;
+use crate::{Lockfile, WantedLockfileSelection};
 use std::fs;
 
 fn minimal_lockfile() -> Lockfile {
@@ -34,12 +34,13 @@ fn deferred_loads_from_the_given_dir_not_the_process_cwd() {
     fs::write(dir.path().join(Lockfile::FILE_NAME), "lockfileVersion: '9.0'\n")
         .expect("write pnpm-lock.yaml");
 
-    let lazy = LazyLockfile::deferred(dir.path().to_path_buf());
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
     assert!(lazy.is_loaded_or_on_disk(), "probe must find the dir-addressed lockfile");
     assert!(lazy.get().expect("deferred load succeeds").is_some());
 
     let empty = tempfile::tempdir().expect("tempdir");
-    let lazy = LazyLockfile::deferred(empty.path().to_path_buf());
+    let lazy =
+        LazyLockfile::deferred(empty.path().to_path_buf(), WantedLockfileSelection::default());
     assert!(!lazy.is_loaded_or_on_disk());
     assert!(lazy.get().expect("absent lockfile loads as None").is_none());
 }
@@ -50,11 +51,11 @@ fn empty_and_env_only_files_count_as_absent() {
     let path = dir.path().join(Lockfile::FILE_NAME);
 
     fs::write(&path, "").expect("write empty lockfile");
-    let lazy = LazyLockfile::deferred(dir.path().to_path_buf());
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
     assert!(!lazy.is_loaded_or_on_disk(), "an empty file must count as absent");
 
     fs::write(&path, "---\nenvDependencies:\n  node: '22.0.0'\n").expect("write env-only lockfile");
-    let lazy = LazyLockfile::deferred(dir.path().to_path_buf());
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
     assert!(!lazy.is_loaded_or_on_disk(), "an env-only document must count as absent");
     assert!(lazy.get().expect("env-only lockfile loads as None").is_none());
 }
@@ -69,7 +70,7 @@ fn unreadable_lockfile_counts_as_present() {
     fs::write(&path, "lockfileVersion: '9.0'\n").expect("write pnpm-lock.yaml");
     fs::set_permissions(&path, fs::Permissions::from_mode(0o000)).expect("drop permissions");
 
-    let lazy = LazyLockfile::deferred(dir.path().to_path_buf());
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
     let present = lazy.is_loaded_or_on_disk();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).expect("restore permissions");
     assert!(present, "an unreadable lockfile must not be mistaken for a missing one");

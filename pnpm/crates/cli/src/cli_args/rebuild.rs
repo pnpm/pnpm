@@ -15,9 +15,7 @@ use std::{
 
 use crate::{
     State,
-    cli_args::pipelines::{
-        InstallFamilySelection, anchor_dedicated_project_config, select_workspace_projects,
-    },
+    cli_args::pipelines::{InstallFamilySelection, select_workspace_projects},
 };
 
 /// `pacquet rebuild` — re-run the lifecycle scripts of installed
@@ -58,7 +56,7 @@ impl RebuildArgs {
         {
             return Ok(());
         }
-        if !cfg.shared_workspace_lockfile
+        if !cfg.shares_one_lockfile()
             && let Some(workspace_selection) = workspace_selection
         {
             let base_config = cfg.clone();
@@ -70,7 +68,7 @@ impl RebuildArgs {
                     let rebuilds = batch.iter().cloned().map(|project_dir| {
                         let args = self.clone();
                         let mut project_config = base_config.clone();
-                        anchor_dedicated_project_config(&mut project_config, &project_dir);
+                        project_config.anchor_lockfile_paths(&project_dir);
                         async move {
                             let project_config = Config::leak(project_config);
                             let state =

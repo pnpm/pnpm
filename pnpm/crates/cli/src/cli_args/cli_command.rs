@@ -51,7 +51,7 @@ use super::{
     rebuild::RebuildArgs,
     remove::RemoveArgs,
     repo::RepoArgs,
-    reporter::ReporterType,
+    reporter::{LogLevelSetting, ReporterType},
     restart::RestartArgs,
     root::RootArgs,
     run::RunArgs,
@@ -129,6 +129,10 @@ pub struct CliArgs {
     )]
     pub store_dir: Option<PathBuf>,
 
+    /// Directory in which pnpm persists machine-local state.
+    #[clap(long = "state-dir", value_name = "DIR", global = true, overrides_with = "state_dir")]
+    pub state_dir: Option<PathBuf>,
+
     /// Path to an `.npmrc` to read auth settings from, overriding the
     /// default `~/.npmrc`.
     #[clap(long = "npmrc-auth-file", visible_alias = "userconfig", global = true)]
@@ -172,6 +176,12 @@ pub struct CliArgs {
     )]
     pub reporter: ReporterType,
 
+    /// What level of logs to print. Mirrors pnpm's universal `--loglevel`
+    /// option: `silent` selects the silent reporter over any `--reporter`
+    /// choice; the other levels cap the default reporter's output.
+    #[clap(long, value_enum, global = true)]
+    pub loglevel: Option<LogLevelSetting>,
+
     /// Select which workspace projects to run on. Repeat to add more.
     /// Each selector can be a name pattern (`@scope/*`), a path (`./pkg`),
     /// a dependency query (`foo...`), an exclusion (`!bar`), a directory
@@ -187,6 +197,29 @@ pub struct CliArgs {
     /// Run the command on the root workspace project.
     #[clap(short = 'w', long = "workspace-root", global = true)]
     pub workspace_root: bool,
+
+    /// Exit with code 1 when the `--filter` / `--filter-prod` selectors
+    /// match no workspace project.
+    #[clap(long = "fail-if-no-match", global = true)]
+    pub fail_if_no_match: bool,
+
+    /// Also run a recursive command on the root workspace project, which
+    /// `run` / `exec` / `add` / `test` otherwise leave out.
+    #[clap(
+        long = "include-workspace-root",
+        global = true,
+        overrides_with = "no_include_workspace_root"
+    )]
+    pub include_workspace_root: bool,
+
+    /// Leave the root workspace project out of a recursive command,
+    /// overriding an `includeWorkspaceRoot: true` setting.
+    #[clap(
+        long = "no-include-workspace-root",
+        global = true,
+        overrides_with = "include_workspace_root"
+    )]
+    pub no_include_workspace_root: bool,
 
     /// Glob patterns naming test files, used by the `[since]` `--filter`
     /// selector to decide which changes count.
@@ -237,6 +270,16 @@ fn parse_store_dir(value: &str) -> Result<PathBuf, std::convert::Infallible> {
 }
 
 impl CliArgs {
+    /// The reporter the command should drive: `--loglevel silent` forces
+    /// the silent reporter over any `--reporter` choice, mirroring the
+    /// reporter selection in pnpm 11's `main.ts`.
+    pub(crate) fn effective_reporter(&self) -> ReporterType {
+        if self.loglevel == Some(LogLevelSetting::Silent) {
+            return ReporterType::Silent;
+        }
+        self.reporter
+    }
+
     pub fn validate_command_scoped_global_options(&self) -> Result<(), clap::Error> {
         if self.resume_from.is_some() {
             self.validate_run_scoped_global_option("--resume-from")?;

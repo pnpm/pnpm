@@ -14,11 +14,11 @@ use crate::cli_args::{
             BuildTreeOptions, DependenciesHierarchy, LoadedState, build_dependencies_tree,
             importer_root_ids,
         },
-        finders::{evaluate_finders, finder_candidates, resolve_finders},
         get_tree::MaxDepth,
         graph::{BuildGraphOptions, build_dependency_graph},
         search::Searcher,
     },
+    deps_tree_finders::{evaluate_finders, finder_candidates, resolve_finders},
     recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
 };
 
@@ -207,13 +207,13 @@ impl ListArgs {
 
         let always_print_root_package = self.depth == RecursionLimit::ProjectsOnly;
 
-        if config.shared_workspace_lockfile {
+        if config.shares_one_lockfile() {
             return self
                 .render_projects(
                     config,
                     &project_dirs,
                     &self.packages,
-                    &workspace_root,
+                    config.lockfile_dir_for(&workspace_root),
                     always_print_root_package,
                 )
                 .await;
@@ -379,15 +379,9 @@ fn global_report_as(report_as: ReportAs) -> ListReportAs {
     }
 }
 
-/// The directory the lockfile is read from for a non-recursive `list`:
-/// the workspace root under a shared workspace lockfile, the project
-/// itself otherwise.
+/// The directory the lockfile is read from for a non-recursive `list`.
 pub(crate) fn local_lockfile_dir(config: &Config, dir: &Path) -> PathBuf {
-    if config.shared_workspace_lockfile {
-        config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf())
-    } else {
-        dir.to_path_buf()
-    }
+    config.lockfile_dir_for(dir).to_path_buf()
 }
 
 /// Print command output the way the TypeScript CLI does: nothing for an

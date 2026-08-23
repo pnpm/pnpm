@@ -291,6 +291,12 @@ pub fn dependencies_graph_to_lockfile(
         packages: (!packages.is_empty()).then_some(packages),
         snapshots: (!snapshots.is_empty()).then_some(snapshots),
         time: (!time.is_empty()).then_some(time),
+        // A freshly resolved lockfile, not a rewrite of the previous one,
+        // so it starts with no foreign top-level keys. A host that records
+        // its own block re-asserts it after the install (it is writing its
+        // fresh contents anyway); `Lockfile::extra` is what makes that
+        // read-edit-write round trip lossless.
+        extra: pnpm_lockfile::LockfileExtra::default(),
     })
 }
 
@@ -433,10 +439,13 @@ fn build_importer(
             let targeted_by_update = match update_reuse_scope {
                 UpdateReuseScope::All => false,
                 UpdateReuseScope::None => true,
-                UpdateReuseScope::Except(names) => graph
+                // By name alone: this runs after resolution, where the
+                // version in hand is the one the update just produced, not
+                // the line the selector asked to move.
+                UpdateReuseScope::Except(targets) => graph
                     .get(dep_path)
                     .and_then(node_pkg_name)
-                    .is_some_and(|name| names.contains(&name)),
+                    .is_some_and(|name| targets.covers(&name, None)),
             };
             let targeted_by_spec_change = previous.specifier != specifier;
             if !targeted_by_update && !targeted_by_spec_change {

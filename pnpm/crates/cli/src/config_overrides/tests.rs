@@ -1,4 +1,6 @@
-use super::{ConfigOverrides, apply_registry_override, apply_store_dir_override};
+use super::{
+    ConfigOverrides, apply_registry_override, apply_state_dir_override, apply_store_dir_override,
+};
 use pnpm_config::{
     Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail, RuntimeOnFail,
 };
@@ -92,6 +94,42 @@ fn extract_leaves_other_bare_flags_for_clap() {
     let (_, remaining) =
         ConfigOverrides::extract(argv(["pacquet", "install", "--node-linker=hoisted"]));
     assert_eq!(remaining, argv(["pacquet", "install", "--node-linker=hoisted"]));
+}
+
+#[test]
+fn extract_rewrites_the_dotted_state_dir_for_clap() {
+    let (_, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.state-dir=/custom/state", "install"]));
+    assert_eq!(remaining, argv(["pacquet", "--state-dir=/custom/state", "install"]));
+}
+
+#[test]
+fn state_dir_cli_override_is_recorded() {
+    let anchor = tempfile::tempdir().unwrap();
+    let mut config = Config::default();
+    apply_state_dir_override::<pnpm_config::Host>(
+        &mut config,
+        PathBuf::from("custom-state").as_path(),
+        anchor.path(),
+    );
+    assert_eq!(config.state_dir, anchor.path().join("custom-state"));
+    assert_eq!(
+        config.explicit_settings.get("stateDir"),
+        Some(&serde_json::Value::String("custom-state".to_string())),
+    );
+}
+
+#[test]
+fn absolute_state_dir_cli_override_is_preserved() {
+    let root = tempfile::tempdir().unwrap();
+    let state_dir = root.path().join("absolute-state");
+    let mut config = Config::default();
+    apply_state_dir_override::<pnpm_config::Host>(
+        &mut config,
+        &state_dir,
+        &root.path().join("unrelated-anchor"),
+    );
+    assert_eq!(config.state_dir, state_dir);
 }
 
 #[test]
@@ -253,6 +291,28 @@ fn node_linker_override_rederives_prefer_symlinked_executables() {
     overrides.apply(&mut config);
     assert_eq!(config.node_linker, NodeLinker::Hoisted);
     assert_eq!(config.prefer_symlinked_executables, Some(false));
+}
+
+#[test]
+fn extract_applies_ignore_scripts_override() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.ignore-scripts=true", "pack"]));
+    assert_eq!(remaining, argv(["pacquet", "pack"]));
+    let mut config = Config::default();
+    assert!(!config.ignore_scripts);
+    overrides.apply(&mut config);
+    assert!(config.ignore_scripts);
+    assert_eq!(config.explicit_settings.get("ignoreScripts"), Some(&serde_json::Value::Bool(true)));
+
+    let (overrides, _) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.ignore-scripts=false", "pack"]));
+    let mut config = Config { ignore_scripts: true, ..Config::default() };
+    overrides.apply(&mut config);
+    assert!(!config.ignore_scripts);
+    assert_eq!(
+        config.explicit_settings.get("ignoreScripts"),
+        Some(&serde_json::Value::Bool(false)),
+    );
 }
 
 #[test]

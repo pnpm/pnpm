@@ -36,6 +36,7 @@ mod update;
 mod update_project_manifest;
 mod update_project_manifest_object;
 mod warn_on_stale_convergence_overrides;
+mod workspace_cycles;
 
 pub use add::*;
 pub use build_resolution_verifiers::*;
@@ -59,11 +60,16 @@ pub use pnpm_patching::{
 pub use prefetching_resolver::*;
 pub use remove::*;
 pub use resolution_observer::*;
+pub use resolution_policy::{PickPolicy, create_configured_npm_resolver};
 pub use resolve_latest::ResolveLatestError;
 pub use tarball_prefetch::*;
 pub use update::*;
 pub use update_project_manifest::*;
 pub use update_project_manifest_object::*;
+pub use workspace_cycles::{
+    CyclicWorkspaceDependenciesError, install_scope_cycles, report_workspace_cycles,
+    workspace_cycles,
+};
 
 /// The dependency groups a project installs directly — `dependencies`,
 /// `devDependencies`, `optionalDependencies` — in the order pnpm's
@@ -96,3 +102,15 @@ pub(crate) fn emit_initial_package_manifest<Reporter: pnpm_reporter::Reporter>(
 
 #[cfg(test)]
 mod tests;
+
+/// The pnpmfiles an install runs, as configured. Every entry point that loads
+/// hooks or asks whether any exist reads the same pair of settings.
+#[must_use]
+pub fn pnpmfile_selection(
+    config: &pnpm_config::Config,
+) -> pnpm_hooks::finder::PnpmfileSelection<'_> {
+    pnpm_hooks::finder::PnpmfileSelection {
+        configured: config.pnpmfile.as_deref(),
+        global: config.global_pnpmfile.as_deref(),
+    }
+}

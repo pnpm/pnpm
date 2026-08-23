@@ -266,7 +266,7 @@ fn apply_scope_overrides_an_earlier_layer() {
 
 #[test]
 fn apply_resolves_relative_paths_against_base_dir() {
-    let yaml = "storeDir: ../shared-store\n";
+    let yaml = "storeDir: ../shared-store\npnpmfile: hooks/../custom.cjs\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::new();
     let base = Path::new("/workspace/root");
@@ -277,6 +277,12 @@ fn apply_resolves_relative_paths_against_base_dir() {
     // under test uses so the component separator matches on every
     // platform (Windows uses `\` between joined components).
     assert_eq!(config.store_dir, StoreDir::from(base.join("../shared-store")));
+    assert_eq!(config.pnpmfile, Some(vec![base.join("custom.cjs")]));
+
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("pnpmfile: [hooks/../custom.cjs, custom.cjs]\n").unwrap();
+    settings.apply_to(&mut config, base);
+    assert_eq!(config.pnpmfile, Some(vec![base.join("custom.cjs"), base.join("custom.cjs")]));
 }
 
 /// pnpm reads `fetchRetries` / `fetchRetryFactor` /
@@ -337,25 +343,28 @@ fn parses_git_checks_from_yaml_and_applies() {
     assert!(!config.git_checks);
 }
 
-/// `networkConcurrency` / `fetchTimeout` / `userAgent` parse from
-/// `pnpm-workspace.yaml` as camelCase keys and `apply_to` pushes them
-/// onto the `Config`, matching pnpm.
 #[test]
 fn parses_network_settings_from_yaml_and_applies() {
     let yaml = r"
 networkConcurrency: 8
 fetchTimeout: 120000
+fetchWarnTimeoutMs: 20000
+fetchMinSpeedKiBps: 100
 userAgent: my-agent/2.0
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(settings.network_concurrency, Some(8));
     assert_eq!(settings.fetch_timeout, Some(120_000));
+    assert_eq!(settings.fetch_warn_timeout_ms, Some(20_000));
+    assert_eq!(settings.fetch_min_speed_ki_bps, Some(100));
     assert_eq!(settings.user_agent.as_deref(), Some("my-agent/2.0"));
 
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.network_concurrency, 8);
     assert_eq!(config.fetch_timeout, 120_000);
+    assert_eq!(config.fetch_warn_timeout_ms, 20_000);
+    assert_eq!(config.fetch_min_speed_ki_bps, 100);
     assert_eq!(config.user_agent, "my-agent/2.0");
 }
 
@@ -559,6 +568,54 @@ fn parses_verify_store_integrity_from_yaml_and_applies() {
     assert!(config.verify_store_integrity, "the default is `true` to match pnpm");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert!(!config.verify_store_integrity, "yaml override wins");
+}
+
+/// `strictStorePkgContentCheck` decides whether a store row that holds
+/// another package fails the install. Same camelCase rename +
+/// `apply_to` wiring as `verifyStoreIntegrity`, and the same
+/// default-true polarity.
+#[test]
+fn parses_strict_store_pkg_content_check_from_yaml_and_applies() {
+    let yaml = "strictStorePkgContentCheck: false\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.strict_store_pkg_content_check, Some(false));
+
+    let mut config = Config::new();
+    assert!(config.strict_store_pkg_content_check, "the default is `true` to match pnpm");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(!config.strict_store_pkg_content_check, "yaml override wins");
+}
+
+/// `includeWorkspaceRoot` keeps the workspace root in a recursive
+/// selection. Default `false`, so the yaml has to flip it on.
+#[test]
+fn parses_include_workspace_root_from_yaml_and_applies() {
+    let yaml = "includeWorkspaceRoot: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.include_workspace_root, Some(true));
+
+    let mut config = Config::new();
+    assert!(!config.include_workspace_root, "the default is `false` to match pnpm");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.include_workspace_root, "yaml override wins");
+}
+
+/// The two workspace-cycle knobs are independent keys — one silences the
+/// report, the other promotes it to an error — so a file setting both is
+/// applied to both fields.
+#[test]
+fn parses_the_workspace_cycle_settings_from_yaml_and_applies() {
+    let yaml = "ignoreWorkspaceCycles: true\ndisallowWorkspaceCycles: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.ignore_workspace_cycles, Some(true));
+    assert_eq!(settings.disallow_workspace_cycles, Some(true));
+
+    let mut config = Config::new();
+    assert!(!config.ignore_workspace_cycles, "the default is `false` to match pnpm");
+    assert!(!config.disallow_workspace_cycles, "the default is `false` to match pnpm");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.ignore_workspace_cycles, "yaml override wins");
+    assert!(config.disallow_workspace_cycles, "yaml override wins");
 }
 
 /// `sideEffectsCache` is the side-effects cache READ-path knob from

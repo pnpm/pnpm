@@ -15,7 +15,7 @@ use pnpm_lockfile::{
     DirectoryResolution, ImporterDepVersion, LazyLockfile, Lockfile, LockfileResolution,
     MaybeLazyLockfile, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot,
     ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
-    TarballResolution, VersionPart,
+    TarballResolution, VersionPart, WantedLockfileSelection,
 };
 use pnpm_package_manager::{
     ImportIndexedDirOpts, Install, ProjectMutation, UpdateSeedPolicy, import_indexed_dir,
@@ -169,7 +169,7 @@ impl DeployArgs {
         }
 
         let force_legacy = self.legacy || config.force_legacy_deploy;
-        if config.shared_workspace_lockfile && !force_legacy && !config.inject_workspace_packages {
+        if config.shares_one_lockfile() && !force_legacy && !config.inject_workspace_packages {
             return Err(DeployError::NonInjectedWorkspace.into());
         }
 
@@ -191,7 +191,7 @@ impl DeployArgs {
             !config.deploy_all_files,
         )?;
 
-        if config.shared_workspace_lockfile && !force_legacy {
+        if config.shares_one_lockfile() && !force_legacy {
             match Box::pin(self.deploy_from_shared_lockfile::<ReporterT>(
                 config,
                 workspace_dir,
@@ -203,7 +203,7 @@ impl DeployArgs {
                 SharedDeployOutcome::Deployed => return Ok(()),
                 SharedDeployOutcome::Fallback(warning) => warn::<ReporterT>(&deploy_dir, warning),
             }
-        } else if config.shared_workspace_lockfile && force_legacy {
+        } else if config.shares_one_lockfile() && force_legacy {
             warn::<ReporterT>(
                 &deploy_dir,
                 "Shared workspace lockfile detected but configuration forces legacy deploy implementation.",
@@ -232,7 +232,24 @@ impl DeployArgs {
         if !config.inject_workspace_packages {
             return Err(DeployError::NonInjectedWorkspace.into());
         }
-        let Some(lockfile) = Lockfile::load_wanted_from_dir(workspace_dir)
+        // The shared lockfile, and the importer ids naming the projects in
+        // it, belong to the lockfile dir — which `lockfileDir` can move
+        // away from the workspace this deploy selected its project from.
+        let lockfile_dir = config.lockfile_dir_for(workspace_dir);
+        // Every path this deploy resolves is a lockfile-relative importer
+        // id joined onto that dir, and none of them may escape it. A pin
+        // that does not contain the workspace makes each project's id
+        // climb out (`../packages/app`), so the shared path cannot
+        // describe this layout at all: hand it to the legacy installer,
+        // which resolves the deployed manifest on its own.
+        if !same_path(workspace_dir, lockfile_dir) && !is_ancestor_path(lockfile_dir, workspace_dir)
+        {
+            return Ok(SharedDeployOutcome::Fallback(format!(
+                "The lockfile at {} does not contain the workspace, so its importer paths cannot be deployed. Falling back to installing without it.",
+                lockfile_dir.display(),
+            )));
+        }
+        let Some(lockfile) = Lockfile::load_wanted_from_dir(lockfile_dir)
             .map_err(miette::Report::new)
             .wrap_err("read shared lockfile")?
         else {
@@ -242,14 +259,14 @@ impl DeployArgs {
             ));
         };
 
-        let project_id = importer_id_from_root_dir(workspace_dir, &selected.project.root_dir);
+        let project_id = importer_id_from_root_dir(lockfile_dir, &selected.project.root_dir);
         let dependency_groups =
             self.install_args.dependency_options.dependency_groups().collect::<Vec<_>>();
         let deploy_files = create_deploy_files(
             &lockfile,
             selected,
             &project_id,
-            workspace_dir,
+            lockfile_dir,
             deploy_dir,
             config,
             &dependency_groups,
@@ -306,9 +323,12 @@ impl DeployArgs {
             // The deployed project is not one of the source workspace's
             // importers — the deploy hook rewrites the copied manifest —
             // so its resolution must not be seeded from the workspace
-            // lockfile.
+            // lockfile. Plain `pnpm-lock.yaml` whatever the branch settings
+            // say, for the same reason: they describe that workspace
+            // resolution, and pnpm's deploy reads and writes the deployed
+            // lockfile under the plain name too.
             state.lockfile = if state.config.lockfile || frozen_lockfile {
-                LazyLockfile::deferred(deploy_dir.to_path_buf())
+                LazyLockfile::deferred(deploy_dir.to_path_buf(), WantedLockfileSelection::default())
             } else {
                 LazyLockfile::disabled()
             };
@@ -395,6 +415,11 @@ fn create_deploy_install_config(
     let mut deploy_config = base_config.clone();
     deploy_config.modules_dir = deploy_dir.join("node_modules");
     deploy_config.virtual_store_dir = deploy_dir.join("node_modules/.pnpm");
+    // The deploy directory owns the lockfile this install runs against —
+    // the generated one for a shared deploy, its own resolution for the
+    // legacy path. A `lockfileDir` pinning the *source* workspace's
+    // lockfile must not redirect either.
+    deploy_config.lockfile_dir = None;
     deploy_config.global_virtual_store_dir = deploy_config.virtual_store_dir.clone();
     deploy_config.enable_global_virtual_store = false;
     deploy_config.pnpr_server = None;
@@ -744,24 +769,36 @@ fn create_deploy_files(
 
     let selected_root = lexical_normalize(&selected.project.root_dir);
     let selected_bases = ResolveBases { file_base: lockfile_dir, link_base: &selected_root };
-    fill_target_dependency_map(
-        &mut target_snapshot.dependencies,
-        input_snapshot.dependencies.as_ref(),
-        &ctx,
-        &selected_bases,
-    )?;
-    fill_target_dependency_map(
-        &mut target_snapshot.dev_dependencies,
-        input_snapshot.dev_dependencies.as_ref(),
-        &ctx,
-        &selected_bases,
-    )?;
-    fill_target_dependency_map(
-        &mut target_snapshot.optional_dependencies,
-        input_snapshot.optional_dependencies.as_ref(),
-        &ctx,
-        &selected_bases,
-    )?;
+    // An excluded group's direct dependencies are left out of both the
+    // deployed manifest and the deployed importer, because the graph prune
+    // below drops the packages they would point at.
+    if dependency_groups.contains(&DependencyGroup::Prod) {
+        fill_target_dependency_map(
+            &mut target_snapshot.dependencies,
+            input_snapshot.dependencies.as_ref(),
+            &ctx,
+            &selected_bases,
+        )?;
+    }
+    if dependency_groups.contains(&DependencyGroup::Dev) {
+        fill_target_dependency_map(
+            &mut target_snapshot.dev_dependencies,
+            input_snapshot.dev_dependencies.as_ref(),
+            &ctx,
+            &selected_bases,
+        )?;
+    }
+    if dependency_groups.contains(&DependencyGroup::Optional) {
+        fill_target_dependency_map(
+            &mut target_snapshot.optional_dependencies,
+            input_snapshot.optional_dependencies.as_ref(),
+            &ctx,
+            &selected_bases,
+        )?;
+    }
+    drop_empty_dependency_map(&mut target_snapshot.dependencies);
+    drop_empty_dependency_map(&mut target_snapshot.dev_dependencies);
+    drop_empty_dependency_map(&mut target_snapshot.optional_dependencies);
 
     let mut packages = HashMap::new();
     if let Some(input_packages) = lockfile.packages.as_ref() {
@@ -892,17 +929,13 @@ fn create_deploy_files(
 
 /// Keep only the dependency graph that the deploy install will materialize.
 ///
-/// The deploy importer and package manifest intentionally retain every direct
-/// dependency group so the generated frozen lockfile still satisfies the
-/// generated manifest. Only the package graph is mode-specific: for example,
-/// `deploy --prod` excludes dev-only and unrelated workspace snapshots from
-/// both the lockfile and the localized virtual store.
+/// The deploy importer already carries just the included dependency groups, so
+/// this walks it in full: `deploy --prod` excludes dev-only and unrelated
+/// workspace snapshots from both the lockfile and the localized virtual store.
 fn prune_deploy_lockfile_graph(lockfile: &mut Lockfile, dependency_groups: &[DependencyGroup]) {
     let Some(snapshots) = lockfile.snapshots.as_ref() else { return };
     let Some(importer) = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY) else { return };
 
-    let include_prod = dependency_groups.contains(&DependencyGroup::Prod);
-    let include_dev = dependency_groups.contains(&DependencyGroup::Dev);
     let include_optional = dependency_groups.contains(&DependencyGroup::Optional);
     let mut queue = VecDeque::new();
 
@@ -915,15 +948,9 @@ fn prune_deploy_lockfile_graph(lockfile: &mut Lockfile, dependency_groups: &[Dep
                 }
             }
         };
-        if include_prod {
-            enqueue_importer_map(importer.dependencies.as_ref());
-        }
-        if include_dev {
-            enqueue_importer_map(importer.dev_dependencies.as_ref());
-        }
-        if include_optional {
-            enqueue_importer_map(importer.optional_dependencies.as_ref());
-        }
+        enqueue_importer_map(importer.dependencies.as_ref());
+        enqueue_importer_map(importer.dev_dependencies.as_ref());
+        enqueue_importer_map(importer.optional_dependencies.as_ref());
     }
 
     let mut reachable = HashSet::new();
@@ -964,6 +991,13 @@ fn prune_deploy_lockfile_graph(lockfile: &mut Lockfile, dependency_groups: &[Dep
         if packages.is_empty() {
             lockfile.packages = None;
         }
+    }
+}
+
+/// A lockfile importer records a dependency group only when it has entries.
+fn drop_empty_dependency_map(dependencies: &mut Option<ResolvedDependencyMap>) {
+    if dependencies.as_ref().is_some_and(HashMap::is_empty) {
+        *dependencies = None;
     }
 }
 

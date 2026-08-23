@@ -652,6 +652,67 @@ fn recursive_run_auto_excludes_workspace_root() {
     drop(root);
 }
 
+/// `--include-workspace-root` keeps the root in the selection the
+/// previous test drops it from, so its `build` runs alongside the
+/// sub-packages'.
+#[test]
+fn include_workspace_root_flag_keeps_the_root_in_a_recursive_run() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_with_root_and_packages(&workspace);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--include-workspace-root")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(workspace.join("root-ran.txt").exists(), "the root must run under the flag");
+    assert!(workspace.join("packages/project-1/ran.txt").exists(), "project-1 should run");
+    assert!(workspace.join("packages/project-2/ran.txt").exists(), "project-2 should run");
+
+    drop(root);
+}
+
+/// The flag is the CLI half of the `includeWorkspaceRoot` setting, which
+/// reads from `pnpm-workspace.yaml` too — and `--no-include-workspace-root`
+/// overrides the setting back off, the way pnpm's `--no-` negation does.
+#[test]
+fn include_workspace_root_setting_is_read_from_the_workspace_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_with_root_and_packages(&workspace);
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nincludeWorkspaceRoot: true\n",
+    )
+    .expect("write workspace manifest");
+
+    let markers = [
+        workspace.join("root-ran.txt"),
+        workspace.join("packages/project-1/ran.txt"),
+        workspace.join("packages/project-2/ran.txt"),
+    ];
+
+    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
+    for marker in &markers {
+        assert!(marker.exists(), "{} should run under the setting", marker.display());
+        fs::remove_file(marker).expect("clear the marker");
+    }
+
+    let mut negated = Command::cargo_bin("pnpm").unwrap();
+    negated.current_dir(&workspace);
+    negated.args(["-r", "--no-include-workspace-root", "run", "build"]).assert().success();
+    assert!(!markers[0].exists(), "--no-include-workspace-root must override the setting");
+    // The negation drops the root, not the selection: a run that
+    // selected nothing would leave these missing too.
+    for marker in &markers[1..] {
+        assert!(marker.exists(), "{} should still run", marker.display());
+    }
+
+    drop(root);
+}
+
 /// An all-exclusion selection (`--filter=!<name>`) also drops the
 /// workspace root, matching the release-workflow shape
 /// (`--filter=!pnpm --filter=!@pnpm/exe`): `-r --filter=!project-2 run

@@ -3,8 +3,36 @@ use std::time::Duration;
 
 use super::{
     ABBREVIATED_META_CONTENT_TYPE, ACCEPT_ABBREVIATED_DOC, FetchFullMetadataOptions,
-    FetchFullMetadataOutcome, fetch_full_metadata,
+    FetchFullMetadataOutcome, fetch_full_metadata, warn_if_request_is_slow,
 };
+
+#[test]
+fn warns_when_metadata_request_exceeds_configured_timeout() {
+    static WARNINGS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+    fn record_warning(message: &str) {
+        WARNINGS.lock().expect("warning recorder lock poisoned").push(message.to_string());
+    }
+
+    let http_client = ThrottledClient::default();
+    http_client.set_warning_handler(record_warning);
+    WARNINGS.lock().expect("warning recorder lock poisoned").clear();
+
+    warn_if_request_is_slow(
+        &http_client,
+        Duration::from_millis(10_001),
+        "https://user:pass@registry.example.test/pkg?token=secret#fragment\u{1b}",
+    );
+    warn_if_request_is_slow(
+        &http_client,
+        Duration::from_secs(10),
+        "https://registry.example.test/not-slow",
+    );
+
+    assert_eq!(
+        *WARNINGS.lock().expect("warning recorder lock poisoned"),
+        ["Request took 10001ms: https://registry.example.test/pkg"],
+    );
+}
 
 /// The two constants repeat the media type as separate literals (Rust
 /// cannot build one string const from another without a macro), so

@@ -1,11 +1,15 @@
 use super::{
     cli_command::{CliArgs, CliCommand},
     dispatch_install, dispatch_query, dispatch_script,
-    reporter::{ReporterType, configure_default_reporter, reporter_emit},
+    install::resolve_bool_override,
+    reporter::{ReporterType, configure_default_reporter, configure_max_log_level, reporter_emit},
 };
 use crate::{
     State,
-    config_overrides::{ConfigOverrides, apply_registry_override, apply_store_dir_override},
+    config_overrides::{
+        ConfigOverrides, apply_registry_override, apply_state_dir_override,
+        apply_store_dir_override,
+    },
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{Config, Host, default_pnpm_home_dir};
@@ -67,7 +71,7 @@ impl CliArgs {
     pub fn configure_reporter(&self) {
         let dir = dunce::canonicalize(&self.dir).unwrap_or_else(|_| self.dir.clone());
         configure_default_reporter(
-            self.reporter,
+            self.effective_reporter(),
             &dir,
             self.command.default_reporter_summary_scope(),
             self.command.reports_scope(self.recursive),
@@ -75,6 +79,7 @@ impl CliArgs {
             self.recursive,
             self.command.uses_stderr_reporter(),
         );
+        configure_max_log_level(self.loglevel);
     }
 
     pub fn run_completion_if_requested(&self) -> miette::Result<bool> {
@@ -132,8 +137,12 @@ impl CliArgs {
         {
             return false;
         }
+        if let Some(state_dir) = self.state_dir.as_deref() {
+            apply_state_dir_override::<Host>(&mut config, state_dir, &dir);
+        }
+        install_args.lockfile_dir.apply_to(&mut config, &dir);
         self.configure_reporter();
-        let emit = reporter_emit(self.reporter);
+        let emit = reporter_emit(self.effective_reporter());
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
             // The fast path returns from `main` before `run` reaches its
@@ -159,21 +168,28 @@ impl CliArgs {
         }
         self.configure_reporter();
 
+        let reporter = self.effective_reporter();
         // `version` short-circuits in `main`, never reaching dispatch.
         let CliArgs {
             command,
             dir,
             store_dir,
+            state_dir,
             npmrc_auth_file,
             registry,
             https_proxy,
             http_proxy,
             no_proxy,
             recursive,
-            reporter,
+            reporter: _,
+            loglevel: _,
             filter,
             filter_prod,
             workspace_root,
+            fail_if_no_match,
+
+            include_workspace_root,
+            no_include_workspace_root,
             test_pattern,
             changed_files_ignore_pattern,
             version: _,
@@ -254,15 +270,26 @@ impl CliArgs {
                 if let Some(store_dir) = store_dir.as_deref() {
                     apply_store_dir_override::<Host>(&mut cfg, store_dir, anchor)?;
                 }
+                if let Some(state_dir) = state_dir.as_deref() {
+                    apply_state_dir_override::<Host>(&mut cfg, state_dir, anchor);
+                }
                 // `--recursive` / `--filter` / `--filter-prod` /
-                // `--workspace-root` are CLI-only upstream (not `.npmrc` /
-                // yaml keys), so the global flags are threaded in here.
-                // Mirrors pnpm's `Config.recursive` / `.filter` /
-                // `.filterProd` / `.workspaceRoot`.
+                // `--workspace-root` / `--fail-if-no-match` are CLI-only
+                // upstream (not `.npmrc` / yaml keys), so the global flags
+                // are threaded in here. Mirrors pnpm's `Config.recursive` /
+                // `.filter` / `.filterProd` / `.workspaceRoot` /
+                // `.failIfNoMatch`.
                 cfg.recursive = recursive;
                 cfg.filter.clone_from(&filter);
                 cfg.filter_prod.clone_from(&filter_prod);
                 cfg.workspace_root = workspace_root;
+                cfg.fail_if_no_match = fail_if_no_match;
+
+                cfg.include_workspace_root = resolve_bool_override(
+                    include_workspace_root,
+                    no_include_workspace_root,
+                    cfg.include_workspace_root,
+                );
                 // Unlike the CLI-only selectors above, these two are
                 // genuine config keys — the flag overrides yaml / env
                 // only when actually given.

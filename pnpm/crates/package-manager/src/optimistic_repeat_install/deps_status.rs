@@ -101,14 +101,14 @@ pub fn check_deps_status_before_run(
     // A filtered install legitimately leaves unselected projects
     // without a modules directory.
     if !state.filtered_install
-        && let Some(id) = first_project_missing_modules_dir(config, project_manifests)
+        && let Some(id) = first_project_missing_modules_dir(config, node_linker, project_manifests)
     {
         return outdated(format!(
             "Workspace package {id} has dependencies but does not have a modules directory",
         ));
     }
     if !is_workspace_install
-        && !workspace_root.join(Lockfile::FILE_NAME).exists()
+        && !workspace_root.join(config.wanted_lockfile_name()).exists()
         && !current_lockfile_file_has_content(&config.virtual_store_dir)
     {
         return outdated(format!("Cannot find a lockfile in {}", workspace_root.display()));
@@ -130,7 +130,7 @@ pub fn check_deps_status_before_run(
         .filter(|stat| modified_at_or_after(stat.mtime, state.last_validated_timestamp))
         .collect();
     let lockfile_modified =
-        wanted_lockfile_modified(workspace_root, state.last_validated_timestamp);
+        wanted_lockfile_modified(workspace_root, config, state.last_validated_timestamp);
 
     match current_lockfile_unusable_with_non_empty_wanted(check) {
         Ok(true) => {

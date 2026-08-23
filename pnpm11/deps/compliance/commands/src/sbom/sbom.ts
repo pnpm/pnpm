@@ -20,6 +20,7 @@ import {
 } from '@pnpm/deps.compliance.sbom'
 import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { getStorePath } from '@pnpm/store.path'
 import type { ProjectId, ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -417,6 +418,23 @@ async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedCont
   return { lockfile, rootManifest, rootManifestDir, rootLicense, storeDir, workspaceManifestsByImporterId, excludePeerNamesByImporter }
 }
 
+/**
+ * A selected project the lockfile has no importer for means the lockfile is
+ * out of date — pnpm writes an entry for every project, `{}` for one with no
+ * dependencies. Walking the rest would answer with an SBOM that under-reports
+ * the selection's dependencies, so the run fails instead.
+ */
+function assertImportersAreInLockfile (lockfile: LockfileObject, importerIds: ProjectId[] | undefined): void {
+  if (importerIds == null) return
+  const missing = importerIds.filter((importerId) => lockfile.importers[importerId] == null)
+  if (missing.length === 0) return
+  throw new PnpmError(
+    'SBOM_MISSING_IMPORTERS',
+    `${WANTED_LOCKFILE} has no entry for the selected project${missing.length === 1 ? '' : 's'}: ${missing.join(', ')}.`,
+    { hint: 'Run "pnpm install" to update it.' }
+  )
+}
+
 async function generateSbomForProject (
   opts: SbomCommandOptions,
   serialOpts: SerializeOptions,
@@ -464,6 +482,7 @@ async function generateSbomForProject (
     ? Object.keys(opts.selectedProjectsGraph)
       .map((p) => getLockfileImporterId(lockfileDir, p))
     : undefined
+  assertImportersAreInLockfile(lockfile, includedImporterIds)
 
   const resolvedWorkspaceDeps = opts.lockfileOnly
     ? undefined

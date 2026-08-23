@@ -9,7 +9,7 @@ use crate::{
     decide_catalog, emit_initial_package_manifest,
     manifest_spec_bumps::ManifestSpecBumps,
     package_manifest_prefix,
-    resolution_policy::PickPolicy,
+    resolution_policy::{PickPolicy, create_configured_npm_resolver},
     selected_project_indices,
 };
 use chrono::{DateTime, Utc};
@@ -37,11 +37,8 @@ use pnpm_reporter::{
     LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, PnpmLog, Reporter,
 };
 use pnpm_resolving_default_resolver::DefaultResolver;
-use pnpm_resolving_deps_resolver::{UpdateDepth, real_package_name_of};
-use pnpm_resolving_npm_resolver::{
-    DeclaredSpecifiers, InMemoryPackageMetaCache, NpmResolver, calc_specifier_for_workspace_dep,
-    merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
-};
+use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets, VersionLine, real_package_name_of};
+use pnpm_resolving_npm_resolver::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
 use pnpm_resolving_resolver_base::{
     PreferredVersions, ResolveOptions, Resolver, UpdateBehavior, VersionSelectorType,
     WantedDependency, WorkspacePackages, WorkspacePackagesByVersion,
@@ -152,6 +149,11 @@ pub struct Update<'a> {
 /// Error type of [`Update`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum UpdateError {
+    /// A path named by the `pnpmfile` setting is not on disk. pnpm reports the
+    /// same code and message from `requireHooks`.
+    #[display("{_0}")]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_NOT_FOUND))]
+    MissingPnpmfile(#[error(not(source))] pnpm_hooks::finder::MissingPnpmfileError),
     /// `--latest` was combined with a versioned selector (`foo@2`).
     #[display("Specs are not allowed to be used with --latest ({_0})")]
     #[diagnostic(code(ERR_PNPM_LATEST_WITH_SPEC))]
@@ -283,6 +285,8 @@ impl Update<'_> {
             lockfile_only,
             resolution_observer,
         } = self;
+        http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
 
         crate::minimum_release_age::ensure_strict_minimum_release_age_can_save(config, save)
             .map_err(UpdateError::MinimumReleaseAge)?;
@@ -292,7 +296,8 @@ impl Update<'_> {
         let workspace_root = crate::install::lockfile_root_dir(config, &manifest_dir)
             .map_err(UpdateError::FindWorkspaceDir)?;
         let read_package_hook = (!save && !config.ignore_pnpmfile)
-            .then(|| update_read_package_hook::<Reporter>(&workspace_root))
+            .then(|| update_read_package_hook::<Reporter>(&workspace_root, config))
+            .transpose()?
             .flatten();
         let mut read_package_hooked_manifest_paths = HashSet::new();
         if let Some((hook, log)) = read_package_hook.as_ref() {
@@ -465,6 +470,8 @@ impl Update<'_> {
             lockfile_only,
             resolution_observer,
         } = self;
+        http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
 
         crate::minimum_release_age::ensure_strict_minimum_release_age_can_save(config, save)
             .map_err(UpdateError::MinimumReleaseAge)?;
@@ -479,7 +486,8 @@ impl Update<'_> {
         )
         .map_err(UpdateError::FindWorkspaceDir)?;
         let read_package_hook = (!save && !config.ignore_pnpmfile)
-            .then(|| update_read_package_hook::<Reporter>(&workspace_root))
+            .then(|| update_read_package_hook::<Reporter>(&workspace_root, config))
+            .transpose()?
             .flatten();
         let mut read_package_hooked_manifest_paths = HashSet::new();
         if let Some((hook, log)) = read_package_hook.as_ref() {
@@ -666,10 +674,20 @@ struct SelectedUpdatePreparation {
     any_work: bool,
 }
 
+/// A loaded `readPackage` hook paired with the log sink its `context.log`
+/// calls are forwarded to.
+type ReadPackageHook = (Arc<dyn pnpm_hooks::PnpmfileHooks>, pnpm_hooks::LogFn);
+
 fn update_read_package_hook<Reporter: self::Reporter>(
     workspace_root: &Path,
-) -> Option<(Arc<dyn pnpm_hooks::PnpmfileHooks>, pnpm_hooks::LogFn)> {
-    let hook = pnpm_hooks::finder::load_pnpmfile(workspace_root)?;
+    config: &Config,
+) -> Result<Option<ReadPackageHook>, UpdateError> {
+    let Some(hook) =
+        pnpm_hooks::finder::load_pnpmfiles(workspace_root, crate::pnpmfile_selection(config))
+            .map_err(UpdateError::MissingPnpmfile)?
+    else {
+        return Ok(None);
+    };
     let log = hook.source_path().map_or_else(
         || Arc::new(|_| {}) as pnpm_hooks::LogFn,
         |from| {
@@ -680,7 +698,7 @@ fn update_read_package_hook<Reporter: self::Reporter>(
             )
         },
     );
-    Some((hook, log))
+    Ok(Some((hook, log)))
 }
 
 async fn apply_read_package_hook_to_update_manifest(
@@ -753,7 +771,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
     let mut catalog_ctx = catalogs_seed
         .map(|catalogs| read_catalog_ctx_with_catalogs(manifest, catalogs.clone()))
         .transpose()?;
-    let mut drop_names = HashSet::new();
+    let mut drop_targets = UpdateTargets::default();
     let mut rewrites = Vec::new();
     // A compatible bump cannot name its version before the resolve, so the
     // matched names are collected here and the install reports back what it
@@ -795,10 +813,10 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 config.save_workspace_protocol,
                 range_spec_style,
             );
-            drop_names.insert(target.name.clone());
+            drop_targets.insert(target.name.clone(), None);
             rewrites.push((target.name, target.group, specifier));
         }
-        UpdateSeedPolicy::DropOnly { names: drop_names, max_depth }
+        UpdateSeedPolicy::DropOnly { targets: drop_targets, max_depth }
     } else if selectors.is_empty() {
         // `updateConfig.ignoreDependencies` applies only when no selector was
         // supplied and remains scoped by the included direct groups.
@@ -825,24 +843,24 @@ async fn prepare_manifest<Reporter: self::Reporter>(
             if save && !latest {
                 bump_targets.insert(name.clone());
             }
-            drop_names.insert(name.clone());
+            drop_targets.insert(name.clone(), None);
         }
         if updates_all_groups && ignore_patterns.is_empty() {
             // A bare, ungated update re-resolves the whole graph.
             UpdateSeedPolicy::DropAll { max_depth }
         } else {
             if updates_all_groups
-                && !(latest && drop_names.is_empty())
+                && !(latest && drop_targets.is_empty())
                 && let Some(snapshots) = lockfile.and_then(|lockfile| lockfile.snapshots.as_ref())
             {
                 for key in snapshots.keys() {
                     let name = key.name.to_string();
                     if !is_ignored(&name) {
-                        drop_names.insert(name);
+                        drop_targets.insert(name, None);
                     }
                 }
             }
-            UpdateSeedPolicy::DropOnly { names: drop_names, max_depth }
+            UpdateSeedPolicy::DropOnly { targets: drop_targets, max_depth }
         }
     } else if use_name_matcher {
         let patterns =
@@ -853,7 +871,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 if save {
                     bump_targets.insert(name.clone());
                 }
-                drop_names.insert(name.clone());
+                drop_targets.insert(name.clone(), None);
             }
         }
         // Lockfile names keep transitive-only matches in the update scope.
@@ -861,15 +879,16 @@ async fn prepare_manifest<Reporter: self::Reporter>(
             for key in snapshots.keys() {
                 let name = key.name.to_string();
                 if matcher.matches(&name) {
-                    drop_names.insert(name);
+                    drop_targets.insert(name, None);
                 }
             }
         }
-        UpdateSeedPolicy::DropOnly { names: drop_names, max_depth }
+        UpdateSeedPolicy::DropOnly { targets: drop_targets, max_depth }
     } else {
         let patterns =
             selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
         let matcher = create_matcher(&patterns);
+        let expanded = expand_update_selectors(&selectors);
         let matched_direct =
             direct.iter().filter(|(name, _, _)| matcher.matches(name)).cloned().collect::<Vec<_>>();
         if matched_direct.is_empty() {
@@ -883,10 +902,13 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 return Ok(None);
             }
             if let Some(snapshots) = lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()) {
+                let target_matcher = create_matcher(
+                    &expanded.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>(),
+                );
                 for key in snapshots.keys() {
                     let name = key.name.to_string();
-                    if matcher.matches(&name) {
-                        drop_names.insert(name);
+                    if target_matcher.matches(&name) {
+                        insert_update_target(&mut drop_targets, &expanded, &name);
                     }
                 }
             }
@@ -973,13 +995,17 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                         requested
                     }
                 };
-                drop_names.insert(update_target_name(&selectors, name));
+                insert_update_target(
+                    &mut drop_targets,
+                    &expanded,
+                    &update_target_name(&selectors, name),
+                );
                 if let Some(specifier) = rewrite {
                     rewrites.push((name.clone(), *group, specifier));
                 }
             }
         }
-        UpdateSeedPolicy::DropOnly { names: drop_names, max_depth }
+        UpdateSeedPolicy::DropOnly { targets: drop_targets, max_depth }
     };
 
     // Reconcile only manifest rewrites. Existing `catalog:` references retain
@@ -1138,8 +1164,8 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
             UpdateSeedPolicy::DropAll { .. } => {
                 seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropAll);
             }
-            UpdateSeedPolicy::DropOnly { names, .. } => {
-                seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropOnly(names));
+            UpdateSeedPolicy::DropOnly { targets, .. } => {
+                seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropOnly(targets));
             }
             UpdateSeedPolicy::ByImporter { .. } => {
                 unreachable!("per-manifest preparation never produces importer policies")
@@ -1157,7 +1183,10 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
         }
     }
 
-    if depth == 0 && !packages.is_empty() && !latest && !any_work {
+    // A recursive `--latest` that matches nothing is an error, unlike the
+    // single-project one that quietly returns: with no project left to
+    // mutate there is nothing for the run to have meant.
+    if depth == 0 && !packages.is_empty() && !any_work {
         return Err(UpdateError::NoPackageInDependencies);
     }
 
@@ -1393,6 +1422,53 @@ fn judge_against_kept_range(requested: &str, kept: &str) -> KeptRangeVerdict {
     if requested.satisfies(&kept) { KeptRangeVerdict::Admitted } else { KeptRangeVerdict::Excluded }
 }
 
+/// The selectors an update selector stands for. An `npm:` selector
+/// contributes a second one for the aliased package, because that -- not
+/// the alias -- is the name the resolver resolves the edge under; it
+/// carries the aliased spec's own version so the expansion scopes the same
+/// version line the user asked for.
+fn expand_update_selectors(selectors: &[ParsedSelector]) -> Vec<ParsedSelector> {
+    let mut expanded = Vec::with_capacity(selectors.len());
+    for selector in selectors {
+        expanded.push(ParsedSelector {
+            pattern: selector.pattern.clone(),
+            version: selector.version.clone(),
+        });
+        let Some(aliased) =
+            selector.version.as_deref().and_then(|version| version.strip_prefix("npm:"))
+        else {
+            continue;
+        };
+        let alias = parse_update_param(aliased);
+        let pattern = if selector.pattern.starts_with('!') {
+            format!("!{}", alias.pattern)
+        } else {
+            alias.pattern
+        };
+        expanded.push(ParsedSelector { pattern, version: alias.version });
+    }
+    expanded
+}
+
+/// Record `name` as an update target once per selector that claims it: a
+/// selector pinning an exact version scopes the target to that version's
+/// line, while a bare or ranged one widens it to every version. Negated
+/// selectors exclude names, never versions, so they claim nothing here --
+/// the matcher that found `name` has already applied them.
+fn insert_update_target(targets: &mut UpdateTargets, selectors: &[ParsedSelector], name: &str) {
+    let mut claimed = false;
+    for selector in selectors.iter().filter(|selector| !selector.pattern.starts_with('!')) {
+        if !matcher_one(&selector.pattern).matches(name) {
+            continue;
+        }
+        claimed = true;
+        targets.insert(name.to_string(), selector.version.as_deref().and_then(VersionLine::parse));
+    }
+    if !claimed {
+        targets.insert(name.to_string(), None);
+    }
+}
+
 /// The name an update target for `matched` is keyed by. A manifest keys a
 /// dependency by its alias, but the resolver matches update targets — and
 /// [`UpdateSeedPolicy::DropOnly`] keys them — by the package name the edge
@@ -1601,26 +1677,10 @@ fn ensure_latest_resolver_chain<'chain>(
         let policy =
             PickPolicy::from_config_with_extra_excludes(ctx.config, extra_excludes.as_deref())
                 .map_err(UpdateError::MinimumReleaseAgeExclude)?;
-        let registries_by_prefix =
-            merge_named_registries(&ctx.config.registries_by_prefix.clone().into_iter().collect())
-                .map_err(UpdateError::InvalidNamedRegistry)?;
-        let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
-            registries: ctx.config.resolved_registries().into_iter().collect(),
-            registries_by_prefix,
-            http_client: Arc::clone(ctx.http_client_arc),
-            auth_headers: Arc::clone(&ctx.config.auth_headers),
-            meta_cache: Arc::<InMemoryPackageMetaCache>::default(),
-            fetch_locker: shared_packument_fetch_locker(),
-            picked_manifest_cache: shared_picked_manifest_cache(),
-            cache_dir: Some(ctx.config.cache_dir.clone()),
-            offline: ctx.config.offline,
-            prefer_offline: ctx.config.prefer_offline,
-            ignore_missing_time_field: ctx.config.minimum_release_age_ignore_missing_time,
-            full_metadata: policy.full_metadata,
-            needs_full_metadata_for: Some(Arc::clone(&policy.needs_full_metadata_for)),
-            filter_metadata: ctx.config.requires_filtered_full_metadata(),
-            retry_opts: crate::retry_config::retry_opts_from_config(ctx.config),
-        });
+        let npm_resolver: Arc<dyn Resolver> = Arc::new(
+            create_configured_npm_resolver(ctx.config, Arc::clone(ctx.http_client_arc), &policy)
+                .map_err(UpdateError::InvalidNamedRegistry)?,
+        );
         let mut node_resolver = NodeResolver::new(Arc::clone(ctx.http_client_arc));
         node_resolver.node_download_mirrors.clone_from(&ctx.config.node_download_mirrors);
         node_resolver.offline = ctx.config.offline;

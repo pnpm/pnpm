@@ -1,9 +1,11 @@
 use crate::{
     State,
     cli_args::{
-        pipelines::InstallFamilySelection, recursive,
+        lockfile_dir::LockfileDirArg,
+        pipelines::InstallFamilySelection,
+        recursive,
         supported_architectures::SupportedArchitecturesArgs,
-        update_interactive::InteractiveUpdateOptions,
+        update_interactive::{InteractiveUpdateOptions, UpdatePrompt},
     },
     github_actions,
 };
@@ -101,6 +103,9 @@ pub struct UpdateArgs {
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
 
+    #[clap(flatten)]
+    pub lockfile_dir: LockfileDirArg,
+
     /// Show outdated dependencies and select which ones to update.
     #[clap(short = 'i', long)]
     pub interactive: bool,
@@ -132,6 +137,9 @@ pub struct UpdateArgs {
     /// pnpmfiles of config dependencies.
     #[clap(long = "ignore-pnpmfile")]
     pub ignore_pnpmfile: bool,
+
+    #[clap(skip)]
+    pub(crate) prompt: UpdatePrompt,
 }
 
 /// The option combinations `--workspace` rejects, checked before any
@@ -157,6 +165,7 @@ impl UpdateArgs {
         self,
         mut state: State,
     ) -> miette::Result<()> {
+        state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let workspace_packages = self
             .check_workspace_option(state.config.workspace_dir.as_deref())?
             .map(|workspace_root| {
@@ -208,6 +217,7 @@ impl UpdateArgs {
                     latest: self.latest,
                     include_direct: &include_direct,
                     include_github_actions: update_actions,
+                    prompt: self.prompt,
                 },
             )
             .await?
@@ -272,6 +282,7 @@ impl UpdateArgs {
         mut state: State,
         selection: InstallFamilySelection,
     ) -> miette::Result<()> {
+        state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let workspace_packages = self
             .check_workspace_option(state.config.workspace_dir.as_deref())?
             .and_then(|_| build_workspace_packages_map(Some(&selection.projects)));
@@ -313,6 +324,7 @@ impl UpdateArgs {
                     latest: self.latest,
                     include_direct: &include_direct,
                     include_github_actions: update_actions,
+                    prompt: self.prompt,
                 },
             )
             .await?
@@ -395,6 +407,7 @@ impl UpdateArgs {
                 config,
                 &self.packages,
                 self.latest,
+                self.prompt,
             )
             .await?
             {

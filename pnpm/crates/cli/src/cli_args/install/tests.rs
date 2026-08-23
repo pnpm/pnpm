@@ -8,6 +8,8 @@ use pnpm_lockfile::{LockfileResolution, TarballResolution};
 use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
 
+/// The full flag matrix, mirroring the TypeScript CLI's prod/dev/optional
+/// resolution in `config/reader/src/index.ts`.
 #[test]
 fn dependency_options_to_dependency_groups() {
     use DependencyGroup::{Dev, Optional, Prod};
@@ -25,7 +27,7 @@ fn dependency_options_to_dependency_groups() {
 
     assert_eq!(
         create_list(InstallDependencyOptions { prod: false, dev: true, no_optional: false }),
-        [Dev, Optional],
+        [Dev],
     );
 
     assert_eq!(
@@ -45,12 +47,12 @@ fn dependency_options_to_dependency_groups() {
 
     assert_eq!(
         create_list(InstallDependencyOptions { prod: true, dev: true, no_optional: false }),
-        [Prod, Dev, Optional],
+        [Prod, Optional],
     );
 
     assert_eq!(
         create_list(InstallDependencyOptions { prod: true, dev: true, no_optional: true }),
-        [Prod, Dev],
+        [Prod],
     );
 }
 
@@ -143,6 +145,21 @@ fn frozen_store_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--frozen-store"])
         .expect("parses --frozen-store");
     assert!(parsed.args.frozen_store, "flag present → true");
+}
+
+#[test]
+fn slow_fetch_warning_flags_parse() {
+    let parsed = InstallArgsHarness::try_parse_from([
+        "pacquet-test",
+        "--fetch-warn-timeout-ms",
+        "2500",
+        "--fetch-min-speed-ki-bps",
+        "125",
+    ])
+    .expect("slow-fetch warning flags parse");
+
+    assert_eq!(parsed.args.fetch_warn_timeout_ms, Some(2_500));
+    assert_eq!(parsed.args.fetch_min_speed_ki_bps, Some(125));
 }
 
 /// `NodeLinkerArg::into_config` maps every variant 1:1 to the

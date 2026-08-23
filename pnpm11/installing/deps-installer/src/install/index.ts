@@ -554,7 +554,15 @@ export async function mutateModules (
 
   reportVerifiedFileIntegrity(verifiedFileIntegritySince(verifiedFileIntegrityBaseline))
 
-  if (opts.mergeGitBranchLockfiles) {
+  // The branch lockfiles become disposable only once the merge has been
+  // written for good. An install that never saves a lockfile did not merge
+  // them, and a `--dry-run` / `lockfileCheck` run only reports what it would
+  // do — deleting them in either case drops resolutions no file is left
+  // holding.
+  if (
+    opts.mergeGitBranchLockfiles && opts.useLockfile && opts.saveLockfile &&
+    !isCheckOnlyInstall(opts)
+  ) {
     await cleanGitBranchLockfiles(ctx.lockfileDir)
   }
 
@@ -1953,7 +1961,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dedupeInjectedDeps: opts.dedupeInjectedDeps,
       dedupePeerDependents: opts.dedupePeerDependents,
       dedupePeers: opts.dedupePeers,
-      dryRun: opts.lockfileOnly,
+      dryRun: opts.lockfileOnly || isCheckOnlyInstall(opts),
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       engineStrict: opts.engineStrict,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,

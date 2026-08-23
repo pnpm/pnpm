@@ -92,7 +92,9 @@ impl PackArgs {
                 configured_catalogs(config)?,
                 self.out.clone(),
                 self.pack_destination.clone(),
-                crate::config_deps::load_before_packing_hooks(config, pnpmfile_root),
+                crate::config_deps::load_before_packing_hooks(config, pnpmfile_root).map_err(
+                    |error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"),
+                )?,
             );
             set_injected_changelog(&mut options, config, dir).await?;
             let result = api::<Reporter, Host>(&options)
@@ -142,7 +144,9 @@ impl PackArgs {
         // workspace root); cloning the Arcs into each project shares one
         // worker per pnpmfile instead of re-spawning it per packed project.
         let before_packing_hooks =
-            crate::config_deps::load_before_packing_hooks(config, workspace_root);
+            crate::config_deps::load_before_packing_hooks(config, workspace_root).map_err(
+                |error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"),
+            )?;
 
         let mut packed: Vec<PackResultJson> = Vec::new();
         for chunk in &chunks {

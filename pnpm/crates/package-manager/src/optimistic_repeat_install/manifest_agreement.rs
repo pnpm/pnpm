@@ -44,9 +44,9 @@ pub(crate) fn modified_manifests_match_lockfile(
     let mut wanted_is_current = false;
     let lockfile = lockfile.get().map_err(|_| "the wanted lockfile cannot be read or parsed")?;
     let (wanted, wanted_mtime): (&Lockfile, FileMtime) = if let Some(wanted) = lockfile {
-        let Some(mtime) = file_mtime(&workspace_root.join(Lockfile::FILE_NAME)) else {
+        let Some(mtime) = file_mtime(&workspace_root.join(config.wanted_lockfile_name())) else {
             return Err(
-                "a manifest is newer than the last validation and pnpm-lock.yaml cannot be stat'd",
+                "a manifest is newer than the last validation and the wanted lockfile cannot be stat'd",
             );
         };
         (wanted, mtime)

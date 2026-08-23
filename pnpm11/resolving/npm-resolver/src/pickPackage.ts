@@ -201,7 +201,7 @@ function pickMatchingVersionFinal (
     return pickMatchingVersionFast(pickerOpts, spec, meta)
   } catch (err: unknown) {
     if (pickerOpts.ignoreMissingTimeField && isMissingTimeError(err)) {
-      warnMissingTimeFieldOnce(meta.name)
+      warnMissingTimeFieldOnce(meta.name, 'minimumReleaseAge')
       return pickMatchingVersionFast({
         ...pickerOpts,
         publishedBy: undefined,
@@ -834,15 +834,27 @@ function isMissingTimeError (err: unknown): boolean {
 const MAX_WARNED_MISSING_TIME = 1024
 const warnedMissingTimeFor = new Set<string>()
 
-export function warnMissingTimeFieldOnce (pkgName: string): void {
-  if (warnedMissingTimeFor.has(pkgName)) return
+/**
+ * At most one warning per package per check. `minimumReleaseAge` and
+ * `trustPolicy` both go dark on the same missing field, so keying by package
+ * alone would let whichever check ran first silence the other and leave the
+ * user told about only one of the two skips.
+ */
+export function warnMissingTimeFieldOnce (
+  pkgName: string,
+  skippedCheck: 'minimumReleaseAge' | 'trustPolicy'
+): void {
+  // A package name cannot contain ':', so the check name prefix cannot
+  // collide with a name that happens to embed it.
+  const key = `${skippedCheck}:${pkgName}`
+  if (warnedMissingTimeFor.has(key)) return
   if (warnedMissingTimeFor.size >= MAX_WARNED_MISSING_TIME) {
     // Set preserves insertion order, so the first entry is the oldest.
     const oldest = warnedMissingTimeFor.values().next().value
     if (oldest != null) warnedMissingTimeFor.delete(oldest)
   }
-  warnedMissingTimeFor.add(pkgName)
-  globalWarn(`The metadata of ${pkgName} is missing the "time" field; skipping the minimumReleaseAge check for this package.`)
+  warnedMissingTimeFor.add(key)
+  globalWarn(`The metadata of ${pkgName} is missing the "time" field; skipping the ${skippedCheck} check for this package.`)
 }
 
 async function getFileMtime (filePath: string): Promise<Date | null> {

@@ -17,7 +17,7 @@ use pnpm_env_installer::{
 };
 use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
-use pnpm_network::{NetworkSettings, RetryOpts, ThrottledClient};
+use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
 use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
@@ -266,6 +266,7 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     frozen_lockfile: bool,
 ) -> Result<()> {
     let context = EnvInstallerContext::new(config)?;
+    context.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
     let options = context.options(root_dir, frozen_lockfile);
 
     resolve_and_install_config_deps::<Reporter>(config_dependencies, &context.resolver, &options)
@@ -282,6 +283,7 @@ struct EnvInstallerContext {
     store_dir: &'static StoreDir,
     node_version: String,
     verify_store_integrity: bool,
+    strict_store_pkg_content_check: bool,
     offline: bool,
     package_import_method: pnpm_config::PackageImportMethod,
     resolver: NpmResolver<InMemoryPackageMetaCache>,
@@ -326,19 +328,10 @@ impl EnvInstallerContext {
         auth_headers: Arc<pnpm_network::AuthHeaders>,
     ) -> Result<Self> {
         let http_client = Arc::new(
-            ThrottledClient::for_installs(
-                proxy,
-                tls,
-                tls_by_uri,
-                &NetworkSettings {
-                    network_concurrency: config.network_concurrency,
-                    fetch_timeout: Duration::from_millis(config.fetch_timeout),
-                    user_agent: config.user_agent.clone(),
-                },
-            )
-            .into_diagnostic()
-            .wrap_err("create the network client for env-installer dependencies")?
-            .with_max_sockets_per_host(config.max_sockets),
+            ThrottledClient::for_installs(proxy, tls, tls_by_uri, &config.network_settings())
+                .into_diagnostic()
+                .wrap_err("create the network client for env-installer dependencies")?
+                .with_max_sockets_per_host(config.max_sockets),
         );
 
         let registries: HashMap<String, String> = registries.into_iter().collect();
@@ -380,6 +373,7 @@ impl EnvInstallerContext {
             store_dir: Box::leak(Box::new(config.store_dir.clone())),
             node_version: detect_node_version().unwrap_or_else(|| "0.0.0".to_string()),
             verify_store_integrity: config.verify_store_integrity,
+            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
             offline: config.offline,
             package_import_method: config.package_import_method,
             resolver,
@@ -398,6 +392,7 @@ impl EnvInstallerContext {
             auth_headers: &self.auth_headers,
             registries: &self.registries,
             verify_store_integrity: self.verify_store_integrity,
+            strict_store_pkg_content_check: self.strict_store_pkg_content_check,
             offline: self.offline,
             package_import_method: self.package_import_method,
             retry_opts: self.retry_opts,
@@ -430,11 +425,14 @@ impl EnvInstallerContext {
 /// by the `updateConfig` install hook and the `beforePacking`
 /// pack/publish hook so both apply the same pnpmfile set, matching
 /// pnpm's single loaded hooks object.
-#[must_use]
-pub fn resolve_pnpmfile_paths(config: &Config, root_dir: &Path) -> Vec<PathBuf> {
+pub fn resolve_pnpmfile_paths(
+    config: &Config,
+    root_dir: &Path,
+) -> Result<Vec<PathBuf>, finder::MissingPnpmfileError> {
     if config.ignore_pnpmfile {
-        return Vec::new();
+        return Ok(Vec::new());
     }
+    finder::validate_configured_pnpmfiles(pnpm_package_manager::pnpmfile_selection(config))?;
     let config_modules_dir = root_dir.join("node_modules").join(".pnpm-config");
     let mut pnpmfiles: Vec<PathBuf> = match config.config_dependencies.as_ref() {
         Some(deps) => finder::calc_pnpmfile_paths_of_plugin_deps(
@@ -443,10 +441,14 @@ pub fn resolve_pnpmfile_paths(config: &Config, root_dir: &Path) -> Vec<PathBuf> 
         ),
         None => Vec::new(),
     };
-    if let Some(root_pnpmfile) = finder::find_pnpmfile(root_dir) {
-        pnpmfiles.push(root_pnpmfile);
+    for pnpmfile in
+        finder::find_pnpmfiles(root_dir, pnpm_package_manager::pnpmfile_selection(config))
+    {
+        if !pnpmfiles.contains(&pnpmfile) {
+            pnpmfiles.push(pnpmfile);
+        }
     }
-    pnpmfiles
+    Ok(pnpmfiles)
 }
 
 /// Load the pnpmfiles that contribute a `beforePacking` hook for
@@ -454,16 +456,22 @@ pub fn resolve_pnpmfile_paths(config: &Config, root_dir: &Path) -> Vec<PathBuf> 
 /// hook handle per pnpmfile. A recursive pack loads them once and clones
 /// the `Arc`s into each project so a pnpmfile's Node worker is spawned
 /// once, not once per packed project.
-#[must_use]
-pub fn load_before_packing_hooks(config: &Config, root_dir: &Path) -> Vec<Arc<dyn PnpmfileHooks>> {
-    resolve_pnpmfile_paths(config, root_dir).into_iter().map(finder::load_pnpmfile_at).collect()
+pub fn load_before_packing_hooks(
+    config: &Config,
+    root_dir: &Path,
+) -> Result<Vec<Arc<dyn PnpmfileHooks>>, finder::MissingPnpmfileError> {
+    Ok(resolve_pnpmfile_paths(config, root_dir)?
+        .into_iter()
+        .map(finder::load_pnpmfile_at)
+        .collect())
 }
 
 pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     config: &mut Config,
     root_dir: &Path,
 ) -> Result<()> {
-    let pnpmfiles = resolve_pnpmfile_paths(config, root_dir);
+    let pnpmfiles = resolve_pnpmfile_paths(config, root_dir)
+        .map_err(|error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"))?;
     if pnpmfiles.is_empty() {
         return Ok(());
     }

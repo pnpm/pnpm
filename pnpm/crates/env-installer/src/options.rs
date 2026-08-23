@@ -25,6 +25,7 @@ pub struct ConfigDepsInstallOptions<'a> {
     /// `default` plus per-scope (`@scope`) registry entries.
     pub registries: &'a HashMap<String, String>,
     pub verify_store_integrity: bool,
+    pub strict_store_pkg_content_check: bool,
     pub offline: bool,
     pub package_import_method: PackageImportMethod,
     pub retry_opts: RetryOpts,

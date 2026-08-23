@@ -1,5 +1,6 @@
 use crate::{
-    CasPathsByPkgId, InstallPackageBySnapshot, InstallPackageBySnapshotError, SkippedSnapshots,
+    CasPathsByPkgId, CustomFetcherSession, InstallPackageBySnapshot, InstallPackageBySnapshotError,
+    SkippedSnapshots,
     install_package_by_snapshot::{runtime_platform_selector, unverified_fetch_is_allowed},
     store_index_key_for_resolution,
     store_init::init_store_dir_best_effort,
@@ -9,7 +10,6 @@ use futures_util::{StreamExt, stream::FuturesUnordered};
 use miette::Diagnostic;
 use pnpm_config::{Config, NodeLinker, PackageImportMethod};
 use pnpm_deps_path::get_pkg_id_with_patch_hash;
-use pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker;
 use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, PkgNameVerPeer,
     PlatformSelector, SnapshotEntry, select_platform_variant,
@@ -200,7 +200,7 @@ pub struct CreateVirtualStore<'a> {
     pub tarball_mem_cache: Option<&'a std::sync::Arc<MemCache>>,
     /// Custom fetchers from the pnpmfile. Consulted per snapshot
     /// before the built-in resolution-type dispatch.
-    pub custom_fetcher_picker: Option<&'a Arc<CustomFetcherPicker>>,
+    pub custom_fetcher_session: Option<&'a Arc<CustomFetcherSession>>,
     /// Fetch-evidence cell filled right after the warm/cold partition
     /// with the cold registry-resolved snapshots this run downloads —
     /// see [`pnpm_resolving_resolver_base::PlannedCanonicalFetches`].
@@ -276,7 +276,7 @@ impl CreateVirtualStore<'_> {
             node_linker,
             progress_reported,
             tarball_mem_cache,
-            custom_fetcher_picker,
+            custom_fetcher_session,
             planned_canonical_fetches,
             #[cfg(test)]
             link_concurrency_probe,
@@ -419,6 +419,7 @@ impl CreateVirtualStore<'_> {
             allow_build_policy,
             skipped,
             link_dependencies: !is_hoisted && config.symlink,
+            is_hoisted,
             include_optional_dependencies,
             ignore_scripts: config.ignore_scripts,
             runtime_platform_selector: &runtime_platform_selector,
@@ -491,7 +492,10 @@ impl CreateVirtualStore<'_> {
             for (snapshot_key, _snapshot) in &cold {
                 let metadata_key = snapshot_key.without_peer();
                 let Some(metadata) = packages.get(&metadata_key) else { continue };
-                if !matches!(metadata.resolution, LockfileResolution::Registry(_))
+                // A custom fetcher can replace the canonical download, so
+                // its result cannot establish registry-side existence.
+                if custom_fetcher_session.is_some()
+                    || !matches!(metadata.resolution, LockfileResolution::Registry(_))
                     || metadata.resolution.checkable_integrity().is_none()
                 {
                     continue;
@@ -666,7 +670,7 @@ impl CreateVirtualStore<'_> {
                         runtime_platform_selector: runtime_platform_selector_ref,
                         workspace_root,
                         node_linker,
-                        custom_fetcher_picker,
+                        custom_fetcher_session,
                         // The slot link is deferred to the parallel pass
                         // below so it doesn't serialize inside this
                         // cooperative `try_join_all` task.

@@ -1,5 +1,5 @@
 use clap::ValueEnum;
-use pnpm_default_reporter::{DefaultReporter, SummaryScope};
+use pnpm_default_reporter::{DefaultReporter, MaxLogLevel, SummaryScope};
 use pnpm_reporter::{LogEvent, NdjsonReporter, Reporter, SilentReporter};
 use std::path::Path;
 
@@ -18,6 +18,32 @@ pub enum ReporterType {
     Ndjson,
     /// No progress output.
     Silent,
+}
+
+/// Accepted values of pnpm's universal `--loglevel` option.
+///
+/// `silent` selects the silent reporter outright (see
+/// [`super::cli_command::CliArgs::effective_reporter`]); the other values
+/// become the default reporter's [`MaxLogLevel`] ceiling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum LogLevelSetting {
+    Silent,
+    Error,
+    Warn,
+    Info,
+    Debug,
+}
+
+impl LogLevelSetting {
+    fn as_max_log_level(self) -> Option<MaxLogLevel> {
+        match self {
+            LogLevelSetting::Silent => None,
+            LogLevelSetting::Error => Some(MaxLogLevel::Error),
+            LogLevelSetting::Warn => Some(MaxLogLevel::Warn),
+            LogLevelSetting::Info => Some(MaxLogLevel::Info),
+            LogLevelSetting::Debug => Some(MaxLogLevel::Debug),
+        }
+    }
 }
 
 /// Resolve a [`ReporterType`] to the monomorphized `emit` of its sink, for
@@ -52,5 +78,15 @@ pub(crate) fn configure_default_reporter(
     pnpm_default_reporter::set_is_recursive(is_recursive);
     if matches!(reporter, ReporterType::AppendOnly) {
         pnpm_default_reporter::force_append_only();
+    }
+}
+
+/// Seed the default reporter's verbosity ceiling from the `--loglevel`
+/// value. `silent` and an absent flag leave the [`MaxLogLevel::Info`]
+/// default in place — `silent` never reaches the default reporter (see
+/// [`super::cli_command::CliArgs::effective_reporter`]).
+pub(crate) fn configure_max_log_level(loglevel: Option<LogLevelSetting>) {
+    if let Some(level) = loglevel.and_then(LogLevelSetting::as_max_log_level) {
+        pnpm_default_reporter::set_max_log_level(level);
     }
 }

@@ -4323,6 +4323,7 @@ dependencies = [
  "pnpm-config-parse-overrides",
  "pnpm-crypto-hash",
  "pnpm-default-reporter",
+ "pnpm-deps-inspection",
  "pnpm-deps-path",
  "pnpm-detect-libc",
  "pnpm-diagnostics",
@@ -4358,6 +4359,7 @@ dependencies = [
  "pnpm-store-dir",
  "pnpm-tarball",
  "pnpm-testing-utils",
+ "pnpm-text-sanitize",
  "pnpm-versioning",
  "pnpm-workspace",
  "pnpm-workspace-manifest-writer",
@@ -4416,6 +4418,7 @@ name = "pnpm-config"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "dunce",
  "home",
  "indexmap 2.14.0",
  "is_ci",
@@ -4428,6 +4431,7 @@ dependencies = [
  "pnpm-detect-libc",
  "pnpm-env-replace",
  "pnpm-fs",
+ "pnpm-git-utils",
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-package-is-installable",
@@ -4499,9 +4503,36 @@ dependencies = [
  "libc",
  "node-semver",
  "owo-colors",
+ "pnpm-config",
  "pnpm-reporter",
  "pretty_assertions",
  "serde_json",
+]
+
+[[package]]
+name = "pnpm-deps-inspection"
+version = "0.0.1"
+dependencies = [
+ "dunce",
+ "miette 7.6.0",
+ "node-semver",
+ "owo-colors",
+ "pathdiff",
+ "pnpm-config",
+ "pnpm-crypto-hash",
+ "pnpm-deps-restorer",
+ "pnpm-fs",
+ "pnpm-lockfile",
+ "pnpm-modules-yaml",
+ "pnpm-package-manifest",
+ "pnpm-store-dir",
+ "pnpm-testing-utils",
+ "pnpm-text-sanitize",
+ "pnpm-workspace",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -4816,6 +4847,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-git-utils"
+version = "0.0.1"
+dependencies = [
+ "libc",
+ "tempfile",
+]
+
+[[package]]
 name = "pnpm-global"
 version = "0.0.1"
 dependencies = [
@@ -5016,6 +5055,7 @@ dependencies = [
  "async-trait",
  "dashmap",
  "indexmap 2.14.0",
+ "libc",
  "miette 7.6.0",
  "mockito",
  "napi",
@@ -5024,6 +5064,8 @@ dependencies = [
  "node-semver",
  "pnpm-catalogs-types",
  "pnpm-config",
+ "pnpm-default-reporter",
+ "pnpm-deps-inspection",
  "pnpm-diagnostics",
  "pnpm-engine-pm-yarn-resolver",
  "pnpm-engine-runtime-bun-resolver",
@@ -5031,6 +5073,7 @@ dependencies = [
  "pnpm-engine-runtime-node-resolver",
  "pnpm-hooks",
  "pnpm-lockfile",
+ "pnpm-modules-yaml",
  "pnpm-network",
  "pnpm-pack",
  "pnpm-package-manager",
@@ -5210,6 +5253,7 @@ dependencies = [
  "pnpm-testing-utils",
  "pnpm-workspace",
  "pnpm-workspace-manifest-writer",
+ "pnpm-workspace-projects-graph",
  "pnpm-workspace-range-resolver",
  "pnpm-workspace-spec",
  "pnpm-workspace-state",
@@ -5301,6 +5345,7 @@ dependencies = [
  "pipe-trait",
  "pnpm-diagnostics",
  "pnpm-executor",
+ "pnpm-git-utils",
  "pnpm-network",
  "pnpm-network-web-auth",
  "pnpm-network-web-auth-testing",
@@ -5565,9 +5610,12 @@ dependencies = [
  "derive_more",
  "dunce",
  "miette 7.6.0",
+ "node-semver",
  "pipe-trait",
  "pnpm-crypto-hash",
+ "pnpm-deps-path",
  "pnpm-fs",
+ "pnpm-resolving-parse-wanted-dependency",
  "pretty_assertions",
  "rmp-serde",
  "rusqlite",
@@ -5604,6 +5652,7 @@ dependencies = [
  "pretty_assertions",
  "rayon",
  "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "ssri",
@@ -5640,6 +5689,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-text-sanitize"
+version = "0.0.1"
+
+[[package]]
 name = "pnpm-versioning"
 version = "0.0.1"
 dependencies = [
@@ -5662,10 +5715,12 @@ name = "pnpm-workspace"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "indexmap 2.14.0",
  "miette 7.6.0",
  "pathdiff",
  "pnpm-catalogs-types",
  "pnpm-package-manifest",
+ "pnpm-workspace-projects-graph",
  "pretty_assertions",
  "serde",
  "serde-saphyr",
@@ -5806,6 +5861,7 @@ name = "pnpr-fixtures"
 version = "0.0.1"
 dependencies = [
  "base64 0.23.1",
+ "chrono",
  "clap",
  "flate2",
  "node-semver",

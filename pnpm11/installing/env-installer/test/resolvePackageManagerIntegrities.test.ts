@@ -103,6 +103,54 @@ test('registry tarball URLs are dropped from package-manager resolutions; file:,
   })
 })
 
+test('a lockfile that pins another version is not updated under frozenLockfile', async () => {
+  await expect(
+    resolvePackageManagerIntegrities('12.0.0', {
+      envLockfile: envLockfile({ pnpm: '11.0.0' }),
+      registriesByScope: { default: 'https://mirror.example.com/' },
+      rootDir: '/repo',
+      storeController: {} as never,
+      storeDir: '/store',
+      frozenLockfile: true,
+    })
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE',
+    message: 'Cannot update packageManagerDependencies with "frozen-lockfile" because the lockfile is not up to date',
+  })
+})
+
+// A resolution that is never saved cannot take the lockfile out of sync with
+// the manifest, so `--frozen-lockfile` has nothing to refuse. This is how a
+// legacy `packageManager` pin below v12 switches versions.
+test('an in-memory resolution is performed under frozenLockfile', async () => {
+  resolveManifestDependencies.mockResolvedValueOnce({
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        specifiers: { pnpm: '12.0.0' },
+        dependencies: { pnpm: '12.0.0' },
+      },
+    },
+    packages: {
+      'pnpm@12.0.0': { resolution: { integrity: 'sha512-pnpm' } },
+    },
+  } as unknown as LockfileObject)
+
+  const result = await resolvePackageManagerIntegrities('12.0.0', {
+    envLockfile: envLockfile({ pnpm: '11.0.0' }),
+    registriesByScope: { default: 'https://mirror.example.com/' },
+    rootDir: '/repo',
+    storeController: {} as never,
+    storeDir: '/store',
+    save: false,
+    frozenLockfile: true,
+  })
+
+  expect(result.importers['.'].packageManagerDependencies).toEqual({
+    pnpm: { specifier: '12.0.0', version: '12.0.0' },
+  })
+})
+
 function envLockfile (packageManagerDependencies: Record<string, string>): EnvLockfile {
   return {
     lockfileVersion: '9.0',

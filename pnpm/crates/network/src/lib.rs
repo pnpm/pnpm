@@ -11,7 +11,7 @@ mod token_helper;
 pub use auth::{
     AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, MetadataCacheScope, UpstreamRouteHook,
     base64_encode, hide_auth_information, nerf_dart, normalize_auth_key, redact_and_sanitize,
-    redact_and_sanitize_multiline, redact_url_credentials,
+    redact_and_sanitize_multiline, redact_url_credentials, redact_url_for_display,
 };
 pub use limited_body::{LimitedBody, read_limited_body};
 pub use token_helper::{TokenHelperOutput, TokenHelperRunner};
@@ -92,8 +92,17 @@ pub const MAX_THROUGHPUT_PRIORITY: u64 = BACKGROUND - 1;
 /// `default_fetch_timeout`.
 pub const DEFAULT_FETCH_TIMEOUT_MS: u64 = 60_000;
 
+/// Default slow-metadata-request warning threshold in milliseconds: the
+/// `fetchWarnTimeoutMs` default of `10000`.
+pub const DEFAULT_FETCH_WARN_TIMEOUT_MS: u64 = 10_000;
+
+/// Default minimum average tarball download speed in KiB/s: the
+/// `fetchMinSpeedKiBps` default of `50`.
+pub const DEFAULT_FETCH_MIN_SPEED_KI_BPS: u64 = 50;
+
 /// Tunable network knobs threaded into the install client: the
-/// `networkConcurrency`, `fetchTimeout`, and `userAgent` settings.
+/// `networkConcurrency`, `fetchTimeout`, `fetchWarnTimeoutMs`,
+/// `fetchMinSpeedKiBps`, and `userAgent` settings.
 /// `pnpm-config` owns their defaults and override sources
 /// (`pnpm-workspace.yaml`, `PNPM_CONFIG_*`, CLI flags) and hands the
 /// resolved values here.
@@ -108,6 +117,14 @@ pub struct NetworkSettings {
     /// Default: [`DEFAULT_FETCH_TIMEOUT_MS`].
     pub fetch_timeout: Duration,
 
+    /// Successful metadata requests slower than this emit a warning.
+    /// Default: [`DEFAULT_FETCH_WARN_TIMEOUT_MS`].
+    pub fetch_warn_timeout: Duration,
+
+    /// Successful tarball downloads whose average speed falls below this
+    /// value emit a warning. Default: [`DEFAULT_FETCH_MIN_SPEED_KI_BPS`].
+    pub fetch_min_speed_ki_bps: u64,
+
     /// Value of the `User-Agent` header sent on every request.
     /// Default: [`DEFAULT_USER_AGENT`].
     pub user_agent: String,
@@ -118,6 +135,8 @@ impl Default for NetworkSettings {
         NetworkSettings {
             network_concurrency: default_network_concurrency(),
             fetch_timeout: Duration::from_millis(DEFAULT_FETCH_TIMEOUT_MS),
+            fetch_warn_timeout: Duration::from_millis(DEFAULT_FETCH_WARN_TIMEOUT_MS),
+            fetch_min_speed_ki_bps: DEFAULT_FETCH_MIN_SPEED_KI_BPS,
             user_agent: DEFAULT_USER_AGENT.to_string(),
         }
     }
@@ -164,6 +183,9 @@ pub struct ThrottledClient {
     /// default) leaves the per-origin socket count bounded only by
     /// `semaphore`; see [`HostSocketLimit`].
     host_socket_limit: Option<HostSocketLimit>,
+    fetch_warn_timeout: Duration,
+    fetch_min_speed_ki_bps: u64,
+    warning_handler: std::sync::RwLock<fn(&str)>,
 }
 
 /// Per-origin concurrent-connection cap, mirroring undici's `connections`
@@ -246,6 +268,27 @@ impl Deref for ThrottledClientGuard<'_> {
 }
 
 impl ThrottledClient {
+    /// Replace the sink used by successful slow-fetch warnings.
+    pub fn set_warning_handler(&self, handler: fn(&str)) {
+        *self.warning_handler.write().expect("warning-handler lock poisoned") = handler;
+    }
+
+    /// Emit a successful slow-fetch warning through the configured sink.
+    pub fn warn(&self, message: &str) {
+        let handler = *self.warning_handler.read().expect("warning-handler lock poisoned");
+        handler(message);
+    }
+
+    /// The `fetchWarnTimeoutMs` threshold configured for this client.
+    pub fn fetch_warn_timeout(&self) -> Duration {
+        self.fetch_warn_timeout
+    }
+
+    /// The `fetchMinSpeedKiBps` threshold configured for this client.
+    pub fn fetch_min_speed_ki_bps(&self) -> u64 {
+        self.fetch_min_speed_ki_bps
+    }
+
     /// Acquire a permit and return a guard granting access to the
     /// underlying [`Client`]. The permit is released when the guard
     /// is dropped, so callers control how long the request "counts"
@@ -485,6 +528,9 @@ impl ThrottledClient {
             per_registry: per_registry_clients,
             routing: per_registry.clone(),
             host_socket_limit: None,
+            fetch_warn_timeout: settings.fetch_warn_timeout,
+            fetch_min_speed_ki_bps: settings.fetch_min_speed_ki_bps,
+            warning_handler: std::sync::RwLock::new(ignore_warning),
         })
     }
 
@@ -502,6 +548,9 @@ impl ThrottledClient {
             per_registry: HashMap::new(),
             routing: PerRegistryTls::default(),
             host_socket_limit: None,
+            fetch_warn_timeout: Duration::from_millis(DEFAULT_FETCH_WARN_TIMEOUT_MS),
+            fetch_min_speed_ki_bps: DEFAULT_FETCH_MIN_SPEED_KI_BPS,
+            warning_handler: std::sync::RwLock::new(ignore_warning),
         }
     }
 
@@ -557,6 +606,8 @@ impl ThrottledClient {
         ThrottledClientGuard { _permit: permit, _host_permit: host_permit, client }
     }
 }
+
+fn ignore_warning(_: &str) {}
 
 /// Shared builder with the install-time defaults
 /// ([`ThrottledClient::new_for_installs`] documents the why behind each

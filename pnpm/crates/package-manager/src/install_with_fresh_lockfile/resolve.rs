@@ -14,7 +14,7 @@ use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::LogLevel;
 use pnpm_resolving_deps_resolver::{
-    DependencyOverrider, ManifestHook, ResolveImporterError, ResolveImporterOptions,
+    DependencyOverrider, ManifestHook, ResolveImporterError, ResolveImporterOptions, UpdateTargets,
 };
 use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
 use std::{
@@ -61,8 +61,8 @@ pub(super) fn preferred_versions_seeds(
         | UpdateSeedPolicy::KeepAllResolveAll
         | UpdateSeedPolicy::ByImporter { .. } => from_lockfile(snapshots, manifests.as_slice()),
         UpdateSeedPolicy::DropAll { .. } => from_lockfile(None, manifests.as_slice()),
-        UpdateSeedPolicy::DropOnly { names, .. } => {
-            from_lockfile_excluding(snapshots, manifests.as_slice(), &excluded_names(names))
+        UpdateSeedPolicy::DropOnly { targets, .. } => {
+            from_lockfile_excluding(snapshots, manifests.as_slice(), &withheld_pin(targets))
         }
     };
 
@@ -86,22 +86,20 @@ pub(super) fn preferred_versions_seeds(
                         Arc::new(seed)
                     }))
                 }
-                ImporterUpdateSeedPolicy::DropOnly(names) => {
-                    let mut cache_key = names.iter().cloned().collect::<Vec<_>>();
-                    cache_key.sort_unstable();
-                    if let Some(seed) = drop_only_seeds.get(&cache_key) {
+                ImporterUpdateSeedPolicy::DropOnly(targets) => {
+                    if let Some(seed) = drop_only_seeds.get(targets) {
                         Arc::clone(seed)
                     } else {
                         let seed = Arc::new({
                             let mut seed = from_lockfile_excluding(
                                 snapshots,
                                 manifests.as_slice(),
-                                &excluded_names(names),
+                                &withheld_pin(targets),
                             );
                             merge_preferred_versions(&mut seed, overrides);
                             seed
                         });
-                        drop_only_seeds.insert(cache_key, Arc::clone(&seed));
+                        drop_only_seeds.insert(targets.clone(), Arc::clone(&seed));
                         seed
                     }
                 }
@@ -123,10 +121,13 @@ fn merge_preferred_versions(seed: &mut PreferredVersions, overrides: Option<&Pre
     }
 }
 
-fn excluded_names(
-    names: &std::collections::HashSet<String>,
-) -> std::collections::HashSet<pnpm_lockfile::PkgName> {
-    names.iter().filter_map(|name| pnpm_lockfile::PkgName::parse(name.as_str()).ok()).collect()
+/// Which lockfile pins `pacquet update` withholds from the seed, so its
+/// targets re-resolve instead of settling back on their recorded version.
+/// A target scoped to a version line withholds only that line's pins: the
+/// other lines are not part of the update and must keep resolving to what
+/// the lockfile recorded.
+fn withheld_pin(targets: &UpdateTargets) -> impl Fn(&pnpm_lockfile::PackageKey) -> bool + '_ {
+    |key| targets.covers(key.name.to_string().as_str(), key.suffix.version_semver())
 }
 
 /// Call the pnpmfile's `preResolution` hook before resolution starts.

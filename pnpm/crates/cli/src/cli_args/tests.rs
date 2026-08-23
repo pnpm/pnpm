@@ -9,6 +9,7 @@ use super::{
         current_source_pnpm_version, package_manager_to_sync, parse_package_manager,
         read_manifest_json,
     },
+    reporter::{LogLevelSetting, ReporterType},
     unlink::UnlinkArgs,
 };
 use clap::Parser;
@@ -108,6 +109,29 @@ fn store_dir_accepts_an_explicit_empty_value() {
 }
 
 #[test]
+fn state_dir_is_global_and_parses_on_either_side_of_the_subcommand() {
+    for argv in [
+        ["pacquet", "--state-dir", "custom-state", "install"].as_slice(),
+        ["pacquet", "install", "--state-dir=custom-state"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses global --state-dir");
+        assert_eq!(parsed.state_dir.as_deref(), Some(Path::new("custom-state")));
+    }
+}
+
+#[test]
+fn repeated_state_dir_uses_the_last_value_on_either_side_of_the_subcommand() {
+    for argv in [
+        ["pacquet", "--state-dir", "first-state", "--state-dir", "last-state", "install"]
+            .as_slice(),
+        ["pacquet", "install", "--state-dir=first-state", "--state-dir=last-state"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses repeated global --state-dir");
+        assert_eq!(parsed.state_dir.as_deref(), Some(Path::new("last-state")));
+    }
+}
+
+#[test]
 fn proxy_flags_are_global_and_parse_on_either_side_of_the_subcommand() {
     let before =
         CliArgs::try_parse_from(["pacquet", "--https-proxy=http://proxy.example:8443", "install"])
@@ -141,6 +165,64 @@ fn recursive_flag_is_global_and_parses_either_side_of_subcommand() {
         .expect("parses install --recursive");
     assert!(after.recursive, "`install --recursive` → recursive");
     assert!(matches!(after.command, CliCommand::Install(_)));
+}
+
+#[test]
+fn loglevel_is_global_and_parses_on_either_side_of_the_subcommand() {
+    for argv in [
+        ["pacquet", "--loglevel", "error", "install"].as_slice(),
+        ["pacquet", "install", "--loglevel=error"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses global --loglevel");
+        assert_eq!(parsed.loglevel, Some(LogLevelSetting::Error));
+    }
+}
+
+/// The exact invocation electron-builder's node-module collector runs;
+/// rejecting it breaks Electron packaging
+/// ([pnpm/pnpm#14024](https://github.com/pnpm/pnpm/issues/14024)).
+#[test]
+fn list_accepts_the_electron_builder_collector_invocation() {
+    let parsed = CliArgs::try_parse_from([
+        "pacquet",
+        "list",
+        "--prod",
+        "--json",
+        "--depth",
+        "Infinity",
+        "--loglevel",
+        "error",
+    ])
+    .expect("parses the electron-builder `pnpm list` invocation");
+    assert!(matches!(parsed.command, CliCommand::List(_)));
+    assert_eq!(parsed.loglevel, Some(LogLevelSetting::Error));
+}
+
+#[test]
+fn loglevel_silent_forces_the_silent_reporter_over_the_reporter_flag() {
+    let parsed = CliArgs::try_parse_from([
+        "pacquet",
+        "--reporter",
+        "append-only",
+        "--loglevel",
+        "silent",
+        "install",
+    ])
+    .expect("parses --reporter with --loglevel silent");
+    assert!(matches!(parsed.effective_reporter(), ReporterType::Silent));
+}
+
+#[test]
+fn non_silent_loglevels_keep_the_selected_reporter() {
+    let parsed =
+        CliArgs::try_parse_from(["pacquet", "--loglevel", "warn", "install"]).expect("parses");
+    assert!(matches!(parsed.effective_reporter(), ReporterType::Default));
+}
+
+#[test]
+fn loglevel_rejects_unknown_values() {
+    CliArgs::try_parse_from(["pacquet", "install", "--loglevel", "verbose"])
+        .expect_err("unknown loglevel value must be rejected");
 }
 
 #[test]

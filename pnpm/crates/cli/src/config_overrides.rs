@@ -1,6 +1,6 @@
 use pnpm_config::{
     Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail, RuntimeOnFail,
-    VerifyDepsBeforeRun,
+    VerifyDepsBeforeRun, default_state_dir,
 };
 use pnpm_fs::lexical_normalize;
 use pnpm_store_dir::StoreDir;
@@ -57,6 +57,24 @@ where
     Ok(())
 }
 
+pub(crate) fn apply_state_dir_override<Sys>(config: &mut Config, state_dir: &Path, dir: &Path)
+where
+    Sys: EnvVar + GetHomeDir,
+{
+    config.state_dir = if state_dir.as_os_str().is_empty() {
+        default_state_dir::<Sys>().unwrap_or_default()
+    } else if state_dir.is_absolute() {
+        lexical_normalize(state_dir)
+    } else {
+        lexical_normalize(&dir.join(state_dir))
+    };
+    if let Some(state_dir) = state_dir.to_str() {
+        config
+            .explicit_settings
+            .insert("stateDir".to_string(), serde_json::Value::String(state_dir.to_string()));
+    }
+}
+
 fn home_relative_store_dir(store_dir: &Path) -> Option<&Path> {
     let store_dir = store_dir.to_str()?;
     store_dir.strip_prefix("~/").or_else(|| store_dir.strip_prefix(r"~\")).map(Path::new)
@@ -84,6 +102,7 @@ pub struct ConfigOverrides {
     registries: BTreeMap<String, String>,
     deploy_all_files: Option<bool>,
     force_legacy_deploy: Option<bool>,
+    ignore_scripts: Option<bool>,
     inject_workspace_packages: Option<bool>,
     minimum_release_age: Option<u64>,
     minimum_release_age_exclude: Option<Vec<String>>,
@@ -117,8 +136,10 @@ impl ConfigOverrides {
                 continue;
             }
             match classify(&arg) {
-                ConfigToken::WellFormed { key: "store-dir", value } => {
-                    remaining.push(OsString::from(format!("--store-dir={value}")));
+                ConfigToken::WellFormed { key, value }
+                    if matches!(key, "state-dir" | "store-dir") =>
+                {
+                    remaining.push(OsString::from(format!("--{key}={value}")));
                 }
                 ConfigToken::WellFormed { key, value } => overrides.set(key, value),
                 ConfigToken::Malformed => {}
@@ -155,6 +176,10 @@ impl ConfigOverrides {
         }
         if key == "force-legacy-deploy" {
             self.force_legacy_deploy = parse_bool(value);
+            return;
+        }
+        if key == "ignore-scripts" {
+            self.ignore_scripts = parse_bool(value);
             return;
         }
         if key == "inject-workspace-packages" {
@@ -228,6 +253,13 @@ impl ConfigOverrides {
         }
         if let Some(value) = self.force_legacy_deploy {
             config.force_legacy_deploy = value;
+        }
+        // `pnpm config get ignore-scripts` answers from the explicitly-set
+        // settings, so a CLI-set value has to be recorded there to be
+        // reported as set while it suppresses the scripts.
+        if let Some(value) = self.ignore_scripts {
+            config.ignore_scripts = value;
+            config.explicit_settings.insert("ignoreScripts".to_string(), value.into());
         }
         if let Some(value) = self.inject_workspace_packages {
             config.inject_workspace_packages = value;

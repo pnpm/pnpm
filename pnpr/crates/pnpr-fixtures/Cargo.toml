@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 base64      = { workspace = true }
+chrono      = { workspace = true }
 clap        = { workspace = true }
 flate2      = { workspace = true }
 node-semver = { workspace = true }

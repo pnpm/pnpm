@@ -15,12 +15,18 @@
 //! crate reuses to drive the publish request's OTP handling.
 
 use std::{
-    io,
-    path::Path,
-    process::Command,
     sync::LazyLock,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
+
+/// The subprocess capability (used to run the configured token helper and
+/// the git working-tree checks) and the production provider every
+/// capability trait below is also implemented for.
+///
+/// Both are defined in the `pnpm-git-utils` crate — the git queries need
+/// the same seam — and re-exported here so this crate's callers keep
+/// importing them from `pnpm_publish` alongside the rest.
+pub use pnpm_git_utils::{CommandOutput, Host, RunCommand};
 
 /// Read an environment variable.
 ///
@@ -82,32 +88,12 @@ pub trait OidcFetch {
     ) -> impl Future<Output = Result<OidcResponse, OidcFetchError>>;
 }
 
-/// Captured output of a spawned subprocess: the `stdout`, `stderr`, and
-/// exit-status fields the publish flow reads.
-#[derive(Debug, Clone)]
-pub struct CommandOutput {
-    pub success: bool,
-    pub stdout: String,
-    pub stderr: String,
-}
-
-/// Run a subprocess and capture its output. Used to run the configured token
-/// helper and the git working-tree checks.
-pub trait RunCommand {
-    fn run(program: &str, args: &[&str], cwd: Option<&Path>) -> io::Result<CommandOutput>;
-}
-
 /// Ask the user a yes/no question, used when the current branch is not the
 /// publish branch.
 pub trait ConfirmPrompt {
     /// Return the user's answer; an aborted prompt (Ctrl-C) is `false`.
     fn confirm(message: &str) -> bool;
 }
-
-/// Production implementation of every capability trait in this crate. Each
-/// method calls into the real OS facility (`std::env`, `SystemTime`,
-/// `reqwest`, `std::process::Command`).
-pub struct Host;
 
 impl EnvVar for Host {
     fn var(name: &str) -> Option<String> {
@@ -144,22 +130,6 @@ impl OidcFetch for Host {
         let status = response.status().as_u16();
         let body = response.text().await.unwrap_or_default();
         Ok(OidcResponse { ok, status, body })
-    }
-}
-
-impl RunCommand for Host {
-    fn run(program: &str, args: &[&str], cwd: Option<&Path>) -> io::Result<CommandOutput> {
-        let mut command = Command::new(program);
-        command.args(args);
-        if let Some(cwd) = cwd {
-            command.current_dir(cwd);
-        }
-        let output = command.output()?;
-        Ok(CommandOutput {
-            success: output.status.success(),
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-        })
     }
 }
 

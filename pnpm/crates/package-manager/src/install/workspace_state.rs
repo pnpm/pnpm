@@ -69,17 +69,15 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     };
     let workspace_projects =
         load_workspace_projects(&workspace_root, workspace_manifest.as_ref()).ok()?;
-    let project_manifests =
-        build_project_manifests_list(&workspace_root, manifest, workspace_projects.as_deref());
-    // Match the install pipeline's lockfile source: shared workspaces
-    // read the root lockfile, while per-project workspaces read the
-    // active project's lockfile.
+    let project_manifests = build_project_manifests_list(manifest, workspace_projects.as_deref());
+    // The lockfile the install wrote sits at its `lockfileDir`, which
+    // both `sharedWorkspaceLockfile: false` and an explicit pin move away
+    // from the discovered workspace root. The workspace *state* keeps its
+    // own root, which only a pin moves — `state_root` below.
+    let lockfile_root = lockfile_root_for(config, workspace_dir_opt.as_deref(), manifest_dir);
+    let state_root = config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.clone());
     let lockfile = if config.lockfile {
-        LazyLockfile::deferred(if config.shared_workspace_lockfile {
-            workspace_root.clone()
-        } else {
-            manifest_dir.to_path_buf()
-        })
+        LazyLockfile::deferred(lockfile_root.clone(), config.wanted_lockfile_selection())
     } else {
         LazyLockfile::disabled()
     };
@@ -104,7 +102,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
         }
     }
     let up_to_date = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
-        workspace_root: &workspace_root,
+        workspace_root: &state_root,
         config,
         node_linker: *node_linker,
         included,
@@ -119,20 +117,12 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     }
     if gvs_build_markers_may_require_recovery(config) {
         let wanted = lockfile.get().ok().flatten()?;
-        // `workspace_root` above is the workspace-state root, which stays the
-        // discovered workspace dir even under `sharedWorkspaceLockfile: false`.
-        // The slot lookup needs the lockfile dir instead — `run_inner`'s
-        // `lockfileDir = sharedWorkspaceLockfile ? workspaceDir : projectDir` —
-        // or this fast path would probe a directory dep's slot under a project
-        // that does not own it and miss the marker it is looking for.
-        let lockfile_dir =
-            if config.shared_workspace_lockfile { workspace_root.as_path() } else { manifest_dir };
-        if gvs_build_marker_present(wanted, config, lockfile_dir) {
+        if gvs_build_marker_present(wanted, config, &lockfile_root) {
             return None;
         }
     }
     Some(UpToDateWorkspace {
-        root: workspace_root,
+        root: state_root,
         project_count: workspace_projects.as_ref().map(Vec::len),
     })
 }
@@ -184,11 +174,14 @@ pub fn check_deps_status_before_run_at(
         },
         None => None,
     };
+    // A pinned `lockfileDir` is where the install left the state and the
+    // lockfile; the root manifest above stays where the workspace put it.
+    let lockfile_root = config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.clone());
     // pnpm reports "cannot check" straight from the missing workspace
     // state, before any project discovery — a fresh project (the common
     // out-of-sync case) must not pay for the workspace-projects walk
     // only to reach the same verdict inside the check.
-    let Ok(Some(workspace_state)) = pnpm_workspace_state::load_workspace_state(&workspace_root)
+    let Ok(Some(workspace_state)) = pnpm_workspace_state::load_workspace_state(&lockfile_root)
     else {
         return cannot_check();
     };
@@ -204,19 +197,16 @@ pub fn check_deps_status_before_run_at(
     else {
         return cannot_check();
     };
-    let project_manifests = build_project_manifests_list(
-        &workspace_root,
-        &root_manifest,
-        workspace_projects.as_deref(),
-    );
+    let project_manifests =
+        build_project_manifests_list(&root_manifest, workspace_projects.as_deref());
     let lockfile = if config.lockfile {
-        LazyLockfile::deferred(workspace_root.clone())
+        LazyLockfile::deferred(lockfile_root.clone(), config.wanted_lockfile_selection())
     } else {
         LazyLockfile::disabled()
     };
     Some(crate::check_deps_status_before_run(
         &OptimisticRepeatInstallCheck {
-            workspace_root: &workspace_root,
+            workspace_root: &lockfile_root,
             config,
             node_linker: config.node_linker,
             supported_architectures: config.supported_architectures.as_ref(),
@@ -238,14 +228,13 @@ pub fn check_deps_status_before_run_at(
 }
 
 pub(super) fn build_project_manifests_list<'a>(
-    workspace_root: &std::path::Path,
     root_manifest: &'a PackageManifest,
     workspace_projects: Option<&'a [pnpm_workspace::Project]>,
 ) -> Vec<(std::path::PathBuf, &'a PackageManifest)> {
-    let Some(projects) = workspace_projects else {
-        return vec![(workspace_root.to_path_buf(), root_manifest)];
-    };
     let active_dir = root_manifest.path().parent().expect("manifest path always has a parent dir");
+    let Some(projects) = workspace_projects else {
+        return vec![(active_dir.to_path_buf(), root_manifest)];
+    };
     let active_dir_matcher = ProjectDirMatcher::new(active_dir);
     let mut active_project_was_discovered = false;
     let mut list = projects
@@ -445,10 +434,13 @@ pub(crate) fn configured_or_discovered_workspace_dir(
 
 /// The directory `pnpm-lock.yaml` lives in, which is what importer ids,
 /// reporter prefixes and the workspace-state file are all named relative
-/// to. Dedicated per-project lockfiles (`sharedWorkspaceLockfile: false`)
-/// anchor it at the active project rather than the workspace root,
-/// mirroring pnpm's `lockfileDir = sharedWorkspaceLockfile ? workspaceDir
-/// : projectDir`.
+/// to. A pinned `lockfileDir` wins outright; otherwise dedicated
+/// per-project lockfiles (`sharedWorkspaceLockfile: false`) anchor it at
+/// the active project rather than the workspace root, mirroring pnpm's
+/// `lockfileDir ?? (sharedWorkspaceLockfile ? workspaceDir : projectDir)`.
+///
+/// Unlike [`Config::lockfile_dir_for`], this also *discovers* the
+/// workspace root when the config carries none.
 ///
 /// Every caller that names something by importer id has to derive it the
 /// same way the install does, or the two disagree about which importer an
@@ -457,11 +449,30 @@ pub(crate) fn lockfile_root_dir(
     config: &Config,
     manifest_dir: &Path,
 ) -> Result<PathBuf, pnpm_workspace::FindWorkspaceDirError> {
+    if let Some(lockfile_dir) = config.lockfile_dir.clone() {
+        return Ok(lockfile_dir);
+    }
     if !config.shared_workspace_lockfile {
         return Ok(manifest_dir.to_path_buf());
     }
     Ok(configured_or_discovered_workspace_dir(config, manifest_dir)?
         .unwrap_or_else(|| manifest_dir.to_path_buf()))
+}
+
+/// [`lockfile_root_dir`] for a caller that has already resolved the
+/// workspace dir, so the ancestor walk is not repeated.
+pub(super) fn lockfile_root_for(
+    config: &Config,
+    workspace_dir: Option<&Path>,
+    manifest_dir: &Path,
+) -> PathBuf {
+    if let Some(lockfile_dir) = config.lockfile_dir.clone() {
+        return lockfile_dir;
+    }
+    if !config.shared_workspace_lockfile {
+        return manifest_dir.to_path_buf();
+    }
+    workspace_dir.map_or_else(|| manifest_dir.to_path_buf(), Path::to_path_buf)
 }
 
 /// Build the `name → version → WorkspacePackage` lookup the npm

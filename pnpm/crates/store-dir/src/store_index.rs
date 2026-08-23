@@ -998,9 +998,11 @@ pub fn pick_store_index_key(
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageFilesIndex {
-    /// Subset of the tarball's `package.json` that pnpm keeps on hand to avoid
-    /// re-reading the manifest for each install. Pacquet currently writes this
-    /// as `None`; fill in later when we start populating build metadata.
+    /// Subset of the tarball's `package.json` that both tools keep on hand to
+    /// avoid re-reading the manifest for each install. Also the row's second
+    /// statement of which package it holds — see [`crate::pkg_content_mismatch`].
+    /// `None` for a row written before either tool kept it, and for a tarball
+    /// whose `package.json` failed to parse.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub manifest: Option<serde_json::Value>,
 

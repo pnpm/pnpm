@@ -20,6 +20,7 @@ pnpm-cmd-shim                          = { workspace = true }
 pnpm-crypto-hash                       = { workspace = true }
 pnpm-deps-path                         = { workspace = true }
 pnpm-deps-restorer                     = { workspace = true }
+pnpm-workspace-projects-graph          = { workspace = true }
 pnpm-directory-fetcher                 = { workspace = true }
 pnpm-engine-pm-yarn-resolver           = { workspace = true }
 pnpm-engine-runtime-bun-resolver       = { workspace = true }
@@ -64,6 +65,7 @@ chrono          = { workspace = true }
 dashmap         = { workspace = true }
 derive_more     = { workspace = true }
 dialoguer       = { workspace = true }
+dunce           = { workspace = true }
 futures-util    = { workspace = true }
 httpdate        = { workspace = true }
 indexmap        = { workspace = true }
@@ -85,7 +87,6 @@ miette          = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 
 async-trait       = { workspace = true }
-dunce             = { workspace = true }
 flate2            = { workspace = true }
 insta             = { workspace = true }
 mockito           = { workspace = true }

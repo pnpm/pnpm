@@ -3,9 +3,17 @@
 //! Ports pnpm's `sbom` command
 //! (`pnpm11/deps/compliance/commands/src/sbom/sbom.ts`).
 
-use crate::{State, cli_args::recursive::RecursiveSharedLockfileUnsupported};
+use crate::{
+    State,
+    cli_args::recursive::{
+        AutoExcludeRoot, RecursiveSharedLockfileUnsupported, discover_workspace_projects,
+        no_projects_matched_message, notice_workspace_dir, select_recursive_projects,
+        selected_importer_ids,
+    },
+};
 use clap::Args;
 use indexmap::IndexMap;
+use pnpm_config::Config;
 use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry,
 };
@@ -767,10 +775,38 @@ fn walk_snapshot(
     }
 }
 
+/// Whether the run asked for a subset of the workspace: any `--filter` /
+/// `--filter-prod` selector, or `--workspace-root`. Without one, every
+/// importer in the lockfile is in scope.
+fn selectors_narrow_the_run(config: &Config) -> bool {
+    !config.filter.is_empty() || !config.filter_prod.is_empty() || config.workspace_root
+}
+
+/// The lockfile importer ids of the workspace projects the run's selectors
+/// selected.
+fn selected_workspace_importer_ids(state: &State) -> miette::Result<HashSet<String>> {
+    let project_dir = state.project_dir();
+    let workspace_root = state.config.workspace_dir.as_deref().unwrap_or(project_dir);
+    let (projects, _) = discover_workspace_projects(workspace_root)?;
+    let selection =
+        select_recursive_projects(&projects, state.config, project_dir, AutoExcludeRoot::Disabled)?;
+    Ok(selected_importer_ids(&selection, state.lockfile_dir()).into_iter().collect())
+}
+
+/// The selected importer ids the lockfile has no entry for, sorted so the
+/// error names them in a stable order.
+fn missing_importers(selected: &HashSet<String>, lockfile_ids: &[String]) -> Vec<String> {
+    let known: HashSet<&str> = lockfile_ids.iter().map(String::as_str).collect();
+    let mut missing: Vec<String> =
+        selected.iter().filter(|id| !known.contains(id.as_str())).cloned().collect();
+    missing.sort_unstable();
+    missing
+}
+
 impl SbomArgs {
     pub async fn run(self, state: State) -> miette::Result<()> {
-        if !state.config.shared_workspace_lockfile
-            && (state.config.recursive || self.split || !state.config.filter.is_empty())
+        if !state.config.shares_one_lockfile()
+            && (state.config.recursive || self.split || selectors_narrow_the_run(state.config))
         {
             return Err(
                 RecursiveSharedLockfileUnsupported::new("Filtered and split `pnpm sbom`").into()
@@ -807,30 +843,49 @@ impl SbomArgs {
             .lockfile
             .get()
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-        let all_importer_ids: Vec<String> =
+        // `importers` is a `HashMap`, so its iteration order is arbitrary.
+        // Sorting fixes the order `--split` emits its SBOMs in, and matches
+        // the lockfile, whose importers are serialized sorted by id.
+        let mut all_importer_ids: Vec<String> =
             lockfile.as_ref().map(|lf| lf.importers.keys().cloned().collect()).unwrap_or_default();
+        all_importer_ids.sort_unstable();
 
         let all_count = all_importer_ids.len();
-        let importer_ids = if state.config.filter.is_empty() {
-            all_importer_ids
+        let importer_ids: Vec<String> = if selectors_narrow_the_run(state.config) {
+            let selected = selected_workspace_importer_ids(&state)?;
+            if selected.is_empty() {
+                // pnpm skips a command whose selectors selected nothing, so
+                // an SBOM of no project is never written.
+                let workspace_dir = notice_workspace_dir(state.config, state.project_dir());
+                println!("{}", no_projects_matched_message(workspace_dir));
+                return Ok(());
+            }
+            // Selecting through the workspace can name a project the lockfile
+            // has no importer for, which only an out-of-date lockfile
+            // produces — pnpm writes an entry for every project, `{}` for one
+            // with no dependencies. Walking what is left would answer with an
+            // SBOM that under-reports the selection's dependencies, so the run
+            // fails instead. No lockfile at all is a different failure, left
+            // to `collect_components` so it keeps its own error.
+            let missing = if lockfile.is_some() {
+                missing_importers(&selected, &all_importer_ids)
+            } else {
+                Vec::new()
+            };
+            if !missing.is_empty() {
+                let plural = if missing.len() == 1 { "" } else { "s" };
+                let names = missing.join(", ");
+                let lockfile_name = pnpm_lockfile::Lockfile::FILE_NAME;
+                return Err(miette::miette!(
+                    code = "ERR_PNPM_SBOM_MISSING_IMPORTERS",
+                    r#"{lockfile_name} has no entry for the selected project{plural}: {names}. Run "pnpm install" to update it."#,
+                ));
+            }
+            // Intersecting rather than mapping the selection keeps the
+            // lockfile order established above.
+            all_importer_ids.into_iter().filter(|id| selected.contains(id)).collect()
         } else {
-            let project_root = state.lockfile_dir();
             all_importer_ids
-                .into_iter()
-                .filter(|id| {
-                    let importer_dir = if id == "." {
-                        project_root.to_string_lossy().to_string()
-                    } else {
-                        project_root.join(id).to_string_lossy().to_string()
-                    };
-                    state.config.filter.iter().any(|f| {
-                        let pattern = f.strip_prefix("./").unwrap_or(f);
-                        id == pattern
-                            || id.starts_with(&format!("{pattern}/"))
-                            || importer_dir.ends_with(pattern)
-                    })
-                })
-                .collect()
         };
 
         let should_split = self.split

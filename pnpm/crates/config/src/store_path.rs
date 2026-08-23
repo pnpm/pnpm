@@ -65,7 +65,9 @@ pub fn resolve_store_dir<Sys: LinkProbe>(
     pnpm_home_dir: &Path,
     pkg_root: &Path,
 ) -> PathBuf {
-    let Ok(pkg_root) = fs::canonicalize(pkg_root) else {
+    // `dunce` keeps the Windows result free of the `\\?\` verbatim prefix,
+    // which would otherwise leak into the user-visible store path.
+    let Ok(pkg_root) = dunce::canonicalize(pkg_root) else {
         return home_default;
     };
 

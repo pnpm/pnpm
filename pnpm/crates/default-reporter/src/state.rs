@@ -21,8 +21,10 @@ use pnpm_reporter::{
 };
 use serde_json::Value;
 
+use pnpm_config::matcher::{Matcher, create_matcher};
+
 use crate::{
-    SummaryScope,
+    MaxLogLevel, SummaryScope,
     colors::Colors,
     format::{
         contains_path, cut_line, format_prefix, format_prefix_no_trim, highlight_last_folder,
@@ -41,7 +43,7 @@ pub enum Output {
 }
 
 /// Rendering settings that cannot be recovered from the event stream.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct ReporterOptions {
     /// Emit each update as a new line instead of replacing the current frame.
     pub append_only: bool,
@@ -58,6 +60,28 @@ pub struct ReporterOptions {
     pub reports_scope: bool,
     /// Whether direct dependency warnings use workspace-relative prefixes.
     pub is_recursive: bool,
+    /// Verbosity ceiling from pnpm's `--loglevel` setting.
+    pub max_log_level: MaxLogLevel,
+    /// Keep lifecycle script output in its collapsed block instead of
+    /// streaming each line, even in append-only mode. pnpm's
+    /// `hideLifecycleOutput`, which the TypeScript reporter applies by
+    /// forcing the lifecycle stream's own `appendOnly` off.
+    pub hide_lifecycle_output: bool,
+    /// Replaces the second line of the ignored-builds box — the one that
+    /// tells the user how to approve a build. pnpm's
+    /// `approveBuildsInstructionText`, for embedders whose users approve
+    /// builds through the embedder's own configuration rather than
+    /// `pnpm approve-builds`.
+    pub ignored_builds_instruction_text: Option<String>,
+    /// Package-name patterns whose *linked* entries are left out of the
+    /// packages-diff summary — an entry is linked when it carries a
+    /// `from`, i.e. it is symlinked in rather than materialized from the
+    /// store. The Rust counterpart of the TypeScript reporter's
+    /// `filterPkgsDiff` callback: an embedder that links its own runtime
+    /// into every project (Bit's core aspects) silences that noise
+    /// without silencing the same packages when they are really
+    /// installed.
+    pub hide_linked_pkgs_diff: Vec<String>,
 }
 
 impl Default for ReporterOptions {
@@ -69,6 +93,10 @@ impl Default for ReporterOptions {
             summary_scope: SummaryScope::CurrentPrefix,
             reports_scope: false,
             is_recursive: false,
+            max_log_level: MaxLogLevel::Info,
+            hide_lifecycle_output: false,
+            ignored_builds_instruction_text: None,
+            hide_linked_pkgs_diff: Vec::new(),
         }
     }
 }
@@ -241,8 +269,14 @@ pub struct ReporterState {
     width: usize,
     colors: Colors,
     append_only: bool,
+    hide_lifecycle_output: bool,
+    ignored_builds_instruction_text: Option<String>,
+    /// Compiled [`ReporterOptions::hide_linked_pkgs_diff`]. Never matches
+    /// when no patterns were configured.
+    hidden_linked_pkgs: Matcher,
     hide_added_pkgs_progress: bool,
     hide_progress_prefix: bool,
+    max_log_level: MaxLogLevel,
     frame: Frame,
     last_frame: Option<String>,
 
@@ -342,6 +376,10 @@ impl ReporterState {
             summary_scope,
             reports_scope,
             is_recursive,
+            max_log_level,
+            hide_lifecycle_output,
+            ignored_builds_instruction_text,
+            hide_linked_pkgs_diff,
         } = options;
         let mut diff = HashMap::new();
         for kind in SUMMARY_ORDER {
@@ -354,6 +392,7 @@ impl ReporterState {
             append_only,
             hide_added_pkgs_progress,
             hide_progress_prefix,
+            max_log_level,
             frame: Frame::new(append_only),
             last_frame: None,
             progress: HashMap::new(),
@@ -386,10 +425,16 @@ impl ReporterState {
             collapsed_warn_slot: BlockSlot::default(),
             deprecated_subdeps: Vec::new(),
             deprecated_slot: BlockSlot::default(),
+            hide_lifecycle_output,
+            ignored_builds_instruction_text,
+            hidden_linked_pkgs: create_matcher(&hide_linked_pkgs_diff),
         }
     }
 
     pub fn handle(&mut self, event: &LogEvent) -> Output {
+        if !self.level_permits(event) {
+            return Output::None;
+        }
         if matches!(event, LogEvent::Summary(_) | LogEvent::ExecutionTime(_)) {
             self.flush_pending_lockfile_message();
         }
@@ -440,6 +485,25 @@ impl ReporterState {
             self.flush_pending_lockfile_message();
         }
         self.finish()
+    }
+
+    /// Which events render at the configured `--loglevel`, mirroring the
+    /// tiers in `@pnpm/cli.default-reporter`'s `reporterForClient`: the
+    /// request-retry and deprecation streams need `warn`, the visual
+    /// streams (progress, stats, lifecycle, summary, `Done in ...`) need
+    /// `info`, and the `pnpm` / `pnpm:global` misc streams filter per
+    /// message level in [`Self::on_pnpm`], so errors always pass.
+    /// Dedupe-check issues always pass too — upstream reports them as an
+    /// error-level log (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in
+    /// `reportError.ts`).
+    fn level_permits(&self, event: &LogEvent) -> bool {
+        match event {
+            LogEvent::Pnpm(_) | LogEvent::Global(_) | LogEvent::DedupeCheck(_) => true,
+            LogEvent::RequestRetry(_) | LogEvent::Deprecation(_) => {
+                self.max_log_level >= MaxLogLevel::Warn
+            }
+            _ => self.max_log_level >= MaxLogLevel::Info,
+        }
     }
 
     fn finish(&mut self) -> Output {
@@ -828,7 +892,11 @@ impl ReporterState {
             if bucket.is_empty() {
                 continue;
             }
-            let mut diffs: Vec<&PackageDiff> = bucket.values().collect();
+            let mut diffs: Vec<&PackageDiff> =
+                bucket.values().filter(|diff| !self.is_hidden_linked(diff)).collect();
+            if diffs.is_empty() {
+                continue;
+            }
             diffs.sort_by(|a, b| {
                 a.name.cmp(&b.name).then(u8::from(a.added).cmp(&u8::from(b.added)))
             });
@@ -840,6 +908,14 @@ impl ReporterState {
             msg.push('\n');
         }
         msg
+    }
+
+    /// Whether this summary entry is a linked instance of a package the
+    /// embedder asked to keep out of the summary. Only linked entries are
+    /// hidden: the same package really installed from the registry is a
+    /// change worth reporting.
+    fn is_hidden_linked(&self, pkg: &PackageDiff) -> bool {
+        pkg.from.is_some() && self.hidden_linked_pkgs.matches(&pkg.name)
     }
 
     fn diff_line(&self, pkg: &PackageDiff) -> String {
@@ -879,7 +955,7 @@ impl ReporterState {
     // --- lifecycle --------------------------------------------------------
 
     fn on_lifecycle(&mut self, message: &LifecycleMessage) {
-        if self.append_only {
+        if self.append_only && !self.hide_lifecycle_output {
             let msg = self.stream_lifecycle(message);
             let mut slot = BlockSlot::default();
             self.frame.emit(&mut slot, msg, false);
@@ -1062,9 +1138,10 @@ impl ReporterState {
             return;
         }
         let list = log.package_names.join(", ");
-        self.push_block(format!(
-            "Ignored build scripts: {list}.\nRun \"pnpm approve-builds\" to pick which dependencies should be allowed to run scripts.",
-        ));
+        let instruction = self.ignored_builds_instruction_text.as_deref().unwrap_or(
+            r#"Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts."#,
+        );
+        self.push_block(format!("Ignored build scripts: {list}.\n{instruction}"));
     }
 
     fn on_config_deps(&mut self, log: &InstallingConfigDepsLog) {
@@ -1153,10 +1230,14 @@ impl ReporterState {
 
     fn on_pnpm(&mut self, level: LogLevel, message: &str, prefix: &str) {
         match level {
-            LogLevel::Debug => {}
-            LogLevel::Warn => self.push_warning(message),
+            LogLevel::Debug if self.max_log_level >= MaxLogLevel::Debug => {
+                self.push_block(message.to_string());
+            }
+            LogLevel::Warn if self.max_log_level >= MaxLogLevel::Warn => {
+                self.push_warning(message);
+            }
             LogLevel::Error => self.push_block(message.to_string()),
-            LogLevel::Info => {
+            LogLevel::Info if self.max_log_level >= MaxLogLevel::Info => {
                 if prefix.is_empty() || prefix == self.cwd {
                     if message == "Lockfile is up to date, resolution step is skipped" {
                         self.pending_lockfile_message = Some(message.to_string());
@@ -1165,6 +1246,7 @@ impl ReporterState {
                     }
                 }
             }
+            LogLevel::Debug | LogLevel::Warn | LogLevel::Info => {}
         }
     }
 

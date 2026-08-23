@@ -1,8 +1,8 @@
 use crate::{
     State,
     cli_args::{
-        install::resolve_bool_override, pipelines::InstallFamilySelection,
-        supported_architectures::SupportedArchitecturesArgs,
+        install::resolve_bool_override, lockfile_dir::LockfileDirArg,
+        pipelines::InstallFamilySelection, supported_architectures::SupportedArchitecturesArgs,
     },
     config_deps,
     engine_pm::{
@@ -152,6 +152,8 @@ pub struct AddArgs {
     /// Dependencies are not downloaded. Only `pnpm-lock.yaml` is updated.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
+    #[clap(flatten)]
+    pub lockfile_dir: LockfileDirArg,
     /// The directory with links to the store (default is `node_modules/.pnpm`).
     /// All direct and indirect dependencies of the project are linked into this directory
     #[clap(long = "virtual-store-dir", default_value = "node_modules/.pnpm")]

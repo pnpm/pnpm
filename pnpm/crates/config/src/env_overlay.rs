@@ -137,11 +137,13 @@ impl WorkspaceSettings {
         }
 
         json_field!(ci, "CI");
+        json_field!(ignore_pnpmfile, "IGNORE_PNPMFILE");
         json_field!(hoist, "HOIST");
         tri_array_field!(hoist_pattern, "HOIST_PATTERN");
         tri_array_field!(public_hoist_pattern, "PUBLIC_HOIST_PATTERN");
         json_field!(shamefully_hoist, "SHAMEFULLY_HOIST");
         string_field!(store_dir, "STORE_DIR");
+        string_field!(state_dir, "STATE_DIR");
         string_field!(modules_dir, "MODULES_DIR");
         enum_field!(node_linker, "NODE_LINKER", NodeLinker);
         json_field!(node_experimental_package_map, "NODE_EXPERIMENTAL_PACKAGE_MAP");
@@ -150,6 +152,8 @@ impl WorkspaceSettings {
         string_field!(virtual_store_dir, "VIRTUAL_STORE_DIR");
         enum_field!(virtual_store_type, "VIRTUAL_STORE_TYPE", VirtualStoreType);
         json_field!(enable_global_virtual_store, "ENABLE_GLOBAL_VIRTUAL_STORE");
+        json_field!(virtual_store_only, "VIRTUAL_STORE_ONLY");
+        json_field!(enable_modules_dir, "ENABLE_MODULES_DIR");
         json_field!(global_shims, "GLOBAL_SHIMS");
         string_field!(global_virtual_store_dir, "GLOBAL_VIRTUAL_STORE_DIR");
         enum_field!(package_import_method, "PACKAGE_IMPORT_METHOD", PackageImportMethod);
@@ -157,12 +161,19 @@ impl WorkspaceSettings {
         json_field!(virtual_store_dir_max_length, "VIRTUAL_STORE_DIR_MAX_LENGTH");
         json_field!(peers_suffix_max_length, "PEERS_SUFFIX_MAX_LENGTH");
         json_field!(lockfile, "LOCKFILE");
+        string_field!(lockfile_dir, "LOCKFILE_DIR");
         json_field!(prefer_frozen_lockfile, "PREFER_FROZEN_LOCKFILE");
         json_field!(prefer_symlinked_executables, "PREFER_SYMLINKED_EXECUTABLES");
         json_field!(frozen_lockfile, "FROZEN_LOCKFILE");
         json_field!(deploy_all_files, "DEPLOY_ALL_FILES");
         json_field!(force_legacy_deploy, "FORCE_LEGACY_DEPLOY");
         json_field!(shared_workspace_lockfile, "SHARED_WORKSPACE_LOCKFILE");
+        json_field!(git_branch_lockfile, "GIT_BRANCH_LOCKFILE");
+        json_field!(merge_git_branch_lockfiles, "MERGE_GIT_BRANCH_LOCKFILES");
+        json_field!(
+            merge_git_branch_lockfiles_branch_pattern,
+            "MERGE_GIT_BRANCH_LOCKFILES_BRANCH_PATTERN"
+        );
         json_field!(offline, "OFFLINE");
         json_field!(prefer_offline, "PREFER_OFFLINE");
         json_field!(lockfile_include_tarball_url, "LOCKFILE_INCLUDE_TARBALL_URL");
@@ -198,6 +209,10 @@ impl WorkspaceSettings {
         json_field!(resolve_peers_from_workspace_root, "RESOLVE_PEERS_FROM_WORKSPACE_ROOT");
         json_field!(block_exotic_subdeps, "BLOCK_EXOTIC_SUBDEPS");
         json_field!(verify_store_integrity, "VERIFY_STORE_INTEGRITY");
+        json_field!(strict_store_pkg_content_check, "STRICT_STORE_PKG_CONTENT_CHECK");
+        json_field!(include_workspace_root, "INCLUDE_WORKSPACE_ROOT");
+        json_field!(ignore_workspace_cycles, "IGNORE_WORKSPACE_CYCLES");
+        json_field!(disallow_workspace_cycles, "DISALLOW_WORKSPACE_CYCLES");
         json_field!(side_effects_cache, "SIDE_EFFECTS_CACHE");
         json_field!(side_effects_cache_readonly, "SIDE_EFFECTS_CACHE_READONLY");
         json_field!(fetch_retries, "FETCH_RETRIES");
@@ -207,9 +222,13 @@ impl WorkspaceSettings {
         json_field!(network_concurrency, "NETWORK_CONCURRENCY");
         json_field!(max_sockets, "MAX_SOCKETS");
         json_field!(fetch_timeout, "FETCH_TIMEOUT");
+        json_field!(fetch_warn_timeout_ms, "FETCH_WARN_TIMEOUT_MS");
+        json_field!(fetch_min_speed_ki_bps, "FETCH_MIN_SPEED_KI_BPS");
         string_field!(user_agent, "USER_AGENT");
         json_field!(patched_dependencies, "PATCHED_DEPENDENCIES");
         string_field!(patches_dir, "PATCHES_DIR");
+        string_field!(global_pnpmfile, "GLOBAL_PNPMFILE");
+        enum_field!(pnpmfile, "PNPMFILE", crate::PnpmfileSetting);
         json_field!(allow_builds, "ALLOW_BUILDS");
         json_field!(dangerously_allow_all_builds, "DANGEROUSLY_ALLOW_ALL_BUILDS");
         json_field!(strict_dep_builds, "STRICT_DEP_BUILDS");

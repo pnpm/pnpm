@@ -122,6 +122,41 @@ pub fn append_workspace_yaml_key(workspace: &Path, key: &str, value: impl std::f
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
 
+/// The sorted `packages:` keys of the lockfile in `dir` — what the
+/// upstream tests read as `lockfile.packages['<name>@<version>']`.
+#[must_use]
+pub fn lockfile_package_keys(dir: &Path) -> Vec<String> {
+    let mut keys = read_lockfile(&dir.join("pnpm-lock.yaml"))
+        .packages
+        .into_iter()
+        .flatten()
+        .map(|(key, _)| key.to_string())
+        .collect::<Vec<_>>();
+    keys.sort();
+    keys
+}
+
+/// Append an `updateConfig.ignoreDependencies` block to the
+/// `pnpm-workspace.yaml` the harness already wrote.
+pub fn set_ignore_dependencies(workspace: &Path, names: &[&str]) {
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    // Fail loudly if the harness ever starts writing `updateConfig` —
+    // appending a second top-level mapping key produces invalid YAML.
+    assert!(
+        !yaml.contains("updateConfig:"),
+        "pnpm-workspace.yaml already has an `updateConfig:` key — update this helper",
+    );
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str("updateConfig:\n  ignoreDependencies:\n");
+    for name in names {
+        writeln!(yaml, r#"    - "{name}""#).unwrap();
+    }
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+}
+
 /// [`append_workspace_yaml_key`] for the `minimumReleaseAge` setting.
 pub fn set_minimum_release_age(workspace: &Path, minutes: u64) {
     append_workspace_yaml_key(workspace, "minimumReleaseAge", minutes);

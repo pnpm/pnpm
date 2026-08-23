@@ -1,6 +1,7 @@
 use super::{
     AuthHeaders, DEFAULT_REGISTRY_SCOPE, UpstreamRouteHook, base64_encode, hide_auth_information,
     nerf_dart, redact_and_sanitize, redact_and_sanitize_multiline, redact_url_credentials,
+    redact_url_for_display,
 };
 use crate::TokenHelperOutput;
 use pretty_assertions::assert_eq;
@@ -231,6 +232,18 @@ fn redact_and_sanitize_strips_credentials_and_control_chars() {
     // A control character inside the userinfo must not break the redaction:
     // controls are stripped first, then credentials are redacted.
     assert_eq!(redact_and_sanitize("https://user:pass\r@host/x"), "https://host/x");
+}
+
+#[test]
+fn redact_url_for_display_strips_secrets_and_control_chars() {
+    assert_eq!(
+        redact_url_for_display("https://user:pass@host/pkg?token=secret#fragment\u{1b}"),
+        "https://host/pkg",
+    );
+    assert_eq!(redact_url_for_display("https://host/pkg#secret"), "https://host/pkg");
+    assert_eq!(redact_url_for_display("https://host/pkg"), "https://host/pkg");
+    assert_eq!(redact_url_for_display("https://user:pa?ss@host/pkg"), "[hidden]");
+    assert_eq!(redact_url_for_display("https://user:pa#ss@host/pkg"), "[hidden]");
 }
 
 #[test]

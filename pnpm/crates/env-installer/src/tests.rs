@@ -135,6 +135,7 @@ fn options<'a>(
         auth_headers: &harness.auth_headers,
         registries: &harness.registries,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         offline: false,
         package_import_method: pnpm_config::PackageImportMethod::default(),
         retry_opts: RetryOpts::default(),

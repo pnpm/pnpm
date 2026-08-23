@@ -396,8 +396,8 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
 
 /// Conversion-phase caches. `nodes` interns one [`HoisterTree`] per
 /// `(alias, snapshot key)` edge target. `dep_key_by_pkg_id` maps a
-/// peer-suffix-free package id (`name@version`) to the first snapshot
-/// key seen for it: every peer-suffix variant of one package version
+/// package id (see [`pkg_id`]) to the first snapshot key seen for
+/// it: every peer-suffix variant of one package version
 /// gets that first key as its `reference`, so the hoister sees one
 /// locator per version and dedups the variants instead of
 /// conflict-nesting a copy of each. Ports `depPathByPkgId` from pnpm
@@ -527,9 +527,11 @@ fn build_dep_node(
     // matching the TS wrapper, which reads `pkgSnapshot` from the
     // original depPath while stamping `depPathByPkgId.get(id)` as the
     // reference.
-    let pkg_id = dep_key.without_peer().to_string();
-    let reference =
-        cache.dep_key_by_pkg_id.entry(pkg_id).or_insert_with(|| dep_key.clone()).to_string();
+    let reference = cache
+        .dep_key_by_pkg_id
+        .entry(pkg_id(dep_key))
+        .or_insert_with(|| dep_key.clone())
+        .to_string();
     let node = Rc::new(HoisterTree {
         name: alias.to_string(),
         ident_name: dep_key.name.to_string(),
@@ -584,6 +586,28 @@ fn collect_snapshot_deps(
         out.insert(RcByPtr(node));
     }
     Ok(())
+}
+
+/// The identity every peer variant of one package version collapses
+/// onto: the snapshot key with its peer suffix — and the patch hash
+/// that sits alongside it — removed.
+///
+/// The hoister maps the id to the first snapshot key it sees for it
+/// and stamps that key on every variant, so only that first key
+/// survives as their shared `reference`. Anything indexing the hoist
+/// result by package therefore has to key *and* look up by this id
+/// rather than by the snapshot key an edge declares — otherwise every
+/// edge on a collapsed variant finds nothing and drops out of the
+/// layout.
+///
+/// One id can still cover several directories: [`HoisterTree`] nodes
+/// are interned per `(alias, snapshot key)`, so an alias exposing a
+/// package under a second name gets a node, and a directory, of its
+/// own. An index over the result holds the list and resolves an edge
+/// to its first entry.
+#[must_use]
+pub fn pkg_id(dep_key: &PkgNameVerPeer) -> String {
+    dep_key.without_peer().to_string()
 }
 
 /// Encode an importer id for use as a child node's `name` (and in

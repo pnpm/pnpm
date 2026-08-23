@@ -26,7 +26,7 @@ use pnpm_network::{ThrottledClient, redact_and_sanitize};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
-use pnpm_resolving_deps_resolver::{UpdateDepth, is_valid_dependency_alias};
+use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets, is_valid_dependency_alias};
 use pnpm_resolving_git_resolver::{
     GitFetchContext, GitResolver, HostedGit, HostedOpts, RealGitProbe, RealGitRunner,
 };
@@ -42,7 +42,7 @@ use pnpm_workspace_range_resolver::resolve_workspace_range;
 use pnpm_workspace_spec::WorkspaceSpec;
 use std::{
     collections::{BTreeMap, HashSet},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Arc,
 };
 
@@ -191,6 +191,8 @@ where
             supported_architectures,
             lockfile_only,
         } = self;
+        http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let dependency_groups: Option<Vec<DependencyGroup>> =
             dependency_groups.map(|groups| groups.into_iter().collect());
 
@@ -249,10 +251,10 @@ where
                 manifest.path().parent().expect("manifest path always has a parent dir");
             BTreeMap::from([(
                 pnpm_workspace::importer_id_from_root_dir(
-                    importer_id_root(config, manifest_dir),
+                    config.lockfile_dir_for(manifest_dir),
                     manifest_dir,
                 ),
-                ImporterUpdateSeedPolicy::DropOnly(dropped_pins),
+                ImporterUpdateSeedPolicy::DropOnly(unversioned_targets(dropped_pins)),
             )])
         };
         let catalogs_override = (!updated_catalogs.is_empty()).then(|| {
@@ -360,6 +362,8 @@ where
             supported_architectures,
             lockfile_only,
         } = self;
+        http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let dependency_groups: Option<Vec<DependencyGroup>> =
             dependency_groups.map(|groups| groups.into_iter().collect());
         let selected_indices = selected_project_indices(projects, ordered_dirs, selected_dirs);
@@ -390,7 +394,7 @@ where
         // Scoped per importer: a project that wasn't selected keeps its pins, so its
         // resolutions stand even when it declares the same package directly.
         let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
-        let importer_root = importer_id_root(config, manifest_dir);
+        let importer_root = config.lockfile_dir_for(manifest_dir);
         let mut seed_policies = BTreeMap::new();
         let mut preferred_versions_override = PreferredVersions::new();
         for &index in &selected_indices {
@@ -407,7 +411,10 @@ where
             }
             let importer_id =
                 pnpm_workspace::importer_id_from_root_dir(importer_root, &projects[index].root_dir);
-            seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropOnly(names));
+            seed_policies.insert(
+                importer_id,
+                ImporterUpdateSeedPolicy::DropOnly(unversioned_targets(names)),
+            );
             for (name, selectors) in preferred {
                 preferred_versions_override.entry(name).or_default().extend(selectors);
             }
@@ -484,18 +491,6 @@ where
     }
 }
 
-/// The directory importer ids are relative to: the lockfile's own directory,
-/// which is the workspace root only while one lockfile is shared. A seed
-/// policy keyed against anything else names no importer and silently does
-/// nothing. Mirrors the root [`Install`] resolves against.
-fn importer_id_root<'a>(config: &'a Config, manifest_dir: &'a Path) -> &'a Path {
-    if config.shared_workspace_lockfile {
-        config.workspace_dir.as_deref().unwrap_or(manifest_dir)
-    } else {
-        manifest_dir
-    }
-}
-
 /// The lockfile pins to withhold, and the preferences to layer on the seed,
 /// for a version an `add` named that its catalog entry resolves past.
 ///
@@ -506,6 +501,12 @@ fn importer_id_root<'a>(config: &'a Config, manifest_dir: &'a Path) -> &'a Path 
 /// dependency that isn't cataloged, a catalog entry that already resolves to
 /// the wanted version, one the wanted version falls outside of — is left
 /// alone, so an add that needs no resolution still skips it.
+/// Update targets that no selector scoped to a version line: a `catalog:`
+/// re-resolution moves whatever version the catalog entry now names.
+fn unversioned_targets(names: HashSet<String>) -> UpdateTargets {
+    names.into_iter().map(|name| (name, None)).collect()
+}
+
 fn catalog_version_requests(
     package_selectors: &[String],
     manifest: &PackageManifest,

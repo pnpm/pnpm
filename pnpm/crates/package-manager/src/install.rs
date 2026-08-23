@@ -89,7 +89,7 @@ use prepare_modules_state::{
 use workspace_state::{
     ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,
     build_selected_project_manifests_list, configured_or_discovered_workspace_dir,
-    projects_running_own_scripts, selected_manifest_freshness_inputs,
+    lockfile_root_for, projects_running_own_scripts, selected_manifest_freshness_inputs,
 };
 pub use workspace_state::{
     UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,
@@ -512,9 +512,8 @@ where
     pub disable_optimistic_repeat_install: bool,
     /// In-process `readPackage` / `afterAllResolved` hooks supplied by an
     /// embedder (the Node API binding) instead of a `.pnpmfile.cjs` on disk.
-    /// `Some` replaces the disk lookup on the fresh-resolve path entirely;
-    /// `None` (every CLI install) falls back to `finder::load_pnpmfile`.
-    /// Ignored on the frozen path, which performs no resolution.
+    /// `Some` replaces the disk lookup for the install, including custom
+    /// fetchers on the frozen path. `None` loads the configured pnpmfiles.
     pub pnpmfile_hook_override: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     /// Workspace importers supplied in memory by an embedder (the Node API
     /// binding) instead of discovering them from a `pnpm-workspace.yaml` on
@@ -527,6 +526,11 @@ where
 /// Error type of [`Install`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum InstallError {
+    /// A path named by the `pnpmfile` setting is not on disk. pnpm reports the
+    /// same code and message from `requireHooks`.
+    #[display("{_0}")]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_NOT_FOUND))]
+    MissingPnpmfile(#[error(not(source))] pnpm_hooks::finder::MissingPnpmfileError),
     #[display(
         "Headless installation requires a pnpm-lock.yaml file, but none was found. Run `pnpm install` without --frozen-lockfile to create one."
     )]
@@ -652,6 +656,14 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     SaveWantedLockfile(#[error(source)] SaveLockfileError),
 
+    /// Surfaces a failure to delete the per-branch lockfiles an install
+    /// under `mergeGitBranchLockfiles` has just folded into
+    /// `pnpm-lock.yaml`. Leaving them behind would make the next install
+    /// merge the same resolutions again.
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CLEAN_GIT_BRANCH_LOCKFILES))]
+    #[display("Failed to remove the git branch lockfiles: {_0}")]
+    CleanGitBranchLockfiles(#[error(source)] std::io::Error),
+
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR))]
     #[display("Failed to remove modules directory contents: {_0}")]
     RemoveModulesDir(#[error(source)] std::io::Error),
@@ -738,6 +750,13 @@ pub enum InstallError {
 
     #[diagnostic(transparent)]
     FindWorkspaceProjects(#[error(source)] pnpm_workspace::FindWorkspaceProjectsError),
+
+    /// `disallowWorkspaceCycles` and the projects this install covers
+    /// depend on each other in a cycle.
+    #[diagnostic(transparent)]
+    CyclicWorkspaceDependencies(
+        #[error(source)] crate::workspace_cycles::CyclicWorkspaceDependenciesError,
+    ),
 
     /// Building the verifier list from config rejected a
     /// `minimumReleaseAgeExclude` or `trustPolicyExclude` pattern.
@@ -845,6 +864,10 @@ struct InstallRunOptions<'install, 'selection> {
     /// whose resolution belongs to a project other than the one that
     /// owns that lockfile, so the run must leave it untouched.
     save_lockfile: bool,
+    /// pnpm's `lockfileCheck`: the caller restores the lockfile and diffs
+    /// it once the install returns, so the run must leave nothing else on
+    /// disk changed either. Only `pacquet dedupe --check` sets it.
+    lockfile_check: bool,
     /// See [`crate::ManifestSpecBumps`]. Only `pacquet update` sets it.
     manifest_spec_bumps: Option<&'install crate::ManifestSpecBumps>,
     /// Forces the interactive-prompt eligibility that is otherwise derived
@@ -862,6 +885,7 @@ impl Default for InstallRunOptions<'_, '_> {
             lockfile_specifier_project_manifests: None,
             read_package_hooked_manifest_paths: HashSet::new(),
             save_lockfile: true,
+            lockfile_check: false,
             manifest_spec_bumps: None,
             prompt_eligibility_override: None,
         }
@@ -875,6 +899,20 @@ where
     /// Execute the subroutine.
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions::default())).await
+    }
+
+    /// Execute as a check: the caller compares the lockfile the run
+    /// produced against the one it snapshotted and restores that snapshot,
+    /// so nothing else on disk may be left changed. pnpm's
+    /// `lockfileCheck`.
+    pub async fn run_lockfile_check<Reporter: self::Reporter + 'static>(
+        self,
+    ) -> Result<(), InstallError> {
+        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
+            lockfile_check: true,
+            ..Default::default()
+        }))
+        .await
     }
 
     pub(crate) async fn run_with_lockfile_specifier_project_manifests<

@@ -1,0 +1,22 @@
+[package]
+name                 = "pnpm-git-utils"
+description          = "Read-only git queries shared by the commands that branch on repository state"
+version              = "0.0.1"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license.workspace    = true
+repository.workspace = true
+
+[dependencies]
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true
