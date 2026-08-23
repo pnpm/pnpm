@@ -113,14 +113,16 @@ impl CliArgs {
     ///
     /// Mirrors the install arm of [`Self::run`]'s dispatch: the same
     /// canonicalized `--dir`, the same config layering (`.npmrc` auth
-    /// file seed + `--config.<key>` overrides). Workspace-filtered and
-    /// recursive installs always take the full path.
+    /// file seed + `--config.<key>` overrides). Filtered installs always
+    /// take the full path; an unfiltered recursive one does not — inside
+    /// a workspace every install is recursive, and the up-to-date check
+    /// speaks for the whole workspace.
     pub fn finished_via_install_fast_path(&self, config_overrides: &ConfigOverrides) -> bool {
         let started_at = now_millis();
         let CliCommand::Install(install_args) = &self.command else {
             return false;
         };
-        if self.recursive || !self.filter.is_empty() || !self.filter_prod.is_empty() {
+        if !self.filter.is_empty() || !self.filter_prod.is_empty() {
             return false;
         }
         let Ok(dir) = dunce::canonicalize(&self.dir) else {

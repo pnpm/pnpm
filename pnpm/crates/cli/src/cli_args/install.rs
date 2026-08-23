@@ -878,11 +878,13 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let catalogs = pnpr_catalogs(state)?;
 
     // Filtered installs keep the server exchange even when satisfied:
-    // their merge semantics live there.
+    // their merge semantics live there. A workspace-wide install has a
+    // selection too — every project — and skips the server like any
+    // single-project one.
     let satisfied_without_server = !link.frozen_lockfile
         && !link.lockfile_only
         && link.prefer_frozen_lockfile
-        && selection.is_none()
+        && !partial_selection
         && match previous_wanted {
             Some(lockfile) => {
                 wanted_lockfile_satisfies_workspace(&WantedLockfileSatisfactionCheck {
