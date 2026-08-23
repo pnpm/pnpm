@@ -110,6 +110,31 @@ fn recursive_exec_respects_workspace_concurrency() {
 }
 
 #[test]
+fn recursive_exec_no_sort_reverse_and_resume_transform_workspace_order() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["z-first", "m-middle", "a-last"]);
+
+    pacquet
+        .with_args([
+            "--workspace-concurrency=1",
+            "--no-sort",
+            "--reverse",
+            "--resume-from=m-middle",
+            "-r",
+            "exec",
+            "-c",
+            r#"echo "$(basename "$PWD")" >> ../order.log"#,
+        ])
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "m-middle\na-last\n");
+
+    drop(root);
+}
+
+#[test]
 fn parallel_recursive_exec_has_no_workspace_concurrency_cap() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
@@ -287,6 +312,31 @@ fn recursive_exec_report_summary_records_every_package_status() {
     let statuses = summary_statuses(&workspace);
     assert_eq!(statuses.get("project-1").map(String::as_str), Some("passed"));
     assert_eq!(statuses.get("project-2").map(String::as_str), Some("passed"));
+
+    drop(root);
+}
+
+#[test]
+fn recursive_exec_bail_summary_records_every_completed_batch_result() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["fails", "passes"]);
+
+    pacquet
+        .with_args([
+            "--workspace-concurrency=2",
+            "--no-sort",
+            "--report-summary",
+            "-r",
+            "exec",
+            "-c",
+            r#"if [ "$(basename "$PWD")" = fails ]; then exit 1; fi"#,
+        ])
+        .assert()
+        .failure();
+
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(statuses.get("fails").map(String::as_str), Some("failure"));
+    assert_eq!(statuses.get("passes").map(String::as_str), Some("passed"));
 
     drop(root);
 }

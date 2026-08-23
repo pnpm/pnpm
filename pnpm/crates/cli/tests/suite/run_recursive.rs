@@ -1114,21 +1114,23 @@ fn recursive_run_no_sort_uses_workspace_order() {
         &workspace,
         &[
             (
-                "app",
+                "z-app",
                 json!({
-                    "name": "app",
+                    "name": "z-app",
                     "version": "1.0.0",
-                    "scripts": { "build": "echo app >> ../order.log" },
-                    "dependencies": { "lib": "workspace:*" },
+                    "scripts": { "build": "echo z-app >> ../order.log" },
+                    "dependencies": { "a-lib": "workspace:*" },
                 }),
             ),
-            ("lib", build_appends_run_order("lib")),
+            ("a-lib", build_appends_run_order("a-lib")),
         ],
     );
 
     pacquet
         .with_arg("--workspace-concurrency=1")
         .with_arg("--no-sort")
+        .with_arg("--filter-prod=z-app")
+        .with_arg("--filter=a-lib")
         .with_arg("-r")
         .with_arg("run")
         .with_arg("build")
@@ -1136,7 +1138,38 @@ fn recursive_run_no_sort_uses_workspace_order() {
         .success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
-    assert_eq!(order, "app\nlib\n");
+    assert_eq!(order, "z-app\na-lib\n");
+
+    drop(root);
+}
+
+#[test]
+fn recursive_run_no_sort_reverse_and_resume_transform_workspace_order() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("z-first", build_appends_run_order("z-first")),
+            ("m-middle", build_appends_run_order("m-middle")),
+            ("a-last", build_appends_run_order("a-last")),
+        ],
+    );
+
+    pacquet
+        .with_args([
+            "--workspace-concurrency=1",
+            "--no-sort",
+            "--reverse",
+            "--resume-from=m-middle",
+            "-r",
+            "run",
+            "build",
+        ])
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "m-middle\na-last\n");
 
     drop(root);
 }
@@ -1323,6 +1356,34 @@ fn recursive_run_report_summary_records_every_package_status() {
     for (name, status) in expected {
         assert_eq!(statuses.get(name).map(String::as_str), Some(status), "status of {name}");
     }
+
+    drop(root);
+}
+
+#[test]
+fn recursive_run_bail_summary_records_every_completed_batch_result() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = |name: &str, body: &str| json!({ "name": name, "version": "1.0.0", "scripts": { "build": body } });
+    write_workspace(
+        &workspace,
+        &[("fails", manifest("fails", "exit 1")), ("passes", manifest("passes", "true"))],
+    );
+
+    pacquet
+        .with_args([
+            "--workspace-concurrency=2",
+            "--no-sort",
+            "--report-summary",
+            "-r",
+            "run",
+            "build",
+        ])
+        .assert()
+        .failure();
+
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(statuses.get("fails").map(String::as_str), Some("failure"));
+    assert_eq!(statuses.get("passes").map(String::as_str), Some("passed"));
 
     drop(root);
 }

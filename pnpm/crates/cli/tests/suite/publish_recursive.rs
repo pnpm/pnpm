@@ -186,6 +186,40 @@ fn recursive_publish_batches_selected_packages() {
 }
 
 #[test]
+fn recursive_batch_publish_uses_registry_auth_for_mixed_scopes() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[("project-1", public_pkg("@scope/project-1")), ("project-2", public_pkg("project-2"))],
+    );
+    let registry = format!("{}/", server.url());
+    let host = registry.strip_prefix("http://").unwrap_or(&registry);
+    fs::write(
+        workspace.join(".npmrc"),
+        format!(
+            "registry={registry}\n//{host}:_authToken=registry-token\n//{host}:@scope:_authToken=scoped-token\n",
+        ),
+    )
+    .expect("write .npmrc");
+    let batch = server
+        .mock("PUT", "/-/pnpm/v1/publish")
+        .match_header("authorization", "Bearer registry-token")
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+
+    clear_ci(pacquet)
+        .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
+        .assert()
+        .success();
+    batch.assert();
+
+    drop(root);
+}
+
+#[test]
 fn recursive_batch_publish_reports_an_unsupported_registry() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();

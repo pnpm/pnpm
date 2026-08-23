@@ -1730,6 +1730,9 @@ importers:
       '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
         version: link:../../workspace/projects-sorter
+      '@pnpm/workspace.workspace-manifest-reader':
+        specifier: workspace:*
+        version: link:../../workspace/workspace-manifest-reader
       chalk:
         specifier: 'catalog:'
         version: 6.0.0

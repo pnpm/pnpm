@@ -208,6 +208,10 @@ test('approve-builds during global add does not produce a doubled modules path',
 
 test('approve-builds -g approves pending builds in every global install group', async () => {
   prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: [],
+    allowBuilds: { 'caller-project-policy': true },
+  })
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(pnpmHome, { recursive: true })
@@ -225,10 +229,19 @@ test('approve-builds -g approves pending builds in every global install group', 
   expect(fs.existsSync(path.join(installScriptPkg, 'generated-by-install.js'))).toBe(false)
   expect(fs.existsSync(path.join(preAndPostinstallPkg, 'generated-by-postinstall.js'))).toBe(false)
 
+  const globalWorkspaceManifestPath = path.join(globalPkgDir(pnpmHome), 'pnpm-workspace.yaml')
+  writeYamlFileSync(globalWorkspaceManifestPath, {
+    allowBuilds: { 'existing-global-policy': false },
+  })
+
   await execPnpm(['approve-builds', '-g', '--all'], { env })
 
   expect(fs.existsSync(path.join(installScriptPkg, 'generated-by-install.js'))).toBe(true)
   expect(fs.existsSync(path.join(preAndPostinstallPkg, 'generated-by-postinstall.js'))).toBe(true)
+  expect(readYamlFileSync<any>(globalWorkspaceManifestPath).allowBuilds).toMatchObject({ // eslint-disable-line
+    'existing-global-policy': false,
+  })
+  expect(readYamlFileSync<any>(globalWorkspaceManifestPath).allowBuilds).not.toHaveProperty('caller-project-policy') // eslint-disable-line
 })
 
 // CONTEXT: dangerously-allow-all-builds has been removed from rc files, as a result, this test no longer applies

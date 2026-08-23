@@ -11,6 +11,7 @@ import { install } from '@pnpm/installing.commands'
 import { type Modules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { globalInfo } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import chalk from 'chalk'
 import { isSubdir } from 'is-subdir'
 import { renderHelp } from 'render-help'
@@ -147,7 +148,10 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
       throw err
     }
   }
-  const allowBuilds: Record<string, boolean | string> = { ...opts.allowBuilds }
+  const existingAllowBuilds = opts.global
+    ? (await readWorkspaceManifest(opts.globalPkgDir))?.allowBuilds
+    : opts.allowBuilds
+  const allowBuilds: Record<string, boolean | string> = { ...existingAllowBuilds }
   if (params.length) {
     for (const pkg of approved) {
       allowBuilds[pkg] = true

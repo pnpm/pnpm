@@ -117,10 +117,7 @@ where
         }
 
         let put_url = join_registry(&group.registry, BATCH_PUBLISH_ENDPOINT)?;
-        let authorization = network.auth_headers.for_url_with_package(
-            group.registry.as_str(),
-            group.package_names.first().map(String::as_str),
-        );
+        let authorization = network.auth_headers.for_url(group.registry.as_str());
         let body = bytes::Bytes::from(
             serde_json::to_vec(&serde_json::json!({ "packages": group.documents }))
                 .expect("serialize batch publish documents"),

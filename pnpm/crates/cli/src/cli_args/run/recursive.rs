@@ -140,15 +140,16 @@ pub fn run_recursive(
             &selection.prod_only_selected,
         )
     } else {
-        let mut roots = graph.keys().cloned().collect::<Vec<_>>();
-        roots.sort_unstable();
-        vec![roots]
+        graph.keys().cloned().map(|root| vec![root]).collect()
     };
     if args.reverse {
         chunks.reverse();
     }
     if let Some(resume_from) = &args.resume_from {
         chunks = get_resumed_package_chunks(resume_from, chunks, graph)?;
+    }
+    if !args.sort {
+        chunks = vec![chunks.into_iter().flatten().collect()];
     }
 
     // Compiled once for the whole run, not per project.
@@ -235,20 +236,21 @@ pub fn run_recursive(
                             emit,
                         })
                     })?;
+                let mut first_failure = None;
                 for (root, execution) in batch.iter().zip(executions) {
                     let execution = execution?;
                     has_command += execution.has_command;
                     let failed = execution.status.status == Status::Failure;
                     result.insert(root.clone(), execution.status);
-                    if bail && failed {
-                        if args.report_summary {
-                            write_recursive_summary(workspace_root, &result)?;
-                        }
-                        return Err(RecursiveRunError::RecursiveRunFirstFail {
-                            prefix: root.to_string_lossy().into_owned(),
-                        }
-                        .into());
+                    if failed && first_failure.is_none() {
+                        first_failure = Some(root.to_string_lossy().into_owned());
                     }
+                }
+                if bail && let Some(prefix) = first_failure {
+                    if args.report_summary {
+                        write_recursive_summary(workspace_root, &result)?;
+                    }
+                    return Err(RecursiveRunError::RecursiveRunFirstFail { prefix }.into());
                 }
             }
         }

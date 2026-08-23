@@ -1,7 +1,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::command_env::CommandTestExt;
-use std::{ffi::OsStr, fs, path::Path, process::Command};
+use std::{collections::HashSet, ffi::OsStr, fs, path::Path, process::Command};
 use tempfile::TempDir;
 
 fn copy_fixture(name: &str) -> TempDir {
@@ -179,6 +179,119 @@ fn split_and_filtered_sbom_read_per_project_workspace_lockfiles() {
             .any(|component| component["name"] == "is-positive"),
         "filtered SBOM should include dependencies from the selected project's lockfile",
     );
+}
+
+#[test]
+fn sbom_rejects_conflicting_entries_from_dedicated_lockfiles() {
+    let tmp = copy_fixture("simple-sbom");
+    let lockfile =
+        fs::read_to_string(tmp.path().join("pnpm-lock.yaml")).expect("read fixture lockfile");
+    for name in ["project-a", "project-b"] {
+        let project_dir = tmp.path().join("packages").join(name);
+        fs::create_dir_all(&project_dir).expect("create project dir");
+        fs::write(
+            project_dir.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": { "is-positive": "3.1.0" },
+            })
+            .to_string(),
+        )
+        .expect("write project manifest");
+        let project_lockfile = if name == "project-b" {
+            lockfile.replace(&["sha512-8N", "D1"].concat(), "sha512-different")
+        } else {
+            lockfile.clone()
+        };
+        fs::write(project_dir.join("pnpm-lock.yaml"), project_lockfile)
+            .expect("write project lockfile");
+    }
+    fs::remove_file(tmp.path().join("package.json")).expect("remove root manifest");
+    fs::remove_file(tmp.path().join("pnpm-lock.yaml")).expect("remove shared lockfile");
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write workspace manifest");
+
+    let output =
+        pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split"])
+            .output()
+            .expect("run split pacquet sbom");
+
+    assert!(!output.status.success(), "conflicting lockfile entries must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_SBOM_CONFLICTING_LOCKFILE_ENTRIES"), "stderr: {stderr}");
+    assert!(stderr.contains("is-positive@3.1.0"), "stderr: {stderr}");
+}
+
+#[test]
+fn filtered_sbom_reads_reachable_workspace_project_lockfiles() {
+    let tmp = copy_fixture("simple-sbom");
+    let dependency_lockfile =
+        fs::read_to_string(tmp.path().join("pnpm-lock.yaml")).expect("read fixture lockfile");
+    let project_a = tmp.path().join("packages/project-a");
+    let project_b = tmp.path().join("packages/project-b");
+    fs::create_dir_all(&project_a).expect("create project-a");
+    fs::create_dir_all(&project_b).expect("create project-b");
+    fs::write(
+        project_a.join("package.json"),
+        serde_json::json!({
+            "name": "project-a",
+            "version": "1.0.0",
+            "dependencies": { "project-b": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("write project-a manifest");
+    fs::write(
+        project_b.join("package.json"),
+        serde_json::json!({
+            "name": "project-b",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "3.1.0" },
+        })
+        .to_string(),
+    )
+    .expect("write project-b manifest");
+    fs::write(
+        project_a.join("pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      project-b:\n        specifier: workspace:*\n        version: link:../project-b\n",
+    )
+    .expect("write project-a lockfile");
+    fs::write(project_b.join("pnpm-lock.yaml"), dependency_lockfile)
+        .expect("write project-b lockfile");
+    fs::remove_file(tmp.path().join("package.json")).expect("remove root manifest");
+    fs::remove_file(tmp.path().join("pnpm-lock.yaml")).expect("remove shared lockfile");
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write workspace manifest");
+
+    let output = pacquet(
+        tmp.path(),
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--filter", "project-a"],
+    )
+    .output()
+    .expect("run filtered pacquet sbom");
+
+    assert!(
+        output.status.success(),
+        "filtered SBOM failed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let sbom: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("parse filtered SBOM");
+    let component_names: HashSet<&str> = sbom["components"]
+        .as_array()
+        .expect("components array")
+        .iter()
+        .filter_map(|component| component["name"].as_str())
+        .collect();
+    assert!(component_names.contains("project-b"));
+    assert!(component_names.contains("is-positive"));
 }
 
 #[test]

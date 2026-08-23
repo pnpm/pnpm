@@ -18,7 +18,7 @@ use indexmap::IndexMap;
 use pnpm_config::Config;
 use pnpm_lockfile::{
     LazyLockfile, Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgName,
-    PkgNameVerPeer, SnapshotEntry, merge_lockfile_changes,
+    PkgNameVerPeer, SnapshotEntry,
 };
 use pnpm_package_is_installable::{
     InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
@@ -26,7 +26,9 @@ use pnpm_package_is_installable::{
 use pnpm_package_manager::{importer_root_dir, validate_importer_id};
 use pnpm_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, hash_map::Entry},
+    fmt::Display,
+    hash::Hash,
     io::Write,
     path::{Path, PathBuf},
 };
@@ -820,6 +822,86 @@ fn missing_importers(selected: &HashSet<String>, lockfile_ids: &[String]) -> Vec
     missing
 }
 
+fn extend_dedicated_lockfile_map<Key, Value>(
+    current: &mut HashMap<Key, Value>,
+    incoming: HashMap<Key, Value>,
+    entry_kind: &str,
+    selected_dir: &Path,
+) -> miette::Result<()>
+where
+    Key: Display + Eq + Hash,
+    Value: PartialEq,
+{
+    for (key, value) in incoming {
+        match current.entry(key) {
+            Entry::Vacant(entry) => {
+                entry.insert(value);
+            }
+            Entry::Occupied(entry) if entry.get() != &value => {
+                let key = entry.key();
+                let selected_dir = selected_dir.display();
+                return Err(miette::miette!(
+                    code = "ERR_PNPM_SBOM_CONFLICTING_LOCKFILE_ENTRIES",
+                    "Cannot combine dedicated workspace lockfiles because {} contains a different {entry_kind} entry for {key}",
+                    selected_dir,
+                ));
+            }
+            Entry::Occupied(_) => {}
+        }
+    }
+    Ok(())
+}
+
+fn extend_dedicated_lockfile(
+    current: &mut Lockfile,
+    incoming: Lockfile,
+    selected_dir: &Path,
+) -> miette::Result<()> {
+    extend_dedicated_lockfile_map(
+        &mut current.importers,
+        incoming.importers,
+        "importer",
+        selected_dir,
+    )?;
+    if let Some(packages) = incoming.packages {
+        extend_dedicated_lockfile_map(
+            current.packages.get_or_insert_default(),
+            packages,
+            "package",
+            selected_dir,
+        )?;
+    }
+    if let Some(snapshots) = incoming.snapshots {
+        extend_dedicated_lockfile_map(
+            current.snapshots.get_or_insert_default(),
+            snapshots,
+            "snapshot",
+            selected_dir,
+        )?;
+    }
+    Ok(())
+}
+
+fn selected_and_reachable_project_dirs(
+    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+) -> Vec<PathBuf> {
+    let graph = selection.full_graph();
+    let mut project_dirs: Vec<PathBuf> = selection.selected.keys().cloned().collect();
+    let mut seen: HashSet<PathBuf> = project_dirs.iter().cloned().collect();
+    let mut index = 0;
+    while let Some(project_dir) = project_dirs.get(index) {
+        if let Some(project) = graph.get(project_dir) {
+            for dependency_dir in &project.dependencies {
+                if seen.insert(dependency_dir.clone()) {
+                    project_dirs.push(dependency_dir.clone());
+                }
+            }
+        }
+        index += 1;
+    }
+    project_dirs
+}
+
 fn merged_dedicated_lockfile_state(mut state: State) -> miette::Result<(State, Vec<PathBuf>)> {
     let project_dir = state.project_dir();
     let workspace_root = state.config.workspace_dir.as_deref().unwrap_or(project_dir);
@@ -828,14 +910,15 @@ fn merged_dedicated_lockfile_state(mut state: State) -> miette::Result<(State, V
         select_recursive_projects(&projects, state.config, project_dir, AutoExcludeRoot::Disabled)?;
 
     let mut merged: Option<Lockfile> = None;
-    let mut virtual_store_dirs = Vec::with_capacity(selection.selected.len());
-    for selected_dir in selection.selected.keys() {
+    let project_dirs = selected_and_reachable_project_dirs(&selection);
+    let mut virtual_store_dirs = Vec::with_capacity(project_dirs.len());
+    for selected_dir in project_dirs {
         let mut project_config = state.config.clone();
-        project_config.anchor_lockfile_paths(selected_dir);
+        project_config.anchor_lockfile_paths(&selected_dir);
         virtual_store_dirs.push(project_config.effective_virtual_store_dir().to_path_buf());
 
         let Some(mut lockfile) =
-            Lockfile::load_wanted(selected_dir, &state.config.wanted_lockfile_selection())
+            Lockfile::load_wanted(&selected_dir, &state.config.wanted_lockfile_selection())
                 .map_err(miette::Report::new)?
         else {
             continue;
@@ -845,16 +928,17 @@ fn merged_dedicated_lockfile_state(mut state: State) -> miette::Result<(State, V
             .into_iter()
             .map(|(importer_id, importer)| {
                 validate_importer_id(&importer_id).map_err(miette::Report::new)?;
-                let importer_dir = importer_root_dir(selected_dir, &importer_id);
+                let importer_dir = importer_root_dir(&selected_dir, &importer_id);
                 let workspace_id =
                     pnpm_workspace::importer_id_from_root_dir(workspace_root, &importer_dir);
                 Ok((workspace_id, importer))
             })
             .collect::<miette::Result<_>>()?;
-        merged = Some(match merged {
-            Some(current) => merge_lockfile_changes(&current, &lockfile),
-            None => lockfile,
-        });
+        if let Some(current) = &mut merged {
+            extend_dedicated_lockfile(current, lockfile, &selected_dir)?;
+        } else {
+            merged = Some(lockfile);
+        }
     }
 
     virtual_store_dirs.sort_unstable();
