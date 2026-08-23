@@ -1,5 +1,5 @@
 import { type UpdateCheckLog } from '@pnpm/core-loggers'
-import { detectIfCurrentPkgIsExecutable, isExecutedByCorepack, type Process } from '@pnpm/cli-meta'
+import { isExecutedByCorepack } from '@pnpm/cli-meta'
 import boxen from 'boxen'
 import chalk from 'chalk'
 import * as Rx from 'rxjs'
@@ -8,7 +8,6 @@ import semver from 'semver'
 
 export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
   env: NodeJS.ProcessEnv
-  process: NodeJS.Process
 }): Rx.Observable<Rx.Observable<{ msg: string }>> {
   return log$.pipe(
     take(1),
@@ -17,7 +16,6 @@ export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
       const updateMessage = renderUpdateMessage({
         latestVersion: log.latestVersion,
         env: opts.env,
-        proc: opts.process,
       })
       return Rx.of({
         msg: boxen(`\
@@ -40,7 +38,6 @@ ${updateMessage}`,
 interface UpdateMessageOptions {
   env: NodeJS.ProcessEnv
   latestVersion: string
-  proc: Process
 }
 
 function renderUpdateMessage (opts: UpdateMessageOptions): string {
@@ -52,27 +49,9 @@ function renderUpdateCommand (opts: UpdateMessageOptions): string {
   if (isExecutedByCorepack(opts.env)) {
     return `corepack use pnpm@${opts.latestVersion}`
   }
-  if (opts.env.PNPM_HOME) {
-    return 'pnpm self-update'
-  }
-  return `pnpm add -g ${updatePkgName(opts)}`
-}
-
-/**
- * The package to install for an update to `latestVersion`, mirroring what the
- * version switch itself installs (`pnpmPackageNameToInstall`). A standalone
- * build keeps `@pnpm/exe`, except where that package cannot deliver a working
- * pnpm: from v12 the unscoped `pnpm` package is itself the native executable
- * and `@pnpm/exe` is no longer published alongside it, and v11+ ships no
- * darwin-x64 `@pnpm/exe` because a Node.js SEA build segfaults at startup on
- * Intel Macs (https://github.com/pnpm/pnpm/issues/11423). Naming `@pnpm/exe`
- * in either case would resolve to the newest release that has it and silently
- * strand the user there.
- */
-function updatePkgName ({ latestVersion, proc }: UpdateMessageOptions): string {
-  if (!detectIfCurrentPkgIsExecutable(proc)) return 'pnpm'
-  const major = semver.major(latestVersion)
-  if (major >= 12) return 'pnpm'
-  if (major >= 11 && proc.platform === 'darwin' && proc.arch === 'x64') return 'pnpm'
-  return '@pnpm/exe'
+  // `pnpm add -g pnpm` (or `@pnpm/exe`) is refused by the add command itself,
+  // which points at self-update instead. self-update also picks the package
+  // that can actually deliver a working binary for the wanted version — the
+  // unscoped `pnpm` from v12, where `@pnpm/exe` is no longer published.
+  return 'pnpm self-update'
 }
