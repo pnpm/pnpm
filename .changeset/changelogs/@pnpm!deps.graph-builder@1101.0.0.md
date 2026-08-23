@@ -1,0 +1,35 @@
+## 1101.0.0
+
+### Major Changes
+
+- The three registry lookups are now named for what they are keyed by, so that none of them is called `registries` — a name the `registries` setting itself has taken:
+
+  | before | after |
+  |---|---|
+  | `Config.registries` | `Config.registriesByScope` |
+  | `Config.namedRegistries` | `Config.registriesByPrefix` |
+  | `Config.registryOptions` | `Config.registryOptionsByUrl` |
+
+  The same rename applies to the `RegistryContext` fields, the `Registries` and `NamedRegistries` types (now `RegistriesByScope` and `RegistriesByPrefix`), `normalizeRegistries` / `normalizeNamedRegistries` (now `normalizeRegistriesByScope` / `normalizeRegistriesByPrefix`), and the `BUILTIN_NAMED_REGISTRIES` constant (now `BUILTIN_REGISTRIES_BY_PREFIX`).
+
+  This is an internal rename: no setting, error code, lockfile field, or `.pnpmfile.cjs` hook field changes. A `preResolution` hook still reads `ctx.registries`, which is the name pacquet passes as well. The `registries` and `namedRegistries` settings are read under the names users write them.
+
+  The pnpr resolve request sends `registriesByPrefix` where it sent `namedRegistries`. A pnpr server and its clients must be on matching versions, which is already the case for an experimental server.
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/config.normalize-registries@1101.0.0
+  - @pnpm/config.package-is-installable@1100.1.4
+  - @pnpm/constants@1102.0.0
+  - @pnpm/core-loggers@1100.3.3
+  - @pnpm/deps.graph-hasher@1100.2.18
+  - @pnpm/deps.path@1101.0.0
+  - @pnpm/fs.symlink-dependency@1100.0.18
+  - @pnpm/hooks.types@1101.0.0
+  - @pnpm/installing.modules-yaml@1101.0.0
+  - @pnpm/lockfile.fs@1100.2.3
+  - @pnpm/lockfile.utils@1102.0.0
+  - @pnpm/patching.config@1100.1.2
+  - @pnpm/store.controller-types@1101.1.2
+  - @pnpm/types@1102.0.0
