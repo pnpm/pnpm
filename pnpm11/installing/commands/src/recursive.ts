@@ -31,14 +31,10 @@ import {
   type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/installing.deps-installer'
-import { logger } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
-import {
-  DIRECT_DEP_SELECTOR_WEIGHT,
-  type PreferredVersions,
-  type ResolutionVerifier,
-} from '@pnpm/resolving.resolver-base'
+import type { PreferredVersions, ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { StoreController } from '@pnpm/store.controller'
 import type {
@@ -249,9 +245,14 @@ export async function recursive (
   } else {
     updateMatch = null
   }
-  const preferredVersions = cmdFullName === 'update'
-    ? createPreferredVersionsFromPinnedUpdateSpecs(params.flatMap(expandUpdateSelectorsForMatching), opts.preferredVersions)
-    : opts.preferredVersions
+  // At `--depth 0` a selector that matches no direct dependency is already
+  // `NO_PACKAGE_IN_DEPENDENCIES` below; only a deeper update reaches the
+  // transitive copy whose version cannot be recorded. `--latest` rejects every
+  // versioned selector on its own, direct or not, and has to report that
+  // first.
+  if (updateMatch != null && !opts.latest && (opts.depth ?? Infinity) > 0) {
+    failOnVersionsOfIndirectUpdateSpecs(params, pkgs.map(({ manifest }) => manifest), includeDirect)
+  }
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
     let importers = getImporters(opts)
@@ -356,7 +357,6 @@ export async function recursive (
       dryRunResult,
     } = await mutateModules(mutatedImporters, {
       ...installOpts,
-      preferredVersions,
       storeController: store.ctrl,
       resolutionVerifiers: store.resolutionVerifiers,
     })
@@ -434,7 +434,7 @@ export async function recursive (
           & OptionsFromRootManifest
           & Project
           & Pick<Config, 'bin'>
-          & { preferredVersions?: PreferredVersions, rangeSpecStyle: RangeSpecStyle }
+          & { rangeSpecStyle: RangeSpecStyle }
 
         interface ActionResult {
           updatedCatalogs?: Catalogs
@@ -492,7 +492,6 @@ export async function recursive (
               savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
             }),
             configByUri: installOpts.configByUri,
-            preferredVersions,
             storeController: store.ctrl,
             resolutionVerifiers: store.resolutionVerifiers,
           }
@@ -660,36 +659,69 @@ function parseVersionLine (versionSpec: string): { major: number, minor: number 
 }
 
 /**
- * A selector that pins an exact version also steers the resolver towards it:
- * the pinned version, plus a cap so a dependent whose range excludes it still
- * stays below it. Both weigh just above `DIRECT_DEP_SELECTOR_WEIGHT`, so they
- * outrank the ranges the manifests declare but stay under the pins the
- * lockfile seeds — an edge outside the update keeps its locked version, while
- * an edge the update targets has had those pins stripped by then and follows
- * the request. Negated and glob patterns name no single package to prefer a
- * version for.
+ * `pnpm update <dep>@<version>` where `<dep>` matches no direct dependency has
+ * nowhere to record the version. An update resolves such a target the same way
+ * a fresh install would — which a command-line version cannot influence — so
+ * honoring the request would mean writing a lockfile entry no manifest backs,
+ * and the next fresh resolve would undo it. Neither npm nor Yarn accepts a
+ * version here either. Fail rather than resolve to something else and leave
+ * the caller a zero exit status to read.
+ *
+ * A range or a tag is not held to the same standard: it names no single
+ * version to record, and updating within the dependents' ranges is a
+ * reasonable reading of it. Those keep the warning they have always had.
+ *
+ * The override the hint recommends is scoped to the dependents' declared range
+ * so it cannot violate any consumer's range; that range lives in the
+ * dependents' manifests, which this layer does not read, hence the
+ * placeholder.
  */
-export function createPreferredVersionsFromPinnedUpdateSpecs (
-  params: string[],
-  preferredVersions?: PreferredVersions
-): PreferredVersions | undefined {
+export function failOnVersionsOfIndirectUpdateSpecs (
+  updateSpecs: string[],
+  manifests: ProjectManifest[],
+  include: IncludedDependencies
+): void {
   const pinned: Array<{ pattern: string, version: string }> = []
-  for (const param of params) {
-    const { pattern, versionSpec } = parseUpdateParam(param)
-    if (versionSpec == null || pattern[0] === '!' || pattern.includes('*')) continue
+  for (const spec of updateSpecs) {
+    const { pattern, versionSpec } = parseUpdateParam(spec)
+    // A negated selector excludes names; a version on one asks for nothing.
+    if (versionSpec == null || pattern[0] === '!') continue
+    if (matchesADirectDependency(pattern, manifests, include)) continue
     const version = parseExactVersion(versionSpec)
-    if (version != null) pinned.push({ pattern, version })
+    if (version == null) {
+      globalWarn(`"${pattern}" is not a direct dependency, so the requested "${versionSpec}" is ignored — "${pattern}" is updated to what a fresh install would resolve.`)
+      continue
+    }
+    pinned.push({ pattern, version })
   }
-  if (pinned.length === 0) return preferredVersions
-  // A null prototype keeps a package named `__proto__` out of the prototype chain.
-  const mergedPreferredVersions: PreferredVersions = Object.assign(Object.create(null), preferredVersions)
-  for (const { pattern, version } of pinned) {
-    mergedPreferredVersions[pattern] = Object.assign(Object.create(null), mergedPreferredVersions[pattern], {
-      [version]: { selectorType: 'version', weight: DIRECT_DEP_SELECTOR_WEIGHT + 1 },
-      [`<=${version}`]: { selectorType: 'range', weight: DIRECT_DEP_SELECTOR_WEIGHT + 1 },
+  if (pinned.length === 0) return
+  const subjects = pinned.map(({ pattern, version }) => `"${pattern}" (requested "${version}")`)
+  const overrides = pinned.map(({ pattern, version }) => `    ${pattern}@<declared range>: ${version}`)
+  throw new PnpmError('UPDATE_VERSION_ON_INDIRECT_DEP',
+    `${subjects.join(', ')} ${pinned.length === 1 ? 'is not a direct dependency, so the requested version cannot' : 'are not direct dependencies, so the requested versions cannot'} be recorded.`,
+    {
+      hint: `An update resolves a transitive dependency the way a fresh install would, so a version on the command line has no effect on it. To pin one, add an override scoped to the range its dependents declare to pnpm-workspace.yaml:
+
+  overrides:
+${overrides.join('\n')}
+
+To update it within the range its dependents already declare, drop the version: pnpm update ${pinned.map(({ pattern }) => pattern).join(' ')}`,
     })
-  }
-  return mergedPreferredVersions
+}
+
+/**
+ * Whether any of `manifests` declares a dependency `pattern` names, so the
+ * update has a manifest entry to write the requested version into. A pattern
+ * that matches nothing directly reaches its target only through the resolver,
+ * which the version cannot steer.
+ */
+function matchesADirectDependency (
+  pattern: string,
+  manifests: ProjectManifest[],
+  include: IncludedDependencies
+): boolean {
+  const match = createMatcher([pattern])
+  return manifests.some((manifest) => matchDependencies(match, manifest, include).length > 0)
 }
 
 export type UpdateDepsMatcher = (input: string) => string | null
