@@ -1,5 +1,5 @@
+import { isExecutedByCorepack, type Process, standaloneInstallCommand } from '@pnpm/cli-meta'
 import { type UpdateCheckLog } from '@pnpm/core-loggers'
-import { detectIfCurrentPkgIsExecutable, isExecutedByCorepack } from '@pnpm/cli-meta'
 import boxen from 'boxen'
 import chalk from 'chalk'
 import * as Rx from 'rxjs'
@@ -15,9 +15,8 @@ export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
     filter((log) => semver.gt(log.latestVersion, log.currentVersion)),
     map((log) => {
       const updateMessage = renderUpdateMessage({
-        currentPkgIsExecutable: detectIfCurrentPkgIsExecutable(opts.process),
-        latestVersion: log.latestVersion,
         env: opts.env,
+        proc: opts.process,
       })
       return Rx.of({
         msg: boxen(`\
@@ -38,9 +37,8 @@ ${updateMessage}`,
 }
 
 interface UpdateMessageOptions {
-  currentPkgIsExecutable: boolean
   env: NodeJS.ProcessEnv
-  latestVersion: string
+  proc: Process
 }
 
 function renderUpdateMessage (opts: UpdateMessageOptions): string {
@@ -49,12 +47,14 @@ function renderUpdateMessage (opts: UpdateMessageOptions): string {
 }
 
 function renderUpdateCommand (opts: UpdateMessageOptions): string {
+  // Under Corepack, `pnpm self-update` refuses to run, and pnpm no longer
+  // points users back at Corepack — it suggests its own installer instead.
   if (isExecutedByCorepack(opts.env)) {
-    return `corepack use pnpm@${opts.latestVersion}`
+    return standaloneInstallCommand(opts.proc)
   }
-  if (opts.env.PNPM_HOME) {
-    return 'pnpm self-update'
-  }
-  const pkgName = opts.currentPkgIsExecutable ? '@pnpm/exe' : 'pnpm'
-  return `pnpm add -g ${pkgName}`
+  // `pnpm add -g pnpm` (or `@pnpm/exe`) is refused by the add command itself,
+  // which points at self-update instead. self-update also picks the package
+  // that can actually deliver a working binary for the wanted version — the
+  // unscoped `pnpm` from v12, where `@pnpm/exe` is no longer published.
+  return 'pnpm self-update'
 }
