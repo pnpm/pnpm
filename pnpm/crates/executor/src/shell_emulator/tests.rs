@@ -37,7 +37,7 @@ fn captures_stdout_line_by_line() {
         vec![
             (LifecycleStdio::Stdout, "first".to_string()),
             (LifecycleStdio::Stdout, "second".to_string()),
-        ]
+        ],
     );
 }
 
