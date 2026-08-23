@@ -103,8 +103,6 @@ export function getChangelogEntry (changelog: string, version: string): Changelo
       <td align="center" valign="middle">
         <a href="https://bit.cloud/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/bit.svg" width="80" alt="Bit"></a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://openai.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
           <picture>
@@ -114,8 +112,6 @@ export function getChangelogEntry (changelog: string, version: string): Changelo
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://notion.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
           <picture>
