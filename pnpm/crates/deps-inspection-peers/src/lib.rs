@@ -93,15 +93,6 @@ pub fn has_missing_peers(issues: &IssuesByProjects) -> bool {
     })
 }
 
-/// Every issue the lockfile records, across all of its importers.
-/// An install writes them all, so it reports on them all.
-#[must_use]
-pub fn check_all_importers(lockfile: &Lockfile, lockfile_dir: &Path) -> IssuesByProjects {
-    let mut importer_ids: Vec<String> = lockfile.importers.keys().cloned().collect();
-    importer_ids.sort();
-    check_peer_dependencies_of_importers(lockfile, lockfile_dir, &importer_ids)
-}
-
 /// The issues reachable from the given project directories, for the
 /// commands that inspect a selection rather than the whole workspace.
 #[must_use]
@@ -196,32 +187,36 @@ fn resolve_link_version(base_dir: &Path, lockfile_dir: &Path, link_target: &str)
     if !path_is_within(&target_dir, lockfile_dir) {
         return None;
     }
-    let manifest_path = target_dir.join("package.json");
-    PackageManifest::from_path(manifest_path).ok().and_then(|manifest| {
-        manifest
-            .value()
-            .get("version")
-            .and_then(|version_val| version_val.as_str())
-            .map(String::from)
-    })
+    let manifest = PackageManifest::from_path(target_dir.join("package.json")).ok()?;
+    package_manifest_version(&manifest)
 }
 
-fn check_linked_package_peers(
-    importer_id: &str,
-    importer: &pnpm_lockfile::ProjectSnapshot,
-    link_target: &str,
-    alias: &str,
-    linked_version: &str,
-    lockfile_dir: &Path,
-    issues: &mut PeerIssues,
-) {
-    let importer_dir = lockfile_dir.join(importer_id);
-    let linked_pkg_dir = importer_dir.join(link_target);
-    if !path_is_within(&linked_pkg_dir, lockfile_dir) {
-        return;
-    }
-    let manifest_path = linked_pkg_dir.join("package.json");
-    let Ok(manifest) = PackageManifest::from_path(manifest_path) else { return };
+fn package_manifest_version(manifest: &PackageManifest) -> Option<String> {
+    manifest.value().get("version").and_then(|version| version.as_str()).map(String::from)
+}
+
+/// A workspace package an importer reaches through `link:`, whose own
+/// `peerDependencies` the importer has to satisfy.
+struct LinkedPackagePeers<'a> {
+    importer: &'a pnpm_lockfile::ProjectSnapshot,
+    importer_dir: &'a Path,
+    lockfile_dir: &'a Path,
+    manifest: &'a PackageManifest,
+    alias: &'a str,
+    linked_version: &'a str,
+    issues: &'a mut PeerIssues,
+}
+
+fn check_linked_package_peers(inputs: LinkedPackagePeers<'_>) {
+    let LinkedPackagePeers {
+        importer,
+        importer_dir,
+        lockfile_dir,
+        manifest,
+        alias,
+        linked_version,
+        issues,
+    } = inputs;
     let Some(peer_deps) =
         manifest.value().get("peerDependencies").and_then(|deps_val| deps_val.as_object())
     else {
@@ -269,7 +264,7 @@ fn check_linked_package_peers(
                     }
                 } else if let Some(link_target) = spec.version.as_link_target() {
                     let found_version =
-                        resolve_link_version(&importer_dir, lockfile_dir, link_target)
+                        resolve_link_version(importer_dir, lockfile_dir, link_target)
                             .unwrap_or_else(|| format!("link:{link_target}"));
                     if !satisfies(&found_version, &peer_range) {
                         issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
@@ -319,28 +314,38 @@ fn collect_initial_keys(
             if let Some(key) = spec.version.resolved_key(alias) {
                 initial_keys.push((key, parents.to_owned()));
             } else if let Some(link_target) = spec.version.as_link_target() {
-                let linked_version = resolve_link_version(&importer_dir, lockfile_dir, link_target)
+                // One canonicalization and one manifest read per linked
+                // dependency: the version, the peer check, and the
+                // recursion all need the same two answers, and this walk
+                // now runs on the install path.
+                let linked_dir = importer_dir.join(link_target);
+                if !path_is_within(&linked_dir, lockfile_dir) {
+                    continue;
+                }
+                let linked_manifest =
+                    PackageManifest::from_path(linked_dir.join("package.json")).ok();
+                let linked_version = linked_manifest
+                    .as_ref()
+                    .and_then(package_manifest_version)
                     .unwrap_or_else(|| "0.0.0".to_string());
                 let mut next_parents = parents.to_owned();
                 next_parents
                     .push(ParentPkg { name: alias.to_string(), version: linked_version.clone() });
 
-                check_linked_package_peers(
-                    importer_id,
-                    importer,
-                    link_target,
-                    &alias.to_string(),
-                    &linked_version,
-                    lockfile_dir,
-                    issues,
-                );
-
-                let linked_importer_path = importer_dir.join(link_target);
-                if !path_is_within(&linked_importer_path, lockfile_dir) {
-                    continue;
+                if let Some(linked_manifest) = &linked_manifest {
+                    check_linked_package_peers(LinkedPackagePeers {
+                        importer,
+                        importer_dir: &importer_dir,
+                        lockfile_dir,
+                        manifest: linked_manifest,
+                        alias: &alias.to_string(),
+                        linked_version: &linked_version,
+                        issues,
+                    });
                 }
+
                 let linked_importer_id =
-                    pnpm_workspace::importer_id_from_root_dir(lockfile_dir, &linked_importer_path);
+                    pnpm_workspace::importer_id_from_root_dir(lockfile_dir, &linked_dir);
                 collect_initial_keys(
                     &linked_importer_id,
                     lockfile,
@@ -681,6 +686,41 @@ fn normalize_version_str(version_raw: &str) -> String {
     }
 }
 
+/// How many of `major.minor.patch` a range's version actually pins.
+/// `1` and `1.x` pin one, `1.2` pins two, `1.2.3` pins three. npm's
+/// comparators widen to the next unpinned level — `~1` reaches `2.0.0`,
+/// not `1.1.0` — so the count has to survive the padding
+/// [`normalize_version_str`] applies.
+fn version_specificity(version_raw: &str) -> usize {
+    let mut specificity = 0;
+    for part in version_raw.trim().split('.') {
+        let head = part.split(['-', '+']).next().unwrap_or(part);
+        if head.is_empty() || head.chars().all(|character| matches!(character, 'x' | 'X' | '*')) {
+            break;
+        }
+        specificity += 1;
+        if specificity == 3 {
+            break;
+        }
+    }
+    specificity
+}
+
+fn at(major: u64, minor: u64, patch: u64) -> Version {
+    Version { major, minor, patch, build: Vec::new(), pre_release: Vec::new() }
+}
+
+/// The exclusive upper bound of the level `specificity` leaves
+/// unpinned: the next major for a bare major, the next minor for
+/// `major.minor`.
+fn next_unpinned(version: &Version, specificity: usize) -> Version {
+    if specificity >= 2 {
+        at(version.major, version.minor + 1, 0)
+    } else {
+        at(version.major + 1, 0, 0)
+    }
+}
+
 fn parse_comparator(comparator: &str) -> Option<Interval> {
     let comparator = comparator.trim();
     if comparator == "*" || comparator.is_empty() {
@@ -703,62 +743,61 @@ fn parse_comparator(comparator: &str) -> Option<Interval> {
         ("=", comparator)
     };
 
+    let specificity = version_specificity(version_str);
+    // Nothing is pinned (`x`, `~x`, `^*`): every comparator over it
+    // admits every version.
+    if specificity == 0 {
+        return Some(Interval { lower: Bound::Unbounded, upper: Bound::Unbounded });
+    }
     let normalized = normalize_version_str(version_str);
     let version = Version::parse(&normalized).ok()?;
 
     match operator {
-        "=" => Some(Interval {
+        "=" if specificity == 3 => Some(Interval {
             lower: Bound::Inclusive(version.clone()),
             upper: Bound::Inclusive(version),
         }),
+        // A partial bare version is npm's implicit range: `1.2` is
+        // every 1.2.x, not the single version 1.2.0.
+        "=" => Some(Interval {
+            upper: Bound::Exclusive(next_unpinned(&version, specificity)),
+            lower: Bound::Inclusive(version),
+        }),
         "=>" => Some(Interval { lower: Bound::Inclusive(version), upper: Bound::Unbounded }),
-        ">" => Some(Interval { lower: Bound::Exclusive(version), upper: Bound::Unbounded }),
-        "<=" => Some(Interval { lower: Bound::Unbounded, upper: Bound::Inclusive(version) }),
+        ">" if specificity == 3 => {
+            Some(Interval { lower: Bound::Exclusive(version), upper: Bound::Unbounded })
+        }
+        // `>1.2` excludes all of 1.2.x, so it starts at 1.3.0.
+        ">" => Some(Interval {
+            lower: Bound::Inclusive(next_unpinned(&version, specificity)),
+            upper: Bound::Unbounded,
+        }),
+        "<=" if specificity == 3 => {
+            Some(Interval { lower: Bound::Unbounded, upper: Bound::Inclusive(version) })
+        }
+        // `<=1.2` admits all of 1.2.x.
+        "<=" => Some(Interval {
+            lower: Bound::Unbounded,
+            upper: Bound::Exclusive(next_unpinned(&version, specificity)),
+        }),
         "<" => Some(Interval { lower: Bound::Unbounded, upper: Bound::Exclusive(version) }),
         "^" => {
-            let upper_version = if version.major > 0 {
-                Version {
-                    major: version.major + 1,
-                    minor: 0,
-                    patch: 0,
-                    build: Vec::new(),
-                    pre_release: Vec::new(),
-                }
-            } else if version.minor > 0 {
-                Version {
-                    major: 0,
-                    minor: version.minor + 1,
-                    patch: 0,
-                    build: Vec::new(),
-                    pre_release: Vec::new(),
-                }
+            let upper_version = if specificity == 1 || version.major > 0 {
+                at(version.major + 1, 0, 0)
+            } else if specificity == 2 || version.minor > 0 {
+                at(0, version.minor + 1, 0)
             } else {
-                Version {
-                    major: 0,
-                    minor: 0,
-                    patch: version.patch + 1,
-                    build: Vec::new(),
-                    pre_release: Vec::new(),
-                }
+                at(0, 0, version.patch + 1)
             };
             Some(Interval {
                 lower: Bound::Inclusive(version),
                 upper: Bound::Exclusive(upper_version),
             })
         }
-        "~" => {
-            let upper_version = Version {
-                major: version.major,
-                minor: version.minor + 1,
-                patch: 0,
-                build: Vec::new(),
-                pre_release: Vec::new(),
-            };
-            Some(Interval {
-                lower: Bound::Inclusive(version),
-                upper: Bound::Exclusive(upper_version),
-            })
-        }
+        "~" => Some(Interval {
+            upper: Bound::Exclusive(next_unpinned(&version, specificity)),
+            lower: Bound::Inclusive(version),
+        }),
         _ => None,
     }
 }

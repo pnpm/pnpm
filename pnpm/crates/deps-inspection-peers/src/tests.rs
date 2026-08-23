@@ -75,6 +75,34 @@ fn test_intersect_multiple_ranges_exact() {
     assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some("16.1.0"));
 }
 
+/// A range that leaves `minor` or `patch` unpinned reaches the next
+/// level up, the way npm's own comparators do. Values checked against
+/// `new semver.Range(r).range`, which is what pnpm's
+/// `semver-range-intersect` agrees with.
+#[test]
+fn test_intersect_widens_partial_versions_like_npm() {
+    let cases = [
+        (vec!["~1", "1.5.0"], Some("1.5.0")),
+        (vec!["~1.x", "1.5.0"], Some("1.5.0")),
+        (vec!["1.x", "1.5.0"], Some("1.5.0")),
+        (vec!["1", "1.5.0"], Some("1.5.0")),
+        (vec!["^0", "0.5.0"], Some("0.5.0")),
+        (vec!["^0.x", "0.5.0"], Some("0.5.0")),
+        (vec!["1.2", "1.2.5"], Some("1.2.5")),
+        (vec![">1.2", "1.2.5"], None),
+        (vec!["<=1", "1.9.0"], Some("1.9.0")),
+        // The pinned levels keep their tighter bounds.
+        (vec!["~1.2", "1.3.0"], None),
+        (vec!["^0.0", "0.1.0"], None),
+        (vec!["~1", "2.0.0"], None),
+    ];
+    for (ranges, expected) in cases {
+        let ranges: Vec<String> = ranges.into_iter().map(ToString::to_string).collect();
+        let actual = intersect_multiple_ranges(&ranges);
+        assert_eq!(actual.as_deref(), expected, "ranges: {ranges:?}");
+    }
+}
+
 #[test]
 fn test_have_common_version_empty() {
     assert!(have_common_version(&[]));

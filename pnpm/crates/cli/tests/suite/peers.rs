@@ -1,6 +1,9 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+};
 use serde_json::Value;
 use std::{fs, process::Command};
 
@@ -120,7 +123,7 @@ fn a_resolving_install_warns_about_peer_dependency_issues() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    write_peer_conflict_manifest(&workspace);
+    write_peer_conflict_manifest(&workspace, "peer-conflict");
 
     let output = pacquet.with_arg("install").output().expect("run pnpm install");
     assert!(output.status.success(), "install must succeed: {output:?}");
@@ -139,7 +142,7 @@ fn strict_peer_dependencies_fails_a_resolving_install() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    write_peer_conflict_manifest(&workspace);
+    write_peer_conflict_manifest(&workspace, "peer-conflict");
     fs::write(workspace.join("pnpm-workspace.yaml"), "strictPeerDependencies: true\n")
         .expect("write workspace manifest");
 
@@ -163,13 +166,14 @@ fn an_up_to_date_install_does_not_recheck_peers() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    write_peer_conflict_manifest(&workspace);
+    write_peer_conflict_manifest(&workspace, "peer-conflict");
 
     pacquet.with_arg("install").assert().success();
 
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
         .with_arg("install")
         .output()
         .expect("re-run pnpm install");
@@ -180,6 +184,7 @@ fn an_up_to_date_install_does_not_recheck_peers() {
     let peers = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
         .with_args(["peers", "check"])
         .output()
         .expect("run pnpm peers check");
@@ -196,7 +201,7 @@ fn peer_dependency_rules_settle_the_install_verdict() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    write_peer_conflict_manifest(&workspace);
+    write_peer_conflict_manifest(&workspace, "peer-conflict");
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         "strictPeerDependencies: true\npeerDependencyRules:\n  allowAny:\n    - '@pnpm.e2e/foo'\n",
@@ -217,10 +222,13 @@ const PEERS_CHECK_HINT: &str =
 /// `@pnpm.e2e/has-foo100-peer` wants `@pnpm.e2e/foo@100.0.0`; pinning
 /// `2.0.0` alongside it makes that peer resolvable but unsatisfying — a
 /// bad peer rather than a missing one.
-fn write_peer_conflict_manifest(workspace: &std::path::Path) {
+fn write_peer_conflict_manifest(project_dir: &std::path::Path, name: &str) {
+    fs::create_dir_all(project_dir).expect("create the project directory");
     fs::write(
-        workspace.join("package.json"),
+        project_dir.join("package.json"),
         serde_json::json!({
+            "name": name,
+            "version": "1.0.0",
             "dependencies": {
                 "@pnpm.e2e/has-foo100-peer": "1.0.0",
                 "@pnpm.e2e/foo": "2.0.0",
@@ -229,4 +237,54 @@ fn write_peer_conflict_manifest(workspace: &std::path::Path) {
         .to_string(),
     )
     .expect("write package.json");
+}
+
+/// A `--filter`ed install acts only on the projects it selected, so its
+/// verdict covers only those. The lockfile still holds the unselected
+/// importers, and an unrelated project's unmet peer must not fail a run
+/// that never touched it.
+#[test]
+fn a_filtered_install_only_reports_the_projects_it_installed() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
+        .expect("write root manifest");
+    write_peer_conflict_manifest(&workspace.join("packages/dirty"), "dirty");
+    let clean = workspace.join("packages/clean");
+    fs::create_dir_all(&clean).expect("create the clean project");
+    let write_clean = |dependencies: Value| {
+        fs::write(
+            clean.join("package.json"),
+            serde_json::json!({ "name": "clean", "version": "1.0.0", "dependencies": dependencies })
+                .to_string(),
+        )
+        .expect("write the clean manifest");
+    };
+    write_clean(serde_json::json!({ "@pnpm.e2e/foo": "2.0.0" }));
+
+    pacquet.with_arg("install").assert().success();
+
+    // Force the filtered run to resolve; an up-to-date lockfile would
+    // skip the report entirely and pass for the wrong reason.
+    write_clean(serde_json::json!({ "@pnpm.e2e/foo": "2.0.0", "@pnpm.e2e/bar": "100.0.0" }));
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nstrictPeerDependencies: true\n",
+    )
+    .expect("rewrite workspace manifest");
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .with_args(["--filter", "clean", "install"])
+        .output()
+        .expect("run a filtered pnpm install");
+    assert!(output.status.success(), "the filtered install must succeed: {output:?}");
+
+    drop((root, mock_instance));
 }
