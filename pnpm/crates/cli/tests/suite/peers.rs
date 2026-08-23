@@ -148,10 +148,14 @@ fn strict_peer_dependencies_fails_a_resolving_install() {
 
     let output = pacquet.with_arg("install").output().expect("run pnpm install");
     assert!(!output.status.success(), "install must fail: {output:?}");
-    let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
-    assert!(stderr.contains("ERR_PNPM_PEER_DEP_ISSUES"), "stderr:\n{stderr}");
-    assert!(stderr.contains("unmet peer @pnpm.e2e/foo"), "stderr:\n{stderr}");
-    assert!(stderr.contains("strictPeerDependencies: false"), "stderr:\n{stderr}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(
+        stdout.contains("[ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies"),
+        "stdout:\n{stdout}"
+    );
+    assert!(stdout.contains("unmet peer @pnpm.e2e/foo"), "stdout:\n{stdout}");
+    assert!(stdout.contains("strictPeerDependencies: false"), "stdout:\n{stdout}");
+    assert!(!stdout.contains("autoInstallPeers: true"), "stdout:\n{stdout}");
     assert!(workspace.join("node_modules").exists(), "the install must still have materialized");
 
     drop((root, mock_instance));

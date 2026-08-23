@@ -68,29 +68,76 @@ pub struct PeerIssues {
 
 pub type IssuesByProjects = BTreeMap<String, PeerIssues>;
 
-/// Whether `issues` — already filtered through the project's
-/// [`PeerDependencyRules`] — is worth telling the user about. An
-/// all-optional missing peer is not: pnpm's install-time gate ignores
-/// it, and so does `pnpm peers check`.
-#[must_use]
-pub fn has_reportable_issues(issues: &IssuesByProjects) -> bool {
-    issues.values().any(|project_issues| {
-        !project_issues.bad.is_empty()
-            || project_issues
-                .missing
-                .values()
-                .any(|entries| entries.iter().any(|entry| !entry.optional))
-    })
+/// The issues an install or `pnpm dedupe` acts on: everything left
+/// after `peerDependencyRules`, when any of it is worth acting on. A
+/// missing peer every parent marks optional is not — pnpm's
+/// install-time gate ignores it, and so does `pnpm peers check`.
+pub struct PeerIssuesReport {
+    issues: IssuesByProjects,
+    /// Whether any non-optional peer is absent outright, as opposed to
+    /// present at an unsatisfying version. Only the absent case is
+    /// answerable by `autoInstallPeers`, so only it earns that hint.
+    has_missing_peer: bool,
 }
 
-/// Whether any non-optional peer is absent outright, as opposed to
-/// present at an unsatisfying version. Only the absent case is
-/// answerable by `autoInstallPeers`, so only it earns that hint.
+impl PeerIssuesReport {
+    /// The listing `pnpm peers check` prints for the same issues. Empty
+    /// when every issue is one that listing leaves out — a missing peer no
+    /// parent conflicts over, say — so callers must handle an empty body.
+    #[must_use]
+    pub fn render(&self) -> String {
+        render_peer_issues(&self.issues)
+    }
+
+    /// The `issuesByProjects` payload of pnpm's
+    /// `pnpm:peer-dependency-issues` log.
+    #[must_use]
+    pub fn issues(&self) -> &IssuesByProjects {
+        &self.issues
+    }
+
+    /// pnpm's `ERR_PNPM_PEER_DEP_ISSUES` body: the listing, then the
+    /// ways out of the failure — auto-installing the peers first when
+    /// any is absent, then switching the guard off.
+    #[must_use]
+    pub fn render_error(&self) -> String {
+        let mut hints = Vec::new();
+        if self.has_missing_peer {
+            hints.push(
+                "hint: To auto-install peer dependencies, add the following to \"pnpm-workspace.yaml\" in your project root:\n\n  autoInstallPeers: true",
+            );
+        }
+        hints.push(
+            "hint: To disable failing on peer dependency issues, add the following to pnpm-workspace.yaml in your project root:\n\n  strictPeerDependencies: false",
+        );
+        let hints = hints.join("\n");
+        let rendered = self.render();
+        let body = if rendered.is_empty() { hints } else { format!("{rendered}\n{hints}") };
+        format!("[ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies\n\n{body}\n")
+    }
+}
+
+/// The same issue set `pnpm peers check` reports, filtered by
+/// `peerDependencyRules`, for the given importers.
+///
+/// Returns `None` when there is nothing worth acting on.
 #[must_use]
-pub fn has_missing_peers(issues: &IssuesByProjects) -> bool {
-    issues.values().any(|project_issues| {
+pub fn peer_issues_for_lockfile(
+    lockfile: &Lockfile,
+    lockfile_dir: &Path,
+    importer_ids: &[String],
+    rules: &PeerDependencyRules,
+) -> Option<PeerIssuesReport> {
+    let issues = filter_peer_issues(
+        check_peer_dependencies_of_importers(lockfile, lockfile_dir, importer_ids),
+        rules,
+    );
+    let has_missing_peer = issues.values().any(|project_issues| {
         project_issues.missing.values().any(|entries| entries.iter().any(|entry| !entry.optional))
-    })
+    });
+    let has_issues =
+        has_missing_peer || issues.values().any(|project_issues| !project_issues.bad.is_empty());
+    has_issues.then_some(PeerIssuesReport { issues, has_missing_peer })
 }
 
 /// The issues reachable from the given project directories, for the

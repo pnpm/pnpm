@@ -9,12 +9,9 @@
 //! nobody re-resolved.
 
 use pnpm_config::Config;
-use pnpm_deps_inspection_peers::{
-    IssuesByProjects, check_peer_dependencies_of_importers, filter_peer_issues, has_missing_peers,
-    has_reportable_issues, render_peer_issues,
-};
+use pnpm_deps_inspection_peers::peer_issues_for_lockfile;
 use pnpm_lockfile::Lockfile;
-use pnpm_reporter::{LogEvent, LogLevel, PeerDependencyIssuesLog};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, PeerDependencyIssuesLog};
 use std::{collections::HashSet, path::Path};
 
 use crate::InstallError;
@@ -41,41 +38,27 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
         .cloned()
         .collect();
     importer_ids.sort();
-    let issues = filter_peer_issues(
-        check_peer_dependencies_of_importers(lockfile, lockfile_dir, &importer_ids),
+    let Some(report) = peer_issues_for_lockfile(
+        lockfile,
+        lockfile_dir,
+        &importer_ids,
         &config.peer_dependency_rules,
-    );
-    if !has_reportable_issues(&issues) {
+    ) else {
         return Ok(());
-    }
+    };
     if config.strict_peer_dependencies {
-        return Err(InstallError::PeerDependencyIssues {
-            rendered: render_peer_issues(&issues),
-            hints: hints(&issues),
-        });
+        // The listing and its hints go out through the reporter, in
+        // pnpm's own error format; `is_reported_error` then keeps the
+        // CLI from rendering the returned error a second time.
+        Reporter::emit(&LogEvent::Global(GlobalLog {
+            level: LogLevel::Error,
+            message: report.render_error(),
+        }));
+        return Err(InstallError::PeerDependencyIssues);
     }
     Reporter::emit(&LogEvent::PeerDependencyIssues(PeerDependencyIssuesLog {
         level: LogLevel::Debug,
-        issues_by_projects: serde_json::to_value(&issues).unwrap_or_default(),
+        issues_by_projects: serde_json::to_value(report.issues()).unwrap_or_default(),
     }));
     Ok(())
-}
-
-/// The ways out of the failure, in pnpm's order: auto-installing the
-/// peers first when any is absent, then switching the guard off.
-fn hints(issues: &IssuesByProjects) -> String {
-    let mut hints = Vec::new();
-    if has_missing_peers(issues) {
-        hints.push(
-            r#"To auto-install peer dependencies, add the following to "pnpm-workspace.yaml" in your project root:
-
-  autoInstallPeers: true"#,
-        );
-    }
-    hints.push(
-        "To disable failing on peer dependency issues, add the following to pnpm-workspace.yaml in your project root:
-
-  strictPeerDependencies: false",
-    );
-    hints.join("\n")
 }
