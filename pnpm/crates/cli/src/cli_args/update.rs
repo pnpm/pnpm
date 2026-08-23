@@ -1,7 +1,6 @@
 use crate::{
     State,
     cli_args::{
-        install::resolve_bool_override,
         lockfile_dir::LockfileDirArg,
         pipelines::InstallFamilySelection,
         recursive,
@@ -42,6 +41,11 @@ impl UpdateDependencyOptions {
     /// The dependency groups whose direct dependencies the update may
     /// match. Returns the groups for which the corresponding inclusion bit
     /// is set.
+    ///
+    /// This narrows what the update *matches*, not what the install that
+    /// follows it materializes: pnpm leaves the `included` set recorded in
+    /// `.modules.yaml` untouched for an update, so these flags never reach
+    /// [`Config::optional`] and friends.
     fn include_direct(&self) -> Vec<DependencyGroup> {
         // `Some(true)` only when the flag was explicitly passed: the raw
         // CLI flags are read rather than the merged config.
@@ -161,11 +165,6 @@ enum WorkspaceUpdateError {
 impl UpdateArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
-        config.optional = resolve_bool_override(
-            self.dependency_options.optional,
-            self.dependency_options.no_optional,
-            config.optional,
-        );
     }
 
     pub async fn run<Reporter: self::Reporter + 'static>(

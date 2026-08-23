@@ -28,9 +28,7 @@ use pnpm_publish::{
 use pnpm_reporter::Reporter;
 use serde_json::Value;
 
-use crate::cli_args::install::resolve_bool_override;
-
-use crate::cli_args::registry_client::build_registry_client;
+use crate::cli_args::{install::resolve_bool_override, registry_client::build_registry_client};
 
 /// Publish a package to the registry.
 #[derive(Debug, Args)]
