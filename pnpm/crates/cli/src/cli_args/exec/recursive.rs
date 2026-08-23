@@ -8,8 +8,9 @@
 //! include and exclude selectors) narrow the selected set via
 //! [`select_recursive_projects`]; the selection is then sorted
 //! topologically by default, or kept in workspace order under `--no-sort`,
-//! and run sequentially. `--workspace-concurrency` parallelism is not ported
-//! yet, matching the recursive `run` runner.
+//! reversed under `--reverse`, and run sequentially.
+//! `--workspace-concurrency` parallelism is not ported yet, matching the
+//! recursive `run` runner.
 
 use super::{ExecArgs, prepare_command, spawn_in_dir};
 use crate::cli_args::recursive::{

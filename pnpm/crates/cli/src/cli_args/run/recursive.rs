@@ -4,9 +4,10 @@
 //! `config.filter` / `config.filter_prod` (`--filter` / `--filter-prod`,
 //! include and exclude selectors) narrow the selected set via
 //! [`select_recursive_projects`]; the selection is then sorted
-//! topologically by default, or kept in workspace order under `--no-sort`.
-//! `--parallel` starts every selected project concurrently. `--reverse`
-//! and bounded `--workspace-concurrency` parallelism are not supported yet.
+//! topologically by default, or kept in workspace order under `--no-sort`,
+//! and reversed under `--reverse`. `--parallel` starts every selected
+//! project concurrently; bounded `--workspace-concurrency` parallelism is
+//! not supported yet.
 //! The main-dispatch auto-exclusion of the workspace root is applied via
 //! [`AutoExcludeRoot::Enabled`].
 
