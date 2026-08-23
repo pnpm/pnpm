@@ -793,11 +793,10 @@ jobs:
           done
 
       - name: Restore node-gyp payload
-        # The dist/ payload both wrappers ship, so install scripts that shell
+        # The dist/ payload the wrapper ships, so install scripts that shell
         # out to node-gyp build out of the box. Taken from the artifact rather
         # than rebuilt, so the npm packages and the GitHub release archives
-        # carry the same bytes. Must land before the packages are generated:
-        # the `@pnpm/exe` wrapper copies dist/ too.
+        # carry the same bytes.
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: node-gyp-payload
@@ -823,7 +822,7 @@ jobs:
         run: |
           set -euo pipefail
           release_tarballs=$(mktemp -d)
-          for package in pnpm/npm/pacquet-* pnpm/npm/napi.* pnpm/npm/napi pnpm/npm/pnpm-exe pnpm/npm/pnpm; do
+          for package in pnpm/npm/pacquet-* pnpm/npm/napi.* pnpm/npm/napi pnpm/npm/pnpm; do
             package_tarballs="$release_tarballs/${package//\//_}"
             mkdir "$package_tarballs"
             (
@@ -946,9 +945,9 @@ jobs:
           node pnpm/npm/napi/scripts/generate-packages.mjs
 
       # Every generated package uses stage-only OIDC. CI stages the native
-      # packages, `@pnpm/napi` / `@pnpm/exe` wrappers, and `pnpm`, then finishes
-      # without publishing any of them. A maintainer approves those layers later
-      # with interactive 2FA in the same dependency order. The `pnpm` wrapper is
+      # packages, the `@pnpm/napi` wrapper, and `pnpm`, then finishes without
+      # publishing any of them. A maintainer approves those layers later with
+      # interactive 2FA in the same dependency order. The `pnpm` wrapper is
       # approved last because the plan job uses it as the "release completed"
       # gate. The build dirs `pacquet-*` publish as `@pnpm/exe.<target>`.
       - name: Stage Rust native packages (OIDC)
@@ -964,7 +963,7 @@ jobs:
         run: >-
           .github/scripts/npm-staged-publication.sh stage
           'Rust wrapper packages' "$TAG"
-          pnpm/npm/napi pnpm/npm/pnpm-exe
+          pnpm/npm/napi
       - name: Stage Rust pnpm package (OIDC)
         env:
           TAG: ${{ needs.plan.outputs.rust_tag }}
