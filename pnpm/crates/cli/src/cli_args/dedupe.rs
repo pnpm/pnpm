@@ -313,17 +313,15 @@ fn render_peer_dependency_issues_error(issues: &PeerIssuesReport) -> String {
     let mut hints = Vec::new();
     if issues.has_missing_peer {
         hints.push(
-            "hint: To auto-install peer dependencies, add the following to \"pnpm-workspace.yaml\" in your project root:\n\n  autoInstallPeers: true"
-                .to_string(),
+            "hint: To auto-install peer dependencies, add the following to \"pnpm-workspace.yaml\" in your project root:\n\n  autoInstallPeers: true",
         );
     }
     hints.push(
-        "hint: To disable failing on peer dependency issues, add the following to pnpm-workspace.yaml in your project root:\n\n  strictPeerDependencies: false"
-            .to_string(),
+        "hint: To disable failing on peer dependency issues, add the following to pnpm-workspace.yaml in your project root:\n\n  strictPeerDependencies: false",
     );
     let hints = hints.join("\n");
-    let body =
-        if issues.rendered.is_empty() { hints } else { format!("{}\n{hints}", issues.rendered) };
+    let rendered = issues.render();
+    let body = if rendered.is_empty() { hints } else { format!("{rendered}\n{hints}") };
     format!("[ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies\n\n{body}\n")
 }
 

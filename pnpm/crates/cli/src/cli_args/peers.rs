@@ -156,8 +156,17 @@ impl PeersArgs {
 /// acting on: a bad peer, or a missing peer that at least one parent
 /// requires non-optionally. Mirrors pnpm's install-time gate.
 pub(crate) struct PeerIssuesReport {
-    pub(crate) rendered: String,
+    issues: IssuesByProjects,
     pub(crate) has_missing_peer: bool,
+}
+
+impl PeerIssuesReport {
+    /// The listing `pnpm peers check` prints for the same issues. Empty
+    /// when every issue is one that listing leaves out — a missing peer no
+    /// parent conflicts over, say — so callers must handle an empty body.
+    pub(crate) fn render(&self) -> String {
+        render_peer_issues(&self.issues)
+    }
 }
 
 /// The same issue set `pnpm peers check` reports, filtered by
@@ -180,7 +189,7 @@ pub(crate) fn peer_issues_for_lockfile(
     });
     let has_issues =
         has_missing_peer || issues.values().any(|project_issues| !project_issues.bad.is_empty());
-    has_issues.then(|| PeerIssuesReport { rendered: render_peer_issues(&issues), has_missing_peer })
+    has_issues.then_some(PeerIssuesReport { issues, has_missing_peer })
 }
 
 fn check_peer_dependencies_from_lockfile(

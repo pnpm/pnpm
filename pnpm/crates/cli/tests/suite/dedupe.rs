@@ -271,9 +271,47 @@ fn dedupe_fails_on_peer_dependency_issues_when_strict() {
     assert!(stdout.contains("@pnpm.e2e/foo"), "stdout:\n{stdout}");
     assert!(stdout.contains("Wanted:"), "stdout:\n{stdout}");
     assert!(stdout.contains("strictPeerDependencies: false"), "stdout:\n{stdout}");
+    assert!(!stdout.contains("autoInstallPeers: true"), "stdout:\n{stdout}");
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     assert!(lockfile_path.exists(), "dedupe still writes the lockfile before failing");
+
+    drop((root, mock_instance));
+}
+
+/// A peer nothing installed at all also earns the `autoInstallPeers` hint,
+/// which the bad-peer failure above leaves out.
+#[test]
+fn dedupe_strict_failure_hints_at_auto_install_peers_for_a_missing_peer() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "strictPeerDependencies: true\nautoInstallPeers: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/has-foo100-peer": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let output = pacquet.with_arg("dedupe").output().expect("run pnpm dedupe");
+    assert!(
+        !output.status.success(),
+        "dedupe must fail when strictPeerDependencies is true: {output:?}",
+    );
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(stdout.contains("missing peer"), "stdout:\n{stdout}");
+    assert!(stdout.contains("autoInstallPeers: true"), "stdout:\n{stdout}");
+    assert!(stdout.contains("strictPeerDependencies: false"), "stdout:\n{stdout}");
 
     drop((root, mock_instance));
 }
