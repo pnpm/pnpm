@@ -48,12 +48,13 @@ import { setupPolicyHandlers } from './policyHandlers.js'
 import {
   type CommandFullName,
   createMatcher,
+  failOnVersionsOfIndirectUpdateSpecs,
   makeIgnorePatterns,
   matchDependencies,
   recursive,
   type RecursiveOptions,
+  selectorMatchesADirectDependency,
   type UpdateDepsMatcher,
-  warnAboutIgnoredVersionsOfIndirectUpdateSpecs,
 } from './recursive.js'
 import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
 import { makeRunPacquet } from './runPacquet.js'
@@ -392,8 +393,10 @@ export async function installDeps (
       // Don't update package.json in this case, and limit updates to only matching dependencies
       updatePackageManifest = false
       updateMatching = (pkgName: string) => updateMatch!(pkgName) != null
-      warnAboutIgnoredVersionsOfIndirectUpdateSpecs(updateSpecs)
     }
+    failOnVersionsOfIndirectUpdateSpecs(
+      updateSpecs.filter((spec) => !selectorMatchesADirectDependency(spec, [manifest], includeDirect))
+    )
   }
 
   if (opts.update && opts.latest && (!params || (params.length === 0))) {

@@ -226,14 +226,53 @@ test('recursive update <pkg>@<version> reports that a transitive-only version is
   await execPnpm(['recursive', 'install', '--lockfile-only'])
 
   const result = execPnpmSync(['recursive', 'update', '--lockfile-only', '--no-save', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
-  expect(result.status).toBe(0)
-  expect(result.stdout.toString()).toContain('"@pnpm.e2e/dep-of-pkg-with-1-dep" is not a direct dependency, so the requested version "100.1.0" is ignored')
 
+  expect(result.status).toBe(1)
+  const output = result.stdout.toString() + result.stderr.toString()
+  expect(output).toContain('ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP')
+  expect(output).toContain('"@pnpm.e2e/dep-of-pkg-with-1-dep" (requested "100.1.0") is not a direct dependency')
+  expect(output).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@<declared range>: 100.1.0')
+
+  // The lockfile is left exactly as the install wrote it.
   const lockfile = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
   const depKeys = Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@'))
-
-  // Resolved the way a fresh install would, not to the version that was asked for.
   expect(depKeys).toStrictEqual(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+})
+
+test('update <pkg>@<version> fails when the package is not a direct dependency', async () => {
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+
+  const result = execPnpmSync(['update', '--lockfile-only', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+  expect(result.status).toBe(1)
+  const output = result.stdout.toString() + result.stderr.toString()
+  expect(output).toContain('ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP')
+  // Dropping the version is the in-range update the message points at.
+  expect(output).toContain('pnpm update @pnpm.e2e/dep-of-pkg-with-1-dep')
+})
+
+test('update <pkg> without a version still updates a transitive dependency', async () => {
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await execPnpm(['update', '--lockfile-only', '@pnpm.e2e/dep-of-pkg-with-1-dep'])
+
+  const lockfile = readYamlFileSync<any>('pnpm-lock.yaml') // eslint-disable-line
+  expect(Object.keys(lockfile.packages ?? {})).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
 })
 
 test('recursive update alias@npm:<pkg>@<version> --lockfile-only --no-save scopes by version line', async () => {

@@ -361,14 +361,14 @@ fn update_transitive_glob_mixed_with_direct_selector() {
     drop((root, anchor));
 }
 
-/// `pacquet update <pkg>@<version>` on a package that is only present
-/// as a transitive dependency ignores the version part: there is no
-/// manifest entry to write it into, and an update resolves the target
-/// the way a fresh install would. The version part triggers a warning
-/// recommending a `pnpm.overrides` entry — the mechanism that does pin
-/// transitive dependencies.
+/// `pacquet update <pkg>@<version>` on a package that is only present as a
+/// transitive dependency has no manifest entry to write the version into, and
+/// an update resolves the target the way a fresh install would — so the
+/// version could only reach the lockfile as an entry nothing backs. The
+/// command fails and points at `overrides`, the mechanism that does pin a
+/// transitive dependency.
 #[test]
-fn update_transitive_ignores_requested_version() {
+fn update_transitive_rejects_a_requested_version() {
     let (root, workspace, anchor) = setup();
 
     // Pin the transitive dep-of-pkg-with-1-dep at 100.0.0 (via a direct
@@ -380,24 +380,26 @@ fn update_transitive_ignores_requested_version() {
 
     write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0" }}"#));
 
-    // The update requests 100.0.0, but the version part of a
-    // transitive-only selector is ignored: the target re-resolves to the
-    // highest version in pkg-with-1-dep's ^100.0.0 range (100.1.0),
-    // exactly as a fresh install with the target's lockfile entries
-    // deleted would.
-    pacquet(&workspace, ["update", &format!("{DEP}@100.0.0")]).assert().success();
+    let output = pacquet(&workspace, ["update", &format!("{DEP}@100.0.0")])
+        .output()
+        .expect("run pacquet update");
+    let rendered = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    eprintln!("STATUS: {}\nOUTPUT:\n{rendered}", output.status);
+
+    assert!(!output.status.success(), "a version that cannot be recorded should fail");
+    assert!(
+        rendered.contains("ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP"),
+        "the failure must carry the UPDATE_VERSION_ON_INDIRECT_DEP code",
+    );
 
     eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
-    // Only presence is asserted: the update does not prune the previous
-    // version's now-orphaned virtual-store directory.
     assert!(
-        virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
-        "the target should re-resolve to highest-in-range, like a fresh install",
-    );
-    let lock = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
-    assert!(
-        !lock.contains("dep-of-pkg-with-1-dep@100.0.0"),
-        "the ignored requested version must not pin the target in the lockfile",
+        !virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
+        "a rejected update must not have resolved anything",
     );
 
     drop((root, anchor));

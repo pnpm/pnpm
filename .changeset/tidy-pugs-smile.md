@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-`pnpm update <name>@<version>` now treats the requested version the same way in a workspace as it does in a single project. When the selector matches no direct dependency, the version is ignored — the dependency is updated to what a fresh install would resolve — and pnpm says so and points at `overrides`, which is the mechanism that does pin a transitive dependency. That warning is now shown for recursive updates too, and reaches the user on the Rust CLI.
+`pnpm update <name>@<version>` now fails with `ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP` when the package is not a direct dependency of any selected project, instead of quietly updating it to whatever a fresh install would resolve. There is nowhere to record the version in that case, so the request cannot be honored, and the error points at the `overrides` entry that does pin a transitive dependency. Ranges and tags are unaffected, and a package that any selected project declares directly still takes its version as before.

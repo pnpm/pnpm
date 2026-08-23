@@ -280,12 +280,25 @@ fn recursive_update_prod_dependencies_only() {
     drop((root, anchor));
 }
 
+/// The rendered stdout+stderr of `pacquet` run in `workspace` with `args`,
+/// alongside its exit status.
+fn pacquet_output(workspace: &Path, args: &[&str]) -> (std::process::ExitStatus, String) {
+    let output = pacquet(workspace, args).output().expect("run pacquet");
+    let rendered = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    eprintln!("STATUS: {}\nOUTPUT:\n{rendered}", output.status);
+    (output.status, rendered)
+}
+
 /// A versioned selector that matches no direct dependency reaches its target
 /// through the resolver alone, where the version has nowhere to be recorded.
-/// pnpm says so and points at overrides; the warning has to reach the user,
-/// not just a `TRACE` subscriber.
+/// Resolving to something else and exiting 0 would leave the caller nothing to
+/// read, so this fails.
 #[test]
-fn recursive_update_reports_that_a_transitive_only_version_is_ignored() {
+fn recursive_update_rejects_a_version_for_a_transitive_only_selector() {
     let (root, workspace, anchor) = setup();
 
     write_workspace(
@@ -298,22 +311,92 @@ fn recursive_update_reports_that_a_transitive_only_version_is_ignored() {
     );
     pacquet(&workspace, ["install"]).assert().success();
 
-    let output = pacquet(&workspace, ["-r", "update", &format!("{DEP}@100.1.0")])
-        .output()
-        .expect("run pacquet update");
+    let (status, rendered) =
+        pacquet_output(&workspace, &["-r", "update", &format!("{DEP}@100.1.0")]);
 
-    let rendered = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr),
-    );
-    eprintln!("STATUS: {}\nOUTPUT:\n{rendered}", output.status);
-    assert!(output.status.success(), "the update should succeed");
+    assert!(!status.success(), "a version that cannot be recorded should fail the command");
     assert!(
-        rendered.contains(&format!(
-            r#""{DEP}" is not a direct dependency, so the requested version "100.1.0" is ignored"#
-        )),
-        "the ignored-version warning must reach the user",
+        rendered.contains("ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP"),
+        "the failure must carry the UPDATE_VERSION_ON_INDIRECT_DEP code",
+    );
+    // miette wraps the message, so assert on fragments that survive a line break.
+    assert!(
+        rendered.contains(&format!(r#""{DEP}" (requested "100.1.0")"#)),
+        "the failure must name the selector and the version it could not record",
+    );
+    assert!(
+        rendered.contains(&format!("{DEP}@<declared range>: 100.1.0")),
+        "the failure must show the override that does pin a transitive dependency",
+    );
+
+    drop((root, anchor));
+}
+
+/// A selector the workspace declares directly somewhere is legitimately
+/// versioned, even where a sibling project only reaches it transitively.
+#[test]
+fn recursive_update_accepts_a_version_declared_by_any_project() {
+    let (root, workspace, anchor) = setup();
+
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "project-1",
+                json!({ "name": "project-1", "version": "1.0.0",
+                "dependencies": { PKG_WITH_DEP: "100.0.0" } }),
+            ),
+            (
+                "project-2",
+                json!({ "name": "project-2", "version": "1.0.0",
+                "dependencies": { DEP: "100.0.0" } }),
+            ),
+        ],
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let (status, rendered) =
+        pacquet_output(&workspace, &["-r", "update", &format!("{DEP}@100.1.0")]);
+
+    assert!(status.success(), "project-2 declares it, so the version has somewhere to go");
+    assert!(
+        !rendered.contains("ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP"),
+        "a selector declared by any project must not be rejected",
+    );
+    assert_eq!(
+        installed_version(&workspace.join("project-2"), DEP).as_deref(),
+        Some("100.1.0"),
+        "the declaring project should have been updated",
+    );
+
+    drop((root, anchor));
+}
+
+/// A selector that names no single version -- a tag or a range -- has nothing
+/// to record either, but updating within the dependents' ranges is a
+/// reasonable reading of it. Those warn rather than fail.
+#[test]
+fn recursive_update_allows_a_tag_for_a_transitive_only_selector() {
+    let (root, workspace, anchor) = setup();
+
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({ "name": "project-1", "version": "1.0.0",
+            "dependencies": { PKG_WITH_DEP: "100.0.0" } }),
+        )],
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let (status, rendered) =
+        pacquet_output(&workspace, &["-r", "update", &format!("{DEP}@latest")]);
+
+    assert!(status.success(), "a tag is not a version that has to be recorded");
+    assert!(
+        rendered.contains(&format!(r#""{DEP}" is not a direct dependency"#))
+            && rendered.contains(r#"the requested "latest" is ignored"#),
+        "the user should still be told the tag had no effect",
     );
 
     drop((root, anchor));
