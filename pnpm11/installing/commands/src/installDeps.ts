@@ -394,8 +394,8 @@ export async function installDeps (
       updateMatching = (pkgName: string) => updateMatch!(pkgName) != null
     }
     // At `--depth 0` an indirect dependency is never traversed, so a selector
-    // that names one is simply out of scope rather than an unrecordable
-    // request.
+    // that names one is simply out of scope rather than a version pnpm has
+    // nowhere to record.
     if ((opts.depth ?? Infinity) > 0) {
       failOnVersionsOfIndirectUpdateSpecs(updateSpecs, [manifest], includeDirect)
     }

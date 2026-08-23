@@ -189,7 +189,7 @@ test('update --depth 0 leaves an indirect selector out of scope', async () => {
 
   // One selector matches a direct dependency and one only a transitive copy.
   // At depth 0 the transitive one is never traversed, so it is out of scope
-  // rather than an unrecordable request.
+  // rather than a version pnpm has nowhere to record.
   await update.handler({
     ...DEFAULT_OPTS,
     depth: 0,
