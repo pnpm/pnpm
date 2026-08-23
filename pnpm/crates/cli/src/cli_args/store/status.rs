@@ -28,7 +28,7 @@ use std::{
 #[display("Packages in the store have been mutated\nThese packages are modified:\n{}", modified.join("\n"))]
 #[diagnostic(
     code(ERR_PNPM_MODIFIED_DEPENDENCY),
-    help("You can run \"pnpm install --force\" to refetch the modified packages")
+    help(r#"You can run "pnpm install --force" to refetch the modified packages"#)
 )]
 pub struct ModifiedDependencyError {
     #[error(not(source))]

@@ -704,14 +704,15 @@ pub enum CliCommand {
     /// single invocation, ignoring the "packageManager" and
     /// "devEngines.packageManager" fields of the project's manifest.
     With(WithArgs),
-    /// Registered so it names the npm CLI instead of being taken for a
-    /// package script. See [`NotImplementedArgs`].
+    /// Not implemented in pnpm. Use the npm CLI directly.
+    // Registered rather than left to the external-subcommand fallback so
+    // it names npm instead of failing as a missing package script.
     Edit(NotImplementedArgs),
-    /// See [`CliCommand::Edit`].
+    /// Not implemented in pnpm. Use the npm CLI directly.
     Profile(NotImplementedArgs),
-    /// See [`CliCommand::Edit`].
+    /// Not implemented in pnpm. Use the npm CLI directly.
     Token(NotImplementedArgs),
-    /// See [`CliCommand::Edit`].
+    /// Not implemented in pnpm. Use the npm CLI directly.
     Xmas(NotImplementedArgs),
     #[clap(external_subcommand)]
     External(Vec<String>),
