@@ -1694,6 +1694,41 @@ test('legacy directory filtering leaves the generated root exclusion alone', asy
   expect(output).not.toContain('ROOT-RAN')
 })
 
+// The `{<workspace-root>}` selector `--workspace-root` generates is pnpm's
+// own as well: read as a subtree match it would name every project below the
+// root and run the command everywhere but the root.
+test('legacy directory filtering leaves the generated root inclusion alone', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        scripts: { test: 'echo ROOT-RAN' },
+      },
+    },
+    {
+      location: 'packages/project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+        scripts: { test: 'echo PROJECT-1-RAN' },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    legacyDirFiltering: true,
+  })
+
+  const { stdout, status } = execPnpmSync(['run', '-r', '--workspace-root', 'test'])
+  const output = stdout.toString()
+  expect(status).toBe(0)
+  expect(output).toContain('ROOT-RAN')
+  expect(output).not.toContain('PROJECT-1-RAN')
+})
+
 test('directory filtering', async () => {
   preparePackages([
     {

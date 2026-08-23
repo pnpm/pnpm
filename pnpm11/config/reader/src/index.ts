@@ -602,13 +602,22 @@ export async function getConfig (opts: {
     pnpmConfig.registry = pnpmConfig.registriesByScope.default
   }
 
-  const envPnpmTypes = omit([
-    // npm interprets leading-zero values as octal, while the Number schema does not.
-    'umask',
-  ], types)
+  const envPnpmTypes = {
+    ...omit([
+      // npm interprets leading-zero values as octal, while the Number schema does not.
+      'umask',
+    ], types),
+    // `types` carries npm's `maxsockets` spelling alone, so without this
+    // entry `PNPM_CONFIG_MAX_SOCKETS` — the canonical setting name, spelled
+    // the way the environment spells every other camelCase setting — would
+    // match no schema and be dropped. Env-only: the CLI flag and
+    // `pnpm config` keys keep npm's spelling.
+    'max-sockets': Number,
+  }
 
   let virtualStoreTypeFromEnv: VirtualStoreType | undefined
   let maxsocketsFromEnv: number | undefined
+  let maxSocketsFromEnv: number | undefined
   for (const { key, value } of parseEnvVars(key => envPnpmTypes[key as keyof typeof envPnpmTypes], env)) {
     // undefined means that the env key was defined, but its value couldn't be parsed according to the schema
     // TODO: should we throw some error or print some warning here?
@@ -625,12 +634,15 @@ export async function getConfig (opts: {
       continue
     }
 
-    // npm's spelling of `maxSockets`, and the only one the environment can
-    // carry — `types` has no `max-sockets` entry for the canonical
-    // spelling to match. Held back rather than assigned so the fold below
-    // can keep the environment ranked above the config files.
+    // The two spellings of `maxSockets` the environment can carry, held
+    // back rather than assigned so the fold below can keep the environment
+    // ranked above the config files whichever order the two arrive in.
     if (key === 'maxsockets') {
       maxsocketsFromEnv = value as number
+      continue
+    }
+    if (key === 'maxSockets') {
+      maxSocketsFromEnv = value as number
       continue
     }
 
@@ -664,7 +676,7 @@ export async function getConfig (opts: {
   // layer set either.
   // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
   const maxSocketsFromFiles: number | undefined = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets']
-  pnpmConfig.maxSockets = maxsocketsFromEnv ?? maxSocketsFromFiles ?? npmDefaults.maxsockets
+  pnpmConfig.maxSockets = maxSocketsFromEnv ?? maxsocketsFromEnv ?? maxSocketsFromFiles ?? npmDefaults.maxsockets
   // @ts-expect-error
   delete pnpmConfig['maxsockets']
 

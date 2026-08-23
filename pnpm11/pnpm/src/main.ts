@@ -274,8 +274,14 @@ export async function main (inputArgv: string[]): Promise<void> {
       ...config.filterProd.map((filter) => ({ filter, followProdDepsOnly: true })),
     ]
     const relativeWSDirPath = () => path.relative(process.cwd(), wsDir) || '.'
+    // Both of the selectors below are pnpm's own; the user did not write
+    // them. Each has to mean "the project whose directory is the workspace
+    // root", which only glob matching says. Left to follow the pass,
+    // `legacyDirFiltering`'s subtree matching would read them as "every
+    // project below the root" — including the root's descendants instead
+    // of the root, and excluding them instead of it.
     if (config.workspaceRoot) {
-      filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
+      filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length), useGlobDirFiltering: true })
     } else if (
       !filters.some(({ filter }) => !filter.startsWith('!')) &&
       workspaceDir &&
@@ -284,11 +290,6 @@ export async function main (inputArgv: string[]): Promise<void> {
       !config.includeWorkspaceRoot &&
       (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')
     ) {
-      // pnpm generates this selector; the user did not write it. It has to
-      // mean "the project whose directory is the workspace root", which
-      // only glob matching says. Left to follow the pass,
-      // `legacyDirFiltering`'s subtree matching would read it as "every
-      // project below the root" and select nothing at all.
       filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length), useGlobDirFiltering: true })
     }
 

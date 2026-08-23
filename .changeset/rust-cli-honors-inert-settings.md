@@ -1,6 +1,7 @@
 ---
 "@pnpm/config.reader": patch
 "@pnpm/workspace.commands": patch
+"@pnpm/workspace.projects-filter": patch
 "pacquet": patch
 "pnpm": patch
 ---
@@ -11,4 +12,4 @@ The Rust CLI now honors five settings it recognized but ignored: `updateNotifier
 
 A `lastUpdateCheck` timestamp dated in the future — after a clock change, a restored snapshot, or a hand-edited state file — no longer silences the update check until that time comes around.
 
-`legacyDirFiltering` no longer reaches the `!{<workspace-root>}` selector a recursive `run` / `exec` / `add` / `test` generates for itself. Read as a subtree match, that selector named every project below the root, so a recursive command under the setting selected nothing at all [#14101](https://github.com/pnpm/pnpm/issues/14101).
+`legacyDirFiltering` no longer reaches the workspace-root selectors pnpm generates for itself: the `!{<workspace-root>}` exclusion a recursive `run` / `exec` / `add` / `test` appends, and the `{<workspace-root>}` inclusion `--workspace-root` appends. Read as subtree matches they named every project below the root, so a recursive command under the setting selected nothing at all, and `--workspace-root` pulled in every project below the root instead of the root alone [#14101](https://github.com/pnpm/pnpm/issues/14101).

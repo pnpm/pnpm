@@ -497,3 +497,47 @@ fn legacy_dir_filtering_leaves_the_generated_root_exclusion_alone() {
 
     drop(root);
 }
+
+/// The `{<workspace-root>}` selector `--workspace-root` generates is pnpm's
+/// own as well: read as a subtree match it would name every project below
+/// the root and run the command everywhere but the root.
+#[test]
+fn legacy_dir_filtering_leaves_the_generated_root_inclusion_alone() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1"]);
+    let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("read pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("{workspace_yaml}legacyDirFiltering: true\n"),
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the root package.json");
+
+    pacquet
+        .with_args([
+            "-r",
+            "--workspace-root",
+            "--config.verify-deps-before-run=false",
+            "exec",
+            "touch",
+            "ran.txt",
+        ])
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("ran.txt").exists(),
+        "--workspace-root should select the workspace root under legacyDirFiltering",
+    );
+    assert!(
+        !workspace.join("project-1/ran.txt").exists(),
+        "--workspace-root selects the root alone, not the projects below it",
+    );
+
+    drop(root);
+}
