@@ -852,6 +852,35 @@ where
     Ok(())
 }
 
+fn extend_dedicated_snapshots(
+    current: &mut HashMap<PackageKey, SnapshotEntry>,
+    incoming: HashMap<PackageKey, SnapshotEntry>,
+    selected_dir: &Path,
+) -> miette::Result<()> {
+    for (key, mut value) in incoming {
+        match current.entry(key) {
+            Entry::Vacant(entry) => {
+                entry.insert(value);
+            }
+            Entry::Occupied(mut entry) => {
+                let incoming_optional = value.optional;
+                value.optional = entry.get().optional;
+                if entry.get() != &value {
+                    let key = entry.key();
+                    let selected_dir = selected_dir.display();
+                    return Err(miette::miette!(
+                        code = "ERR_PNPM_SBOM_CONFLICTING_LOCKFILE_ENTRIES",
+                        "Cannot combine dedicated workspace lockfiles because {} contains a different snapshot entry for {key}",
+                        selected_dir,
+                    ));
+                }
+                entry.get_mut().optional &= incoming_optional;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn extend_dedicated_lockfile(
     current: &mut Lockfile,
     incoming: Lockfile,
@@ -872,10 +901,9 @@ fn extend_dedicated_lockfile(
         )?;
     }
     if let Some(snapshots) = incoming.snapshots {
-        extend_dedicated_lockfile_map(
+        extend_dedicated_snapshots(
             current.snapshots.get_or_insert_default(),
             snapshots,
-            "snapshot",
             selected_dir,
         )?;
     }

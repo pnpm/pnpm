@@ -103,7 +103,16 @@ where
         }
     }
 
-    for group in groups {
+    let authorizations = if opts.dry_run {
+        vec![None; groups.len()]
+    } else {
+        groups
+            .iter()
+            .map(|group| batch_authorization(group, network))
+            .collect::<Result<Vec<_>, _>>()?
+    };
+
+    for (group, authorization) in groups.into_iter().zip(authorizations) {
         let registry = registry_for_display(&group.registry);
         for &summary_index in &group.summary_indexes {
             global_info::<Reporter>(&format!("📦 {} → {registry}", summaries[summary_index].id));
@@ -117,7 +126,6 @@ where
         }
 
         let put_url = join_registry(&group.registry, BATCH_PUBLISH_ENDPOINT)?;
-        let authorization = network.auth_headers.for_url(group.registry.as_str());
         let body = bytes::Bytes::from(
             serde_json::to_vec(&serde_json::json!({ "packages": group.documents }))
                 .expect("serialize batch publish documents"),
@@ -154,6 +162,25 @@ where
     Ok(summaries)
 }
 
+fn batch_authorization(
+    group: &BatchGroup,
+    network: &PublishNetwork<'_>,
+) -> Result<Option<String>, BatchPublishError> {
+    let mut package_names = group.package_names.iter();
+    let authorization = package_names.next().and_then(|name| {
+        network.auth_headers.for_url_with_package(group.registry.as_str(), Some(name))
+    });
+    if package_names.any(|name| {
+        network.auth_headers.for_url_with_package(group.registry.as_str(), Some(name))
+            != authorization
+    }) {
+        return Err(BatchPublishError::ConflictingCredentials {
+            registry: registry_for_display(&group.registry),
+        });
+    }
+    Ok(authorization)
+}
+
 /// Failures specific to batch publishing.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum BatchPublishError {
@@ -169,6 +196,20 @@ pub enum BatchPublishError {
         )
     )]
     Provenance,
+
+    #[display(
+        "Packages targeting {registry} resolve to different authentication credentials and cannot be published in one batch"
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_BATCH_PUBLISH_CONFLICTING_CREDENTIALS),
+        help(
+            "Configure one credential that can publish every package targeting this registry, or publish without --batch."
+        )
+    )]
+    ConflictingCredentials {
+        #[error(not(source))]
+        registry: String,
+    },
 
     #[display(
         "The registry at {registry} does not support publishing multiple packages in a single request"

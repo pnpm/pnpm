@@ -238,10 +238,16 @@ test('approve-builds -g approves pending builds in every global install group', 
 
   expect(fs.existsSync(path.join(installScriptPkg, 'generated-by-install.js'))).toBe(true)
   expect(fs.existsSync(path.join(preAndPostinstallPkg, 'generated-by-postinstall.js'))).toBe(true)
-  expect(readYamlFileSync<any>(globalWorkspaceManifestPath).allowBuilds).toMatchObject({ // eslint-disable-line
+  const localWorkspaceManifest = readYamlFileSync<{ allowBuilds?: Record<string, boolean> }>('pnpm-workspace.yaml')
+  expect(localWorkspaceManifest.allowBuilds).toMatchObject({
+    'caller-project-policy': true,
+  })
+  expect(localWorkspaceManifest.allowBuilds).not.toHaveProperty('existing-global-policy')
+  const globalWorkspaceManifest = readYamlFileSync<{ allowBuilds?: Record<string, boolean> }>(globalWorkspaceManifestPath)
+  expect(globalWorkspaceManifest.allowBuilds).toMatchObject({
     'existing-global-policy': false,
   })
-  expect(readYamlFileSync<any>(globalWorkspaceManifestPath).allowBuilds).not.toHaveProperty('caller-project-policy') // eslint-disable-line
+  expect(globalWorkspaceManifest.allowBuilds).not.toHaveProperty('caller-project-policy')
 })
 
 // CONTEXT: dangerously-allow-all-builds has been removed from rc files, as a result, this test no longer applies

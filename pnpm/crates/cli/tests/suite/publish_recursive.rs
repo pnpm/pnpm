@@ -186,7 +186,7 @@ fn recursive_publish_batches_selected_packages() {
 }
 
 #[test]
-fn recursive_batch_publish_uses_registry_auth_for_mixed_scopes() {
+fn recursive_batch_publish_rejects_mixed_credentials_for_one_registry() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     write_workspace(
@@ -202,9 +202,40 @@ fn recursive_batch_publish_uses_registry_auth_for_mixed_scopes() {
         ),
     )
     .expect("write .npmrc");
+    let batch = server.mock("PUT", "/-/pnpm/v1/publish").expect(0).create();
+
+    let assert = clear_ci(pacquet)
+        .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
+        .assert()
+        .failure();
+    batch.assert();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_BATCH_PUBLISH_CONFLICTING_CREDENTIALS"), "stderr: {stderr}");
+
+    drop(root);
+}
+
+#[test]
+fn recursive_batch_publish_accepts_one_scope_credential_for_every_package() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", public_pkg("@scope/project-1")),
+            ("project-2", public_pkg("@scope/project-2")),
+        ],
+    );
+    let registry = format!("{}/", server.url());
+    let host = registry.strip_prefix("http://").unwrap_or(&registry);
+    fs::write(
+        workspace.join(".npmrc"),
+        format!("registry={registry}\n//{host}:@scope:_authToken=scoped-token\n"),
+    )
+    .expect("write .npmrc");
     let batch = server
         .mock("PUT", "/-/pnpm/v1/publish")
-        .match_header("authorization", "Bearer registry-token")
+        .match_header("authorization", "Bearer scoped-token")
         .with_status(201)
         .with_body(r#"{"ok":true}"#)
         .expect(1)

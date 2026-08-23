@@ -152,6 +152,59 @@ test('batch publish sends all packages in a single batch publish request', async
   expect(dist.tarball).toBe(`${registry.url}@pnpmtest/batch-pkg-1/-/@pnpmtest/batch-pkg-1-1.0.0.tgz`)
 })
 
+test('batch publish accepts one scope credential for every package', async () => {
+  preparePackages([
+    {
+      name: '@scope/batch-pkg-1',
+      version: '1.0.0',
+    },
+    {
+      name: '@scope/batch-pkg-2',
+      version: '1.0.0',
+    },
+  ])
+
+  await publish.handler({
+    ...batchPublishOpts(),
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: {
+      [registry.url.replace(/^http:/, '')]: {
+        '@scope': { authToken: 'scope-token' },
+      },
+    },
+  }, [])
+
+  const publishRequests = registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')
+  expect(publishRequests).toHaveLength(1)
+  expect(publishRequests[0].headers.authorization).toBe('Bearer scope-token')
+})
+
+test('batch publish rejects different credentials for one registry before publishing', async () => {
+  preparePackages([
+    {
+      name: '@scope/batch-pkg-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'batch-pkg-2',
+      version: '1.0.0',
+    },
+  ])
+
+  await expect(publish.handler({
+    ...batchPublishOpts(),
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: {
+      [registry.url.replace(/^http:/, '')]: {
+        '@': { authToken: 'registry-token' },
+        '@scope': { authToken: 'scope-token' },
+      },
+    },
+  }, [])).rejects.toMatchObject({ code: 'ERR_PNPM_BATCH_PUBLISH_CONFLICTING_CREDENTIALS' })
+
+  expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')).toHaveLength(0)
+})
+
 test('batch publish sends configured OTP on the first publish request', async () => {
   preparePackages([
     {

@@ -227,6 +227,55 @@ fn sbom_rejects_conflicting_entries_from_dedicated_lockfiles() {
 }
 
 #[test]
+fn sbom_merges_snapshot_optionality_from_dedicated_lockfiles() {
+    let tmp = copy_fixture("simple-sbom");
+    let lockfile =
+        fs::read_to_string(tmp.path().join("pnpm-lock.yaml")).expect("read fixture lockfile");
+    for name in ["project-a", "project-b"] {
+        let project_dir = tmp.path().join("packages").join(name);
+        fs::create_dir_all(&project_dir).expect("create project dir");
+        fs::write(
+            project_dir.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": { "is-positive": "3.1.0" },
+            })
+            .to_string(),
+        )
+        .expect("write project manifest");
+        let project_lockfile = if name == "project-b" {
+            lockfile.replace(
+                "  is-positive@3.1.0:\n    dev: false",
+                "  is-positive@3.1.0:\n    optional: true\n    dev: false",
+            )
+        } else {
+            lockfile.clone()
+        };
+        fs::write(project_dir.join("pnpm-lock.yaml"), project_lockfile)
+            .expect("write project lockfile");
+    }
+    fs::remove_file(tmp.path().join("package.json")).expect("remove root manifest");
+    fs::remove_file(tmp.path().join("pnpm-lock.yaml")).expect("remove shared lockfile");
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write workspace manifest");
+
+    let output =
+        pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split"])
+            .output()
+            .expect("run split pacquet sbom");
+
+    assert!(
+        output.status.success(),
+        "derived snapshot optionality should merge: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+}
+
+#[test]
 fn filtered_sbom_reads_reachable_workspace_project_lockfiles() {
     let tmp = copy_fixture("simple-sbom");
     let dependency_lockfile =
