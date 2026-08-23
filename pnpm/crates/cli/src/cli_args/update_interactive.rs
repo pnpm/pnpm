@@ -65,7 +65,7 @@ struct PromptRow {
 /// way the upstream suite answers its own — by mocking
 /// `@inquirer/prompts` — which `dialoguer` cannot offer, since it reads a
 /// terminal.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub(crate) enum UpdatePrompt {
     #[default]
     Dialoguer,
