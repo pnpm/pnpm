@@ -1,6 +1,6 @@
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
-import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
+import { packageManager, isExecutedByCorepack, standaloneInstallCommand } from '@pnpm/cli-meta'
 import { createResolver } from '@pnpm/client'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -69,7 +69,9 @@ export async function handler (
   params: string[]
 ): Promise<undefined | string> {
   if (isExecutedByCorepack()) {
-    throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
+    throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'pnpm cannot update itself when it is executed by Corepack', {
+      hint: `Install pnpm with the standalone script instead: ${standaloneInstallCommand()}`,
+    })
   }
   const { resolve } = createResolver({ ...opts, authConfig: opts.rawConfig })
   const pkgName = 'pnpm'

@@ -1,5 +1,5 @@
+import { isExecutedByCorepack, type Process, standaloneInstallCommand } from '@pnpm/cli-meta'
 import { type UpdateCheckLog } from '@pnpm/core-loggers'
-import { isExecutedByCorepack } from '@pnpm/cli-meta'
 import boxen from 'boxen'
 import chalk from 'chalk'
 import * as Rx from 'rxjs'
@@ -8,14 +8,15 @@ import semver from 'semver'
 
 export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
   env: NodeJS.ProcessEnv
+  process: NodeJS.Process
 }): Rx.Observable<Rx.Observable<{ msg: string }>> {
   return log$.pipe(
     take(1),
     filter((log) => semver.gt(log.latestVersion, log.currentVersion)),
     map((log) => {
       const updateMessage = renderUpdateMessage({
-        latestVersion: log.latestVersion,
         env: opts.env,
+        proc: opts.process,
       })
       return Rx.of({
         msg: boxen(`\
@@ -37,7 +38,7 @@ ${updateMessage}`,
 
 interface UpdateMessageOptions {
   env: NodeJS.ProcessEnv
-  latestVersion: string
+  proc: Process
 }
 
 function renderUpdateMessage (opts: UpdateMessageOptions): string {
@@ -46,8 +47,10 @@ function renderUpdateMessage (opts: UpdateMessageOptions): string {
 }
 
 function renderUpdateCommand (opts: UpdateMessageOptions): string {
+  // Under Corepack, `pnpm self-update` refuses to run, and pnpm no longer
+  // points users back at Corepack — it suggests its own installer instead.
   if (isExecutedByCorepack(opts.env)) {
-    return `corepack use pnpm@${opts.latestVersion}`
+    return standaloneInstallCommand(opts.proc)
   }
   // `pnpm add -g pnpm` (or `@pnpm/exe`) is refused by the add command itself,
   // which points at self-update instead. self-update also picks the package
