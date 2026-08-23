@@ -129,3 +129,12 @@ test('a flow mapping emptied by an edit drops the whole block', async () => {
   })
   expect(out).toBe('packages:\n  - pkg\n')
 })
+
+// A multi-line flow collection is the one shape the Rust writer refuses to
+// edit entry by entry, but dropping the whole block agrees in both.
+test('a multi-line flow mapping is dropped whole when it empties', async () => {
+  const out = await editManifest("packages:\n  - '*'\noverrides: {\n  foo: link:../foo, # pinned\n}\n", {
+    updatedFields: { overrides: undefined },
+  })
+  expect(out).toBe("packages:\n  - '*'\n")
+})

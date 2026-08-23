@@ -500,11 +500,19 @@ pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &
     }
 
     let text = manifest.text();
-    if let Inline::Flow(collection) = locate_sequence(text, &[BLOCK]) {
-        let rendered: Vec<String> = items.iter().map(|item| render::render_value(item)).collect();
-        manifest.set_text(flow::set_items(text, &collection, &rendered));
-        manifest.minimum_release_age_exclude = Some(items.to_vec());
-        return true;
+    match locate_sequence(text, &[BLOCK]) {
+        Inline::Flow(collection) => {
+            let rendered: Vec<String> =
+                items.iter().map(|item| render::render_value(item)).collect();
+            manifest.set_text(flow::set_items(text, &collection, &rendered));
+            manifest.minimum_release_age_exclude = Some(items.to_vec());
+            return true;
+        }
+        // Rendering the whole block afresh would drop the comments an
+        // inline value this writer cannot edit may hold, so leave it be;
+        // the public writer refuses such a manifest outright.
+        Inline::Unsupported => return false,
+        Inline::Block => {}
     }
 
     let rendered = render_top_level_sequence(BLOCK, items);
@@ -1411,10 +1419,14 @@ fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
     let key_idx = all.iter().position(|line| {
         structural_indent(line.content) == Some(0) && line_key(line.content).as_deref() == Some(key)
     })?;
-    let next_key_idx = ((key_idx + 1)..all.len())
+    // A flow collection written across several lines closes at column zero,
+    // which would otherwise read as the next top-level key and leave the
+    // closing bracket behind when the block is replaced or removed.
+    let body_start = inline_value_last_line(text, &all, key_idx).unwrap_or(key_idx) + 1;
+    let next_key_idx = (body_start..all.len())
         .find(|&idx| structural_indent(all[idx].content) == Some(0))
         .unwrap_or(all.len());
-    let block_end_idx = leading_comment_start(&all, key_idx + 1, next_key_idx);
+    let block_end_idx = leading_comment_start(&all, body_start, next_key_idx);
     let block_end = all
         .get(block_end_idx)
         .map_or_else(|| all.last().map_or(0, |line| line.end), |line| line.start);
@@ -1424,6 +1436,18 @@ fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
                 && line_key(line.content).as_deref() == Some(key)
         })
         .map(|line| TopLevelSpan { key_line_start: line.start, block_end })
+}
+
+/// Index of the line where the flow collection written inline on
+/// `key_idx`'s line closes. `None` when that line carries no inline value,
+/// its value is not a flow collection, or the collection never closes.
+fn inline_value_last_line(text: &str, all: &[Line<'_>], key_idx: usize) -> Option<usize> {
+    let open = inline_value_on_line(text, all[key_idx].start)?;
+    if !text[open..].starts_with(['{', '[']) {
+        return None;
+    }
+    let close = flow::closing_bracket_across_lines(text, open)?;
+    all.iter().position(|line| line.start <= close && close < line.end)
 }
 
 fn leading_comment_start(all: &[Line<'_>], block_start: usize, next_key_idx: usize) -> usize {

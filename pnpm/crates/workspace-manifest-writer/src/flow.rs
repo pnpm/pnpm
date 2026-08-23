@@ -153,19 +153,32 @@ fn splice(text: &str, collection: &Collection, entries: &[String]) -> String {
 /// runs into a comment (which continues to the end of the line, so the
 /// collection cannot close before it).
 fn closing_bracket(text: &str, open: usize) -> Option<usize> {
+    let close = closing_bracket_across_lines(text, open)?;
+    // A comment inside the collection runs to the end of its line, so a
+    // collection holding one cannot close before a line break either.
+    (!text[open..close].contains('\n')).then_some(close)
+}
+
+/// Byte offset of the bracket closing the collection that opens at `open`,
+/// however many lines and comments it spans. `None` when it is
+/// unterminated. Callers that only edit one-line collections use
+/// [`closing_bracket`]; this one tells them where such a value ends so they
+/// can replace or delete it whole.
+pub(crate) fn closing_bracket_across_lines(text: &str, open: usize) -> Option<usize> {
     let bytes = text.as_bytes();
     let mut depth = 0usize;
     let mut idx = open;
     while idx < bytes.len() {
         match bytes[idx] {
-            b'\n' => return None,
-            b'#' if bytes[idx - 1].is_ascii_whitespace() => return None,
+            b'#' if idx > open && bytes[idx - 1].is_ascii_whitespace() => {
+                idx = text[idx..].find('\n').map_or(bytes.len(), |offset| idx + offset + 1);
+            }
             b'{' | b'[' => {
                 depth += 1;
                 idx += 1;
             }
             b'}' | b']' => {
-                depth -= 1;
+                depth = depth.checked_sub(1)?;
                 if depth == 0 {
                     return Some(idx);
                 }

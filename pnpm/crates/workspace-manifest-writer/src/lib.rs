@@ -624,6 +624,10 @@ pub fn set_minimum_release_age_excludes(
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
+    if let Some(key) = unsupported_inline_key(manifest.text(), &[&["minimumReleaseAgeExclude"]]) {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+    }
+
     if !edit::set_minimum_release_age_excludes(&mut manifest, excludes) {
         return Ok(());
     }

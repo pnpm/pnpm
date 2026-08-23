@@ -1683,7 +1683,7 @@ mod flow_style {
     use super::{
         TempDir, UpdateWorkspaceManifestOptions, WORKSPACE_MANIFEST_FILENAME, catalogs, fs, run,
         run_age_excludes, run_allow_builds, run_config_dep, run_ignore_ghsas, run_patched_deps,
-        run_scaffold_allow_builds, update_workspace_manifest,
+        run_remove_overrides, run_scaffold_allow_builds, update_workspace_manifest,
     };
 
     #[test]
@@ -1815,6 +1815,56 @@ mod flow_style {
             .expect_err("must refuse a multi-line inline allowBuilds block");
 
         assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
+        assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
+    }
+
+    #[test]
+    fn a_multiline_flow_sequence_is_refused_rather_than_rewritten() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+        let original = "minimumReleaseAgeExclude: [\n  foo@1.0.0, # pinned\n  bar@2.0.0,\n]\n";
+        fs::write(&path, original).expect("seed manifest");
+
+        let err = crate::set_minimum_release_age_excludes(dir.path(), &["baz@3.0.0".to_string()])
+            .expect_err("must refuse a multi-line inline sequence");
+
+        assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
+        assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
+    }
+
+    #[test]
+    fn a_multiline_flow_block_is_dropped_whole_when_it_empties() {
+        let original = "packages:\n  - '*'\noverrides: {\n  foo: link:../foo, # pinned\n}\n";
+        let out = run_remove_overrides(Some(original), &["foo"]).expect("file kept");
+        assert_eq!(out, "packages:\n  - '*'\n");
+    }
+
+    #[test]
+    fn a_multiline_flow_block_is_deleted_whole_by_config_delete() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+        fs::write(&path, "overrides: {\n  foo: 1.0.0, # pinned\n}\npackages:\n  - '*'\n")
+            .expect("seed manifest");
+
+        crate::update_manifest_field(&path, "overrides", &serde_json::Value::Null)
+            .expect("update_manifest_field succeeds");
+
+        assert_eq!(fs::read_to_string(&path).expect("read manifest"), "packages:\n  - '*'\n");
+    }
+
+    /// A block whose value has the wrong shape for its setting never reaches
+    /// the writers: the typed parse rejects the manifest first.
+    #[test]
+    fn a_flow_collection_of_the_wrong_kind_fails_to_parse() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+        let original = "allowBuilds: [ foo ]\n";
+        fs::write(&path, original).expect("seed manifest");
+
+        let err = crate::set_allow_builds(dir.path(), [("bar", true)])
+            .expect_err("must refuse a sequence where allowBuilds expects a mapping");
+
+        assert!(matches!(err, crate::UpdateWorkspaceManifestError::Parse { .. }));
         assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
     }
 
