@@ -160,7 +160,7 @@ test('pnpm exec --recursive does not print prefixes by default', async () => {
   expect(debug).not.toHaveBeenCalled()
 })
 
-test('pnpm exec --recursive --no-reporter-hide-prefix reassembles output split across chunks', async () => {
+test('pnpm exec --recursive --no-reporter-hide-prefix reassembles output split across chunks and drops the CR of a CRLF', async () => {
   preparePackages([
     {
       location: 'packages/foo',
@@ -179,7 +179,7 @@ test('pnpm exec --recursive --no-reporter-hide-prefix reassembles output split a
   const wide = '€'.repeat(200_000)
   const scriptFile = path.resolve('script.js')
   fs.writeFileSync(scriptFile, `
-    process.stdout.write(${JSON.stringify(wide)} + '\\n' + 'tail\\n')
+    process.stdout.write(${JSON.stringify(wide)} + '\\r\\n' + 'tail\\n')
   `)
 
   await exec.handler({
