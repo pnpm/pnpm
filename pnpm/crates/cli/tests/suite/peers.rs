@@ -272,23 +272,46 @@ fn a_filtered_install_only_reports_the_projects_it_installed() {
 
     pacquet.with_arg("install").assert().success();
 
-    // Force the filtered run to resolve; an up-to-date lockfile would
-    // skip the report entirely and pass for the wrong reason.
-    write_clean(serde_json::json!({ "@pnpm.e2e/foo": "2.0.0", "@pnpm.e2e/bar": "100.0.0" }));
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         "packages:\n  - packages/*\nstrictPeerDependencies: true\n",
     )
     .expect("rewrite workspace manifest");
 
-    let output = Command::cargo_bin("pnpm")
-        .expect("find the pnpm binary")
-        .with_current_dir(&workspace)
-        .without_ambient_pnpm_config()
-        .with_args(["--filter", "clean", "install"])
-        .output()
-        .expect("run a filtered pnpm install");
-    assert!(output.status.success(), "the filtered install must succeed: {output:?}");
+    // Each run below has to actually resolve — an up-to-date lockfile
+    // skips the report, which would pass both assertions for the wrong
+    // reason — so every one is preceded by an edit to `clean`.
+    let install_and_resolve = |args: &[&str], dependencies: Value| {
+        write_clean(dependencies);
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .without_ambient_pnpm_config()
+            .with_args(args)
+            .output()
+            .expect("run pnpm install")
+    };
+
+    // The workspace really does hold a strict-failing peer issue: the
+    // control that makes the filtered run below say something about
+    // filtering rather than about peer reporting being broken.
+    let unfiltered = install_and_resolve(
+        &["install"],
+        serde_json::json!({ "@pnpm.e2e/foo": "2.0.0", "@pnpm.e2e/bar": "100.0.0" }),
+    );
+    assert!(!unfiltered.status.success(), "the unfiltered install must fail: {unfiltered:?}");
+    let stdout = String::from_utf8(unfiltered.stdout).expect("stdout is UTF-8");
+    assert!(stdout.contains("[ERR_PNPM_PEER_DEP_ISSUES]"), "stdout:\n{stdout}");
+
+    let filtered = install_and_resolve(
+        &["--filter", "clean", "install"],
+        serde_json::json!({
+            "@pnpm.e2e/foo": "2.0.0",
+            "@pnpm.e2e/bar": "100.0.0",
+            "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+        }),
+    );
+    assert!(filtered.status.success(), "the filtered install must succeed: {filtered:?}");
 
     drop((root, mock_instance));
 }
