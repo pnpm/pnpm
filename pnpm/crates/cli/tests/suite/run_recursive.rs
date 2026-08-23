@@ -106,6 +106,43 @@ fn recursive_run_executes_script_in_every_project() {
     drop(root);
 }
 
+/// Without a workspace-level loader, recursive run preloads the `.pnp.cjs`
+/// belonging to each selected project rather than resolving once from the
+/// invocation directory.
+#[test]
+fn recursive_run_preloads_each_project_pnp_loader() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = |name: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "scripts": { "build": "node -e 0" },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[("project-1", manifest("project-1")), ("project-2", manifest("project-2"))],
+    );
+    for name in ["project-1", "project-2"] {
+        fs::write(
+            workspace.join(name).join(".pnp.cjs"),
+            "require('fs').writeFileSync('pnp-loader-ran.txt', '')",
+        )
+        .expect("write project PnP loader");
+    }
+
+    pacquet.with_args(["-r", "run", "build"]).assert().success();
+
+    for name in ["project-1", "project-2"] {
+        assert!(
+            workspace.join(name).join("pnp-loader-ran.txt").exists(),
+            "{name} should preload its own PnP loader",
+        );
+    }
+
+    drop(root);
+}
+
 #[test]
 fn parallel_before_run_starts_selected_projects_concurrently() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

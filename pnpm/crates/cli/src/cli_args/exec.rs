@@ -6,7 +6,10 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_executor::{push_script_arg, select_shell};
-use pnpm_package_manager::{make_node_package_map_option, package_map_path_for_execution};
+use pnpm_package_manager::{
+    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    pnp_path_for_execution,
+};
 use pnpm_workspace::safe_read_project_manifest_only;
 use std::{
     path::Path,
@@ -185,12 +188,10 @@ pub(super) fn spawn_in_dir(
     if let Some(name) = read_package_name(dir) {
         cmd.env("PNPM_PACKAGE_NAME", name);
     }
-    let mut node_options = config.node_options.as_deref().map(|node_options| {
-        pnpm_config::esm_node_path_loader::keep_esm_node_path_loader_option(
-            node_options,
-            config.extra_env.get("NODE_OPTIONS").map(String::as_str),
-        )
-    });
+    let mut node_options = configured_node_options(config);
+    if let Some(pnp_path) = pnp_path_for_execution(config, dir) {
+        node_options = Some(make_node_require_option(&pnp_path, node_options.as_deref()));
+    }
     if let Some(package_map_path) = package_map_path_for_execution(config, dir) {
         node_options =
             Some(make_node_package_map_option(&package_map_path, node_options.as_deref()));
@@ -204,6 +205,18 @@ pub(super) fn spawn_in_dir(
     cmd.status().map_err(|source| ExecError::Spawn { command: command[0].clone(), source })
 }
 
+fn configured_node_options(config: &Config) -> Option<String> {
+    match config.node_options.as_deref() {
+        Some(node_options) => {
+            Some(pnpm_config::esm_node_path_loader::keep_esm_node_path_loader_option(
+                node_options,
+                config.extra_env.get("NODE_OPTIONS").map(String::as_str),
+            ))
+        }
+        None => config.extra_env.get("NODE_OPTIONS").cloned(),
+    }
+}
+
 /// Read the `name` field of the project's package manifest, if any.
 ///
 /// Used only to stamp `PNPM_PACKAGE_NAME`; a missing or nameless manifest
@@ -211,3 +224,6 @@ pub(super) fn spawn_in_dir(
 fn read_package_name(dir: &Path) -> Option<String> {
     safe_read_project_manifest_only(dir).ok()??.value().get("name")?.as_str().map(str::to_string)
 }
+
+#[cfg(test)]
+mod tests;

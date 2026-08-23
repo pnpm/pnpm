@@ -21,7 +21,10 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
 use pnpm_config::Config;
-use pnpm_package_manager::{make_node_package_map_option, package_map_path_for_execution};
+use pnpm_package_manager::{
+    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    pnp_path_for_execution,
+};
 use pnpm_reporter::{LogEvent, LogLevel, ScopeLog};
 use pnpm_workspace::GraphPkg;
 use pnpm_workspace_projects_graph::ProjectGraph;
@@ -152,19 +155,11 @@ pub fn run_recursive(
         chunks.iter().flatten().map(|root| (root.clone(), ExecutionStatus::queued())).collect();
     let mut has_command = 0_usize;
 
-    // Lifecycle env reused per project: each recursive script sets up
-    // `node_modules/.bin` on `PATH`, the `npm_*` env, the configured
-    // `script_shell`, and the user-agent. Compute the bits that don't
-    // vary per project once; the per-project `RunContext` reuses them.
+    // Compute the shared lifecycle env once. Each project adds loader
+    // options for its own root before reusing that environment across
+    // the selected pre/main/post stages.
     let init_cwd = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
-    let mut extra_env: HashMap<String, String> = config.extra_env_with_node_options();
-    if let Some(package_map_path) = package_map_path_for_execution(config, dir) {
-        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
-        extra_env.insert(
-            "NODE_OPTIONS".to_string(),
-            make_node_package_map_option(&package_map_path, node_options),
-        );
-    }
+    let extra_env: HashMap<String, String> = config.extra_env_with_node_options();
 
     if args.parallel {
         let roots = chunks.iter().flatten().collect::<Vec<_>>();
@@ -307,6 +302,19 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
         status.status = Status::Skipped;
         return Ok(ProjectExecution { status, has_command: 0 });
     }
+    let mut extra_env = extra_env.clone();
+    if let Some(pnp_path) = pnp_path_for_execution(config, root) {
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env
+            .insert("NODE_OPTIONS".to_string(), make_node_require_option(&pnp_path, node_options));
+    }
+    if let Some(package_map_path) = package_map_path_for_execution(config, root) {
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            make_node_package_map_option(&package_map_path, node_options),
+        );
+    }
 
     let mut execution = ProjectExecution { status: ExecutionStatus::queued(), has_command: 0 };
     let mut project_failed = false;
@@ -336,7 +344,7 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
             dir: root,
             init_cwd,
             config,
-            extra_env,
+            extra_env: &extra_env,
             silent,
             sequential: args.sequential,
         };

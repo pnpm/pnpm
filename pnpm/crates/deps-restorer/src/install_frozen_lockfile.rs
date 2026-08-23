@@ -178,11 +178,9 @@ where
     /// chain, matching the `nodeLinker === 'hoisted'` branch in
     /// `headlessInstall`.
     ///
-    /// Pacquet's [`NodeLinker::Pnp`] is a config / serde
-    /// placeholder today; an install request with `Pnp` reaches
-    /// the isolated linker in this branch (no `PnP` code path
-    /// exists yet). `nodeLinker: 'pnp'` is out-of-scope and tracked
-    /// separately.
+    /// [`NodeLinker::Pnp`] shares the isolated virtual-store materialization,
+    /// then replaces importer dependency links with the project-level `PnP`
+    /// loader during the link phase.
     pub node_linker: NodeLinker,
 
     /// Install-scoped shared in-flight tarball cache, threaded down to
@@ -772,6 +770,16 @@ where
         };
 
         let mut build_extra_env = config.extra_env_with_node_options();
+        if matches!(node_linker, NodeLinker::Pnp) {
+            let node_options = build_extra_env.get("NODE_OPTIONS").map(String::as_str);
+            build_extra_env.insert(
+                "NODE_OPTIONS".to_string(),
+                crate::make_node_require_option(
+                    &workspace_root.join(crate::PNP_FILENAME),
+                    node_options,
+                ),
+            );
+        }
         if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
             let package_map_path =
                 config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);

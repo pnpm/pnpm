@@ -1580,7 +1580,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             None => engine_name,
         };
 
-        let build_extra_env = build_extra_env(config, node_linker);
+        let build_extra_env = build_extra_env(config, node_linker, lockfile_dir);
 
         // `CreateVirtualStore` keeps skipped snapshots out of this map, so
         // it holds only what the install put on disk. See
@@ -1806,11 +1806,25 @@ fn pre_resolution_log_fn<Reporter: self::Reporter>(
 /// keeps the output byte-identical to the typed write when the hook makes no
 /// changes. A throwing hook aborts the install.
 /// The environment lifecycle scripts run under: `config.extra_env` plus
-/// the `NODE_OPTIONS` that point Node at the package map.
-fn build_extra_env(config: &Config, node_linker: NodeLinker) -> HashMap<String, String> {
+/// the `NODE_OPTIONS` for the selected project-level dependency loader.
+fn build_extra_env(
+    config: &Config,
+    node_linker: NodeLinker,
+    workspace_root: &Path,
+) -> HashMap<String, String> {
     let mut env = config.extra_env.clone();
     if let Some(node_options) = &config.node_options {
         env.insert("NODE_OPTIONS".to_string(), node_options.clone());
+    }
+    if matches!(node_linker, NodeLinker::Pnp) {
+        let node_options = env.get("NODE_OPTIONS").map(String::as_str);
+        env.insert(
+            "NODE_OPTIONS".to_string(),
+            crate::make_node_require_option(
+                &workspace_root.join(crate::PNP_FILENAME),
+                node_options,
+            ),
+        );
     }
     if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
         let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
