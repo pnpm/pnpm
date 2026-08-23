@@ -4954,7 +4954,7 @@ name = "pnpm-global"
 version = "0.0.1"
 dependencies = [
  "derive_more",
- "junction",
+ "junction 2.0.0",
  "miette 7.6.0",
  "owo-colors",
  "pnpm-cmd-shim",
