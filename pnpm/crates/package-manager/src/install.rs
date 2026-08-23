@@ -589,6 +589,16 @@ pub enum InstallError {
         package_names: Vec<String>,
     },
 
+    /// pnpm's `ERR_PNPM_PEER_DEP_ISSUES`: with `strictPeerDependencies`
+    /// on, an install whose resolution left unmet peers behind fails
+    /// once the artifacts are written, the same way `IgnoredBuilds`
+    /// does — the tree is installed, and the run reports the verdict on
+    /// it. The listing and its hints have already gone out through the
+    /// reporter by the time this is returned.
+    #[display("Unmet peer dependencies")]
+    #[diagnostic(code(ERR_PNPM_PEER_DEP_ISSUES))]
+    PeerDependencyIssues,
+
     /// A custom resolver hook failed (loading the pnpmfile's resolvers
     /// or running `shouldRefreshResolution`) while deciding whether the
     /// frozen-path optimization may run. A throwing hook aborts the

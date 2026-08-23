@@ -37,9 +37,36 @@ fn test_satisfies_fails() {
     assert!(!satisfies("2.0.0", "^1.0.0"));
 }
 
+/// pnpm matches peers with semver's `includePrerelease`, which admits a
+/// prerelease anywhere inside the range's bounds but still orders it
+/// below the release it precedes. Values checked against
+/// `semver.satisfies(v, r, { includePrerelease: true, loose: true })`.
 #[test]
-fn test_satisfies_prerelease_tolerance() {
-    assert!(satisfies("1.0.0-beta", "^1.0.0"));
+fn test_satisfies_prerelease_matches_include_prerelease() {
+    let cases = [
+        // Inside the bounds: admitted, though no comparator carries a
+        // prerelease of its own.
+        ("1.5.0-beta", "^1.0.0", true),
+        ("18.3.0-canary", "^18.0.0", true),
+        ("1.0.0-rc.1", ">=0.9.0", true),
+        ("2.0.0-beta.1", "^2.0.0-alpha", true),
+        // Below the lower bound: a prerelease precedes its release.
+        ("2.0.0-beta.1", "^2.0.0", false),
+        ("1.0.0-rc.1", ">=1.0.0", false),
+        ("1.0.0-beta", "^1.0.0", false),
+        // At an upper bound npm derived rather than the user spelling
+        // it out: `^2.0.0` reaches `<3.0.0-0`, so no prerelease of
+        // 3.0.0 counts, while an explicit `<3.0.0` admits one.
+        ("3.0.0-next.1", "^2.0.0", false),
+        ("3.0.0-next.1", "<3.0.0", true),
+        ("2.0.0-beta", "~1.9.0", false),
+        ("1.9.5-beta", "~1.9.0", true),
+        // Outside the range entirely.
+        ("19.0.0-rc.1", "^16.8.4 || ^17.0.0 || ^18.0.0", false),
+    ];
+    for (version, range, expected) in cases {
+        assert_eq!(satisfies(version, range), expected, "{version} against {range}");
+    }
 }
 
 #[test]
@@ -73,6 +100,48 @@ fn test_intersect_multiple_ranges_conflict() {
 fn test_intersect_multiple_ranges_exact() {
     let version_ranges = vec!["^16.0.0".to_string(), "16.1.0".to_string()];
     assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some("16.1.0"));
+}
+
+/// A range that leaves `minor` or `patch` unpinned reaches the next
+/// level up, the way npm's own comparators do. Values checked against
+/// `new semver.Range(r).range`, which is what pnpm's
+/// `semver-range-intersect` agrees with.
+#[test]
+fn test_intersect_widens_partial_versions_like_npm() {
+    let cases = [
+        (vec!["~1", "1.5.0"], Some("1.5.0")),
+        (vec!["~1.x", "1.5.0"], Some("1.5.0")),
+        (vec!["1.x", "1.5.0"], Some("1.5.0")),
+        (vec!["1", "1.5.0"], Some("1.5.0")),
+        (vec!["^0", "0.5.0"], Some("0.5.0")),
+        (vec!["^0.x", "0.5.0"], Some("0.5.0")),
+        (vec!["1.2", "1.2.5"], Some("1.2.5")),
+        (vec![">1.2", "1.2.5"], None),
+        (vec!["<=1", "1.9.0"], Some("1.9.0")),
+        // The pinned levels keep their tighter bounds.
+        (vec!["~1.2", "1.3.0"], None),
+        (vec!["^0.0", "0.1.0"], None),
+        (vec!["~1", "2.0.0"], None),
+    ];
+    for (ranges, expected) in cases {
+        let ranges: Vec<String> = ranges.into_iter().map(ToString::to_string).collect();
+        let actual = intersect_multiple_ranges(&ranges);
+        assert_eq!(actual.as_deref(), expected, "ranges: {ranges:?}");
+    }
+}
+
+/// A `-0` the user wrote out is honored where it decides anything —
+/// matching — and dropped where pnpm drops it: `semver-range-intersect`
+/// renders `intersect("<2.0.0-0", ">=1.0.0")` as `>=1.0.0 <2.0.0`, so
+/// rendering the suffix here would be the divergence, not hiding it.
+#[test]
+fn test_explicit_prerelease_upper_bound() {
+    assert!(!satisfies("2.0.0-rc", "<2.0.0-0"));
+    assert!(satisfies("2.0.0-rc", "<2.0.0"));
+    assert!(satisfies("1.9.9", "<2.0.0-0"));
+
+    let ranges = ["<2.0.0-0".to_string(), ">=1.0.0".to_string()];
+    assert_eq!(intersect_multiple_ranges(&ranges).as_deref(), Some(">=1.0.0 <2.0.0"));
 }
 
 #[test]

@@ -4416,6 +4416,7 @@ dependencies = [
  "pnpm-crypto-hash",
  "pnpm-default-reporter",
  "pnpm-deps-inspection",
+ "pnpm-deps-inspection-peers",
  "pnpm-deps-path",
  "pnpm-deps-restorer",
  "pnpm-detect-libc",
@@ -4625,6 +4626,25 @@ dependencies = [
  "pnpm-text-sanitize",
  "pnpm-workspace",
  "pretty_assertions",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "pnpm-deps-inspection-peers"
+version = "0.0.1"
+dependencies = [
+ "dunce",
+ "node-semver",
+ "owo-colors",
+ "pnpm-config",
+ "pnpm-lockfile",
+ "pnpm-package-manifest",
+ "pnpm-resolving-parse-wanted-dependency",
+ "pnpm-resolving-resolver-base",
+ "pnpm-text-sanitize",
+ "pnpm-workspace",
  "serde",
  "serde_json",
  "tempfile",
@@ -5315,6 +5335,7 @@ dependencies = [
  "pnpm-config",
  "pnpm-config-parse-overrides",
  "pnpm-crypto-hash",
+ "pnpm-deps-inspection-peers",
  "pnpm-deps-path",
  "pnpm-deps-restorer",
  "pnpm-directory-fetcher",

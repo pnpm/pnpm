@@ -214,6 +214,16 @@ pub enum LogEvent {
     /// `pnpm:stage` time.
     #[serde(rename = "pnpm:deprecation")]
     Deprecation(DeprecationLog),
+
+    /// Unmet peer dependencies left behind by a resolving install
+    /// (`pnpm:peer-dependency-issues`). Emitted once per install that
+    /// resolved, and only when at least one issue survives the
+    /// project's `peerDependencyRules`; the default reporter renders a
+    /// single line pointing at `pnpm peers check`. Under
+    /// `strictPeerDependencies` the install fails instead of emitting
+    /// this, matching pnpm.
+    #[serde(rename = "pnpm:peer-dependency-issues")]
+    PeerDependencyIssues(PeerDependencyIssuesLog),
 }
 
 /// `pnpm:context` payload.
@@ -833,6 +843,19 @@ pub struct DedupeCheckLog {
     pub dedupe_check_issues: serde_json::Value,
     #[serde(skip)]
     pub rendered: String,
+}
+
+/// `pnpm:peer-dependency-issues` payload.
+///
+/// `issues_by_projects` is the same `importerId -> issues` map pnpm's
+/// `peerDependencyIssuesLogger` carries, already filtered through
+/// `peerDependencyRules`, so an NDJSON consumer sees the detail the
+/// one-line terminal rendering leaves out.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeerDependencyIssuesLog {
+    pub level: LogLevel,
+    pub issues_by_projects: serde_json::Value,
 }
 
 /// `pnpm:scope` payload: how many workspace projects the command
