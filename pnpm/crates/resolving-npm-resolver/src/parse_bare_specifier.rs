@@ -274,9 +274,11 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
 
 /// Discriminate between an exact version, a semver range, and a
 /// dist-tag, returning the normalized form alongside the discriminator:
-/// version first, range second, tag last. Returns `None` only when the
-/// selector contains characters that `encodeURIComponent` would escape
-/// (i.e. not a valid npm tag).
+/// version first, range second, tag last. An exact version normalizes
+/// without its build metadata, since npm strips build metadata off a
+/// version when it publishes it. Returns `None` only when the selector
+/// contains characters that `encodeURIComponent` would escape (i.e. not
+/// a valid npm tag).
 pub(crate) fn get_version_selector_type(selector: &str) -> Option<VersionSelectorMatch> {
     if is_any_version_range(selector) {
         return Some(VersionSelectorMatch {
@@ -284,7 +286,8 @@ pub(crate) fn get_version_selector_type(selector: &str) -> Option<VersionSelecto
             normalized: ANY_VERSION_RANGE.to_string(),
         });
     }
-    if let Ok(version) = Version::parse(selector) {
+    if let Ok(mut version) = Version::parse(selector) {
+        version.build.clear();
         return Some(VersionSelectorMatch {
             spec_type: RegistryPackageSpecType::Version,
             normalized: version.to_string(),
