@@ -263,7 +263,7 @@ test('audit --fix respects auditLevel and only fixes matching severities', async
 })
 
 test('cleanupUnusedIgnoredGhsas removes GHSAs that are no longer in the report', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -302,7 +302,7 @@ test('cleanupUnusedIgnoredGhsas removes GHSAs that are no longer in the report',
 })
 
 test('cleanupUnusedIgnoredGhsas is disabled by default - no cleanup', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -332,7 +332,7 @@ test('cleanupUnusedIgnoredGhsas is disabled by default - no cleanup', async () =
 
 // GHSA ids are case-insensitive; lowercase version should match uppercase in report
 test('cleanupUnusedIgnoredGhsas handles case normalization', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -362,7 +362,7 @@ test('cleanupUnusedIgnoredGhsas handles case normalization', async () => {
 })
 
 test('cleanupUnusedIgnoredGhsas persists the canonical form even when nothing is removed', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -394,7 +394,7 @@ test('cleanupUnusedIgnoredGhsas persists the canonical form even when nothing is
 })
 
 test('cleanupUnusedIgnoredGhsas cleans up all when none are relevant', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
