@@ -27,6 +27,10 @@ use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
+    sync::{
+        Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 /// `Cannot find package {resume_from}` — raised by both recursive `run`
@@ -39,24 +43,6 @@ use std::{
 pub struct ResumeFromNotFound {
     #[error(not(source))]
     pub resume_from: String,
-}
-
-/// `{operation} with `sharedWorkspaceLockfile=false` is not supported yet.`
-///
-/// Every workspace-aware command reads and rewrites one shared
-/// `pnpm-lock.yaml`; the per-project lockfiles that
-/// `sharedWorkspaceLockfile=false` produces have no reader here yet. pnpm
-/// itself supports the combination, so this is a known gap rather than a
-/// rejected configuration — it fails loudly instead of silently installing
-/// something other than what was asked for.
-#[derive(Debug, Display, Error, Diagnostic)]
-#[display("{operation} with `sharedWorkspaceLockfile=false` is not supported yet.")]
-#[diagnostic(code(ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED))]
-pub struct RecursiveSharedLockfileUnsupported {
-    /// The user-facing description of what was attempted, e.g.
-    /// ``Recursive and filtered `pnpm why` ``.
-    #[error(not(source))]
-    pub operation: String,
 }
 
 /// Diagnostic code of [`NoMatchingProjects`]. pnpm has no error code for
@@ -74,12 +60,6 @@ pub const NO_MATCHING_PROJECTS_CODE: &str = "ERR_PNPM_NO_MATCHING_PROJECTS";
 pub struct NoMatchingProjects {
     #[error(not(source))]
     pub message: String,
-}
-
-impl RecursiveSharedLockfileUnsupported {
-    pub fn new(operation: impl Into<String>) -> Self {
-        RecursiveSharedLockfileUnsupported { operation: operation.into() }
-    }
 }
 
 /// Sort the `--filter`-selected workspace projects into topologically
@@ -475,6 +455,55 @@ pub fn selected_importer_ids(
         .keys()
         .map(|project_dir| importer_id_from_root_dir(lockfile_dir, project_dir))
         .collect()
+}
+
+/// Run one dependency-independent workspace chunk with at most
+/// `workspace_concurrency` operations in flight, preserving input order in
+/// the returned results.
+pub fn run_workspace_chunk<Output, Operation>(
+    roots: &[PathBuf],
+    workspace_concurrency: u32,
+    operation: Operation,
+) -> miette::Result<Vec<Output>>
+where
+    Output: Send,
+    Operation: Fn(&Path) -> Output + Sync,
+{
+    if roots.is_empty() {
+        return Ok(Vec::new());
+    }
+    let concurrency =
+        usize::try_from(workspace_concurrency).unwrap_or(usize::MAX).max(1).min(roots.len());
+    let next = AtomicUsize::new(0);
+    let outputs = Mutex::new((0..roots.len()).map(|_| None).collect::<Vec<Option<Output>>>());
+    std::thread::scope(|scope| -> miette::Result<()> {
+        let handles = (0..concurrency)
+            .map(|_| {
+                std::thread::Builder::new()
+                    .spawn_scoped(scope, || {
+                        loop {
+                            let index = next.fetch_add(1, Ordering::Relaxed);
+                            let Some(root) = roots.get(index) else { break };
+                            let output = operation(root);
+                            outputs.lock().expect("workspace output lock is not poisoned")[index] =
+                                Some(output);
+                        }
+                    })
+                    .into_diagnostic()
+                    .wrap_err("failed to start workspace task runner")
+            })
+            .collect::<miette::Result<Vec<_>>>()?;
+        for handle in handles {
+            handle.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+        }
+        Ok(())
+    })?;
+    Ok(outputs
+        .into_inner()
+        .expect("workspace output lock is not poisoned")
+        .into_iter()
+        .map(|output| output.expect("every workspace operation produced an output"))
+        .collect())
 }
 
 /// Build the workspace [`ProjectGraph`] from `projects` under `options`.

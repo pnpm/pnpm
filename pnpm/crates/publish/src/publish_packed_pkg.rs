@@ -185,11 +185,11 @@ where
 
 /// One completed publish response.
 #[derive(Debug)]
-struct PublishResponse {
-    ok: bool,
-    status: u16,
-    status_text: String,
-    body: String,
+pub(crate) struct PublishResponse {
+    pub(crate) ok: bool,
+    pub(crate) status: u16,
+    pub(crate) status_text: String,
+    pub(crate) body: String,
     stage_id: Option<String>,
 }
 
@@ -231,7 +231,7 @@ impl OtpError for PublishHttpError {
     clippy::too_many_arguments,
     reason = "a single registry request legitimately needs the URL, auth, command, body, OTP, stage flag and retry options"
 )]
-async fn publish_with_otp_handling<Sys, Reporter>(
+pub(crate) async fn publish_with_otp_handling<Sys, Reporter>(
     client: &ThrottledClient,
     put_url: &str,
     authorization: Option<&str>,
@@ -364,7 +364,7 @@ fn stage_id_from_body(body: &str) -> Option<String> {
         .and_then(|json| json.get("stageId")?.as_str().map(str::to_owned))
 }
 
-fn web_auth_fetch_options(http: &OidcHttpOptions) -> WebAuthFetchOptions {
+pub(crate) fn web_auth_fetch_options(http: &OidcHttpOptions) -> WebAuthFetchOptions {
     WebAuthFetchOptions {
         timeout: http.fetch_timeout,
         retry: Some(WebAuthRetryOptions {
@@ -379,16 +379,16 @@ fn web_auth_fetch_options(http: &OidcHttpOptions) -> WebAuthFetchOptions {
 
 /// The tarball digests written into the document's `dist`, already computed by
 /// [`create_publish_summary`] so the tarball is not hashed twice.
-struct DistHashes<'a> {
+pub(crate) struct DistHashes<'a> {
     /// SRI SHA-512 (`sha512-...`).
-    integrity: &'a str,
+    pub(crate) integrity: &'a str,
     /// Lowercase hex SHA-1.
-    shasum: &'a str,
+    pub(crate) shasum: &'a str,
 }
 
 /// Build the npm publish document — the JSON body sent as the whole
 /// `PUT /:pkg` request.
-fn build_publish_document(
+pub(crate) fn build_publish_document(
     manifest: &Value,
     tarball_data: &[u8],
     registry: &NormalizedRegistryUrl,
@@ -462,7 +462,7 @@ fn build_publish_document(
 }
 
 /// Resolve `path` against the registry the way `new URL(path, registry)` does.
-fn join_registry(
+pub(crate) fn join_registry(
     registry: &NormalizedRegistryUrl,
     path: &str,
 ) -> Result<String, PublishPackedPkgError> {
@@ -477,7 +477,7 @@ fn join_registry(
 /// A typed entry point over [`redact_url_credentials`] for the
 /// `NormalizedRegistryUrl` log site; the unsanitized URL is still used for the
 /// request and auth-header lookup.
-fn registry_for_display(registry: &NormalizedRegistryUrl) -> String {
+pub(crate) fn registry_for_display(registry: &NormalizedRegistryUrl) -> String {
     redact_url_credentials(registry.as_str())
 }
 

@@ -76,6 +76,23 @@ fn build_appends_run_order(name: &str) -> Value {
     })
 }
 
+fn write_concurrency_probe(workspace: &Path) {
+    fs::write(
+        workspace.join("track-concurrency.sh"),
+        r#"marker=../active-$(basename "$PWD")
+mkdir "$marker"
+sleep 0.2
+set -- ../active-*
+[ -e "$1" ] || set --
+[ "$#" -ge 2 ] && touch ../saw-parallel
+[ "$#" -gt 2 ] && touch ../exceeded-concurrency
+sleep 0.2
+rmdir "$marker"
+"#,
+    )
+    .expect("write concurrency probe");
+}
+
 /// `pacquet -r run <script>` runs the script in every workspace project,
 /// in topological order derived from the workspace dependency graph.
 #[test]
@@ -101,6 +118,37 @@ fn recursive_run_executes_script_in_every_project() {
     assert!(
         !workspace.join("ran.txt").exists(),
         "scripts must run from each package root, not the workspace root",
+    );
+
+    drop(root);
+}
+
+#[test]
+fn recursive_run_respects_workspace_concurrency() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = |name: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "scripts": { "build": "sh ../track-concurrency.sh" },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", manifest("project-1")),
+            ("project-2", manifest("project-2")),
+            ("project-3", manifest("project-3")),
+        ],
+    );
+    write_concurrency_probe(&workspace);
+
+    pacquet.with_args(["--workspace-concurrency=2", "-r", "run", "build"]).assert().success();
+
+    assert!(workspace.join("saw-parallel").exists(), "two scripts should overlap");
+    assert!(
+        !workspace.join("exceeded-concurrency").exists(),
+        "no more than two scripts should overlap",
     );
 
     drop(root);
@@ -1013,6 +1061,7 @@ fn recursive_run_mixed_filter_runs_prod_selected_before_regular() {
     );
 
     pacquet
+        .with_arg("--workspace-concurrency=1")
         .with_arg("-r")
         .with_arg("--filter")
         .with_arg("alpha")
@@ -1078,6 +1127,7 @@ fn recursive_run_no_sort_uses_workspace_order() {
     );
 
     pacquet
+        .with_arg("--workspace-concurrency=1")
         .with_arg("--no-sort")
         .with_arg("-r")
         .with_arg("run")
@@ -1112,7 +1162,7 @@ fn recursive_run_reads_sort_from_workspace_config() {
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - app\n  - lib\nsort: false\n")
         .expect("write workspace settings");
 
-    pacquet.with_args(["-r", "run", "build"]).assert().success();
+    pacquet.with_args(["--workspace-concurrency=1", "-r", "run", "build"]).assert().success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     assert_eq!(order, "app\nlib\n");
@@ -1334,6 +1384,7 @@ fn recursive_run_bail_writes_summary_then_stops_at_first_failure() {
     );
 
     let output = pacquet
+        .with_arg("--workspace-concurrency=1")
         .with_arg("-r")
         .with_arg("run")
         .with_arg("--report-summary")

@@ -54,6 +54,10 @@ pub struct ExecArgs {
     /// Reverse the project order of a recursive exec.
     #[clap(skip = true)]
     pub reverse: bool,
+
+    /// Run every selected project concurrently, without a concurrency cap.
+    #[clap(skip = true)]
+    pub parallel: bool,
 }
 
 /// Errors from `pacquet exec`.

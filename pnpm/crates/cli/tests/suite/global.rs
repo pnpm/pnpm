@@ -656,6 +656,53 @@ fn global_add_persists_build_approvals_to_the_global_packages_dir() {
     drop(root);
 }
 
+#[cfg(unix)]
+#[test]
+fn approve_builds_global_approves_every_install_group() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_pkg_dir = pnpm_home.join("global").join("v11");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    for package in [
+        "@pnpm.e2e/install-script-example@1.0.0",
+        "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0",
+    ] {
+        global_command(&workspace, &pnpm_home).with_args(["add", "-g", package]).assert().success();
+    }
+
+    let install_script =
+        pnpm_global::find_global_package(&global_pkg_dir, "@pnpm.e2e/install-script-example")
+            .expect("scan global packages")
+            .expect("find install-script group")
+            .install_dir
+            .join("node_modules/@pnpm.e2e/install-script-example/generated-by-install.js");
+    let postinstall = pnpm_global::find_global_package(
+        &global_pkg_dir,
+        "@pnpm.e2e/pre-and-postinstall-scripts-example",
+    )
+    .expect("scan global packages")
+    .expect("find pre-and-postinstall group")
+    .install_dir
+    .join("node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js");
+    assert!(!install_script.exists());
+    assert!(!postinstall.exists());
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["approve-builds", "-g", "--all"])
+        .assert()
+        .success();
+
+    assert!(install_script.exists(), "first install group should be rebuilt");
+    assert!(postinstall.exists(), "second install group should be rebuilt");
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 /// A global install must ignore the `pnpm-workspace.yaml` of global
 /// settings (`allowBuilds`, `catalog`, ...) that lives in the global packages
 /// directory: the per-group install dir sits under it, so an install that
@@ -775,7 +822,7 @@ fn global_add_ignores_caller_project_npmrc_registry() {
 
 #[cfg(unix)]
 #[test]
-fn global_outdated_reads_each_global_install_lockfile() {
+fn recursive_global_outdated_reads_each_global_install_lockfile() {
     use assert_cmd::assert::OutputAssertExt;
 
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -805,6 +852,7 @@ fn global_outdated_reads_each_global_install_lockfile() {
     let output = global_command(&workspace, &pnpm_home)
         .with_arg("outdated")
         .with_arg("-g")
+        .with_arg("-r")
         .with_arg("--format")
         .with_arg("json")
         .output()

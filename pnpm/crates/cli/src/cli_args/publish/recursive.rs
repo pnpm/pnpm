@@ -16,7 +16,8 @@ use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_publish::{
-    Host, PublishNetwork, PublishSummary, find_registry_info, resolve_otp_from_env,
+    Host, PublishNetwork, PublishSummary, batch_publish_packed_pkgs, find_registry_info,
+    resolve_otp_from_env, validate_batch_publish_options,
 };
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{
@@ -44,13 +45,6 @@ impl PublishArgs {
         config: &Config,
         stage: bool,
     ) -> miette::Result<Vec<PublishSummary>> {
-        if self.flags.batch {
-            return Err(miette::miette!(
-                help = "Publish without --batch.",
-                "Batch publishing (--batch) is not yet supported",
-            ));
-        }
-
         let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
         // `publish` is not in pnpm's root-auto-exclusion command set
         // (`run` / `exec` / `add` / `test`), so the workspace root stays in the
@@ -72,6 +66,9 @@ impl PublishArgs {
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
         let otp = resolve_otp_from_env::<Host>(self.flags.otp.clone());
         let opts = self.publish_options(config, otp, stage);
+        if self.flags.batch {
+            validate_batch_publish_options(&opts)?;
+        }
         let retry_opts = retry_opts_from_config(config);
 
         // Filter the selected graph: keep only packages that have a name and
@@ -121,6 +118,24 @@ impl PublishArgs {
             selection.prod_all.as_ref(),
             &selection.prod_only_selected,
         );
+        if self.flags.batch {
+            let mut packed = Vec::with_capacity(to_publish.len());
+            for root in chunks.iter().flatten() {
+                if to_publish.contains(root) {
+                    packed.push(self.pack_directory::<Reporter>(root, config).await?);
+                }
+            }
+            let packages = packed.iter().map(|package| package.packed_pkg()).collect::<Vec<_>>();
+            let published =
+                batch_publish_packed_pkgs::<Reporter>(&packages, &opts, &network).await?;
+            for package in &packed {
+                self.run_post_publish_scripts::<Reporter>(package, config)?;
+            }
+            if self.flags.report_summary {
+                write_publish_summary(workspace_root, &published)?;
+            }
+            return Ok(published);
+        }
         for chunk in chunks {
             for root in chunk {
                 if !to_publish.contains(&root) {

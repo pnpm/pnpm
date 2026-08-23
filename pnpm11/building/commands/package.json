@@ -42,6 +42,7 @@
     "@pnpm/config.writer": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/global.packages": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",
@@ -50,6 +51,7 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.projects-sorter": "workspace:*",
     "chalk": "catalog:",
+    "is-subdir": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:"

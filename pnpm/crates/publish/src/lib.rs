@@ -1,6 +1,7 @@
 //! Publish a package to an npm registry — pnpm's `publish` command,
 //! implemented in Rust.
 
+mod batch_publish;
 mod capabilities;
 mod display_error;
 mod execute_token_helper;
@@ -16,6 +17,9 @@ mod publish_packed_pkg;
 mod publish_summary;
 mod registry_config_keys;
 
+pub use batch_publish::{
+    BatchPublishError, batch_publish_packed_pkgs, validate_batch_publish_options,
+};
 pub use capabilities::{
     Clock, CommandOutput, ConfirmPrompt, EnvVar, Host, OidcFetch, OidcFetchError, OidcMethod,
     OidcRequest, OidcResponse, RunCommand,

@@ -1,7 +1,7 @@
 //! Recursive-publish integration tests. The no-registry tests exercise the
 //! `publish --recursive` dispatch, `--filter` selection, the private-package
-//! skip, the empty-selection no-op, the `--report-summary` output, and the
-//! unsupported `--batch` gap. The registry tests drive the real binary against
+//! skip, the empty-selection no-op, the `--report-summary` output, and batch
+//! publishing. The registry tests drive the real binary against
 //! a `mockito` registry (pnpr's `TestRegistry` is proxy-mode and rejects
 //! path-less publishes) to cover the actual publish loop: the not-yet-published
 //! probe, the per-package `PUT`, `--force`, and the summary / `--json` shapes —
@@ -145,26 +145,61 @@ fn recursive_publish_json_prints_empty_array_when_nothing_published() {
     drop(root);
 }
 
-/// `--batch` is accepted for surface parity but not yet ported, so a recursive
-/// batch publish fails fast with an explicit message rather than silently
-/// publishing per-package.
+/// `--batch` packs every selected package and sends their publish documents to
+/// pnpr's endpoint in one request instead of falling back to per-package PUTs.
 #[test]
-fn recursive_publish_batch_is_unsupported() {
+fn recursive_publish_batches_selected_packages() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(&workspace, &[("project-1", private_pkg("project-1"))]);
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[("project-1", public_pkg("project-1")), ("project-2", public_pkg("project-2"))],
+    );
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+    let batch = server
+        .mock("PUT", "/-/pnpm/v1/publish")
+        .match_body(Matcher::PartialJson(serde_json::json!({
+            "packages": [
+                { "name": "project-1" },
+                { "name": "project-2" },
+            ],
+        })))
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+    let individual =
+        server.mock("PUT", Matcher::Regex(r"^/project-[12]$".to_string())).expect(0).create();
 
-    let assert = pacquet
+    clear_ci(pacquet)
         .with_arg("-r")
         .with_arg("publish")
         .with_arg("--batch")
+        .with_arg("--force")
         .with_arg("--no-git-checks")
         .assert()
+        .success();
+    batch.assert();
+    individual.assert();
+
+    drop(root);
+}
+
+#[test]
+fn recursive_batch_publish_reports_an_unsupported_registry() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(&workspace, &[("project-1", public_pkg("project-1"))]);
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+    let batch = server.mock("PUT", "/-/pnpm/v1/publish").with_status(404).expect(1).create();
+
+    let assert = clear_ci(pacquet)
+        .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
+        .assert()
         .failure();
-    let stderr = assert.get_output().stderr.pipe_as_ref(String::from_utf8_lossy);
-    assert!(
-        stderr.contains("Batch publishing (--batch) is not yet supported"),
-        "expected the batch-unsupported message, got: {stderr}",
-    );
+    batch.assert();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_BATCH_PUBLISH_UNSUPPORTED"), "stderr: {stderr}");
 
     drop(root);
 }

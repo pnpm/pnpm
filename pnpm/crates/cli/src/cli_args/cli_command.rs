@@ -511,6 +511,7 @@ impl CliArgs {
         if matches!(
             self.command,
             CliCommand::Run(_)
+                | CliCommand::Exec(_)
                 | CliCommand::External(_)
                 | CliCommand::Test(_)
                 | CliCommand::Start(_)

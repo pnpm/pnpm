@@ -6,16 +6,16 @@
 //! [`select_recursive_projects`]; the selection is then sorted
 //! topologically by default, or kept in workspace order under `--no-sort`,
 //! and reversed under `--reverse`. `--parallel` starts every selected
-//! project concurrently; bounded `--workspace-concurrency` parallelism is
-//! not supported yet.
+//! project concurrently; otherwise `workspaceConcurrency` bounds the work
+//! within each dependency-independent chunk.
 //! The main-dispatch auto-exclusion of the workspace root is applied via
 //! [`AutoExcludeRoot::Enabled`].
 
 use super::{RunArgs, RunContext, ScriptSelector, render_project_commands, run_stages};
 use crate::cli_args::recursive::{
     AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-    get_resumed_package_chunks, select_recursive_projects, sort_filtered_projects,
-    write_recursive_summary,
+    get_resumed_package_chunks, run_workspace_chunk, select_recursive_projects,
+    sort_filtered_projects, write_recursive_summary,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -140,7 +140,9 @@ pub fn run_recursive(
             &selection.prod_only_selected,
         )
     } else {
-        graph.keys().cloned().map(|root| vec![root]).collect()
+        let mut roots = graph.keys().cloned().collect::<Vec<_>>();
+        roots.sort_unstable();
+        vec![roots]
     };
     if args.reverse {
         chunks.reverse();
@@ -214,30 +216,39 @@ pub fn run_recursive(
         }
     } else {
         for chunk in &chunks {
-            for root in chunk {
-                let execution = run_project(RunProjectOptions {
-                    root,
-                    graph,
-                    selector: &selector,
-                    args,
-                    init_cwd: &init_cwd,
-                    config,
-                    extra_env: &extra_env,
-                    bail,
-                    silent,
-                    emit,
-                })?;
-                has_command += execution.has_command;
-                let failed = execution.status.status == Status::Failure;
-                result.insert(root.clone(), execution.status);
-                if bail && failed {
-                    if args.report_summary {
-                        write_recursive_summary(workspace_root, &result)?;
+            let concurrency =
+                usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1);
+            let batch_size = if bail { concurrency } else { chunk.len().max(1) };
+            for batch in chunk.chunks(batch_size) {
+                let executions =
+                    run_workspace_chunk(batch, config.workspace_concurrency, |root| {
+                        run_project(RunProjectOptions {
+                            root,
+                            graph,
+                            selector: &selector,
+                            args,
+                            init_cwd: &init_cwd,
+                            config,
+                            extra_env: &extra_env,
+                            bail,
+                            silent,
+                            emit,
+                        })
+                    })?;
+                for (root, execution) in batch.iter().zip(executions) {
+                    let execution = execution?;
+                    has_command += execution.has_command;
+                    let failed = execution.status.status == Status::Failure;
+                    result.insert(root.clone(), execution.status);
+                    if bail && failed {
+                        if args.report_summary {
+                            write_recursive_summary(workspace_root, &result)?;
+                        }
+                        return Err(RecursiveRunError::RecursiveRunFirstFail {
+                            prefix: root.to_string_lossy().into_owned(),
+                        }
+                        .into());
                     }
-                    return Err(RecursiveRunError::RecursiveRunFirstFail {
-                        prefix: root.to_string_lossy().into_owned(),
-                    }
-                    .into());
                 }
             }
         }

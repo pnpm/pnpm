@@ -706,6 +706,20 @@ pub(super) fn approve_builds<'a>(
     ctx: &RunCtx<'a>,
     args: ApproveBuildsArgs,
 ) -> miette::Result<CommandFuture<'a>> {
+    if args.global {
+        let config = (ctx.global_config)()?;
+        return Ok(match ctx.reporter {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                Box::pin(global::approve_global_builds::<DefaultReporter>(config, args))
+            }
+            ReporterType::Ndjson => {
+                Box::pin(global::approve_global_builds::<NdjsonReporter>(config, args))
+            }
+            ReporterType::Silent => {
+                Box::pin(global::approve_global_builds::<SilentReporter>(config, args))
+            }
+        });
+    }
     // The settings/prompt work is synchronous; only the rebuild is async, so
     // the non-`Send` `config` / `state` closures stay out of the awaited
     // future.

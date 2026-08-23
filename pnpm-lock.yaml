@@ -1706,6 +1706,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/global.packages':
+        specifier: workspace:*
+        version: link:../../global/packages
       '@pnpm/installing.commands':
         specifier: workspace:*
         version: link:../../installing/commands
@@ -1730,6 +1733,9 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 6.0.0
+      is-subdir:
+        specifier: 'catalog:'
+        version: 2.0.0
       p-limit:
         specifier: 'catalog:'
         version: 7.3.1

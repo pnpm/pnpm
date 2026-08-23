@@ -141,6 +141,7 @@ fn with_recursive_exec_options(ctx: &RunCtx<'_>, mut args: ExecArgs, config: &Co
     args.no_bail = !config.bail;
     args.sort = config.sort;
     args.reverse = config.reverse;
+    args.parallel = ctx.recursive_parallel;
     args
 }
 

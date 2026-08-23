@@ -58,6 +58,9 @@
       "path": "../../deps/path"
     },
     {
+      "path": "../../global/packages"
+    },
+    {
       "path": "../../installing/commands"
     },
     {

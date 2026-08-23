@@ -8,9 +8,8 @@ use crate::{
     cli_args::{
         install::resolve_bool_override,
         recursive::{
-            AutoExcludeRoot, RecursiveSharedLockfileUnsupported, discover_workspace_projects,
-            no_projects_matched_message, notice_workspace_dir, select_recursive_projects,
-            selected_importer_ids,
+            AutoExcludeRoot, discover_workspace_projects, no_projects_matched_message,
+            notice_workspace_dir, select_recursive_projects, selected_importer_ids,
         },
     },
 };
@@ -18,7 +17,8 @@ use clap::Args;
 use indexmap::IndexMap;
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry,
+    LazyLockfile, Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgName,
+    PkgNameVerPeer, SnapshotEntry, merge_lockfile_changes,
 };
 use pnpm_package_is_installable::{
     InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
@@ -147,7 +147,7 @@ struct WalkContext<'a> {
     packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     dep_types: &'a HashMap<PackageKey, DepType>,
     default_registry: &'a str,
-    virtual_store_dir: Option<PathBuf>,
+    virtual_store_dirs: &'a [PathBuf],
     virtual_store_dir_max_length: usize,
     include_optional_transitive: bool,
     installability: InstallabilityOptions<'a>,
@@ -404,6 +404,7 @@ fn collect_components(
     exclude_peers: bool,
     lockfile_only: bool,
     filter_importer_ids: Option<&[&str]>,
+    virtual_store_dirs_override: Option<&[PathBuf]>,
 ) -> miette::Result<SbomResult> {
     let lockfile = state
         .lockfile
@@ -459,15 +460,19 @@ fn collect_components(
 
     let dep_types = detect_dep_types(lockfile, include.optional_dependencies);
 
-    let virtual_store_dir =
-        (!lockfile_only).then(|| state.config.effective_virtual_store_dir().to_path_buf());
+    let default_virtual_store_dirs = [state.config.effective_virtual_store_dir().to_path_buf()];
+    let virtual_store_dirs = if lockfile_only {
+        &[][..]
+    } else {
+        virtual_store_dirs_override.unwrap_or(&default_virtual_store_dirs)
+    };
 
     let ctx = WalkContext {
         snapshots: lockfile.snapshots.as_ref(),
         packages: lockfile.packages.as_ref(),
         dep_types: &dep_types,
         default_registry: &state.config.registry,
-        virtual_store_dir,
+        virtual_store_dirs,
         virtual_store_dir_max_length: state.config.virtual_store_dir_max_length as usize,
         include_optional_transitive: include.optional_dependencies,
         installability: InstallabilityOptions {
@@ -654,22 +659,24 @@ fn read_pkg_metadata_from_store(
         repository: None,
         bugs_url: None,
     };
-    let Some(ref vs_dir) = ctx.virtual_store_dir else {
-        return empty;
-    };
     let store_name = key.to_virtual_store_name(ctx.virtual_store_dir_max_length);
-    let pkg_dir = vs_dir.join(&store_name).join("node_modules").join(pkg_name);
-    let Ok(Some(manifest)) = safe_read_package_json_from_dir(&pkg_dir) else {
-        return empty;
-    };
-    PkgMetadata {
-        license: manifest.get("license").and_then(|v| v.as_str()).map(ToString::to_string),
-        description: manifest.get("description").and_then(|v| v.as_str()).map(ToString::to_string),
-        author: extract_author(&manifest),
-        homepage: extract_homepage(&manifest),
-        repository: extract_repository(&manifest),
-        bugs_url: extract_bugs_url(&manifest),
+    for virtual_store_dir in ctx.virtual_store_dirs {
+        let pkg_dir = virtual_store_dir.join(&store_name).join("node_modules").join(pkg_name);
+        if let Ok(Some(manifest)) = safe_read_package_json_from_dir(&pkg_dir) {
+            return PkgMetadata {
+                license: manifest.get("license").and_then(|v| v.as_str()).map(ToString::to_string),
+                description: manifest
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(ToString::to_string),
+                author: extract_author(&manifest),
+                homepage: extract_homepage(&manifest),
+                repository: extract_repository(&manifest),
+                bugs_url: extract_bugs_url(&manifest),
+            };
+        }
     }
+    empty
 }
 
 /// Whether `package` is an optional dependency that pnpm would not install on
@@ -717,9 +724,9 @@ fn walk_snapshot(
             .and_then(|meta| meta.version.clone())
             .unwrap_or_else(|| key.suffix.version().to_string());
 
-        // `virtual_store_dir` is `None` under --lockfile-only, which describes
+        // `virtual_store_dirs` is empty under --lockfile-only, which describes
         // the whole lockfile graph, platform-independently.
-        if ctx.virtual_store_dir.is_some()
+        if !ctx.virtual_store_dirs.is_empty()
             && platform_incompatible_optional(
                 &key.name.bare,
                 ctx.snapshots.is_some_and(|snapshots| {
@@ -813,15 +820,62 @@ fn missing_importers(selected: &HashSet<String>, lockfile_ids: &[String]) -> Vec
     missing
 }
 
+fn merged_dedicated_lockfile_state(mut state: State) -> miette::Result<(State, Vec<PathBuf>)> {
+    let project_dir = state.project_dir();
+    let workspace_root = state.config.workspace_dir.as_deref().unwrap_or(project_dir);
+    let (projects, _) = discover_workspace_projects(workspace_root)?;
+    let selection =
+        select_recursive_projects(&projects, state.config, project_dir, AutoExcludeRoot::Disabled)?;
+
+    let mut merged: Option<Lockfile> = None;
+    let mut virtual_store_dirs = Vec::with_capacity(selection.selected.len());
+    for selected_dir in selection.selected.keys() {
+        let mut project_config = state.config.clone();
+        project_config.anchor_lockfile_paths(selected_dir);
+        virtual_store_dirs.push(project_config.effective_virtual_store_dir().to_path_buf());
+
+        let Some(mut lockfile) =
+            Lockfile::load_wanted(selected_dir, &state.config.wanted_lockfile_selection())
+                .map_err(miette::Report::new)?
+        else {
+            continue;
+        };
+        let importers = std::mem::take(&mut lockfile.importers);
+        lockfile.importers = importers
+            .into_iter()
+            .map(|(importer_id, importer)| {
+                validate_importer_id(&importer_id).map_err(miette::Report::new)?;
+                let importer_dir = importer_root_dir(selected_dir, &importer_id);
+                let workspace_id =
+                    pnpm_workspace::importer_id_from_root_dir(workspace_root, &importer_dir);
+                Ok((workspace_id, importer))
+            })
+            .collect::<miette::Result<_>>()?;
+        merged = Some(match merged {
+            Some(current) => merge_lockfile_changes(&current, &lockfile),
+            None => lockfile,
+        });
+    }
+
+    virtual_store_dirs.sort_unstable();
+    virtual_store_dirs.dedup();
+    let mut config = state.config.clone();
+    config.lockfile_dir = Some(workspace_root.to_path_buf());
+    state.config = Config::leak(config);
+    state.lockfile = LazyLockfile::preloaded(merged);
+    Ok((state, virtual_store_dirs))
+}
+
 impl SbomArgs {
     pub async fn run(self, state: State) -> miette::Result<()> {
-        if !state.config.shares_one_lockfile()
+        let (state, virtual_store_dirs) = if !state.config.shares_one_lockfile()
             && (state.config.recursive || self.split || selectors_narrow_the_run(state.config))
         {
-            return Err(
-                RecursiveSharedLockfileUnsupported::new("Filtered and split `pnpm sbom`").into()
-            );
-        }
+            let (state, virtual_store_dirs) = merged_dedicated_lockfile_state(state)?;
+            (state, Some(virtual_store_dirs))
+        } else {
+            (state, None)
+        };
         if let Some(ref spec_ver) = self.spec_version {
             if self.format != SbomFormat::CycloneDx {
                 return Err(miette::miette!(
@@ -925,6 +979,7 @@ impl SbomArgs {
                     self.exclude_peers,
                     self.lockfile_only,
                     Some(&filter),
+                    virtual_store_dirs.as_deref(),
                 )?;
                 if result.root_name == "unknown" {
                     continue;
@@ -983,7 +1038,8 @@ impl SbomArgs {
             }
             let _ = stdout.flush();
         } else {
-            let filter_ids: Option<Vec<&str>> = (importer_ids.len() < all_count)
+            let filter_ids: Option<Vec<&str>> = (selectors_narrow_the_run(state.config)
+                || importer_ids.len() < all_count)
                 .then(|| importer_ids.iter().map(String::as_str).collect());
             let result = collect_components(
                 &state,
@@ -992,6 +1048,7 @@ impl SbomArgs {
                 self.exclude_peers,
                 self.lockfile_only,
                 filter_ids.as_deref(),
+                virtual_store_dirs.as_deref(),
             )?;
 
             let output = match self.format {

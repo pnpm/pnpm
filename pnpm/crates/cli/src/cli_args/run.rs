@@ -278,6 +278,7 @@ fn exec_fallback(
         no_bail: false,
         sort: true,
         reverse: false,
+        parallel: false,
     }
     .run(dir, config)
 }

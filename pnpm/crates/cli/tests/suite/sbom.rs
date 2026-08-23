@@ -103,22 +103,81 @@ fn sbom_missing_format_fails() {
 }
 
 #[test]
-fn split_sbom_rejects_per_project_workspace_lockfiles() {
+fn split_and_filtered_sbom_read_per_project_workspace_lockfiles() {
     let tmp = copy_fixture("simple-sbom");
-    fs::write(tmp.path().join("pnpm-workspace.yaml"), "sharedWorkspaceLockfile: false\n")
-        .expect("write workspace manifest");
+    let lockfile = fs::read(tmp.path().join("pnpm-lock.yaml")).expect("read fixture lockfile");
+    for name in ["project-a", "project-b"] {
+        let project_dir = tmp.path().join("packages").join(name);
+        fs::create_dir_all(&project_dir).expect("create project dir");
+        fs::write(
+            project_dir.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": { "is-positive": "3.1.0" },
+            })
+            .to_string(),
+        )
+        .expect("write project manifest");
+        fs::write(project_dir.join("pnpm-lock.yaml"), &lockfile).expect("write project lockfile");
+    }
+    fs::remove_file(tmp.path().join("package.json")).expect("remove root manifest");
+    fs::remove_file(tmp.path().join("pnpm-lock.yaml")).expect("remove shared lockfile");
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write workspace manifest");
 
-    let output =
+    let split =
         pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split"])
             .output()
             .expect("run split pacquet sbom");
-
-    assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED")
-            && stderr.contains("sharedWorkspaceLockfile=false"),
-        "stderr: {stderr}",
+        split.status.success(),
+        "split SBOM failed: {}",
+        String::from_utf8_lossy(&split.stderr),
+    );
+    let mut names = String::from_utf8(split.stdout)
+        .expect("split stdout is UTF-8")
+        .lines()
+        .map(|line| {
+            let sbom: serde_json::Value = serde_json::from_str(line).expect("parse NDJSON line");
+            assert!(
+                sbom["components"]
+                    .as_array()
+                    .expect("components array")
+                    .iter()
+                    .any(|component| component["name"] == "is-positive"),
+                "split SBOM should include dependencies from its project lockfile",
+            );
+            sbom["metadata"]["component"]["name"].as_str().expect("root component name").to_string()
+        })
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    assert_eq!(names, ["project-a", "project-b"]);
+
+    let filtered = pacquet(
+        tmp.path(),
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--filter", "project-a"],
+    )
+    .output()
+    .expect("run filtered pacquet sbom");
+    assert!(
+        filtered.status.success(),
+        "filtered SBOM failed: {}",
+        String::from_utf8_lossy(&filtered.stderr),
+    );
+    let sbom: serde_json::Value =
+        serde_json::from_slice(&filtered.stdout).expect("parse filtered SBOM");
+    assert_eq!(sbom["metadata"]["component"]["name"], "project-a");
+    assert!(
+        sbom["components"]
+            .as_array()
+            .expect("components array")
+            .iter()
+            .any(|component| component["name"] == "is-positive"),
+        "filtered SBOM should include dependencies from the selected project's lockfile",
     );
 }
 
