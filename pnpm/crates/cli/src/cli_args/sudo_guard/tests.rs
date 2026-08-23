@@ -144,7 +144,10 @@ fn the_top_level_set_is_gated_like_config_set() {
 fn global_env_is_blocked_under_sudo() {
     assert_eq!(
         sudo_blocked_operation(&command(&["pnpm", "env", "use", "--global", "24"])),
-        Some("pnpm env --global".to_string()),
+        Some("pnpm env use --global".to_string()),
     );
+    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "env", "use", "24"])), None);
+    // `env list` only queries a mirror, so it stays allowed even globally.
     assert_eq!(sudo_blocked_operation(&command(&["pnpm", "env", "list"])), None);
+    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "env", "list", "--global"])), None);
 }

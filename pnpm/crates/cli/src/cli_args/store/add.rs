@@ -35,6 +35,12 @@ pub struct StoreAddFailureError;
 /// the install path; routing them through here needs a package name the
 /// standalone chain does not resolve, so they are refused by name instead
 /// of failing further down as a shape mismatch.
+///
+/// The code is pacquet's own because pnpm has none to match: pnpm's
+/// `storeAdd` fetches these successfully. That makes this the same kind of
+/// marker as `ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED` — a gap that
+/// fails loudly and by name rather than one that quietly does something
+/// other than what was asked.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display(
     "Cannot add \"{package}\" to the store: a {resolved_via} dependency has no archive to fetch"
