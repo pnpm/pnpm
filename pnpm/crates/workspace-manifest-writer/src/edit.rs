@@ -61,8 +61,19 @@ fn locate_inline(text: &str, path: &[&str], expected: flow::Kind) -> Inline {
 /// Whether the value at `path` is an inline shape no writer can edit. A
 /// caller refuses the whole write rather than corrupt it.
 pub(crate) fn has_unsupported_inline_value(text: &str, path: &[&str]) -> bool {
-    matches!(locate_mapping(text, path), Inline::Unsupported)
-        && matches!(locate_sequence(text, path), Inline::Unsupported)
+    document_root_is_inline(text)
+        || (matches!(locate_mapping(text, path), Inline::Unsupported)
+            && matches!(locate_sequence(text, path), Inline::Unsupported))
+}
+
+/// Whether the document itself is written as a flow collection
+/// (`{ overrides: { foo: 1.0.0 } }`). Its keys are then not top-level lines
+/// at all, so neither the splices here nor a new top-level block can
+/// address them.
+pub(crate) fn document_root_is_inline(text: &str) -> bool {
+    text.lines()
+        .find(|line| structural_indent(line).is_some())
+        .is_some_and(|line| line.trim_start().starts_with(['{', '[']))
 }
 
 /// The keys of the mapping at `path`, whether it is written in block or

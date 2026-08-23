@@ -1819,6 +1819,23 @@ mod flow_style {
     }
 
     #[test]
+    fn a_whole_document_flow_mapping_is_refused_rather_than_corrupted() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+        // The keys of a document written as one flow mapping are not
+        // top-level lines, so no splice — nor a new top-level block — can
+        // address them.
+        let original = "{ overrides: { foo: 1.0.0 } }\n";
+        fs::write(&path, original).expect("seed manifest");
+
+        let err = crate::set_overrides(dir.path(), [("bar", "2.0.0")])
+            .expect_err("must refuse a whole-document flow mapping");
+
+        assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
+        assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
+    }
+
+    #[test]
     fn an_aliased_block_is_refused_rather_than_corrupted() {
         let dir = TempDir::new().expect("temp dir");
         let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);

@@ -682,6 +682,13 @@ pub fn update_manifest_field(
         UpdateWorkspaceManifestError::Parse { path: path.to_path_buf(), source }
     })?;
 
+    if edit::document_root_is_inline(manifest.text()) {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path: path.to_path_buf(),
+            key: key.to_string(),
+        });
+    }
+
     let changed = if value.is_null() {
         edit::remove_top_level_field(&mut manifest, key)
     } else {
