@@ -4499,6 +4499,7 @@ dependencies = [
  "pipe-trait",
  "pnpm-fs",
  "pnpm-package-manifest",
+ "pnpm-resolving-parse-wanted-dependency",
  "rayon",
  "same-file",
  "serde_json",
@@ -4955,6 +4956,7 @@ name = "pnpm-global"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "junction 2.0.0",
  "miette 7.6.0",
  "owo-colors",
  "pnpm-cmd-shim",

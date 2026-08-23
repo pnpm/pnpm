@@ -89,3 +89,17 @@ fn scan_finds_a_globally_installed_runtime() {
 
     assert!(find_global_package(global_dir.path(), "node").unwrap().is_some());
 }
+
+#[cfg(windows)]
+#[test]
+fn scan_finds_a_junction_backed_global_install() {
+    let global_dir = TempDir::new().unwrap();
+    let install_dir = global_dir.path().join("install-abc");
+    write_runtime_group(&install_dir);
+    junction::create(&install_dir, global_dir.path().join("hashkey")).unwrap();
+
+    let groups = scan_global_packages(global_dir.path()).unwrap();
+    assert_eq!(groups.len(), 1);
+    assert!(groups[0].has_alias("node"));
+    assert!(find_global_package(global_dir.path(), "node").unwrap().is_some());
+}

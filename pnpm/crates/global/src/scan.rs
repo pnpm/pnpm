@@ -3,6 +3,7 @@
 
 use crate::read_package_json;
 use pnpm_cmd_shim::{Host, PackageBinSource, get_bins_from_package_manifest};
+use pnpm_fs::is_symlink_or_junction;
 use pnpm_resolving_deps_resolver::is_valid_dependency_alias;
 use serde_json::Value;
 use std::{
@@ -61,12 +62,10 @@ pub fn scan_global_packages(global_dir: &Path) -> io::Result<Vec<GlobalPackageIn
     };
     let mut result = Vec::new();
     for entry in entries.flatten() {
-        // Hash entries are symlinks pointing to install dirs.
-        let Ok(file_type) = entry.file_type() else { continue };
-        if !file_type.is_symlink() {
-            continue;
-        }
         let link_path = entry.path();
+        let Ok(true) = is_symlink_or_junction(&link_path) else {
+            continue;
+        };
         let Ok(install_dir) = std::fs::canonicalize(&link_path) else { continue };
         let Some(manifest) = read_package_json(&install_dir) else { continue };
         let dependencies = dependencies_of(&manifest);
@@ -164,11 +163,11 @@ pub fn clean_orphaned_install_dirs(global_dir: &Path) {
 
     let mut referenced = BTreeSet::new();
     for entry in &entries {
-        let Ok(file_type) = entry.file_type() else { continue };
-        if !file_type.is_symlink() {
+        let path = entry.path();
+        let Ok(true) = is_symlink_or_junction(&path) else {
             continue;
-        }
-        if let Ok(real) = std::fs::canonicalize(entry.path()) {
+        };
+        if let Ok(real) = std::fs::canonicalize(path) {
             referenced.insert(real);
         }
     }

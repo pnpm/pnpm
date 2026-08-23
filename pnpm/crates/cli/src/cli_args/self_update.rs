@@ -520,6 +520,7 @@ fn link_into_global_bin(
 ) -> miette::Result<()> {
     let global_bin = config.global_bin.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
     let global_pkg_dir = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
+    let _global_bin_lock = super::global_bin_lock::acquire_global_bin_lock(&global_bin)?;
 
     refresh_global_shim_dispatcher(&global_bin, installed, version)?;
 

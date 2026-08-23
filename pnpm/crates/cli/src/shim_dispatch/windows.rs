@@ -11,6 +11,11 @@ use std::{
 
 const WINDOWS_NODE_TARGET_FILE_NAME: &str = ".pnpm-shim-v1-node-target";
 
+pub(crate) fn windows_node_dispatcher_is_installed(global_bin_dir: &Path) -> bool {
+    global_bin_dir.join("node.exe").is_file()
+        && global_bin_dir.join(WINDOWS_NODE_TARGET_FILE_NAME).is_file()
+}
+
 pub(super) fn system_powershell_path() -> io::Result<PathBuf> {
     use std::os::windows::ffi::OsStringExt as _;
     use windows_sys::Win32::System::SystemInformation::GetSystemDirectoryW;
