@@ -2070,23 +2070,63 @@ fn recursive_run_inherits_stdio_without_stream() {
     drop(root);
 }
 
+/// Non-UTF-8 output must not stall the pump: the child keeps writing past
+/// the bad bytes, so a reader that gave up there would leave it blocked on
+/// a full pipe with the run waiting on it forever.
+#[test]
+fn streamed_output_survives_non_utf8_bytes() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    // A lone 0xff is invalid UTF-8 in any position. The padding after it
+    // is what fills the pipe if the pump stops draining.
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({
+                "name": "project-1",
+                "version": "1.0.0",
+                "scripts": {
+                    "test": r#"node -e "process.stdout.write(Buffer.from([0xff])); console.log('x'.repeat(200000)); console.log('done')""#,
+                },
+            }),
+        )],
+    );
+
+    let output = pacquet
+        .with_args(["--stream", "--config.verify-deps-before-run=false", "-r", "run", "test"])
+        .output()
+        .expect("run test");
+    assert!(output.status.success(), "streamed run failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("project-1 test: done"), "the pump stopped early: {stdout}");
+
+    drop(root);
+}
+
 /// `--aggregate-output` withholds each project's streamed lines until it
 /// exits, so a slow project cannot interleave into a fast one's block.
 #[test]
 fn aggregate_output_keeps_each_project_in_one_block() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let sleeps_between_lines = |name: &str, delay: &str| {
+    // `node -e` rather than `sleep`, whose fractional argument is a GNU
+    // extension. project-2 finishes well inside project-1's gap, so
+    // without aggregation its lines would land between project-1's two.
+    let prints_two_lines_apart = |name: &str, delay: u32| {
         json!({
             "name": name,
             "version": "1.0.0",
-            "scripts": { "test": format!("echo first; sleep {delay}; echo second") },
+            "scripts": {
+                "test": format!(
+                    r#"node -e "console.log('first'); setTimeout(() => console.log('second'), {delay})""#,
+                ),
+            },
         })
     };
     write_workspace(
         &workspace,
         &[
-            ("project-1", sleeps_between_lines("project-1", "0.4")),
-            ("project-2", sleeps_between_lines("project-2", "0.2")),
+            ("project-1", prints_two_lines_apart("project-1", 2000)),
+            ("project-2", prints_two_lines_apart("project-2", 0)),
         ],
     );
 
@@ -2154,8 +2194,8 @@ fn echoes_ok(name: &str) -> Value {
     })
 }
 
-/// The stdout lines, sorted, so a test does not depend on the order two
-/// concurrent projects happen to finish in.
+/// Sorted so a test does not depend on the order two concurrent projects
+/// finish in.
 fn sorted_lines(stdout: &[u8]) -> Vec<String> {
     let stdout = String::from_utf8_lossy(stdout);
     eprintln!("STDOUT:\n{stdout}\n");

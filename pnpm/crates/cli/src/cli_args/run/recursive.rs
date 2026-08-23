@@ -356,6 +356,13 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
             extra_env: &extra_env,
             silent,
             sequential: args.sequential,
+            // pnpm pipes unless the output cannot interleave —
+            // `!stream && (workspaceConcurrency === 1 || a single
+            // project)`. pacquet runs sequentially or fully in parallel
+            // (and `--parallel` implies `--stream`), so sequential is
+            // pnpm's concurrency-of-one case and `--stream` alone
+            // decides. Porting bounded `--workspace-concurrency`
+            // (pnpm/pnpm#14101) has to widen this.
             output: if config.stream {
                 ScriptOutput::Streamed { dep_path: &root_str, emit }
             } else {

@@ -926,6 +926,17 @@ pub struct Config {
     /// Treat the project as standalone: no workspace root is discovered,
     /// so `pnpm-workspace.yaml` contributes neither settings nor sibling
     /// projects.
+    ///
+    /// Only a caller that seeds this *before* [`Self::current`] — the
+    /// `--ignore-workspace` flag — suppresses the search. pnpm resolves
+    /// the workspace dir from argv alone (`getWorkspaceDir` in
+    /// `config/reader/src/index.ts` reads the parsed CLI options, never
+    /// the merged configuration), so a value arriving from a
+    /// configuration file or `PNPM_CONFIG_IGNORE_WORKSPACE` lands here
+    /// too late to affect discovery — deliberately, since a
+    /// `pnpm-workspace.yaml` cannot coherently ask not to be read. Such
+    /// a value still reaches the settings-only readers, matching pnpm's
+    /// `handleIgnoredBuilds`.
     pub ignore_workspace: bool,
 
     /// Glob patterns selecting the workspace's projects, from
@@ -3133,7 +3144,8 @@ impl Config {
         // `--ignore-workspace` stops the search outright, which is what
         // makes the flag mean "standalone project": with no workspace dir
         // there is no shared lockfile, no sibling projects, and no
-        // `pnpm-workspace.yaml` settings layer.
+        // `pnpm-workspace.yaml` settings layer. Only the flag reaches
+        // this far — see [`Config::ignore_workspace`].
         let env_workspace_dir = Sys::var_os("NPM_CONFIG_WORKSPACE_DIR")
             .or_else(|| Sys::var_os("npm_config_workspace_dir"))
             .filter(|value| !value.is_empty())

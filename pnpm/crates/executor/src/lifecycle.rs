@@ -542,6 +542,12 @@ impl StreamedScript<'_> {
 
     /// Spawn a thread that reads `reader` line-by-line and republishes
     /// each line.
+    ///
+    /// Read as bytes and decoded lossily rather than through
+    /// [`BufRead::lines`], whose `Err` on non-UTF-8 would stop the drain
+    /// while the child is still writing — the child then blocks on a
+    /// full pipe and the caller's `wait` never returns. pnpm decodes the
+    /// same output lossily.
     fn pump_stream(
         &self,
         reader: impl Read + Send + 'static,
@@ -552,15 +558,27 @@ impl StreamedScript<'_> {
         let emit = self.emit;
         thread::spawn(move || {
             let target = StreamedScript { dep_path: &dep_path, stage: &stage, wd: &wd, emit };
-            for line in BufReader::new(reader).lines() {
-                let Ok(line) = line else {
-                    // Stop pumping on read error — an EBADF or EPIPE
-                    // means the child closed the stream. Errors are not
-                    // fatal to the install; the wait surfaces a non-zero
-                    // exit code if the child failed because of them.
-                    break;
-                };
-                target.emit_line(stdio, line);
+            let mut reader = BufReader::new(reader);
+            let mut line = Vec::new();
+            loop {
+                line.clear();
+                match reader.read_until(b'\n', &mut line) {
+                    // EOF. A final line with no newline was already
+                    // emitted by the read that returned it.
+                    Ok(0) => break,
+                    Ok(_) => {}
+                    // An EBADF or EPIPE means the child closed the
+                    // stream. Not fatal — the caller's `wait` surfaces a
+                    // non-zero exit code if the child failed over it.
+                    Err(_) => break,
+                }
+                if line.last() == Some(&b'\n') {
+                    line.pop();
+                    if line.last() == Some(&b'\r') {
+                        line.pop();
+                    }
+                }
+                target.emit_line(stdio, String::from_utf8_lossy(&line).into_owned());
             }
         })
     }

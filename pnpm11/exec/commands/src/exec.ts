@@ -274,19 +274,37 @@ export async function handler (
               depPath: manifest.name ?? path.relative(opts.dir, prefix),
               stage: '(exec)',
             } satisfies Partial<LifecycleMessage>
-            const logFn = (stdio: 'stdout' | 'stderr') => (data: unknown): void => {
-              for (const line of String(data).split('\n')) {
-                lifecycleLogger.debug({
-                  ...lifecycleOpts,
-                  stdio,
-                  line,
-                })
+            // A chunk is not a line: it may end mid-line, and one that
+            // ends on a newline would otherwise report a trailing empty
+            // line. Hold the remainder until the next chunk, and flush
+            // whatever is left when the stream ends.
+            const logFn = (stdio: 'stdout' | 'stderr') => {
+              const log = (line: string): void => {
+                lifecycleLogger.debug({ ...lifecycleOpts, stdio, line })
+              }
+              let pending = ''
+              return {
+                onData (data: unknown): void {
+                  const lines = (pending + String(data)).split('\n')
+                  pending = lines.pop() ?? ''
+                  lines.forEach(log)
+                },
+                onEnd (): void {
+                  if (pending !== '') {
+                    log(pending)
+                    pending = ''
+                  }
+                },
               }
             }
-            child.stdout!.on('data', logFn('stdout'))
-            child.stderr!.on('data', logFn('stderr'))
+            const stdoutLog = logFn('stdout')
+            const stderrLog = logFn('stderr')
+            child.stdout!.on('data', stdoutLog.onData)
+            child.stderr!.on('data', stderrLog.onData)
             await new Promise<void>((resolve) => {
               void child.once('close', exitCode => {
+                stdoutLog.onEnd()
+                stderrLog.onEnd()
                 lifecycleLogger.debug({
                   ...lifecycleOpts,
                   exitCode: exitCode ?? 1,

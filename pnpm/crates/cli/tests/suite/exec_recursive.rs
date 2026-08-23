@@ -5,7 +5,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use serde_json::{Value, json};
 use std::{collections::HashMap, fs, path::Path, process::Command};
 
@@ -377,6 +377,7 @@ fn recursive_exec_inherits_stdio_by_default() {
         let output = Command::cargo_bin("pnpm")
             .expect("find the pnpm binary")
             .with_current_dir(&workspace)
+            .without_ambient_pnpm_config()
             .with_args(args)
             .output()
             .expect("run exec");
@@ -387,8 +388,7 @@ fn recursive_exec_inherits_stdio_by_default() {
     drop(root);
 }
 
-/// The stdout lines, sorted, so a test does not depend on the order the
-/// projects happen to finish in.
+/// Sorted so a test does not depend on the order the projects finish in.
 fn sorted_lines(stdout: &[u8]) -> Vec<String> {
     let stdout = String::from_utf8_lossy(stdout);
     eprintln!("STDOUT:\n{stdout}\n");

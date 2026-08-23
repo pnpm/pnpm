@@ -74,6 +74,26 @@ fn ignore_workspace_drops_the_workspace_manifest_settings() {
     drop(root);
 }
 
+/// pnpm resolves the workspace dir from argv alone, so the setting only
+/// suppresses the search when it arrives as the flag. A configured value
+/// still reaches the readers that treat it as a plain setting.
+#[test]
+fn a_configured_ignore_workspace_does_not_suppress_the_search() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["packages/*"], &["packages/alfa"]);
+
+    assert_eq!(
+        stdout_of(pacquet.with_env("PNPM_CONFIG_IGNORE_WORKSPACE", "true").with_args([
+            "config",
+            "get",
+            "nodeLinker"
+        ]),),
+        "hoisted",
+    );
+
+    drop(root);
+}
+
 /// `--workspace-packages` replaces the manifest's `packages` patterns,
 /// so the recursive selection follows the flag rather than the file.
 #[test]
@@ -89,7 +109,9 @@ fn workspace_packages_overrides_the_manifest_patterns() {
         "exec",
         "pwd",
     ]));
-    assert!(stdout.ends_with("packages/alfa"), "only alfa should be selected: {stdout}");
+    let selected = stdout.lines().collect::<Vec<_>>();
+    assert_eq!(selected.len(), 1, "only alfa should be selected: {stdout}");
+    assert!(selected[0].ends_with("packages/alfa"), "wrong project selected: {stdout}");
 
     drop(root);
 }
