@@ -423,9 +423,9 @@ fn sorted_lines(stdout: &[u8]) -> Vec<String> {
     lines
 }
 
-/// `legacyDirFiltering` swaps the glob match for the subtree match pnpm
-/// used before: the selector then names everything strictly below the
-/// directory, and not the project in the directory itself.
+/// Under `legacyDirFiltering` the selector matches by subtree instead: it
+/// names the projects strictly below the directory, and not the project in
+/// the directory itself.
 #[test]
 fn legacy_dir_filtering_selects_the_subtree_below_the_dir() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

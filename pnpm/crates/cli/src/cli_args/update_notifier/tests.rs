@@ -38,6 +38,15 @@ fn an_unusable_timestamp_reads_as_never_checked() {
     assert!(!checked_recently(&state_with_last_check(&json!(42)), now));
 }
 
+/// A clock that moved backwards, or a hand-edited state file, must not
+/// silence the check until the recorded time comes around.
+#[test]
+fn a_timestamp_in_the_future_reads_as_never_checked() {
+    let now = Utc.with_ymd_and_hms(2026, 8, 23, 12, 0, 0).unwrap();
+    let state = state_with_last_check(&json!(to_utc_string(now + chrono::Duration::days(365))));
+    assert!(!checked_recently(&state, now));
+}
+
 #[test]
 fn recording_a_check_keeps_the_other_state_keys() {
     let dir = tempdir().unwrap();
@@ -64,6 +73,26 @@ fn a_missing_or_corrupt_state_file_reads_as_empty() {
     let corrupt = dir.path().join("corrupt.json");
     std::fs::write(&corrupt, "[]").unwrap();
     assert!(read_state(&corrupt).is_empty());
+}
+
+/// pnpm writes this file through `write-file-atomic`, which replaces a
+/// symlinked target rather than following it; pacquet's atomic write must
+/// do the same, or a state directory someone else can write to becomes a
+/// way to overwrite an arbitrary file.
+#[cfg(unix)]
+#[test]
+fn a_symlinked_state_file_is_replaced_rather_than_followed() {
+    let dir = tempdir().unwrap();
+    let elsewhere = dir.path().join("elsewhere.json");
+    std::fs::write(&elsewhere, "untouched").unwrap();
+    let state_file = dir.path().join("pnpm-state.json");
+    std::os::unix::fs::symlink(&elsewhere, &state_file).unwrap();
+
+    let now = Utc.with_ymd_and_hms(2026, 8, 23, 12, 0, 0).unwrap();
+    write_state(&state_file, Map::new(), now);
+
+    assert_eq!(std::fs::read_to_string(&elsewhere).unwrap(), "untouched");
+    assert!(checked_recently(&read_state(&state_file), now));
 }
 
 #[test]

@@ -53,7 +53,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
         };
         return Ok(Box::pin(async move {
             let installed = install.await;
-            update_notifier::join(update_check).await;
+            update_notifier::settle(update_check, &installed).await;
             installed
         }));
     }
@@ -91,15 +91,15 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
             recursive_sort,
             config_dependencies,
         };
-        match reporter {
+        let added = match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
-                Box::pin(pipeline.run::<DefaultReporter>()).await?;
+                Box::pin(pipeline.run::<DefaultReporter>()).await
             }
-            ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await?,
-            ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await?,
-        }
-        update_notifier::join(update_check).await;
-        Ok(())
+            ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await,
+            ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await,
+        };
+        update_notifier::settle(update_check, &added).await;
+        added
     }))
 }
 
@@ -196,9 +196,26 @@ pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<C
     }))
 }
 
+/// Whether the command driving the install pipeline is one pnpm checks for
+/// a newer pnpm on. `pnpm ci` and `pnpm install-test` run the same pipeline
+/// but are their own commands, and pnpm only checks on `install` and `add`.
+#[derive(Debug, Clone, Copy)]
+enum UpdateCheckPolicy {
+    Run,
+    Skip,
+}
+
 pub(super) fn install<'a>(
     ctx: &RunCtx<'a>,
     args: InstallArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    install_with_update_check(ctx, args, UpdateCheckPolicy::Run)
+}
+
+fn install_with_update_check<'a>(
+    ctx: &RunCtx<'a>,
+    args: InstallArgs,
+    update_check_policy: UpdateCheckPolicy,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.dir;
     let manifest_path = ctx.manifest_path;
@@ -234,7 +251,10 @@ pub(super) fn install<'a>(
             let (config_root, package_manager_to_sync) =
                 derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                     .wrap_err("derive workspace root and package manager policy")?;
-            let update_check = update_notifier::spawn(cfg, reporter_emit(reporter));
+            let update_check = match update_check_policy {
+                UpdateCheckPolicy::Run => update_notifier::spawn(cfg, reporter_emit(reporter)),
+                UpdateCheckPolicy::Skip => None,
+            };
             // Resolve + install configurational dependencies, then
             // run their `updateConfig` plugin hooks, before the main
             // install. The env lockfile must land at the top of
@@ -254,20 +274,16 @@ pub(super) fn install<'a>(
                 require_lockfile,
                 frozen_lockfile,
             };
-            match reporter {
+            let installed = match reporter {
                 ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(pipeline.run::<DefaultReporter>()).await?;
+                    Box::pin(pipeline.run::<DefaultReporter>()).await
                 }
-                ReporterType::Ndjson => {
-                    Box::pin(pipeline.run::<NdjsonReporter>()).await?;
-                }
-                ReporterType::Silent => {
-                    Box::pin(pipeline.run::<SilentReporter>()).await?;
-                }
-            }
-            update_notifier::join(update_check).await;
+                ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await,
+                ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await,
+            };
+            update_notifier::settle(update_check, &installed).await;
+            installed
         }
-        Ok(())
     }))
 }
 
@@ -288,7 +304,7 @@ pub(super) fn install_test<'a>(
         sequential: false,
     };
 
-    let install_future = install(ctx, install_args)?;
+    let install_future = install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)?;
 
     let dir = ctx.dir;
     let recursive = ctx.recursive;
@@ -325,7 +341,7 @@ pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFu
     // Run clean eagerly before the async future so errors surface immediately. Pass the command name so a package.json script can override the built-in.
     clean_args.run(ctx, "clean")?;
 
-    install(ctx, install_args)
+    install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)
 }
 
 pub(super) fn deploy<'a>(ctx: &RunCtx<'a>, args: DeployArgs) -> miette::Result<CommandFuture<'a>> {

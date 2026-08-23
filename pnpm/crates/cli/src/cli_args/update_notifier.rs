@@ -19,6 +19,7 @@
 use crate::cli_args::registry_client::build_registry_client;
 use chrono::{DateTime, Utc};
 use pnpm_config::{Config, PNPM_VERSION};
+use pnpm_fs::write_atomic;
 use pnpm_registry::Package;
 use pnpm_reporter::{LogEvent, LogLevel, UpdateCheckLog};
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
@@ -34,8 +35,8 @@ const LAST_UPDATE_CHECK_KEY: &str = "lastUpdateCheck";
 
 /// The running command's update check, if one is due.
 ///
-/// [`join`] awaits it; dropping it without joining detaches the task,
-/// which would leave the notice racing process exit.
+/// [`settle`] disposes of it; dropping it without settling detaches the
+/// task, which would leave the notice racing process exit.
 pub(crate) type PendingUpdateCheck = Option<JoinHandle<()>>;
 
 /// Start the daily update check in the background, or return [`None`] when
@@ -60,11 +61,19 @@ pub(crate) fn spawn(config: &Config, emit: fn(&LogEvent)) -> PendingUpdateCheck 
     }))
 }
 
-/// Wait for the check started by [`spawn`] to finish, so its notice reaches
-/// the terminal before the command returns.
-pub(crate) async fn join(pending: PendingUpdateCheck) {
-    if let Some(handle) = pending {
+/// Dispose of the check [`spawn`] started, now that the command it ran
+/// alongside has an outcome.
+///
+/// A command that succeeded waits, so the notice reaches the terminal
+/// before the process exits. A command that failed drops the check
+/// instead: the error is what the user needs to read, and nothing was
+/// recorded, so the next command checks again.
+pub(crate) async fn settle(pending: PendingUpdateCheck, outcome: &miette::Result<()>) {
+    let Some(handle) = pending else { return };
+    if outcome.is_ok() {
         let _ = handle.await;
+    } else {
+        handle.abort();
     }
 }
 
@@ -109,28 +118,30 @@ fn read_state(state_file: &Path) -> Map<String, Value> {
 /// Whether the last recorded check is younger than
 /// [`UPDATE_CHECK_FREQUENCY_MS`].
 ///
-/// A missing or unparsable timestamp reads as "never checked", so a
-/// corrupted state file makes pnpm check again rather than go quiet.
+/// A missing, unparsable, or future timestamp reads as "never checked", so
+/// a corrupted state file — or a clock that moved backwards — makes pnpm
+/// check again rather than go quiet until the recorded time comes around.
 fn checked_recently(state: &Map<String, Value>, now: DateTime<Utc>) -> bool {
     state
         .get(LAST_UPDATE_CHECK_KEY)
         .and_then(Value::as_str)
         .and_then(|last| DateTime::parse_from_rfc2822(last).ok())
-        .is_some_and(|last| {
-            (now - last.with_timezone(&Utc)).num_milliseconds() < UPDATE_CHECK_FREQUENCY_MS
-        })
+        .map(|last| (now - last.with_timezone(&Utc)).num_milliseconds())
+        .is_some_and(|age| (0..UPDATE_CHECK_FREQUENCY_MS).contains(&age))
 }
 
 /// Record the check, keeping every other key the file carries.
+///
+/// Written through [`write_atomic`], as pnpm writes it through
+/// `write-file-atomic`: a crash mid-write cannot leave the file truncated
+/// for the next run to read, and the rename replaces a symlinked state file
+/// rather than following it somewhere the user never pointed pnpm.
 fn write_state(state_file: &Path, mut state: Map<String, Value>, now: DateTime<Utc>) {
     state.insert(LAST_UPDATE_CHECK_KEY.to_string(), Value::String(to_utc_string(now)));
     let Ok(contents) = serde_json::to_string(&Value::Object(state)) else {
         return;
     };
-    if let Some(parent) = state_file.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    let _ = std::fs::write(state_file, contents);
+    let _ = write_atomic(state_file, contents.as_bytes());
 }
 
 /// JavaScript's `Date#toUTCString`, the format pnpm writes the timestamp in.

@@ -34,11 +34,11 @@ fn fixture() -> Fixture {
 }
 
 fn install(pacquet: Command, state_dir: &Path) -> Output {
-    pacquet
-        .with_args(["install", "--state-dir"])
-        .with_arg(state_dir)
-        .output()
-        .expect("run pacquet install")
+    run(pacquet, state_dir, "install")
+}
+
+fn run(pacquet: Command, state_dir: &Path, command: &str) -> Output {
+    pacquet.with_args([command, "--state-dir"]).with_arg(state_dir).output().expect("run pacquet")
 }
 
 fn state_file(state_dir: &Path) -> PathBuf {
@@ -114,4 +114,23 @@ fn a_check_recorded_today_silences_the_next_install() {
     assert!(!text.contains("Update available!"), "the check was already made today: {text}");
 
     drop((root, npmrc_info));
+}
+
+/// `ci` and `install-test` drive the same install pipeline, but they are
+/// their own commands: pnpm checks for a newer pnpm on `install` and `add`
+/// only.
+#[test]
+fn the_other_commands_on_the_install_pipeline_do_not_check() {
+    for command in ["ci", "install-test"] {
+        let Fixture { pacquet, state_dir, root, npmrc_info, .. } = fixture();
+
+        let output = run(pacquet, &state_dir, command);
+
+        let text = output_text(&output);
+        assert!(output.status.success(), "{command} should succeed: {text}");
+        assert!(!text.contains("Update available!"), "{command} should not check: {text}");
+        assert!(!state_file(&state_dir).exists(), "{command} should record no check");
+
+        drop((root, npmrc_info));
+    }
 }
