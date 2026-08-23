@@ -13,10 +13,7 @@ use crate::{
             TreeNode, blue_bright_underline, gray, green, plain, red, render_archy,
         },
         install::resolve_bool_override,
-        peers::{
-            IssuesByProjects, peer_dependency_issues_exist, peer_dependency_issues_for_lockfile,
-            render_peer_issues,
-        },
+        peers::{PeerIssuesReport, peer_issues_for_lockfile},
     },
 };
 use clap::Args;
@@ -206,23 +203,20 @@ impl DedupeArgs {
         let deduped = parse_snapshot(current.as_deref(), lockfile_path);
 
         let lockfile_dir = lockfile_path.parent().unwrap_or_else(|| Path::new("."));
-        if let Some(deduped) = &deduped {
-            let peer_issues = peer_dependency_issues_for_lockfile(
-                deduped,
-                lockfile_dir,
-                &config.peer_dependency_rules,
-            );
-            if peer_dependency_issues_exist(&peer_issues) {
-                if config.strict_peer_dependencies {
-                    emit_peer_dependency_issues_error::<Reporter>(&peer_issues);
-                    return Err(DedupeError::PeerDependencyIssues.into());
-                }
-                Reporter::emit(&LogEvent::Global(GlobalLog {
-                    level: LogLevel::Warn,
-                    message: r#"Issues with peer dependencies found. Run "pnpm peers check" to list them."#
-                        .to_string(),
-                }));
+        if let Some(deduped) = &deduped
+            && let Some(peer_issues) =
+                peer_issues_for_lockfile(deduped, lockfile_dir, &config.peer_dependency_rules)
+        {
+            if config.strict_peer_dependencies {
+                emit_peer_dependency_issues_error::<Reporter>(&peer_issues);
+                return Err(DedupeError::PeerDependencyIssues.into());
             }
+            Reporter::emit(&LogEvent::Global(GlobalLog {
+                level: LogLevel::Warn,
+                message:
+                    r#"Issues with peer dependencies found. Run "pnpm peers check" to list them."#
+                        .to_string(),
+            }));
         }
 
         if self.check {
@@ -308,15 +302,29 @@ fn reusable_skipped_package_id(
         .then(|| package_key.pkg_id()))
 }
 
-fn emit_peer_dependency_issues_error<Reporter: self::Reporter>(issues: &IssuesByProjects) {
-    let message = "Unmet peer dependencies".to_string();
+fn emit_peer_dependency_issues_error<Reporter: self::Reporter>(issues: &PeerIssuesReport) {
     Reporter::emit(&LogEvent::Global(GlobalLog {
         level: LogLevel::Error,
-        message: format!(
-            "[ERR_PNPM_PEER_DEP_ISSUES] {message}\n\n{}\nhint: To disable failing on peer dependency issues, add the following to pnpm-workspace.yaml in your project root:\n\n  strictPeerDependencies: false\n",
-            render_peer_issues(issues),
-        ),
+        message: render_peer_dependency_issues_error(issues),
     }));
+}
+
+fn render_peer_dependency_issues_error(issues: &PeerIssuesReport) -> String {
+    let mut hints = Vec::new();
+    if issues.has_missing_peer {
+        hints.push(
+            "hint: To auto-install peer dependencies, add the following to \"pnpm-workspace.yaml\" in your project root:\n\n  autoInstallPeers: true"
+                .to_string(),
+        );
+    }
+    hints.push(
+        "hint: To disable failing on peer dependency issues, add the following to pnpm-workspace.yaml in your project root:\n\n  strictPeerDependencies: false"
+            .to_string(),
+    );
+    let hints = hints.join("\n");
+    let body =
+        if issues.rendered.is_empty() { hints } else { format!("{}\n{hints}", issues.rendered) };
+    format!("[ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies\n\n{body}\n")
 }
 
 fn emit_dedupe_check_error<Reporter: self::Reporter>(diff: &LockfileDiff) {

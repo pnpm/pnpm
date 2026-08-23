@@ -47,14 +47,14 @@ struct BadPeerIssue {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct PeerIssues {
+struct PeerIssues {
     bad: BTreeMap<String, Vec<BadPeerIssue>>,
     missing: BTreeMap<String, Vec<MissingPeerIssue>>,
     conflicts: Vec<String>,
     intersections: BTreeMap<String, String>,
 }
 
-pub(crate) type IssuesByProjects = BTreeMap<String, PeerIssues>;
+type IssuesByProjects = BTreeMap<String, PeerIssues>;
 
 #[derive(Debug, Args)]
 pub struct PeersArgs {
@@ -152,35 +152,35 @@ impl PeersArgs {
     }
 }
 
+/// [`peer_issues_for_lockfile`]'s result when the lockfile has issues worth
+/// acting on: a bad peer, or a missing peer that at least one parent
+/// requires non-optionally. Mirrors pnpm's install-time gate.
+pub(crate) struct PeerIssuesReport {
+    pub(crate) rendered: String,
+    pub(crate) has_missing_peer: bool,
+}
+
 /// The same issue set `pnpm peers check` reports, filtered by
-/// `peerDependencyRules`, for an install's already-written lockfile.
+/// `peerDependencyRules`, for every importer the lockfile records.
 ///
-/// Every importer the lockfile records is checked, since an install writes
-/// them all — no workspace scan needed to name them.
-pub(crate) fn peer_dependency_issues_for_lockfile(
+/// Returns `None` when there is nothing worth acting on.
+pub(crate) fn peer_issues_for_lockfile(
     lockfile: &Lockfile,
     lockfile_dir: &std::path::Path,
     rules: &PeerDependencyRules,
-) -> IssuesByProjects {
+) -> Option<PeerIssuesReport> {
     let mut importer_ids: Vec<String> = lockfile.importers.keys().cloned().collect();
     importer_ids.sort();
-    filter_peer_issues(
+    let issues = filter_peer_issues(
         check_peer_dependencies_of_importers(lockfile, lockfile_dir, &importer_ids),
         rules,
-    )
-}
-
-/// Whether `issues` is worth acting on: a bad peer, or a missing peer that
-/// at least one parent requires non-optionally. Mirrors pnpm's install-time
-/// gate.
-pub(crate) fn peer_dependency_issues_exist(issues: &IssuesByProjects) -> bool {
-    issues.values().any(|project_issues| {
-        !project_issues.bad.is_empty()
-            || project_issues
-                .missing
-                .values()
-                .any(|entries| entries.iter().any(|entry| !entry.optional))
-    })
+    );
+    let has_missing_peer = issues.values().any(|project_issues| {
+        project_issues.missing.values().any(|entries| entries.iter().any(|entry| !entry.optional))
+    });
+    let has_issues =
+        has_missing_peer || issues.values().any(|project_issues| !project_issues.bad.is_empty());
+    has_issues.then(|| PeerIssuesReport { rendered: render_peer_issues(&issues), has_missing_peer })
 }
 
 fn check_peer_dependencies_from_lockfile(
@@ -1078,7 +1078,7 @@ fn parse_allowed_versions(
     (match_all, by_parent)
 }
 
-pub(crate) fn render_peer_issues(issues_by_projects: &IssuesByProjects) -> String {
+fn render_peer_issues(issues_by_projects: &IssuesByProjects) -> String {
     let mut sections: Vec<String> = Vec::new();
 
     for project_issues in issues_by_projects.values() {
