@@ -239,8 +239,7 @@ impl WorkspaceSettings {
         json_field!(fetch_retry_mintimeout, "FETCH_RETRY_MINTIMEOUT");
         json_field!(fetch_retry_maxtimeout, "FETCH_RETRY_MAXTIMEOUT");
         json_field!(network_concurrency, "NETWORK_CONCURRENCY");
-        // npm's spelling first, so the pnpm one wins when both are set.
-        json_field!(max_sockets, "MAXSOCKETS");
+        json_field!(maxsockets, "MAXSOCKETS");
         json_field!(max_sockets, "MAX_SOCKETS");
         json_field!(fetch_timeout, "FETCH_TIMEOUT");
         json_field!(fetch_warn_timeout_ms, "FETCH_WARN_TIMEOUT_MS");

@@ -348,11 +348,13 @@ pub struct WorkspaceSettings {
     pub network_concurrency: Option<usize>,
     /// `maxSockets` — per-origin concurrent-connection cap. See
     /// [`Config::max_sockets`]. Default unset (no per-origin cap).
-    ///
-    /// npm spells the setting `maxsockets`, and pnpm accepts that
-    /// spelling too, so both land in this field.
-    #[serde(alias = "maxsockets")]
     pub max_sockets: Option<usize>,
+    /// `maxsockets` — npm's spelling of [`Self::max_sockets`], which pnpm
+    /// reads too. A field of its own rather than a serde alias, because a
+    /// file carrying both spellings is a duplicate field to serde and
+    /// would fail the whole parse; pnpm takes it and lets the canonical
+    /// spelling win.
+    pub maxsockets: Option<usize>,
     pub fetch_timeout: Option<u64>,
     /// The `fetchWarnTimeoutMs` YAML value in milliseconds. [`None`] leaves
     /// [`Config::fetch_warn_timeout_ms`] unchanged.
@@ -1776,6 +1778,11 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.node_download_mirrors {
             config.node_download_mirrors = v;
+        }
+        // npm's spelling first, so the canonical one wins when a single
+        // file carries both.
+        if let Some(v) = self.maxsockets {
+            config.max_sockets = Some(v);
         }
         if let Some(v) = self.max_sockets {
             config.max_sockets = Some(v);

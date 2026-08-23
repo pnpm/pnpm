@@ -2,8 +2,12 @@
 //! package-manager registry for pnpm's `latest` once a day and says so when
 //! it is newer than the running pnpm.
 
+use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+};
 use serde_json::Value;
 use std::{
     fs,
@@ -133,4 +137,65 @@ fn the_other_commands_on_the_install_pipeline_do_not_check() {
 
         drop((root, npmrc_info));
     }
+}
+
+/// `add` is the other command pnpm checks on, and it reaches the notifier
+/// through its own dispatch arm.
+#[test]
+fn an_add_announces_a_newer_pnpm_and_records_the_check() {
+    let Fixture { pacquet, state_dir, root, npmrc_info, .. } = fixture();
+
+    let output = pacquet
+        .with_args(["add", "@pnpm.e2e/foo", "--state-dir"])
+        .with_arg(&state_dir)
+        .output()
+        .expect("run pacquet add");
+
+    let text = output_text(&output);
+    assert!(output.status.success(), "add should succeed: {text}");
+    assert!(text.contains("Update available!"), "no update notice: {text}");
+    assert!(state_file(&state_dir).exists(), "the check should be recorded");
+
+    drop((root, npmrc_info));
+}
+
+/// A global `add` takes a dispatch arm of its own, anchored at the pnpm
+/// home rather than the project.
+#[cfg(unix)]
+#[test]
+fn a_global_add_announces_a_newer_pnpm() {
+    let Fixture { state_dir, root, npmrc_info, workspace, .. } = fixture();
+    let pnpm_home = root.path().join("pnpm-home");
+    fs::create_dir_all(pnpm_home.join("bin")).expect("create the global bin dir");
+    fs::write(pnpm_home.join(".npmrc"), format!("registry={}\n", npmrc_info.mock_instance.url()))
+        .expect("seed the pnpm-home npmrc");
+    fs::write(
+        pnpm_home.join("pnpm-workspace.yaml"),
+        format!(
+            "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\n",
+            npmrc_info.store_dir.display(),
+            npmrc_info.cache_dir.display(),
+        ),
+    )
+    .expect("seed the pnpm-home workspace yaml");
+    let path = format!("{}:{}", pnpm_home.join("bin").display(), std::env::var("PATH").unwrap());
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .with_env("PNPM_CONFIG_UPDATE_NOTIFIER", "true")
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("PATH", path)
+        .with_args(["add", "-g", "@pnpm.e2e/foo", "--state-dir"])
+        .with_arg(&state_dir)
+        .output()
+        .expect("run pacquet add -g");
+
+    let text = output_text(&output);
+    assert!(output.status.success(), "global add should succeed: {text}");
+    assert!(text.contains("Update available!"), "no update notice: {text}");
+    assert!(state_file(&state_dir).exists(), "the check should be recorded");
+
+    drop((root, npmrc_info));
 }

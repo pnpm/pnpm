@@ -212,6 +212,25 @@ test('maxSockets is read from npm\'s lowercase spelling of the setting', async (
   expect(config.maxSockets).toBe(7)
 })
 
+test('maxSockets from the environment wins over pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+  fs.writeFileSync('pnpm-workspace.yaml', 'maxSockets: 4\n', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { dir: process.cwd() },
+    env: {
+      PNPM_CONFIG_MAXSOCKETS: '8',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.maxSockets).toBe(8)
+})
+
 test('runtimeOnFail=download overrides devEngines.runtime.onFail and adds node to devDependencies', async () => {
   prepare({
     devEngines: {

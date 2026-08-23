@@ -18,7 +18,7 @@ import { globalWarn, logger } from '@pnpm/logger'
 import { type EngineDependency, isRuntimeAlias, type RuntimeName } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
-import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsFromDir, type WorkspaceFilter } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
 import loudRejection from 'loud-rejection'
 import { isEmpty } from 'ramda'
@@ -269,7 +269,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     config.filter = config.filter ?? []
     config.filterProd = config.filterProd ?? []
 
-    const filters = [
+    const filters: WorkspaceFilter[] = [
       ...config.filter.map((filter) => ({ filter, followProdDepsOnly: false })),
       ...config.filterProd.map((filter) => ({ filter, followProdDepsOnly: true })),
     ]
@@ -284,7 +284,12 @@ export async function main (inputArgv: string[]): Promise<void> {
       !config.includeWorkspaceRoot &&
       (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')
     ) {
-      filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
+      // pnpm generates this selector; the user did not write it. It has to
+      // mean "the project whose directory is the workspace root", which
+      // only glob matching says. Left to follow the pass,
+      // `legacyDirFiltering`'s subtree matching would read it as "every
+      // project below the root" and select nothing at all.
+      filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length), useGlobDirFiltering: true })
     }
 
     const filterResults = await filterProjectsFromDir(wsDir, filters, {

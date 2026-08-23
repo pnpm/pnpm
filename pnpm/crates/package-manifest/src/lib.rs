@@ -137,15 +137,23 @@ pub struct InitAuthor<'a> {
     pub url: Option<&'a str>,
 }
 
+impl InitAuthor<'_> {
+    /// A part that was set to the empty string counts as unset, so an
+    /// `initAuthorEmail=` in the environment renders no empty `<>`.
+    fn part(part: Option<&str>) -> Option<&str> {
+        part.filter(|part| !part.is_empty())
+    }
+}
+
 impl fmt::Display for InitAuthor<'_> {
     /// Renders npm's `name <email> (url)` shape, omitting each part that is
     /// unset. All three unset renders the empty string.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.name.unwrap_or_default())?;
-        if let Some(email) = self.email {
+        if let Some(email) = Self::part(self.email) {
             write!(f, " <{email}>")?;
         }
-        if let Some(url) = self.url {
+        if let Some(url) = Self::part(self.url) {
             write!(f, " ({url})")?;
         }
         Ok(())

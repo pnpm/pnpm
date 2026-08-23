@@ -459,3 +459,41 @@ fn legacy_dir_filtering_selects_the_subtree_below_the_dir() {
 
     drop(root);
 }
+
+/// The `!{<workspace-root>}` selector a recursive `run` / `exec` generates
+/// is pnpm's own, so `legacyDirFiltering` must not reach it: read as a
+/// subtree match it would name every project below the root and leave the
+/// root alone selected, which is the opposite of what it is for.
+#[test]
+fn legacy_dir_filtering_leaves_the_generated_root_exclusion_alone() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1"]);
+    let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("read pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("{workspace_yaml}legacyDirFiltering: true\n"),
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the root package.json");
+
+    pacquet
+        .with_args(["-r", "--config.verify-deps-before-run=false", "exec", "touch", "ran.txt"])
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("project-1/ran.txt").exists(),
+        "the workspace projects should run under legacyDirFiltering",
+    );
+    assert!(
+        !workspace.join("ran.txt").exists(),
+        "the workspace root is still excluded from a recursive exec",
+    );
+
+    drop(root);
+}

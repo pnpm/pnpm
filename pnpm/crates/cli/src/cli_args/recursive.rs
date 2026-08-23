@@ -357,11 +357,9 @@ pub fn select_recursive_projects<'a>(
 
     let root_in_prod = !config.filter_prod.is_empty();
     let walk_opts = FilterWorkspaceProjectsOptions {
-        // Glob dir filtering (the default, the inverse of
-        // `legacyDirFiltering`) is load-bearing for the
-        // `!{<workspace-root>}` augmentation: glob matching excludes only
-        // the project whose dir equals the workspace root, whereas the
-        // legacy subtree match would also drop every nested package.
+        // The mode user-written `{<dir>}` selectors match in. The
+        // generated `!{<workspace-root>}` selector pins itself to glob
+        // matching instead — see `filter_against`.
         use_glob_dir_filtering: !config.legacy_dir_filtering,
         workspace_dir: config.workspace_dir.as_deref().unwrap_or(prefix).to_path_buf(),
         test_pattern: config.test_pattern.clone(),
@@ -500,16 +498,26 @@ fn filter_against<Pkg: BaseProject>(
     if filters.is_empty() && root_selector.is_none() {
         return Ok(Vec::new());
     }
-    let selectors: Vec<ProjectSelector> = filters
+    let mut selectors: Vec<ProjectSelector> = filters
         .iter()
-        .map(String::as_str)
-        .chain(root_selector)
         .map(|filter| {
             let mut selector = parse_project_selector(filter, prefix);
             selector.follow_prod_deps_only = follow_prod_deps_only;
             selector
         })
         .collect();
+    if let Some(root_selector) = root_selector {
+        let mut selector = parse_project_selector(root_selector, prefix);
+        selector.follow_prod_deps_only = follow_prod_deps_only;
+        // pnpm generates this selector; the user did not write it. It has
+        // to mean "the project whose directory is the workspace root",
+        // which only glob matching says. Left to follow the pass,
+        // `legacyDirFiltering`'s subtree matching would read it as "every
+        // project below the root" and a recursive `run` / `exec` would
+        // select the root alone.
+        selector.use_glob_dir_filtering = Some(true);
+        selectors.push(selector);
+    }
     let selected = filter_workspace_projects(graph, &selectors, walk_opts)
         .map_err(miette::Report::new)
         .wrap_err("filtering workspace projects")?;

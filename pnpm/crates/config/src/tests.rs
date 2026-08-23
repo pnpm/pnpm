@@ -3306,6 +3306,30 @@ pub fn max_sockets_accepts_npms_lowercase_spelling() {
     assert_eq!(config.max_sockets, Some(7));
 }
 
+/// One file may carry both spellings — the canonical one wins, and the
+/// pair is not a duplicate key that fails the whole parse.
+#[test]
+pub fn max_sockets_takes_the_canonical_spelling_when_a_file_has_both() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "maxSockets: 5\nmaxsockets: 7\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.max_sockets, Some(5));
+}
+
+/// The environment is a later layer than the file, so npm's spelling there
+/// still wins over the canonical spelling in `pnpm-workspace.yaml`.
+#[test]
+pub fn max_sockets_from_the_environment_wins_over_the_workspace_yaml() {
+    fake_env!(load_with_fake_env);
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "maxSockets: 4\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    set_fake_env(&[("PNPM_CONFIG_MAXSOCKETS", "8")]);
+    assert_eq!(load_with_fake_env(tmp.path()).max_sockets, Some(8));
+}
+
 #[test]
 pub fn max_sockets_accepts_both_spellings_from_the_environment() {
     fake_env!(load_with_fake_env);

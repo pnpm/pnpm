@@ -27,6 +27,11 @@ pub struct ProjectSelector {
     /// Set by `filter_prod` callers so the dependency walk follows
     /// production dependencies only. Not produced by parsing.
     pub follow_prod_deps_only: bool,
+    /// Overrides how [`Self::parent_dir`] matches, for a selector pnpm
+    /// generates rather than the user writing it. `None` — every parsed
+    /// selector — follows the mode the whole filter pass runs in, which
+    /// `legacyDirFiltering` chooses. Not produced by parsing.
+    pub use_glob_dir_filtering: Option<bool>,
 }
 
 /// Parse one raw `--filter` selector string against `prefix` (the
@@ -69,6 +74,7 @@ pub fn parse_project_selector(raw_selector: &str, prefix: &Path) -> ProjectSelec
             name_pattern: name.map(str::to_string),
             parent_dir: brace_inner.map(|inner| lexical_join(prefix, inner)),
             follow_prod_deps_only: false,
+            use_glob_dir_filtering: None,
         },
         None => {
             if is_selector_by_location(raw) {

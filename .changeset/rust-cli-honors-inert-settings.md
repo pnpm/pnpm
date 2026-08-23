@@ -9,4 +9,6 @@ The Rust CLI now honors five settings it recognized but ignored: `updateNotifier
 
 `maxsockets`, npm's spelling of `maxSockets`, is no longer ignored: both spellings are read from `pnpm-workspace.yaml`, the global config file, and the environment.
 
-A `lastUpdateCheck` timestamp dated in the future — after a clock change, a restored snapshot, or a hand-edited state file — no longer silences the update check until that time comes around [#14101](https://github.com/pnpm/pnpm/issues/14101).
+A `lastUpdateCheck` timestamp dated in the future — after a clock change, a restored snapshot, or a hand-edited state file — no longer silences the update check until that time comes around.
+
+`legacyDirFiltering` no longer reaches the `!{<workspace-root>}` selector a recursive `run` / `exec` / `add` / `test` generates for itself. Read as a subtree match, that selector named every project below the root, so a recursive command under the setting selected nothing at all [#14101](https://github.com/pnpm/pnpm/issues/14101).

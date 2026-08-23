@@ -608,6 +608,7 @@ export async function getConfig (opts: {
   ], types)
 
   let virtualStoreTypeFromEnv: VirtualStoreType | undefined
+  let maxsocketsFromEnv: number | undefined
   for (const { key, value } of parseEnvVars(key => envPnpmTypes[key as keyof typeof envPnpmTypes], env)) {
     // undefined means that the env key was defined, but its value couldn't be parsed according to the schema
     // TODO: should we throw some error or print some warning here?
@@ -621,6 +622,15 @@ export async function getConfig (opts: {
     // whichever order the two arrive in.
     if (key === 'virtualStoreType') {
       virtualStoreTypeFromEnv = value as VirtualStoreType
+      continue
+    }
+
+    // npm's spelling of `maxSockets`, and the only one the environment can
+    // carry — `types` has no `max-sockets` entry for the canonical
+    // spelling to match. Held back rather than assigned so the fold below
+    // can keep the environment ranked above the config files.
+    if (key === 'maxsockets') {
+      maxsocketsFromEnv = value as number
       continue
     }
 
@@ -648,10 +658,13 @@ export async function getConfig (opts: {
 
   // Also after the env loop, and after the config files were applied: npm
   // spells the setting `maxsockets`, so every source may carry either
-  // spelling and both have to be folded into the one field the rest of pnpm
-  // reads. npm's own default stands in when neither was set.
+  // spelling and both have to be folded into the one field the rest of
+  // pnpm reads. The environment outranks the config files, and within each
+  // layer the canonical spelling wins. npm's own default stands in when no
+  // layer set either.
   // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
-  pnpmConfig.maxSockets = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets'] ?? npmDefaults.maxsockets
+  const maxSocketsFromFiles: number | undefined = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets']
+  pnpmConfig.maxSockets = maxsocketsFromEnv ?? maxSocketsFromFiles ?? npmDefaults.maxsockets
   // @ts-expect-error
   delete pnpmConfig['maxsockets']
 

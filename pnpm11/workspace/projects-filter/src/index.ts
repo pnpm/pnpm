@@ -16,6 +16,13 @@ export { getChangedProjects } from './getChangedProjects.js'
 export interface WorkspaceFilter {
   filter: string
   followProdDepsOnly: boolean
+  /**
+   * Overrides how a `{<dir>}` selector matches, for a selector pnpm
+   * generates rather than the user writing it. Left out — every filter a
+   * user passes — the selector follows the mode the whole pass runs in,
+   * which `legacyDirFiltering` chooses.
+   */
+  useGlobDirFiltering?: boolean
 }
 
 export interface ProjectGraph<Pkg extends BaseProject> {
@@ -95,7 +102,7 @@ export async function filterProjects<Pkg extends BaseProject> (
   filter: WorkspaceFilter[],
   opts: FilterProjectsOptions
 ): Promise<FilterProjectsResult<Pkg>> {
-  const projectSelectors = filter.map(({ filter: f, followProdDepsOnly }) => ({ ...parseProjectSelector(f, opts.prefix), followProdDepsOnly }))
+  const projectSelectors = filter.map(({ filter: f, followProdDepsOnly, useGlobDirFiltering }) => ({ ...parseProjectSelector(f, opts.prefix), followProdDepsOnly, useGlobDirFiltering }))
 
   return filterProjectsBySelectorObjects(projects, projectSelectors, opts)
 }
@@ -221,10 +228,10 @@ async function _filterGraph<Pkg extends BaseProject> (
   const graph = projectsGraphToGraph(projectsGraph)
   const unmatchedFilters = [] as string[]
   let reversedGraph: Graph | undefined
-  const matchProjectsByPath = opts.useGlobDirFiltering === true
-    ? matchProjectsByGlob
-    : matchProjectsByExactPath
   for (const selector of projectSelectors) {
+    const matchProjectsByPath = (selector.useGlobDirFiltering ?? opts.useGlobDirFiltering) === true
+      ? matchProjectsByGlob
+      : matchProjectsByExactPath
     let entryProjects: ProjectRootDir[] | null = null
     if (selector.diff) {
       let ignoreDependentForProjects: ProjectRootDir[] = []
