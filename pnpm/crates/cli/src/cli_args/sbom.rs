@@ -905,7 +905,7 @@ fn selected_and_reachable_project_dirs(
 fn merged_dedicated_lockfile_state(mut state: State) -> miette::Result<(State, Vec<PathBuf>)> {
     let project_dir = state.project_dir();
     let workspace_root = state.config.workspace_dir.as_deref().unwrap_or(project_dir);
-    let (projects, _) = discover_workspace_projects(workspace_root)?;
+    let (projects, _) = discover_workspace_projects(workspace_root, state.config)?;
     let selection =
         select_recursive_projects(&projects, state.config, project_dir, AutoExcludeRoot::Disabled)?;
 

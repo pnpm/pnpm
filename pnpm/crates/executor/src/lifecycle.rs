@@ -20,6 +20,7 @@ use std::{
     process::{Child, Command, ExitStatus, Stdio},
     thread,
 };
+use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader as AsyncBufReader};
 
 /// Error from running lifecycle scripts.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -540,6 +541,26 @@ impl StreamedScript<'_> {
         status
     }
 
+    /// Asynchronously drain a tokio child's piped stdout and stderr into
+    /// lifecycle events, then wait for it.
+    pub async fn pump_async(&self, child: &mut tokio::process::Child) -> io::Result<ExitStatus> {
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+        let stdout_pump = async {
+            if let Some(stream) = stdout {
+                self.pump_async_stream(stream, LifecycleStdio::Stdout).await;
+            }
+        };
+        let stderr_pump = async {
+            if let Some(stream) = stderr {
+                self.pump_async_stream(stream, LifecycleStdio::Stderr).await;
+            }
+        };
+        let child_wait = child.wait();
+        let (status, (), ()) = tokio::join!(child_wait, stdout_pump, stderr_pump);
+        status
+    }
+
     /// Spawn a thread that reads `reader` line-by-line and republishes
     /// each line.
     ///
@@ -572,15 +593,32 @@ impl StreamedScript<'_> {
                     // non-zero exit code if the child failed over it.
                     Err(_) => break,
                 }
-                if line.last() == Some(&b'\n') {
-                    line.pop();
-                    if line.last() == Some(&b'\r') {
-                        line.pop();
-                    }
-                }
-                target.emit_line(stdio, String::from_utf8_lossy(&line).into_owned());
+                target.emit_bytes_line(stdio, &mut line);
             }
         })
+    }
+
+    async fn pump_async_stream(&self, reader: impl AsyncRead + Unpin, stdio: LifecycleStdio) {
+        let mut reader = AsyncBufReader::new(reader);
+        let mut line = Vec::new();
+        loop {
+            line.clear();
+            match reader.read_until(b'\n', &mut line).await {
+                Ok(0) => break,
+                Ok(_) => self.emit_bytes_line(stdio, &mut line),
+                Err(_) => break,
+            }
+        }
+    }
+
+    fn emit_bytes_line(&self, stdio: LifecycleStdio, line: &mut Vec<u8>) {
+        if line.last() == Some(&b'\n') {
+            line.pop();
+            if line.last() == Some(&b'\r') {
+                line.pop();
+            }
+        }
+        self.emit_line(stdio, String::from_utf8_lossy(line).into_owned());
     }
 
     /// Republish one line of the script's output.
