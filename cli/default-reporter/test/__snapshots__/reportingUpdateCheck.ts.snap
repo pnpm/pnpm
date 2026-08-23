@@ -36,6 +36,18 @@ exports[`print update notification that suggests to install @pnpm/exe when the s
 "
 `;
 
+exports[`print update notification that suggests to install pnpm when the standalone build updates to v11 on Intel macOS 1`] = `
+"
+   ╭─────────────────────────────────────────╮
+   │                                         │
+   │   Update available! 10.0.0 → 11.0.0.    │
+   │   Changelog: https://pnpm.io/v/11.0.0   │
+   │    To update, run: pnpm add -g pnpm     │
+   │                                         │
+   ╰─────────────────────────────────────────╯
+"
+`;
+
 exports[`print update notification that suggests to install pnpm when the standalone build updates to v12 1`] = `
 "
    ╭─────────────────────────────────────────╮

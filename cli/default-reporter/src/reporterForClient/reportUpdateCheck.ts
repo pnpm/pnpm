@@ -1,5 +1,5 @@
 import { type UpdateCheckLog } from '@pnpm/core-loggers'
-import { detectIfCurrentPkgIsExecutable, isExecutedByCorepack } from '@pnpm/cli-meta'
+import { detectIfCurrentPkgIsExecutable, isExecutedByCorepack, type Process } from '@pnpm/cli-meta'
 import boxen from 'boxen'
 import chalk from 'chalk'
 import * as Rx from 'rxjs'
@@ -15,9 +15,9 @@ export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
     filter((log) => semver.gt(log.latestVersion, log.currentVersion)),
     map((log) => {
       const updateMessage = renderUpdateMessage({
-        currentPkgIsExecutable: detectIfCurrentPkgIsExecutable(opts.process),
         latestVersion: log.latestVersion,
         env: opts.env,
+        proc: opts.process,
       })
       return Rx.of({
         msg: boxen(`\
@@ -38,9 +38,9 @@ ${updateMessage}`,
 }
 
 interface UpdateMessageOptions {
-  currentPkgIsExecutable: boolean
   env: NodeJS.ProcessEnv
   latestVersion: string
+  proc: Process
 }
 
 function renderUpdateMessage (opts: UpdateMessageOptions): string {
@@ -59,12 +59,20 @@ function renderUpdateCommand (opts: UpdateMessageOptions): string {
 }
 
 /**
- * The package to install for an update to `latestVersion`. From v12 the
- * unscoped `pnpm` package is itself the native executable and `@pnpm/exe` is
- * no longer published alongside it, so suggesting `@pnpm/exe` there would
- * resolve to the newest v11 and silently strand the user on v11.
+ * The package to install for an update to `latestVersion`, mirroring what the
+ * version switch itself installs (`pnpmPackageNameToInstall`). A standalone
+ * build keeps `@pnpm/exe`, except where that package cannot deliver a working
+ * pnpm: from v12 the unscoped `pnpm` package is itself the native executable
+ * and `@pnpm/exe` is no longer published alongside it, and v11+ ships no
+ * darwin-x64 `@pnpm/exe` because a Node.js SEA build segfaults at startup on
+ * Intel Macs (https://github.com/pnpm/pnpm/issues/11423). Naming `@pnpm/exe`
+ * in either case would resolve to the newest release that has it and silently
+ * strand the user there.
  */
-function updatePkgName ({ currentPkgIsExecutable, latestVersion }: UpdateMessageOptions): string {
-  if (!currentPkgIsExecutable || semver.major(latestVersion) >= 12) return 'pnpm'
+function updatePkgName ({ latestVersion, proc }: UpdateMessageOptions): string {
+  if (!detectIfCurrentPkgIsExecutable(proc)) return 'pnpm'
+  const major = semver.major(latestVersion)
+  if (major >= 12) return 'pnpm'
+  if (major >= 11 && proc.platform === 'darwin' && proc.arch === 'x64') return 'pnpm'
   return '@pnpm/exe'
 }
