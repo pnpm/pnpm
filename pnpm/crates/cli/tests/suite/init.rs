@@ -156,7 +156,7 @@ fn the_author_license_and_version_settings_replace_the_scaffold_placeholders() {
         .expect("parse package.json");
     assert_eq!(manifest["version"], json!("2.0.0"));
     assert_eq!(manifest["license"], json!("MIT"));
-    assert_eq!(manifest["author"], json!("pnpm <xxxxxx@pnpm.com> (https://www.github.com/pnpm)"),);
+    assert_eq!(manifest["author"], json!("pnpm <xxxxxx@pnpm.com> (https://www.github.com/pnpm)"));
 
     drop(root);
 }

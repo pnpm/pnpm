@@ -34,7 +34,7 @@ fn clamps_a_future_timestamp_to_zero() {
 
 #[test]
 fn each_way_of_installing_pnpm_gets_its_own_update_command() {
-    assert_eq!(update_command(PnpmInstallSource::Corepack, "12.0.0"), "corepack use pnpm@12.0.0",);
+    assert_eq!(update_command(PnpmInstallSource::Corepack, "12.0.0"), "corepack use pnpm@12.0.0");
     assert_eq!(update_command(PnpmInstallSource::PnpmHome, "12.0.0"), "pnpm self-update");
     assert_eq!(update_command(PnpmInstallSource::Elsewhere, "12.0.0"), "pnpm add -g pnpm");
 }
