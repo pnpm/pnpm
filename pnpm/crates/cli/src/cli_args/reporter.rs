@@ -57,27 +57,47 @@ pub(crate) fn reporter_emit(reporter: ReporterType) -> fn(&LogEvent) {
     }
 }
 
+/// The process-global default-reporter state that can't be recovered from
+/// events, as [`configure_default_reporter`] takes it.
+///
+/// The `bool` fields are all opt-in: a `false` leaves whatever an earlier
+/// call configured, so a value the command line did not carry can still
+/// arrive from the loaded configuration.
+pub(crate) struct DefaultReporterSetup<'a> {
+    pub(crate) reporter: ReporterType,
+    pub(crate) dir: &'a Path,
+    pub(crate) summary_scope: SummaryScope,
+    pub(crate) reports_scope: bool,
+    pub(crate) hide_added_pkgs_progress: bool,
+    pub(crate) is_recursive: bool,
+    pub(crate) use_stderr: bool,
+    pub(crate) stream_lifecycle_output: bool,
+    pub(crate) aggregate_output: bool,
+    pub(crate) hide_lifecycle_prefix: bool,
+}
+
 /// Seed the process-global default-reporter state that can't be recovered
 /// from events. Idempotent — the first call wins, so it has to run before
 /// anything can emit.
-pub(crate) fn configure_default_reporter(
-    reporter: ReporterType,
-    dir: &Path,
-    summary_scope: SummaryScope,
-    reports_scope: bool,
-    hide_added_pkgs_progress: bool,
-    is_recursive: bool,
-    use_stderr: bool,
-) {
-    pnpm_default_reporter::set_cwd(dir.to_string_lossy().into_owned());
-    if use_stderr {
+pub(crate) fn configure_default_reporter(setup: &DefaultReporterSetup<'_>) {
+    pnpm_default_reporter::set_cwd(setup.dir.to_string_lossy().into_owned());
+    if setup.use_stderr {
         pnpm_default_reporter::use_stderr();
     }
-    pnpm_default_reporter::set_summary_scope(summary_scope);
-    pnpm_default_reporter::set_reports_scope(reports_scope);
-    pnpm_default_reporter::set_hide_added_pkgs_progress(hide_added_pkgs_progress);
-    pnpm_default_reporter::set_is_recursive(is_recursive);
-    if matches!(reporter, ReporterType::AppendOnly) {
+    if setup.stream_lifecycle_output {
+        pnpm_default_reporter::stream_lifecycle_output();
+    }
+    if setup.aggregate_output {
+        pnpm_default_reporter::aggregate_output();
+    }
+    if setup.hide_lifecycle_prefix {
+        pnpm_default_reporter::hide_lifecycle_prefix();
+    }
+    pnpm_default_reporter::set_summary_scope(setup.summary_scope);
+    pnpm_default_reporter::set_reports_scope(setup.reports_scope);
+    pnpm_default_reporter::set_hide_added_pkgs_progress(setup.hide_added_pkgs_progress);
+    pnpm_default_reporter::set_is_recursive(setup.is_recursive);
+    if matches!(setup.reporter, ReporterType::AppendOnly) {
         pnpm_default_reporter::force_append_only();
     }
 }

@@ -67,6 +67,18 @@ pub struct ReporterOptions {
     /// `hideLifecycleOutput`, which the TypeScript reporter applies by
     /// forcing the lifecycle stream's own `appendOnly` off.
     pub hide_lifecycle_output: bool,
+    /// Stream lifecycle script output line by line even when the rest of
+    /// the frame renders in place. pnpm's `streamLifecycleOutput`, which
+    /// its reporter implements by turning on the lifecycle stream's own
+    /// `appendOnly`.
+    pub stream_lifecycle_output: bool,
+    /// Hold each script's streamed lines until it exits, then print the
+    /// whole run as one block. pnpm's `aggregateOutput`.
+    pub aggregate_output: bool,
+    /// Drop the project prefix from streamed script output lines. pnpm's
+    /// `hideLifecyclePrefix` — the `$ <script>` and `Done` / `Failed`
+    /// lines keep theirs.
+    pub hide_lifecycle_prefix: bool,
     /// Replaces the second line of the ignored-builds box — the one that
     /// tells the user how to approve a build. pnpm's
     /// `approveBuildsInstructionText`, for embedders whose users approve
@@ -95,6 +107,9 @@ impl Default for ReporterOptions {
             is_recursive: false,
             max_log_level: MaxLogLevel::Info,
             hide_lifecycle_output: false,
+            stream_lifecycle_output: false,
+            aggregate_output: false,
+            hide_lifecycle_prefix: false,
             ignored_builds_instruction_text: None,
             hide_linked_pkgs_diff: Vec::new(),
         }
@@ -270,6 +285,9 @@ pub struct ReporterState {
     colors: Colors,
     append_only: bool,
     hide_lifecycle_output: bool,
+    stream_lifecycle_output: bool,
+    aggregate_output: bool,
+    hide_lifecycle_prefix: bool,
     ignored_builds_instruction_text: Option<String>,
     /// Compiled [`ReporterOptions::hide_linked_pkgs_diff`]. Never matches
     /// when no patterns were configured.
@@ -303,6 +321,9 @@ pub struct ReporterState {
     scope_slot: BlockSlot,
 
     lifecycle: HashMap<String, LifecycleEntry>,
+    /// Events withheld under [`ReporterOptions::aggregate_output`], keyed
+    /// the same way [`Self::lifecycle`] is.
+    lifecycle_buffers: HashMap<String, Vec<LifecycleMessage>>,
     lifecycle_slots: HashMap<String, BlockSlot>,
     lifecycle_colors: HashMap<String, usize>,
     color_wheel: usize,
@@ -378,6 +399,9 @@ impl ReporterState {
             is_recursive,
             max_log_level,
             hide_lifecycle_output,
+            stream_lifecycle_output,
+            aggregate_output,
+            hide_lifecycle_prefix,
             ignored_builds_instruction_text,
             hide_linked_pkgs_diff,
         } = options;
@@ -413,6 +437,7 @@ impl ReporterState {
             is_recursive,
             scope_slot: BlockSlot::default(),
             lifecycle: HashMap::new(),
+            lifecycle_buffers: HashMap::new(),
             lifecycle_slots: HashMap::new(),
             lifecycle_colors: HashMap::new(),
             color_wheel: 0,
@@ -426,6 +451,9 @@ impl ReporterState {
             deprecated_subdeps: Vec::new(),
             deprecated_slot: BlockSlot::default(),
             hide_lifecycle_output,
+            stream_lifecycle_output,
+            aggregate_output,
+            hide_lifecycle_prefix,
             ignored_builds_instruction_text,
             hidden_linked_pkgs: create_matcher(&hide_linked_pkgs_diff),
         }
@@ -955,8 +983,8 @@ impl ReporterState {
     // --- lifecycle --------------------------------------------------------
 
     fn on_lifecycle(&mut self, message: &LifecycleMessage) {
-        if self.append_only && !self.hide_lifecycle_output {
-            let msg = self.stream_lifecycle(message);
+        if (self.append_only || self.stream_lifecycle_output) && !self.hide_lifecycle_output {
+            let Some(msg) = self.streamed_lifecycle_block(message) else { return };
             let mut slot = BlockSlot::default();
             self.frame.emit(&mut slot, msg, false);
             return;
@@ -1075,6 +1103,30 @@ impl ReporterState {
         format!("{label}, failed in {time}\n{}", self.render_script(key, message))
     }
 
+    /// The streamed rendering of one lifecycle event, or `None` when
+    /// [`ReporterOptions::aggregate_output`] is withholding it until the
+    /// script exits. The whole run is then returned as one block, so a
+    /// concurrent sibling's lines cannot interleave with it.
+    fn streamed_lifecycle_block(&mut self, message: &LifecycleMessage) -> Option<String> {
+        if !self.aggregate_output {
+            return Some(self.stream_lifecycle(message));
+        }
+        let (stage, dep_path, _) = lifecycle_ids(message);
+        let key = format!("{stage}:{dep_path}");
+        // Format on flush rather than on arrival so the prefix color
+        // wheel advances in the order the blocks are printed.
+        if !matches!(message, LifecycleMessage::Exit { .. }) {
+            self.lifecycle_buffers.entry(key).or_default().push(message.clone());
+            return None;
+        }
+        let mut lines = Vec::new();
+        for buffered in self.lifecycle_buffers.remove(&key).unwrap_or_default() {
+            lines.push(self.stream_lifecycle(&buffered));
+        }
+        lines.push(self.stream_lifecycle(message));
+        Some(lines.join("\n"))
+    }
+
     fn stream_lifecycle(&mut self, message: &LifecycleMessage) -> String {
         let (stage, _dep_path, wd) = lifecycle_ids(message);
         let prefix = self.lifecycle_prefix(wd, stage);
@@ -1092,7 +1144,7 @@ impl ReporterState {
                     LifecycleStdio::Stderr => self.colors.grey(line),
                     LifecycleStdio::Stdout => line.clone(),
                 };
-                format!("{prefix}: {line}")
+                if self.hide_lifecycle_prefix { line } else { format!("{prefix}: {line}") }
             }
         }
     }

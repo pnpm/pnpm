@@ -5,9 +5,9 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use serde_json::{Value, json};
-use std::{collections::HashMap, fs, path::Path};
+use std::{collections::HashMap, fs, path::Path, process::Command};
 
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` per name under its own subdirectory of `workspace`.
@@ -327,4 +327,72 @@ fn recursive_exec_settings_only_workspace_enumerates_root_only() {
     );
 
     drop(root);
+}
+
+/// Port of upstream's `pnpm exec --recursive --no-reporter-hide-prefix
+/// prints prefixes` (`exec/commands/test/exec.logs.ts`). `exec` labels
+/// its output with the package name and a `(exec)` stage.
+#[test]
+fn no_reporter_hide_prefix_labels_each_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+
+    let output = pacquet
+        .with_args([
+            "-r",
+            "--no-reporter-hide-prefix",
+            "--config.verify-deps-before-run=false",
+            "exec",
+            "echo",
+            "hello",
+        ])
+        .output()
+        .expect("run exec");
+    assert!(output.status.success(), "prefixed exec failed: {output:?}");
+    assert_eq!(
+        sorted_lines(&output.stdout),
+        [
+            "project-1 (exec): Done",
+            "project-1 (exec): hello",
+            "project-2 (exec): Done",
+            "project-2 (exec): hello",
+        ],
+    );
+
+    drop(root);
+}
+
+/// Port of upstream's `pnpm exec --recursive does not print prefixes by
+/// default`: unlike `run`, `exec` inherits the terminal unless the user
+/// turns the hiding off explicitly. `--stream` does not change that.
+#[test]
+fn recursive_exec_inherits_stdio_by_default() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+
+    for extra in [[].as_slice(), ["--stream"].as_slice(), ["--reporter-hide-prefix"].as_slice()] {
+        let mut args = vec!["-r", "--config.verify-deps-before-run=false"];
+        args.extend_from_slice(extra);
+        args.extend_from_slice(&["exec", "echo", "hello"]);
+        let output = Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .without_ambient_pnpm_config()
+            .with_args(args)
+            .output()
+            .expect("run exec");
+        assert!(output.status.success(), "exec failed with {extra:?}: {output:?}");
+        assert_eq!(sorted_lines(&output.stdout), ["hello", "hello"]);
+    }
+
+    drop(root);
+}
+
+/// Sorted so a test does not depend on the order the projects finish in.
+fn sorted_lines(stdout: &[u8]) -> Vec<String> {
+    let stdout = String::from_utf8_lossy(stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    let mut lines = stdout.trim().lines().map(str::to_string).collect::<Vec<_>>();
+    lines.sort();
+    lines
 }

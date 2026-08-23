@@ -52,6 +52,7 @@ mod global_shims;
 mod global_virtual_store;
 mod hoist;
 mod hoisted_node_linker;
+mod ignore_workspace;
 mod import;
 mod init;
 mod inject_workspace_packages;

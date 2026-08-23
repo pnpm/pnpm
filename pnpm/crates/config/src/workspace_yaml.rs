@@ -177,6 +177,11 @@ pub struct WorkspaceSettings {
     pub pending: Option<bool>,
     pub recursive_install: Option<bool>,
     pub reverse: Option<bool>,
+    pub stream: Option<bool>,
+    pub aggregate_output: Option<bool>,
+    pub reporter_hide_prefix: Option<bool>,
+    pub use_stderr: Option<bool>,
+    pub ignore_workspace: Option<bool>,
     pub shell_emulator: Option<bool>,
     pub skip_manifest_obfuscation: Option<bool>,
     pub sort: Option<bool>,
@@ -1467,6 +1472,13 @@ impl WorkspaceSettings {
             config.catalog_prune = v;
         }
 
+        // Tri-state on `Config`: `exec` treats "never asked" differently
+        // from an explicit `false`, so the macro's "apply when set" shape
+        // would collapse the distinction.
+        if let Some(v) = self.reporter_hide_prefix {
+            config.reporter_hide_prefix = Some(v);
+        }
+
         // pnpm spells the setting `gitBranchLockfile` and exposes the
         // resolved answer as `useGitBranchLockfile`; the macro below can
         // only apply fields the two structs name identically.
@@ -1490,7 +1502,8 @@ impl WorkspaceSettings {
 
         apply! {
             bail, ci, color, embed_readme, ignore_workspace_root_check,
-            optional, package_lock, pending, recursive_install, reverse, shell_emulator,
+            optional, package_lock, pending, recursive_install, reverse,
+            stream, aggregate_output, use_stderr, ignore_workspace, shell_emulator,
             skip_manifest_obfuscation, sort, use_beta_cli,
             hoist, shamefully_hoist,
             node_linker, node_experimental_package_map, node_package_map_type,

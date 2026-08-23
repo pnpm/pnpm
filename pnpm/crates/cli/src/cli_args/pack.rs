@@ -129,7 +129,7 @@ impl PackArgs {
         // `pack` is not in pnpm's root-auto-exclusion command set, so the
         // workspace root stays in the selection (its own name/version
         // eligibility check still applies below).
-        let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
+        let (projects, _patterns) = discover_workspace_projects(workspace_root, config)?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let graph = &selection.selected;

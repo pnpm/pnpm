@@ -93,7 +93,7 @@ impl WhyArgs {
 
         let project_dirs: Vec<PathBuf> = if state.config.recursive {
             let workspace_root = state.config.workspace_dir.as_deref().unwrap_or(&lockfile_dir);
-            let (projects, _) = discover_workspace_projects(workspace_root)?;
+            let (projects, _) = discover_workspace_projects(workspace_root, state.config)?;
             select_recursive_projects(
                 &projects,
                 state.config,

@@ -1,4 +1,4 @@
-use super::{RunScript, build_command, posix_quote, run_script};
+use super::{RunScript, ScriptOutput, build_command, posix_quote, run_script};
 use crate::{extend_path::ScriptsPrependNodePath, script_exit::ScriptExit};
 use std::{collections::HashMap, fs, path::Path};
 use tempfile::tempdir;
@@ -55,6 +55,7 @@ fn run(pkg_root: &Path, stage: &str, script: &str, args: &[String]) -> ScriptExi
         user_agent: None,
         extra_env: &extra_env,
         silent: true,
+        output: ScriptOutput::Inherit,
     })
     .expect("run the script")
 }

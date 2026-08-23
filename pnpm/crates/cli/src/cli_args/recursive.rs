@@ -240,20 +240,31 @@ pub fn count_failures(summary: &IndexMap<PathBuf, ExecutionStatus>) -> usize {
     summary.values().filter(|status| status.status == Status::Failure).count()
 }
 
-/// Read the workspace manifest at `workspace_root` and enumerate its
-/// projects, returning them alongside the workspace package patterns
-/// (`config.workspacePackagePatterns`). Shared by recursive `run` /
-/// `exec` / `pack` so all discover the same set before
-/// [`select_recursive_projects`] narrows it. The patterns feed the
-/// root-only guard of [`AutoExcludeRoot`]; `None` means no
+/// Enumerate the projects of the workspace rooted at `workspace_root`,
+/// returning them alongside the package patterns that selected them.
+/// Shared by recursive `run` / `exec` / `pack` so all discover the same
+/// set before [`select_recursive_projects`] narrows it. The patterns feed
+/// the root-only guard of [`AutoExcludeRoot`]; `None` means no
 /// `pnpm-workspace.yaml` was found.
+///
+/// The patterns come from `config.workspace_package_patterns`, already
+/// resolved from `--workspace-packages` or the manifest's `packages`.
+/// When the config found no workspace, `workspace_root` is one the caller
+/// picked itself (a global install's packages dir), so its own manifest
+/// decides — unless `--ignore-workspace` disowned every manifest, which
+/// leaves the enumeration on its `['.', '**']` default.
 pub fn discover_workspace_projects(
     workspace_root: &Path,
+    config: &Config,
 ) -> miette::Result<(Vec<Project>, Option<Vec<String>>)> {
-    let patterns = read_workspace_manifest(workspace_root)
-        .into_diagnostic()
-        .wrap_err("reading pnpm-workspace.yaml")?
-        .map(|manifest| workspace_package_patterns(&manifest));
+    let patterns = match &config.workspace_package_patterns {
+        Some(patterns) => Some(patterns.clone()),
+        None if config.ignore_workspace => None,
+        None => read_workspace_manifest(workspace_root)
+            .into_diagnostic()
+            .wrap_err("reading pnpm-workspace.yaml")?
+            .map(|manifest| workspace_package_patterns(&manifest)),
+    };
     let projects = find_workspace_projects(
         workspace_root,
         &FindWorkspaceProjectsOpts { patterns: patterns.clone() },

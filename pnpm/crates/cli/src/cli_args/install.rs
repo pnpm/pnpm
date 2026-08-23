@@ -1375,7 +1375,7 @@ fn resolve_projects_for_pnpr(
         && state.config.shares_one_lockfile()
         && let Some(workspace_root) = state.config.workspace_dir.as_deref()
     {
-        let (projects, _) = discover_workspace_projects(workspace_root)?;
+        let (projects, _) = discover_workspace_projects(workspace_root, state.config)?;
         return Ok(resolve_workspace_projects(
             state.config.lockfile_dir_for(workspace_root),
             &projects,

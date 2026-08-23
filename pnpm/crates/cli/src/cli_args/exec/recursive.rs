@@ -12,7 +12,7 @@
 //! `--workspace-concurrency` parallelism is not ported yet, matching the
 //! recursive `run` runner.
 
-use super::{ExecArgs, prepare_command, spawn_in_dir};
+use super::{ExecArgs, prepare_command, read_package_name, spawn_in_dir};
 use crate::cli_args::recursive::{
     AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
     get_resumed_package_chunks, select_recursive_projects, sort_filtered_projects,
@@ -22,6 +22,8 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_config::Config;
+use pnpm_executor::ScriptOutput;
+use pnpm_reporter::LogEvent;
 use std::{
     path::{Path, PathBuf},
     time::Instant,
@@ -57,11 +59,20 @@ pub enum RecursiveExecError {
 /// workspace root (and the directory the summary is written to) is
 /// `config.workspace_dir`, falling back to `dir` when no
 /// `pnpm-workspace.yaml` exists.
-pub fn exec_recursive(args: &ExecArgs, config: &Config, dir: &Path) -> miette::Result<()> {
+pub fn exec_recursive(
+    args: &ExecArgs,
+    config: &Config,
+    dir: &Path,
+    emit: fn(&LogEvent),
+) -> miette::Result<()> {
     let command = prepare_command(args.command.clone())?;
+    // Unlike `run`'s `--stream`, `exec` prefixes its output only when
+    // the user turned the hiding off explicitly — pnpm gates on
+    // `reporterHidePrefix === false`, not on its falsiness.
+    let show_prefix = config.reporter_hide_prefix == Some(false);
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
-    let (projects, patterns) = discover_workspace_projects(workspace_root)?;
+    let (projects, patterns) = discover_workspace_projects(workspace_root, config)?;
     // Empty workspace errors; an empty `--filter` selection (below) is a
     // no-op — so this guard is on the discovered set, not the filtered.
     if projects.is_empty() {
@@ -105,11 +116,25 @@ pub fn exec_recursive(args: &ExecArgs, config: &Config, dir: &Path) -> miette::R
         for root in chunk {
             result[root].status = Status::Running;
             let start = Instant::now();
+            // pnpm names the package, falling back to the project's
+            // path relative to the working directory.
+            let dep_path = show_prefix.then(|| {
+                read_package_name(root).unwrap_or_else(|| {
+                    pathdiff::diff_paths(root, dir)
+                        .unwrap_or_else(|| root.clone())
+                        .to_string_lossy()
+                        .into_owned()
+                })
+            });
+            let output = match &dep_path {
+                Some(dep_path) => ScriptOutput::Streamed { dep_path, emit },
+                None => ScriptOutput::Inherit,
+            };
             // A spawn / resolution error (e.g. command not found) is a
             // per-project failure rather than a hard error: the error is
             // recorded and the loop bails or continues like any other
             // non-zero result.
-            let outcome = spawn_in_dir(&command, root, config, args.shell_mode);
+            let outcome = spawn_in_dir(&command, root, config, args.shell_mode, output);
             let duration = start.elapsed().as_secs_f64() * 1e3;
 
             let message = match outcome {

@@ -147,6 +147,11 @@ impl WorkspaceSettings {
         json_field!(pending, "PENDING");
         json_field!(recursive_install, "RECURSIVE_INSTALL");
         json_field!(reverse, "REVERSE");
+        json_field!(stream, "STREAM");
+        json_field!(aggregate_output, "AGGREGATE_OUTPUT");
+        json_field!(reporter_hide_prefix, "REPORTER_HIDE_PREFIX");
+        json_field!(use_stderr, "USE_STDERR");
+        json_field!(ignore_workspace, "IGNORE_WORKSPACE");
         json_field!(shell_emulator, "SHELL_EMULATOR");
         json_field!(skip_manifest_obfuscation, "SKIP_MANIFEST_OBFUSCATION");
         json_field!(sort, "SORT");

@@ -459,7 +459,7 @@ fn select_project(
     workspace_dir: &Path,
     dir: &Path,
 ) -> miette::Result<SelectedProject> {
-    let (projects, _patterns) = discover_workspace_projects(workspace_dir)?;
+    let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
     let all_projects = projects
         .iter()
         .map(|project| ProjectInfo {

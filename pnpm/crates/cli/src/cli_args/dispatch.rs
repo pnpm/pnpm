@@ -3,8 +3,8 @@ use super::{
     dispatch_install, dispatch_query, dispatch_script,
     install::resolve_bool_override,
     reporter::{
-        ReporterType, configure_color, configure_default_reporter, configure_max_log_level,
-        reporter_emit,
+        DefaultReporterSetup, ReporterType, configure_color, configure_default_reporter,
+        configure_max_log_level, reporter_emit,
     },
 };
 use crate::{
@@ -78,15 +78,18 @@ impl CliArgs {
             configure_color(color);
         }
         let dir = dunce::canonicalize(&self.dir).unwrap_or_else(|_| self.dir.clone());
-        configure_default_reporter(
-            self.effective_reporter(),
-            &dir,
-            self.command.default_reporter_summary_scope(),
-            self.command.reports_scope(self.recursive),
-            false,
-            self.recursive,
-            self.command.uses_stderr_reporter(),
-        );
+        configure_default_reporter(&DefaultReporterSetup {
+            reporter: self.effective_reporter(),
+            dir: &dir,
+            summary_scope: self.command.default_reporter_summary_scope(),
+            reports_scope: self.command.reports_scope(self.recursive),
+            hide_added_pkgs_progress: false,
+            is_recursive: self.recursive,
+            use_stderr: self.use_stderr || self.command.uses_stderr_reporter(),
+            stream_lifecycle_output: self.stream,
+            aggregate_output: self.aggregate_output,
+            hide_lifecycle_prefix: self.reporter_hide_prefix,
+        });
         configure_max_log_level(self.loglevel);
     }
 
@@ -217,6 +220,13 @@ impl CliArgs {
             no_bail,
             bail,
             if_present,
+            stream,
+            aggregate_output,
+            use_stderr,
+            reporter_hide_prefix,
+            no_reporter_hide_prefix,
+            ignore_workspace,
+            workspace_packages,
         } = self;
 
         // Canonicalize `--dir` so the bunyan-envelope `prefix` emitted by
@@ -258,6 +268,9 @@ impl CliArgs {
         );
         let print_json_errors = prints_json_errors(&command);
         let recursive_by_default_command = command.recursive_by_default();
+        let command_summary_scope = command.default_reporter_summary_scope();
+        let command_reports_scope = command.reports_scope(recursive);
+        let command_uses_stderr_reporter = command.uses_stderr_reporter();
         let manifest_path = dir.join("package.json");
         // Load config anchored at `anchor`, reading `.npmrc` /
         // `pnpm-workspace.yaml` from there.
@@ -319,6 +332,15 @@ impl CliArgs {
                 cfg.workspace_root = workspace_root;
                 cfg.fail_if_no_match = fail_if_no_match;
                 cfg.bail = resolve_bool_override(bail, no_bail, cfg.bail);
+                cfg.stream |= stream;
+                cfg.aggregate_output |= aggregate_output;
+                cfg.use_stderr |= use_stderr;
+                if reporter_hide_prefix || no_reporter_hide_prefix {
+                    cfg.reporter_hide_prefix = Some(reporter_hide_prefix);
+                }
+                if !workspace_packages.is_empty() {
+                    cfg.workspace_package_patterns = Some(workspace_packages.clone());
+                }
                 cfg.sort = resolve_bool_override(sort, no_sort, cfg.sort);
                 cfg.reverse = resolve_bool_override(reverse, no_reverse, cfg.reverse);
 
@@ -340,14 +362,33 @@ impl CliArgs {
                     cfg.workspace_concurrency =
                         pnpm_config::resolve_child_concurrency(Some(workspace_concurrency));
                 }
+                // The command line already seeded the reporter; a value
+                // that came from the configuration instead still has to
+                // reach it, and the setters ignore a repeat.
+                configure_default_reporter(&DefaultReporterSetup {
+                    reporter,
+                    dir: &dir,
+                    summary_scope: command_summary_scope,
+                    reports_scope: command_reports_scope,
+                    hide_added_pkgs_progress: false,
+                    is_recursive: recursive,
+                    use_stderr: cfg.use_stderr || command_uses_stderr_reporter,
+                    stream_lifecycle_output: cfg.stream,
+                    aggregate_output: cfg.aggregate_output,
+                    hide_lifecycle_prefix: cfg.reporter_hide_prefix.unwrap_or(false),
+                });
                 Ok(Config::leak(cfg))
             };
         let load_config = |anchor: &Path| -> miette::Result<&'static mut Config> {
-            Config { npmrc_auth_file: npmrc_auth_file.clone(), ..Config::default() }
-                .current::<Host>(anchor)
-                .map_err(miette::Report::new)
-                .wrap_err("load configuration")
-                .and_then(|cfg| finalize_config(cfg, anchor))
+            Config {
+                npmrc_auth_file: npmrc_auth_file.clone(),
+                ignore_workspace,
+                ..Config::default()
+            }
+            .current::<Host>(anchor)
+            .map_err(miette::Report::new)
+            .wrap_err("load configuration")
+            .and_then(|cfg| finalize_config(cfg, anchor))
         };
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
@@ -365,11 +406,15 @@ impl CliArgs {
         let global_config_anchor = pnpm_home_dir.as_deref().unwrap_or(&dir);
         let global_config = || load_config(global_config_anchor);
         let config_self_update = || -> miette::Result<&'static mut Config> {
-            Config { npmrc_auth_file: npmrc_auth_file.clone(), ..Config::default() }
-                .current_for_self_update::<Host>(&dir)
-                .map_err(miette::Report::new)
-                .wrap_err("load configuration")
-                .and_then(|cfg| finalize_config(cfg, &dir))
+            Config {
+                npmrc_auth_file: npmrc_auth_file.clone(),
+                ignore_workspace,
+                ..Config::default()
+            }
+            .current_for_self_update::<Host>(&dir)
+            .map_err(miette::Report::new)
+            .wrap_err("load configuration")
+            .and_then(|cfg| finalize_config(cfg, &dir))
         };
         // `require_lockfile` is the "this subcommand cannot run without a
         // lockfile loaded" signal, used by `State::init` to override

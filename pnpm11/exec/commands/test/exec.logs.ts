@@ -159,3 +159,40 @@ test('pnpm exec --recursive does not print prefixes by default', async () => {
 
   expect(debug).not.toHaveBeenCalled()
 })
+
+test('pnpm exec --recursive --no-reporter-hide-prefix reassembles output split across chunks and drops the CR of a CRLF', async () => {
+  preparePackages([
+    {
+      location: 'packages/foo',
+      package: { name: 'foo' },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+  })
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  // Far past the pipe's chunk size, so both a line and a multi-byte
+  // character are guaranteed to straddle a chunk boundary.
+  const wide = '€'.repeat(200_000)
+  const scriptFile = path.resolve('script.js')
+  fs.writeFileSync(scriptFile, `
+    process.stdout.write(${JSON.stringify(wide)} + '\\r\\n' + 'tail\\n')
+  `)
+
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    recursive: true,
+    bail: true,
+    reporterHidePrefix: false,
+    selectedProjectsGraph,
+  }, [process.execPath, scriptFile])
+
+  const lines = jest.mocked(debug).mock.calls
+    .map(([log]) => (log as { line?: string }).line)
+    .filter((line) => line != null)
+  expect(lines).toStrictEqual([wide, 'tail'])
+})

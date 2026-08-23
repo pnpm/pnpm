@@ -598,7 +598,7 @@ impl OutdatedArgs {
         // The lockfile the importer ids name may sit somewhere else than
         // the workspace the projects are discovered in — `lockfileDir`.
         let lockfile_root = state.lockfile_dir().to_path_buf();
-        let (projects, _) = discover_workspace_projects(&workspace_root)?;
+        let (projects, _) = discover_workspace_projects(&workspace_root, config)?;
         let prefix = state.manifest.path().parent().unwrap_or_else(|| state.manifest.path());
         let selection =
             select_recursive_projects(&projects, config, prefix, AutoExcludeRoot::Disabled)?;
