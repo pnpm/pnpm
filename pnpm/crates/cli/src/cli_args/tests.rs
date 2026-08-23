@@ -954,9 +954,7 @@ fn every_command_pnpm_takes_ignore_pnpmfile_on_takes_it() {
     }
 }
 
-/// The `dedupe` options pnpm documents beyond `--check`. `dedupe` takes
-/// `pnpm install`'s rc options, so Renovate's `pnpm dedupe
-/// --lockfile-only` has to parse.
+/// <https://github.com/pnpm/pnpm/issues/14107>
 #[test]
 fn dedupe_takes_the_install_options_pnpm_documents_for_it() {
     let args = dedupe_args(&[

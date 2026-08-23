@@ -34,8 +34,6 @@ fn dedupe_writes_lockfile() {
     drop((root, mock_instance));
 }
 
-/// `pnpm dedupe` is an install, so it rewrites `node_modules` too —
-/// `--lockfile-only` is what narrows it to the lockfile.
 #[test]
 fn dedupe_materializes_node_modules_unless_lockfile_only() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -94,7 +92,6 @@ fn dedupe_check_does_not_materialize_nor_write_lockfile() {
     )
     .expect("write package.json");
 
-    // Create a lockfile first, without materializing node_modules
     pacquet.with_args(["dedupe", "--lockfile-only"]).assert().success();
 
     // Recreate a pacquet command for the --check invocation

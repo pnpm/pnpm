@@ -165,13 +165,12 @@ impl DedupeArgs {
             resolved_packages,
             supported_architectures: config.supported_architectures.clone(),
             node_linker: config.node_linker,
-            // `--check` reports what dedupe would change, so it never
-            // materializes `node_modules` either way.
             lockfile_only: self.lockfile_only || self.check,
             dry_run: false,
-            // `--check` must leave the working tree untouched: the lockfile
-            // guard restores `pnpm-lock.yaml`, and this gate keeps loose
-            // minimumReleaseAge picks out of `pnpm-workspace.yaml`.
+            // `--check` must leave the working tree untouched: `lockfile_only`
+            // above keeps `node_modules` out of it, the lockfile guard restores
+            // `pnpm-lock.yaml`, and this gate keeps loose minimumReleaseAge
+            // picks out of `pnpm-workspace.yaml`.
             persist_policy_excludes: !self.check,
             update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
             preferred_versions_override: None,
