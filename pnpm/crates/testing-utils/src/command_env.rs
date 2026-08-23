@@ -29,6 +29,11 @@ impl CommandTestExt for Command {
             self.env_remove(name);
         }
         self.env("PNPM_CONFIG_CI", "false");
+        // No test may reach the registry for pnpm's own `latest` tag or
+        // record the check in the developer's state directory, which the
+        // suites leave un-isolated. The tests that cover the notifier turn
+        // it back on themselves.
+        self.env("PNPM_CONFIG_UPDATE_NOTIFIER", "false");
         self
     }
 }

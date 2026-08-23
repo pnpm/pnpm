@@ -310,11 +310,6 @@ export async function getConfig (opts: {
     warnings.push(`Directory "${cwd}" contains the path delimiter character (${path.delimiter}), so binaries from node_modules/.bin will not be accessible via PATH. Consider renaming the directory.`)
   }
 
-  // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
-  pnpmConfig.maxSockets = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets'] ?? npmDefaults.maxsockets
-  // @ts-expect-error
-  delete pnpmConfig['maxsockets']
-
   pnpmConfig.configDir = configDir
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.workspaceRoot = cliOptions['workspace-root'] as boolean // This is needed to prevent pnpm reading workspaceRoot from env variables
@@ -607,14 +602,22 @@ export async function getConfig (opts: {
     pnpmConfig.registry = pnpmConfig.registriesByScope.default
   }
 
-  const envPnpmTypes = omit([
-    // Keep pnpm and pacquet's init behavior aligned until pacquet reads init config.
-    'init-version',
-    // npm interprets leading-zero values as octal, while the Number schema does not.
-    'umask',
-  ], types)
+  const envPnpmTypes = {
+    ...omit([
+      // npm interprets leading-zero values as octal, while the Number schema does not.
+      'umask',
+    ], types),
+    // `types` carries npm's `maxsockets` spelling alone, so without this
+    // entry `PNPM_CONFIG_MAX_SOCKETS` — the canonical setting name, spelled
+    // the way the environment spells every other camelCase setting — would
+    // match no schema and be dropped. Env-only: the CLI flag and
+    // `pnpm config` keys keep npm's spelling.
+    'max-sockets': Number,
+  }
 
   let virtualStoreTypeFromEnv: VirtualStoreType | undefined
+  let maxsocketsFromEnv: number | undefined
+  let maxSocketsFromEnv: number | undefined
   for (const { key, value } of parseEnvVars(key => envPnpmTypes[key as keyof typeof envPnpmTypes], env)) {
     // undefined means that the env key was defined, but its value couldn't be parsed according to the schema
     // TODO: should we throw some error or print some warning here?
@@ -628,6 +631,18 @@ export async function getConfig (opts: {
     // whichever order the two arrive in.
     if (key === 'virtualStoreType') {
       virtualStoreTypeFromEnv = value as VirtualStoreType
+      continue
+    }
+
+    // The two spellings of `maxSockets` the environment can carry, held
+    // back rather than assigned so the fold below can keep the environment
+    // ranked above the config files whichever order the two arrive in.
+    if (key === 'maxsockets') {
+      maxsocketsFromEnv = value as number
+      continue
+    }
+    if (key === 'maxSockets') {
+      maxSocketsFromEnv = value as number
       continue
     }
 
@@ -652,6 +667,22 @@ export async function getConfig (opts: {
   // `registries.default` above, and an entry matching it must not be reported
   // as unused.
   warnAboutUnmatchedRegistryOptions(pnpmConfig, warnings)
+
+  // Also after the env loop, and after the config files were applied: npm
+  // spells the setting `maxsockets`, so every source may carry either
+  // spelling and both have to be folded into the one field the rest of
+  // pnpm reads. The layers keep their usual rank — command line over
+  // environment over config files — and within each layer the canonical
+  // spelling wins. Ranking the command line here rather than leaving it to
+  // the loop's CLI guard is what keeps a `--maxsockets` above a
+  // `PNPM_CONFIG_MAX_SOCKETS`, and above a `maxSockets` in the YAML.
+  // npm's own default stands in when no layer set either.
+  const maxSocketsFromCli = (configFromCliOpts.maxSockets ?? configFromCliOpts.maxsockets) as number | undefined
+  // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
+  const maxSocketsFromFiles: number | undefined = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets']
+  pnpmConfig.maxSockets = maxSocketsFromCli ?? maxSocketsFromEnv ?? maxsocketsFromEnv ?? maxSocketsFromFiles ?? npmDefaults.maxsockets
+  // @ts-expect-error
+  delete pnpmConfig['maxsockets']
 
   // When the user explicitly sets `minimumReleaseAge`, treat it as strict by
   // default. Without this, a user-set value would silently fall back to

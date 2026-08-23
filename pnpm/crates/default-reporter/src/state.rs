@@ -17,7 +17,7 @@ use pnpm_reporter::{
     InstallingConfigDepsStatus, LifecycleMessage, LifecycleStdio, LockfileVerificationMessage,
     LogEvent, LogLevel, PackageImportMethod, PackageManifestMessage, ProgressMessage, RemovedRoot,
     RequestRetryLog, ScopeLog, SkippedOptionalDependencyLog, SkippedOptionalPackage, Stage,
-    StatsMessage,
+    StatsMessage, UpdateCheckLog,
 };
 use serde_json::Value;
 
@@ -484,6 +484,7 @@ impl ReporterState {
             LogEvent::Summary(log) => self.on_summary(&log.prefix),
             LogEvent::Lifecycle(log) => self.on_lifecycle(&log.message),
             LogEvent::IgnoredScripts(log) => self.on_ignored_scripts(log),
+            LogEvent::UpdateCheck(log) => self.on_update_check(log),
             LogEvent::SkippedOptionalDependency(log) => self.on_skipped_optional(log),
             LogEvent::InstallingConfigDeps(log) => self.on_config_deps(log),
             LogEvent::LockfileVerification(log) => self.on_lockfile_verification(&log.message),
@@ -1196,6 +1197,25 @@ impl ReporterState {
         self.push_block(format!("Ignored build scripts: {list}.\n{instruction}"));
     }
 
+    /// pnpm's `reportUpdateCheck`: tell the user a newer pnpm exists and
+    /// how to get it. Silent unless the resolved `latest` really is newer
+    /// than the running version.
+    fn on_update_check(&mut self, log: &UpdateCheckLog) {
+        if !is_strictly_newer(&log.latest_version, &log.current_version) {
+            return;
+        }
+        self.push_block(format!(
+            "Update available! {current} \u{2192} {latest}.\n{changelog} https://pnpm.io/v/{version}\nTo update, run: {command}",
+            current = self.colors.red(&log.current_version),
+            latest = self.colors.green(&log.latest_version),
+            changelog = self.colors.magenta("Changelog:"),
+            version = log.latest_version,
+            command = self
+                .colors
+                .magenta(&update_command(detect_install_source(), &log.latest_version)),
+        ));
+    }
+
     fn on_config_deps(&mut self, log: &InstallingConfigDepsLog) {
         let msg = match log.status {
             InstallingConfigDepsStatus::Started => "Installing config dependencies...".to_string(),
@@ -1525,6 +1545,40 @@ fn cached_verdict(verified_at: Option<&str>, now: DateTime<Utc>) -> String {
             format!("verified {} ago", pretty_ms_compact(elapsed_ms.unsigned_abs().into()))
         }
         None => "previously verified".to_string(),
+    }
+}
+
+/// Where the running pnpm came from, which is what decides how to update
+/// it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PnpmInstallSource {
+    Corepack,
+    PnpmHome,
+    Elsewhere,
+}
+
+fn detect_install_source() -> PnpmInstallSource {
+    if std::env::var_os("COREPACK_ROOT").is_some() {
+        PnpmInstallSource::Corepack
+    } else if std::env::var_os("PNPM_HOME").is_some_and(|home| !home.is_empty()) {
+        PnpmInstallSource::PnpmHome
+    } else {
+        PnpmInstallSource::Elsewhere
+    }
+}
+
+/// pnpm's `renderUpdateCommand`: the command that updates the pnpm the
+/// user is running.
+///
+/// pnpm names `@pnpm/exe` in the last case when it is running as a single
+/// executable. The native binary is published under both `pnpm` and
+/// `@pnpm/exe` and carries no marker telling the two apart, and a global
+/// install of either replaces the other, so it always names `pnpm`.
+fn update_command(source: PnpmInstallSource, latest_version: &str) -> String {
+    match source {
+        PnpmInstallSource::Corepack => format!("corepack use pnpm@{latest_version}"),
+        PnpmInstallSource::PnpmHome => "pnpm self-update".to_string(),
+        PnpmInstallSource::Elsewhere => "pnpm add -g pnpm".to_string(),
     }
 }
 

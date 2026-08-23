@@ -119,6 +119,11 @@ pub struct ConfigOverrides {
     force_legacy_deploy: Option<bool>,
     ignore_scripts: Option<bool>,
     inject_workspace_packages: Option<bool>,
+    /// `maxsockets`, npm's spelling of [`Self::max_sockets`]. Kept apart
+    /// so the canonical spelling can win when one command line carries
+    /// both.
+    maxsockets: Option<usize>,
+    max_sockets: Option<usize>,
     minimum_release_age: Option<u64>,
     minimum_release_age_exclude: Option<Vec<String>>,
     minimum_release_age_ignore_missing_time: Option<bool>,
@@ -225,6 +230,14 @@ impl ConfigOverrides {
         }
         if key == "inject-workspace-packages" {
             self.inject_workspace_packages = parse_bool(value);
+            return;
+        }
+        if key == "maxsockets" {
+            self.maxsockets = value.parse().ok();
+            return;
+        }
+        if key == "max-sockets" {
+            self.max_sockets = value.parse().ok();
             return;
         }
         if key == "minimum-release-age" {
@@ -353,6 +366,14 @@ impl ConfigOverrides {
         }
         if let Some(value) = self.inject_workspace_packages {
             config.inject_workspace_packages = value;
+        }
+        // npm's spelling first, so the canonical one wins when a single
+        // command line carries both.
+        if let Some(value) = self.maxsockets {
+            config.max_sockets = Some(value);
+        }
+        if let Some(value) = self.max_sockets {
+            config.max_sockets = Some(value);
         }
         // pnpm seeds `explicitlySetKeys` from the command line as well as
         // from the config files, and the workspace state reads it back to

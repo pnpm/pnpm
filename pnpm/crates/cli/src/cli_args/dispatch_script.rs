@@ -11,7 +11,7 @@ use super::{
 };
 use miette::Context;
 use pnpm_config::{Config, InitType, PNPM_VERSION};
-use pnpm_package_manifest::{InitOptions, PackageManifest};
+use pnpm_package_manifest::{InitAuthor, InitOptions, PackageManifest};
 use std::path::Path;
 
 pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<CommandFuture<'a>> {
@@ -19,6 +19,13 @@ pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<Comm
     let options = InitOptions {
         es_module: args.effective_init_type(config) == InitType::Module,
         pinned_pnpm_version: pinned_pnpm_version(args, config, ctx.dir),
+        author: InitAuthor {
+            name: config.init_author_name.as_deref(),
+            email: config.init_author_email.as_deref(),
+            url: config.init_author_url.as_deref(),
+        },
+        license: config.init_license.as_deref(),
+        version: config.init_version.as_deref(),
     };
     let result =
         PackageManifest::init(ctx.manifest_path, options).wrap_err("initialize package.json");

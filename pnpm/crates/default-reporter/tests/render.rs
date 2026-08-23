@@ -17,7 +17,7 @@ use pnpm_reporter::{
     PackageManifestLog, PackageManifestMessage, PnpmErrorLog, PnpmLog, ProgressLog,
     ProgressMessage, RootLog, RootMessage, ScopeLog, SkippedOptionalDependencyLog,
     SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
-    StatsLog, StatsMessage, SummaryLog,
+    StatsLog, StatsMessage, SummaryLog, UpdateCheckLog,
 };
 
 const CWD: &str = "/repo";
@@ -1322,6 +1322,36 @@ fn the_ignored_builds_instruction_can_be_replaced() {
     assert!(frame.contains("Ignored build scripts: esbuild."), "frame: {frame}");
     assert!(frame.contains("Set allowScripts in workspace.jsonc."), "frame: {frame}");
     assert!(!frame.contains("pnpm approve-builds"), "frame: {frame}");
+}
+
+fn update_check(current_version: &str, latest_version: &str) -> LogEvent {
+    LogEvent::UpdateCheck(UpdateCheckLog {
+        level: LogLevel::Debug,
+        current_version: current_version.to_string(),
+        latest_version: latest_version.to_string(),
+    })
+}
+
+#[test]
+fn a_newer_pnpm_is_announced_with_its_changelog() {
+    let mut reporter = state(false);
+
+    let frame = render(&mut reporter, vec![update_check("11.22.0", "12.0.0")]);
+
+    assert!(frame.contains("Update available! 11.22.0 → 12.0.0."), "frame: {frame}");
+    assert!(frame.contains("Changelog: https://pnpm.io/v/12.0.0"), "frame: {frame}");
+    assert!(frame.contains("To update, run: "), "frame: {frame}");
+}
+
+/// The registry's `latest` trails a prerelease build of the next major, so
+/// the notice would be an invitation to downgrade.
+#[test]
+fn nothing_is_announced_unless_the_latest_version_is_ahead() {
+    let mut reporter = state(false);
+
+    assert_eq!(render(&mut reporter, vec![update_check("12.0.0", "11.22.0")]), "");
+    assert_eq!(render(&mut reporter, vec![update_check("12.0.0", "12.0.0")]), "");
+    assert_eq!(render(&mut reporter, vec![update_check("12.0.0-rc.8", "11.22.0")]), "");
 }
 
 #[test]
