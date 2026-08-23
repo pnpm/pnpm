@@ -959,6 +959,9 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                         .iter()
                         .find(|selector| matcher_one(&selector.pattern).matches(name))
                         .and_then(|selector| selector.version.clone());
+                    let requested_is_tag = requested.as_deref().is_some_and(|specifier| {
+                        get_version_selector_type(specifier) == Some(VersionSelectorType::Tag)
+                    });
                     // A cataloged dependency writes `catalog:` to the manifest, so a version
                     // named on the command line only reaches the lockfile as a preference.
                     if let Some(version) = requested.as_deref() {
@@ -995,6 +998,19 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                                 }));
                                 None
                             }
+                        }
+                    } else if save && requested_is_tag {
+                        if parse_catalog_protocol(previous).is_some() {
+                            None
+                        } else {
+                            latest_specifier(
+                                &rewrite_ctx,
+                                latest_chain,
+                                &mut catalog_ctx,
+                                name,
+                                previous,
+                            )
+                            .await?
                         }
                     } else {
                         if save && requested.is_none() {

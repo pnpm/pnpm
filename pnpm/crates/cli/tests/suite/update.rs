@@ -1870,7 +1870,7 @@ fn update_selectors_override_ignore_dependencies() {
     anchor.set_dist_tag(FOO, "100.0.0", "latest");
     anchor.set_dist_tag(BAR, "100.0.0", "latest");
 
-    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "100.0.0", "{BAR}": "100.0.0" }}"#));
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "100.0.0", "{BAR}": "^100.0.0" }}"#));
     set_ignore_dependencies(&workspace, &[FOO]);
     pacquet(&workspace, ["install"]).assert().success();
 
@@ -1888,6 +1888,24 @@ fn update_selectors_override_ignore_dependencies() {
     let packages = lockfile_package_keys(&workspace);
     assert!(packages.contains(&format!("{FOO}@100.1.0")), "{packages:?}");
     assert!(packages.contains(&format!("{BAR}@100.1.0")), "{packages:?}");
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("100.1.0"));
+    assert_eq!(dep_spec(&workspace, BAR).as_deref(), Some("^100.1.0"));
+
+    drop((root, anchor));
+}
+
+#[test]
+fn update_tag_selector_preserves_catalog_reference() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+    anchor.set_dist_tag(FOO, "100.0.0", "latest");
+    set_named_catalog(&workspace, "grp1", &[(FOO, "^100.0.0")]);
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:grp1" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    anchor.set_dist_tag(FOO, "100.1.0", "latest");
+    pacquet(&workspace, ["update", &format!("{FOO}@latest")]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:grp1"));
 
     drop((root, anchor));
 }
