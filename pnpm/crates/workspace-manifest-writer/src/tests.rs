@@ -861,19 +861,40 @@ fn ignore_ghsas_empty_with_sibling_only_is_a_noop() {
 }
 
 #[test]
-fn ignore_ghsas_refuses_inline_flow_audit_config() {
+fn ignore_ghsas_edits_an_inline_flow_audit_config() {
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
-    // A hand-written flow-style auditConfig: the block-splice writer can't
-    // safely edit it, so it must refuse instead of corrupting the file.
-    fs::write(&path, "auditConfig: { ignoreGhsas: [GHSA-aaaa-bbbb-cccc] }\n").expect("seed");
+    fs::write(
+        &path,
+        "auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [GHSA-aaaa-bbbb-cccc] }\n",
+    )
+    .expect("seed");
+
+    crate::set_audit_ignore_ghsas(dir.path(), &["GHSA-dddd-eeee-ffff".to_string()])
+        .expect("set_audit_ignore_ghsas succeeds");
+
+    let after = fs::read_to_string(&path).expect("read manifest");
+    assert_eq!(
+        after,
+        "auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [ GHSA-dddd-eeee-ffff ] }\n",
+    );
+}
+
+#[test]
+fn ignore_ghsas_refuses_a_multiline_flow_audit_config() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    // Rebuilding a multi-line flow mapping onto one line would drop the
+    // comments between its entries, so the write is refused instead.
+    let original = "auditConfig: {\n  ignoreGhsas: [GHSA-aaaa-bbbb-cccc], # pinned\n}\n";
+    fs::write(&path, original).expect("seed");
 
     let err = crate::set_audit_ignore_ghsas(dir.path(), &["GHSA-dddd-eeee-ffff".to_string()])
-        .expect_err("must refuse an inline auditConfig");
+        .expect_err("must refuse a multi-line inline auditConfig");
 
     assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
     let after = fs::read_to_string(&path).expect("read manifest");
-    assert_eq!(after, "auditConfig: { ignoreGhsas: [GHSA-aaaa-bbbb-cccc] }\n");
+    assert_eq!(after, original);
 }
 
 /// Run `set_minimum_release_age_excludes` against `original` and return the
@@ -941,18 +962,42 @@ fn set_overrides_refuses_to_clobber_a_non_scalar_value() {
 }
 
 #[test]
-fn set_overrides_refuses_inline_flow_block() {
+fn set_overrides_edits_an_inline_flow_block() {
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
-    // A hand-written flow-style overrides block can't be block-spliced safely.
-    fs::write(&path, "overrides: { foo: 1.0.0 }\n").expect("seed manifest");
+    fs::write(&path, "overrides: { foo: 1.0.0 } # pinned\n").expect("seed manifest");
 
-    let err = crate::set_overrides(dir.path(), [("bar@<2.0.0", "^2.0.0")])
-        .expect_err("must refuse an inline overrides block");
+    crate::set_overrides(dir.path(), [("bar", "^2.0.0")]).expect("set_overrides succeeds");
+
+    let after = fs::read_to_string(&path).expect("read manifest");
+    assert_eq!(after, "overrides: { bar: ^2.0.0, foo: 1.0.0 } # pinned\n");
+}
+
+#[test]
+fn set_overrides_updates_an_entry_of_an_inline_flow_block() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    fs::write(&path, "overrides: { 'foo': \"1.0.0\", bar: 2.0.0 }\n").expect("seed manifest");
+
+    crate::set_overrides(dir.path(), [("foo", "^3.0.0")]).expect("set_overrides succeeds");
+
+    let after = fs::read_to_string(&path).expect("read manifest");
+    assert_eq!(after, "overrides: { 'foo': ^3.0.0, bar: 2.0.0 }\n");
+}
+
+#[test]
+fn set_overrides_refuses_a_multiline_flow_block() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    let original = "overrides: {\n  foo: 1.0.0, # pinned\n}\n";
+    fs::write(&path, original).expect("seed manifest");
+
+    let err = crate::set_overrides(dir.path(), [("bar", "^2.0.0")])
+        .expect_err("must refuse a multi-line inline overrides block");
 
     assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
     let after = fs::read_to_string(&path).expect("read manifest");
-    assert_eq!(after, "overrides: { foo: 1.0.0 }\n");
+    assert_eq!(after, original);
 }
 
 #[test]
@@ -1073,7 +1118,7 @@ fn remove_overrides_is_a_noop_when_the_manifest_is_missing() {
 fn remove_overrides_handles_flow_style_mappings() {
     let original = "overrides: { foo: link:../foo, bar: 1.0.0 }\n";
     let out = run_remove_overrides(Some(original), &["foo"]).expect("file kept");
-    assert_eq!(out, "overrides:\n  bar: 1.0.0\n");
+    assert_eq!(out, "overrides: { bar: 1.0.0 }\n");
 }
 
 #[test]
@@ -1128,13 +1173,12 @@ fn allow_builds_clearing_legacy_is_a_noop_when_the_manifest_is_missing() {
 }
 
 #[test]
-fn remove_overrides_leaves_flow_style_block_with_non_string_entries_untouched() {
-    // A flow-style block can only be rewritten wholesale, and the decoded map
-    // cannot reserialize the non-string `bar`, so the file is left as-is rather
-    // than dropping data.
+fn remove_overrides_keeps_non_string_entries_of_a_flow_style_block() {
+    // The decoded map cannot reserialize the non-string `bar`, but the flow
+    // splice keeps its text, so the entry survives the removal of `foo`.
     let original = "overrides: { foo: link:../foo, bar: { nested: value } }\n";
     let out = run_remove_overrides(Some(original), &["foo"]).expect("file kept");
-    assert_eq!(out, original);
+    assert_eq!(out, "overrides: { bar: { nested: value } }\n");
 }
 
 // --- generic top-level field set/delete (pnpm config set / delete) ---
@@ -1313,15 +1357,20 @@ mod remove_unused_catalogs {
         );
     }
 
-    /// A flow-style `catalogs:` mapping exposes no line entries for the
-    /// partial named-catalog drop, so it is left untouched — the same
-    /// conservative stance the entry-level removals take.
     #[test]
-    fn leaves_a_flow_style_catalogs_mapping_untouched() {
+    fn prunes_a_flow_style_catalogs_mapping() {
         let consumer = project(serde_json::json!({ "dependencies": { "def": "catalog:bar" } }));
         let original = "catalogs: { foo: { abc: 0.1.2 }, bar: { def: 3.2.1 } }\n";
         let out = run_cleanup(Some(original), None, &[&consumer]);
-        assert_eq!(out.as_deref(), Some(original));
+        assert_eq!(out.as_deref(), Some("catalogs: { bar: { def: 3.2.1 } }\n"));
+    }
+
+    #[test]
+    fn prunes_the_entries_of_a_flow_style_named_catalog() {
+        let consumer = project(serde_json::json!({ "dependencies": { "abc": "catalog:foo" } }));
+        let original = "catalogs: { foo: { abc: 0.1.2, ghi: 7.8.9 } }\n";
+        let out = run_cleanup(Some(original), None, &[&consumer]);
+        assert_eq!(out.as_deref(), Some("catalogs: { foo: { abc: 0.1.2 } }\n"));
     }
 
     /// TS: `keep catalogs referenced only in workspace overrides`.
@@ -1625,4 +1674,234 @@ fn prune_allow_builds_prunes_an_escaped_quoted_key() {
     let original = "allowBuilds:\n  \"\\u0066oo\": set this to true or false\n  bar: true\n";
     let out = run_prune_allow_builds(Some(original), &[]);
     assert_eq!(out.as_deref(), Some("allowBuilds:\n  bar: true\n"));
+}
+
+/// Every writer edits a hand-written single-line flow collection in place,
+/// matching what the TypeScript writer's yaml library emits, and refuses a
+/// multi-line one rather than dropping the comments between its entries.
+mod flow_style {
+    use super::{
+        TempDir, UpdateWorkspaceManifestOptions, WORKSPACE_MANIFEST_FILENAME, catalogs, fs, run,
+        run_age_excludes, run_allow_builds, run_config_dep, run_ignore_ghsas, run_patched_deps,
+        run_remove_overrides, run_scaffold_allow_builds, update_workspace_manifest,
+    };
+
+    #[test]
+    fn catalog_entry_is_added_to_a_flow_mapping() {
+        let out = run(
+            Some("catalog: { foo: ^1.0.0 }\n"),
+            &catalogs(&[("default", &[("bar", "^2.0.0")])]),
+        );
+        assert_eq!(out.as_deref(), Some("catalog: { bar: ^2.0.0, foo: ^1.0.0 }\n"));
+    }
+
+    #[test]
+    fn catalog_entry_is_updated_in_a_flow_mapping() {
+        let out = run(
+            Some("catalog: { foo: ^1.0.0 } # pins\n"),
+            &catalogs(&[("default", &[("foo", "^2.0.0")])]),
+        );
+        assert_eq!(out.as_deref(), Some("catalog: { foo: ^2.0.0 } # pins\n"));
+    }
+
+    #[test]
+    fn named_catalog_entry_is_added_to_a_nested_flow_mapping() {
+        let out = run(
+            Some("catalogs: { myCatalog: { foo: ^1.0.0 } }\n"),
+            &catalogs(&[("myCatalog", &[("bar", "^2.0.0")])]),
+        );
+        assert_eq!(out.as_deref(), Some("catalogs: { myCatalog: { bar: ^2.0.0, foo: ^1.0.0 } }\n"));
+    }
+
+    #[test]
+    fn a_new_named_catalog_is_added_to_a_flow_catalogs_mapping() {
+        let out = run(
+            Some("catalogs: { myCatalog: { foo: ^1.0.0 } }\n"),
+            &catalogs(&[("newCatalog", &[("bar", "^2.0.0")])]),
+        );
+        assert_eq!(
+            out.as_deref(),
+            Some("catalogs: { myCatalog: { foo: ^1.0.0 }, newCatalog: { bar: ^2.0.0 } }\n"),
+        );
+    }
+
+    #[test]
+    fn config_dependency_is_added_to_a_flow_mapping() {
+        let out = run_config_dep(Some("configDependencies: { foo: 1.0.0 }\n"), "bar", "2.0.0");
+        assert_eq!(out, "configDependencies: { bar: 2.0.0, foo: 1.0.0 }\n");
+    }
+
+    #[test]
+    fn allow_build_is_added_to_a_flow_mapping() {
+        let out = run_allow_builds(Some("allowBuilds: { foo: true }\n"), &[("bar", false)]);
+        assert_eq!(out.as_deref(), Some("allowBuilds: { bar: false, foo: true }\n"));
+    }
+
+    #[test]
+    fn allow_build_is_updated_in_a_flow_mapping() {
+        let out = run_allow_builds(Some("allowBuilds: { foo: true }\n"), &[("foo", false)]);
+        assert_eq!(out.as_deref(), Some("allowBuilds: { foo: false }\n"));
+    }
+
+    #[test]
+    fn undecided_allow_build_is_added_to_a_flow_mapping() {
+        let out = run_scaffold_allow_builds(Some("allowBuilds: { foo: true }\n"), &["bar"]);
+        assert_eq!(
+            out.as_deref(),
+            Some("allowBuilds: { bar: set this to true or false, foo: true }\n"),
+        );
+    }
+
+    #[test]
+    fn undecided_allow_build_leaves_a_decided_flow_entry_alone() {
+        let original = "allowBuilds: { foo: true }\n";
+        let out = run_scaffold_allow_builds(Some(original), &["foo"]);
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    #[test]
+    fn patched_dependency_is_added_to_a_flow_mapping() {
+        let out = run_patched_deps(
+            Some("patchedDependencies: { foo: patches/foo.patch }\n"),
+            &[("foo", "patches/foo.patch"), ("bar", "patches/bar.patch")],
+        );
+        assert_eq!(
+            out,
+            "patchedDependencies: { bar: patches/bar.patch, foo: patches/foo.patch }\n",
+        );
+    }
+
+    #[test]
+    fn omitted_patched_dependency_is_dropped_from_a_flow_mapping() {
+        let out = run_patched_deps(
+            Some("patchedDependencies: { foo: patches/foo.patch, bar: patches/bar.patch }\n"),
+            &[("bar", "patches/bar.patch")],
+        );
+        assert_eq!(out, "patchedDependencies: { bar: patches/bar.patch }\n");
+    }
+
+    #[test]
+    fn minimum_release_age_excludes_stay_a_flow_sequence() {
+        let out = run_age_excludes(
+            Some("minimumReleaseAgeExclude: [foo@1.0.0]\n"),
+            &["foo@1.0.0", "bar@2.0.0"],
+        );
+        assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude: [ foo@1.0.0, bar@2.0.0 ]\n"));
+    }
+
+    #[test]
+    fn ignore_ghsas_stay_a_flow_sequence_under_a_block_audit_config() {
+        let out = run_ignore_ghsas(
+            Some("auditConfig:\n  ignoreGhsas: [GHSA-aaaa-bbbb-cccc, GHSA-dddd-eeee-ffff]\n"),
+            &["GHSA-gggg-hhhh-iiii"],
+        );
+        assert_eq!(out.as_deref(), Some("auditConfig:\n  ignoreGhsas: [ GHSA-gggg-hhhh-iiii ]\n"));
+    }
+
+    #[test]
+    fn ignore_ghsas_are_added_to_a_flow_audit_config() {
+        let out = run_ignore_ghsas(Some("auditConfig: {}\n"), &["GHSA-aaaa-bbbb-cccc"]);
+        assert_eq!(out.as_deref(), Some("auditConfig: { ignoreGhsas: [ GHSA-aaaa-bbbb-cccc ] }\n"));
+    }
+
+    #[test]
+    fn a_multiline_flow_mapping_is_refused_rather_than_flattened() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+        let original = "allowBuilds: {\n  foo: true, # decided\n}\n";
+        fs::write(&path, original).expect("seed manifest");
+
+        let err = crate::set_allow_builds(dir.path(), [("bar", true)])
+            .expect_err("must refuse a multi-line inline allowBuilds block");
+
+        assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
+        assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
+    }
+
+    #[test]
+    fn a_multiline_flow_sequence_is_refused_rather_than_rewritten() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+        let original = "minimumReleaseAgeExclude: [\n  foo@1.0.0, # pinned\n  bar@2.0.0,\n]\n";
+        fs::write(&path, original).expect("seed manifest");
+
+        let err = crate::set_minimum_release_age_excludes(dir.path(), &["baz@3.0.0".to_string()])
+            .expect_err("must refuse a multi-line inline sequence");
+
+        assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
+        assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
+    }
+
+    #[test]
+    fn a_multiline_flow_block_is_dropped_whole_when_it_empties() {
+        let original = "packages:\n  - '*'\noverrides: {\n  foo: link:../foo, # pinned\n}\n";
+        let out = run_remove_overrides(Some(original), &["foo"]).expect("file kept");
+        assert_eq!(out, "packages:\n  - '*'\n");
+    }
+
+    #[test]
+    fn a_multiline_flow_block_is_deleted_whole_by_config_delete() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+        fs::write(&path, "overrides: {\n  foo: 1.0.0, # pinned\n}\npackages:\n  - '*'\n")
+            .expect("seed manifest");
+
+        crate::update_manifest_field(&path, "overrides", &serde_json::Value::Null)
+            .expect("update_manifest_field succeeds");
+
+        assert_eq!(fs::read_to_string(&path).expect("read manifest"), "packages:\n  - '*'\n");
+    }
+
+    /// A block whose value has the wrong shape for its setting never reaches
+    /// the writers: the typed parse rejects the manifest first.
+    #[test]
+    fn a_flow_collection_of_the_wrong_kind_fails_to_parse() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+        let original = "allowBuilds: [ foo ]\n";
+        fs::write(&path, original).expect("seed manifest");
+
+        let err = crate::set_allow_builds(dir.path(), [("bar", true)])
+            .expect_err("must refuse a sequence where allowBuilds expects a mapping");
+
+        assert!(matches!(err, crate::UpdateWorkspaceManifestError::Parse { .. }));
+        assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
+    }
+
+    #[test]
+    fn a_whole_document_flow_mapping_is_refused_rather_than_corrupted() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+        // The keys of a document written as one flow mapping are not
+        // top-level lines, so no splice — nor a new top-level block — can
+        // address them.
+        let original = "{ overrides: { foo: 1.0.0 } }\n";
+        fs::write(&path, original).expect("seed manifest");
+
+        let err = crate::set_overrides(dir.path(), [("bar", "2.0.0")])
+            .expect_err("must refuse a whole-document flow mapping");
+
+        assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
+        assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
+    }
+
+    #[test]
+    fn an_aliased_block_is_refused_rather_than_corrupted() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+        let original = "catalog: &pins { foo: ^1.0.0 }\ncatalogs: { other: *pins }\n";
+        fs::write(&path, original).expect("seed manifest");
+
+        let err = update_workspace_manifest(
+            dir.path(),
+            &UpdateWorkspaceManifestOptions {
+                updated_catalogs: Some(&catalogs(&[("other", &[("bar", "^2.0.0")])])),
+                ..Default::default()
+            },
+        )
+        .expect_err("must refuse an aliased catalog block");
+
+        assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
+        assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
+    }
 }
