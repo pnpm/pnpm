@@ -76,6 +76,23 @@ fn build_appends_run_order(name: &str) -> Value {
     })
 }
 
+fn write_concurrency_probe(workspace: &Path) {
+    fs::write(
+        workspace.join("track-concurrency.sh"),
+        r#"marker=../active-$(basename "$PWD")
+mkdir "$marker"
+sleep 0.2
+set -- ../active-*
+[ -e "$1" ] || set --
+[ "$#" -ge 2 ] && touch ../saw-parallel
+[ "$#" -gt 2 ] && touch ../exceeded-concurrency
+sleep 0.2
+rmdir "$marker"
+"#,
+    )
+    .expect("write concurrency probe");
+}
+
 /// `pacquet -r run <script>` runs the script in every workspace project,
 /// in topological order derived from the workspace dependency graph.
 #[test]
@@ -101,6 +118,37 @@ fn recursive_run_executes_script_in_every_project() {
     assert!(
         !workspace.join("ran.txt").exists(),
         "scripts must run from each package root, not the workspace root",
+    );
+
+    drop(root);
+}
+
+#[test]
+fn recursive_run_respects_workspace_concurrency() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = |name: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "scripts": { "build": "sh ../track-concurrency.sh" },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", manifest("project-1")),
+            ("project-2", manifest("project-2")),
+            ("project-3", manifest("project-3")),
+        ],
+    );
+    write_concurrency_probe(&workspace);
+
+    pacquet.with_args(["--workspace-concurrency=2", "-r", "run", "build"]).assert().success();
+
+    assert!(workspace.join("saw-parallel").exists(), "two scripts should overlap");
+    assert!(
+        !workspace.join("exceeded-concurrency").exists(),
+        "no more than two scripts should overlap",
     );
 
     drop(root);
@@ -1013,6 +1061,7 @@ fn recursive_run_mixed_filter_runs_prod_selected_before_regular() {
     );
 
     pacquet
+        .with_arg("--workspace-concurrency=1")
         .with_arg("-r")
         .with_arg("--filter")
         .with_arg("alpha")
@@ -1065,20 +1114,23 @@ fn recursive_run_no_sort_uses_workspace_order() {
         &workspace,
         &[
             (
-                "app",
+                "z-app",
                 json!({
-                    "name": "app",
+                    "name": "z-app",
                     "version": "1.0.0",
-                    "scripts": { "build": "echo app >> ../order.log" },
-                    "dependencies": { "lib": "workspace:*" },
+                    "scripts": { "build": "echo z-app >> ../order.log" },
+                    "dependencies": { "a-lib": "workspace:*" },
                 }),
             ),
-            ("lib", build_appends_run_order("lib")),
+            ("a-lib", build_appends_run_order("a-lib")),
         ],
     );
 
     pacquet
+        .with_arg("--workspace-concurrency=1")
         .with_arg("--no-sort")
+        .with_arg("--filter-prod=z-app")
+        .with_arg("--filter=a-lib")
         .with_arg("-r")
         .with_arg("run")
         .with_arg("build")
@@ -1086,7 +1138,38 @@ fn recursive_run_no_sort_uses_workspace_order() {
         .success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
-    assert_eq!(order, "app\nlib\n");
+    assert_eq!(order, "z-app\na-lib\n");
+
+    drop(root);
+}
+
+#[test]
+fn recursive_run_no_sort_reverse_and_resume_transform_workspace_order() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("z-first", build_appends_run_order("z-first")),
+            ("m-middle", build_appends_run_order("m-middle")),
+            ("a-last", build_appends_run_order("a-last")),
+        ],
+    );
+
+    pacquet
+        .with_args([
+            "--workspace-concurrency=1",
+            "--no-sort",
+            "--reverse",
+            "--resume-from=m-middle",
+            "-r",
+            "run",
+            "build",
+        ])
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "m-middle\na-last\n");
 
     drop(root);
 }
@@ -1112,7 +1195,7 @@ fn recursive_run_reads_sort_from_workspace_config() {
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - app\n  - lib\nsort: false\n")
         .expect("write workspace settings");
 
-    pacquet.with_args(["-r", "run", "build"]).assert().success();
+    pacquet.with_args(["--workspace-concurrency=1", "-r", "run", "build"]).assert().success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     assert_eq!(order, "app\nlib\n");
@@ -1278,6 +1361,34 @@ fn recursive_run_report_summary_records_every_package_status() {
 }
 
 #[test]
+fn recursive_run_bail_summary_records_every_completed_batch_result() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = |name: &str, body: &str| json!({ "name": name, "version": "1.0.0", "scripts": { "build": body } });
+    write_workspace(
+        &workspace,
+        &[("fails", manifest("fails", "exit 1")), ("passes", manifest("passes", "true"))],
+    );
+
+    pacquet
+        .with_args([
+            "--workspace-concurrency=2",
+            "--no-sort",
+            "--report-summary",
+            "-r",
+            "run",
+            "build",
+        ])
+        .assert()
+        .failure();
+
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(statuses.get("fails").map(String::as_str), Some("failure"));
+    assert_eq!(statuses.get("passes").map(String::as_str), Some("passed"));
+
+    drop(root);
+}
+
+#[test]
 fn recursive_run_reads_bail_from_workspace_config() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
@@ -1334,6 +1445,7 @@ fn recursive_run_bail_writes_summary_then_stops_at_first_failure() {
     );
 
     let output = pacquet
+        .with_arg("--workspace-concurrency=1")
         .with_arg("-r")
         .with_arg("run")
         .with_arg("--report-summary")

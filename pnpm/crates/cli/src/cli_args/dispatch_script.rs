@@ -114,14 +114,16 @@ pub(super) fn fallback<'a>(
 }
 
 pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.config)()?;
+    let config: &'static Config = (ctx.config)()?;
     let args = with_recursive_exec_options(ctx, args, config);
     if ctx.recursive {
-        args.run_recursive(config, ctx.dir, reporter_emit(ctx.reporter))?;
+        let dir = ctx.dir;
+        let emit = reporter_emit(ctx.reporter);
+        Ok(Box::pin(async move { args.run_recursive(config, dir, emit).await }))
     } else {
         args.run(ctx.dir, config)?;
+        Ok(Box::pin(std::future::ready(Ok(()))))
     }
-    Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
 fn with_recursive_run_options(ctx: &RunCtx<'_>, mut args: RunArgs, config: &Config) -> RunArgs {
@@ -141,6 +143,7 @@ fn with_recursive_exec_options(ctx: &RunCtx<'_>, mut args: ExecArgs, config: &Co
     args.no_bail = !config.bail;
     args.sort = config.sort;
     args.reverse = config.reverse;
+    args.parallel = ctx.recursive_parallel;
     args
 }
 

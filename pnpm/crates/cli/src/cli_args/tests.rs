@@ -297,6 +297,16 @@ fn parallel_before_run_is_a_recursive_unsorted_run_option() {
 }
 
 #[test]
+fn parallel_before_exec_is_a_recursive_unsorted_exec_option() {
+    let mut parsed = CliArgs::try_parse_from(["pacquet", "--parallel", "exec", "echo"])
+        .expect("parses --parallel before exec");
+    parsed.validate_command_scoped_global_options().expect("exec accepts --parallel");
+    parsed.apply_parallel_run_options();
+    assert!(parsed.recursive);
+    assert!(parsed.no_sort);
+}
+
+#[test]
 fn parallel_after_run_script_is_forwarded_to_the_script() {
     let parsed = CliArgs::try_parse_from(["pacquet", "run", "build", "--parallel"])
         .expect("parses --parallel as a script argument");

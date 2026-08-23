@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto'
+import fs from 'node:fs'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
+import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
@@ -150,6 +152,133 @@ test('batch publish sends all packages in a single batch publish request', async
   expect(dist.integrity).toBe(`sha512-${createHash('sha512').update(tarballData).digest('base64')}`)
   expect(dist.shasum).toBe(createHash('sha1').update(tarballData).digest('hex'))
   expect(dist.tarball).toBe(`${registry.url}@pnpmtest/batch-pkg-1/-/@pnpmtest/batch-pkg-1-1.0.0.tgz`)
+})
+
+test('batch publish runs completed group postpublish scripts before a later registry fails', async () => {
+  const failingRegistry = await createRegistryStub()
+  try {
+    failingRegistry.multiPublishStatusCode = 500
+    preparePackages([
+      {
+        name: 'batch-postpublish-first',
+        version: '1.0.0',
+        publishConfig: { registry: registry.url },
+        scripts: {
+          postpublish: 'node -e "require(\'fs\').writeFileSync(\'post-published\', \'\')"',
+        },
+      },
+      {
+        name: 'batch-postpublish-second',
+        version: '1.0.0',
+        dependencies: { 'batch-postpublish-first': '1.0.0' },
+        publishConfig: { registry: failingRegistry.url },
+        scripts: {
+          postpublish: 'node -e "require(\'fs\').writeFileSync(\'post-published\', \'\')"',
+        },
+      },
+    ])
+    const workspaceDir = process.cwd()
+
+    await expect(publish.handler({
+      ...batchPublishOpts(),
+      ...await filterProjectsBySelectorObjectsFromDir(workspaceDir, [], { linkWorkspacePackages: true }),
+      force: true,
+    }, [])).rejects.toBeDefined()
+
+    expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')).toHaveLength(1)
+    expect(failingRegistry.received.filter(({ url }) => url === '/-/pnpm/v1/publish').length).toBeGreaterThan(0)
+    expect(fs.existsSync(path.join(workspaceDir, 'batch-postpublish-first', 'post-published'))).toBe(true)
+    expect(fs.existsSync(path.join(workspaceDir, 'batch-postpublish-second', 'post-published'))).toBe(false)
+  } finally {
+    await failingRegistry.close()
+  }
+})
+
+test('batch publish accepts one scope credential for every package', async () => {
+  preparePackages([
+    {
+      name: '@scope/batch-pkg-1',
+      version: '1.0.0',
+    },
+    {
+      name: '@scope/batch-pkg-2',
+      version: '1.0.0',
+    },
+  ])
+
+  await publish.handler({
+    ...batchPublishOpts(),
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: {
+      [registry.url.replace(/^http:/, '')]: {
+        '@scope': { authToken: 'scope-token' },
+      },
+    },
+  }, [])
+
+  const publishRequests = registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')
+  expect(publishRequests).toHaveLength(1)
+  expect(publishRequests[0].headers.authorization).toBe('Bearer scope-token')
+})
+
+test('batch publish accepts equivalent credentials configured differently', async () => {
+  preparePackages([
+    {
+      name: '@scope/batch-pkg-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'batch-pkg-2',
+      version: '1.0.0',
+    },
+  ])
+  const tokenHelper = path.join(
+    import.meta.dirname,
+    'utils',
+    process.platform === 'win32' ? 'tokenHelperBasic.bat' : 'tokenHelperBasic.js'
+  )
+  fs.chmodSync(tokenHelper, 0o755)
+
+  await publish.handler({
+    ...batchPublishOpts(),
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: {
+      [registry.url.replace(/^http:/, '')]: {
+        '@': { authToken: getRegistryMockToken() },
+        '@scope': { tokenHelper: [tokenHelper] },
+      },
+    },
+  }, [])
+
+  const publishRequests = registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')
+  expect(publishRequests).toHaveLength(1)
+  expect(publishRequests[0].headers.authorization).toBe(`Bearer ${getRegistryMockToken()}`)
+})
+
+test('batch publish rejects different credentials for one registry before publishing', async () => {
+  preparePackages([
+    {
+      name: '@scope/batch-pkg-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'batch-pkg-2',
+      version: '1.0.0',
+    },
+  ])
+
+  await expect(publish.handler({
+    ...batchPublishOpts(),
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: {
+      [registry.url.replace(/^http:/, '')]: {
+        '@': { authToken: 'registry-token' },
+        '@scope': { authToken: 'scope-token' },
+      },
+    },
+  }, [])).rejects.toMatchObject({ code: 'ERR_PNPM_BATCH_PUBLISH_CONFLICTING_CREDENTIALS' })
+
+  expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')).toHaveLength(0)
 })
 
 test('batch publish sends configured OTP on the first publish request', async () => {

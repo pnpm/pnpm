@@ -54,6 +54,10 @@ pub struct ExecArgs {
     /// Reverse the project order of a recursive exec.
     #[clap(skip = true)]
     pub reverse: bool,
+
+    /// Run every selected project concurrently, without a concurrency cap.
+    #[clap(skip = true)]
+    pub parallel: bool,
 }
 
 /// Errors from `pacquet exec`.
@@ -110,14 +114,14 @@ impl ExecArgs {
     /// Execute the command across the `--filter`-selected workspace
     /// projects, in topological order. The recursive counterpart of
     /// [`Self::run`], selected when the global `-r` / `--recursive` flag is set.
-    pub fn run_recursive(
+    pub async fn run_recursive(
         &self,
         config: &Config,
         dir: &Path,
         emit: fn(&LogEvent),
     ) -> miette::Result<()> {
         super::verify_deps::verify_deps_before_run(dir, config, false)?;
-        recursive::exec_recursive(self, config, dir, emit)
+        recursive::exec_recursive(self, config, dir, emit).await
     }
 }
 
@@ -155,6 +159,61 @@ pub(super) fn spawn_in_dir(
     shell_mode: bool,
     output: ScriptOutput<'_>,
 ) -> Result<ExitStatus, ExecError> {
+    let mut cmd = command_in_dir(command, dir, config, shell_mode)?;
+    let ScriptOutput::Streamed { dep_path, emit } = output else {
+        return cmd
+            .status()
+            .map_err(|source| ExecError::Spawn { command: command[0].clone(), source });
+    };
+    let wd = dir.to_string_lossy();
+    let streamed = StreamedScript { dep_path, stage: EXEC_STAGE, wd: &wd, emit };
+    let mut child = cmd
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
+    let status = streamed
+        .pump(&mut child)
+        .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
+    streamed.finished(status.code().unwrap_or(-1));
+    Ok(status)
+}
+
+pub(super) async fn spawn_async_in_dir(
+    command: &[String],
+    dir: &Path,
+    config: &Config,
+    shell_mode: bool,
+    output: ScriptOutput<'_>,
+) -> Result<ExitStatus, ExecError> {
+    let cmd = command_in_dir(command, dir, config, shell_mode)?;
+    let mut cmd = tokio::process::Command::from(cmd);
+    cmd.kill_on_drop(true);
+    let ScriptOutput::Streamed { dep_path, emit } = output else {
+        return cmd
+            .status()
+            .await
+            .map_err(|source| ExecError::Spawn { command: command[0].clone(), source });
+    };
+    let wd = dir.to_string_lossy();
+    let streamed = StreamedScript { dep_path, stage: EXEC_STAGE, wd: &wd, emit };
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child =
+        cmd.spawn().map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
+    let status = streamed
+        .pump_async(&mut child)
+        .await
+        .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
+    streamed.finished(status.code().unwrap_or(-1));
+    Ok(status)
+}
+
+fn command_in_dir(
+    command: &[String],
+    dir: &Path,
+    config: &Config,
+    shell_mode: bool,
+) -> Result<Command, ExecError> {
     // Prepend `./node_modules/.bin` (resolved against the project
     // directory) and then the `extraBinPaths`.
     let mut prepend = Vec::with_capacity(1 + config.extra_bin_paths.len());
@@ -214,25 +273,7 @@ pub(super) fn spawn_in_dir(
         cmd.env("NODE_OPTIONS", node_options);
     }
 
-    let ScriptOutput::Streamed { dep_path, emit } = output else {
-        return cmd
-            .status()
-            .map_err(|source| ExecError::Spawn { command: command[0].clone(), source });
-    };
-    // pnpm labels an exec'd command with a `(exec)` stage rather than a
-    // script name, since there is no script.
-    let wd = dir.to_string_lossy();
-    let streamed = StreamedScript { dep_path, stage: EXEC_STAGE, wd: &wd, emit };
-    let mut child = cmd
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
-    let status = streamed
-        .pump(&mut child)
-        .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
-    streamed.finished(status.code().unwrap_or(-1));
-    Ok(status)
+    Ok(cmd)
 }
 
 /// The `stage` pnpm stamps on the lifecycle events of an exec'd command.

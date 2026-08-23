@@ -8,15 +8,16 @@
 //! include and exclude selectors) narrow the selected set via
 //! [`select_recursive_projects`]; the selection is then sorted
 //! topologically by default, or kept in workspace order under `--no-sort`,
-//! reversed under `--reverse`, and run sequentially.
-//! `--workspace-concurrency` parallelism is not ported yet, matching the
-//! recursive `run` runner.
+//! reversed under `--reverse`, and run with `workspaceConcurrency` operations
+//! in flight within each dependency-independent chunk.
 
-use super::{ExecArgs, prepare_command, read_package_name, spawn_in_dir};
+use super::{
+    ExecArgs, ExecError, prepare_command, read_package_name, spawn_async_in_dir, spawn_in_dir,
+};
 use crate::cli_args::recursive::{
     AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-    get_resumed_package_chunks, select_recursive_projects, sort_filtered_projects,
-    write_recursive_summary,
+    get_resumed_package_chunks, run_workspace_chunk, select_recursive_projects,
+    sort_filtered_projects, write_recursive_summary,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -54,12 +55,17 @@ pub enum RecursiveExecError {
     },
 }
 
+struct ProjectExecution {
+    duration: f64,
+    message: Option<String>,
+}
+
 /// Run `args.command` across the `--filter`-selected workspace projects,
 /// sorted topologically. `dir` is the canonicalized working directory; the
 /// workspace root (and the directory the summary is written to) is
 /// `config.workspace_dir`, falling back to `dir` when no
 /// `pnpm-workspace.yaml` exists.
-pub fn exec_recursive(
+pub async fn exec_recursive(
     args: &ExecArgs,
     config: &Config,
     dir: &Path,
@@ -107,60 +113,66 @@ pub fn exec_recursive(
     if let Some(resume_from) = &args.resume_from {
         chunks = get_resumed_package_chunks(resume_from, chunks, graph)?;
     }
+    if !args.sort {
+        chunks = vec![chunks.into_iter().flatten().collect()];
+    }
 
     let bail = !args.no_bail;
     let mut result: IndexMap<PathBuf, ExecutionStatus> =
         chunks.iter().flatten().map(|root| (root.clone(), ExecutionStatus::queued())).collect();
 
     for chunk in &chunks {
-        for root in chunk {
-            result[root].status = Status::Running;
-            let start = Instant::now();
-            // pnpm names the package, falling back to the project's
-            // path relative to the working directory.
-            let dep_path = show_prefix.then(|| {
-                read_package_name(root).unwrap_or_else(|| {
-                    pathdiff::diff_paths(root, dir)
-                        .unwrap_or_else(|| root.clone())
-                        .to_string_lossy()
-                        .into_owned()
-                })
-            });
-            let output = match &dep_path {
-                Some(dep_path) => ScriptOutput::Streamed { dep_path, emit },
-                None => ScriptOutput::Inherit,
+        let concurrency = if args.parallel {
+            chunk.len().max(1)
+        } else {
+            usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1)
+        };
+        let batch_size = if bail { concurrency } else { chunk.len().max(1) };
+        for batch in chunk.chunks(batch_size) {
+            for root in batch {
+                result[root].status = Status::Running;
+            }
+            let executions = if args.parallel {
+                futures_util::future::join_all(batch.iter().map(|root| async {
+                    let start = Instant::now();
+                    let dep_path = project_dep_path(root, dir, show_prefix);
+                    let output = project_output(dep_path.as_deref(), emit);
+                    let outcome =
+                        spawn_async_in_dir(&command, root, config, args.shell_mode, output).await;
+                    project_execution(start, outcome)
+                }))
+                .await
+            } else {
+                run_workspace_chunk(batch, config.workspace_concurrency, |root| {
+                    let start = Instant::now();
+                    let dep_path = project_dep_path(root, dir, show_prefix);
+                    let output = project_output(dep_path.as_deref(), emit);
+                    let outcome = spawn_in_dir(&command, root, config, args.shell_mode, output);
+                    project_execution(start, outcome)
+                })?
             };
-            // A spawn / resolution error (e.g. command not found) is a
-            // per-project failure rather than a hard error: the error is
-            // recorded and the loop bails or continues like any other
-            // non-zero result.
-            let outcome = spawn_in_dir(&command, root, config, args.shell_mode, output);
-            let duration = start.elapsed().as_secs_f64() * 1e3;
-
-            let message = match outcome {
-                Ok(status) if status.success() => None,
-                Ok(status) => {
-                    Some(format!("command failed with exit code {}", status.code().unwrap_or(1)))
-                }
-                Err(error) => Some(error.to_string()),
-            };
-
-            let prefix = root.to_string_lossy().into_owned();
-            let entry = &mut result[root];
-            entry.duration = Some(duration);
-            match message {
-                None => entry.status = Status::Passed,
-                Some(message) => {
-                    entry.status = Status::Failure;
-                    entry.message = Some(message);
-                    entry.prefix = Some(prefix.clone());
-                    if bail {
-                        if args.report_summary {
-                            write_recursive_summary(workspace_root, &result)?;
+            let mut first_failure = None;
+            for (root, execution) in batch.iter().zip(executions) {
+                let prefix = root.to_string_lossy().into_owned();
+                let entry = &mut result[root];
+                entry.duration = Some(execution.duration);
+                match execution.message {
+                    None => entry.status = Status::Passed,
+                    Some(message) => {
+                        entry.status = Status::Failure;
+                        entry.message = Some(message);
+                        entry.prefix = Some(prefix.clone());
+                        if first_failure.is_none() {
+                            first_failure = Some(prefix);
                         }
-                        return Err(RecursiveExecError::RecursiveExecFirstFail { prefix }.into());
                     }
                 }
+            }
+            if bail && let Some(prefix) = first_failure {
+                if args.report_summary {
+                    write_recursive_summary(workspace_root, &result)?;
+                }
+                return Err(RecursiveExecError::RecursiveExecFirstFail { prefix }.into());
             }
         }
     }
@@ -174,4 +186,35 @@ pub fn exec_recursive(
         return Err(RecursiveExecError::RecursiveFail { count: failures }.into());
     }
     Ok(())
+}
+
+fn project_dep_path(root: &Path, dir: &Path, show_prefix: bool) -> Option<String> {
+    show_prefix.then(|| {
+        read_package_name(root).unwrap_or_else(|| {
+            pathdiff::diff_paths(root, dir)
+                .unwrap_or_else(|| root.to_path_buf())
+                .to_string_lossy()
+                .into_owned()
+        })
+    })
+}
+
+fn project_output(dep_path: Option<&str>, emit: fn(&LogEvent)) -> ScriptOutput<'_> {
+    match dep_path {
+        Some(dep_path) => ScriptOutput::Streamed { dep_path, emit },
+        None => ScriptOutput::Inherit,
+    }
+}
+
+fn project_execution(
+    start: Instant,
+    outcome: Result<std::process::ExitStatus, ExecError>,
+) -> ProjectExecution {
+    let duration = start.elapsed().as_secs_f64() * 1e3;
+    let message = match outcome {
+        Ok(status) if status.success() => None,
+        Ok(status) => Some(format!("command failed with exit code {}", status.code().unwrap_or(1))),
+        Err(error) => Some(error.to_string()),
+    };
+    ProjectExecution { duration, message }
 }

@@ -16,9 +16,11 @@ use crate::{
     State,
     cli_args::{
         add::{add_packages, apply_allow_build},
-        approve_builds::ApproveBuildsArgs,
+        approve_builds::{
+            ApproveBuildsArgs, clear_decided_ignored_builds, write_approval_settings,
+        },
         global_bin_lock::acquire_global_bin_lock,
-        ignored_builds::get_automatically_ignored_builds,
+        ignored_builds::{IgnoredBuildsScan, get_automatically_ignored_builds},
         rebuild::run_rebuild,
         shim::{
             record_package_manager_shims, virtual_shim_bins_to_restore, virtual_shim_owner,
@@ -744,6 +746,40 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
         .into_diagnostic()
         .wrap_err("create global install dir")?;
 
+    let mut cfg =
+        global_group_config(base_config, &install_dir, global_pkg_dir, supported_architectures)?;
+    apply_allow_build(&mut cfg, allow_build, global_pkg_dir)?;
+
+    let config: &'static Config = Config::leak(cfg);
+
+    let manifest_path = install_dir.join("package.json");
+    let selectors = selectors
+        .iter()
+        .map(|selector| infer_local_package_alias(selector))
+        .collect::<miette::Result<Vec<_>>>()?;
+    let state = State::init(manifest_path, config, false)
+        .wrap_err("initialize the global install state")?;
+    add_packages::<Reporter, _>(
+        state,
+        &selectors,
+        range_spec_style,
+        None,
+        false,
+        config.supported_architectures.clone(),
+        Some([DependencyGroup::Prod]),
+    )
+    .await?;
+
+    prompt_approve_global_builds::<Reporter>(config, &install_dir, global_pkg_dir).await?;
+    Ok((install_dir, config))
+}
+
+fn global_group_config(
+    base_config: &Config,
+    install_dir: &Path,
+    global_pkg_dir: &Path,
+    supported_architectures: Option<SupportedArchitectures>,
+) -> miette::Result<Config> {
     let mut cfg = base_config.clone();
     cfg.modules_dir = install_dir.join("node_modules");
     cfg.virtual_store_dir = install_dir.join("node_modules").join(".pnpm");
@@ -765,7 +801,7 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
     // that file as the workspace, and then fail trying to enumerate its
     // non-existent root project. Anchoring here keeps the group install an
     // isolated single project.
-    cfg.workspace_dir = Some(install_dir.clone());
+    cfg.workspace_dir = Some(install_dir.to_path_buf());
     cfg.supported_architectures = supported_architectures;
 
     // A global install is isolated from the caller's project, so it must
@@ -809,37 +845,87 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
             cfg.dangerously_allow_all_builds = allow_all;
         }
     }
-    // `pnpm add -g --allow-build=<pkg>` opts the named packages into their
-    // build scripts for this global install and persists them to the
-    // global `allowBuilds`, on top of the settings just loaded.
-    apply_allow_build(&mut cfg, allow_build, global_pkg_dir)?;
     // Don't fail the install when a dependency's build is ignored; the
     // global approval prompt (run after the install) records the ignored
     // builds and prompts rather than erroring under `strictDepBuilds`.
     cfg.strict_dep_builds = false;
 
-    let config: &'static Config = Config::leak(cfg);
+    Ok(cfg)
+}
 
-    let manifest_path = install_dir.join("package.json");
-    let selectors = selectors
-        .iter()
-        .map(|selector| infer_local_package_alias(selector))
-        .collect::<miette::Result<Vec<_>>>()?;
-    let state = State::init(manifest_path, config, false)
-        .wrap_err("initialize the global install state")?;
-    add_packages::<Reporter, _>(
-        state,
-        &selectors,
-        range_spec_style,
-        None,
-        false,
-        config.supported_architectures.clone(),
-        Some([DependencyGroup::Prod]),
-    )
-    .await?;
+pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
+    base_config: &'static Config,
+    args: ApproveBuildsArgs,
+) -> miette::Result<()> {
+    args.validate()?;
+    let global_pkg_dir = base_config.global_pkg_dir.as_ref().ok_or(GlobalError::NoGlobalBinDir)?;
+    let packages =
+        scan_global_packages(global_pkg_dir).into_diagnostic().wrap_err("scan global packages")?;
+    let mut groups: Vec<(PathBuf, IgnoredBuildsScan)> = Vec::new();
+    let mut pending = BTreeSet::new();
+    let canonical_global_pkg_dir = (!packages.is_empty())
+        .then(|| dunce::canonicalize(global_pkg_dir))
+        .transpose()
+        .into_diagnostic()
+        .wrap_err("resolve the global packages directory")?;
+    for package in packages {
+        if canonical_global_pkg_dir
+            .as_ref()
+            .is_some_and(|root| !is_subdir(root, &package.install_dir))
+        {
+            continue;
+        }
+        let config = global_group_config(
+            base_config,
+            &package.install_dir,
+            global_pkg_dir,
+            base_config.supported_architectures.clone(),
+        )?;
+        let scan = get_automatically_ignored_builds(&config)?;
+        if let Some(names) = &scan.names {
+            pending.extend(names.iter().cloned());
+        }
+        groups.push((package.install_dir, scan));
+    }
+    if pending.is_empty() {
+        println!("There are no packages awaiting approval");
+        return Ok(());
+    }
+    let pending = pending.into_iter().collect::<Vec<_>>();
+    let Some(decision) = args.decide(&pending)? else {
+        return Ok(());
+    };
 
-    prompt_approve_global_builds::<Reporter>(config, &install_dir, global_pkg_dir).await?;
-    Ok((install_dir, config))
+    write_approval_settings(global_pkg_dir, &decision)?;
+    let mut rebuild_groups = Vec::new();
+    for (install_dir, scan) in groups {
+        let build_packages: Vec<String> = decision
+            .build_packages
+            .iter()
+            .filter(|name| scan.names.as_ref().is_some_and(|names| names.contains(name)))
+            .cloned()
+            .collect();
+        clear_decided_ignored_builds(scan.modules_manifest, &scan.modules_dir, &decision)?;
+        if !build_packages.is_empty() {
+            rebuild_groups.push((install_dir, build_packages));
+        }
+    }
+    for (install_dir, build_packages) in rebuild_groups {
+        let config = Config::leak(global_group_config(
+            base_config,
+            &install_dir,
+            global_pkg_dir,
+            base_config.supported_architectures.clone(),
+        )?);
+        let state = State::init(install_dir.join("package.json"), config, true)
+            .wrap_err("initialize the global approve-builds state")?;
+        let selection = crate::cli_args::rebuild::RebuildSelection {
+            names: Some(build_packages),
+            projects: Vec::new(),
+        };
+        run_rebuild::<Reporter>(&state, selection, None).await?;
+    }
+    Ok(())
 }
 
 /// Run the interactive build-approval flow against the just-installed

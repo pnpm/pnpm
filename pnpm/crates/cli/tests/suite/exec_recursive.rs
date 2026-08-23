@@ -46,6 +46,23 @@ fn summary_statuses(workspace: &Path) -> HashMap<String, String> {
         .collect()
 }
 
+fn write_concurrency_probe(workspace: &Path) {
+    fs::write(
+        workspace.join("track-concurrency.sh"),
+        r#"marker=../active-$(basename "$PWD")
+mkdir "$marker"
+sleep 0.2
+set -- ../active-*
+[ -e "$1" ] || set --
+[ "$#" -ge 2 ] && touch ../saw-parallel
+[ "$#" -gt 2 ] && touch ../exceeded-concurrency
+sleep 0.2
+rmdir "$marker"
+"#,
+    )
+    .expect("write concurrency probe");
+}
+
 /// `pacquet -r exec <command>` runs the command once in every workspace
 /// project, each with cwd == its own package root — a relative `touch`
 /// lands a marker inside each package directory.
@@ -68,6 +85,67 @@ fn recursive_exec_runs_command_in_every_project() {
             "{name} should have run the command in its own directory",
         );
     }
+
+    drop(root);
+}
+
+#[test]
+fn recursive_exec_respects_workspace_concurrency() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
+    write_concurrency_probe(&workspace);
+
+    pacquet
+        .with_args(["--workspace-concurrency=2", "-r", "exec", "sh", "../track-concurrency.sh"])
+        .assert()
+        .success();
+
+    assert!(workspace.join("saw-parallel").exists(), "two commands should overlap");
+    assert!(
+        !workspace.join("exceeded-concurrency").exists(),
+        "no more than two commands should overlap",
+    );
+
+    drop(root);
+}
+
+#[test]
+fn recursive_exec_no_sort_reverse_and_resume_transform_workspace_order() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["z-first", "m-middle", "a-last"]);
+
+    pacquet
+        .with_args([
+            "--workspace-concurrency=1",
+            "--no-sort",
+            "--reverse",
+            "--resume-from=m-middle",
+            "-r",
+            "exec",
+            "-c",
+            r#"echo "$(basename "$PWD")" >> ../order.log"#,
+        ])
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "m-middle\na-last\n");
+
+    drop(root);
+}
+
+#[test]
+fn parallel_recursive_exec_has_no_workspace_concurrency_cap() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
+    write_concurrency_probe(&workspace);
+
+    pacquet.with_args(["--parallel", "exec", "sh", "../track-concurrency.sh"]).assert().success();
+
+    assert!(
+        workspace.join("exceeded-concurrency").exists(),
+        "--parallel should start all three commands together",
+    );
 
     drop(root);
 }
@@ -238,6 +316,31 @@ fn recursive_exec_report_summary_records_every_package_status() {
     drop(root);
 }
 
+#[test]
+fn recursive_exec_bail_summary_records_every_completed_batch_result() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["fails", "passes"]);
+
+    pacquet
+        .with_args([
+            "--workspace-concurrency=2",
+            "--no-sort",
+            "--report-summary",
+            "-r",
+            "exec",
+            "-c",
+            r#"if [ "$(basename "$PWD")" = fails ]; then exit 1; fi"#,
+        ])
+        .assert()
+        .failure();
+
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(statuses.get("fails").map(String::as_str), Some("failure"));
+    assert_eq!(statuses.get("passes").map(String::as_str), Some("passed"));
+
+    drop(root);
+}
+
 /// With `--no-bail`, a failing command runs in every project and the
 /// invocation still ends with a non-zero exit (the recursive-fail error).
 #[test]
@@ -265,14 +368,15 @@ fn recursive_exec_no_bail_runs_all_then_fails() {
     drop(root);
 }
 
-/// Without `--no-bail`, execution stops at the first failing project, so
-/// at least one project never runs.
+/// With one workspace task in flight, execution stops at the first failing
+/// project, so at least one project never runs.
 #[test]
 fn recursive_exec_bail_stops_at_first_failure() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
 
     let output = pacquet
+        .with_arg("--workspace-concurrency=1")
         .with_arg("-r")
         .with_arg("exec")
         .with_arg("-c")
