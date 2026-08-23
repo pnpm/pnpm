@@ -17,6 +17,7 @@ use crate::{
     cli_args::{
         add::{add_packages, apply_allow_build},
         approve_builds::ApproveBuildsArgs,
+        global_bin_lock::acquire_global_bin_lock,
         ignored_builds::get_automatically_ignored_builds,
         rebuild::run_rebuild,
         shim::{
@@ -257,6 +258,13 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         let dependencies = read_direct_dependencies(&install_dir);
         let aliases = dependencies.iter().map(|(alias, _)| alias.clone()).collect::<Vec<_>>();
         let aliases_to_replace = replacement_aliases(&aliases);
+        let _global_bin_lock = match acquire_global_bin_lock(&global_bin_dir) {
+            Ok(lock) => lock,
+            Err(error) => {
+                let _ = fs::remove_dir_all(&install_dir);
+                return Err(error);
+            }
+        };
 
         if let Err(error) = check_virtual_shim_conflicts(&pkgs, &global_bin_dir) {
             let _ = fs::remove_dir_all(&install_dir);
@@ -372,6 +380,13 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
 
         let pkgs = read_installed_packages(&install_dir);
         let dependencies = read_direct_dependencies(&install_dir);
+        let _global_bin_lock = match acquire_global_bin_lock(&global_bin_dir) {
+            Ok(lock) => lock,
+            Err(error) => {
+                let _ = fs::remove_dir_all(&install_dir);
+                return Err(error);
+            }
+        };
         if let Err(error) = check_virtual_shim_conflicts(&pkgs, &global_bin_dir) {
             let _ = fs::remove_dir_all(&install_dir);
             return Err(error);
@@ -463,6 +478,7 @@ pub fn handle_global_remove<Reporter: self::Reporter>(
 ) -> miette::Result<()> {
     let (global_pkg_dir, global_bin_dir) = global_dirs(base_config)?;
     check_bin_dir(&global_bin_dir)?;
+    let _global_bin_lock = acquire_global_bin_lock(&global_bin_dir)?;
 
     let mut groups: Vec<GlobalPackageInfo> = Vec::new();
     let mut seen = HashSet::new();

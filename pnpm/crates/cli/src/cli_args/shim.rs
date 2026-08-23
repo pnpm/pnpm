@@ -31,7 +31,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{config_deps, engine_pm::channel::PackageManager};
+use crate::{
+    cli_args::global_bin_lock::acquire_global_bin_lock, config_deps,
+    engine_pm::channel::PackageManager,
+};
 
 const MAX_VIRTUAL_SHIM_METADATA_BYTES: u64 = 64 * 1024;
 const VIRTUAL_SHIM_STATE_PREFIX: &str = ".pnpm-shim-v1-virtual-";
@@ -166,6 +169,7 @@ async fn add(
     let mut report = String::new();
     for package in packages {
         let bins = bins_of(config, package).await?;
+        let _global_bin_lock = acquire_global_bin_lock(bin_dir)?;
         // A bin already in the global bin directory belongs to something
         // else — a globally installed package, or another shim. Replacing
         // it would take a working command away, and `pnpm shim rm` would
@@ -206,6 +210,7 @@ fn remove(config: &Config, bin_dir: &Path, packages: &[String]) -> miette::Resul
     if packages.is_empty() {
         return Err(ShimError::NoPackage.into());
     }
+    let _global_bin_lock = acquire_global_bin_lock(bin_dir)?;
     let mut report = String::new();
     for package in packages {
         let bins = installed_shims(bin_dir, package);
