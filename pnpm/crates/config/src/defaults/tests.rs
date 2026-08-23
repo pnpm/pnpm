@@ -410,7 +410,7 @@ fn user_agent_default_matches_pnpm_format() {
 fn the_install_command_matches_the_host_shell() {
     assert_eq!(
         install_command_for(true),
-        "Invoke-WebRequest https://get.pnpm.io/install.ps1 -UseBasicParsing | Invoke-Expression"
+        "Invoke-WebRequest https://get.pnpm.io/install.ps1 -UseBasicParsing | Invoke-Expression",
     );
     assert_eq!(install_command_for(false), "curl -fsSL https://get.pnpm.io/install.sh | sh -");
 }
