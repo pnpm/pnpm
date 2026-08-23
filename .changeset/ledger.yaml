@@ -1320,6 +1320,10 @@
   dir: pnpm/npm/napi
   intents:
     - napi-allow-unused-patches
+"@pnpm/napi@12.0.0-rc.9":
+  dir: pnpm/npm/napi
+  intents:
+    - slow-fetch-warnings
 "@pnpm/network.auth-header@1101.1.4":
   dir: pnpm11/network/auth-header
   intents:
@@ -2473,6 +2477,78 @@ pacquet@12.0.0-rc.8:
     - runtime-matches-the-host-architecture
     - self-update-tag-no-downgrade
     - stream-extract-during-download
+pacquet@12.0.0-rc.9:
+  dir: pnpm/npm/pnpm
+  intents:
+    - approve-builds-after-remove
+    - bright-pandas-approve
+    - calm-ravens-outdated
+    - chcp-windows-setup
+    - config-get-resolved-registries
+    - configurable-pacquet-state-dir
+    - custom-fetcher-tarball-callbacks
+    - dedupe-lockfile-only
+    - dedupe-strict-peer-dependencies
+    - deploy-drops-excluded-direct-deps
+    - dev-only-install-drops-optionals
+    - empty-bin-string-declares-no-command
+    - exact-version-build-metadata-resolves
+    - files-field-entries-are-anchored
+    - filtered-no-op-install-fast-path
+    - fix-stale-pnpm-ps1
+    - flow-style-workspace-manifest-edits
+    - frozen-lockfile-package-manager-deps
+    - fuzzy-tigers-concurrency
+    - git-dep-allow-builds-help-key
+    - git-specifier-keeps-committish
+    - global-pnpmfile
+    - green-elephants-relax
+    - hoisted-collapsed-peer-variant-edges
+    - hoisted-repeat-install-is-a-noop
+    - ignore-pnpmfile-setting
+    - long-modules-yaml-keys
+    - minimum-release-age-config-flag
+    - modules-yaml-unreadable-no-purge
+    - napi-reporter-and-dependents
+    - outdated-and-interactive-update-honor-ignore-dependencies
+    - outdated-respects-release-age
+    - pack-regular-file-typeflag
+    - pacquet-config-ignore-scripts
+    - pacquet-git-branch-lockfiles
+    - pacquet-install-env-coverage
+    - pacquet-install-with-package-names
+    - pacquet-lockfile-dir
+    - pacquet-pnp-execution
+    - pacquet-prefer-symlinked-executables
+    - pacquet-recursive-output-and-workspace-flags
+    - pacquet-shell-emulator
+    - pacquet-strict-store-pkg-content-check
+    - pacquet-strict-workspace-settings
+    - pacquet-workspace-cycles-and-root
+    - parent-relative-workspace-packages
+    - pkg-property-paths-accept-hyphens
+    - pnpmfile-not-found
+    - port-rust-cli-default-settings
+    - prune-allow-builds-on-remove
+    - quick-hounds-switch
+    - quick-wolves-publish
+    - recursive-update-latest-reports-an-unmatched-selector
+    - repeat-install-mtime-collision
+    - rust-cli-honors-inert-settings
+    - rust-cli-missing-commands
+    - rust-cli-reports-peer-dependency-issues
+    - sbom-filter-prod-and-fail-if-no-match
+    - sbom-missing-importers
+    - self-update-bumps-simple-ranges
+    - seven-pens-smile
+    - slow-fetch-warnings
+    - tidy-otters-sbom
+    - tidy-pugs-smile
+    - trust-check-honors-ignore-missing-time
+    - update-tag-selector-saves-resolved-version
+    - update-versioned-selector-stays-targeted
+    - version-dry-run-writes-nothing
+    - windows-store-path-prefix
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
