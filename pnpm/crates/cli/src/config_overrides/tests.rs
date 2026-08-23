@@ -245,6 +245,26 @@ fn extract_applies_the_minimum_release_age_overrides() {
 }
 
 #[test]
+fn max_sockets_overrides_win_over_the_config_layers_in_either_spelling() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.maxsockets=4", "install"]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+    let mut config = Config { max_sockets: Some(2), ..Config::default() };
+    overrides.apply(&mut config);
+    assert_eq!(config.max_sockets, Some(4));
+
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.maxsockets=4",
+        "--config.max-sockets=9",
+        "install",
+    ]));
+    let mut config = Config::default();
+    overrides.apply(&mut config);
+    assert_eq!(config.max_sockets, Some(9), "the canonical spelling wins over npm's");
+}
+
+#[test]
 fn repeated_minimum_release_age_exclude_overrides_collect_into_a_list() {
     let (overrides, _) = ConfigOverrides::extract(argv([
         "--config.minimum-release-age-exclude=pnpm",

@@ -671,12 +671,16 @@ export async function getConfig (opts: {
   // Also after the env loop, and after the config files were applied: npm
   // spells the setting `maxsockets`, so every source may carry either
   // spelling and both have to be folded into the one field the rest of
-  // pnpm reads. The environment outranks the config files, and within each
-  // layer the canonical spelling wins. npm's own default stands in when no
-  // layer set either.
+  // pnpm reads. The layers keep their usual rank — command line over
+  // environment over config files — and within each layer the canonical
+  // spelling wins. Ranking the command line here rather than leaving it to
+  // the loop's CLI guard is what keeps a `--maxsockets` above a
+  // `PNPM_CONFIG_MAX_SOCKETS`, and above a `maxSockets` in the YAML.
+  // npm's own default stands in when no layer set either.
+  const maxSocketsFromCli = (configFromCliOpts.maxSockets ?? configFromCliOpts.maxsockets) as number | undefined
   // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
   const maxSocketsFromFiles: number | undefined = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets']
-  pnpmConfig.maxSockets = maxSocketsFromEnv ?? maxsocketsFromEnv ?? maxSocketsFromFiles ?? npmDefaults.maxsockets
+  pnpmConfig.maxSockets = maxSocketsFromCli ?? maxSocketsFromEnv ?? maxsocketsFromEnv ?? maxSocketsFromFiles ?? npmDefaults.maxsockets
   // @ts-expect-error
   delete pnpmConfig['maxsockets']
 

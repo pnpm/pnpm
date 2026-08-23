@@ -243,6 +243,37 @@ test('the canonical spelling of maxSockets wins over npm\'s in the environment',
   expect(config.maxSockets).toBe(9)
 })
 
+test('maxSockets from the command line wins over the environment, whichever spelling each used', async () => {
+  const { config } = await getConfig({
+    cliOptions: { maxsockets: 4 },
+    env: {
+      PNPM_CONFIG_MAX_SOCKETS: '9',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.maxSockets).toBe(4)
+})
+
+test('maxSockets from the command line wins over pnpm-workspace.yaml, whichever spelling each used', async () => {
+  prepareEmpty()
+  fs.writeFileSync('pnpm-workspace.yaml', 'maxSockets: 4\n', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { dir: process.cwd(), maxsockets: 6 },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.maxSockets).toBe(6)
+})
+
 test('maxSockets from the environment wins over pnpm-workspace.yaml', async () => {
   prepareEmpty()
   fs.writeFileSync('pnpm-workspace.yaml', 'maxSockets: 4\n', 'utf8')
