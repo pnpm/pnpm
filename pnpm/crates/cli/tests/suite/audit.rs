@@ -1130,8 +1130,7 @@ fn audit_fix_cleanup_reports_the_write_error_for_an_inline_audit_config() {
     .create();
     // A flow-style auditConfig can't be edited entry by entry; the writer
     // refuses rather than risk corrupting it.
-    let flow_style_config =
-        "auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [GHSA-test-1111-2222, GHSA-test-9999-9999] }\n";
+    let flow_style_config = "auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [GHSA-test-1111-2222, GHSA-test-9999-9999] }\n";
     write_audit_workspace(&workspace, &registry.url(), flow_style_config);
 
     let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
