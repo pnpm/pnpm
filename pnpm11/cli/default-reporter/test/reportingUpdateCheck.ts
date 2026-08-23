@@ -62,6 +62,9 @@ test('print update notification for Corepack if the latest version is greater th
       env: {
         COREPACK_ROOT: '/usr/bin/corepack',
       },
+      process: {
+        platform: 'linux',
+      } as any, // eslint-disable-line
     },
     streamParser: createStreamParser(),
   })
@@ -95,6 +98,56 @@ test('print update notification that suggests to use the standalone scripts for 
   updateCheckLogger.debug({
     currentVersion: '10.0.0',
     latestVersion: '11.0.0',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(stripAnsi(output)).toMatchSnapshot()
+})
+
+test('print update notification for Corepack on Windows', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { recursive: true } as ReporterPnpmConfig,
+      env: {
+        COREPACK_ROOT: 'C:\\corepack',
+      },
+      process: {
+        platform: 'win32',
+      } as any, // eslint-disable-line
+    },
+    streamParser: createStreamParser(),
+  })
+
+  updateCheckLogger.debug({
+    currentVersion: '10.0.0',
+    latestVersion: '11.0.0',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(stripAnsi(output)).toMatchSnapshot()
+})
+
+test('print update notification when pnpm was not installed by the standalone script', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { recursive: true } as ReporterPnpmConfig,
+      env: {},
+      process: {
+        platform: 'linux',
+      } as any, // eslint-disable-line
+    },
+    streamParser: createStreamParser(),
+  })
+
+  updateCheckLogger.debug({
+    currentVersion: '10.0.0',
+    latestVersion: '12.0.0',
   })
 
   expect.assertions(1)

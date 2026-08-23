@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { confirm } from '@inquirer/prompts'
 import { linkBins } from '@pnpm/bins.linker'
-import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
+import { isExecutedByCorepack, packageManager, standaloneInstallCommand } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, parsePackageManager, shouldPersistLockfile, types as allTypes } from '@pnpm/config.reader'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
@@ -81,7 +81,9 @@ export async function handler (
   params: string[]
 ): Promise<undefined | string> {
   if (isExecutedByCorepack()) {
-    throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
+    throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'pnpm cannot update itself when it is executed by Corepack', {
+      hint: `Install pnpm with the standalone script instead: ${standaloneInstallCommand()}`,
+    })
   }
   globalInfo('Checking for updates...')
   // Resolve the engine version exactly as a regular install would.

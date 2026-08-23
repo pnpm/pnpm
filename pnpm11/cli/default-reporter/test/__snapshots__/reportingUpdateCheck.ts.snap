@@ -2,13 +2,26 @@
 
 exports[`print update notification for Corepack if the latest version is greater than the current 1`] = `
 "
-   ╭──────────────────────────────────────────────╮
-   │                                              │
-   │      Update available! 10.0.0 → 11.0.0.      │
-   │     Changelog: https://pnpm.io/v/11.0.0      │
-   │   To update, run: corepack use pnpm@11.0.0   │
-   │                                              │
-   ╰──────────────────────────────────────────────╯
+   ╭──────────────────────────────────────────────────────────────────────╮
+   │                                                                      │
+   │                  Update available! 10.0.0 → 11.0.0.                  │
+   │                 Changelog: https://pnpm.io/v/11.0.0                  │
+   │   To update, run: curl -fsSL https://get.pnpm.io/install.sh | sh -   │
+   │                                                                      │
+   ╰──────────────────────────────────────────────────────────────────────╯
+"
+`;
+
+exports[`print update notification for Corepack on Windows 1`] = `
+"
+   ╭────────────────────────────────────────────────────────────────────────╮
+   │                                                                        │
+   │                   Update available! 10.0.0 → 11.0.0.                   │
+   │                  Changelog: https://pnpm.io/v/11.0.0                   │
+   │   To update, run: Invoke-WebRequest https://get.pnpm.io/install.ps1    │
+   │                 -UseBasicParsing | Invoke-Expression                   │
+   │                                                                        │
+   ╰────────────────────────────────────────────────────────────────────────╯
 "
 `;
 
@@ -18,7 +31,7 @@ exports[`print update notification if the latest version is greater than the cur
    │                                         │
    │   Update available! 10.0.0 → 11.0.0.    │
    │   Changelog: https://pnpm.io/v/11.0.0   │
-   │    To update, run: pnpm add -g pnpm     │
+   │    To update, run: pnpm self-update     │
    │                                         │
    ╰─────────────────────────────────────────╯
 "
@@ -30,6 +43,18 @@ exports[`print update notification that suggests to use the standalone scripts f
    │                                         │
    │   Update available! 10.0.0 → 11.0.0.    │
    │   Changelog: https://pnpm.io/v/11.0.0   │
+   │    To update, run: pnpm self-update     │
+   │                                         │
+   ╰─────────────────────────────────────────╯
+"
+`;
+
+exports[`print update notification when pnpm was not installed by the standalone script 1`] = `
+"
+   ╭─────────────────────────────────────────╮
+   │                                         │
+   │   Update available! 10.0.0 → 12.0.0.    │
+   │   Changelog: https://pnpm.io/v/12.0.0   │
    │    To update, run: pnpm self-update     │
    │                                         │
    ╰─────────────────────────────────────────╯

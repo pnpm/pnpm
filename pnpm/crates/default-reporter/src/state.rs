@@ -1214,9 +1214,7 @@ impl ReporterState {
             latest = self.colors.green(&log.latest_version),
             changelog = self.colors.magenta("Changelog:"),
             version = log.latest_version,
-            command = self
-                .colors
-                .magenta(&update_command(detect_install_source(), &log.latest_version)),
+            command = self.colors.magenta(&update_command(detect_install_source())),
         ));
     }
 
@@ -1587,15 +1585,29 @@ fn detect_install_source() -> PnpmInstallSource {
 /// pnpm's `renderUpdateCommand`: the command that updates the pnpm the
 /// user is running.
 ///
-/// pnpm names `@pnpm/exe` in the last case when it is running as a single
-/// executable. The native binary is published under both `pnpm` and
-/// `@pnpm/exe` and carries no marker telling the two apart, and a global
-/// install of either replaces the other, so it always names `pnpm`.
-fn update_command(source: PnpmInstallSource, latest_version: &str) -> String {
+/// `pnpm add -g pnpm` is not named here even though pnpm was installed by
+/// another package manager: `pnpm add -g` refuses to install pnpm and points
+/// at `self-update` itself, which works wherever `PNPM_HOME` resolves to.
+/// Corepack is the one case self-update cannot serve, and pnpm points at its
+/// own installer there rather than back at Corepack.
+fn update_command(source: PnpmInstallSource) -> String {
     match source {
-        PnpmInstallSource::Corepack => format!("corepack use pnpm@{latest_version}"),
-        PnpmInstallSource::PnpmHome => "pnpm self-update".to_string(),
-        PnpmInstallSource::Elsewhere => "pnpm add -g pnpm".to_string(),
+        PnpmInstallSource::Corepack => standalone_install_command().to_string(),
+        PnpmInstallSource::PnpmHome | PnpmInstallSource::Elsewhere => {
+            "pnpm self-update".to_string()
+        }
+    }
+}
+
+/// The command that installs pnpm with the standalone script, as documented
+/// at <https://pnpm.io/installation>. Shared with `self-update`, which names
+/// it when it refuses to run under Corepack.
+#[must_use]
+pub fn standalone_install_command() -> &'static str {
+    if cfg!(windows) {
+        "Invoke-WebRequest https://get.pnpm.io/install.ps1 -UseBasicParsing | Invoke-Expression"
+    } else {
+        "curl -fsSL https://get.pnpm.io/install.sh | sh -"
     }
 }
 
