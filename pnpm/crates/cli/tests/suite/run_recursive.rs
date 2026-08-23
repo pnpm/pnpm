@@ -1973,7 +1973,7 @@ fn stream_prefixes_recursive_script_output_with_the_project() {
             "project-2 test$ echo OK",
             "project-2 test: Done",
             "project-2 test: OK",
-        ]
+        ],
     );
 
     drop(root);
@@ -2012,7 +2012,7 @@ fn reporter_hide_prefix_drops_the_prefix_from_streamed_script_output() {
             "project-1 test: Done",
             "project-2 test$ echo OK",
             "project-2 test: Done",
-        ]
+        ],
     );
 
     drop(root);
@@ -2044,7 +2044,7 @@ fn parallel_implies_stream() {
             "project-2 test$ echo OK",
             "project-2 test: Done",
             "project-2 test: OK",
-        ]
+        ],
     );
 
     drop(root);

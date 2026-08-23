@@ -1516,7 +1516,7 @@ packages/bar postinstall$ node bar
 packages/bar postinstall: bar I
 packages/foo postinstall: foo II
 packages/bar postinstall: Done
-packages/foo postinstall: Done"
+packages/foo postinstall: Done",
     );
 }
 
@@ -1538,7 +1538,7 @@ fn aggregate_output_withholds_each_script_until_it_exits() {
         [
             "packages/bar postinstall$ node bar\npackages/bar postinstall: bar I\npackages/bar postinstall: Done",
             "packages/foo postinstall$ node foo\npackages/foo postinstall: foo I\npackages/foo postinstall: foo II\npackages/foo postinstall: Done",
-        ]
+        ],
     );
 }
 
@@ -1565,6 +1565,6 @@ fn hide_lifecycle_prefix_only_drops_it_from_output_lines() {
             "foo II",
             "packages/bar postinstall: Done",
             "packages/foo postinstall: Done",
-        ]
+        ],
     );
 }

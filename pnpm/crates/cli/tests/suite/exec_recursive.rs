@@ -356,7 +356,7 @@ fn no_reporter_hide_prefix_labels_each_project() {
             "project-1 (exec): hello",
             "project-2 (exec): Done",
             "project-2 (exec): hello",
-        ]
+        ],
     );
 
     drop(root);
