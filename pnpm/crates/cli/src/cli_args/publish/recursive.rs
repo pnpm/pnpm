@@ -126,11 +126,18 @@ impl PublishArgs {
                 }
             }
             let packages = packed.iter().map(|package| package.packed_pkg()).collect::<Vec<_>>();
-            let published =
-                batch_publish_packed_pkgs::<Reporter>(&packages, &opts, &network).await?;
-            for package in &packed {
-                self.run_post_publish_scripts::<Reporter>(package, config)?;
-            }
+            let published = batch_publish_packed_pkgs::<Reporter, _, miette::Report>(
+                &packages,
+                &opts,
+                &network,
+                |package_indexes| {
+                    for &package_index in package_indexes {
+                        self.run_post_publish_scripts::<Reporter>(&packed[package_index], config)?;
+                    }
+                    Ok(())
+                },
+            )
+            .await?;
             if self.flags.report_summary {
                 write_publish_summary(workspace_root, &published)?;
             }

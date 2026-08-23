@@ -822,6 +822,16 @@ fn missing_importers(selected: &HashSet<String>, lockfile_ids: &[String]) -> Vec
     missing
 }
 
+fn missing_importers_error(missing: &[String], project_kind: &str) -> miette::Report {
+    let plural = if missing.len() == 1 { "" } else { "s" };
+    let names = missing.join(", ");
+    let lockfile_name = pnpm_lockfile::Lockfile::FILE_NAME;
+    miette::miette!(
+        code = "ERR_PNPM_SBOM_MISSING_IMPORTERS",
+        r#"{lockfile_name} has no entry for the {project_kind} workspace project{plural}: {names}. Run "pnpm install" to update it."#,
+    )
+}
+
 fn extend_dedicated_lockfile_map<Key, Value>(
     current: &mut HashMap<Key, Value>,
     incoming: HashMap<Key, Value>,
@@ -939,14 +949,18 @@ fn merged_dedicated_lockfile_state(mut state: State) -> miette::Result<(State, V
 
     let mut merged: Option<Lockfile> = None;
     let project_dirs = selected_and_reachable_project_dirs(&selection);
+    let required_importer_ids: HashSet<String> = project_dirs
+        .iter()
+        .map(|project_dir| pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir))
+        .collect();
     let mut virtual_store_dirs = Vec::with_capacity(project_dirs.len());
-    for selected_dir in project_dirs {
+    for selected_dir in &project_dirs {
         let mut project_config = state.config.clone();
-        project_config.anchor_lockfile_paths(&selected_dir);
+        project_config.anchor_lockfile_paths(selected_dir);
         virtual_store_dirs.push(project_config.effective_virtual_store_dir().to_path_buf());
 
         let Some(mut lockfile) =
-            Lockfile::load_wanted(&selected_dir, &state.config.wanted_lockfile_selection())
+            Lockfile::load_wanted(selected_dir, &state.config.wanted_lockfile_selection())
                 .map_err(miette::Report::new)?
         else {
             continue;
@@ -956,16 +970,24 @@ fn merged_dedicated_lockfile_state(mut state: State) -> miette::Result<(State, V
             .into_iter()
             .map(|(importer_id, importer)| {
                 validate_importer_id(&importer_id).map_err(miette::Report::new)?;
-                let importer_dir = importer_root_dir(&selected_dir, &importer_id);
+                let importer_dir = importer_root_dir(selected_dir, &importer_id);
                 let workspace_id =
                     pnpm_workspace::importer_id_from_root_dir(workspace_root, &importer_dir);
                 Ok((workspace_id, importer))
             })
             .collect::<miette::Result<_>>()?;
         if let Some(current) = &mut merged {
-            extend_dedicated_lockfile(current, lockfile, &selected_dir)?;
+            extend_dedicated_lockfile(current, lockfile, selected_dir)?;
         } else {
             merged = Some(lockfile);
+        }
+    }
+
+    if let Some(lockfile) = &merged {
+        let importer_ids: Vec<String> = lockfile.importers.keys().cloned().collect();
+        let missing = missing_importers(&required_importer_ids, &importer_ids);
+        if !missing.is_empty() {
+            return Err(missing_importers_error(&missing, "selected or reachable"));
         }
     }
 
@@ -1049,13 +1071,7 @@ impl SbomArgs {
                 Vec::new()
             };
             if !missing.is_empty() {
-                let plural = if missing.len() == 1 { "" } else { "s" };
-                let names = missing.join(", ");
-                let lockfile_name = pnpm_lockfile::Lockfile::FILE_NAME;
-                return Err(miette::miette!(
-                    code = "ERR_PNPM_SBOM_MISSING_IMPORTERS",
-                    r#"{lockfile_name} has no entry for the selected project{plural}: {names}. Run "pnpm install" to update it."#,
-                ));
+                return Err(missing_importers_error(&missing, "selected"));
             }
             // Intersecting rather than mapping the selection keeps the
             // lockfile order established above.

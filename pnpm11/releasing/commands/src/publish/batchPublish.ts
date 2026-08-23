@@ -98,20 +98,20 @@ export async function batchPublishPackages (pkgs: Project[], opts: BatchPublishO
     }
     if (opts.dryRun) {
       globalWarn(`Skip publishing ${group.length} package(s) to ${registry} (dry run)`)
-      continue
-    }
-    const publishOptions = publishOptionsByRegistry.get(registry)
-    if (publishOptions == null) {
-      throw new Error(`Missing precomputed publish options for ${registry}`)
-    }
-    // eslint-disable-next-line no-await-in-loop
-    await multiPublishToRegistry({ registry, group, opts, publishOptions })
-    globalInfo(`✅ Published ${group.length} package(s) to ${registry} in a single request`)
-  }
-  if (!opts.ignoreScripts) {
-    for (const { project } of packedPkgs) {
+    } else {
+      const publishOptions = publishOptionsByRegistry.get(registry)
+      if (publishOptions == null) {
+        throw new Error(`Missing precomputed publish options for ${registry}`)
+      }
       // eslint-disable-next-line no-await-in-loop
-      await runScriptsIfPresent(await lifecycleOpts(project.rootDir, opts), ['publish', 'postpublish'], project.manifest)
+      await multiPublishToRegistry({ registry, group, opts, publishOptions })
+      globalInfo(`✅ Published ${group.length} package(s) to ${registry} in a single request`)
+    }
+    if (!opts.ignoreScripts) {
+      for (const { project } of group) {
+        // eslint-disable-next-line no-await-in-loop
+        await runScriptsIfPresent(await lifecycleOpts(project.rootDir, opts), ['publish', 'postpublish'], project.manifest)
+      }
     }
   }
   return packedPkgs.map(({ summary }) => summary)

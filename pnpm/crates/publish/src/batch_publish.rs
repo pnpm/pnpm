@@ -43,14 +43,19 @@ pub fn validate_batch_publish_options(
     Ok(())
 }
 
-/// Publish every packed package in one request per target registry.
-pub async fn batch_publish_packed_pkgs<Reporter>(
+/// Publish every packed package in one request per target registry, calling
+/// `on_group_complete` with the input indexes after each completed registry
+/// group (including dry-run groups).
+pub async fn batch_publish_packed_pkgs<Reporter, OnGroupComplete, Error>(
     packages: &[PackedPkg<'_>],
     opts: &PublishPackedPkgOptions,
     network: &PublishNetwork<'_>,
-) -> Result<Vec<PublishSummary>, BatchPublishError>
+    mut on_group_complete: OnGroupComplete,
+) -> Result<Vec<PublishSummary>, Error>
 where
     Reporter: self::Reporter,
+    OnGroupComplete: FnMut(&[usize]) -> Result<(), Error>,
+    Error: From<BatchPublishError>,
 {
     validate_batch_publish_options(opts)?;
 
@@ -68,7 +73,8 @@ where
             &opts.default_registry,
             &opts.scoped_registries,
             publish_config_registry,
-        )?;
+        )
+        .map_err(BatchPublishError::from)?;
         let summary = create_publish_summary(
             &PackedPkgInfo {
                 published_manifest: manifest,
@@ -85,7 +91,8 @@ where
             resolve_access(opts.access, manifest),
             &opts.tag,
             &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
-        )?;
+        )
+        .map_err(BatchPublishError::from)?;
         let summary_index = summaries.len();
         summaries.push(summary);
 
@@ -122,41 +129,44 @@ where
                 "Skip publishing {} package(s) to {registry} (dry run)",
                 group.documents.len(),
             ));
-            continue;
-        }
-
-        let put_url = join_registry(&group.registry, BATCH_PUBLISH_ENDPOINT)?;
-        let body = bytes::Bytes::from(
-            serde_json::to_vec(&serde_json::json!({ "packages": group.documents }))
-                .expect("serialize batch publish documents"),
-        );
-        let response = publish_with_otp_handling::<WebAuthHost, Reporter>(
-            network.client,
-            &put_url,
-            authorization.as_deref(),
-            "publish",
-            body,
-            opts.otp.as_deref(),
-            false,
-            web_auth_fetch_options(&opts.http),
-        )
-        .await?;
-        if !response.ok {
-            if matches!(response.status, 404 | 405) {
-                return Err(BatchPublishError::Unsupported { registry });
+        } else {
+            let put_url = join_registry(&group.registry, BATCH_PUBLISH_ENDPOINT)
+                .map_err(BatchPublishError::from)?;
+            let body = bytes::Bytes::from(
+                serde_json::to_vec(&serde_json::json!({ "packages": group.documents }))
+                    .expect("serialize batch publish documents"),
+            );
+            let response = publish_with_otp_handling::<WebAuthHost, Reporter>(
+                network.client,
+                &put_url,
+                authorization.as_deref(),
+                "publish",
+                body,
+                opts.otp.as_deref(),
+                false,
+                web_auth_fetch_options(&opts.http),
+            )
+            .await
+            .map_err(BatchPublishError::from)?;
+            if !response.ok {
+                if matches!(response.status, 404 | 405) {
+                    return Err(BatchPublishError::Unsupported { registry }.into());
+                }
+                return Err(BatchPublishError::Failed(FailedToPublishError::new_batch(
+                    group.package_names.len(),
+                    &registry,
+                    response.status,
+                    response.status_text,
+                    response.body,
+                ))
+                .into());
             }
-            return Err(BatchPublishError::Failed(FailedToPublishError::new_batch(
-                group.package_names.len(),
-                &registry,
-                response.status,
-                response.status_text,
-                response.body,
-            )));
+            global_info::<Reporter>(&format!(
+                "✅ Published {} package(s) to {registry} in a single request",
+                group.summary_indexes.len(),
+            ));
         }
-        global_info::<Reporter>(&format!(
-            "✅ Published {} package(s) to {registry} in a single request",
-            group.summary_indexes.len(),
-        ));
+        on_group_complete(&group.summary_indexes)?;
     }
 
     Ok(summaries)

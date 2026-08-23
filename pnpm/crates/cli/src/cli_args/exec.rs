@@ -186,9 +186,11 @@ pub(super) async fn spawn_async_in_dir(
     shell_mode: bool,
     output: ScriptOutput<'_>,
 ) -> Result<ExitStatus, ExecError> {
-    let mut cmd = command_in_dir(command, dir, config, shell_mode)?;
+    let cmd = command_in_dir(command, dir, config, shell_mode)?;
+    let mut cmd = tokio::process::Command::from(cmd);
+    cmd.kill_on_drop(true);
     let ScriptOutput::Streamed { dep_path, emit } = output else {
-        return tokio::process::Command::from(cmd)
+        return cmd
             .status()
             .await
             .map_err(|source| ExecError::Spawn { command: command[0].clone(), source });
@@ -196,9 +198,8 @@ pub(super) async fn spawn_async_in_dir(
     let wd = dir.to_string_lossy();
     let streamed = StreamedScript { dep_path, stage: EXEC_STAGE, wd: &wd, emit };
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-    let mut child = tokio::process::Command::from(cmd)
-        .spawn()
-        .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
+    let mut child =
+        cmd.spawn().map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
     let status = streamed
         .pump_async(&mut child)
         .await

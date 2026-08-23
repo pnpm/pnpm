@@ -186,6 +186,74 @@ fn recursive_publish_batches_selected_packages() {
 }
 
 #[test]
+fn recursive_batch_publish_runs_completed_group_postpublish_scripts_before_a_later_failure() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut first_registry = mockito::Server::new();
+    let mut second_registry = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "project-1",
+                json!({
+                    "name": "project-1",
+                    "version": "1.0.0",
+                    "publishConfig": { "registry": format!("{}/", first_registry.url()) },
+                    "scripts": {
+                        "postpublish": r#"node -e "require('fs').writeFileSync('post-published', '')""#,
+                    },
+                }),
+            ),
+            (
+                "project-2",
+                json!({
+                    "name": "project-2",
+                    "version": "1.0.0",
+                    "dependencies": { "project-1": "1.0.0" },
+                    "publishConfig": { "registry": format!("{}/", second_registry.url()) },
+                    "scripts": {
+                        "postpublish": r#"node -e "require('fs').writeFileSync('post-published', '')""#,
+                    },
+                }),
+            ),
+        ],
+    );
+    let workspace_manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("{workspace_manifest}linkWorkspacePackages: true\n"),
+    )
+    .expect("enable workspace linking");
+    write_registry_npmrc(&workspace, &format!("{}/", first_registry.url()));
+    let first_batch = first_registry
+        .mock("PUT", "/-/pnpm/v1/publish")
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+    let second_batch = second_registry
+        .mock("PUT", "/-/pnpm/v1/publish")
+        .with_status(500)
+        .with_body(r#"{"error":"publish failed"}"#)
+        .expect(1)
+        .create();
+
+    let assert = clear_ci(pacquet)
+        .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(first_batch.matched(), "the first registry was not published: {stderr}");
+    first_batch.assert();
+    second_batch.assert();
+    assert!(workspace.join("project-1/post-published").exists());
+    assert!(!workspace.join("project-2/post-published").exists());
+
+    drop(root);
+}
+
+#[test]
 fn recursive_batch_publish_rejects_mixed_credentials_for_one_registry() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();

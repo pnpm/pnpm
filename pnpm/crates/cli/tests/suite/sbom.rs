@@ -223,7 +223,8 @@ fn sbom_rejects_conflicting_entries_from_dedicated_lockfiles() {
     assert!(!output.status.success(), "conflicting lockfile entries must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("ERR_PNPM_SBOM_CONFLICTING_LOCKFILE_ENTRIES"), "stderr: {stderr}");
-    assert!(stderr.contains("is-positive@3.1.0"), "stderr: {stderr}");
+    let compact_stderr: String = stderr.replace('│', "").split_whitespace().collect();
+    assert!(compact_stderr.contains("is-positive@3.1.0"), "stderr: {stderr}");
 }
 
 #[test]
@@ -231,6 +232,10 @@ fn sbom_merges_snapshot_optionality_from_dedicated_lockfiles() {
     let tmp = copy_fixture("simple-sbom");
     let lockfile =
         fs::read_to_string(tmp.path().join("pnpm-lock.yaml")).expect("read fixture lockfile");
+    let lockfile = lockfile.replace(
+        "    engines: {node: '>=0.10.0'}",
+        "    engines: {node: '>=0.10.0'}\n    os: [unsupported-test-os]",
+    );
     for name in ["project-a", "project-b"] {
         let project_dir = tmp.path().join("packages").join(name);
         fs::create_dir_all(&project_dir).expect("create project dir");
@@ -245,10 +250,12 @@ fn sbom_merges_snapshot_optionality_from_dedicated_lockfiles() {
         )
         .expect("write project manifest");
         let project_lockfile = if name == "project-b" {
-            lockfile.replace(
+            let project_lockfile = lockfile.replace(
                 "  is-positive@3.1.0:\n    dev: false",
                 "  is-positive@3.1.0:\n    optional: true\n    dev: false",
-            )
+            );
+            assert_ne!(project_lockfile, lockfile, "mark project-b's snapshot as optional");
+            project_lockfile
         } else {
             lockfile.clone()
         };
@@ -263,20 +270,31 @@ fn sbom_merges_snapshot_optionality_from_dedicated_lockfiles() {
     )
     .expect("write workspace manifest");
 
-    let output =
-        pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split"])
-            .output()
-            .expect("run split pacquet sbom");
+    let output = pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--split"])
+        .output()
+        .expect("run split pacquet sbom");
 
     assert!(
         output.status.success(),
         "derived snapshot optionality should merge: {}",
         String::from_utf8_lossy(&output.stderr),
     );
+    let sboms: Vec<serde_json::Value> = String::from_utf8(output.stdout)
+        .expect("SBOM output is UTF-8")
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("parse split CycloneDX output"))
+        .collect();
+    assert_eq!(sboms.len(), 2);
+    for sbom in sboms {
+        let components = sbom["components"].as_array().expect("components array");
+        assert!(
+            components.iter().any(|component| component["name"] == "is-positive"),
+            "a required platform-incompatible snapshot must remain in the SBOM",
+        );
+    }
 }
 
-#[test]
-fn filtered_sbom_reads_reachable_workspace_project_lockfiles() {
+fn dedicated_workspace_with_reachable_project() -> TempDir {
     let tmp = copy_fixture("simple-sbom");
     let dependency_lockfile =
         fs::read_to_string(tmp.path().join("pnpm-lock.yaml")).expect("read fixture lockfile");
@@ -319,6 +337,13 @@ fn filtered_sbom_reads_reachable_workspace_project_lockfiles() {
     )
     .expect("write workspace manifest");
 
+    tmp
+}
+
+#[test]
+fn filtered_sbom_reads_reachable_workspace_project_lockfiles() {
+    let tmp = dedicated_workspace_with_reachable_project();
+
     let output = pacquet(
         tmp.path(),
         ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--filter", "project-a"],
@@ -341,6 +366,25 @@ fn filtered_sbom_reads_reachable_workspace_project_lockfiles() {
         .collect();
     assert!(component_names.contains("project-b"));
     assert!(component_names.contains("is-positive"));
+}
+
+#[test]
+fn filtered_sbom_rejects_a_reachable_project_without_a_dedicated_lockfile() {
+    let tmp = dedicated_workspace_with_reachable_project();
+    fs::remove_file(tmp.path().join("packages/project-b/pnpm-lock.yaml"))
+        .expect("remove reachable project lockfile");
+
+    let output = pacquet(
+        tmp.path(),
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--filter", "project-a"],
+    )
+    .output()
+    .expect("run filtered pacquet sbom");
+
+    assert!(!output.status.success(), "an incomplete workspace graph must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_SBOM_MISSING_IMPORTERS"), "stderr: {stderr}");
+    assert!(stderr.contains("packages/project-b"), "stderr: {stderr}");
 }
 
 #[test]
