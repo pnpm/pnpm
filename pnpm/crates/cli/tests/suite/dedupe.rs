@@ -238,8 +238,8 @@ fn dedupe_warns_about_peer_dependency_issues() {
 }
 
 /// `strictPeerDependencies: true` turns the same peer-dependency issues
-/// `dedupe_warns_about_peer_dependency_issues` only warns about into a hard
-/// failure, matching the TypeScript CLI's `ERR_PNPM_PEER_DEP_ISSUES`.
+/// [`dedupe_warns_about_peer_dependency_issues`] only warns about into a
+/// hard failure, matching the TypeScript CLI's `ERR_PNPM_PEER_DEP_ISSUES`.
 #[test]
 fn dedupe_fails_on_peer_dependency_issues_when_strict() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
