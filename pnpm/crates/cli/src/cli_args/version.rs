@@ -523,6 +523,7 @@ fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
             config.scripts_prepend_node_path,
         ),
         script_shell: script_shell.as_deref(),
+        shell_emulator: config.shell_emulator,
         optional: false,
     };
     let parent_env: HashMap<String, String> = std::env::vars().collect();

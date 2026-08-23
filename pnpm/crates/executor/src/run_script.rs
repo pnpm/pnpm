@@ -2,7 +2,9 @@ use crate::{
     extend_path::{ScriptsPrependNodePath, extend_path},
     lifecycle::push_script_arg,
     make_env::{EnvOptions, build_env, path_value},
+    script_exit::ScriptExit,
     shell::{ScriptShellError, select_shell},
+    shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -13,7 +15,7 @@ use std::{
     ffi::OsString,
     io::{self, Write},
     path::{Path, PathBuf},
-    process::{Command, ExitStatus},
+    process::Command,
 };
 
 /// Error from running a user script through [`run_script`] — the
@@ -31,6 +33,9 @@ pub enum RunScriptError {
 
     #[diagnostic(transparent)]
     ScriptShell(#[error(source)] ScriptShellError),
+
+    #[diagnostic(transparent)]
+    ShellEmulator(#[error(source)] ShellEmulatorError),
 }
 
 /// Inputs for [`run_script`] — the subset of lifecycle-hook options a
@@ -54,6 +59,9 @@ pub struct RunScript<'a> {
     pub extra_bin_paths: &'a [PathBuf],
     /// Custom shell from the `scriptShell` config, if any.
     pub script_shell: Option<&'a Path>,
+    /// The `shellEmulator` config: run the script through pacquet's
+    /// built-in shell rather than the platform's.
+    pub shell_emulator: bool,
     /// The `scriptsPrependNodePath` config.
     pub scripts_prepend_node_path: ScriptsPrependNodePath,
     /// Path to a `node` binary for `npm_node_execpath` / `NODE`.
@@ -70,9 +78,12 @@ pub struct RunScript<'a> {
 
 /// Run a single user script in the foreground, inheriting the parent's
 /// stdio so the script's output reaches the terminal directly.
-pub fn run_script(opts: &RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
+pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
     let command = build_command(opts.script, opts.args);
 
+    // The `scriptShell` value is validated even when the emulator will
+    // run the script, matching pnpm's `runLifecycleHook`, which rejects a
+    // `.bat` / `.cmd` shell before it looks at `shellEmulator`.
     let shell =
         select_shell(opts.script_shell, cfg!(windows)).map_err(RunScriptError::ScriptShell)?;
 
@@ -115,6 +126,12 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
         let _ = writeln!(stderr, "$ {command}");
     }
 
+    if opts.shell_emulator {
+        return execute_emulated(&command, opts.pkg_root, &child_env, EmulatedOutput::Inherit)
+            .map(ScriptExit::Emulated)
+            .map_err(RunScriptError::ShellEmulator);
+    }
+
     // The script is appended through `push_script_arg` (not a chained
     // `.arg`) so the Windows `cmd /d /s /c` verbatim path can use
     // `raw_arg` and keep embedded quoting like `node -e "..."` intact —
@@ -129,7 +146,7 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
         .status()
         .map_err(|source| RunScriptError::Spawn { script: command.clone(), source })?;
 
-    Ok(status)
+    Ok(ScriptExit::Process(status))
 }
 
 /// Append shell-quoted `args` to `script`: `shlex`-style quoting on

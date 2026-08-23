@@ -44,7 +44,7 @@ packages:
 #[test]
 fn parity_settings_parse_and_apply() {
     let settings: WorkspaceSettings = serde_saphyr::from_str(
-        r#"
+        r"
 bail: false
 color: never
 embedReadme: true
@@ -58,7 +58,7 @@ shellEmulator: true
 skipManifestObfuscation: true
 sort: false
 useBetaCli: true
-"#,
+",
     )
     .unwrap();
     let mut config = Config::default();
@@ -90,7 +90,7 @@ fn color_accepts_boolean_compatibility_values() {
 #[test]
 fn parity_settings_follow_global_config_key_routing() {
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(
-        r#"
+        r"
 bail: false
 color: never
 embedReadme: true
@@ -104,7 +104,7 @@ shellEmulator: true
 skipManifestObfuscation: true
 sort: false
 useBetaCli: true
-"#,
+",
     )
     .unwrap();
     settings.clear_workspace_only_fields();

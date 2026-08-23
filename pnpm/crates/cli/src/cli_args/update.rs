@@ -47,7 +47,7 @@ impl UpdateDependencyOptions {
         // CLI flags are read rather than the merged config.
         let production = self.prod.then_some(true);
         let dev = self.dev.then_some(true);
-        let optional = self.optional.then_some(true).or(self.no_optional.then_some(false));
+        let optional = self.optional.then_some(true).or_else(|| self.no_optional.then_some(false));
 
         let ne_true = |flag: Option<bool>| flag != Some(true);
         let dependencies = production == Some(true) || (ne_true(dev) && ne_true(optional));

@@ -57,6 +57,7 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
         node_gyp_bin: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         script_shell: None,
+        shell_emulator: false,
         optional: false,
     };
 
@@ -158,6 +159,7 @@ fn lifecycle_events_carry_optional_flag() {
         node_gyp_bin: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         script_shell: None,
+        shell_emulator: false,
         optional: true,
     };
 
@@ -228,6 +230,7 @@ fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
         node_gyp_bin: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         script_shell: None,
+        shell_emulator: false,
         optional: false,
     };
 
@@ -275,6 +278,7 @@ fn lifecycle_runs_under_silent_reporter() {
         node_gyp_bin: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         script_shell: None,
+        shell_emulator: false,
         optional: false,
     };
 
@@ -304,6 +308,7 @@ fn missing_manifest_returns_false() {
         node_gyp_bin: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         script_shell: None,
+        shell_emulator: false,
         optional: false,
     };
 
@@ -389,6 +394,7 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
         node_gyp_bin: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         script_shell: None,
+        shell_emulator: false,
         optional: false,
     };
 
@@ -438,6 +444,7 @@ fn malformed_manifest_propagates_error() {
         node_gyp_bin: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         script_shell: None,
+        shell_emulator: false,
         optional: false,
     };
 

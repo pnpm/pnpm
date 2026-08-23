@@ -1010,7 +1010,7 @@ impl SwitchInput {
             npmrc_auth_file: args.npmrc_auth_file.clone(),
             command: Some(command_name(&args.command).to_string()),
             frozen_lockfile: frozen_lockfile_flag(&args.command),
-            color: args.color.or(args.no_color.then_some(ColorMode::Never)),
+            color: args.color.or_else(|| args.no_color.then_some(ColorMode::Never)),
         }
     }
 

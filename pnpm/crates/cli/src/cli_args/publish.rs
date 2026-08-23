@@ -414,6 +414,7 @@ fn run_publish_scripts<Reporter: self::Reporter>(
         node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: ScriptsPrependNodePath::default(),
         script_shell: None,
+        shell_emulator: false,
         optional: false,
     };
     let parent_env: HashMap<String, String> = std::env::vars().collect();

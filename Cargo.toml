@@ -114,6 +114,7 @@ chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 console = { version = "0.16.3" }
 crossterm = { version = "0.29.0" }
 dashmap = { version = "6.2.1" }
+deno_task_shell = { version = "0.33.3" }
 derive_more = { version = "2.1.1", features = ["full"] }
 dialoguer = { version = "0.12.0", default-features = false }
 diffy = { version = "0.5.0" }
