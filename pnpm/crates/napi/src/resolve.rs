@@ -18,7 +18,7 @@
 //! `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
 //!
 //! The chain itself is
-//! [`build_standalone_chain`][pnpm_resolving_default_resolver::standalone::build_standalone_chain],
+//! [`pnpm_resolving_default_resolver::standalone::build_standalone_chain`],
 //! shared with the other single-resolve callers; its module documents the
 //! two deviations from the install chain. See `pnpm/plans/NAPI.md`.
 
