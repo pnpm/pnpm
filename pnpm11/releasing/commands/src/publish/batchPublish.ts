@@ -8,7 +8,7 @@ import type { RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { type WebAuthFetchOptions, withOtpHandling } from '@pnpm/network.web-auth'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
-import { type Creds, DEFAULT_REGISTRY_SCOPE, type Project } from '@pnpm/types'
+import type { Project } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import npmFetch from 'npm-registry-fetch'
 import { realpathMissing } from 'realpath-missing'
@@ -39,10 +39,6 @@ interface PackedPkg {
   summary: PublishSummary
 }
 
-type GroupedPackedPkg = PackedPkg & {
-  credentials: Creds | undefined
-}
-
 /**
  * Publish all {@link pkgs} by sending a single `PUT /-/pnpm/v1/publish` request per target
  * registry, instead of one request per package. The endpoint is not part of the standard npm
@@ -65,7 +61,7 @@ export async function batchPublishPackages (pkgs: Project[], opts: BatchPublishO
       hint: 'Provenance is bound to a single package, but --batch sends many packages in one request. Publish without --batch to attach provenance.',
     })
   }
-  const packedByRegistry = new Map<string, GroupedPackedPkg[]>()
+  const packedByRegistry = new Map<string, PackedPkg[]>()
   const packedPkgs: PackedPkg[] = []
   for (const project of pkgs) {
     // eslint-disable-next-line no-await-in-loop
@@ -73,16 +69,13 @@ export async function batchPublishPackages (pkgs: Project[], opts: BatchPublishO
     const publishConfigRegistry = typeof packedPkg.publishedManifest.publishConfig?.registry === 'string'
       ? packedPkg.publishedManifest.publishConfig.registry
       : undefined
-    const { config, registry } = findRegistryInfo(packedPkg.publishedManifest, opts, publishConfigRegistry)
+    const { registry } = findRegistryInfo(packedPkg.publishedManifest, opts, publishConfigRegistry)
     let group = packedByRegistry.get(registry!)
     if (!group) {
       group = []
       packedByRegistry.set(registry!, group)
     }
-    group.push({
-      ...packedPkg,
-      credentials: config?.[DEFAULT_REGISTRY_SCOPE],
-    })
+    group.push(packedPkg)
     packedPkgs.push(packedPkg)
   }
   const publishOptionsByRegistry = new Map<string, Awaited<ReturnType<typeof createPublishOptions>>>()
@@ -119,11 +112,11 @@ export async function batchPublishPackages (pkgs: Project[], opts: BatchPublishO
 
 async function createBatchPublishOptions (
   registry: string,
-  group: GroupedPackedPkg[],
+  group: PackedPkg[],
   opts: BatchPublishOptions
 ): Promise<Awaited<ReturnType<typeof createPublishOptions>>> {
-  const [first, ...rest] = group
-  if (rest.some(({ credentials }) => !sameCredentials(first.credentials, credentials))) {
+  const [first, ...rest] = await Promise.all(group.map(async ({ publishedManifest }) => createPublishOptions(publishedManifest, opts, { oidc: false })))
+  if (rest.some((publishOptions) => !sameCredentials(first, publishOptions))) {
     throw new PnpmError(
       'BATCH_PUBLISH_CONFLICTING_CREDENTIALS',
       `Packages targeting ${registry} resolve to different authentication credentials and cannot be published in one batch`,
@@ -132,15 +125,16 @@ async function createBatchPublishOptions (
       }
     )
   }
-  return createPublishOptions(first.publishedManifest, opts, { oidc: false })
+  return first
 }
 
-function sameCredentials (left: Creds | undefined, right: Creds | undefined): boolean {
-  return left?.authToken === right?.authToken &&
-    left?.basicAuth?.username === right?.basicAuth?.username &&
-    left?.basicAuth?.password === right?.basicAuth?.password &&
-    left?.tokenHelper?.length === right?.tokenHelper?.length &&
-    left?.tokenHelper?.every((part, index) => part === right?.tokenHelper?.[index]) !== false
+function sameCredentials (
+  left: Awaited<ReturnType<typeof createPublishOptions>>,
+  right: Awaited<ReturnType<typeof createPublishOptions>>
+): boolean {
+  return left.token === right.token &&
+    left.username === right.username &&
+    left.password === right.password
 }
 
 async function packPkgForBatch (project: Project, opts: BatchPublishOptions): Promise<PackedPkg> {
@@ -189,7 +183,7 @@ async function multiPublishToRegistry ({
   publishOptions,
 }: {
   registry: string
-  group: GroupedPackedPkg[]
+  group: PackedPkg[]
   opts: BatchPublishOptions
   publishOptions: Awaited<ReturnType<typeof createPublishOptions>>
 }): Promise<void> {

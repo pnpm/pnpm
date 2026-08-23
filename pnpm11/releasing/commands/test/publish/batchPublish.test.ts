@@ -221,6 +221,40 @@ test('batch publish accepts one scope credential for every package', async () =>
   expect(publishRequests[0].headers.authorization).toBe('Bearer scope-token')
 })
 
+test('batch publish accepts equivalent credentials configured differently', async () => {
+  preparePackages([
+    {
+      name: '@scope/batch-pkg-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'batch-pkg-2',
+      version: '1.0.0',
+    },
+  ])
+  const tokenHelper = path.join(
+    import.meta.dirname,
+    'utils',
+    process.platform === 'win32' ? 'tokenHelperBasic.bat' : 'tokenHelperBasic.js'
+  )
+  fs.chmodSync(tokenHelper, 0o755)
+
+  await publish.handler({
+    ...batchPublishOpts(),
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: {
+      [registry.url.replace(/^http:/, '')]: {
+        '@': { authToken: getRegistryMockToken() },
+        '@scope': { tokenHelper: [tokenHelper] },
+      },
+    },
+  }, [])
+
+  const publishRequests = registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')
+  expect(publishRequests).toHaveLength(1)
+  expect(publishRequests[0].headers.authorization).toBe(`Bearer ${getRegistryMockToken()}`)
+})
+
 test('batch publish rejects different credentials for one registry before publishing', async () => {
   preparePackages([
     {
