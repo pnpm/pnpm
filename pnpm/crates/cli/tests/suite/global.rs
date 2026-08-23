@@ -41,13 +41,27 @@ fn prepare_global_home(pnpm_home: &Path, npmrc_info: &AddMockedRegistry) {
 /// passes for the mutating commands).
 #[cfg(unix)]
 fn global_command(workspace: &Path, pnpm_home: &Path) -> Command {
+    // macOS temp paths use `/var` as an alias for `/private/var`, while
+    // scanning a hash symlink canonicalizes its install directory. Give the
+    // command the canonical fixture home so containment checks compare paths
+    // with the same spelling.
+    let pnpm_home = match fs::canonicalize(pnpm_home) {
+        Ok(pnpm_home) => pnpm_home,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let parent = pnpm_home.parent().expect("pnpm test home parent");
+            fs::canonicalize(parent)
+                .expect("canonicalize the pnpm test home parent")
+                .join(pnpm_home.file_name().expect("pnpm test home name"))
+        }
+        Err(error) => panic!("canonicalize the pnpm test home: {error}"),
+    };
     let global_bin = pnpm_home.join("bin");
     let existing_path = std::env::var("PATH").unwrap_or_default();
     let path = format!("{}:{existing_path}", global_bin.display());
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(workspace)
-        .with_env("PNPM_HOME", pnpm_home)
+        .with_env("PNPM_HOME", &pnpm_home)
         .with_env("PATH", path)
         .without_ambient_pnpm_config()
 }
@@ -60,6 +74,98 @@ fn symlink_entries(dir: &Path) -> Vec<PathBuf> {
         .filter(|entry| entry.file_type().is_ok_and(|ft| ft.is_symlink()))
         .map(|entry| entry.path())
         .collect()
+}
+
+#[cfg(unix)]
+#[derive(Debug, PartialEq, Eq)]
+struct FixtureEntry {
+    path: PathBuf,
+    kind: &'static str,
+    payload: Vec<u8>,
+}
+
+#[cfg(unix)]
+fn snapshot_tree(root: &Path) -> Vec<FixtureEntry> {
+    let mut entries = walkdir::WalkDir::new(root)
+        .min_depth(1)
+        .follow_links(false)
+        .into_iter()
+        .map(|entry| {
+            let entry = entry.expect("walk the global fixture tree");
+            let path = entry.path().strip_prefix(root).expect("fixture entry is under its root");
+            if entry.file_type().is_dir() {
+                FixtureEntry { path: path.to_path_buf(), kind: "directory", payload: Vec::new() }
+            } else if entry.file_type().is_symlink() {
+                FixtureEntry {
+                    path: path.to_path_buf(),
+                    kind: "symlink",
+                    payload: fs::read_link(entry.path())
+                        .expect("read fixture symlink")
+                        .to_string_lossy()
+                        .into_owned()
+                        .into_bytes(),
+                }
+            } else {
+                FixtureEntry {
+                    path: path.to_path_buf(),
+                    kind: "file",
+                    payload: fs::read(entry.path()).expect("read fixture file"),
+                }
+            }
+        })
+        .collect::<Vec<_>>();
+    entries.sort_by(|left, right| left.path.cmp(&right.path));
+    entries
+}
+
+#[cfg(unix)]
+fn dependency_manifest_path(install_dir: &Path, alias: &str) -> PathBuf {
+    install_dir.join("node_modules").join(alias).join("package.json")
+}
+
+#[cfg(unix)]
+fn seed_global_group(
+    global_pkg_dir: &Path,
+    hash: &str,
+    packages: &[(&str, Option<&str>)],
+) -> PathBuf {
+    let install_dir = global_pkg_dir.join(format!("{hash}-install"));
+    fs::create_dir_all(&install_dir).expect("create seeded global install directory");
+    let dependencies = packages
+        .iter()
+        .map(|(alias, _)| ((*alias).to_string(), serde_json::json!("1.0.0")))
+        .collect::<serde_json::Map<_, _>>();
+    fs::write(
+        install_dir.join("package.json"),
+        serde_json::json!({ "dependencies": dependencies }).to_string(),
+    )
+    .expect("write seeded global group manifest");
+    for (alias, manifest) in packages {
+        let manifest_path = dependency_manifest_path(&install_dir, alias);
+        fs::create_dir_all(manifest_path.parent().expect("dependency manifest parent"))
+            .expect("create seeded global dependency directory");
+        if let Some(manifest) = manifest {
+            fs::write(manifest_path, manifest).expect("write seeded global dependency manifest");
+        }
+    }
+    std::os::unix::fs::symlink(
+        install_dir.file_name().expect("seeded install directory name"),
+        global_pkg_dir.join(hash),
+    )
+    .expect("link seeded global group");
+    install_dir
+}
+
+#[cfg(unix)]
+fn assert_fixture_paths(root: &Path, paths: &[&Path]) {
+    for path in paths {
+        assert!(
+            path.starts_with(root),
+            "global test fixture path {} must stay under {}",
+            path.display(),
+            root.display(),
+        );
+    }
 }
 
 /// `pacquet add -g <pkg>` installs the package under the global packages
@@ -627,6 +733,296 @@ fn global_outdated_reads_each_global_install_lockfile() {
     );
 
     drop((root, npmrc_info));
+}
+
+#[cfg(unix)]
+#[test]
+fn global_update_preflights_incomplete_target_ownership_before_activation() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    fs::create_dir_all(&global_pkg_dir).expect("create global packages directory");
+    assert_fixture_paths(
+        root.path(),
+        &[&pnpm_home, &global_bin, &global_pkg_dir, &npmrc_info.store_dir, &npmrc_info.cache_dir],
+    );
+
+    let target_install =
+        seed_global_group(&global_pkg_dir, "target-hash", &[("@pnpm.e2e/print-version", None)]);
+    let stale_bin = global_bin.join("stale-version-bin");
+    fs::write(&stale_bin, b"old command\n").expect("seed the stale global bin");
+    let packages_before = snapshot_tree(&global_pkg_dir);
+    let bins_before = snapshot_tree(&global_bin);
+
+    for attempt in 1..=2 {
+        let output = global_command(&workspace, &pnpm_home)
+            .with_args(["update", "-g", "--latest", "@pnpm.e2e/print-version"])
+            .output()
+            .expect("run global update with incomplete ownership");
+        assert!(
+            !output.status.success(),
+            "attempt {attempt} must reject incomplete ownership; stdout: {}; stderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert_eq!(snapshot_tree(&global_pkg_dir), packages_before);
+        assert_eq!(snapshot_tree(&global_bin), bins_before);
+    }
+
+    fs::write(
+        dependency_manifest_path(&target_install, "@pnpm.e2e/print-version"),
+        r#"{"name":"@pnpm.e2e/print-version","version":"1.0.0","bin":{"stale-version-bin":"old.js"}}"#,
+    )
+    .expect("repair target dependency manifest");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--latest", "@pnpm.e2e/print-version"])
+        .assert()
+        .success();
+    assert!(!stale_bin.exists(), "the repaired retry must remove the genuinely stale bin");
+    assert!(global_bin.join("print-version").exists());
+    assert!(!target_install.exists());
+    assert_eq!(symlink_entries(&global_pkg_dir).len(), 1);
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--latest", "@pnpm.e2e/print-version"])
+        .assert()
+        .success();
+    assert!(!stale_bin.exists());
+    assert!(global_bin.join("print-version").exists());
+    assert_eq!(symlink_entries(&global_pkg_dir).len(), 1);
+
+    drop((root, npmrc_info));
+}
+
+#[cfg(unix)]
+#[test]
+fn global_add_preflights_incomplete_survivor_ownership_before_activation() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    fs::create_dir_all(&global_pkg_dir).expect("create global packages directory");
+    assert_fixture_paths(
+        root.path(),
+        &[&pnpm_home, &global_bin, &global_pkg_dir, &npmrc_info.store_dir, &npmrc_info.cache_dir],
+    );
+
+    let target_install = seed_global_group(
+        &global_pkg_dir,
+        "target-hash",
+        &[(
+            "@foo/touch-file-one-bin",
+            Some(
+                r#"{"name":"@foo/touch-file-one-bin","version":"0.0.0","bin":{"shared":"shared.js","stale":"stale.js"}}"#,
+            ),
+        )],
+    );
+    let survivor_install =
+        seed_global_group(&global_pkg_dir, "survivor-hash", &[("keeper", Some("{"))]);
+    let shared_bin = global_bin.join("shared");
+    let stale_bin = global_bin.join("stale");
+    fs::write(&shared_bin, b"keeper command\n").expect("seed survivor-owned bin");
+    fs::write(&stale_bin, b"target command\n").expect("seed target-owned bin");
+    let packages_before = snapshot_tree(&global_pkg_dir);
+    let bins_before = snapshot_tree(&global_bin);
+
+    for attempt in 1..=2 {
+        let output = global_command(&workspace, &pnpm_home)
+            .with_args(["add", "-g", "@foo/touch-file-one-bin"])
+            .output()
+            .expect("run global add with incomplete survivor ownership");
+        assert!(
+            !output.status.success(),
+            "attempt {attempt} must reject incomplete survivor ownership; stdout: {}; stderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert_eq!(snapshot_tree(&global_pkg_dir), packages_before);
+        assert_eq!(snapshot_tree(&global_bin), bins_before);
+    }
+
+    fs::write(
+        dependency_manifest_path(&survivor_install, "keeper"),
+        r#"{"name":"keeper","version":"1.0.0","bin":{"shared":"keeper.js"}}"#,
+    )
+    .expect("repair survivor dependency manifest");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    assert_eq!(fs::read(&shared_bin).expect("read survivor-owned bin"), b"keeper command\n");
+    assert!(!stale_bin.exists());
+    assert!(global_bin.join("touch-file-one-bin").exists());
+    assert!(!target_install.exists());
+    assert!(survivor_install.exists());
+    assert_eq!(symlink_entries(&global_pkg_dir).len(), 2);
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+    assert_eq!(fs::read(&shared_bin).expect("read survivor-owned bin"), b"keeper command\n");
+    assert!(!stale_bin.exists());
+    assert!(global_bin.join("touch-file-one-bin").exists());
+    assert_eq!(symlink_entries(&global_pkg_dir).len(), 2);
+
+    drop((root, npmrc_info));
+}
+
+#[cfg(unix)]
+#[test]
+fn global_remove_preflights_all_targets_before_mutating_any_group() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    fs::create_dir_all(&global_bin).expect("create global bin directory");
+    fs::create_dir_all(&global_pkg_dir).expect("create global packages directory");
+    assert_fixture_paths(root.path(), &[&pnpm_home, &global_bin, &global_pkg_dir]);
+
+    let first_install = seed_global_group(
+        &global_pkg_dir,
+        "first-hash",
+        &[(
+            "victim-a",
+            Some(r#"{"name":"victim-a","version":"1.0.0","bin":{"victim-a-bin":"cli.js"}}"#),
+        )],
+    );
+    let second_install = seed_global_group(&global_pkg_dir, "second-hash", &[("victim-b", None)]);
+    let first_bin = global_bin.join("victim-a-bin");
+    let second_bin = global_bin.join("victim-b-bin");
+    fs::write(&first_bin, b"first command\n").expect("seed first target bin");
+    fs::write(&second_bin, b"second command\n").expect("seed second target bin");
+    let packages_before = snapshot_tree(&global_pkg_dir);
+    let bins_before = snapshot_tree(&global_bin);
+
+    for attempt in 1..=2 {
+        let output = global_command(&workspace, &pnpm_home)
+            .with_args(["remove", "-g", "victim-a", "victim-b"])
+            .output()
+            .expect("run multi-target global remove");
+        assert!(
+            !output.status.success(),
+            "attempt {attempt} must reject an incomplete target; stdout: {}; stderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert_eq!(snapshot_tree(&global_pkg_dir), packages_before);
+        assert_eq!(snapshot_tree(&global_bin), bins_before);
+    }
+
+    fs::write(
+        dependency_manifest_path(&second_install, "victim-b"),
+        r#"{"name":"victim-b","version":"1.0.0","bin":{"victim-b-bin":"cli.js"}}"#,
+    )
+    .expect("repair second target dependency manifest");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["remove", "-g", "victim-a", "victim-b"])
+        .assert()
+        .success();
+    assert!(!first_install.exists());
+    assert!(!second_install.exists());
+    assert!(!first_bin.exists());
+    assert!(!second_bin.exists());
+    assert!(snapshot_tree(&global_pkg_dir).is_empty());
+    let removed_packages = snapshot_tree(&global_pkg_dir);
+    let removed_bins = snapshot_tree(&global_bin);
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["remove", "-g", "victim-a", "victim-b"])
+        .output()
+        .expect("repeat completed multi-target remove");
+    assert!(!output.status.success(), "the existing not-found contract is retained");
+    assert_eq!(snapshot_tree(&global_pkg_dir), removed_packages);
+    assert_eq!(snapshot_tree(&global_bin), removed_bins);
+
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn global_remove_preflights_survivors_before_mutating_targets() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    fs::create_dir_all(&global_bin).expect("create global bin directory");
+    fs::create_dir_all(&global_pkg_dir).expect("create global packages directory");
+    assert_fixture_paths(root.path(), &[&pnpm_home, &global_bin, &global_pkg_dir]);
+
+    let target_install = seed_global_group(
+        &global_pkg_dir,
+        "target-hash",
+        &[(
+            "victim",
+            Some(
+                r#"{"name":"victim","version":"1.0.0","bin":{"shared":"shared.js","stale":"stale.js"}}"#,
+            ),
+        )],
+    );
+    let survivor_install =
+        seed_global_group(&global_pkg_dir, "survivor-hash", &[("keeper", Some("{"))]);
+    let shared_bin = global_bin.join("shared");
+    let stale_bin = global_bin.join("stale");
+    fs::write(&shared_bin, b"keeper command\n").expect("seed survivor-owned bin");
+    fs::write(&stale_bin, b"target command\n").expect("seed target-owned bin");
+    let packages_before = snapshot_tree(&global_pkg_dir);
+    let bins_before = snapshot_tree(&global_bin);
+
+    for attempt in 1..=2 {
+        let output = global_command(&workspace, &pnpm_home)
+            .with_args(["remove", "-g", "victim"])
+            .output()
+            .expect("run global remove with incomplete survivor ownership");
+        assert!(
+            !output.status.success(),
+            "attempt {attempt} must reject incomplete survivor ownership; stdout: {}; stderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert_eq!(snapshot_tree(&global_pkg_dir), packages_before);
+        assert_eq!(snapshot_tree(&global_bin), bins_before);
+    }
+
+    fs::write(
+        dependency_manifest_path(&survivor_install, "keeper"),
+        r#"{"name":"keeper","version":"1.0.0","bin":{"shared":"keeper.js"}}"#,
+    )
+    .expect("repair survivor dependency manifest");
+
+    global_command(&workspace, &pnpm_home).with_args(["remove", "-g", "victim"]).assert().success();
+    assert!(!target_install.exists());
+    assert!(survivor_install.exists());
+    assert_eq!(fs::read(&shared_bin).expect("read survivor-owned bin"), b"keeper command\n");
+    assert!(!stale_bin.exists());
+    let removed_packages = snapshot_tree(&global_pkg_dir);
+    let removed_bins = snapshot_tree(&global_bin);
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["remove", "-g", "victim"])
+        .output()
+        .expect("repeat completed global remove");
+    assert!(!output.status.success(), "the existing not-found contract is retained");
+    assert_eq!(snapshot_tree(&global_pkg_dir), removed_packages);
+    assert_eq!(snapshot_tree(&global_bin), removed_bins);
+
+    drop(root);
 }
 
 /// `pacquet list -g` with nothing installed reports the empty state rather
