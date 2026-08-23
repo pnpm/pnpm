@@ -52,7 +52,10 @@ export function isExecutedByCorepack (env: NodeJS.ProcessEnv = process.env): boo
 
 /**
  * The command that installs pnpm with the standalone script, as documented at
- * https://pnpm.io/installation.
+ * https://pnpm.io/installation: the PowerShell form for `win32`, the
+ * `curl`-into-`sh` form for every other platform. Reads the platform from
+ * `proc`, defaulting to the host's; always returns a command that can be run
+ * as printed.
  */
 export function standaloneInstallCommand (proc: Process = process): string {
   return proc.platform === 'win32'
