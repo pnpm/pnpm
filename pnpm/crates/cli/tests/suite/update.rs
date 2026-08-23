@@ -1757,10 +1757,7 @@ fn update_no_save_resolves_a_requested_range_within_the_kept_range() {
 }
 
 /// Ports `update to latest should not touch the automatically installed
-/// peer dependencies`: `--latest` on one direct dependency re-resolves
-/// that dependency, and the peers the install auto-installed keep the
-/// versions they were resolved to even though newer ones are now
-/// `latest`.
+/// peer dependencies`.
 #[test]
 fn update_latest_leaves_auto_installed_peers_alone() {
     let (root, workspace, anchor) = setup_with_own_registry();
@@ -1786,9 +1783,7 @@ fn update_latest_leaves_auto_installed_peers_alone() {
     drop((root, anchor));
 }
 
-/// Ports `update with "*" pattern`: a glob selector under `--latest`
-/// moves every dependency it matches to that package's `latest`, and
-/// nothing else.
+/// Ports `update with "*" pattern`.
 #[test]
 fn update_latest_with_glob_selector_is_scoped() {
     let (root, workspace, anchor) = setup_with_own_registry();
@@ -1813,9 +1808,7 @@ fn update_latest_with_glob_selector_is_scoped() {
 }
 
 /// Ports `update should work normal when set empty string version`
-/// (<https://github.com/pnpm/pnpm/issues/4196>): a dependency declared
-/// with an empty specifier is updated like any other, in whichever
-/// group it is declared.
+/// (<https://github.com/pnpm/pnpm/issues/4196>).
 #[test]
 fn update_latest_star_selector_updates_an_empty_specifier() {
     let (root, workspace, anchor) = setup_with_own_registry();
@@ -1844,9 +1837,7 @@ fn update_latest_star_selector_updates_an_empty_specifier() {
     drop((root, anchor));
 }
 
-/// Ports `should not update tag version when --latest not set`: a
-/// specifier that names a dist tag is left alone by a compatible
-/// update, whichever tag it names.
+/// Ports `should not update tag version when --latest not set`.
 #[test]
 fn update_keeps_every_dist_tag_specifier_without_latest() {
     let (root, workspace, anchor) = setup_with_own_registry();
@@ -1870,8 +1861,7 @@ fn update_keeps_every_dist_tag_specifier_without_latest() {
 }
 
 /// Ports `not ignore packages if these are specified in parameter even
-/// if these are listed in ... ignoreDependencies`: naming a dependency
-/// explicitly overrides its entry in `updateConfig.ignoreDependencies`.
+/// if these are listed in ... ignoreDependencies`.
 #[test]
 fn update_selectors_override_ignore_dependencies() {
     let (root, workspace, anchor) = setup_with_own_registry();

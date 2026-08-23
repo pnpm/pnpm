@@ -230,9 +230,7 @@ fn recursive_update_keeps_an_aliased_workspace_dependency() {
     drop((root, anchor));
 }
 
-/// Ports `recursive update prod dependencies only`: `--prod
-/// --no-optional` narrows which dependencies the update re-resolves
-/// without narrowing what the install materializes.
+/// Ports `recursive update prod dependencies only`.
 #[test]
 fn recursive_update_prod_dependencies_only() {
     let (root, workspace, anchor) = setup_with_own_registry();
@@ -280,9 +278,7 @@ fn recursive_update_prod_dependencies_only() {
     drop((root, anchor));
 }
 
-/// Ports `recursive update with pattern`: glob selectors under
-/// `--latest` reach every project that declares a matching dependency,
-/// and nothing else.
+/// Ports `recursive update with pattern`.
 #[test]
 fn recursive_update_with_pattern() {
     let (root, workspace, anchor) = setup_with_own_registry();
@@ -321,9 +317,7 @@ fn recursive_update_with_pattern() {
     drop((root, anchor));
 }
 
-/// Ports `recursive update with pattern and name in project`: a selector
-/// that matches no project's dependencies fails at `--depth 0` and is a
-/// no-op without it, and the pattern update still reaches every project.
+/// Ports `recursive update with pattern and name in project`.
 #[test]
 fn recursive_update_with_pattern_and_name_in_project() {
     let (root, workspace, anchor) = setup_with_own_registry();
@@ -383,8 +377,7 @@ fn recursive_update_with_pattern_and_name_in_project() {
 }
 
 /// Ports `recursive update --latest foo should only update projects that
-/// have foo`: with one lockfile for the workspace, the named packages
-/// move and every other dependency keeps its resolution.
+/// have foo`, over one lockfile for the whole workspace.
 #[test]
 fn recursive_update_latest_only_reaches_the_named_packages() {
     let (root, workspace, anchor) = setup_with_own_registry();
@@ -430,8 +423,7 @@ fn recursive_update_latest_only_reaches_the_named_packages() {
 }
 
 /// Ports `recursive update --latest foo should only update packages that
-/// have foo`: with a lockfile per project, only the project declaring the
-/// named package is rewritten.
+/// have foo`, over a lockfile per project.
 #[test]
 fn recursive_update_latest_with_dedicated_lockfiles_only_touches_the_declaring_project() {
     let (root, workspace, anchor) = setup_with_own_registry();

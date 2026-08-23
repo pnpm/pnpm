@@ -500,20 +500,39 @@ fn script() -> std::sync::MutexGuard<'static, PromptScript> {
     SCRIPT.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// Answer the next prompts by checking the rows for these packages, the
-/// way the upstream suite resolves its `@inquirer/prompts` mock.
-fn script_prompt_answers(answers: &[&[&str]]) {
-    let mut script = script();
-    script.answers = answers
-        .iter()
-        .map(|packages| packages.iter().map(|package| (*package).to_string()).collect())
-        .collect();
-    script.seen.clear();
+static SCRIPT_LOCK: Mutex<()> = Mutex::new(());
+
+/// One test's claim on the scripted prompt.
+///
+/// [`SCRIPT`] is process-global, which `cargo nextest run` — a process
+/// per test — makes invisible, but `cargo test` does not. Holding this
+/// for the test's lifetime keeps two tests from consuming each other's
+/// answers.
+struct ScriptedPrompts {
+    _claim: std::sync::MutexGuard<'static, ()>,
 }
 
-/// Take the prompts shown since [`script_prompt_answers`].
-fn seen_prompts() -> Vec<SeenPrompt> {
-    std::mem::take(&mut script().seen)
+/// Claim the scripted prompt, with nothing answered and nothing seen.
+fn scripted_prompts() -> ScriptedPrompts {
+    let claim = SCRIPT_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut script = script();
+    script.answers.clear();
+    script.seen.clear();
+    drop(script);
+    ScriptedPrompts { _claim: claim }
+}
+
+impl ScriptedPrompts {
+    /// Answer the next prompt by checking the rows for these packages,
+    /// the way the upstream suite resolves its `@inquirer/prompts` mock.
+    fn answer_next(&self, packages: &[&str]) {
+        script().answers.push_back(packages.iter().map(|package| (*package).to_string()).collect());
+    }
+
+    /// Take the prompts shown since the last call.
+    fn seen(&self) -> Vec<SeenPrompt> {
+        std::mem::take(&mut script().seen)
+    }
 }
 
 pub(super) fn answer_prompt(message: &str, rows: &[PromptRow]) -> Vec<usize> {
@@ -652,9 +671,7 @@ impl UpdateFixture {
     }
 }
 
-/// Ports `interactively update`: the prompt offers the dependencies that
-/// have a newer version — within their ranges, then at `latest` — and
-/// only the ones checked are updated.
+/// Ports `interactively update`.
 #[tokio::test]
 async fn interactively_update() {
     let fixture = UpdateFixture::new();
@@ -665,10 +682,11 @@ async fn interactively_update() {
     fixture.update(&["update"]).await;
     fixture.write_manifest(&json!({ MULTI_A: "^1.0.0", MULTI_B: "^2.0.0", MULTI_C: "^3.0.0" }));
 
-    script_prompt_answers(&[&[MULTI_A]]);
+    let scripted = scripted_prompts();
+    scripted.answer_next(&[MULTI_A]);
     fixture.update(&["update", "--interactive"]).await;
 
-    let prompts = seen_prompts();
+    let prompts = scripted.seen();
     assert_eq!(prompts.len(), 1);
     assert_eq!(
         prompts[0].message,
@@ -687,10 +705,10 @@ async fn interactively_update() {
         [format!("{MULTI_A}@1.0.1"), format!("{MULTI_B}@2.0.0"), format!("{MULTI_C}@3.0.0")],
     );
 
-    script_prompt_answers(&[&[MULTI_A]]);
+    scripted.answer_next(&[MULTI_A]);
     fixture.update(&["update", "--interactive", "--latest"]).await;
 
-    let prompts = seen_prompts();
+    let prompts = scripted.seen();
     assert_eq!(prompts.len(), 1);
     assert_eq!(
         offered(&prompts[0]),
@@ -707,8 +725,7 @@ async fn interactively_update() {
 }
 
 /// Ports `interactively update should ignore dependencies from the
-/// ignoreDependencies field`: an ignored dependency is never offered, and
-/// the ones that are stay updatable.
+/// ignoreDependencies field`.
 #[tokio::test]
 async fn interactively_update_skips_ignored_dependencies() {
     let fixture = UpdateFixture::with_config(|config| {
@@ -719,10 +736,11 @@ async fn interactively_update_skips_ignored_dependencies() {
     fixture.update(&["update"]).await;
     fixture.write_manifest(&json!({ MULTI_A: "^1.0.0", MULTI_B: "^2.0.0", MULTI_C: "^3.0.0" }));
 
-    script_prompt_answers(&[&[MULTI_C]]);
+    let scripted = scripted_prompts();
+    scripted.answer_next(&[MULTI_C]);
     fixture.update(&["update", "--interactive"]).await;
 
-    let prompts = seen_prompts();
+    let prompts = scripted.seen();
     assert_eq!(prompts.len(), 1);
     assert_eq!(
         offered(&prompts[0]),
@@ -734,30 +752,27 @@ async fn interactively_update_skips_ignored_dependencies() {
     );
 }
 
-/// Ports `global interactive update handles an empty global directory`:
-/// with nothing installed globally there is nothing to choose from, so
-/// the prompt is never shown.
+/// Ports `global interactive update handles an empty global directory`.
 #[tokio::test]
 async fn global_interactive_update_handles_an_empty_global_directory() {
     let dir = tempfile::tempdir().expect("create temporary global dir");
     let mut config = Config::new();
     config.global_pkg_dir = Some(dir.path().to_path_buf());
     let config = Config::leak(config);
-    script_prompt_answers(&[]);
+    let scripted = scripted_prompts();
 
     let selected = super::select_global_package_groups(config, &[], true, UpdatePrompt::Scripted)
         .await
         .expect("select global package groups");
 
     assert!(selected.is_none());
-    assert!(seen_prompts().is_empty(), "an empty global directory must not prompt");
+    assert!(scripted.seen().is_empty(), "an empty global directory must not prompt");
 }
 
 /// Ports `interactive recursive should not error on git specifier
-/// override` (<https://github.com/pnpm/pnpm/issues/7415>): an override
-/// that redirects a dependency at a git specifier leaves the lockfile
-/// recording a resolution that names no version, and gathering the
-/// interactive choices has to walk past it rather than fail.
+/// override` (<https://github.com/pnpm/pnpm/issues/7415>). The override
+/// upstream sets leaves the lockfile recording a resolution that names no
+/// version, which is what the fixture below stands in for.
 #[tokio::test]
 async fn choices_walk_past_a_dependency_overridden_to_a_git_specifier() {
     let temp = tempfile::tempdir().expect("create temporary workspace");

@@ -549,8 +549,7 @@ fn outdated_prod_dev_filtering() {
 }
 
 /// Ports `ignore packages in package.json > pnpm.updateConfig.ignoreDependencies
-/// in outdated command`: an ignored dependency is left out of the report,
-/// and the rest are still reported.
+/// in outdated command`.
 #[test]
 fn outdated_leaves_out_ignored_dependencies() {
     let (root, workspace, anchor) = setup();
