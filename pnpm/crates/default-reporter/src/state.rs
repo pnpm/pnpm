@@ -22,6 +22,7 @@ use pnpm_reporter::{
 use serde_json::Value;
 
 use pnpm_config::matcher::{Matcher, create_matcher};
+use pnpm_config::standalone_install_command;
 
 use crate::{
     MaxLogLevel, SummaryScope,
@@ -1584,30 +1585,17 @@ fn detect_install_source() -> PnpmInstallSource {
 
 /// pnpm's `renderUpdateCommand`: the command that updates the pnpm the
 /// user is running.
-///
-/// `pnpm add -g pnpm` is not named here even though pnpm was installed by
-/// another package manager: `pnpm add -g` refuses to install pnpm and points
-/// at `self-update` itself, which works wherever `PNPM_HOME` resolves to.
-/// Corepack is the one case self-update cannot serve, and pnpm points at its
-/// own installer there rather than back at Corepack.
 fn update_command(source: PnpmInstallSource) -> String {
     match source {
-        PnpmInstallSource::Corepack => standalone_install_command().to_string(),
-        PnpmInstallSource::PnpmHome | PnpmInstallSource::Elsewhere => {
-            "pnpm self-update".to_string()
+        PnpmInstallSource::PnpmHome => "pnpm self-update".to_string(),
+        // `self-update` replaces the pnpm that `PNPM_HOME` manages. Corepack
+        // refuses it outright, and an install another package manager owns is
+        // resolved from that manager's bin directory rather than pnpm's home,
+        // so a self-update would land beside the executable in use instead of
+        // replacing it. The installer is the command that updates either one.
+        PnpmInstallSource::Corepack | PnpmInstallSource::Elsewhere => {
+            standalone_install_command().to_string()
         }
-    }
-}
-
-/// The command that installs pnpm with the standalone script, as documented
-/// at <https://pnpm.io/installation>. Shared with `self-update`, which names
-/// it when it refuses to run under Corepack.
-#[must_use]
-pub fn standalone_install_command() -> &'static str {
-    if cfg!(windows) {
-        "Invoke-WebRequest https://get.pnpm.io/install.ps1 -UseBasicParsing | Invoke-Expression"
-    } else {
-        "curl -fsSL https://get.pnpm.io/install.sh | sh -"
     }
 }
 

@@ -16,8 +16,7 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_cmd_shim::{Host as CmdShimHost, LinkBinsOptions, link_bins_of_packages_with_excludes};
-use pnpm_config::{Config, PNPM_VERSION};
-use pnpm_default_reporter::state::standalone_install_command;
+use pnpm_config::{Config, PNPM_VERSION, standalone_install_command};
 use pnpm_env_installer::pnpm_engine_packages;
 use pnpm_fs::force_symlink_dir;
 use pnpm_global::{

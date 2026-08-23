@@ -2,8 +2,8 @@ use super::{
     PNPM_VERSION, default_cache_dir, default_child_concurrency,
     default_child_concurrency_with_parallelism, default_config_dir, default_fetch_timeout,
     default_store_dir, default_unsafe_perm, default_user_agent, default_workspace_concurrency,
-    is_unsafe_perm_posix, resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
-    resolve_configured_state_dir,
+    install_command_for, is_unsafe_perm_posix, resolve_child_concurrency,
+    resolve_child_concurrency_with_parallelism, resolve_configured_state_dir,
 };
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
 use pnpm_store_dir::{STORE_VERSION, StoreDir};
@@ -401,4 +401,16 @@ fn user_agent_default_matches_pnpm_format() {
     let tail: Vec<&str> = ua[prefix.len()..].split(' ').collect();
     assert_eq!(tail.len(), 2, "expected `<platform> <arch>` tail, got {ua:?}");
     assert!(tail.iter().all(|token| !token.is_empty()), "platform/arch must be non-empty: {ua:?}");
+}
+
+/// Both forms are asserted here rather than through
+/// `standalone_install_command`, whose branch a single-platform test run
+/// cannot cover.
+#[test]
+fn the_install_command_matches_the_host_shell() {
+    assert_eq!(
+        install_command_for(true),
+        "Invoke-WebRequest https://get.pnpm.io/install.ps1 -UseBasicParsing | Invoke-Expression"
+    );
+    assert_eq!(install_command_for(false), "curl -fsSL https://get.pnpm.io/install.sh | sh -");
 }

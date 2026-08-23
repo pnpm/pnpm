@@ -47,7 +47,8 @@ pub use crate::defaults::{
     available_parallelism, default_cache_dir, default_config_dir, default_git_shallow_hosts,
     default_peers_suffix_max_length, default_pnpm_home_dir, default_registry, default_state_dir,
     default_unsafe_perm, default_virtual_store_dir_max_length, default_workspace_concurrency,
-    is_unsafe_perm_posix, resolve_child_concurrency, resolve_configured_state_dir,
+    install_command_for, is_unsafe_perm_posix, resolve_child_concurrency,
+    resolve_configured_state_dir, standalone_install_command,
 };
 use crate::defaults::{
     default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,

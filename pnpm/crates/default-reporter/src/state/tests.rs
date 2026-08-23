@@ -32,21 +32,10 @@ fn clamps_a_future_timestamp_to_zero() {
     assert_eq!(cached_verdict(Some("2026-07-25T12:00:05.000Z"), now), "verified 0ms ago");
 }
 
-/// Corepack is the only source `self-update` cannot serve, and it is
-/// pointed at pnpm's own installer rather than back at Corepack.
+/// `self-update` is named only where it can replace the executable in use.
 #[test]
-fn only_corepack_is_told_to_install_pnpm_another_way() {
-    assert_eq!(update_command(PnpmInstallSource::Corepack), standalone_install_command());
+fn only_a_pnpm_home_install_is_told_to_self_update() {
     assert_eq!(update_command(PnpmInstallSource::PnpmHome), "pnpm self-update");
-    assert_eq!(update_command(PnpmInstallSource::Elsewhere), "pnpm self-update");
-}
-
-#[test]
-fn the_standalone_install_command_matches_the_host_shell() {
-    let command = standalone_install_command();
-    if cfg!(windows) {
-        assert!(command.contains("install.ps1"), "command: {command}");
-    } else {
-        assert!(command.contains("install.sh"), "command: {command}");
-    }
+    assert_eq!(update_command(PnpmInstallSource::Corepack), standalone_install_command());
+    assert_eq!(update_command(PnpmInstallSource::Elsewhere), standalone_install_command());
 }

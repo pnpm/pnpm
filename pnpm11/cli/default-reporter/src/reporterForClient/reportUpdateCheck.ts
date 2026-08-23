@@ -47,14 +47,13 @@ function renderUpdateMessage (opts: UpdateMessageOptions): string {
 }
 
 function renderUpdateCommand (opts: UpdateMessageOptions): string {
-  // Under Corepack, `pnpm self-update` refuses to run, and pnpm no longer
-  // points users back at Corepack — it suggests its own installer instead.
-  if (isExecutedByCorepack(opts.env)) {
+  // `pnpm self-update` replaces the pnpm that PNPM_HOME manages. Corepack
+  // refuses it outright, and an install another package manager owns is
+  // resolved from that manager's bin directory rather than pnpm's home, so a
+  // self-update would land beside the executable in use instead of replacing
+  // it. The installer is the command that updates either one.
+  if (isExecutedByCorepack(opts.env) || !opts.env.PNPM_HOME) {
     return standaloneInstallCommand(opts.platform)
   }
-  // `pnpm add -g pnpm` (or `@pnpm/exe`) is refused by the add command itself,
-  // which points at self-update instead. self-update also picks the package
-  // that can actually deliver a working binary for the wanted version — the
-  // unscoped `pnpm` from v12, where `@pnpm/exe` is no longer published.
   return 'pnpm self-update'
 }
