@@ -41,17 +41,22 @@ runs:
         $llvmDir = Join-Path $installPath 'VC\Tools\Llvm'
         $deadline = (Get-Date).AddMinutes(5)
         $installerRunning = $true
+        $installerSeen = $false
         $clangCl = $null
         # The launch above is asynchronous and the installer spawns work in
         # processes it does not always account for, so poll for a quiet
         # installer and a real clang-cl before trusting the toolchain.
         do {
           $installerRunning = @(Get-Process -Name 'vs_installer', 'vs_setup', 'setup' -ErrorAction SilentlyContinue).Count -gt 0
+          $installerSeen = $installerSeen -or $installerRunning
           $clangCl = Join-Path $llvmDir 'x64\bin\clang-cl.exe'
           if (-not (Test-Path -LiteralPath $clangCl)) { $clangCl = $null }
           if ($installerRunning -or $null -eq $clangCl) { Start-Sleep -Seconds 5 }
         } while (($installerRunning -or $null -eq $clangCl) -and (Get-Date) -lt $deadline)
         if ($installerRunning) { throw 'Visual Studio installer did not finish within five minutes' }
+        # Never having seen the installer run separates a rejected command line
+        # from an install that ran and left the component out.
+        if ($null -eq $clangCl -and -not $installerSeen) { throw "no install ever started; the installer rejected the modify command line above, and clang-cl is absent from $llvmDir" }
         if ($null -eq $clangCl) { throw "clang-cl was not installed under $llvmDir" }
         & $clangCl --version
         $clangDir = Split-Path -Parent $clangCl
