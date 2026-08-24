@@ -161,51 +161,6 @@ test('lockfileToHoistedDepGraph keeps file-dep peer variants apart', async () =>
   })
 })
 
-// The previous graph is only diffed by directory name, and its walk runs
-// with `force: true` and an empty skip list so it also names directories
-// an earlier install could have left behind. Reaching the store from
-// there downloads every optional dependency that install skipped.
-test('lockfileToHoistedDepGraph does not fetch anything for the previous graph', async () => {
-  const dir = tempDir(false)
-  const opts = hoistedOpts(dir)
-  const fetchedDepPaths: string[] = []
-  opts.skipped = new Set(['opt@1.0.0'])
-  opts.storeController = {
-    fetchPackage: ({ pkg }: { pkg: { id: string } }) => {
-      fetchedDepPaths.push(pkg.id)
-      return { filesIndexFile: '' }
-    },
-    getFilesIndexFilePath: () => ({ filesIndexFile: '' }),
-  } as unknown as typeof opts.storeController
-
-  const lockfile = skippedOptionalLockfile()
-  const { prevGraph } = await lockfileToHoistedDepGraph(lockfile, lockfile, opts)
-
-  expect(fetchedDepPaths).toStrictEqual(['a@1.0.0'])
-  const modulesDir = path.join(dir, 'node_modules')
-  expect(Object.keys(prevGraph!).sort()).toStrictEqual([
-    path.join(modulesDir, 'a'),
-    path.join(modulesDir, 'opt'),
-  ])
-})
-
-function skippedOptionalLockfile (): LockfileObject {
-  return {
-    lockfileVersion: '9.0',
-    importers: {
-      '.': {
-        dependencies: { a: '1.0.0' },
-        optionalDependencies: { opt: '1.0.0' },
-        specifiers: { a: '1.0.0', opt: '1.0.0' },
-      },
-    },
-    packages: {
-      'a@1.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
-      'opt@1.0.0': { resolution: { integrity: 'sha512-deadbeef' }, optional: true },
-    },
-  } as unknown as LockfileObject
-}
-
 function fileVariantLockfile (): LockfileObject {
   const importer = (peerVersion: string) => ({
     dependencies: {
@@ -230,6 +185,51 @@ function fileVariantLockfile (): LockfileObject {
       'comp@file:comp(peer@2.0.0)': compVariant('2.0.0'),
       'peer@1.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
       'peer@2.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
+    },
+  } as unknown as LockfileObject
+}
+
+// The previous graph is only diffed by directory name, and its walk runs
+// with `force: true` and an empty skip list so it also names directories
+// an earlier install could have left behind. Reaching the store from
+// there downloads every optional dependency that install skipped.
+test('lockfileToHoistedDepGraph does not fetch anything for the previous graph', async () => {
+  const dir = tempDir(false)
+  const opts = hoistedOpts(dir)
+  const fetchedPkgIds: string[] = []
+  opts.skipped = new Set(['opt@1.0.0'])
+  opts.storeController = {
+    fetchPackage: ({ pkg }: { pkg: { id: string } }) => {
+      fetchedPkgIds.push(pkg.id)
+      return { filesIndexFile: '' }
+    },
+    getFilesIndexFilePath: () => ({ filesIndexFile: '' }),
+  } as unknown as typeof opts.storeController
+
+  const lockfile = skippedOptionalLockfile()
+  const { prevGraph } = await lockfileToHoistedDepGraph(lockfile, lockfile, opts)
+
+  expect(fetchedPkgIds).toStrictEqual(['a@1.0.0'])
+  const modulesDir = path.join(dir, 'node_modules')
+  expect(Object.keys(prevGraph!).sort()).toStrictEqual([
+    path.join(modulesDir, 'a'),
+    path.join(modulesDir, 'opt'),
+  ])
+})
+
+function skippedOptionalLockfile (): LockfileObject {
+  return {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        dependencies: { a: '1.0.0' },
+        optionalDependencies: { opt: '1.0.0' },
+        specifiers: { a: '1.0.0', opt: '1.0.0' },
+      },
+    },
+    packages: {
+      'a@1.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
+      'opt@1.0.0': { resolution: { integrity: 'sha512-deadbeef' }, optional: true },
     },
   } as unknown as LockfileObject
 }

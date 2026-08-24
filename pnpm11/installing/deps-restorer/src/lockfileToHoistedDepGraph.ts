@@ -78,8 +78,8 @@ export async function lockfileToHoistedDepGraph (
   if (currentLockfile?.packages != null) {
     prevGraph = (await _lockfileToHoistedDepGraph(currentLockfile, {
       ...opts,
-      dirsOnly: true,
       force: true,
+      skipFetching: true,
       skipped: new Set(),
     })).graph
   } else {
@@ -91,9 +91,22 @@ export async function lockfileToHoistedDepGraph (
   }
 }
 
+interface SkipFetchingOption {
+  /**
+   * When true, never reach the store: the graph is built without
+   * `fetching` and `filesIndexFile`. Set for the previous graph, whose
+   * only consumer diffs its keys against the new graph's to find
+   * directories to remove. That walk runs with `force: true` and an
+   * empty skip list, so it visits packages an earlier install skipped
+   * and never downloaded; fetching them would download tarballs that
+   * are then discarded.
+   */
+  skipFetching?: boolean
+}
+
 async function _lockfileToHoistedDepGraph (
   lockfile: LockfileObject,
-  opts: LockfileToHoistedDepGraphOptions & { dirsOnly?: boolean }
+  opts: LockfileToHoistedDepGraphOptions & SkipFetchingOption
 ): Promise<Omit<LockfileToDepGraphResult, 'prevGraph'>> {
   const tree = hoist(lockfile, {
     hoistingLimits: opts.hoistingLimits,
@@ -188,16 +201,7 @@ async function fetchDeps (
     pkgLocationsByPkgId: Record<string, string[]>
     injectionTargetsByDepPath: Map<string, string[]>
     hoistedLocations: Record<string, string[]>
-    /**
-     * Build the graph from directory names alone, without reaching the
-     * store. Set for the previous graph, whose only consumer diffs its
-     * keys against the new graph's to find directories to remove: its
-     * `force: true` walk visits packages an earlier install skipped and
-     * never downloaded, so fetching them would download tarballs that
-     * are then discarded.
-     */
-    dirsOnly?: boolean
-  } & LockfileToHoistedDepGraphOptions,
+  } & LockfileToHoistedDepGraphOptions & SkipFetchingOption,
   modules: string,
   deps: Set<HoisterResult>
 ): Promise<DepHierarchy> {
@@ -250,7 +254,7 @@ async function fetchDeps (
     const dir = safeJoinModulesDir(modules, dep.name)
     const depLocation = path.relative(opts.lockfileDir, dir)
     let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
-    if (opts.dirsOnly) {
+    if (opts.skipFetching) {
       fetchResponse = {} as unknown as ReturnType<FetchPackageToStoreFunction>
     } else {
       // We check for the existence of the package inside node_modules.
