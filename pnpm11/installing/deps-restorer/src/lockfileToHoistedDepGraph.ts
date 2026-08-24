@@ -78,6 +78,7 @@ export async function lockfileToHoistedDepGraph (
   if (currentLockfile?.packages != null) {
     prevGraph = (await _lockfileToHoistedDepGraph(currentLockfile, {
       ...opts,
+      dirsOnly: true,
       force: true,
       skipped: new Set(),
     })).graph
@@ -92,7 +93,7 @@ export async function lockfileToHoistedDepGraph (
 
 async function _lockfileToHoistedDepGraph (
   lockfile: LockfileObject,
-  opts: LockfileToHoistedDepGraphOptions
+  opts: LockfileToHoistedDepGraphOptions & { dirsOnly?: boolean }
 ): Promise<Omit<LockfileToDepGraphResult, 'prevGraph'>> {
   const tree = hoist(lockfile, {
     hoistingLimits: opts.hoistingLimits,
@@ -187,6 +188,15 @@ async function fetchDeps (
     pkgLocationsByPkgId: Record<string, string[]>
     injectionTargetsByDepPath: Map<string, string[]>
     hoistedLocations: Record<string, string[]>
+    /**
+     * Build the graph from directory names alone, without reaching the
+     * store. Set for the previous graph, whose only consumer diffs its
+     * keys against the new graph's to find directories to remove: its
+     * `force: true` walk visits packages an earlier install skipped and
+     * never downloaded, so fetching them would download tarballs that
+     * are then discarded.
+     */
+    dirsOnly?: boolean
   } & LockfileToHoistedDepGraphOptions,
   modules: string,
   deps: Set<HoisterResult>
@@ -239,44 +249,47 @@ async function fetchDeps (
 
     const dir = safeJoinModulesDir(modules, dep.name)
     const depLocation = path.relative(opts.lockfileDir, dir)
-    const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, pickRegistryContext(opts))
     let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
-    // We check for the existence of the package inside node_modules.
-    // It will only be missing if the user manually removed it.
-    // That shouldn't normally happen but Bit CLI does remove node_modules in component directories:
-    // https://github.com/teambit/bit/blob/5e1eed7cd122813ad5ea124df956ee89d661d770/scopes/dependencies/dependency-resolver/dependency-installer.ts#L169
-    //
-    // We also verify that the package that is present has the expected version.
-    // This check is required because there is no guarantee the modules manifest and current lockfile were
-    // successfully saved after node_modules was changed during installation.
-    const skipFetch = opts.currentHoistedLocations?.[depPath]?.includes(depLocation) &&
-      await dirHasPackageJsonWithVersion(path.join(opts.lockfileDir, depLocation), pkgVersion)
-    const pkgResolution = {
-      id: packageId,
-      resolution,
-      name: pkgName,
-      version: pkgVersion,
-    }
-    if (skipFetch) {
-      const { filesIndexFile } = opts.storeController.getFilesIndexFilePath({
-        ignoreScripts: opts.ignoreScripts,
-        pkg: pkgResolution,
-      })
-      fetchResponse = { filesIndexFile } as unknown as ReturnType<FetchPackageToStoreFunction>
+    if (opts.dirsOnly) {
+      fetchResponse = {} as unknown as ReturnType<FetchPackageToStoreFunction>
     } else {
-      try {
-        fetchResponse = opts.storeController.fetchPackage({
-          allowBuild: opts.allowBuild,
-          force: false,
-          lockfileDir: opts.lockfileDir,
+      // We check for the existence of the package inside node_modules.
+      // It will only be missing if the user manually removed it.
+      // That shouldn't normally happen but Bit CLI does remove node_modules in component directories:
+      // https://github.com/teambit/bit/blob/5e1eed7cd122813ad5ea124df956ee89d661d770/scopes/dependencies/dependency-resolver/dependency-installer.ts#L169
+      //
+      // We also verify that the package that is present has the expected version.
+      // This check is required because there is no guarantee the modules manifest and current lockfile were
+      // successfully saved after node_modules was changed during installation.
+      const skipFetch = opts.currentHoistedLocations?.[depPath]?.includes(depLocation) &&
+        await dirHasPackageJsonWithVersion(path.join(opts.lockfileDir, depLocation), pkgVersion)
+      const pkgResolution = {
+        id: packageId,
+        resolution: pkgSnapshotToResolution(depPath, pkgSnapshot, pickRegistryContext(opts)),
+        name: pkgName,
+        version: pkgVersion,
+      }
+      if (skipFetch) {
+        const { filesIndexFile } = opts.storeController.getFilesIndexFilePath({
           ignoreScripts: opts.ignoreScripts,
           pkg: pkgResolution,
-          supportedArchitectures: opts.supportedArchitectures,
-        }) as unknown as ReturnType<FetchPackageToStoreFunction>
-        if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-      } catch (err: unknown) {
-        if (pkgSnapshot.optional) return
-        throw err
+        })
+        fetchResponse = { filesIndexFile } as unknown as ReturnType<FetchPackageToStoreFunction>
+      } else {
+        try {
+          fetchResponse = opts.storeController.fetchPackage({
+            allowBuild: opts.allowBuild,
+            force: false,
+            lockfileDir: opts.lockfileDir,
+            ignoreScripts: opts.ignoreScripts,
+            pkg: pkgResolution,
+            supportedArchitectures: opts.supportedArchitectures,
+          }) as unknown as ReturnType<FetchPackageToStoreFunction>
+          if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
+        } catch (err: unknown) {
+          if (pkgSnapshot.optional) return
+          throw err
+        }
       }
     }
     opts.graph[dir] = {
