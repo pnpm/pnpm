@@ -1,4 +1,4 @@
-use super::{PnpmInstallSource, cached_verdict, update_command};
+use super::{PnpmInstallSource, cached_verdict, standalone_install_command, update_command};
 use chrono::{DateTime, Utc};
 use pretty_assertions::assert_eq;
 
@@ -32,9 +32,10 @@ fn clamps_a_future_timestamp_to_zero() {
     assert_eq!(cached_verdict(Some("2026-07-25T12:00:05.000Z"), now), "verified 0ms ago");
 }
 
+/// `self-update` is named only where it can replace the executable in use.
 #[test]
-fn each_way_of_installing_pnpm_gets_its_own_update_command() {
-    assert_eq!(update_command(PnpmInstallSource::Corepack, "12.0.0"), "corepack use pnpm@12.0.0");
-    assert_eq!(update_command(PnpmInstallSource::PnpmHome, "12.0.0"), "pnpm self-update");
-    assert_eq!(update_command(PnpmInstallSource::Elsewhere, "12.0.0"), "pnpm add -g pnpm");
+fn only_a_pnpm_home_install_is_told_to_self_update() {
+    assert_eq!(update_command(PnpmInstallSource::PnpmHome), "pnpm self-update");
+    assert_eq!(update_command(PnpmInstallSource::Corepack), standalone_install_command());
+    assert_eq!(update_command(PnpmInstallSource::Elsewhere), standalone_install_command());
 }

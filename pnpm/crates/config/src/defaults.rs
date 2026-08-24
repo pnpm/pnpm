@@ -329,6 +329,26 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
 /// the release workflow verifies the two match before building.
 pub const PNPM_VERSION: &str = "12.0.0-rc.10";
 
+/// The command that installs pnpm with the standalone script, as documented
+/// at <https://pnpm.io/installation>: the PowerShell form on Windows, the
+/// `curl`-into-`sh` form everywhere else. Both the update notification and
+/// `self-update` name it, so it is defined once here.
+#[must_use]
+pub fn standalone_install_command() -> &'static str {
+    install_command_for(cfg!(windows))
+}
+
+/// [`standalone_install_command`] with the host check as an argument, so both
+/// commands are reachable from a test on either platform.
+#[must_use]
+pub fn install_command_for(windows: bool) -> &'static str {
+    if windows {
+        "Invoke-WebRequest https://get.pnpm.io/install.ps1 -UseBasicParsing | Invoke-Expression"
+    } else {
+        "curl -fsSL https://get.pnpm.io/install.sh | sh -"
+    }
+}
+
 pub fn default_fetch_timeout() -> u64 {
     pnpm_network::DEFAULT_FETCH_TIMEOUT_MS
 }
