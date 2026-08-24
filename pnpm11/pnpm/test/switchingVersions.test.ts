@@ -231,10 +231,11 @@ test('devEngines.packageManager is not re-resolved under --frozen-lockfile', asy
   expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
 })
 
-// https://github.com/pnpm/pnpm/issues/14124: entries an earlier pnpm recorded
-// with tarball URLs are discarded and re-resolved before the bootstrap reads
-// them. That repair re-records the version the manifest already pins, so a
-// frozen lockfile has nothing to reject — it used to fail the command.
+// https://github.com/pnpm/pnpm/issues/14124: entries whose resolutions the
+// bootstrap refuses to read are discarded and resolved afresh. The repair
+// records the version the lockfile already pins, so a frozen lockfile has
+// nothing to reject: the command runs that pnpm and the lockfile is left as
+// it is.
 test('devEngines.packageManager entries with a tarball resolution are repaired under --frozen-lockfile', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
@@ -251,12 +252,28 @@ test('devEngines.packageManager entries with a tarball resolution are repaired u
   })
   expect(execPnpmSync(['help'], { env }).stdout.toString()).toContain('Version 9.1.1')
 
-  // The shape an earlier pnpm wrote, which the bootstrap refuses to read.
-  const lockfile = fs.readFileSync('pnpm-lock.yaml', 'utf8').replace(
-    /resolution: \{integrity: ([^}]+)\}/,
-    'resolution: {integrity: $1, tarball: https://registry.npmjs.org/pnpm/-/pnpm-9.1.1.tgz}'
-  )
+  // A resolution carrying a tarball URL: the bootstrap accepts integrity-only
+  // resolutions, so this one sends the pin through the repair.
+  const seeded = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+  const resolutionEnd = seeded.indexOf('}', seeded.indexOf('resolution: {integrity: '))
+  const lockfile = [
+    seeded.slice(0, resolutionEnd),
+    ', tarball: https://registry.npmjs.org/pnpm/-/pnpm-9.1.1.tgz',
+    seeded.slice(resolutionEnd),
+  ].join('')
   fs.writeFileSync('pnpm-lock.yaml', lockfile)
+  // A range the locked 9.1.1 still satisfies, and which 9.1.3 satisfies too:
+  // a repair that resolved the range instead of the locked version would
+  // switch to 9.1.3 without recording it.
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=9.1.0 <9.1.4',
+        onFail: 'download',
+      },
+    },
+  })
   writeYamlFileSync('pnpm-workspace.yaml', { frozenLockfile: true })
 
   const { stdout } = execPnpmSync(['help'], { env })

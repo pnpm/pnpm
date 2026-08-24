@@ -538,35 +538,78 @@ async fn force_resync_under_frozen_lockfile_resolves_without_writing() {
 
     let platform_key: PackageKey = "@pnpm/exe.linux-x64@12.0.0".parse().unwrap();
     assert!(env.packages.contains_key(&platform_key), "the caller gets the repaired closure");
+    for (key, metadata) in &env.packages {
+        assert!(
+            matches!(&metadata.resolution, LockfileResolution::Registry(resolution)
+                if !resolution.integrity.to_string().is_empty()),
+            "the bootstrap only reads integrity-only registry resolutions, {key} has {:?}",
+            metadata.resolution,
+        );
+    }
     assert_eq!(std::fs::read_to_string(&lockfile_path).unwrap(), before);
 }
 
 /// Entries that do not record the pinned version are the case
 /// `--frozen-lockfile` exists for: recording them would take the lockfile
-/// out of sync with the manifest, so the command fails instead.
+/// out of sync with the manifest, so the command fails instead, and the
+/// lockfile it refused to update keeps the bytes it had.
 #[tokio::test]
 async fn frozen_lockfile_rejects_outdated_package_manager_entries() {
     let harness = harness();
     let root = TempDir::new().unwrap();
-    let resolver = FixtureResolver::new().package(serde_json::json!({
-        "name": "pnpm",
-        "version": "12.0.0",
-        "bin": "bin/pnpm.cjs",
-    }));
-
-    let error = resolve_package_manager_integrities(
+    let resolver = || {
+        FixtureResolver::new().package(serde_json::json!({
+            "name": "pnpm",
+            "version": "12.0.0",
+            "bin": "bin/pnpm.cjs",
+        }))
+    };
+    let outdated = resolve_package_manager_integrities(
         pnpm_engine_packages("12.0.0"),
         "^12.0.0",
         "12.0.0",
-        &resolver,
+        &resolver(),
         &options(&harness, root.path(), true),
         false,
     )
     .await
     .expect_err("a missing entry has to be recorded, which a frozen lockfile forbids");
 
-    assert!(matches!(error, ConfigDepError::FrozenLockfileOutdated { .. }), "{error:?}");
+    assert!(matches!(outdated, ConfigDepError::FrozenLockfileOutdated { .. }), "{outdated:?}");
     assert!(!root.path().join("pnpm-lock.yaml").exists());
+
+    // The same refusal once a lockfile exists: an entry recorded for another
+    // version is what a bumped pin leaves behind.
+    resolve_package_manager_integrities(
+        pnpm_engine_packages("12.0.0"),
+        "^12.0.0",
+        "12.0.0",
+        &resolver(),
+        &options(&harness, root.path(), false),
+        false,
+    )
+    .await
+    .unwrap();
+    let lockfile_path = root.path().join("pnpm-lock.yaml");
+    let before = std::fs::read_to_string(&lockfile_path).unwrap();
+
+    let stale = resolve_package_manager_integrities(
+        pnpm_engine_packages("13.0.0"),
+        "^13.0.0",
+        "13.0.0",
+        &FixtureResolver::new().package(serde_json::json!({
+            "name": "pnpm",
+            "version": "13.0.0",
+            "bin": "bin/pnpm.cjs",
+        })),
+        &options(&harness, root.path(), true),
+        false,
+    )
+    .await
+    .expect_err("the recorded entry pins another version");
+
+    assert!(matches!(stale, ConfigDepError::FrozenLockfileOutdated { .. }), "{stale:?}");
+    assert_eq!(std::fs::read_to_string(&lockfile_path).unwrap(), before);
 }
 
 #[tokio::test]
