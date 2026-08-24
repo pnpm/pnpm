@@ -77,7 +77,7 @@ impl LaneArgs {
         if config.filter.is_empty() {
             return Err(LaneError::FilterRequired.into());
         }
-        let (projects, _) = discover_workspace_projects(&workspace_dir)?;
+        let (projects, _) = discover_workspace_projects(&workspace_dir, config)?;
         let engine_projects = to_engine_projects(&projects);
         let refs = pnpm_versioning::index_project_refs(&engine_projects, &workspace_dir);
         let releasable_dirs: HashSet<String> =

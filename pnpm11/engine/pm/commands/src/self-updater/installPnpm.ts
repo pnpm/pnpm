@@ -59,9 +59,10 @@ export function assertReleaseIsInstallable (version: string): void {
 
 /**
  * Package name to install for a switch to `pnpmVersion`. From v12 the unscoped
- * `pnpm` is itself the native exe (equal content to `@pnpm/exe`), so v12+ always
- * converges on `pnpm`, even from a SEA `@pnpm/exe` build. Earlier majors keep
- * `pnpm` (JS) and `@pnpm/exe` (SEA) distinct, preserving the running identity.
+ * `pnpm` is itself the native exe and `@pnpm/exe` is no longer published, so
+ * v12+ always converges on `pnpm`, even from a SEA `@pnpm/exe` build. Earlier
+ * majors keep `pnpm` (JS) and `@pnpm/exe` (SEA) distinct, preserving the
+ * running identity.
  */
 export function pnpmPackageNameToInstall (pnpmVersion: string): string {
   const parsed = semver.parse(pnpmVersion, { loose: true })

@@ -25,7 +25,7 @@ use super::{
 use crate::{
     cli_args::config_warnings::report_workspace_key_issues,
     config_deps,
-    config_overrides::ConfigOverrides,
+    config_overrides::{ConfigOverrides, apply_state_dir_override},
     engine_pm::{
         channel::PackageManager,
         install::{install_engine_from_env, install_engine_to_store},
@@ -34,7 +34,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_config::{Config, Host, PNPM_VERSION, PmOnFail};
+use pnpm_config::{ColorMode, Config, Host, PNPM_VERSION, PmOnFail};
 use pnpm_default_reporter::DefaultReporter;
 use pnpm_env_installer::is_package_manager_resolved;
 use pnpm_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
@@ -109,12 +109,16 @@ pub(crate) async fn execute_plan(
         PreCommandPlan::Switch(plan) => execute_switch(plan, child_argv).await,
         PreCommandPlan::SyncEnvLockfile(sync) => {
             let EnvLockfileSync { config, root_dir, package_manager } = sync;
+            // The install family syncs the pin in its own pipeline, with the
+            // `--frozen-lockfile` flag layered in; every other command reaches
+            // here, where only the `frozenLockfile` setting can forbid the write.
+            let frozen_lockfile = config.frozen_lockfile.unwrap_or(false);
             config_deps::sync_package_manager_dependencies(
                 &config,
                 &root_dir,
                 &package_manager.specifier,
                 &package_manager.version,
-                false,
+                frozen_lockfile,
                 false,
             )
             .await?;
@@ -143,7 +147,7 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
             .await?;
             (version, bin_dir)
         }
-        SwitchSource::Resolve { env_root, force_resync } => {
+        SwitchSource::Resolve { env_root, frozen_lockfile, force_resync } => {
             let resolved = config_deps::resolve_engine_version(config, "pnpm", &spec)
                 .await?
                 .ok_or_else(|| miette::miette!(r#"Cannot resolve pnpm version for "{}""#, spec))?;
@@ -157,7 +161,7 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
                         &env_root,
                         &spec,
                         &resolved.version,
-                        false,
+                        frozen_lockfile,
                         true,
                     )
                     .await?;
@@ -171,6 +175,7 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
                 &env_root,
                 &spec,
                 &resolved.version,
+                frozen_lockfile,
                 force_resync,
             ))
             .await?;
@@ -205,6 +210,16 @@ fn pre_command_plan_from_input(
             .map_err(miette::Report::new)
             .wrap_err("load configuration")?;
     config_overrides.apply(&mut config);
+    if let Some(color) = switch.color {
+        config.color = color;
+    }
+    super::reporter::configure_color(config.color);
+    if config.ci {
+        pnpm_default_reporter::force_append_only();
+    }
+    if let Some(state_dir) = switch.state_dir.as_deref() {
+        apply_state_dir_override::<Host>(&mut config, state_dir, &dir);
+    }
 
     let root_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.clone());
     let manifest = read_manifest_json(&root_dir.join("package.json"))?;
@@ -228,7 +243,9 @@ fn pre_command_plan_from_input(
         let unmanaged_pin = switch_wanted && process_state.package_manager_switch_disabled;
         if on_fail != PmOnFail::Ignore && !unmanaged_pin {
             if switch_wanted && !process_state.executed_by_corepack {
-                if let Some(target) = switch_target(&config, &root_dir)? {
+                let frozen_lockfile =
+                    switch.frozen_lockfile.or(config.frozen_lockfile).unwrap_or(false);
+                if let Some(target) = switch_target(&config, &root_dir, frozen_lockfile)? {
                     if !version_satisfies(PNPM_VERSION, &target.spec) {
                         return Ok(Some(PreCommandPlan::Switch(SwitchPlan { config, target })));
                     }
@@ -568,10 +585,12 @@ enum KeyIssueReporting {
 
 fn key_issue_reporting(command: &CliCommand) -> KeyIssueReporting {
     match command {
+        CliCommand::Get(get) if get.key.is_some() => KeyIssueReporting::Skip,
         CliCommand::Config(args) => match &args.command {
             ConfigSubcommand::Get(get) if get.key.is_some() => KeyIssueReporting::Skip,
             _ => KeyIssueReporting::WarnOnly,
         },
+        CliCommand::Get(_) | CliCommand::Set(_) => KeyIssueReporting::WarnOnly,
         _ => KeyIssueReporting::Enforce,
     }
 }
@@ -597,6 +616,18 @@ fn syncs_env_lockfile_in_pipeline(command: &CliCommand) -> bool {
     )
 }
 
+/// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command line.
+/// Only the install family carries the flags, and `pnpm ci` is a frozen
+/// install whether or not they were typed.
+fn frozen_lockfile_flag(command: &CliCommand) -> Option<bool> {
+    match command {
+        CliCommand::Install(args) => args.frozen_lockfile_flag(),
+        CliCommand::InstallTest(args) => args.install_args.frozen_lockfile_flag(),
+        CliCommand::Ci(_) => Some(true),
+        _ => None,
+    }
+}
+
 /// pnpm treats `--global` as an opt-out of the project's package manager
 /// and runtime pins — a global install does not belong to the project.
 fn is_global(command: &CliCommand) -> bool {
@@ -610,6 +641,9 @@ fn is_global(command: &CliCommand) -> bool {
             ConfigSubcommand::Delete(args) => args.flags.global,
             ConfigSubcommand::List(args) => args.flags.global,
         },
+        CliCommand::Get(args) => args.flags.global,
+        CliCommand::Set(args) => args.flags.global,
+        CliCommand::Env(args) => args.global,
         CliCommand::List(args) | CliCommand::Ll(args) => args.global,
         CliCommand::Outdated(args) => args.global,
         CliCommand::Prefix(args) => args.global,
@@ -624,7 +658,11 @@ fn is_global(command: &CliCommand) -> bool {
     }
 }
 
-fn switch_target(config: &Config, root_dir: &Path) -> miette::Result<Option<SwitchTarget>> {
+fn switch_target(
+    config: &Config,
+    root_dir: &Path,
+    frozen_lockfile: bool,
+) -> miette::Result<Option<SwitchTarget>> {
     let Some(manifest) = read_manifest_json(&root_dir.join("package.json"))? else {
         return Ok(None);
     };
@@ -661,20 +699,31 @@ fn switch_target(config: &Config, root_dir: &Path) -> miette::Result<Option<Swit
         // shape.
         return Ok(Some(SwitchTarget {
             spec,
-            source: SwitchSource::Resolve { env_root: root_dir.to_path_buf(), force_resync: true },
+            source: SwitchSource::Resolve {
+                env_root: root_dir.to_path_buf(),
+                frozen_lockfile,
+                force_resync: true,
+            },
         }));
     }
 
-    let env_root = if persist_lockfile {
-        root_dir.to_path_buf()
+    // A pin that doesn't persist resolves into the global env lockfile, which
+    // is pnpm's own state rather than the project's — a frozen lockfile has
+    // nothing to say about it.
+    let (env_root, frozen_lockfile) = if persist_lockfile {
+        (root_dir.to_path_buf(), frozen_lockfile)
     } else {
-        config.global_pkg_dir.clone().ok_or_else(|| {
+        let global_pkg_dir = config.global_pkg_dir.clone().ok_or_else(|| {
             miette::miette!(
                 r#"Unable to find the global packages directory. Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable."#,
             )
-        })?
+        })?;
+        (global_pkg_dir, false)
     };
-    Ok(Some(SwitchTarget { spec, source: SwitchSource::Resolve { env_root, force_resync: false } }))
+    Ok(Some(SwitchTarget {
+        spec,
+        source: SwitchSource::Resolve { env_root, frozen_lockfile, force_resync: false },
+    }))
 }
 
 fn locked_package_manager_version(
@@ -847,6 +896,11 @@ fn should_skip_command(command: &CliCommand) -> bool {
             | CliCommand::Doctor(_)
             | CliCommand::FindHash(_)
             | CliCommand::Runtime(_)
+            | CliCommand::Env(_)
+            | CliCommand::Edit(_)
+            | CliCommand::Profile(_)
+            | CliCommand::Token(_)
+            | CliCommand::Xmas(_)
             | CliCommand::SelfUpdate(_)
             | CliCommand::Setup(_)
             | CliCommand::Shim(_)
@@ -864,15 +918,19 @@ fn should_skip_command_name(command: &str) -> bool {
             | "completion-server"
             | "dlx"
             | "doctor"
+            | "edit"
             | "env"
             | "find-hash"
+            | "profile"
             | "runtime"
             | "rt"
             | "self-update"
             | "setup"
             | "shim"
             | "store"
-            | "with",
+            | "token"
+            | "with"
+            | "xmas",
     )
 }
 
@@ -935,6 +993,10 @@ enum SwitchSource {
     },
     Resolve {
         env_root: PathBuf,
+        /// Refuse to record the resolution instead of writing it. Only set
+        /// when `env_root` is the project itself: a global env lockfile is
+        /// not what `--frozen-lockfile` freezes.
+        frozen_lockfile: bool,
         /// Discard the recorded `packageManagerDependencies` and re-resolve
         /// them even when they look up to date — set when the recorded
         /// entries failed the bootstrap validation, so the resync heals the
@@ -945,22 +1007,37 @@ enum SwitchSource {
 
 struct SwitchInput {
     dir: PathBuf,
+    state_dir: Option<PathBuf>,
     npmrc_auth_file: Option<PathBuf>,
     command: Option<String>,
+    /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command
+    /// line. `None` leaves the `frozenLockfile` setting to answer.
+    frozen_lockfile: Option<bool>,
+    color: Option<ColorMode>,
 }
 
 impl SwitchInput {
     fn from_cli_args(args: &CliArgs) -> Self {
         Self {
             dir: args.dir.clone(),
+            state_dir: args.state_dir.clone(),
             npmrc_auth_file: args.npmrc_auth_file.clone(),
             command: Some(command_name(&args.command).to_string()),
+            frozen_lockfile: frozen_lockfile_flag(&args.command),
+            color: args.color.or_else(|| args.no_color.then_some(ColorMode::Never)),
         }
     }
 
     fn from_version_argv(argv: &[OsString]) -> Self {
         let global_options = ArgTable::top_level(super::grammar());
-        let mut input = Self { dir: PathBuf::from("."), npmrc_auth_file: None, command: None };
+        let mut input = Self {
+            dir: PathBuf::from("."),
+            state_dir: None,
+            npmrc_auth_file: None,
+            command: None,
+            frozen_lockfile: None,
+            color: None,
+        };
         let mut index = 1;
         while index < argv.len() {
             let Some(token) = argv[index].to_str() else {
@@ -987,6 +1064,13 @@ impl SwitchInput {
                 )
             {
                 input.dir = PathBuf::from(value);
+                index += width;
+                continue;
+            }
+            if let Some((value, width)) =
+                long_value(token, "state-dir", argv.get(index + 1).map(OsString::as_os_str))
+            {
+                input.state_dir = Some(PathBuf::from(value));
                 index += width;
                 continue;
             }
@@ -1071,6 +1155,13 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Root(_) => "root",
         CliCommand::Prefix(_) => "prefix",
         CliCommand::Config(_) => "config",
+        CliCommand::Get(_) => "get",
+        CliCommand::Set(_) => "set",
+        CliCommand::Env(_) => "env",
+        CliCommand::Edit(_) => "edit",
+        CliCommand::Profile(_) => "profile",
+        CliCommand::Token(_) => "token",
+        CliCommand::Xmas(_) => "xmas",
         CliCommand::Pkg(_) => "pkg",
         CliCommand::PackApp(_) => "pack-app",
         CliCommand::Store(_) => "store",

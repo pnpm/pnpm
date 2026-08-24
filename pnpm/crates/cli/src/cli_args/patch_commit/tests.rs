@@ -24,6 +24,7 @@ fn empty_lockfile() -> Lockfile {
         packages: None,
         snapshots: None,
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 

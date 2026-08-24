@@ -4,9 +4,10 @@ use super::{
     Config, Host, Lockfile, LockfileConflictCheckFailure, ManifestStat, NodeLinker,
     OptimisticRepeatInstallCheck, WorkspaceState, catalogs_cache_matches,
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
-    first_lockfile_requiring_conflict_safe_install, first_project_missing_modules_dir,
-    first_setting_drift, modified_at_or_after, modified_manifests_match_lockfile,
-    patches_modified_since, pnpmfiles_drift, project_structure_matches, stat_manifests,
+    filesystem_now_ms, first_lockfile_requiring_conflict_safe_install,
+    first_project_missing_modules_dir, first_setting_drift, modified_at_or_after,
+    modified_manifests_match_lockfile, patches_modified_since, pnpmfiles_drift,
+    project_structure_matches, refreshed_validation_baseline_ms, stat_manifests,
     update_workspace_state, wanted_lockfile_modified,
 };
 
@@ -101,14 +102,14 @@ pub fn check_deps_status_before_run(
     // A filtered install legitimately leaves unselected projects
     // without a modules directory.
     if !state.filtered_install
-        && let Some(id) = first_project_missing_modules_dir(config, project_manifests)
+        && let Some(id) = first_project_missing_modules_dir(config, node_linker, project_manifests)
     {
         return outdated(format!(
             "Workspace package {id} has dependencies but does not have a modules directory",
         ));
     }
     if !is_workspace_install
-        && !workspace_root.join(Lockfile::FILE_NAME).exists()
+        && !workspace_root.join(config.wanted_lockfile_name()).exists()
         && !current_lockfile_file_has_content(&config.virtual_store_dir)
     {
         return outdated(format!("Cannot find a lockfile in {}", workspace_root.display()));
@@ -130,7 +131,7 @@ pub fn check_deps_status_before_run(
         .filter(|stat| modified_at_or_after(stat.mtime, state.last_validated_timestamp))
         .collect();
     let lockfile_modified =
-        wanted_lockfile_modified(workspace_root, state.last_validated_timestamp);
+        wanted_lockfile_modified(workspace_root, config, state.last_validated_timestamp);
 
     match current_lockfile_unusable_with_non_empty_wanted(check) {
         Ok(true) => {
@@ -151,6 +152,8 @@ pub fn check_deps_status_before_run(
 
     let projects_to_check: Vec<&ManifestStat<'_>> =
         if lockfile_modified { manifest_stats.iter().collect() } else { modified };
+    let filesystem_now =
+        if is_workspace_install { filesystem_now_ms(workspace_root) } else { None };
     // The TypeScript run/exec handler does not forward `dedupePeers`
     // into `checkDepsStatus`, so its pre-run lockfile check uses the
     // false default even when the workspace setting is true.
@@ -169,6 +172,10 @@ pub fn check_deps_status_before_run(
                     catalogs,
                     project_manifests,
                     state.filtered_install,
+                );
+                new_state.last_validated_timestamp = refreshed_validation_baseline_ms(
+                    new_state.last_validated_timestamp,
+                    filesystem_now,
                 );
                 // The gate ignored `dev`/`optional`/`production` drift
                 // above; writing today's (default-group) values here

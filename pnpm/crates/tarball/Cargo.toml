@@ -28,6 +28,7 @@ num_cpus     = { workspace = true }
 pipe-trait   = { workspace = true }
 rayon        = { workspace = true }
 reqwest      = { workspace = true }
+rustls       = { workspace = true }
 serde        = { workspace = true }
 serde_json   = { workspace = true }
 ssri         = { workspace = true }

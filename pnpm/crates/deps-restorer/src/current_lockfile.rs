@@ -98,6 +98,11 @@ pub fn materialization_closure(
             importers,
             packages,
             snapshots,
+            // The current lockfile is pnpm's own record of what it
+            // materialized, derived from the wanted one rather than a copy
+            // of it. A host's top-level block describes the project, not
+            // the materialization, so it stays on the wanted lockfile.
+            extra: pnpm_lockfile::LockfileExtra::default(),
             time: lockfile.time.clone(),
         },
         importer_ids: reachable.importer_ids,
@@ -330,6 +335,9 @@ fn lockfile_with_graph(
         packages,
         snapshots,
         time: source.time.clone(),
+        // See the note in `MaterializationClosure`: a host's top-level
+        // block belongs to the wanted lockfile, not to this derived one.
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 

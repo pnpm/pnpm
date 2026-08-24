@@ -1,8 +1,10 @@
 use super::{
-    KeyIssueReporting, PackageManagerToSync, PreCommandInput, PreCommandPlan, SwitchInput,
-    SwitchProcessState, SwitchSource, pre_command_plan_from_input, switch_target,
+    CliArgs, CliCommand, KeyIssueReporting, PackageManagerToSync, PreCommandInput, PreCommandPlan,
+    SwitchInput, SwitchProcessState, SwitchSource, frozen_lockfile_flag,
+    pre_command_plan_from_input, switch_target,
 };
-use crate::config_overrides::ConfigOverrides;
+use crate::{boolean_negations::with_boolean_negations, config_overrides::ConfigOverrides};
+use clap::{CommandFactory, FromArgMatches};
 use pnpm_config::{Config, PNPM_VERSION, PmOnFail};
 use pnpm_reporter::{Reporter, SilentReporter};
 use std::{
@@ -101,6 +103,14 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
         );
         assert_eq!(input.command.as_deref(), case.command, "case: {}", case.name);
     }
+
+    let input = SwitchInput::from_version_argv(&[
+        OsString::from("pnpm"),
+        OsString::from("--state-dir"),
+        OsString::from("/tmp/state"),
+        OsString::from("--version"),
+    ]);
+    assert_eq!(input.state_dir.as_deref(), Some(Path::new("/tmp/state")));
 }
 
 #[test]
@@ -347,8 +357,11 @@ fn pre_command_input(dir: &Path) -> PreCommandInput {
     PreCommandInput {
         switch: SwitchInput {
             dir: dir.to_path_buf(),
+            state_dir: None,
             npmrc_auth_file: None,
             command: Some("run".to_string()),
+            frozen_lockfile: None,
+            color: None,
         },
         global: false,
         check_runtimes: true,
@@ -399,7 +412,8 @@ snapshots:
 ",
     );
 
-    let target = switch_target(&Config::default(), root.path()).expect("target").expect("switch");
+    let target =
+        switch_target(&Config::default(), root.path(), false).expect("target").expect("switch");
 
     assert_eq!(target.spec, "^11.0.0-rc.5");
     let SwitchSource::LockedEnv { version, .. } = target.source else {
@@ -414,7 +428,8 @@ fn switch_target_accepts_peer_suffixed_package_manager_lockfile() {
     write_dev_engine_manifest(root.path(), "9.3.0");
     write_lockfile(root.path(), LOCKED_9_3_0_WITH_PEER_SUFFIX);
 
-    let target = switch_target(&Config::default(), root.path()).expect("target").expect("switch");
+    let target =
+        switch_target(&Config::default(), root.path(), false).expect("target").expect("switch");
 
     let SwitchSource::LockedEnv { version, .. } = target.source else {
         panic!("expected locked env target");
@@ -428,7 +443,8 @@ fn switch_target_accepts_v12_lockfile_without_legacy_wrapper_entry() {
     write_manifest(root.path(), r#"{"packageManager":"pnpm@99.0.0"}"#);
     write_lockfile(root.path(), LOCKED_99_0_0);
 
-    let target = switch_target(&Config::default(), root.path()).expect("target").expect("switch");
+    let target =
+        switch_target(&Config::default(), root.path(), false).expect("target").expect("switch");
 
     let SwitchSource::LockedEnv { version, .. } = target.source else {
         panic!("expected locked env target");
@@ -442,9 +458,12 @@ fn switch_target_discards_package_manager_lockfile_resolution_with_non_integrity
     write_dev_engine_manifest(root.path(), "9.3.0");
     write_lockfile(root.path(), LOCKED_9_3_0_WITH_TARBALL_RESOLUTION);
 
-    let target = switch_target(&Config::default(), root.path()).expect("target").expect("switch");
+    let target =
+        switch_target(&Config::default(), root.path(), false).expect("target").expect("switch");
 
-    let SwitchSource::Resolve { env_root, force_resync: true } = target.source else {
+    let SwitchSource::Resolve { env_root, frozen_lockfile: false, force_resync: true } =
+        target.source
+    else {
         panic!("expected a forced re-resolve, got {:?}", target.source);
     };
     assert_eq!(env_root, root.path());
@@ -456,9 +475,12 @@ fn switch_target_discards_package_manager_lockfile_dependency_with_non_registry_
     write_dev_engine_manifest(root.path(), "9.3.0");
     write_lockfile(root.path(), LOCKED_9_3_0_WITH_FILE_DEP_PATH);
 
-    let target = switch_target(&Config::default(), root.path()).expect("target").expect("switch");
+    let target =
+        switch_target(&Config::default(), root.path(), false).expect("target").expect("switch");
 
-    let SwitchSource::Resolve { env_root, force_resync: true } = target.source else {
+    let SwitchSource::Resolve { env_root, frozen_lockfile: false, force_resync: true } =
+        target.source
+    else {
         panic!("expected a forced re-resolve, got {:?}", target.source);
     };
     assert_eq!(env_root, root.path());
@@ -470,10 +492,13 @@ fn switch_target_reresolves_when_locked_version_no_longer_satisfies_range() {
     write_dev_engine_manifest(root.path(), ">=9.1.2 <9.1.4");
     write_lockfile(root.path(), LOCKED_9_1_1);
 
-    let target = switch_target(&Config::default(), root.path()).expect("target").expect("switch");
+    let target =
+        switch_target(&Config::default(), root.path(), false).expect("target").expect("switch");
 
     assert_eq!(target.spec, ">=9.1.2 <9.1.4");
-    let SwitchSource::Resolve { env_root, force_resync: false } = target.source else {
+    let SwitchSource::Resolve { env_root, frozen_lockfile: false, force_resync: false } =
+        target.source
+    else {
         panic!("expected resolve target");
     };
     assert_eq!(env_root, root.path());
@@ -488,11 +513,14 @@ fn switch_target_uses_global_env_for_legacy_package_manager_field() {
     let target = switch_target(
         &Config { global_pkg_dir: Some(global_pkg_dir.clone()), ..Config::default() },
         root.path(),
+        false,
     )
     .expect("target")
     .expect("switch");
 
-    let SwitchSource::Resolve { env_root, force_resync: false } = target.source else {
+    let SwitchSource::Resolve { env_root, frozen_lockfile: false, force_resync: false } =
+        target.source
+    else {
         panic!("expected resolve target");
     };
     assert_eq!(target.spec, "9.3.0");
@@ -511,10 +539,50 @@ fn switch_target_respects_pm_on_fail_ignore() {
             ..Config::default()
         },
         root.path(),
+        false,
     )
     .expect("target");
 
     assert!(target.is_none(), "unexpected switch target: {target:?}");
+}
+
+#[test]
+fn switch_target_refuses_to_record_a_persisting_pin_under_frozen_lockfile() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), ">=9.1.2 <9.1.4");
+    write_lockfile(root.path(), LOCKED_9_1_1);
+
+    let target =
+        switch_target(&Config::default(), root.path(), true).expect("target").expect("switch");
+
+    let SwitchSource::Resolve { env_root, frozen_lockfile: true, force_resync: false } =
+        target.source
+    else {
+        panic!("expected a frozen resolve target, got {:?}", target.source);
+    };
+    assert_eq!(env_root, root.path());
+}
+
+#[test]
+fn switch_target_leaves_the_global_env_writable_under_frozen_lockfile() {
+    let root = TempDir::new().expect("tmp dir");
+    let global_pkg_dir = root.path().join("pnpm-home").join("global");
+    write_manifest(root.path(), r#"{"packageManager":"pnpm@9.3.0"}"#);
+
+    let target = switch_target(
+        &Config { global_pkg_dir: Some(global_pkg_dir.clone()), ..Config::default() },
+        root.path(),
+        true,
+    )
+    .expect("target")
+    .expect("switch");
+
+    let SwitchSource::Resolve { env_root, frozen_lockfile: false, force_resync: false } =
+        target.source
+    else {
+        panic!("expected an unfrozen resolve target, got {:?}", target.source);
+    };
+    assert_eq!(env_root, global_pkg_dir);
 }
 
 #[test]
@@ -525,9 +593,31 @@ fn switch_target_does_not_switch_dev_engine_without_download() {
         r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"9.3.0","onFail":"error"}}}"#,
     );
 
-    let target = switch_target(&Config::default(), root.path()).expect("target");
+    let target = switch_target(&Config::default(), root.path(), false).expect("target");
 
     assert!(target.is_none(), "unexpected switch target: {target:?}");
+}
+
+#[test]
+fn the_switch_reads_frozen_lockfile_from_the_command_line() {
+    let flag_of = |argv: &[&str]| frozen_lockfile_flag(&parse_command(argv));
+
+    assert_eq!(flag_of(&["pnpm", "install", "--frozen-lockfile"]), Some(true));
+    assert_eq!(flag_of(&["pnpm", "install", "--no-frozen-lockfile"]), Some(false));
+    assert_eq!(flag_of(&["pnpm", "install"]), None);
+    assert_eq!(flag_of(&["pnpm", "install-test", "--frozen-lockfile"]), Some(true));
+    assert_eq!(flag_of(&["pnpm", "ci"]), Some(true));
+    // Only the install family carries the flag; every other command leaves the
+    // `frozenLockfile` setting to answer on its own.
+    assert_eq!(flag_of(&["pnpm", "run", "build"]), None);
+}
+
+fn parse_command(argv: &[&str]) -> CliCommand {
+    with_boolean_negations(CliArgs::command())
+        .try_get_matches_from(argv)
+        .and_then(|matches| CliArgs::from_arg_matches(&matches))
+        .expect("parse the command line")
+        .command
 }
 
 fn write_dev_engine_manifest(root: &Path, version: &str) {

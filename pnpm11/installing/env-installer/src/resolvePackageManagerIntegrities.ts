@@ -1,4 +1,5 @@
 import { parseRegistryQualifiedVersion } from '@pnpm/deps.path'
+import { PnpmError } from '@pnpm/error'
 import { convertToLockfileFile, createEnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
@@ -27,6 +28,12 @@ export interface ResolvePackageManagerIntegritiesOpts {
    * resolved pnpm integrity info. Defaults to true.
    */
   save?: boolean
+  /**
+   * Refuse to record entries that are missing or out of date, failing the
+   * command instead. Only meaningful together with `save`: an in-memory
+   * resolution changes no lockfile, so nothing can fall out of sync with it.
+   */
+  frozenLockfile?: boolean
 }
 
 /**
@@ -70,7 +77,8 @@ function packageManagerDeps (pnpmVersion: string): readonly string[] {
  * resolveManifestDependencies. When `opts.save` is true (the default) the
  * results are written to the `packageManagerDependencies` section of
  * `pnpm-lock.yaml`; when false, resolution happens purely in memory and the
- * returned `EnvLockfile` is never persisted to disk.
+ * returned `EnvLockfile` is never persisted to disk. Under
+ * `opts.frozenLockfile` a write the lockfile still needs is an error instead.
  */
 export async function resolvePackageManagerIntegrities (
   pnpmVersion: string,
@@ -81,6 +89,10 @@ export async function resolvePackageManagerIntegrities (
 
   if (isPackageManagerResolved(envLockfile, pnpmVersion)) {
     return envLockfile
+  }
+
+  if (save && opts.frozenLockfile) {
+    throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot update packageManagerDependencies with "frozen-lockfile" because the lockfile is not up to date')
   }
 
   const lockfile = await resolveWantedPnpmPackages(pnpmVersion, opts)

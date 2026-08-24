@@ -47,6 +47,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
       save: persistLockfile,
+      frozenLockfile: config.frozenLockfile,
     })
     freshlyResolved = true
     pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
@@ -64,6 +65,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
       save: persistLockfile,
+      frozenLockfile: config.frozenLockfile,
     })
     freshlyResolved = true
   }
@@ -115,6 +117,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
         storeController: storeToUse.ctrl,
         storeDir: storeToUse.dir,
         save: persistLockfile,
+        frozenLockfile: config.frozenLockfile,
       })
       pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
       if (!pmVersion) {

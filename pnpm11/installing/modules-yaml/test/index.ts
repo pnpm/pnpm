@@ -133,6 +133,14 @@ test('readModulesManifest does not fail on empty file', async () => {
   expect(modulesYaml).toBeUndefined()
 })
 
+test('readModulesManifest() rejects a manifest it cannot parse', async () => {
+  // Callers must not mistake an unreadable state file for a missing one:
+  // that reads as layout drift and purges node_modules on every install.
+  const modulesDir = temporaryDirectory()
+  fs.writeFileSync(path.join(modulesDir, '.modules.yaml'), 'not: [valid')
+  await expect(readModulesManifest(modulesDir)).rejects.toThrow()
+})
+
 test('writeModulesManifest() drops the registries a pnpm 11 file recorded', async () => {
   // The registries a project resolves from are read from its config, so a
   // recorded copy is stale the moment the config changes.

@@ -8,7 +8,7 @@ use super::{
     cat_index::CatIndexArgs,
     change::ChangeArgs,
     clean::CleanArgs,
-    config::ConfigArgs,
+    config::{ConfigArgs, ConfigGetArgs, ConfigSetArgs, ConfigSubcommand},
     deprecate::DeprecateArgs,
     dispatch::{CommandFuture, RunCtx},
     dist_tag::DistTagArgs,
@@ -21,6 +21,7 @@ use super::{
     list::ListArgs,
     login::LoginArgs,
     logout::LogoutArgs,
+    not_implemented::NotImplementedError,
     outdated::{OutdatedArgs, OutdatedOutcome},
     owner::OwnerArgs,
     pack::PackArgs,
@@ -543,6 +544,27 @@ pub(super) fn config<'a>(ctx: &RunCtx<'a>, args: ConfigArgs) -> miette::Result<C
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
+// `pnpm get` / `pnpm set` are the top-level spellings of the two most-used
+// `pnpm config` subcommands, and run the same code so the two spellings
+// cannot drift.
+pub(super) fn config_get<'a>(
+    ctx: &RunCtx<'a>,
+    args: ConfigGetArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    config(ctx, ConfigArgs { command: ConfigSubcommand::Get(args) })
+}
+
+pub(super) fn config_set<'a>(
+    ctx: &RunCtx<'a>,
+    args: ConfigSetArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    config(ctx, ConfigArgs { command: ConfigSubcommand::Set(args) })
+}
+
+pub(super) fn not_implemented<'a>(command: &'static str) -> miette::Result<CommandFuture<'a>> {
+    Err(NotImplementedError { command }.into())
+}
+
 // `pack-app` reads `pnpm.app` from package.json, resolves a Node.js version
 // over the network, and shells out to build the SEA executables. It needs
 // config (proxy / TLS / registry) and the canonicalized `--dir` but no
@@ -672,8 +694,15 @@ pub(super) fn store<'a>(
     ctx: &RunCtx<'a>,
     command: StoreCommand,
 ) -> miette::Result<CommandFuture<'a>> {
-    command.run(|| (ctx.config)().map(|m| &*m))?;
-    Ok(Box::pin(std::future::ready(Ok(()))))
+    let config: &Config = (ctx.config)()?;
+    let dir = ctx.dir;
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(command.run::<DefaultReporter>(config, dir))
+        }
+        ReporterType::Ndjson => Box::pin(command.run::<NdjsonReporter>(config, dir)),
+        ReporterType::Silent => Box::pin(command.run::<SilentReporter>(config, dir)),
+    })
 }
 
 pub(super) fn cache<'a>(

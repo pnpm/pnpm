@@ -9,8 +9,8 @@
 use chrono::{TimeZone, Utc};
 use pipe_trait::Pipe;
 use pnpm_modules_yaml::{
-    Clock, DepPath, FsCreateDirAll, FsReadToString, FsWrite, Modules, read_modules_manifest,
-    write_modules_manifest,
+    Clock, DepPath, FsCreateDirAll, FsReadToString, FsWrite, Modules, read_modules_layout,
+    read_modules_manifest, write_modules_manifest,
 };
 use pretty_assertions::assert_eq;
 use std::{path::Path, time::SystemTime};
@@ -144,13 +144,13 @@ fn write_propagates_write_error() {
     assert!(matches!(err, pnpm_modules_yaml::WriteModulesError::WriteFile { .. }));
 }
 
-/// `LayoutVersion` is a unit type pinned to `5`. A manifest whose
-/// `layoutVersion` is any other number must fail at parse time. This is
-/// stricter than pnpm, which accepts any number at read time and defers
-/// the decision to a later compatibility check; the end-to-end behavior
-/// matches because both code paths reject incompatible manifests.
+/// `LayoutVersion` is a unit type pinned to `5`, and a manifest naming
+/// any other layout reads as `None` — the same signal a missing
+/// `layoutVersion` carries, which the install reacts to by rebuilding
+/// `node_modules`. Rejecting the whole manifest instead would fail the
+/// install, since an unreadable state file is an error.
 #[test]
-fn read_rejects_incompatible_layout_version() {
+fn read_reports_an_incompatible_layout_version_as_no_layout() {
     use std::io;
 
     struct LegacyVersion;
@@ -161,16 +161,25 @@ fn read_rejects_incompatible_layout_version() {
     }
     impl Clock for LegacyVersion {
         fn now() -> SystemTime {
-            unreachable!("clock must not be called when layout version is rejected");
+            SystemTime::UNIX_EPOCH
         }
     }
 
-    let err = "/dev/null/unused"
+    let manifest = "/dev/null/unused"
         .pipe(Path::new)
         .pipe(read_modules_manifest::<LegacyVersion>)
-        .expect_err("expected error");
-    eprintln!("error: {err}");
-    assert!(matches!(err, pnpm_modules_yaml::ReadModulesError::ParseYaml { .. }));
+        .expect("read manifest")
+        .expect("manifest exists");
+    assert_eq!(manifest.layout_version, None);
+
+    // `ModulesLayout` carries its own copy of the field, and it is the
+    // one the install's drift check reads.
+    let layout = "/dev/null/unused"
+        .pipe(Path::new)
+        .pipe(read_modules_layout::<LegacyVersion>)
+        .expect("read layout")
+        .expect("layout exists");
+    assert_eq!(layout.layout_version, None);
 }
 
 /// `ignoredBuilds` deserializes into an [`IndexSet`]: the on-disk array

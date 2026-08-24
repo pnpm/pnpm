@@ -16,7 +16,7 @@ export async function filterProjectsBySelectorObjectsFromDir (
 ): Promise<ReadProjectsResult> {
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)
   const allProjects = await findWorkspaceProjects(workspaceDir, {
-    patterns: workspaceManifest?.packages,
+    patterns: workspaceManifest == null ? undefined : workspaceManifest.packages ?? ['.'],
     engineStrict: opts?.engineStrict,
     supportedArchitectures: opts?.supportedArchitectures ?? {
       os: ['current'],

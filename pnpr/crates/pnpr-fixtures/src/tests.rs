@@ -1,6 +1,7 @@
 use super::{
-    COMPLETE_FILE, build_storage_at_with_substitutions, discard_unusable_storage, ensure_storage,
-    latest_version, packages_dir, publish_storage, restore_claimed_storage,
+    COMPLETE_FILE, build_storage_at, build_storage_at_with_substitutions, discard_unusable_storage,
+    ensure_storage, latest_version, packages_dir, publish_storage, restore_claimed_storage,
+    set_dist_tag,
 };
 use std::{collections::BTreeSet, fs, path::Path};
 use tempfile::TempDir;
@@ -226,4 +227,32 @@ fn discarding_does_nothing_when_the_path_is_already_free() {
 
     assert!(!storage.exists());
     assert!(!generated.join("storage").exists());
+}
+
+#[test]
+fn a_moved_dist_tag_replaces_the_highest_published_version() {
+    let out = tempfile::tempdir().expect("create output directory");
+    build_storage_at(&packages_dir(), out.path());
+    let packument_path = out.path().join("@pnpm.e2e/foo/package.json");
+    let read = || -> serde_json::Value {
+        serde_json::from_slice(&fs::read(&packument_path).expect("read packument"))
+            .expect("parse packument")
+    };
+    assert_eq!(read()["dist-tags"]["latest"], "100.1.0");
+
+    set_dist_tag(out.path(), "@pnpm.e2e/foo", "1.0.0", "latest");
+    set_dist_tag(out.path(), "@pnpm.e2e/foo", "2.0.0", "canary");
+
+    assert_eq!(read()["dist-tags"]["latest"], "1.0.0");
+    assert_eq!(read()["dist-tags"]["canary"], "2.0.0");
+    assert_ne!(read()["time"]["modified"], super::DEFAULT_PUBLISH_TIME);
+}
+
+#[test]
+#[should_panic(expected = "has no fixture version")]
+fn tagging_an_unpublished_version_fails_loudly() {
+    let out = tempfile::tempdir().expect("create output directory");
+    build_storage_at(&packages_dir(), out.path());
+
+    set_dist_tag(out.path(), "@pnpm.e2e/foo", "999.0.0", "latest");
 }

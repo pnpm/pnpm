@@ -3,7 +3,7 @@
 
 use crate::{State, cli_args::add::add_package};
 use miette::{Context, IntoDiagnostic};
-use pnpm_config::{Config, Host, default_state_dir};
+use pnpm_config::{Config, Host};
 use pnpm_crypto_hash::create_hex_hash;
 use pnpm_fs::DirLock;
 use pnpm_package_manifest::DependencyGroup;
@@ -87,11 +87,13 @@ pub(super) fn hardened_install_config(
 /// contains only the lockfile and symlinks required to address the GVS slot;
 /// project `node_modules` is never consulted.
 pub(crate) async fn materialize_runtime(
+    state_dir: &Path,
     name: String,
     version_spec: String,
 ) -> miette::Result<PathBuf> {
-    let state_dir = default_state_dir::<Host>()
-        .ok_or_else(|| miette::miette!("the pnpm state directory could not be resolved"))?;
+    if state_dir.as_os_str().is_empty() {
+        return Err(miette::miette!("the pnpm state directory could not be resolved"));
+    }
     let environments_dir = state_dir.join(RUNTIME_ENVS_DIR_NAME);
     let config = trusted_runtime_config(&environments_dir)?;
     let global_virtual_store_dir = config.store_dir.links();

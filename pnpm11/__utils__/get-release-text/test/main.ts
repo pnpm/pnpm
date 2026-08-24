@@ -6,6 +6,8 @@ import { afterEach, beforeEach, expect, test } from '@jest/globals'
 
 import { getChangelogEntry, writeReleaseText } from '../src/main.js'
 
+const SPONSORS_FRAGMENT = '<!-- sponsors -->\n\n## Platinum Sponsors\n\n<!-- sponsors end -->\n'
+
 let workspaceDir: string
 
 beforeEach(async () => {
@@ -28,6 +30,44 @@ test('writes the pending registry changelog section', async () => {
 
   const release = await fs.readFile(path.join(workspaceDir, 'RELEASE.md'), 'utf8')
   expect(release).toContain('Fixed the release notes.')
+})
+
+test('appends the shared sponsors fragment exactly once', async () => {
+  const pnpmDir = path.join(workspaceDir, 'pnpm11/pnpm')
+  await fs.mkdir(pnpmDir, { recursive: true })
+  await fs.writeFile(path.join(pnpmDir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '11.13.1' }))
+  const pendingDir = path.join(workspaceDir, '.changeset/changelogs')
+  await fs.mkdir(pendingDir, { recursive: true })
+  await fs.writeFile(path.join(pendingDir, 'pnpm@11.13.1.md'), '## 11.13.1\n\n### Patch Changes\n\n- Fixed the release notes.\n')
+  const githubDir = path.join(workspaceDir, '.github')
+  await fs.mkdir(githubDir, { recursive: true })
+  await fs.writeFile(path.join(githubDir, 'release-sponsors.md'), SPONSORS_FRAGMENT)
+
+  await writeReleaseText(workspaceDir)
+
+  const release = await fs.readFile(path.join(workspaceDir, 'RELEASE.md'), 'utf8')
+  expect(release).toContain('Fixed the release notes.')
+  // the fragment is the tail of the description, appended once and only once —
+  // a second append, or markup left behind in getChangelogEntry, fails here
+  expect(release.match(/<!-- sponsors -->/g)).toHaveLength(1)
+  expect(release.endsWith(`\n${SPONSORS_FRAGMENT}`)).toBe(true)
+  // separated from the changelog by a blank line
+  expect(release).toContain('\n\n<!-- sponsors -->')
+})
+
+test('writes the release description when the sponsors fragment is missing', async () => {
+  const pnpmDir = path.join(workspaceDir, 'pnpm11/pnpm')
+  await fs.mkdir(pnpmDir, { recursive: true })
+  await fs.writeFile(path.join(pnpmDir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '11.13.1' }))
+  const pendingDir = path.join(workspaceDir, '.changeset/changelogs')
+  await fs.mkdir(pendingDir, { recursive: true })
+  await fs.writeFile(path.join(pendingDir, 'pnpm@11.13.1.md'), '## 11.13.1\n\n### Patch Changes\n\n- Fixed the release notes.\n')
+
+  await writeReleaseText(workspaceDir)
+
+  const release = await fs.readFile(path.join(workspaceDir, 'RELEASE.md'), 'utf8')
+  expect(release).toContain('Fixed the release notes.')
+  expect(release).not.toContain('<!-- sponsors -->')
 })
 
 test('reports a missing changelog for the released version', async () => {

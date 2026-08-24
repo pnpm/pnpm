@@ -22,10 +22,11 @@ pub use crate::{
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
 };
 
-use crate::npmrc_auth::NpmrcAuth;
+use crate::{matcher::create_matcher, npmrc_auth::NpmrcAuth};
 use indexmap::IndexMap;
 use pipe_trait::Pipe;
-use pnpm_lockfile::RegistryOptions;
+use pnpm_git_utils::{Host as GitHost, get_current_branch};
+use pnpm_lockfile::{Lockfile, RegistryOptions, WantedLockfileSelection};
 use pnpm_patching::{
     CalcPatchHashError, PatchGroupRecord, ResolvePatchedDependenciesError, calc_patch_hashes,
     resolve_and_group,
@@ -46,19 +47,20 @@ pub use crate::defaults::{
     available_parallelism, default_cache_dir, default_config_dir, default_git_shallow_hosts,
     default_peers_suffix_max_length, default_pnpm_home_dir, default_registry, default_state_dir,
     default_unsafe_perm, default_virtual_store_dir_max_length, default_workspace_concurrency,
-    is_unsafe_perm_posix, resolve_child_concurrency,
+    is_unsafe_perm_posix, resolve_child_concurrency, resolve_configured_state_dir,
 };
 use crate::defaults::{
-    default_child_concurrency, default_enable_global_virtual_store, default_fetch_retries,
-    default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
-    default_fetch_timeout, default_hoist_pattern, default_modules_cache_max_age,
-    default_modules_dir, default_public_hoist_pattern, default_store_dir, default_user_agent,
-    default_virtual_store_dir,
+    default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
+    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
+    default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
+    default_hoist_pattern, default_modules_cache_max_age, default_modules_dir,
+    default_public_hoist_pattern, default_store_dir, default_user_agent, default_virtual_store_dir,
 };
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
-    PackageExtension, PeerDependencyMeta, PeerDependencyRules, UpdateConfig, UpdateSettings,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
+    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, UpdateConfig,
+    UpdateSettings, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings,
+    decided_allow_builds,
     registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
     workspace_root_or,
 };
@@ -72,6 +74,44 @@ fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
     matches!(ci.as_deref(), Some("true" | "1" | "woodpecker"))
         || Sys::var("GITHUB_ACTIONS").is_some()
         || detect_ci()
+}
+
+/// Controls ANSI color rendering in CLI output.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ColorMode {
+    Always,
+    #[default]
+    Auto,
+    Never,
+}
+
+impl<'de> Deserialize<'de> for ColorMode {
+    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
+    where
+        Deserializer: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Value {
+            Bool(bool),
+            Mode(Mode),
+        }
+
+        #[derive(Deserialize)]
+        #[serde(rename_all = "kebab-case")]
+        enum Mode {
+            Always,
+            Auto,
+            Never,
+        }
+
+        Ok(match Value::deserialize(deserializer)? {
+            Value::Bool(true) | Value::Mode(Mode::Always) => ColorMode::Always,
+            Value::Bool(false) | Value::Mode(Mode::Never) => ColorMode::Never,
+            Value::Mode(Mode::Auto) => ColorMode::Auto,
+        })
+    }
 }
 
 /// `virtualStoreType`: where the virtual store lives, and therefore who
@@ -828,11 +868,100 @@ pub enum PackageImportMethod {
 /// (project-structural settings).
 #[derive(Debug, Clone, SmartDefault)]
 pub struct Config {
+    /// Whether recursive commands stop after the first failure.
+    #[default = true]
+    pub bail: bool,
+
     /// Whether pnpm is running in a continuous-integration environment.
     /// Defaults to automatic CI detection and may be overridden through
     /// configuration.
     #[default(_code = "default_ci::<Host>(is_ci::cached)")]
     pub ci: bool,
+
+    /// `updateNotifier` — whether `pnpm install` / `pnpm add` may check
+    /// the registry once a day for a newer pnpm and print a notice when
+    /// one exists. Setting it to `false` silences the check entirely.
+    #[default = true]
+    pub update_notifier: bool,
+
+    /// ANSI color policy for human-readable output.
+    pub color: ColorMode,
+
+    /// Include a package's README in the generated manifest when packing.
+    pub embed_readme: bool,
+
+    /// Permit `add` to modify a multi-package workspace root without `-w`.
+    pub ignore_workspace_root_check: bool,
+
+    /// Include optional dependencies in install-family operations.
+    #[default = true]
+    pub optional: bool,
+
+    /// npm-compatible alias used when `lockfile` was not set explicitly.
+    #[default = true]
+    pub package_lock: bool,
+
+    /// Rebuild only dependencies and projects whose builds are pending.
+    pub pending: bool,
+
+    /// Make an unfiltered workspace install operate recursively.
+    #[default = true]
+    pub recursive_install: bool,
+
+    /// Reverse the project order of recursive commands.
+    pub reverse: bool,
+
+    /// Stream a recursive command's script output as it arrives, one
+    /// prefixed line at a time, instead of letting the child write to the
+    /// terminal directly.
+    pub stream: bool,
+
+    /// Hold each script's streamed output until the script exits, then
+    /// print it as one block. Only affects streamed output.
+    pub aggregate_output: bool,
+
+    /// Omit the project prefix from the streamed output lines of running
+    /// scripts. `None` means the user never asked either way, which
+    /// `exec` distinguishes from an explicit `false`.
+    pub reporter_hide_prefix: Option<bool>,
+
+    /// Route reporter output to stderr, leaving stdout for the command's
+    /// own machine-readable result.
+    pub use_stderr: bool,
+
+    /// Treat the project as standalone: no workspace root is discovered,
+    /// so `pnpm-workspace.yaml` contributes neither settings nor sibling
+    /// projects.
+    ///
+    /// Only a caller that seeds this *before* [`Self::current`] — the
+    /// `--ignore-workspace` flag — suppresses the search. pnpm resolves
+    /// the workspace dir from argv alone (`getWorkspaceDir` in
+    /// `config/reader/src/index.ts` reads the parsed CLI options, never
+    /// the merged configuration), so a value arriving from a
+    /// configuration file or `PNPM_CONFIG_IGNORE_WORKSPACE` lands here
+    /// too late to affect discovery — deliberately, since a
+    /// `pnpm-workspace.yaml` cannot coherently ask not to be read. Such
+    /// a value still reaches the settings-only readers, matching pnpm's
+    /// `handleIgnoredBuilds`.
+    pub ignore_workspace: bool,
+
+    /// Glob patterns selecting the workspace's projects, from
+    /// `--workspace-packages` or `pnpm-workspace.yaml`'s `packages`.
+    /// `None` outside a workspace.
+    pub workspace_package_patterns: Option<Vec<String>>,
+
+    /// Run lifecycle scripts through pnpm's portable shell emulator.
+    pub shell_emulator: bool,
+
+    /// Preserve publish-only manifest fields in packed manifests.
+    pub skip_manifest_obfuscation: bool,
+
+    /// Sort recursive workspace projects topologically.
+    #[default = true]
+    pub sort: bool,
+
+    /// Select the beta CLI implementation when one is available.
+    pub use_beta_cli: bool,
 
     /// The problem keys of the project's own `pnpm-workspace.yaml` (see
     /// [`WorkspaceKeyIssues`]), for the CLI to report. Empty when there is no
@@ -910,6 +1039,11 @@ pub struct Config {
     /// processes.
     #[default(_code = "default_store_dir::<Host>()")]
     pub store_dir: StoreDir,
+
+    /// The machine-local directory in which pnpm persists state across
+    /// invocations. A project's manifest cannot set this path.
+    #[default(_code = "default_state_dir::<Host>().unwrap_or_default()")]
+    pub state_dir: PathBuf,
 
     /// The directory in which dependencies will be installed (instead of `node_modules`).
     #[default(_code = "default_modules_dir()")]
@@ -1090,6 +1224,17 @@ pub struct Config {
     #[default = true]
     pub lockfile: bool,
 
+    /// Where `pnpm-lock.yaml` is read and written, when the user pins it
+    /// with the `lockfileDir` setting (or `--lockfile-dir`). Several
+    /// projects may share one lockfile this way. Absolute once
+    /// [`Config::current`] has resolved it; `None` means "derive it",
+    /// which [`Config::lockfile_dir_for`] does.
+    ///
+    /// Every path anchored on the lockfile — the root `node_modules`, the
+    /// virtual store, and the importer ids — follows it, so setting it
+    /// goes through [`Config::pin_lockfile_dir`].
+    pub lockfile_dir: Option<PathBuf>,
+
     /// When set to true and the available pnpm-lock.yaml satisfies the package.json dependencies
     /// directive, a headless installation is performed. A headless installation skips all
     /// dependency resolution as it does not need to modify the lockfile.
@@ -1167,6 +1312,37 @@ pub struct Config {
     /// `sharedWorkspaceLockfile` setting; default `true`.
     #[default = true]
     pub shared_workspace_lockfile: bool,
+
+    /// `gitBranchLockfile` — give each git branch its own
+    /// `pnpm-lock.<branch>.yaml` instead of sharing `pnpm-lock.yaml`, so
+    /// two branches can hold different resolutions without conflicting on
+    /// one file. Default `false`.
+    ///
+    /// The name the install actually reads and writes is
+    /// [`Self::git_branch_lockfile_name`]; this flag alone does not decide
+    /// it, because the branch may be unknown and
+    /// [`Self::merge_git_branch_lockfiles`] overrides it.
+    pub use_git_branch_lockfile: bool,
+
+    /// `mergeGitBranchLockfiles` — fold every `pnpm-lock.<branch>.yaml`
+    /// into `pnpm-lock.yaml` and delete them, which is what a branch's
+    /// merge back into the mainline needs. Default `false`, or whatever
+    /// [`Self::merge_git_branch_lockfiles_branch_pattern`] decides for the
+    /// current branch.
+    pub merge_git_branch_lockfiles: bool,
+
+    /// `mergeGitBranchLockfilesBranchPattern` — glob patterns naming the
+    /// branches that merge the per-branch lockfiles, so the mainline
+    /// branches need not pass `--merge-git-branch-lockfiles` by hand.
+    /// Consulted only when `mergeGitBranchLockfiles` is not set outright.
+    pub merge_git_branch_lockfiles_branch_pattern: Vec<String>,
+
+    /// The `pnpm-lock.<branch>.yaml` the current git branch resolves to
+    /// under [`Self::use_git_branch_lockfile`]. `None` when the setting is
+    /// off or the branch cannot be determined (a detached HEAD, or no
+    /// repository at all), in which case the install stays on
+    /// `pnpm-lock.yaml`.
+    pub git_branch_lockfile_name: Option<String>,
 
     /// Refuse network requests during install. The `offline` flag gates
     /// the metadata-fetch path with `ERR_PNPM_NO_OFFLINE_META` when no
@@ -1419,6 +1595,21 @@ pub struct Config {
     #[default = true]
     pub verify_store_integrity: bool,
 
+    /// Whether a store row whose bundled `package.json` names a
+    /// different package than the row was recorded for fails the
+    /// install. When `true` (pnpm's default) the read raises
+    /// `ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE`; when `false` the row
+    /// is used and the disagreement is only warned about.
+    ///
+    /// A lockfile that pairs an integrity with the wrong package, and a
+    /// registry (or proxy) serving a tarball that does not match the
+    /// metadata it was listed under, both surface here.
+    ///
+    /// The `strictStorePkgContentCheck` camelCase key in
+    /// `pnpm-workspace.yaml` (default `true`).
+    #[default = true]
+    pub strict_store_pkg_content_check: bool,
+
     /// Opt-in assertion that the package store is complete and will not
     /// be written during this install — for running against a store on a
     /// read-only filesystem (a Nix store, a read-only bind mount, an OCI
@@ -1540,6 +1731,18 @@ pub struct Config {
     #[default(_code = "default_fetch_timeout()")]
     pub fetch_timeout: u64,
 
+    /// Successful registry metadata requests slower than this threshold emit
+    /// a warning. The `fetchWarnTimeoutMs` setting, in milliseconds (default
+    /// `10000`, or 10 s).
+    #[default(_code = "default_fetch_warn_timeout_ms()")]
+    pub fetch_warn_timeout_ms: u64,
+
+    /// Minimum expected average tarball download speed in KiB/s. A download
+    /// lasting more than one second warns when its average falls below this
+    /// value. The `fetchMinSpeedKiBps` setting (default `50`).
+    #[default(_code = "default_fetch_min_speed_ki_bps()")]
+    pub fetch_min_speed_ki_bps: u64,
+
     /// Value of the `User-Agent` header sent on every registry request.
     /// The `userAgent` setting; the default is the
     /// `pnpm/<version> npm/? node/? <platform> <arch>` format (built by
@@ -1593,6 +1796,16 @@ pub struct Config {
     /// (`patches`) applies.
     pub patches_dir: Option<String>,
 
+    /// Explicit pnpmfiles resolved against the workspace root. `None`
+    /// discovers the default `.pnpmfile.mjs` or `.pnpmfile.cjs`.
+    pub pnpmfile: Option<Vec<PathBuf>>,
+
+    /// `globalPnpmfile`. Loaded ahead of every project pnpmfile and left out
+    /// of `pnpmfileChecksum`, matching the entry pnpm's `requireHooks` pushes
+    /// first with `includeInChecksum: false`. A user-level file the lockfile
+    /// therefore cannot vouch for.
+    pub global_pnpmfile: Option<PathBuf>,
+
     /// `allowUnusedPatches` from `pnpm-workspace.yaml`. When `true`,
     /// configured patches that don't match any installed dependency
     /// produce a warning instead of failing the install with
@@ -1639,14 +1852,13 @@ pub struct Config {
     /// when set, leaving `ignoredBuilds` empty. Default `false`.
     pub ignore_scripts: bool,
 
-    /// `--ignore-pnpmfile`. When `true`, no pnpmfile hooks run: neither
-    /// the workspace-root `.pnpmfile.{cjs,mjs}` nor the pnpmfiles of
-    /// config-dependency plugins are loaded, so `readPackage`,
-    /// `updateConfig`, `afterAllResolved`, custom resolvers and custom
-    /// fetchers are all skipped. A CLI-only boolean: pnpm excludes
-    /// `ignore-pnpmfile` from its config-file keys, so the yaml / env
-    /// overlay never populates it — the CLI layer sets it from the flag.
-    /// Default `false`.
+    /// `ignorePnpmfile` (`--ignore-pnpmfile`). When `true`, no pnpmfile hooks
+    /// run: neither the pnpmfiles the project configures or ships nor those of
+    /// config-dependency plugins are loaded, so `readPackage`, `updateConfig`,
+    /// `afterAllResolved`, custom resolvers and custom fetchers are all
+    /// skipped. Settable from configuration and the environment as well as the
+    /// flag, which ORs on top — pnpm carries `ignore-pnpmfile` in both its
+    /// config-file keys and its schema. Default `false`.
     pub ignore_pnpmfile: bool,
 
     /// `gitChecks` (`--no-git-checks`). When `true` (the default),
@@ -1776,12 +1988,45 @@ pub struct Config {
     /// project. CLI-only, like [`Self::filter`].
     pub workspace_root: bool,
 
+    /// `--fail-if-no-match`: exit with code 1 when the `--filter` /
+    /// `--filter-prod` selectors select no workspace project, instead of
+    /// letting the command run over an empty selection. CLI-only, like
+    /// [`Self::filter`].
+    pub fail_if_no_match: bool,
+
+    /// `includeWorkspaceRoot` — whether a recursive command also runs on
+    /// the workspace root project. `run`, `exec`, `add`, and `test`
+    /// exclude the root from an unnarrowed recursive selection; this
+    /// setting keeps it in. Universal `--include-workspace-root` /
+    /// `--no-include-workspace-root` flag, `pnpm-workspace.yaml` key, and
+    /// `PNPM_CONFIG_INCLUDE_WORKSPACE_ROOT`.
+    pub include_workspace_root: bool,
+
+    /// `ignoreWorkspaceCycles` — suppress the report a recursive install
+    /// makes when the selected workspace projects depend on each other
+    /// in a cycle. See [`Self::disallow_workspace_cycles`] for what the
+    /// report is.
+    pub ignore_workspace_cycles: bool,
+
+    /// `disallowWorkspaceCycles` — make a cycle among the selected
+    /// workspace projects an error (`ERR_PNPM_DISALLOW_WORKSPACE_CYCLES`)
+    /// rather than a warning. [`Self::ignore_workspace_cycles`] wins over
+    /// it: nothing is reported at all under that setting.
+    pub disallow_workspace_cycles: bool,
+
     /// `testPattern` from `pnpm-workspace.yaml` /
     /// `PNPM_CONFIG_TEST_PATTERN`, overridable by the `--test-pattern`
     /// CLI flag. Glob patterns naming test files: when a `[<since>]`
     /// changed-packages filter selects a project whose changed files
     /// all match, the project is selected without its dependents.
     pub test_pattern: Vec<String>,
+
+    /// `legacyDirFiltering` — match a `{<dir>}` filter selector by
+    /// directory subtree instead of by glob. Glob matching, the default,
+    /// selects the project whose own directory matches the pattern; the
+    /// legacy subtree matching selects the projects strictly below that
+    /// directory instead.
+    pub legacy_dir_filtering: bool,
 
     /// `syncInjectedDepsAfterScripts` from `pnpm-workspace.yaml` /
     /// `PNPM_CONFIG_SYNC_INJECTED_DEPS_AFTER_SCRIPTS`. Names the scripts
@@ -1962,6 +2207,26 @@ pub struct Config {
     ///
     /// Defaults to `module`.
     pub init_type: InitType,
+
+    /// `init-author-name` / `initAuthorName` config: the name part of the
+    /// `name <email> (url)` author `pnpm init` writes.
+    pub init_author_name: Option<String>,
+
+    /// `init-author-email` / `initAuthorEmail` config: the email part of
+    /// the author `pnpm init` writes. See [`Self::init_author_name`].
+    pub init_author_email: Option<String>,
+
+    /// `init-author-url` / `initAuthorUrl` config: the url part of the
+    /// author `pnpm init` writes. See [`Self::init_author_name`].
+    pub init_author_url: Option<String>,
+
+    /// `init-license` / `initLicense` config: the `license` field
+    /// `pnpm init` writes, replacing the `ISC` the scaffold carries.
+    pub init_license: Option<String>,
+
+    /// `init-version` / `initVersion` config: the `version` field
+    /// `pnpm init` writes, replacing the `1.0.0` the scaffold carries.
+    pub init_version: Option<String>,
 
     /// `pm-on-fail` / `pmOnFail` config: what to do when the project's
     /// `packageManager` / `devEngines.packageManager` pin doesn't match the
@@ -2175,6 +2440,18 @@ impl Config {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The resolved settings used to construct an install HTTP client.
+    #[must_use]
+    pub fn network_settings(&self) -> pnpm_network::NetworkSettings {
+        pnpm_network::NetworkSettings {
+            network_concurrency: self.network_concurrency,
+            fetch_timeout: std::time::Duration::from_millis(self.fetch_timeout),
+            fetch_warn_timeout: std::time::Duration::from_millis(self.fetch_warn_timeout_ms),
+            fetch_min_speed_ki_bps: self.fetch_min_speed_ki_bps,
+            user_agent: self.user_agent.clone(),
+        }
     }
 
     /// The registries this config declares, in the shape the `registries`
@@ -2492,6 +2769,96 @@ impl Config {
             };
     }
 
+    /// The directory owning the `pnpm-lock.yaml` that covers
+    /// `project_dir`: the pinned [`lockfile_dir`], else the workspace root
+    /// when the workspace shares one lockfile, else the project itself.
+    ///
+    /// Mirrors pnpm's `lockfileDir ?? dir`, whose config reader has
+    /// already defaulted `lockfileDir` to `workspaceDir` for a shared
+    /// workspace lockfile.
+    ///
+    /// [`lockfile_dir`]: Self::lockfile_dir
+    #[must_use]
+    pub fn lockfile_dir_for<'a>(&'a self, project_dir: &'a Path) -> &'a Path {
+        self.lockfile_dir.as_deref().unwrap_or_else(|| {
+            if self.shared_workspace_lockfile {
+                self.workspace_dir.as_deref().unwrap_or(project_dir)
+            } else {
+                project_dir
+            }
+        })
+    }
+
+    /// Whether one `pnpm-lock.yaml` covers every project the command
+    /// touches. The `sharedWorkspaceLockfile` setting, which an explicit
+    /// [`lockfile_dir`] overrides: pinning the lockfile to one directory
+    /// *is* the shared layout, and pnpm's recursive dispatch routes such
+    /// a run through its shared-lockfile branch whatever the setting
+    /// says.
+    ///
+    /// [`lockfile_dir`]: Self::lockfile_dir
+    #[must_use]
+    pub fn shares_one_lockfile(&self) -> bool {
+        self.lockfile_dir.is_some() || self.shared_workspace_lockfile
+    }
+
+    /// pnpm's `rootProjectManifestDir`: where the root `package.json`,
+    /// the config dependencies (`node_modules/.pnpm-config`), and the
+    /// pnpmfile a command reads live — `lockfileDir ?? workspaceDir ??
+    /// dir`.
+    ///
+    /// Not the directory settings are *written* back to: `pnpm-workspace.yaml`
+    /// stays at [`workspace_dir`] when there is one.
+    ///
+    /// [`workspace_dir`]: Self::workspace_dir
+    #[must_use]
+    pub fn root_project_manifest_dir<'a>(&'a self, dir: &'a Path) -> &'a Path {
+        self.lockfile_dir.as_deref().or(self.workspace_dir.as_deref()).unwrap_or(dir)
+    }
+
+    /// Pin [`lockfile_dir`] to `dir` and re-anchor the paths that follow
+    /// the lockfile with it.
+    ///
+    /// `dir` is normalized first: importer ids are a lexical path diff
+    /// against it, so an unnormalized `<workspace>/..` would not name the
+    /// project it points at.
+    ///
+    /// [`lockfile_dir`]: Self::lockfile_dir
+    pub fn pin_lockfile_dir(&mut self, dir: &Path) {
+        let dir = pnpm_fs::lexical_normalize(dir);
+        self.anchor_lockfile_paths(&dir);
+        self.lockfile_dir = Some(dir);
+    }
+
+    /// Re-anchor the paths pnpm resolves against `lockfileDir` — the root
+    /// `node_modules` and the virtual store — onto `dir`.
+    ///
+    /// An explicitly configured `modulesDir` / `virtualStoreDir` keeps its
+    /// raw value (recovered from [`explicit_settings`]) and is re-resolved
+    /// against `dir`, so a multi-component or absolute setting keeps its
+    /// full shape — [`Path::join`] leaves an absolute value absolute.
+    /// Global-virtual-store installs keep their store-anchored
+    /// `virtual_store_dir`.
+    ///
+    /// [`explicit_settings`]: Self::explicit_settings
+    pub fn anchor_lockfile_paths(&mut self, dir: &Path) {
+        self.modules_dir =
+            match self.explicit_settings.get("modulesDir").and_then(serde_json::Value::as_str) {
+                Some(raw) => dir.join(raw),
+                None => dir.join("node_modules"),
+            };
+        if !self.enable_global_virtual_store {
+            self.virtual_store_dir = match self
+                .explicit_settings
+                .get("virtualStoreDir")
+                .and_then(serde_json::Value::as_str)
+            {
+                Some(raw) => dir.join(raw),
+                None => self.modules_dir.join(".pnpm"),
+            };
+        }
+    }
+
     /// [`Config::extra_env`] with the `nodeOptions` setting applied as
     /// `NODE_OPTIONS`, preserving the ESM `NODE_PATH` loader flag the
     /// `extra_env` carries under a global virtual store.
@@ -2521,6 +2888,60 @@ impl Config {
         }
         self.hoist_pattern = Some(Vec::new());
         self.public_hoist_pattern = Some(Vec::new());
+    }
+
+    /// The lockfile file name this install reads first and writes back:
+    /// the branch lockfile under `gitBranchLockfile`, `pnpm-lock.yaml`
+    /// otherwise.
+    ///
+    /// `mergeGitBranchLockfiles` wins over the branch name — the point of
+    /// that mode is to collapse the per-branch lockfiles back into the
+    /// shared one.
+    #[must_use]
+    pub fn wanted_lockfile_name(&self) -> &str {
+        match &self.git_branch_lockfile_name {
+            Some(name) if !self.merge_git_branch_lockfiles => name,
+            _ => Lockfile::FILE_NAME,
+        }
+    }
+
+    /// [`Self::wanted_lockfile_name`] paired with the merge flag, as the
+    /// lockfile loader wants them.
+    #[must_use]
+    pub fn wanted_lockfile_selection(&self) -> WantedLockfileSelection {
+        WantedLockfileSelection {
+            file_name: self.wanted_lockfile_name().to_owned(),
+            merge_git_branch_lockfiles: self.merge_git_branch_lockfiles,
+        }
+    }
+
+    /// Resolve the per-branch lockfile settings against the git branch the
+    /// process is on: which `pnpm-lock.<branch>.yaml` an install under
+    /// `gitBranchLockfile` uses, and whether
+    /// `mergeGitBranchLockfilesBranchPattern` puts this branch in merge
+    /// mode.
+    ///
+    /// The branch is read from the process's working directory, which is
+    /// where pnpm reads it from too — not from the workspace root, which
+    /// may sit in a different repository than the one the user is in.
+    pub fn apply_git_branch_lockfile_derivation<Sys: GetCurrentDir>(&mut self) {
+        // An explicit `mergeGitBranchLockfiles` — including an explicit
+        // `false` — settles the question without consulting the pattern.
+        let merge_is_explicit = self.explicit_settings.contains_key("mergeGitBranchLockfiles");
+        let pattern_decides =
+            !merge_is_explicit && !self.merge_git_branch_lockfiles_branch_pattern.is_empty();
+        if !self.use_git_branch_lockfile && !pattern_decides {
+            return;
+        }
+        let Ok(cwd) = Sys::current_dir() else { return };
+        let Some(branch) = get_current_branch::<GitHost>(&cwd) else { return };
+        if pattern_decides {
+            self.merge_git_branch_lockfiles =
+                create_matcher(&self.merge_git_branch_lockfiles_branch_pattern).matches(&branch);
+        }
+        if self.use_git_branch_lockfile {
+            self.git_branch_lockfile_name = Some(Lockfile::git_branch_file_name(&branch));
+        }
     }
 
     /// Apply the legacy `shamefullyHoist` setting to the public hoist pattern.
@@ -2710,6 +3131,9 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
+        let default_state_dir = default_state_dir::<Sys>().unwrap_or_default();
+        self.state_dir.clone_from(&default_state_dir);
+
         // Re-anchor the path-valued defaults (`modules_dir`,
         // `virtual_store_dir`) onto the caller-supplied starting directory.
         // SmartDefault populates them via [`defaults::default_modules_dir`] /
@@ -2749,11 +3173,19 @@ impl Config {
         // Resolve the workspace dir before reading the project `.npmrc`
         // so subdirectory invocations use the workspace-root config:
         // the workspace dir, falling back to the local prefix.
+        //
+        // `--ignore-workspace` stops the search outright, which is what
+        // makes the flag mean "standalone project": with no workspace dir
+        // there is no shared lockfile, no sibling projects, and no
+        // `pnpm-workspace.yaml` settings layer. Only the flag reaches
+        // this far — see [`Config::ignore_workspace`].
         let env_workspace_dir = Sys::var_os("NPM_CONFIG_WORKSPACE_DIR")
             .or_else(|| Sys::var_os("npm_config_workspace_dir"))
             .filter(|value| !value.is_empty())
             .map(PathBuf::from);
-        let workspace_yaml = if let Some(env_dir) = env_workspace_dir {
+        let workspace_yaml = if self.ignore_workspace {
+            None
+        } else if let Some(env_dir) = env_workspace_dir {
             // Env-var path: load yaml directly from the env dir. A
             // missing file is silent, but the re-anchor still fires
             // because the user has explicitly told us where the
@@ -2940,12 +3372,15 @@ impl Config {
         // so a user can't set `nodeLinker` or `hoist` globally — pnpm
         // rejects those in `config.yaml` and pacquet must too.
         //
-        // Path-valued fields use `start_dir` as the base for relative
-        // resolution — pnpm passes `workspaceDir: undefined` for the
-        // global manifest, which leaves paths un-anchored. Using
-        // `start_dir` here is a small pacquet-specific extension that
-        // keeps relative paths well-defined; users putting absolute
-        // paths (the recommended pattern) see no difference.
+        // Path-valued fields other than `stateDir` use `start_dir` as the
+        // base for relative resolution — pnpm passes `workspaceDir:
+        // undefined` for the global manifest, which leaves paths
+        // un-anchored. Using `start_dir` here is a small pacquet-specific
+        // extension that keeps relative paths well-defined; users putting
+        // absolute paths (the recommended pattern) see no difference.
+        // `stateDir` goes through [`resolve_configured_state_dir`] because
+        // it carries global-shim trust records and must not resolve under
+        // the project being considered for execution.
         //
         // `workspace_dir` is intentionally NOT set from the global
         // config — it must reflect the location of `pnpm-workspace.yaml`
@@ -2961,14 +3396,21 @@ impl Config {
         // resolution must fire only when the user has *not* pinned a
         // path. See [`crate::store_path::resolve_store_dir`].
         let mut store_dir_explicit = false;
-        if let Some(global_settings) = global_settings {
+        if let Some(mut global_settings) = global_settings {
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
             global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
             store_dir_explicit |= global_settings.store_dir.is_some();
             collect_explicit_settings(&mut self.explicit_settings, &global_settings);
+            let configured_state_dir = global_settings.state_dir.take();
             let saved_workspace_dir = self.workspace_dir.take();
             global_settings.apply_to(&mut self, start_dir);
             self.workspace_dir = saved_workspace_dir;
+            if let Some(configured_state_dir) =
+                configured_state_dir.as_deref().filter(|value| !value.is_empty())
+            {
+                self.state_dir =
+                    resolve_configured_state_dir(&default_state_dir, configured_state_dir);
+            }
         }
 
         // Layer pnpm-workspace.yaml overrides on top. A missing file is
@@ -3017,11 +3459,18 @@ impl Config {
             // path when the yaml file is missing and `apply_to` (which also
             // writes it) never runs.
             self.workspace_dir = Some(base_dir.clone());
+            self.workspace_package_patterns = Some(
+                settings
+                    .as_ref()
+                    .and_then(|settings| settings.packages.clone())
+                    .unwrap_or_else(|| vec![".".to_string()]),
+            );
             if let Some(mut settings) = settings {
                 // CI detection is process state. A repository-controlled
                 // manifest must not be able to turn it off; trusted global
                 // config and PNPM_CONFIG_CI are applied in their own layers.
                 settings.ci = None;
+                settings.state_dir = None;
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
                 // counts as "explicitly set" when the workspace yaml
@@ -3077,17 +3526,36 @@ impl Config {
         // repository, so it overrides the bootstrap default registry too.
         let env_registry_override = env_settings.registry.clone();
         collect_explicit_settings(&mut self.explicit_settings, &env_settings);
+        let configured_state_dir = env_settings.state_dir.take();
         let bootstrap = &mut self.package_manager_bootstrap;
         env_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
+        if let Some(configured_state_dir) =
+            configured_state_dir.as_deref().filter(|value| !value.is_empty())
+        {
+            self.state_dir = resolve_configured_state_dir(&default_state_dir, configured_state_dir);
+        }
         if let Some(registry) = env_registry_override {
             let normalized =
                 if registry.ends_with('/') { registry } else { format!("{registry}/") };
             self.registries_by_scope.insert("default".to_string(), normalized.clone());
             self.package_manager_bootstrap.registry.clone_from(&normalized);
             self.package_manager_bootstrap.registries.insert("default".to_string(), normalized);
+        }
+
+        if !self.explicit_settings.contains_key("lockfile") {
+            self.lockfile = self.package_lock;
+        }
+
+        // A pinned `lockfileDir` moves the root `node_modules` and the
+        // virtual store with it. Applied after every source has had its
+        // say so the anchor uses the final value, and before the
+        // global-virtual-store derivation, which may re-point
+        // `virtual_store_dir` at the store.
+        if let Some(lockfile_dir) = self.lockfile_dir.clone() {
+            self.anchor_lockfile_paths(&lockfile_dir);
         }
 
         // Build the per-URI auth-header lookup. Credentials were already
@@ -3124,6 +3592,7 @@ impl Config {
             global_virtual_store_dir_explicit,
         );
 
+        self.apply_git_branch_lockfile_derivation::<Sys>();
         self.apply_shamefully_hoist_derivation();
         self.apply_virtual_store_only_derivation();
 

@@ -238,6 +238,10 @@ pub struct BuildModules<'a> {
     /// configures a shell gets it for build scripts too, not only for
     /// `pnpm run`. `None` selects the platform default.
     pub script_shell: Option<&'a Path>,
+    /// Mirrors `config.shell_emulator`. Threaded through to
+    /// [`RunPostinstallHooks::shell_emulator`], so build scripts run
+    /// under the built-in shell wherever `pnpm run` would.
+    pub shell_emulator: bool,
     pub extra_env: &'a HashMap<String, String>,
     /// Mirrors `config.user_agent`, stamped into each build script's
     /// `npm_config_user_agent`.
@@ -371,6 +375,7 @@ impl BuildModules<'_> {
             patches,
             scripts_prepend_node_path,
             script_shell,
+            shell_emulator,
             extra_env,
             user_agent,
             unsafe_perm,
@@ -537,6 +542,7 @@ impl BuildModules<'_> {
                         user_agent,
                         scripts_prepend_node_path,
                         script_shell,
+                        shell_emulator,
                         unsafe_perm,
                         frozen_store,
                         ignore_scripts,

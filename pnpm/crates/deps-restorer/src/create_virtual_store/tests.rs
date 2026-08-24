@@ -189,7 +189,7 @@ async fn cold_batch_links_slots_in_parallel() {
         node_linker: NodeLinker::Isolated,
         progress_reported: &progress_reported,
         tarball_mem_cache: Some(&mem_cache),
-        custom_fetcher_picker: None,
+        custom_fetcher_session: None,
         planned_canonical_fetches: None,
         link_concurrency_probe: Some(&probe),
     }
@@ -323,7 +323,7 @@ async fn shared_store_context_materializes_a_warm_package() {
         node_linker: NodeLinker::Isolated,
         progress_reported: &progress_reported,
         tarball_mem_cache: None,
-        custom_fetcher_picker: None,
+        custom_fetcher_session: None,
         planned_canonical_fetches: None,
         link_concurrency_probe: None,
     }
@@ -445,7 +445,7 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
         node_linker: NodeLinker::Isolated,
         progress_reported: &progress_reported,
         tarball_mem_cache: Some(&mem_cache),
-        custom_fetcher_picker: None,
+        custom_fetcher_session: None,
         planned_canonical_fetches: None,
         link_concurrency_probe: Some(&probe),
     }

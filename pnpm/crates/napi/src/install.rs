@@ -24,8 +24,8 @@ use std::{
 use indexmap::IndexMap;
 use napi_derive::napi;
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
-use pnpm_network::{NetworkSettings, NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
+use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
+use pnpm_network::{NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
 use pnpm_package_manager::{
     DepsRequiringBuildSink, Install, ProjectMutation, RebuildOptions, ResolvedPackages,
     UpdateSeedPolicy,
@@ -38,6 +38,7 @@ use crate::{
     config::{ConfigOverlay, resolve_config},
     error::{invalid_manifest_error, to_napi_error, unsupported_option_error},
     hooks::{BatchHookSink, HookSink, JsBatchedReadPackageHook, JsReadPackageHook},
+    native_reporter::{NativeRenderer, OutputSink, ReporterOptions},
     reporter_bridge::{EngineCallGuard, LogSink, NodeBridgeReporter, begin_stats, take_stats},
 };
 
@@ -131,6 +132,12 @@ pub struct InstallOptions {
     pub fetch_retry_mintimeout: Option<u32>,
     pub fetch_retry_maxtimeout: Option<u32>,
     pub fetch_timeout: Option<u32>,
+    /// Slow metadata-request threshold in milliseconds. When set, this takes
+    /// precedence over the same field in `networkConfig`.
+    pub fetch_warn_timeout_ms: Option<u32>,
+    /// Minimum average tarball speed in KiB/s. When set, this takes precedence
+    /// over the same field in `networkConfig`.
+    pub fetch_min_speed_ki_bps: Option<u32>,
     pub user_agent: Option<String>,
     /// Fail the install with `ERR_PNPM_IGNORED_BUILDS` when a dependency build
     /// script is blocked. Defaults to `false` — the install instead reports the
@@ -157,6 +164,10 @@ pub struct InstallOptions {
     /// it, never to a registry the project's own `.npmrc` names.
     pub auth_header_by_uri: Option<HashMap<String, String>>,
     pub pnpm_home_dir: Option<String>,
+    /// Render pnpm's own terminal output for this call. Omitted, the call
+    /// prints nothing and the embedder renders the `onLog` event stream
+    /// itself (or not at all).
+    pub reporter: Option<ReporterOptions>,
 }
 
 #[napi(object)]
@@ -181,6 +192,12 @@ pub struct NetworkConfigInput {
     pub fetch_retry_mintimeout: Option<u32>,
     pub fetch_retry_maxtimeout: Option<u32>,
     pub fetch_timeout: Option<u32>,
+    /// Slow metadata-request threshold in milliseconds. Used when the
+    /// corresponding top-level install option is omitted.
+    pub fetch_warn_timeout_ms: Option<u32>,
+    /// Minimum average tarball speed in KiB/s. Used when the corresponding
+    /// top-level install option is omitted.
+    pub fetch_min_speed_ki_bps: Option<u32>,
     pub user_agent: Option<String>,
 }
 
@@ -225,6 +242,16 @@ pub struct InstallResult {
     pub store_dir: String,
 }
 
+/// The renderer for one call, built on the caller's thread: a
+/// `ThreadsafeFunction` must be constructed while the napi environment is
+/// live, before the work moves to the dedicated engine thread.
+fn build_renderer(
+    options: &InstallOptions,
+    on_output: Option<OutputSink>,
+) -> Option<NativeRenderer> {
+    options.reporter.as_ref().map(|reporter| NativeRenderer::new(reporter, &options.dir, on_output))
+}
+
 /// Serializes every engine call that touches the process-global log sink /
 /// stats accumulator (`install`, `rebuild`, `pack`) so their reporter state
 /// never overlaps. Held across the whole call; different install dirs still run
@@ -241,8 +268,10 @@ pub async fn install(
     on_log: Option<LogSink>,
     read_package_hook: Option<HookSink>,
     read_package_batch_hook: Option<BatchHookSink>,
+    on_output: Option<OutputSink>,
 ) -> napi::Result<InstallResult> {
     let _guard = engine_call_lock().lock().await;
+    let renderer = build_renderer(&options, on_output);
     let (tx, rx) = tokio::sync::oneshot::channel();
     std::thread::Builder::new()
         .name("pnpm-napi-install".to_string())
@@ -253,6 +282,7 @@ pub async fn install(
             let _ = tx.send(run_install_blocking(
                 &options,
                 on_log,
+                renderer,
                 read_package_hook,
                 read_package_batch_hook,
             ));
@@ -266,12 +296,14 @@ pub async fn install(
 fn run_install_blocking(
     options: &InstallOptions,
     on_log: Option<LogSink>,
+    renderer: Option<NativeRenderer>,
     read_package_hook: Option<HookSink>,
     read_package_batch_hook: Option<BatchHookSink>,
 ) -> napi::Result<InstallResult> {
-    // Restores the previous sink and clears stats on drop — including on a
-    // panic in `run_install_inner`, which unwinds this dedicated thread.
-    let _sink_guard = EngineCallGuard::new(on_log);
+    // Restores the previous sink and renderer and clears stats on drop —
+    // including on a panic in `run_install_inner`, which unwinds this
+    // dedicated thread.
+    let _sink_guard = EngineCallGuard::with_renderer(on_log, renderer);
     // The batch sink (synthesized by the `@pnpm/napi` wrapper) wins over the
     // per-manifest sink: one threadsafe call serves a whole batch, where
     // per-manifest dispatch pays roughly one event-loop tick per call. The
@@ -384,23 +416,20 @@ fn run_install_inner(
             &config.proxy,
             &config.tls,
             &config.tls_by_uri,
-            &NetworkSettings {
-                network_concurrency: config.network_concurrency,
-                fetch_timeout: std::time::Duration::from_millis(config.fetch_timeout),
-                user_agent: config.user_agent.clone(),
-            },
+            &config.network_settings(),
         )
         .map_err(|error| to_napi_error(&error))?
         .with_max_sockets_per_host(config.max_sockets),
     );
     let lazy_lockfile = if config.lockfile {
-        LazyLockfile::deferred(dir.clone())
+        LazyLockfile::deferred(dir.clone(), config.wanted_lockfile_selection())
     } else {
         LazyLockfile::disabled()
     };
     let resolved_packages = ResolvedPackages::new();
     let tarball_mem_cache = Arc::new(MemCache::new());
-    let lockfile_path = manifest.path().parent().map(|parent| parent.join(Lockfile::FILE_NAME));
+    let lockfile_path =
+        manifest.path().parent().map(|parent| parent.join(config.wanted_lockfile_name()));
 
     let mut groups = vec![DependencyGroup::Prod, DependencyGroup::Dev];
     if options.include_optional_deps != Some(false) {
@@ -666,6 +695,14 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
             .fetch_timeout
             .or_else(|| network_config.and_then(|config| config.fetch_timeout))
             .map(u64::from),
+        fetch_warn_timeout_ms: options
+            .fetch_warn_timeout_ms
+            .or_else(|| network_config.and_then(|config| config.fetch_warn_timeout_ms))
+            .map(u64::from),
+        fetch_min_speed_ki_bps: options
+            .fetch_min_speed_ki_bps
+            .or_else(|| network_config.and_then(|config| config.fetch_min_speed_ki_bps))
+            .map(u64::from),
         user_agent: options
             .user_agent
             .clone()
@@ -835,14 +872,16 @@ pub async fn rebuild(
     options: InstallOptions,
     on_log: Option<LogSink>,
     selected_names: Option<Vec<String>>,
+    on_output: Option<OutputSink>,
 ) -> napi::Result<()> {
     let _guard = engine_call_lock().lock().await;
+    let renderer = build_renderer(&options, on_output);
     let (tx, rx) = tokio::sync::oneshot::channel();
     std::thread::Builder::new()
         .name("pnpm-napi-rebuild".to_string())
         .stack_size(32 * 1024 * 1024)
         .spawn(move || {
-            let _ = tx.send(run_rebuild_blocking(&options, on_log, selected_names));
+            let _ = tx.send(run_rebuild_blocking(&options, on_log, renderer, selected_names));
         })
         .map_err(|error| {
             napi::Error::from_reason(format!("failed to spawn rebuild thread: {error}"))
@@ -853,11 +892,12 @@ pub async fn rebuild(
 fn run_rebuild_blocking(
     options: &InstallOptions,
     on_log: Option<LogSink>,
+    renderer: Option<NativeRenderer>,
     selected_names: Option<Vec<String>>,
 ) -> napi::Result<()> {
-    // Restores the previous sink on drop — including on a panic in
-    // `run_install_inner`, which unwinds this dedicated thread.
-    let _sink_guard = EngineCallGuard::new(on_log);
+    // Restores the previous sink and renderer on drop — including on a
+    // panic in `run_install_inner`, which unwinds this dedicated thread.
+    let _sink_guard = EngineCallGuard::with_renderer(on_log, renderer);
     // `None` (or an empty list) rebuilds every build-needing package; a
     // non-empty list restricts the rebuild to the matching names / build keys.
     let rebuild_options = RebuildOptions {

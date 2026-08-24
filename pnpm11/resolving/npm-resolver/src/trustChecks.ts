@@ -3,6 +3,7 @@ import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/
 import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 
+import { warnMissingTimeFieldOnce } from './pickPackage.js'
 import { assertMetaHasTime } from './pickPackageFromMeta.js'
 
 type TrustEvidence = 'provenance' | 'trustedPublisher' | 'stagedPublish'
@@ -19,6 +20,20 @@ export function failIfTrustDowngraded (
   opts?: {
     trustPolicyExclude?: PackageVersionPolicy
     trustPolicyIgnoreAfter?: number
+    /**
+     * The `minimumReleaseAgeIgnoreMissingTime` opt-in, which declares that
+     * the registry cannot date its releases. The downgrade check orders
+     * history by publish date, so a packument with no `time` map leaves it
+     * nothing to order and the check is skipped with a warning rather than
+     * aborting the install.
+     *
+     * Scoped to the whole map being absent, which `dropIncompletePublishTimes`
+     * makes the only shape a registry that dates some of its versions can
+     * reach here in. A packument that dates every version it lists is instead
+     * saying it does not have this one, so that shape keeps failing closed
+     * however this flag is set.
+     */
+    ignoreMissingTimeField?: boolean
   }
 ): void {
   if (opts?.trustPolicyExclude) {
@@ -31,6 +46,10 @@ export function failIfTrustDowngraded (
     }
   }
 
+  if (meta.time == null && opts?.ignoreMissingTimeField) {
+    warnMissingTimeFieldOnce(meta.name, 'trustPolicy')
+    return
+  }
   assertMetaHasTime(meta)
 
   const versionPublishedAt = meta.time[version]

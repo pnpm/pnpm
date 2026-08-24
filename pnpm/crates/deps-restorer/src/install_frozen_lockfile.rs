@@ -71,6 +71,7 @@ where
 {
     pub http_client: &'a ThrottledClient,
     pub config: &'static Config,
+    pub pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub importers: &'a HashMap<String, ProjectSnapshot>,
     pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
@@ -177,11 +178,9 @@ where
     /// chain, matching the `nodeLinker === 'hoisted'` branch in
     /// `headlessInstall`.
     ///
-    /// Pacquet's [`NodeLinker::Pnp`] is a config / serde
-    /// placeholder today; an install request with `Pnp` reaches
-    /// the isolated linker in this branch (no `PnP` code path
-    /// exists yet). `nodeLinker: 'pnp'` is out-of-scope and tracked
-    /// separately.
+    /// [`NodeLinker::Pnp`] shares the isolated virtual-store materialization,
+    /// then replaces importer dependency links with the project-level `PnP`
+    /// loader during the link phase.
     pub node_linker: NodeLinker,
 
     /// Install-scoped shared in-flight tarball cache, threaded down to
@@ -349,6 +348,7 @@ where
         let InstallFrozenLockfile {
             http_client,
             config,
+            pnpmfile_hook,
             importers,
             packages,
             snapshots,
@@ -601,11 +601,7 @@ where
             .await
             .map_err(InstallFrozenLockfileError::LockfileVerification)
         };
-        let custom_fetcher_picker = if config.ignore_pnpmfile {
-            None
-        } else {
-            load_custom_fetcher_picker(workspace_root).await?
-        };
+        let custom_fetcher_session = load_custom_fetcher_session(pnpmfile_hook).await?;
         let create_virtual_store_fut = async {
             CreateVirtualStore {
                 http_client,
@@ -627,7 +623,7 @@ where
                 node_linker,
                 progress_reported: &progress_reported,
                 tarball_mem_cache,
-                custom_fetcher_picker: custom_fetcher_picker.as_ref(),
+                custom_fetcher_session: custom_fetcher_session.as_ref(),
                 planned_canonical_fetches,
                 #[cfg(test)]
                 link_concurrency_probe: None,
@@ -774,6 +770,16 @@ where
         };
 
         let mut build_extra_env = config.extra_env_with_node_options();
+        if matches!(node_linker, NodeLinker::Pnp) {
+            let node_options = build_extra_env.get("NODE_OPTIONS").map(String::as_str);
+            build_extra_env.insert(
+                "NODE_OPTIONS".to_string(),
+                crate::make_node_require_option(
+                    &workspace_root.join(crate::PNP_FILENAME),
+                    node_options,
+                ),
+            );
+        }
         if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
             let package_map_path =
                 config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
@@ -923,20 +929,15 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
     }
 }
 
-/// Load custom fetchers from the pnpmfile at `lockfile_dir`, if any.
+/// Load custom fetchers from the install's pnpmfiles, if any.
 /// Returns `Ok(None)` when no pnpmfile exists or it exports no
 /// fetchers, so the install path can skip the IPC overhead entirely.
 /// A pnpmfile that fails to load or evaluate aborts the install, like
 /// the custom-resolver load on the fresh-lockfile path.
-async fn load_custom_fetcher_picker(
-    lockfile_dir: &Path,
-) -> Result<
-    Option<Arc<pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker>>,
-    InstallFrozenLockfileError,
-> {
-    let Some(hook) = pnpm_hooks::finder::load_pnpmfile(lockfile_dir) else {
-        return Ok(None);
-    };
+async fn load_custom_fetcher_session(
+    hook: Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+) -> Result<Option<Arc<crate::CustomFetcherSession>>, InstallFrozenLockfileError> {
+    let Some(hook) = hook else { return Ok(None) };
     let fetchers = hook.get_custom_fetchers().await.map_err(|err| {
         tracing::error!(
             target: "pacquet::install",
@@ -947,7 +948,7 @@ async fn load_custom_fetcher_picker(
     if fetchers.is_empty() {
         return Ok(None);
     }
-    Ok(Some(Arc::new(pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(fetchers))))
+    Ok(Some(Arc::new(crate::CustomFetcherSession::new(fetchers))))
 }
 
 #[cfg(test)]

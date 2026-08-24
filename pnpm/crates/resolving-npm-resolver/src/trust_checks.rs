@@ -17,6 +17,8 @@ use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
 use pnpm_registry::{Package, PackageVersion};
 use pnpm_resolving_resolver_base::parse_packument_timestamp;
 
+use crate::pick_package::{SkippedTimeCheck, warn_missing_time_once};
+
 /// Rank of supply-chain evidence on a single version. Variants are
 /// declared weakest-first so the derived `Ord` matches `trust_rank`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -90,6 +92,22 @@ pub struct TrustCheckOptions<'a> {
     /// `trust_policy_ignore_after_minutes`. Defaults to wall-clock
     /// `Utc::now`; tests pin it for determinism.
     pub now: Option<DateTime<Utc>>,
+
+    /// The `minimumReleaseAgeIgnoreMissingTime` opt-in, which declares
+    /// that the registry cannot date its releases. The downgrade check
+    /// orders history by publish date, so a packument with no `time`
+    /// map leaves it nothing to order and the check is skipped with a
+    /// warning rather than aborting the install.
+    ///
+    /// Scoped to the whole map being absent, which
+    /// [`Package::drop_incomplete_publish_times`] makes the only shape a
+    /// registry that dates some of its versions can reach here in. A
+    /// packument that dates every version it lists is instead saying it
+    /// does not have this one, so that shape keeps failing closed
+    /// however this flag is set.
+    ///
+    /// [`Package::drop_incomplete_publish_times`]: pnpm_registry::Package::drop_incomplete_publish_times
+    pub ignore_missing_time_field: bool,
 }
 
 /// Reject `version` of `meta` when its trust evidence is weaker
@@ -113,9 +131,19 @@ pub fn fail_if_trust_downgraded(
         }
     }
 
-    // Pull the version's publish time. We treat both "no time map" and
-    // "no entry for this version" as the same `TRUST_CHECK_FAIL` shape
-    // so the verifier surfaces a single "could not be checked" reason.
+    if meta.time.is_none() {
+        if opts.ignore_missing_time_field {
+            warn_missing_time_once(&meta.name, SkippedTimeCheck::TrustPolicy);
+            return Ok(());
+        }
+        return Err(TrustViolation::TrustCheckFailed {
+            reason: format!(
+                r#"The metadata of {name} is missing the "time" field"#,
+                name = meta.name,
+            ),
+        });
+    }
+
     let published_at =
         meta.published_at(version).ok_or_else(|| TrustViolation::TrustCheckFailed {
             reason: format!(

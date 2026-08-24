@@ -15,6 +15,7 @@ mod importer_id;
 mod manifest;
 mod project_manifest;
 mod projects;
+mod projects_graph_view;
 mod root_finder;
 
 pub use api::{EnvVarOs, Host};
@@ -31,6 +32,7 @@ pub use projects::{
     FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, Project, find_workspace_projects,
     find_workspace_projects_no_check,
 };
+pub use projects_graph_view::GraphPkg;
 pub use root_finder::{
     BadWorkspaceManifestNameError, FindWorkspaceDirError, find_workspace_dir,
     find_workspace_dir_from_env,

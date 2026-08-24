@@ -21,7 +21,9 @@ use pnpm_reporter::{
     DeprecationLog, GlobalLog, HookLog, LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog,
     SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
 };
-use pnpm_resolving_deps_resolver::{ManifestHook, ResolveDependencyTreeError, UpdateDepth};
+use pnpm_resolving_deps_resolver::{
+    ManifestHook, ResolveDependencyTreeError, UpdateDepth, UpdateTargets,
+};
 use pnpm_resolving_npm_resolver::{InMemoryPackageMetaCache, MergeNamedRegistriesError};
 use pnpm_store_dir::SharedVerifiedFilesCache;
 use pnpm_tarball::{MemCache, SharedReportedProgressKeys};
@@ -274,11 +276,13 @@ pub enum UpdateSeedPolicy {
     DropAll {
         max_depth: UpdateDepth,
     },
-    /// Withhold only the named packages' pins. `pacquet update <pattern>`
-    /// — matched names re-resolve while everything else keeps its pin.
-    /// Keyed by package name (scope included).
+    /// Withhold only the update targets' pins. `pacquet update <pattern>`
+    /// — a matched name re-resolves while everything else keeps its pin,
+    /// and a selector that pinned an exact version narrows the target to
+    /// that version line. Keyed by package name (scope included); see
+    /// [`UpdateTargets`].
     DropOnly {
-        names: std::collections::HashSet<String>,
+        targets: UpdateTargets,
         max_depth: UpdateDepth,
     },
     ByImporter {
@@ -340,7 +344,7 @@ impl UpdateSeedPolicy {
 #[derive(Debug, Clone)]
 pub enum ImporterUpdateSeedPolicy {
     DropAll,
-    DropOnly(std::collections::HashSet<String>),
+    DropOnly(UpdateTargets),
 }
 
 fn update_reuse_scopes(
@@ -355,8 +359,8 @@ fn update_reuse_scopes(
         UpdateSeedPolicy::KeepAll => (UpdateReuseScope::All, BTreeMap::new()),
         UpdateSeedPolicy::KeepAllResolveAll => (UpdateReuseScope::None, BTreeMap::new()),
         UpdateSeedPolicy::DropAll { .. } => (UpdateReuseScope::None, BTreeMap::new()),
-        UpdateSeedPolicy::DropOnly { names, .. } => {
-            (UpdateReuseScope::Except(names.iter().cloned().collect()), BTreeMap::new())
+        UpdateSeedPolicy::DropOnly { targets, .. } => {
+            (UpdateReuseScope::Except(targets.clone()), BTreeMap::new())
         }
         UpdateSeedPolicy::ByImporter { policies, .. } => (
             UpdateReuseScope::All,
@@ -365,8 +369,8 @@ fn update_reuse_scopes(
                 .map(|(importer_id, policy)| {
                     let scope = match policy {
                         ImporterUpdateSeedPolicy::DropAll => UpdateReuseScope::None,
-                        ImporterUpdateSeedPolicy::DropOnly(names) => {
-                            UpdateReuseScope::Except(names.iter().cloned().collect())
+                        ImporterUpdateSeedPolicy::DropOnly(targets) => {
+                            UpdateReuseScope::Except(targets.clone())
                         }
                     };
                     (importer_id.clone(), scope)
@@ -398,6 +402,11 @@ fn full_resolution_required<'a>(
 /// Error type of [`InstallWithFreshLockfile`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum InstallWithFreshLockfileError {
+    /// A path named by the `pnpmfile` setting is not on disk. pnpm reports the
+    /// same code and message from `requireHooks`.
+    #[display("{_0}")]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_NOT_FOUND))]
+    MissingPnpmfile(#[error(not(source))] pnpm_hooks::finder::MissingPnpmfileError),
     /// The concurrent pre-resolve verification of the existing lockfile
     /// rejected it. The orchestrator maps this back to
     /// `InstallError::LockfileVerification` so the failure keeps the
@@ -848,7 +857,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             fetch_locker,
             picked_manifest_cache,
             custom_resolvers: custom_resolvers_raw,
-            custom_fetcher_picker,
+            custom_fetcher_session,
             pnpmfile_hook,
         } = resolver_setup::build_resolver_chain::<Reporter>(resolver_setup::ResolverChainInputs {
             config,
@@ -1454,7 +1463,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // routing the cold batch through the mem cache fixes by
             // reusing the in-flight download instead.
             tarball_mem_cache: Some(&tarball_mem_cache),
-            custom_fetcher_picker: custom_fetcher_picker.as_ref(),
+            custom_fetcher_session: custom_fetcher_session.as_ref(),
             // The fresh path's concurrent gate verifies the *previous*
             // lockfile while this run fetches the new graph; the two
             // entry sets differ, so no fetch plan is published and the
@@ -1571,7 +1580,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             None => engine_name,
         };
 
-        let build_extra_env = build_extra_env(config, node_linker);
+        let build_extra_env = build_extra_env(config, node_linker, lockfile_dir);
 
         // `CreateVirtualStore` keeps skipped snapshots out of this map, so
         // it holds only what the install put on disk. See
@@ -1648,7 +1657,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let (wanted_lockfile, can_record_lockfile_verification) = if !config.lockfile {
             (None, false)
         } else if save_lockfile {
-            let target = lockfile_dir.join(Lockfile::FILE_NAME);
+            let target = lockfile_dir.join(config.wanted_lockfile_name());
             let can_record_lockfile_verification = save_wanted_lockfile(
                 &built_lockfile,
                 &target,
@@ -1797,11 +1806,25 @@ fn pre_resolution_log_fn<Reporter: self::Reporter>(
 /// keeps the output byte-identical to the typed write when the hook makes no
 /// changes. A throwing hook aborts the install.
 /// The environment lifecycle scripts run under: `config.extra_env` plus
-/// the `NODE_OPTIONS` that point Node at the package map.
-fn build_extra_env(config: &Config, node_linker: NodeLinker) -> HashMap<String, String> {
+/// the `NODE_OPTIONS` for the selected project-level dependency loader.
+fn build_extra_env(
+    config: &Config,
+    node_linker: NodeLinker,
+    workspace_root: &Path,
+) -> HashMap<String, String> {
     let mut env = config.extra_env.clone();
     if let Some(node_options) = &config.node_options {
         env.insert("NODE_OPTIONS".to_string(), node_options.clone());
+    }
+    if matches!(node_linker, NodeLinker::Pnp) {
+        let node_options = env.get("NODE_OPTIONS").map(String::as_str);
+        env.insert(
+            "NODE_OPTIONS".to_string(),
+            crate::make_node_require_option(
+                &workspace_root.join(crate::PNP_FILENAME),
+                node_options,
+            ),
+        );
     }
     if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
         let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
@@ -1855,7 +1878,7 @@ async fn finish_lockfile_only<Reporter: self::Reporter>(
     } else if config.lockfile {
         let can_record_lockfile_verification = save_wanted_lockfile(
             &built_lockfile,
-            &lockfile_dir.join(Lockfile::FILE_NAME),
+            &lockfile_dir.join(config.wanted_lockfile_name()),
             after_all_resolved_hook,
             after_all_resolved_log,
         )

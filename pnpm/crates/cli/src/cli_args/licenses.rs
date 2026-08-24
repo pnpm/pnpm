@@ -3,7 +3,11 @@ use crate::cli_args::{
         dep_types::{DepType, detect_dep_types},
         pkg_info::is_unsafe_path_component,
     },
-    recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+    install::resolve_bool_override,
+    recursive::{
+        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
+        selected_importer_ids,
+    },
     sanitize::{sanitize, sanitize_inline},
 };
 use clap::Args;
@@ -87,11 +91,12 @@ struct Include {
 }
 
 impl LicensesDependencyOptions {
-    fn include(&self) -> Include {
+    fn include(&self, include_optional: bool) -> Include {
         // Mirrored from pnpm `licenses` logic (and sbom.rs).
         let mut dependencies = !self.dev;
         let mut dev_dependencies = !self.prod;
-        let mut optional_dependencies = !self.prod && !self.no_optional;
+        let mut optional_dependencies =
+            !self.prod && resolve_bool_override(self.optional, self.no_optional, include_optional);
 
         if self.optional {
             dependencies = false;
@@ -151,30 +156,16 @@ impl LicensesArgs {
         };
 
         let importer_ids = if recursive {
-            let mut importer_ids = Vec::new();
             let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
-            let (projects, _) = discover_workspace_projects(workspace_root)?;
+            let (projects, _) = discover_workspace_projects(workspace_root, config)?;
             let selection =
                 select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
-            for project_dir in selection.selected.keys() {
-                let id = if project_dir == lockfile_dir {
-                    ".".to_string()
-                } else {
-                    project_dir
-                        .strip_prefix(lockfile_dir)
-                        .ok()
-                        .map(|rel| rel.to_string_lossy().replace('\\', "/"))
-                        .filter(|id| !id.is_empty())
-                        .unwrap_or_else(|| ".".to_string())
-                };
-                importer_ids.push(id);
-            }
-            importer_ids
+            selected_importer_ids(&selection, lockfile_dir)
         } else {
             lockfile.importers.keys().cloned().collect()
         };
 
-        let include = self.dependency_options.include();
+        let include = self.dependency_options.include(config.optional);
         let belongs_to = collect_dependencies(
             &lockfile,
             importer_ids,

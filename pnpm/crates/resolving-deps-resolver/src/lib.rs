@@ -94,8 +94,8 @@ pub use pnpm_deps_path::DepPath;
 pub use resolve_dependency_tree::{
     Deprecation, DeprecationLogFn, ManifestHook, ResolveDependencyTreeError,
     ResolveDependencyTreeOptions, SkippedOptionalDependency, SkippedOptionalDependencyParent,
-    SkippedOptionalLogFn, TreeCtx, UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx, extend_tree,
-    real_package_name_of, resolve_dependency_tree,
+    SkippedOptionalLogFn, TreeCtx, UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine,
+    WorkspaceTreeCtx, extend_tree, real_package_name_of, resolve_dependency_tree,
 };
 pub use resolve_importer::{
     ResolveImporterError, ResolveImporterOptions, ResolveImporterResult, resolve_importer,

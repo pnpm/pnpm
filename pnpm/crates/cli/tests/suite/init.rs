@@ -1,7 +1,9 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pipe_trait::Pipe;
 use pnpm_testing_utils::{bin::CommandTempCwd, fs::get_filenames_in_folder};
 use pretty_assertions::assert_eq;
+use serde_json::json;
 use std::{fs, path::Path};
 
 #[test]
@@ -130,6 +132,49 @@ fn init_type_from_the_workspace_manifest_is_honored() {
     let manifest =
         fs::read_to_string(workspace.join("package.json")).expect("read from package.json");
     assert!(!manifest.contains(r#""type""#), "{manifest}");
+
+    drop(root);
+}
+
+#[test]
+fn the_author_license_and_version_settings_replace_the_scaffold_placeholders() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "initAuthorName: pnpm\n\
+         initAuthorEmail: xxxxxx@pnpm.com\n\
+         initAuthorUrl: https://www.github.com/pnpm\n\
+         initLicense: MIT\n\
+         initVersion: 2.0.0\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    pacquet.with_arg("init").assert().success();
+
+    let manifest: serde_json::Value = fs::read_to_string(workspace.join("package.json"))
+        .expect("read from package.json")
+        .pipe_deref(serde_json::from_str)
+        .expect("parse package.json");
+    assert_eq!(manifest["version"], json!("2.0.0"));
+    assert_eq!(manifest["license"], json!("MIT"));
+    assert_eq!(manifest["author"], json!("pnpm <xxxxxx@pnpm.com> (https://www.github.com/pnpm)"));
+
+    drop(root);
+}
+
+/// Nothing set leaves the scaffold's own placeholders in place, including
+/// the empty `author` field npm's scaffold carries.
+#[test]
+fn the_scaffold_placeholders_stand_without_the_init_settings() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    pacquet.with_arg("init").assert().success();
+
+    let manifest: serde_json::Value = fs::read_to_string(workspace.join("package.json"))
+        .expect("read from package.json")
+        .pipe_deref(serde_json::from_str)
+        .expect("parse package.json");
+    assert_eq!(manifest["version"], json!("1.0.0"));
+    assert_eq!(manifest["license"], json!("ISC"));
+    assert_eq!(manifest["author"], json!(""));
 
     drop(root);
 }

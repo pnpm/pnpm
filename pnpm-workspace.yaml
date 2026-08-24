@@ -131,7 +131,7 @@ catalog:
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
   '@reflink/reflink': 0.1.19
-  '@rushstack/worker-pool': 0.7.23
+  '@rushstack/worker-pool': 0.7.25
   '@stylistic/eslint-plugin': ^5.10.0
   '@types/adm-zip': ^0.5.8
   '@types/archy': 0.0.36
@@ -224,7 +224,7 @@ catalog:
   encode-registry: ^3.0.1
   esbuild: ^0.28.2
   escape-string-regexp: ^5.0.0
-  eslint: ^10.8.1
+  eslint: ^10.9.0
   eslint-plugin-import-x: ^4.17.1
   eslint-plugin-jest: ^29.16.1
   eslint-plugin-n: ^18.3.0
@@ -389,7 +389,7 @@ catalog:
 
 catalogMode: strict
 
-cleanupUnusedCatalogs: true
+catalogPrune: true
 
 enableGlobalVirtualStore: true
 
@@ -406,24 +406,17 @@ minimumReleaseAge: 1440 # At least a day
 
 minimumReleaseAgeExclude:
   - '@pnpm/*'
-  - '@rushstack/worker-pool@0.7.18'
   - '@zkochan/*'
   - better-path-resolve
-  - body-parser@2.2.1
   - can-link
   - can-write-to-dir
   - cmd-extension
   - comver-to-semver
   - dir-is-case-sensitive
-  - esbuild@0.28.1
   - '@esbuild/*'
-  - express@4.22.1
   - glob@11.1.0
-  - handlebars@4.7.9
   - is-inner-link
   - is-subdir
-  - jws@3.2.3
-  - lodash@4.17.23
   - make-empty-dir
   - normalize-registry-url
   - parse-npm-tarball-url@5.0.0
@@ -432,9 +425,7 @@ minimumReleaseAgeExclude:
   - pnpm
   - preferred-pm
   - promise-share
-  - qs@6.14.2 || 6.15.2
   - read-ini-file
-  - read-json5-file
   - read-yaml-file
   - realpath-missing
   - rename-overwrite
@@ -445,15 +436,14 @@ minimumReleaseAgeExclude:
   - safe-execa
   - safe-promise-defer
   - symlink-dir
-  - tar@7.5.10
   - which-pm
-  - which-pm-runs
   - write-ini-file
   - write-json5-file
   - write-yaml-file
-  - tmp@0.2.6
   - http-proxy-middleware@3.0.7
-  - get-pnpm@0.0.2 || 0.0.3
+  - get-pnpm@0.0.3
+
+minimumReleaseAgeExcludePrune: true
 
 nodeVersion: 22.13.0
 

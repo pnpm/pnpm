@@ -1,8 +1,9 @@
 import { hookLogger } from '@pnpm/core-loggers'
 import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import type { CustomFetcher, CustomResolver, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
 import type { LockfileObject } from '@pnpm/lockfile.types'
+import { globalWarn } from '@pnpm/logger'
 import type { ImportIndexedPackageAsync } from '@pnpm/store.controller-types'
 import type { BaseManifest, BeforePackingHook, ReadPackageHook } from '@pnpm/types'
 import { pathAbsolute } from 'path-absolute'
@@ -226,6 +227,10 @@ export async function requireHooks (
       }
       importProvider = file
       cookedHooks.importPackage = fileHooks.importPackage
+      globalWarn(
+        `The "importPackage" hook (defined in ${redactAndSanitize(file)}) is deprecated and will be removed in the next major version of pnpm. ` +
+        'It keeps working until then, but it opts the installation out of the parallel package importer, making it slower.'
+      )
     }
   }
 

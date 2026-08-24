@@ -10,24 +10,74 @@ use std::{
 #[must_use]
 pub struct TestRegistry {
     url: String,
+    /// The fixture storage this registry serves, for the tests that own it
+    /// outright. [`None`] for the process-global instance, whose storage
+    /// every other test reads.
+    storage: Option<PathBuf>,
 }
 
 impl TestRegistry {
     pub fn start() -> Self {
-        Self { url: TestRegistryInstance::get().url.clone() }
+        Self { url: TestRegistryInstance::get().url.clone(), storage: None }
     }
 
     pub fn start_with_storage(storage: &Path) -> Self {
-        Self { url: TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Proxy).url }
+        Self {
+            url: TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Proxy).url,
+            storage: Some(storage.to_path_buf()),
+        }
+    }
+
+    /// Build fixture storage under `root` and start a registry over it.
+    /// The tree is the caller's alone, so it may be re-tagged with
+    /// [`Self::set_dist_tag`].
+    pub fn start_with_own_storage(root: &Path) -> Self {
+        Self::start_over_built_storage(root, &[], false)
+    }
+
+    pub(crate) fn start_over_built_storage(
+        root: &Path,
+        substitutions: &[(&str, &str)],
+        static_serve: bool,
+    ) -> Self {
+        let storage = root.join("registry-storage");
+        pnpr_fixtures::build_storage_at_with_substitutions(
+            &pnpr_fixtures::packages_dir(),
+            &storage,
+            substitutions,
+        );
+        if static_serve {
+            Self::start_static_with_storage(&storage)
+        } else {
+            Self::start_with_storage(&storage)
+        }
     }
 
     pub fn start_static_with_storage(storage: &Path) -> Self {
-        Self { url: TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Static).url }
+        Self {
+            url: TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Static).url,
+            storage: Some(storage.to_path_buf()),
+        }
     }
 
     #[must_use]
     pub fn url(&self) -> String {
         self.url.clone()
+    }
+
+    /// Move `tag` to `version`, the way the JS harness's `addDistTag` does.
+    /// A fixture package's `latest` is otherwise its highest published
+    /// version, which cannot express "the newer version was published after
+    /// the install" — the setup every upstream `--latest` test relies on.
+    ///
+    /// Only a registry started over storage of the test's own can be
+    /// re-tagged — see `CommandTempCwd::add_mocked_registry_with_own_storage`;
+    /// the process-global instance is shared.
+    pub fn set_dist_tag(&self, package: &str, version: &str, tag: &str) {
+        let storage = self.storage.as_deref().expect(
+            "re-tagging needs a registry of the test's own — start it with add_mocked_registry_with_own_storage",
+        );
+        pnpr_fixtures::set_dist_tag(storage, package, version, tag);
     }
 }
 

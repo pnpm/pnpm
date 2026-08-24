@@ -12,7 +12,7 @@
 //! as a low-priority auth-file fallback.
 
 use crate::{
-    AuditLevel, CatalogMode, HoistingLimits, InitType, NodeLinker, NodePackageMapType,
+    AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, NodeLinker, NodePackageMapType,
     PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol,
     ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings,
     api::EnvVar,
@@ -136,12 +136,33 @@ impl WorkspaceSettings {
             };
         }
 
+        json_field!(bail, "BAIL");
         json_field!(ci, "CI");
+        json_field!(update_notifier, "UPDATE_NOTIFIER");
+        enum_field!(color, "COLOR", ColorMode);
+        json_field!(embed_readme, "EMBED_README");
+        json_field!(ignore_pnpmfile, "IGNORE_PNPMFILE");
+        json_field!(ignore_workspace_root_check, "IGNORE_WORKSPACE_ROOT_CHECK");
+        json_field!(optional, "OPTIONAL");
+        json_field!(package_lock, "PACKAGE_LOCK");
+        json_field!(pending, "PENDING");
+        json_field!(recursive_install, "RECURSIVE_INSTALL");
+        json_field!(reverse, "REVERSE");
+        json_field!(stream, "STREAM");
+        json_field!(aggregate_output, "AGGREGATE_OUTPUT");
+        json_field!(reporter_hide_prefix, "REPORTER_HIDE_PREFIX");
+        json_field!(use_stderr, "USE_STDERR");
+        json_field!(ignore_workspace, "IGNORE_WORKSPACE");
+        json_field!(shell_emulator, "SHELL_EMULATOR");
+        json_field!(skip_manifest_obfuscation, "SKIP_MANIFEST_OBFUSCATION");
+        json_field!(sort, "SORT");
+        json_field!(use_beta_cli, "USE_BETA_CLI");
         json_field!(hoist, "HOIST");
         tri_array_field!(hoist_pattern, "HOIST_PATTERN");
         tri_array_field!(public_hoist_pattern, "PUBLIC_HOIST_PATTERN");
         json_field!(shamefully_hoist, "SHAMEFULLY_HOIST");
         string_field!(store_dir, "STORE_DIR");
+        string_field!(state_dir, "STATE_DIR");
         string_field!(modules_dir, "MODULES_DIR");
         enum_field!(node_linker, "NODE_LINKER", NodeLinker);
         json_field!(node_experimental_package_map, "NODE_EXPERIMENTAL_PACKAGE_MAP");
@@ -150,6 +171,8 @@ impl WorkspaceSettings {
         string_field!(virtual_store_dir, "VIRTUAL_STORE_DIR");
         enum_field!(virtual_store_type, "VIRTUAL_STORE_TYPE", VirtualStoreType);
         json_field!(enable_global_virtual_store, "ENABLE_GLOBAL_VIRTUAL_STORE");
+        json_field!(virtual_store_only, "VIRTUAL_STORE_ONLY");
+        json_field!(enable_modules_dir, "ENABLE_MODULES_DIR");
         json_field!(global_shims, "GLOBAL_SHIMS");
         string_field!(global_virtual_store_dir, "GLOBAL_VIRTUAL_STORE_DIR");
         enum_field!(package_import_method, "PACKAGE_IMPORT_METHOD", PackageImportMethod);
@@ -157,12 +180,19 @@ impl WorkspaceSettings {
         json_field!(virtual_store_dir_max_length, "VIRTUAL_STORE_DIR_MAX_LENGTH");
         json_field!(peers_suffix_max_length, "PEERS_SUFFIX_MAX_LENGTH");
         json_field!(lockfile, "LOCKFILE");
+        string_field!(lockfile_dir, "LOCKFILE_DIR");
         json_field!(prefer_frozen_lockfile, "PREFER_FROZEN_LOCKFILE");
         json_field!(prefer_symlinked_executables, "PREFER_SYMLINKED_EXECUTABLES");
         json_field!(frozen_lockfile, "FROZEN_LOCKFILE");
         json_field!(deploy_all_files, "DEPLOY_ALL_FILES");
         json_field!(force_legacy_deploy, "FORCE_LEGACY_DEPLOY");
         json_field!(shared_workspace_lockfile, "SHARED_WORKSPACE_LOCKFILE");
+        json_field!(git_branch_lockfile, "GIT_BRANCH_LOCKFILE");
+        json_field!(merge_git_branch_lockfiles, "MERGE_GIT_BRANCH_LOCKFILES");
+        json_field!(
+            merge_git_branch_lockfiles_branch_pattern,
+            "MERGE_GIT_BRANCH_LOCKFILES_BRANCH_PATTERN"
+        );
         json_field!(offline, "OFFLINE");
         json_field!(prefer_offline, "PREFER_OFFLINE");
         json_field!(lockfile_include_tarball_url, "LOCKFILE_INCLUDE_TARBALL_URL");
@@ -198,6 +228,10 @@ impl WorkspaceSettings {
         json_field!(resolve_peers_from_workspace_root, "RESOLVE_PEERS_FROM_WORKSPACE_ROOT");
         json_field!(block_exotic_subdeps, "BLOCK_EXOTIC_SUBDEPS");
         json_field!(verify_store_integrity, "VERIFY_STORE_INTEGRITY");
+        json_field!(strict_store_pkg_content_check, "STRICT_STORE_PKG_CONTENT_CHECK");
+        json_field!(include_workspace_root, "INCLUDE_WORKSPACE_ROOT");
+        json_field!(ignore_workspace_cycles, "IGNORE_WORKSPACE_CYCLES");
+        json_field!(disallow_workspace_cycles, "DISALLOW_WORKSPACE_CYCLES");
         json_field!(side_effects_cache, "SIDE_EFFECTS_CACHE");
         json_field!(side_effects_cache_readonly, "SIDE_EFFECTS_CACHE_READONLY");
         json_field!(fetch_retries, "FETCH_RETRIES");
@@ -205,11 +239,16 @@ impl WorkspaceSettings {
         json_field!(fetch_retry_mintimeout, "FETCH_RETRY_MINTIMEOUT");
         json_field!(fetch_retry_maxtimeout, "FETCH_RETRY_MAXTIMEOUT");
         json_field!(network_concurrency, "NETWORK_CONCURRENCY");
+        json_field!(maxsockets, "MAXSOCKETS");
         json_field!(max_sockets, "MAX_SOCKETS");
         json_field!(fetch_timeout, "FETCH_TIMEOUT");
+        json_field!(fetch_warn_timeout_ms, "FETCH_WARN_TIMEOUT_MS");
+        json_field!(fetch_min_speed_ki_bps, "FETCH_MIN_SPEED_KI_BPS");
         string_field!(user_agent, "USER_AGENT");
         json_field!(patched_dependencies, "PATCHED_DEPENDENCIES");
         string_field!(patches_dir, "PATCHES_DIR");
+        string_field!(global_pnpmfile, "GLOBAL_PNPMFILE");
+        enum_field!(pnpmfile, "PNPMFILE", crate::PnpmfileSetting);
         json_field!(allow_builds, "ALLOW_BUILDS");
         json_field!(dangerously_allow_all_builds, "DANGEROUSLY_ALLOW_ALL_BUILDS");
         json_field!(strict_dep_builds, "STRICT_DEP_BUILDS");
@@ -228,6 +267,7 @@ impl WorkspaceSettings {
         json_field!(workspace_concurrency, "WORKSPACE_CONCURRENCY");
         json_field!(git_shallow_hosts, "GIT_SHALLOW_HOSTS");
         json_field!(test_pattern, "TEST_PATTERN");
+        json_field!(legacy_dir_filtering, "LEGACY_DIR_FILTERING");
         json_field!(sync_injected_deps_after_scripts, "SYNC_INJECTED_DEPS_AFTER_SCRIPTS");
         json_field!(changed_files_ignore_pattern, "CHANGED_FILES_IGNORE_PATTERN");
         json_field!(supported_architectures, "SUPPORTED_ARCHITECTURES");
@@ -248,6 +288,11 @@ impl WorkspaceSettings {
         enum_field!(pm_on_fail, "PM_ON_FAIL", PmOnFail);
         json_field!(init_package_manager, "INIT_PACKAGE_MANAGER");
         enum_field!(init_type, "INIT_TYPE", InitType);
+        string_field!(init_author_name, "INIT_AUTHOR_NAME");
+        string_field!(init_author_email, "INIT_AUTHOR_EMAIL");
+        string_field!(init_author_url, "INIT_AUTHOR_URL");
+        string_field!(init_license, "INIT_LICENSE");
+        string_field!(init_version, "INIT_VERSION");
         // pnpm applies this env var on presence alone (`!= null`) and
         // assigns the raw value without validation, so presence always
         // overrides the other config layers: an empty value assigns an

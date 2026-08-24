@@ -14,7 +14,7 @@ use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::backdate_existing_files;
+use pnpm_testing_utils::fs::{backdate_existing_files, set_mtime};
 use pnpm_workspace_state::{
     ProjectEntry, WorkspaceState, WorkspaceStateSettings, load_workspace_state,
     update_workspace_state,
@@ -226,6 +226,30 @@ fn returns_up_to_date_when_state_and_manifests_agree() {
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert_eq!(decision, Decision::UpToDate);
+}
+
+/// A filtered install refreshes `lastValidatedTimestamp` while leaving
+/// the projects it did not select untouched, so its state cannot prove
+/// the workspace is current: the next install re-validates for real.
+#[test]
+fn returns_skipped_when_the_previous_install_was_filtered() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    let mut state = load_workspace_state(dir.path()).expect("read state").expect("state on disk");
+    state.filtered_install = true;
+    update_workspace_state(dir.path(), &state).expect("write workspace state");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("previous install was filtered")),
+        "unexpected decision: {decision:?}",
+    );
 }
 
 /// A `file:` dependency must never short-circuit: nothing the fast
@@ -2347,6 +2371,172 @@ fn workspace_content_check_refreshes_last_validated_timestamp() {
         .unwrap()
         .last_validated_timestamp;
     assert!(after > before, "expected the state timestamp to advance ({before} -> {after})");
+}
+
+/// The instant every mtime-collision test stamps on the files the
+/// freshness check stats and on the recorded `lastValidatedTimestamp`.
+const COLLIDING_MTIME_SECS: u64 = 1_700_000_000;
+/// [`COLLIDING_MTIME_SECS`] in the milliseconds the state records.
+const COLLIDING_MTIME_MS: i64 = 1_700_000_000_000;
+
+/// Reproduce the mtime-tick collision of
+/// [#13907](https://github.com/pnpm/pnpm/issues/13907): every file the
+/// freshness check stats is stamped `subsec_nanos` into the millisecond
+/// the workspace state records as validated, so the manifest reads as
+/// possibly-modified and the content check runs. A `subsec_nanos` of
+/// zero is the whole-second-mtime filesystem's version of the same
+/// collision.
+fn collide_mtimes_with_recorded_state(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    subsec_nanos: u32,
+) {
+    let modified = std::time::SystemTime::UNIX_EPOCH
+        + std::time::Duration::new(COLLIDING_MTIME_SECS, subsec_nanos);
+    for path in [
+        workspace_root.join("package.json"),
+        workspace_root.join(Lockfile::FILE_NAME),
+        config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
+    ] {
+        set_mtime(&path, modified);
+    }
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(
+        workspace_root,
+        COLLIDING_MTIME_MS,
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None),
+        projects,
+    );
+}
+
+/// Rewrite the wanted lockfile so a content check would report the
+/// project outdated while leaving its mtime untouched, so an up-to-date
+/// verdict after this can only have come from the pure-mtime fast path.
+fn poison_lockfile_content(workspace_root: &std::path::Path) {
+    let path = workspace_root.join(Lockfile::FILE_NAME);
+    let modified = fs::metadata(&path).unwrap().modified().unwrap();
+    fs::write(&path, FOO_LOCKFILE.replace("1.0.0", "1.0.1")).unwrap();
+    set_mtime(&path, modified);
+}
+
+fn recorded_timestamp(workspace_root: &std::path::Path) -> i64 {
+    load_workspace_state(workspace_root)
+        .expect("read the workspace state")
+        .expect("a workspace state to have been written")
+        .last_validated_timestamp
+}
+
+fn assert_content_check_converges_after_collision(subsec_nanos: u32) {
+    let (dir, config) = setup_content_check_project();
+    collide_mtimes_with_recorded_state(dir.path(), config, subsec_nanos);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+    let refreshed = recorded_timestamp(dir.path());
+    assert!(
+        refreshed > COLLIDING_MTIME_MS,
+        "expected the passing content check to advance the baseline past {COLLIDING_MTIME_MS}, got {refreshed}",
+    );
+
+    poison_lockfile_content(dir.path());
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+    assert_eq!(recorded_timestamp(dir.path()), refreshed);
+}
+
+#[test]
+fn workspace_content_check_converges_after_a_same_millisecond_mtime_collision() {
+    assert_content_check_converges_after_collision(500_000);
+}
+
+#[test]
+fn workspace_content_check_converges_after_a_whole_second_mtime_collision() {
+    assert_content_check_converges_after_collision(0);
+}
+
+/// The refreshed baseline must not post-date the filesystem clock: an
+/// edit made after the content check passed still has to defeat the
+/// mtime fast path on the next run.
+#[test]
+fn workspace_content_check_does_not_bless_a_manifest_edited_after_it_passed() {
+    let (dir, config) = setup_content_check_project();
+    collide_mtimes_with_recorded_state(dir.path(), config, 500_000);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    assert_eq!(
+        content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]),
+        Decision::UpToDate,
+    );
+
+    fs::write(
+        dir.path().join("package.json"),
+        r#"{"name":"root","version":"1.0.0","dependencies":{"foo":"^1.0.0","bar":"^1.0.0"}}"#,
+    )
+    .unwrap();
+    let edited = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &edited)]);
+    assert!(
+        matches!(decision, Decision::Skipped { .. }),
+        "expected the edit to defeat the fast path, got {decision:?}",
+    );
+}
+
+fn workspace_deps_status(
+    dir: &tempfile::TempDir,
+    config: &'static Config,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+) -> RunDepsStatus {
+    let state = load_workspace_state(dir.path())
+        .expect("read the workspace state")
+        .expect("a workspace state to have been written");
+    let lockfile = Lockfile::load_wanted_from_dir(dir.path()).expect("parse pnpm-lock.yaml");
+    check_deps_status_before_run(
+        &OptimisticRepeatInstallCheck {
+            workspace_root: dir.path(),
+            config,
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+            project_manifests,
+            is_workspace_install: true,
+            lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
+            catalogs: &BTreeMap::default(),
+        },
+        &state,
+    )
+}
+
+fn assert_deps_status_converges_after_collision(subsec_nanos: u32) {
+    let (dir, config) = setup_content_check_project();
+    collide_mtimes_with_recorded_state(dir.path(), config, subsec_nanos);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+
+    assert_eq!(workspace_deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
+    let refreshed = recorded_timestamp(dir.path());
+    assert!(
+        refreshed > COLLIDING_MTIME_MS,
+        "expected the passing content check to advance the baseline past {COLLIDING_MTIME_MS}, got {refreshed}",
+    );
+
+    poison_lockfile_content(dir.path());
+    assert_eq!(workspace_deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
+    assert_eq!(recorded_timestamp(dir.path()), refreshed);
+}
+
+#[test]
+fn run_gate_converges_after_a_same_millisecond_mtime_collision() {
+    assert_deps_status_converges_after_collision(500_000);
+}
+
+#[test]
+fn run_gate_converges_after_a_whole_second_mtime_collision() {
+    assert_deps_status_converges_after_collision(0);
 }
 
 /// Workspace lockfile whose root importer links a sibling: the link

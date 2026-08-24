@@ -170,6 +170,129 @@ test('nodeVersion from config takes priority over PNPM_CONFIG_NODE_VERSION', asy
   expect(config.nodeVersion).toBe('20.0.0')
 })
 
+test('initVersion is read from the PNPM_CONFIG_INIT_VERSION environment variable', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_INIT_VERSION: '2.0.0',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.initVersion).toBe('2.0.0')
+})
+
+test('maxSockets falls back to npm\'s default', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.maxSockets).toBe(50)
+})
+
+test('maxSockets is read from npm\'s lowercase spelling of the setting', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_MAXSOCKETS: '7',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.maxSockets).toBe(7)
+})
+
+test('maxSockets is read from the canonical spelling of the setting', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_MAX_SOCKETS: '9',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.maxSockets).toBe(9)
+})
+
+test('the canonical spelling of maxSockets wins over npm\'s in the environment', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_MAXSOCKETS: '7',
+      PNPM_CONFIG_MAX_SOCKETS: '9',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.maxSockets).toBe(9)
+})
+
+test('maxSockets from the command line wins over the environment, whichever spelling each used', async () => {
+  const { config } = await getConfig({
+    cliOptions: { maxsockets: 4 },
+    env: {
+      PNPM_CONFIG_MAX_SOCKETS: '9',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.maxSockets).toBe(4)
+})
+
+test('maxSockets from the command line wins over pnpm-workspace.yaml, whichever spelling each used', async () => {
+  prepareEmpty()
+  fs.writeFileSync('pnpm-workspace.yaml', 'maxSockets: 4\n', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { dir: process.cwd(), maxsockets: 6 },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.maxSockets).toBe(6)
+})
+
+test('maxSockets from the environment wins over pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+  fs.writeFileSync('pnpm-workspace.yaml', 'maxSockets: 4\n', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { dir: process.cwd() },
+    env: {
+      PNPM_CONFIG_MAX_SOCKETS: '8',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.maxSockets).toBe(8)
+})
+
 test('runtimeOnFail=download overrides devEngines.runtime.onFail and adds node to devDependencies', async () => {
   prepare({
     devEngines: {

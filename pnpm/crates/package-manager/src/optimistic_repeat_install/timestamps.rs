@@ -93,13 +93,66 @@ pub(crate) fn validation_baseline_ms(
     config: &Config,
     project_manifests: &[(PathBuf, &PackageManifest)],
 ) -> Option<i64> {
-    let lockfile = mtime_ms(&workspace_root.join(Lockfile::FILE_NAME))
+    let lockfile = mtime_ms(&workspace_root.join(config.wanted_lockfile_name()))
         .or_else(|| mtime_ms(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)));
     project_manifests
         .iter()
         .filter_map(|(_, manifest)| mtime_ms(manifest.path()))
         .chain(lockfile)
         .max()
+}
+
+/// The filesystem clock's current time in milliseconds, taken from an
+/// mtime the filesystem stamps itself, so it shares a clock with every
+/// file the repeat-install check compares — the reason
+/// [`validation_baseline_ms`] cannot use the wall clock either.
+///
+/// Read it *before* validating the contents it will later bless: a file
+/// written after the probe carries a later mtime and so still reads as
+/// modified, while one written before it is covered by the check that
+/// just passed.
+///
+/// The probe is an unnamed temporary file in the directory holding the
+/// workspace state — pnpm's own, on the volume the state write lands on
+/// — so nothing else can observe it and it needs no cleanup. `None` when
+/// it cannot be created or stat'd, leaving the caller with the
+/// mtime-derived baseline.
+pub(crate) fn filesystem_now_ms(workspace_root: &Path) -> Option<i64> {
+    let state_path = pnpm_workspace_state::get_file_path(workspace_root);
+    let probe = tempfile::tempfile_in(state_path.parent()?).ok()?;
+    file_mtime_from_metadata(&probe.metadata().ok()?).map(|mtime| mtime.ms)
+}
+
+/// The `lastValidatedTimestamp` to record once a repeat-install content
+/// check has passed: `baseline_ms` — the mtimes of the files it
+/// validated, per [`validation_baseline_ms`] — raised to the filesystem
+/// clock's `now_ms`.
+///
+/// `baseline_ms` on its own never converges. It is a file mtime
+/// truncated to milliseconds, and [`modified_at_or_after`] deliberately
+/// reads a file whose mtime falls inside that same millisecond — or, on
+/// a whole-second filesystem, inside that same second — as
+/// possibly-modified. The very file that forced this content check keeps
+/// forcing one on every later run, so the pure-mtime fast path becomes
+/// unreachable
+/// ([#13907](https://github.com/pnpm/pnpm/issues/13907)). Raising the
+/// baseline to the filesystem's *now* closes that window without
+/// post-dating it into the future, which would hide an edit made in the
+/// interval it skipped over. Keeping `baseline_ms` as the floor
+/// preserves the blessing of a validated file whose mtime already lies
+/// ahead of the filesystem clock.
+///
+/// pnpm's `checkDepsStatus` records `Date.now()` at this point. Reading
+/// the same *now* off the filesystem keeps the wall clock — which can
+/// run ahead of the mtime clock — out of the comparison.
+///
+/// A check that finishes inside the millisecond it is blessing leaves
+/// the baseline where it was, on purpose: `now_ms` is the present, not a
+/// point past it, and there is nothing later to record yet. The next run
+/// lands in a later millisecond and converges then, so the equality case
+/// costs one more content check rather than repeating forever.
+pub(crate) fn refreshed_validation_baseline_ms(baseline_ms: i64, now_ms: Option<i64>) -> i64 {
+    now_ms.map_or(baseline_ms, |now| baseline_ms.max(now))
 }
 
 /// Whether `<workspace_root>/pnpm-lock.yaml` has an mtime newer than the
@@ -118,9 +171,10 @@ pub(crate) fn validation_baseline_ms(
 /// millisecond, so millisecond precision still catches it.
 pub(crate) fn wanted_lockfile_modified(
     workspace_root: &Path,
+    config: &Config,
     last_validated_timestamp: i64,
 ) -> bool {
-    file_mtime(&workspace_root.join(Lockfile::FILE_NAME))
+    file_mtime(&workspace_root.join(config.wanted_lockfile_name()))
         .is_some_and(|mtime| lockfile_modified_since(mtime, last_validated_timestamp))
 }
 

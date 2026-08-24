@@ -25,7 +25,7 @@ import { renderHelp } from 'render-help'
 
 import type { InstallCommandOptions } from '../install.js'
 import { createVulnerabilityUpdateMatching, installDeps } from '../installDeps.js'
-import { parseUpdateParam } from '../recursive.js'
+import { createUpdateMatching, expandUpdateSelectorsForMatching, parseUpdateParam } from '../recursive.js'
 import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
 import { captureUpdateChangesetContext, generateUpdateChangeset } from './generateUpdateChangeset.js'
 import { getUpdateChoices, sanitizeUpdateChoiceText } from './getUpdateChoices.js'
@@ -436,7 +436,7 @@ async function update (
   if (opts.packageVulnerabilityAudit != null) {
     updateMatching = createVulnerabilityUpdateMatching(opts.packageVulnerabilityAudit)
   } else if ((packageDependencies.length > 0) && depth > 0 && !opts.latest) {
-    updateMatching = createMatcher(packageDependencies.flatMap(updateTargetPatterns))
+    updateMatching = createUpdateMatching(packageDependencies.flatMap(expandUpdateSelectorsForMatching))
   }
   const generateChangeset = opts.changeset ?? opts.updateConfig?.changeset ?? false
   const changesetContext = generateChangeset ? await captureUpdateChangesetContext(opts) : undefined
@@ -470,20 +470,6 @@ async function update (
   if (changesetContext != null) {
     await generateUpdateChangeset(changesetContext)
   }
-}
-
-/**
- * The names an update selector targets. The version part of `<pkg>@<version>`
- * is not one of them: the resolver matches update targets by package name, so
- * a selector that carries a version has to target the same names its bare form
- * does. An `npm:` selector also contributes the aliased package's own name,
- * because that — not the alias — is the name the resolver resolves it under.
- */
-function updateTargetPatterns (selector: string): string[] {
-  const { pattern, versionSpec } = parseUpdateParam(selector)
-  if (versionSpec?.startsWith('npm:') !== true) return [pattern]
-  const aliased = parseUpdateParam(versionSpec.slice('npm:'.length)).pattern
-  return [pattern, pattern.startsWith('!') ? `!${aliased}` : aliased]
 }
 
 function shouldUpdateGitHubActions (opts: UpdateCommandOptions, include: IncludedDependencies): boolean {

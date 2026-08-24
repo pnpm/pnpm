@@ -1,3 +1,7 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+
 import { expect, test } from '@jest/globals'
 
 import { complete } from '../../src/completion/complete.js'
@@ -28,6 +32,79 @@ test('complete an option value', async () => {
     { name: 'fast' },
     { name: 'fewer-dependencies' },
   ])
+})
+
+test('complete workspace packages from the root when the workspace manifest has no packages field', async () => {
+  const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-completion-'))
+  const initialCwd = process.cwd()
+  try {
+    await fs.mkdir(path.join(workspaceDir, 'nested'), { recursive: true })
+    await Promise.all([
+      fs.writeFile(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' })),
+      fs.writeFile(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'minimumReleaseAge: 0\n'),
+      fs.writeFile(path.join(workspaceDir, 'nested/package.json'), JSON.stringify({ name: 'nested' })),
+    ])
+    process.chdir(workspaceDir)
+
+    const completions = await complete(
+      {
+        cliOptionsTypesByCommandName: {},
+        completionByCommandName: {},
+        initialCompletion: () => [],
+        shorthandsByCommandName: {},
+        universalOptionsTypes: {},
+        universalShorthands: {},
+      },
+      {
+        cmd: 'run',
+        currentTypedWordType: 'value',
+        lastOption: '--filter',
+        options: {},
+        params: [],
+      }
+    )
+
+    expect(completions).toStrictEqual([{ name: 'root' }])
+  } finally {
+    process.chdir(initialCwd)
+    await fs.rm(workspaceDir, { recursive: true, force: true })
+  }
+})
+
+test('complete nested packages when there is no workspace manifest', async () => {
+  const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-completion-'))
+  const initialCwd = process.cwd()
+  try {
+    await fs.mkdir(path.join(workspaceDir, 'nested'), { recursive: true })
+    await Promise.all([
+      fs.writeFile(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' })),
+      fs.writeFile(path.join(workspaceDir, 'nested/package.json'), JSON.stringify({ name: 'nested' })),
+    ])
+    process.chdir(workspaceDir)
+
+    const completions = await complete(
+      {
+        cliOptionsTypesByCommandName: {},
+        completionByCommandName: {},
+        initialCompletion: () => [],
+        shorthandsByCommandName: {},
+        universalOptionsTypes: {},
+        universalShorthands: {},
+      },
+      {
+        cmd: 'run',
+        currentTypedWordType: 'value',
+        lastOption: '--filter',
+        options: {},
+        params: [],
+      }
+    )
+
+    expect(completions).toStrictEqual([{ name: 'root' }, { name: 'nested' }])
+  } finally {
+    process.chdir(initialCwd)
+    await fs.rm(workspaceDir, { recursive: true, force: true })
+  }
 })
 
 test('complete a command', async () => {

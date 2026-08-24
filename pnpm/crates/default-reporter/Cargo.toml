@@ -11,6 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pnpm-config   = { workspace = true }
 pnpm-reporter = { workspace = true }
 
 chrono      = { workspace = true }

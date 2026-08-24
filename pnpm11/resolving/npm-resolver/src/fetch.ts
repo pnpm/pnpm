@@ -8,6 +8,7 @@ import {
   type FetchErrorResponse,
   PnpmError,
   redactUrlCredentials,
+  redactUrlForDisplay,
 } from '@pnpm/error'
 import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
@@ -219,7 +220,7 @@ export async function fetchMetadataFromFromRegistry (
         // Check if request took longer than expected
         const elapsedMs = Date.now() - startTime
         if (elapsedMs > fetchOpts.fetchWarnTimeoutMs) {
-          globalWarn(`Request took ${elapsedMs}ms: ${uri}`)
+          globalWarn(`Request took ${elapsedMs}ms: ${redactUrlForDisplay(uri)}`)
         }
         resolve({
           ...normalizeAbbreviatedResponse({ fullMetadata, meta, jsonText, response }),

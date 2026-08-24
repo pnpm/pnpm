@@ -5,11 +5,14 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_config::Config;
+use pnpm_cmd_shim::{CONTEXT_AWARE_DISPATCHER_NAME, is_context_aware_shim};
+use pnpm_config::{Config, GlobalShims};
 use pnpm_package_manifest::{DependencyGroup, is_runtime_alias};
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::Reporter;
-use std::path::Path;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use std::{fs, io::Read as _, path::Path};
+
+const MAX_RUNTIME_SHIM_PROBE_BYTES: u64 = 64 * 1024;
 
 /// Manage runtimes.
 #[derive(Debug, Args)]
@@ -67,6 +70,7 @@ pub enum RuntimeError {
 
 #[derive(Debug)]
 struct RuntimeSetRequest {
+    runtime_name: String,
     package_name: String,
     dependency_group: DependencyGroup,
 }
@@ -77,6 +81,9 @@ impl RuntimeArgs {
     /// `pnpm add <name>@runtime:<version>` in the project directory.
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let request = self.set_request()?;
+        let config = state.config;
+        let prefix =
+            state.manifest.path().parent().expect("manifest path has a parent").to_path_buf();
         add_package::<Reporter, _>(
             state,
             &request.package_name,
@@ -86,7 +93,19 @@ impl RuntimeArgs {
             None,
             [request.dependency_group],
         )
-        .await
+        .await?;
+        if let Some(message) = runtime_shim_hint(
+            config,
+            &request.runtime_name,
+            &crate::shim_dispatch::global_shims_setting(),
+        ) {
+            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Info,
+                message,
+                prefix: prefix.to_string_lossy().into_owned(),
+            }));
+        }
+        Ok(())
     }
 
     /// `pnpm runtime set <name> <version> -g`: install the runtime into the
@@ -150,10 +169,57 @@ impl RuntimeArgs {
             DependencyGroup::Prod
         };
         Ok(RuntimeSetRequest {
+            runtime_name: runtime_name.to_string(),
             package_name: format!("{runtime_name}@runtime:{version_spec}"),
             dependency_group,
         })
     }
+}
+
+fn runtime_shim_hint(
+    config: &Config,
+    runtime_name: &str,
+    global_shims: &GlobalShims,
+) -> Option<String> {
+    if !global_shims.is_enabled(runtime_name)
+        || project_aware_runtime_shim_exists(config, runtime_name)
+    {
+        return None;
+    }
+    let setup = if config.global_bin.is_none() { r#"run "pnpm setup", then "# } else { "" };
+    Some(format!(
+        r#"To make the bare "{runtime_name}" command project-aware, {setup}run "pnpm shim add {runtime_name}"."#,
+    ))
+}
+
+fn project_aware_runtime_shim_exists(config: &Config, runtime_name: &str) -> bool {
+    let Some(bin_dir) = config.global_bin.as_deref() else {
+        return false;
+    };
+    let dispatcher =
+        bin_dir.join(format!("{CONTEXT_AWARE_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX));
+    if !dispatcher.is_file() {
+        return false;
+    }
+    if context_aware_runtime_shim_exists(&bin_dir.join(runtime_name)) {
+        return true;
+    }
+    #[cfg(windows)]
+    if runtime_name == "node" && crate::shim_dispatch::windows_node_dispatcher_is_installed(bin_dir)
+    {
+        return true;
+    }
+    false
+}
+
+fn context_aware_runtime_shim_exists(path: &Path) -> bool {
+    let Ok(file) = fs::File::open(path) else {
+        return false;
+    };
+    let mut body = String::new();
+    file.take(MAX_RUNTIME_SHIM_PROBE_BYTES)
+        .read_to_string(&mut body)
+        .is_ok_and(|_| is_context_aware_shim(&body))
 }
 
 #[cfg(test)]

@@ -148,7 +148,11 @@ pub struct Modules {
     #[serde(default)]
     pub included: IncludedDependencies,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_layout_version",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub layout_version: Option<LayoutVersion>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -226,7 +230,7 @@ pub struct ModulesLayout {
     pub hoist_pattern: Option<Vec<String>>,
     #[serde(default)]
     pub included: IncludedDependencies,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_layout_version")]
     pub layout_version: Option<LayoutVersion>,
     #[serde(default)]
     pub node_linker: Option<NodeLinker>,
@@ -285,12 +289,13 @@ pub enum NodeLinker {
 
 /// Pinned identifier for the `node_modules` layout pacquet emits.
 ///
-/// The unit type carries no data: its existence is the value. It serializes
-/// as the integer `5` and deserializes only when the on-disk value is
-/// exactly `5`. Any other version causes a deserialization error, the
-/// breaking-change reaction to a missing or mismatched `layoutVersion`.
-/// Wrapping this in [`Option`] on [`Modules`] distinguishes "missing"
-/// (legacy, breaking change) from "present and matching".
+/// The unit type carries no data: its existence is the value. It
+/// serializes as the integer `5` and converts from `u32` only when the
+/// on-disk value is exactly `5`. On [`Modules`] and [`ModulesLayout`] it
+/// is wrapped in an [`Option`] whose `None` means "not the layout this
+/// build emits" — a missing field and an unsupported version read alike,
+/// so an old layout rebuilds `node_modules` instead of making the whole
+/// manifest unreadable.
 ///
 /// The `#[serde(try_from = "u32", into = "u32")]` proxy lets us reuse
 /// serde's number deserializer, while the [`TryFrom`] impl owns the
@@ -321,6 +326,28 @@ impl TryFrom<u32> for LayoutVersion {
             Err(UnsupportedLayoutVersionError { found: value })
         }
     }
+}
+
+/// Read `layoutVersion`, reporting any number that is not the version
+/// this build supports as `None` — the same "layout predates this pnpm"
+/// signal a missing field carries, which the caller reacts to by
+/// rebuilding `node_modules`. Rejecting it at parse time instead would
+/// make the whole manifest unreadable, and an unreadable manifest fails
+/// the install. pnpm reads any number here too and defers the decision to
+/// its own compatibility check.
+///
+/// The number is read as `f64` because that is the one JSON numeric type,
+/// so `5` and `5.0` are the same version to pnpm and must be here too.
+fn deserialize_layout_version<'de, Deser>(
+    deserializer: Deser,
+) -> Result<Option<LayoutVersion>, Deser::Error>
+where
+    Deser: serde::Deserializer<'de>,
+{
+    Ok(Option::<f64>::deserialize(deserializer)?
+        .filter(|found| found.fract() == 0.0)
+        .and_then(|found| u32::try_from(found as i64).ok())
+        .and_then(|found| LayoutVersion::try_from(found).ok()))
 }
 
 /// Returned by [`LayoutVersion::try_from`] when the on-disk `layoutVersion`

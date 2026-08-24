@@ -1,4 +1,4 @@
-use crate::State;
+use crate::{State, cli_args::install::resolve_bool_override};
 use chrono::{DateTime, Utc};
 use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
@@ -145,15 +145,19 @@ pub struct AuditDependencyOptions {
     #[clap(short = 'D', long)]
     dev: bool,
     /// Don't audit "optionalDependencies".
-    #[clap(long)]
+    #[clap(long, overrides_with = "optional")]
     no_optional: bool,
+    /// Include "optionalDependencies".
+    #[clap(long, overrides_with = "no_optional")]
+    optional: bool,
 }
 
 impl AuditDependencyOptions {
-    fn include(&self) -> Include {
+    fn include(&self, include_optional: bool) -> Include {
         let mut dependencies = true;
         let mut dev_dependencies = true;
-        let mut optional_dependencies = !self.no_optional;
+        let mut optional_dependencies =
+            resolve_bool_override(self.optional, self.no_optional, include_optional);
         if self.prod {
             dev_dependencies = false;
         } else if self.dev {
@@ -194,7 +198,7 @@ impl AuditArgs {
             return Err(AuditError::UnknownSubcommand { subcommand: subcommand.clone() }.into());
         }
 
-        let include = self.dependency_options.include();
+        let include = self.dependency_options.include(state.config.optional);
         let audit_level = self
             .audit_level
             .map(ConfigAuditLevel::from)
@@ -363,7 +367,7 @@ impl AuditArgs {
     /// [`AuditOutcome::Vulnerable`]) when any signature is missing or invalid.
     /// Ports pnpm's `auditSignatures`.
     async fn run_signatures(&self, state: State) -> miette::Result<AuditOutcome> {
-        let include = self.dependency_options.include();
+        let include = self.dependency_options.include(state.config.optional);
         let lockfile_dir = state.lockfile_dir().to_path_buf();
 
         let packages = {

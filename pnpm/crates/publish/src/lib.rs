@@ -1,6 +1,7 @@
 //! Publish a package to an npm registry — pnpm's `publish` command,
 //! implemented in Rust.
 
+mod batch_publish;
 mod capabilities;
 mod display_error;
 mod execute_token_helper;
@@ -16,6 +17,9 @@ mod publish_packed_pkg;
 mod publish_summary;
 mod registry_config_keys;
 
+pub use batch_publish::{
+    BatchPublishError, batch_publish_packed_pkgs, validate_batch_publish_options,
+};
 pub use capabilities::{
     Clock, CommandOutput, ConfirmPrompt, EnvVar, Host, OidcFetch, OidcFetchError, OidcMethod,
     OidcRequest, OidcResponse, RunCommand,
@@ -27,15 +31,15 @@ pub use extract_manifest_from_packed::{
     extract_publish_manifest_from_packed, is_tarball_path,
 };
 pub use failed_to_publish_error::FailedToPublishError;
-pub use git_checks::{
-    GitCheckError, get_current_branch, is_git_repo, is_remote_history_clean, is_working_tree_clean,
-    run_git_checks,
-};
+pub use git_checks::{GitCheckError, run_git_checks};
 pub use oidc::{
     AuthTokenError, DetermineProvenanceError, GetIdTokenError, IdTokenError, OidcHttpOptions,
     ProvenanceError, determine_provenance, fetch_auth_token, get_id_token,
 };
 pub use otp_env::resolve_otp_from_env;
+pub use pnpm_git_utils::{
+    get_current_branch, is_git_repo, is_remote_history_clean, is_working_tree_clean,
+};
 pub use provenance_gen::{ProvenanceAttachment, ProvenanceGenError, generate_provenance};
 pub use publish_options::{
     Access, CreatePublishOptionsError, CreatePublishOptionsInput, FetchTokenAndProvenanceError,

@@ -31,6 +31,7 @@ pub(super) struct SnapshotPlanInputs<'a> {
     /// Snapshots the installability pass ruled out on this host.
     pub skipped: &'a SkippedSnapshots,
     pub link_dependencies: bool,
+    pub is_hoisted: bool,
     pub include_optional_dependencies: bool,
     pub ignore_scripts: bool,
     pub runtime_platform_selector: &'a PlatformSelector,
@@ -70,6 +71,7 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
         allow_build_policy,
         skipped,
         link_dependencies,
+        is_hoisted,
         include_optional_dependencies,
         ignore_scripts,
         runtime_platform_selector,
@@ -92,6 +94,11 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
         // converting the slot into a rebuild on every run.
         .try_fold(Vec::new(), |mut entries, (snapshot_key, snapshot)| {
             let current_slot_matches = (|| -> Result<bool, CreateVirtualStoreError> {
+                // The hoisted linker writes no virtual-store slot, so
+                // this probe cannot judge it (pnpm/pnpm#14001).
+                if is_hoisted {
+                    return Ok(false);
+                }
                 let Some(current_snapshots) = current_snapshots else { return Ok(false) };
                 let Some(current_snapshot) = current_snapshots.get(snapshot_key) else {
                     return Ok(false);
@@ -153,15 +160,17 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
             }
             Ok::<_, CreateVirtualStoreError>(entries)
         })?;
-    marker_rebuilds.extend(
-        snapshot_entries
-            .iter()
-            .filter(|(snapshot_key, _, _)| !marker_probe_keys.contains(*snapshot_key))
-            .filter(|(snapshot_key, _, _)| {
-                gvs_slot_needs_rebuild(layout, allow_build_policy, snapshot_key)
-            })
-            .map(|(snapshot_key, _, _)| (*snapshot_key).clone()),
-    );
+    if !is_hoisted {
+        marker_rebuilds.extend(
+            snapshot_entries
+                .iter()
+                .filter(|(snapshot_key, _, _)| !marker_probe_keys.contains(*snapshot_key))
+                .filter(|(snapshot_key, _, _)| {
+                    gvs_slot_needs_rebuild(layout, allow_build_policy, snapshot_key)
+                })
+                .map(|(snapshot_key, _, _)| (*snapshot_key).clone()),
+        );
+    }
 
     // A parallel `Vec` rather than a filter later: the partition's
     // manifest and side-effects loop has to see the full snapshot set,

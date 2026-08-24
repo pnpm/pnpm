@@ -89,6 +89,7 @@ fn empty_lockfile() -> Lockfile {
         packages: None,
         snapshots: None,
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 
@@ -132,6 +133,7 @@ fn lockfile_with_top_level(marker: &str, minor: u16) -> Lockfile {
         packages: None,
         snapshots: None,
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 

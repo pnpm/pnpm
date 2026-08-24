@@ -42,6 +42,13 @@ fn assert_stage_once(records: &[Value]) {
     assert_eq!(importing_started_count(records), 1, "one install pipeline must import once");
 }
 
+fn reports_up_to_date(records: &[Value]) -> bool {
+    records.iter().any(|record| {
+        record.get("name").and_then(Value::as_str) == Some("pnpm")
+            && record.get("message").and_then(Value::as_str) == Some("Already up to date")
+    })
+}
+
 #[test]
 fn full_recursive_install_keeps_the_unfiltered_up_to_date_path() {
     let fixture = WorkspaceFixture::new();
@@ -64,10 +71,35 @@ fn full_recursive_install_keeps_the_unfiltered_up_to_date_path() {
 
     assert_eq!(fs::read(lockfile_path).expect("read lockfile"), before);
     assert_eq!(importing_started_count(&records), 0, "a full selection must not relink");
-    assert!(records.iter().any(|record| {
-        record.get("name").and_then(Value::as_str) == Some("pnpm")
-            && record.get("message").and_then(Value::as_str) == Some("Already up to date")
-    }));
+    assert!(reports_up_to_date(&records));
+}
+
+/// A `--filter`ed install with nothing to do short-circuits like the
+/// unfiltered one: the fast path validates the whole workspace, and the
+/// full install that preceded it materialized every project.
+#[test]
+fn filtered_install_takes_the_up_to_date_path_after_a_full_install() {
+    let fixture = WorkspaceFixture::new();
+    fixture.project(
+        "selected",
+        "selected",
+        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+    );
+    fixture.project(
+        "unselected",
+        "unselected",
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+    );
+    fixture.run(["install"]);
+    let lockfile_path = fixture.workspace.join("pnpm-lock.yaml");
+    let before = fs::read(&lockfile_path).expect("read lockfile");
+
+    let records = fixture.run(["--filter", "selected", "install"]);
+
+    assert!(reports_up_to_date(&records));
+    assert_eq!(importing_started_count(&records), 0, "a no-op selection must not relink");
+    assert_eq!(fs::read(&lockfile_path).expect("read lockfile"), before);
+    assert!(!fixture.state().filtered_install, "the short-circuit narrowed nothing");
 }
 
 #[test]
@@ -694,6 +726,10 @@ fn filtered_prod_install_preserves_shallow_workspace_link_targets() {
 #[test]
 fn filtered_install_keeps_full_cleanup_for_shared_layout_drift() {
     let fixture = WorkspaceFixture::new();
+    // The drift lives in `.modules.yaml`, which the repeat-install fast
+    // path never reads; this test is about what the pipeline cleans up
+    // once it runs, so keep the pipeline in play.
+    fixture.append_workspace_yaml("optimisticRepeatInstall: false\n");
     let selected = fixture.project(
         "selected",
         "selected",

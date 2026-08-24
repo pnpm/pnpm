@@ -77,10 +77,7 @@ impl CatIndexArgs {
 }
 
 fn lockfile_dir(config: &Config, dir: &Path) -> PathBuf {
-    match &config.workspace_dir {
-        Some(workspace_dir) => workspace_dir.clone(),
-        None => dir.to_path_buf(),
-    }
+    config.lockfile_dir_for(dir).to_path_buf()
 }
 
 fn lockfile_store_index_keys(

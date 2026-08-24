@@ -50,7 +50,14 @@ pub fn main() -> ExitCode {
 }
 
 fn is_reported_error(error: &miette::Report) -> bool {
-    error.code().is_some_and(|code| code.to_string() == "ERR_PNPM_DEDUPE_CHECK_ISSUES")
+    error.code().is_some_and(|code| {
+        matches!(
+            code.to_string().as_str(),
+            "ERR_PNPM_DEDUPE_CHECK_ISSUES"
+                | "ERR_PNPM_PEER_DEP_ISSUES"
+                | cli_args::recursive::NO_MATCHING_PROJECTS_CODE,
+        )
+    })
 }
 
 /// Build the CLI, parse argv, take any early-return fast path, then execute

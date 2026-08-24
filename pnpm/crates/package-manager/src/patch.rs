@@ -188,6 +188,7 @@ impl WritePackageForPatch<'_> {
             target,
             dest,
         } = self;
+        http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let metadata = current_lockfile
             .packages
             .as_ref()
@@ -225,6 +226,7 @@ impl WritePackageForPatch<'_> {
                 store_index: store_index.clone(),
                 store_index_writer: Some(Arc::clone(&store_index_writer)),
                 verify_store_integrity: config.verify_store_integrity,
+                strict_store_pkg_content_check: config.strict_store_pkg_content_check,
                 verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
                 package_integrity: integrity,
                 package_unpacked_size: None,

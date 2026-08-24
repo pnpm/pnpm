@@ -34,7 +34,7 @@ const ENVELOPE_PREFIX: &str = "PNPM_ERR_JSON:";
 /// Convert any pacquet error implementing [`miette::Diagnostic`] into a
 /// [`napi::Error`] whose reason carries the `code` / `message` / `hint`
 /// envelope.
-pub fn to_napi_error<Diag: Diagnostic>(error: &Diag) -> napi::Error {
+pub fn to_napi_error<Diag: Diagnostic + ?Sized>(error: &Diag) -> napi::Error {
     let code = error.code().map(|code| code.to_string());
     let hint = error.help().map(|help| help.to_string());
     let message = error.to_string();
@@ -46,6 +46,13 @@ pub fn to_napi_error<Diag: Diagnostic>(error: &Diag) -> napi::Error {
         Err(_) => envelope.message,
     };
     napi::Error::from_reason(reason)
+}
+
+/// Convert a boxed [`miette::Report`] — what the crates that build their
+/// errors with `miette::miette!` hand back — into the same envelope.
+/// `Report` is not itself a [`Diagnostic`]; it derefs to the one it wraps.
+pub fn report_to_napi_error(report: &miette::Report) -> napi::Error {
+    to_napi_error(&**report)
 }
 
 /// Build a structured [`napi::Error`] for a project whose `manifest` is not a

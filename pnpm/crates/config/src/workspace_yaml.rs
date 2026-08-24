@@ -115,6 +115,13 @@ pub enum AllowBuild {
     Undecided(String),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PnpmfileSetting {
+    Single(String),
+    Multiple(Vec<String>),
+}
+
 impl AllowBuild {
     /// The policy this entry resolves to, or `None` while it is still an
     /// unedited placeholder.
@@ -160,7 +167,26 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 #[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorkspaceSettings {
+    pub bail: Option<bool>,
     pub ci: Option<bool>,
+    pub update_notifier: Option<bool>,
+    pub color: Option<crate::ColorMode>,
+    pub embed_readme: Option<bool>,
+    pub ignore_workspace_root_check: Option<bool>,
+    pub optional: Option<bool>,
+    pub package_lock: Option<bool>,
+    pub pending: Option<bool>,
+    pub recursive_install: Option<bool>,
+    pub reverse: Option<bool>,
+    pub stream: Option<bool>,
+    pub aggregate_output: Option<bool>,
+    pub reporter_hide_prefix: Option<bool>,
+    pub use_stderr: Option<bool>,
+    pub ignore_workspace: Option<bool>,
+    pub shell_emulator: Option<bool>,
+    pub skip_manifest_obfuscation: Option<bool>,
+    pub sort: Option<bool>,
+    pub use_beta_cli: Option<bool>,
     pub hoist: Option<bool>,
 
     /// Tri-state `hoistPattern` — see `deserialize_double_option`.
@@ -173,6 +199,7 @@ pub struct WorkspaceSettings {
     pub public_hoist_pattern: Option<Option<Vec<String>>>,
     pub shamefully_hoist: Option<bool>,
     pub store_dir: Option<String>,
+    pub state_dir: Option<String>,
     pub modules_dir: Option<String>,
     pub node_linker: Option<NodeLinker>,
     pub node_experimental_package_map: Option<bool>,
@@ -207,6 +234,10 @@ pub struct WorkspaceSettings {
     pub virtual_store_dir_max_length: Option<u64>,
     pub peers_suffix_max_length: Option<u64>,
     pub lockfile: Option<bool>,
+    /// `lockfileDir` from `pnpm-workspace.yaml` or the global
+    /// `config.yaml`. Resolved against the workspace dir like the other
+    /// path-valued fields. See [`Config::lockfile_dir`].
+    pub lockfile_dir: Option<String>,
     pub prefer_frozen_lockfile: Option<bool>,
 
     /// `frozenLockfile` from `pnpm-workspace.yaml`. Unset by default:
@@ -215,6 +246,9 @@ pub struct WorkspaceSettings {
     pub deploy_all_files: Option<bool>,
     pub force_legacy_deploy: Option<bool>,
     pub shared_workspace_lockfile: Option<bool>,
+    pub git_branch_lockfile: Option<bool>,
+    pub merge_git_branch_lockfiles: Option<bool>,
+    pub merge_git_branch_lockfiles_branch_pattern: Option<Vec<String>>,
     pub offline: Option<bool>,
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
@@ -295,6 +329,10 @@ pub struct WorkspaceSettings {
     pub resolve_peers_from_workspace_root: Option<bool>,
     pub block_exotic_subdeps: Option<bool>,
     pub verify_store_integrity: Option<bool>,
+    pub strict_store_pkg_content_check: Option<bool>,
+    pub include_workspace_root: Option<bool>,
+    pub ignore_workspace_cycles: Option<bool>,
+    pub disallow_workspace_cycles: Option<bool>,
     /// `frozenStore` from `pnpm-workspace.yaml`. Opens the store
     /// read-only and suppresses every store write — see
     /// [`Config::frozen_store`]. Default `false`.
@@ -311,7 +349,19 @@ pub struct WorkspaceSettings {
     /// `maxSockets` — per-origin concurrent-connection cap. See
     /// [`Config::max_sockets`]. Default unset (no per-origin cap).
     pub max_sockets: Option<usize>,
+    /// `maxsockets` — npm's spelling of [`Self::max_sockets`], which pnpm
+    /// reads too. A field of its own rather than a serde alias, because a
+    /// file carrying both spellings is a duplicate field to serde and
+    /// would fail the whole parse; pnpm takes it and lets the canonical
+    /// spelling win.
+    pub maxsockets: Option<usize>,
     pub fetch_timeout: Option<u64>,
+    /// The `fetchWarnTimeoutMs` YAML value in milliseconds. [`None`] leaves
+    /// [`Config::fetch_warn_timeout_ms`] unchanged.
+    pub fetch_warn_timeout_ms: Option<u64>,
+    /// The `fetchMinSpeedKiBps` YAML value in KiB/s. [`None`] leaves
+    /// [`Config::fetch_min_speed_ki_bps`] unchanged.
+    pub fetch_min_speed_ki_bps: Option<u64>,
     pub user_agent: Option<String>,
     /// `npmrcAuthFile` is read only from the global `config.yaml`
     /// (consumed by [`crate::Config::current`] to choose the user-level
@@ -341,6 +391,13 @@ pub struct WorkspaceSettings {
     pub patched_dependencies: Option<IndexMap<String, String>>,
 
     pub patches_dir: Option<String>,
+
+    pub pnpmfile: Option<PnpmfileSetting>,
+
+    /// `globalPnpmfile`. Unlike [`Self::pnpmfile`] this survives
+    /// [`Self::clear_workspace_only_fields`]: pnpm lists `global-pnpmfile`
+    /// among the keys its global `config.yaml` accepts.
+    pub global_pnpmfile: Option<String>,
 
     /// `allowUnusedPatches` from `pnpm-workspace.yaml`. Default `false`.
     pub allow_unused_patches: Option<bool>,
@@ -398,6 +455,13 @@ pub struct WorkspaceSettings {
     /// collected. See [`Config::ignore_scripts`]. The `--ignore-scripts`
     /// CLI flag ORs on top of this. Default `false`.
     pub ignore_scripts: Option<bool>,
+
+    /// `ignorePnpmfile` from `pnpm-workspace.yaml`. When `true`, no pnpmfile
+    /// hooks run. See [`Config::ignore_pnpmfile`]. The `--ignore-pnpmfile` CLI
+    /// flag ORs on top of this. Cleared by
+    /// [`Self::clear_workspace_only_fields`], so the global `config.yaml`
+    /// cannot set it. Default `false`.
+    pub ignore_pnpmfile: Option<bool>,
 
     /// `gitChecks` from `pnpm-workspace.yaml`. When `false`, `pnpm publish`
     /// skips its git working-tree checks. See [`Config::git_checks`]. The
@@ -479,6 +543,12 @@ pub struct WorkspaceSettings {
     /// `changedFilesIgnorePattern` from `pnpm-workspace.yaml` — see
     /// [`Config::changed_files_ignore_pattern`].
     pub changed_files_ignore_pattern: Option<Vec<String>>,
+
+    /// `legacyDirFiltering` from `pnpm-workspace.yaml` — see
+    /// [`Config::legacy_dir_filtering`].
+    ///
+    /// [`Config::legacy_dir_filtering`]: crate::Config::legacy_dir_filtering
+    pub legacy_dir_filtering: Option<bool>,
 
     /// `syncInjectedDepsAfterScripts` from `pnpm-workspace.yaml` — see
     /// [`Config::sync_injected_deps_after_scripts`].
@@ -576,6 +646,36 @@ pub struct WorkspaceSettings {
     /// `initType` from `pnpm-workspace.yaml` /
     /// `~/.config/pnpm/config.yaml`. See [`InitType`].
     pub init_type: Option<InitType>,
+
+    /// `initAuthorName` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_author_name`].
+    ///
+    /// [`Config::init_author_name`]: crate::Config::init_author_name
+    pub init_author_name: Option<String>,
+
+    /// `initAuthorEmail` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_author_email`].
+    ///
+    /// [`Config::init_author_email`]: crate::Config::init_author_email
+    pub init_author_email: Option<String>,
+
+    /// `initAuthorUrl` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_author_url`].
+    ///
+    /// [`Config::init_author_url`]: crate::Config::init_author_url
+    pub init_author_url: Option<String>,
+
+    /// `initLicense` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_license`].
+    ///
+    /// [`Config::init_license`]: crate::Config::init_license
+    pub init_license: Option<String>,
+
+    /// `initVersion` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_version`].
+    ///
+    /// [`Config::init_version`]: crate::Config::init_version
+    pub init_version: Option<String>,
 
     /// `pmOnFail` from `pnpm-workspace.yaml`. See [`PmOnFail`].
     pub pm_on_fail: Option<PmOnFail>,
@@ -1145,11 +1245,23 @@ impl WorkspaceSettings {
         self.versioning = None;
         self.packages = None;
         self.catalog = None;
+        // A pnpmfile belongs to the project that ships it, and pnpm reads
+        // `ignorePnpmfile` from `pnpm-workspace.yaml` and the environment but
+        // not from here. Honoring it globally would silently drop a
+        // repository's hooks on one machine and resolve a different graph.
+        self.ignore_pnpmfile = None;
         self.catalogs = None;
         self.only_built_dependencies = None;
         self.never_built_dependencies = None;
         self.ignored_built_dependencies = None;
         self.hoist = None;
+        self.embed_readme = None;
+        self.ignore_workspace_root_check = None;
+        self.pending = None;
+        self.recursive_install = None;
+        self.reverse = None;
+        self.skip_manifest_obfuscation = None;
+        self.sort = None;
         self.hoist_pattern = None;
         self.public_hoist_pattern = None;
         self.shamefully_hoist = None;
@@ -1161,6 +1273,9 @@ impl WorkspaceSettings {
         self.deploy_all_files = None;
         self.force_legacy_deploy = None;
         self.shared_workspace_lockfile = None;
+        self.git_branch_lockfile = None;
+        self.merge_git_branch_lockfiles = None;
+        self.merge_git_branch_lockfiles_branch_pattern = None;
         self.offline = None;
         self.lockfile_include_tarball_url = None;
         self.auto_install_peers = None;
@@ -1182,6 +1297,7 @@ impl WorkspaceSettings {
         self.hoisting_limits = None;
         self.external_dependencies = None;
         self.patched_dependencies = None;
+        self.pnpmfile = None;
         self.config_dependencies = None;
         self.allow_builds = None;
         self.supported_architectures = None;
@@ -1190,6 +1306,7 @@ impl WorkspaceSettings {
         self.package_extensions = None;
         self.test_pattern = None;
         self.changed_files_ignore_pattern = None;
+        self.legacy_dir_filtering = None;
         self.sync_injected_deps_after_scripts = None;
         self.allow_unused_patches = None;
         self.save_catalog_name = None;
@@ -1366,11 +1483,13 @@ impl WorkspaceSettings {
     fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
         substitute_optional_string::<Sys>(&mut self.scope);
         substitute_optional_string::<Sys>(&mut self.store_dir);
+        substitute_optional_string::<Sys>(&mut self.state_dir);
         substitute_optional_string::<Sys>(&mut self.modules_dir);
         substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
         substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
         substitute_optional_string::<Sys>(&mut self.user_agent);
         substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
+        substitute_optional_string::<Sys>(&mut self.lockfile_dir);
         substitute_optional_string::<Sys>(&mut self.patches_dir);
         substitute_optional_string::<Sys>(&mut self.cache_dir);
         substitute_optional_inner_string::<Sys>(&mut self.script_shell);
@@ -1397,6 +1516,20 @@ impl WorkspaceSettings {
             config.catalog_prune = v;
         }
 
+        // Tri-state on `Config`: `exec` treats "never asked" differently
+        // from an explicit `false`, so the macro's "apply when set" shape
+        // would collapse the distinction.
+        if let Some(v) = self.reporter_hide_prefix {
+            config.reporter_hide_prefix = Some(v);
+        }
+
+        // pnpm spells the setting `gitBranchLockfile` and exposes the
+        // resolved answer as `useGitBranchLockfile`; the macro below can
+        // only apply fields the two structs name identically.
+        if let Some(v) = self.git_branch_lockfile {
+            config.use_git_branch_lockfile = v;
+        }
+
         // `virtualStoreType` is the canonical spelling of the boolean
         // `enableGlobalVirtualStore`, which the macro below applies. Both
         // land in the same field, so applying this after the macro is what
@@ -1412,13 +1545,18 @@ impl WorkspaceSettings {
         }
 
         apply! {
-            ci, hoist, shamefully_hoist,
+            bail, ci, update_notifier, color, embed_readme, ignore_workspace_root_check,
+            optional, package_lock, pending, recursive_install, reverse,
+            stream, aggregate_output, use_stderr, ignore_workspace, shell_emulator,
+            skip_manifest_obfuscation, sort, use_beta_cli,
+            hoist, shamefully_hoist,
             node_linker, node_experimental_package_map, node_package_map_type,
             symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
             peers_suffix_max_length,
             lockfile, prefer_frozen_lockfile,
             deploy_all_files, force_legacy_deploy, shared_workspace_lockfile,
+            merge_git_branch_lockfiles, merge_git_branch_lockfiles_branch_pattern,
             offline, prefer_offline,
             lockfile_include_tarball_url,
             auto_install_peers, auto_install_peers_from_highest_match,
@@ -1432,7 +1570,10 @@ impl WorkspaceSettings {
             dedupe_peer_dependents, dedupe_peers,
             dedupe_direct_deps, dedupe_injected_deps,
             strict_peer_dependencies, ignore_compatibility_db,
-            resolve_peers_from_workspace_root, verify_store_integrity, frozen_store,
+            resolve_peers_from_workspace_root, verify_store_integrity,
+            strict_store_pkg_content_check, frozen_store,
+            include_workspace_root,
+            ignore_workspace_cycles, disallow_workspace_cycles,
             verify_deps_before_run,
             block_exotic_subdeps,
             link_workspace_packages,
@@ -1442,11 +1583,12 @@ impl WorkspaceSettings {
             side_effects_cache, side_effects_cache_readonly,
             fetch_retries, fetch_retry_factor,
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
-            network_concurrency, fetch_timeout, user_agent,
+            network_concurrency, fetch_timeout,
+            fetch_warn_timeout_ms, fetch_min_speed_ki_bps, user_agent,
             enable_global_virtual_store,
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
-            test_pattern, changed_files_ignore_pattern,
+            test_pattern, changed_files_ignore_pattern, legacy_dir_filtering,
             sync_injected_deps_after_scripts,
             resolution_mode, catalog_mode, catalog_prune,
             minimum_release_age_exclude_prune, save_peer, save_exact,
@@ -1495,6 +1637,21 @@ impl WorkspaceSettings {
         if let Some(save_catalog_name) = self.save_catalog_name {
             config.save_catalog_name = Some(save_catalog_name);
         }
+        if let Some(init_author_name) = self.init_author_name {
+            config.init_author_name = Some(init_author_name);
+        }
+        if let Some(init_author_email) = self.init_author_email {
+            config.init_author_email = Some(init_author_email);
+        }
+        if let Some(init_author_url) = self.init_author_url {
+            config.init_author_url = Some(init_author_url);
+        }
+        if let Some(init_license) = self.init_license {
+            config.init_license = Some(init_license);
+        }
+        if let Some(init_version) = self.init_version {
+            config.init_version = Some(init_version);
+        }
         if let Some(save_prefix) = self.save_prefix {
             config.save_prefix = Some(save_prefix);
         }
@@ -1521,6 +1678,12 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.global_virtual_store_dir {
             config.global_virtual_store_dir = resolve(base_dir, &v);
+        }
+        // Last of the path-valued settings: pinning the lockfile dir
+        // re-resolves `modulesDir` / `virtualStoreDir` against it, so it
+        // must see whatever this layer just set.
+        if let Some(v) = self.lockfile_dir {
+            config.pin_lockfile_dir(&resolve(base_dir, &v));
         }
         if let Some(v) = self.store_dir {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));
@@ -1568,6 +1731,21 @@ impl WorkspaceSettings {
         if let Some(v) = self.patches_dir {
             config.patches_dir = Some(v);
         }
+        if let Some(path) = self.global_pnpmfile {
+            config.global_pnpmfile = Some(pnpm_fs::lexical_normalize(&base_dir.join(path)));
+        }
+        if let Some(pnpmfile) = self.pnpmfile {
+            let paths = match pnpmfile {
+                PnpmfileSetting::Single(path) => vec![path],
+                PnpmfileSetting::Multiple(paths) => paths,
+            };
+            config.pnpmfile = Some(
+                paths
+                    .into_iter()
+                    .map(|path| pnpm_fs::lexical_normalize(&base_dir.join(path)))
+                    .collect(),
+            );
+        }
         if let Some(v) = self.config_dependencies {
             config.config_dependencies = Some(v);
         }
@@ -1583,6 +1761,9 @@ impl WorkspaceSettings {
         if let Some(v) = self.ignore_scripts {
             config.ignore_scripts = v;
         }
+        if let Some(v) = self.ignore_pnpmfile {
+            config.ignore_pnpmfile = v;
+        }
         if let Some(v) = self.git_checks {
             config.git_checks = v;
         }
@@ -1597,6 +1778,11 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.node_download_mirrors {
             config.node_download_mirrors = v;
+        }
+        // npm's spelling first, so the canonical one wins when a single
+        // file carries both.
+        if let Some(v) = self.maxsockets {
+            config.max_sockets = Some(v);
         }
         if let Some(v) = self.max_sockets {
             config.max_sockets = Some(v);

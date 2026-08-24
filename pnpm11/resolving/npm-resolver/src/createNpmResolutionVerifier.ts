@@ -53,12 +53,15 @@ export interface CreateNpmResolutionVerifierOptions {
   /**
    * When the registry's metadata lacks the per-version `time` field
    * (some self-hosted registries strip it), the verifier can't apply
-   * the maturity cutoff. Set this to `true` to mirror the resolver's
-   * `pickMatchingVersionFinal` warn-and-skip behavior — the verifier
-   * passes the entry with a one-time `globalWarn`, instead of failing
-   * closed. Defaults to `false` so the verifier stays stricter than
-   * the resolver only when the user has explicitly opted in to the
-   * skip on the resolver side.
+   * the maturity cutoff, and the trust check has no publish order to
+   * walk. Set this to `true` to mirror the resolver's warn-and-skip
+   * behavior for both — the verifier passes the entry with a one-time
+   * `globalWarn`, instead of failing closed. Defaults to `false` so
+   * the verifier stays stricter than the resolver only when the user
+   * has explicitly opted in to the skip on the resolver side. Scoped
+   * to a packument with no usable `time` map: one that dates every
+   * version it lists is saying it never published this pin, which
+   * fails closed either way.
    */
   ignoreMissingTimeField?: boolean
   /**
@@ -166,6 +169,7 @@ export function createNpmResolutionVerifier (
   const minimumReleaseAge = opts.minimumReleaseAge ?? 0
   const trustPolicy = opts.trustPolicy
   const trustPolicyIgnoreAfter = opts.trustPolicyIgnoreAfter
+  const ignoreMissingTimeField = opts.ignoreMissingTimeField === true
 
 
   const verify: ResolutionVerifier['verify'] = async (resolution, { name, version, nonSemverVersion, registryName }) => {
@@ -243,7 +247,7 @@ export function createNpmResolutionVerifier (
     if (!ageApplies && !trustApplies) return { ok: true }
 
     if (ageApplies) {
-      const ageViolation = await runAgeCheck(lookupContext, registry, name, version, cutoff, opts.ignoreMissingTimeField === true)
+      const ageViolation = await runAgeCheck(lookupContext, registry, name, version, cutoff, ignoreMissingTimeField)
       if (ageViolation) return ageViolation
     }
 
@@ -251,6 +255,7 @@ export function createNpmResolutionVerifier (
       const trustViolation = await runTrustCheck(lookupContext, registry, name, version, {
         trustPolicyExclude: trustExcludePolicy,
         trustPolicyIgnoreAfter,
+        ignoreMissingTimeField,
       })
       if (trustViolation) return trustViolation
     }
@@ -291,6 +296,7 @@ export function createNpmResolutionVerifier (
       trustPolicy: trustPolicy ?? null,
       trustPolicyExclude: sortedTrustExcludes,
       trustPolicyIgnoreAfter: trustPolicyIgnoreAfter ?? null,
+      minimumReleaseAgeIgnoreMissingTime: ignoreMissingTimeField,
     },
     canTrustPastCheck: (cached) => {
       // The tarball-URL binding is unconditional today; a cached run that
@@ -338,6 +344,14 @@ export function createNpmResolutionVerifier (
       const todayIgnoreAfter = trustPolicyIgnoreAfter ?? null
       if (pastIgnoreAfter !== todayIgnoreAfter) return false
 
+      // Missing-time tolerance: a cached run that failed closed on an
+      // absent `time` field accepted a subset of what today's tolerant
+      // policy accepts, so it stays trustworthy. Turning the tolerance
+      // off invalidates it — entries the past run waved through are the
+      // ones today's policy exists to reject. Older records (no field)
+      // read as intolerant, which is the safe direction.
+      if (cached.minimumReleaseAgeIgnoreMissingTime === true && !ignoreMissingTimeField) return false
+
       return true
     },
   }
@@ -358,15 +372,23 @@ async function runAgeCheck (
   const published = await fetchPublishedAt(context, registry, name, version)
   if (!published) {
     // No source — attestation, local mirror, or full metadata —
-    // surfaced a publish timestamp for this version. The resolver's
-    // pickMatchingVersionFinal honors `minimumReleaseAgeIgnoreMissingTime`
-    // for the same shape (some self-hosted registries strip per-version
-    // `time`); the verifier mirrors that so it can't be stricter than
-    // fresh resolution. Without the flag we still fail closed — better
-    // a false reject than silent bypass when the user hasn't opted in.
+    // surfaced a publish timestamp for this version. What
+    // `minimumReleaseAgeIgnoreMissingTime` opts out of is a registry that
+    // cannot date its releases, so the skip is granted only when the
+    // packument carries no usable `time` map at all — the same shape the
+    // resolver's `pickMatchingVersionFinal` warns and skips on, so the
+    // verifier can't be stricter than fresh resolution. A packument that
+    // does date every version it lists is instead telling us this pin is
+    // not one of them (`dropIncompletePublishTimes` leaves no partial maps
+    // for that to be ambiguous), and an unpublished or never-published pin
+    // must fail closed however the flag is set.
     if (ignoreMissingTimeField) {
-      warnMissingTimeFieldOnce(name)
-      return undefined
+      // Already awaited by the lookup above, so this is a cache hit.
+      const timeMap = await fetchFullMetaTime(context, registry, name)
+      if (timeMap == null) {
+        warnMissingTimeFieldOnce(name, 'minimumReleaseAge')
+        return undefined
+      }
     }
     return {
       ok: false,
@@ -470,6 +492,7 @@ async function runTrustCheck (
   opts: {
     trustPolicyExclude?: PackageVersionPolicy
     trustPolicyIgnoreAfter?: number
+    ignoreMissingTimeField?: boolean
   }
 ): Promise<{ ok: false, code: string, reason: string } | undefined> {
   // A transport failure (auth/network/5xx) propagates the registry's own fetch

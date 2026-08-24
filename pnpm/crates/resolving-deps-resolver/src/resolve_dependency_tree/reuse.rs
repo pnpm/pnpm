@@ -282,10 +282,17 @@ pub(super) fn try_reuse_node(
     Some(ReusedNode { key: key.clone(), result })
 }
 
-/// `true` when a node named `name` at `depth` is a `pacquet update`
-/// target, and so excluded from reuse. Past the `--depth` ceiling the
-/// update no longer reaches, so every node keeps its locked resolution.
-fn update_excludes(scope: UpdateScope<'_>, name: &str, depth: i32) -> bool {
+/// `true` when a node named `name`, locked at `version`, is a `pacquet
+/// update` target at `depth`, and so excluded from reuse. A `None` version
+/// is judged by name alone -- see [`crate::UpdateTargets::covers`]. Past the
+/// `--depth` ceiling the update no longer reaches, so every node keeps its
+/// locked resolution.
+fn update_excludes(
+    scope: UpdateScope<'_>,
+    name: &str,
+    version: Option<&node_semver::Version>,
+    depth: i32,
+) -> bool {
     if !scope.max_depth.reaches(depth) {
         return false;
     }
@@ -294,7 +301,7 @@ fn update_excludes(scope: UpdateScope<'_>, name: &str, depth: i32) -> bool {
         // `None` is handled earlier in `try_reuse_node`; treat it the
         // same here for completeness.
         UpdateReuseScope::None => true,
-        UpdateReuseScope::Except(names) => names.contains(name),
+        UpdateReuseScope::Except(targets) => targets.covers(name, version),
     }
 }
 
@@ -406,6 +413,7 @@ pub fn real_package_name_of<'edge>(
 pub(super) fn update_unpins_edge(
     scope: UpdateScope<'_>,
     wanted: &WantedDependency,
+    locked_version: Option<&node_semver::Version>,
     depth: i32,
 ) -> bool {
     if !scope.max_depth.reaches(depth) {
@@ -416,7 +424,7 @@ pub(super) fn update_unpins_edge(
         UpdateReuseScope::None => true,
         UpdateReuseScope::Except(_) => {
             real_package_name_of(wanted.alias.as_deref(), wanted.bare_specifier.as_deref())
-                .is_some_and(|name| update_excludes(scope, name.as_ref(), depth))
+                .is_some_and(|name| update_excludes(scope, name.as_ref(), locked_version, depth))
         }
     }
 }
@@ -429,6 +437,7 @@ pub(super) fn update_unpins_edge(
 pub(super) fn is_update_target(
     scope: UpdateScope<'_>,
     wanted: &WantedDependency,
+    locked_version: Option<&node_semver::Version>,
     depth: i32,
 ) -> bool {
     if !scope.max_depth.reaches(depth) {
@@ -438,7 +447,7 @@ pub(super) fn is_update_target(
         UpdateReuseScope::All | UpdateReuseScope::None => false,
         UpdateReuseScope::Except(_) => {
             real_package_name_of(wanted.alias.as_deref(), wanted.bare_specifier.as_deref())
-                .is_some_and(|name| update_excludes(scope, name.as_ref(), depth))
+                .is_some_and(|name| update_excludes(scope, name.as_ref(), locked_version, depth))
         }
     }
 }
@@ -479,7 +488,7 @@ fn subtree_fully_reusable(
     // subtree to re-resolve so the bump's new transitive deps are picked
     // up — update names match at every depth the update reaches.
     let name = key.name.to_string();
-    let reusable = !update_excludes(scope, &name, depth)
+    let reusable = !update_excludes(scope, &name, key.suffix.version_semver(), depth)
         && synthesize_reused_result(lockfile, key, &name).is_some()
         && subtree_children_reusable(ctx, lockfile, key, depth);
     lock_recoverable(&ctx.workspace.subtree_reusable).insert(memo_key, reusable);

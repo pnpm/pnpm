@@ -24,8 +24,8 @@ use std::{
 
 use super::SelfUpdateError;
 
-/// From v12 the unscoped `pnpm` package is itself the native engine
-/// (equal content to `@pnpm/exe`), so v12+ installs converge on `pnpm`.
+/// From v12 the unscoped `pnpm` package is itself the native engine and
+/// `@pnpm/exe` is no longer published, so v12+ installs converge on `pnpm`.
 pub(crate) const PNPM_PACKAGE_NAME: &str = "pnpm";
 pub(crate) const PNPM_EXE_PACKAGE_NAME: &str = "@pnpm/exe";
 

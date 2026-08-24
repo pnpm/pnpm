@@ -170,6 +170,15 @@ pub type ReportedProgressKeys = DashSet<String>;
 /// reporter.
 pub type SharedReportedProgressKeys = Arc<ReportedProgressKeys>;
 
+/// A verified archive's CAFS files and bundled package metadata.
+#[derive(Debug, Clone)]
+pub struct FetchedTarball {
+    pub integrity: Integrity,
+    pub files_map: HashMap<String, PathBuf>,
+    pub manifest: Option<serde_json::Value>,
+    pub requires_build: bool,
+}
+
 impl<'a> DownloadTarballToStore<'a> {
     /// Execute the subroutine with an in-memory cache.
     ///
@@ -350,30 +359,16 @@ impl<'a> DownloadTarballToStore<'a> {
         &self,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
         let &DownloadTarballToStore {
-            http_client,
             store_dir,
             package_integrity,
-            package_unpacked_size,
-            package_file_count,
             package_url,
             package_id,
             requester,
             verify_store_integrity,
+            strict_store_pkg_content_check,
             prefetched_cas_paths,
-            retry_opts,
-            auth_headers,
-            append_manifest,
             ..
         } = self;
-        let store_index = self.store_index.clone();
-        let store_index_writer = self.store_index_writer.clone();
-        let verified_files_cache = Arc::clone(&self.verified_files_cache);
-        // `Option<Arc<IgnoreEntryFilter>>` isn't `Copy`, so it can't
-        // ride along in the deref-destructure above. `.clone()`
-        // here bumps the Arc refcount — cheap, and the trait
-        // object is shared with the install dispatcher that
-        // owns the original.
-        let ignore_file_pattern = self.ignore_file_pattern.clone();
 
         // Before hitting the network, check the SQLite store index: if the
         // tarball is already in the CAFS we can reuse its per-file paths
@@ -406,28 +401,69 @@ impl<'a> DownloadTarballToStore<'a> {
             emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
             return Ok((**cas_paths).clone());
         }
-        if let Some(cache_key) = cache_key.clone()
-            && let Some(cas_paths) = load_cached_cas_paths(
-                store_index,
+        if let Some(cache_key) = cache_key.clone() {
+            let cached = load_cached_cas_paths::<Reporter>(
+                self.store_index.clone(),
                 store_dir,
                 cache_key,
                 verify_store_integrity,
-                verified_files_cache,
+                strict_store_pkg_content_check,
+                Arc::clone(&self.verified_files_cache),
             )
-            .await
-        {
-            tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping download");
-            emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
-            return Ok(cas_paths);
+            .await?;
+            if let Some(cas_paths) = cached {
+                tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping download");
+                emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
+                return Ok(cas_paths);
+            }
         }
+        self.fetch_and_extract_inner::<Reporter>(false).await.map(|result| result.files_map)
+    }
 
-        // Offline-mode gate: both cache lookups missed. pnpm gates
-        // only its metadata path on `--offline`; pacquet has no
-        // metadata path on the frozen-install flow, so the gate lands
-        // here. Error rather than fall through to the network — same
-        // shape as pnpm's `ERR_PNPM_NO_OFFLINE_META`, scoped to
-        // tarballs because that's what pacquet's frozen install needs
-        // network for.
+    /// Fetch the requested archive, verify any expected integrity, and return its CAFS files.
+    /// Unlike [`Self::run_without_mem_cache`], this does not reuse cached content.
+    /// Archives without an expected integrity are indexed by their computed SHA-512.
+    pub async fn fetch_and_extract<Reporter: self::Reporter>(
+        &self,
+    ) -> Result<FetchedTarball, TarballError> {
+        self.fetch_and_extract_inner::<Reporter>(true).await
+    }
+
+    async fn fetch_and_extract_inner<Reporter: self::Reporter>(
+        &self,
+        record_computed_integrity: bool,
+    ) -> Result<FetchedTarball, TarballError> {
+        let &DownloadTarballToStore {
+            http_client,
+            store_dir,
+            package_integrity,
+            package_unpacked_size,
+            package_file_count,
+            package_url,
+            package_id,
+            requester,
+            retry_opts,
+            auth_headers,
+            append_manifest,
+            ..
+        } = self;
+        let cache_key = store_index_cache_key(package_integrity, package_id);
+        let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
+        let store_index_writer = self.store_index_writer.clone();
+        // `Option<Arc<IgnoreEntryFilter>>` isn't `Copy`, so it can't
+        // ride along in the deref-destructure above. `.clone()`
+        // here bumps the Arc refcount — cheap, and the trait
+        // object is shared with the install dispatcher that
+        // owns the original.
+        let ignore_file_pattern = self.ignore_file_pattern.clone();
+
+        // Offline-mode gate: nothing past this point is served from a
+        // cache. pnpm gates only its metadata path on `--offline`;
+        // pacquet has no metadata path on the frozen-install flow, so
+        // the gate lands here. Error rather than fall through to the
+        // network — same shape as pnpm's `ERR_PNPM_NO_OFFLINE_META`,
+        // scoped to tarballs because that's what pacquet's frozen
+        // install needs network for.
         if self.offline && local_file_tarball_path(package_url).is_none() {
             tracing::warn!(
                 target: "pacquet::download",
@@ -451,7 +487,7 @@ impl<'a> DownloadTarballToStore<'a> {
         // re-fetch instead of aborting the install
         // (<https://github.com/pnpm/pacquet/issues/259>). Only HTTP 401 / 403 / 404 fail fast — see
         // [`is_transient_error`].
-        let (_computed_integrity, mut cas_paths, mut pkg_files_idx) =
+        let (computed_integrity, mut cas_paths, mut pkg_files_idx) =
             fetch_and_extract_with_retry::<Reporter>(
                 http_client,
                 package_url,
@@ -475,6 +511,11 @@ impl<'a> DownloadTarballToStore<'a> {
         }
         apply_placeholder_manifest(store_dir, &mut cas_paths, &mut pkg_files_idx)?;
 
+        let manifest = pkg_files_idx.manifest.clone();
+        // Only legacy cache rows omit this; fresh extraction always records it.
+        let requires_build =
+            pkg_files_idx.requires_build.expect("fresh extraction records build requirement");
+
         // Hand the per-tarball files index off to the shared writer task
         // from <https://github.com/pnpm/pacquet/pull/265> *after* the retry loop returns, so transient failures
         // don't queue a half-built row that a successful retry would
@@ -484,6 +525,10 @@ impl<'a> DownloadTarballToStore<'a> {
         // writer failed to open or the caller handed us none — the row
         // is dropped with a `warn!` and the next install misses on this
         // cache key, matching the read path's stance.
+        let cache_key = cache_key.or_else(|| {
+            record_computed_integrity
+                .then(|| store_index_key(&computed_integrity.to_string(), package_id))
+        });
         match (cache_key, store_index_writer) {
             (Some(index_key), Some(writer)) => writer.queue(index_key, pkg_files_idx),
             (Some(index_key), None) => tracing::warn!(
@@ -499,7 +544,12 @@ impl<'a> DownloadTarballToStore<'a> {
             ),
         }
 
-        Ok(cas_paths)
+        Ok(FetchedTarball {
+            integrity: computed_integrity,
+            files_map: cas_paths,
+            manifest,
+            requires_build,
+        })
     }
 }
 

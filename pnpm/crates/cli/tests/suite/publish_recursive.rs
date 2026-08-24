@@ -1,7 +1,7 @@
 //! Recursive-publish integration tests. The no-registry tests exercise the
 //! `publish --recursive` dispatch, `--filter` selection, the private-package
-//! skip, the empty-selection no-op, the `--report-summary` output, and the
-//! unsupported `--batch` gap. The registry tests drive the real binary against
+//! skip, the empty-selection no-op, the `--report-summary` output, and batch
+//! publishing. The registry tests drive the real binary against
 //! a `mockito` registry (pnpr's `TestRegistry` is proxy-mode and rejects
 //! path-less publishes) to cover the actual publish loop: the not-yet-published
 //! probe, the per-package `PUT`, `--force`, and the summary / `--json` shapes —
@@ -145,26 +145,194 @@ fn recursive_publish_json_prints_empty_array_when_nothing_published() {
     drop(root);
 }
 
-/// `--batch` is accepted for surface parity but not yet ported, so a recursive
-/// batch publish fails fast with an explicit message rather than silently
-/// publishing per-package.
+/// `--batch` packs every selected package and sends their publish documents to
+/// pnpr's endpoint in one request instead of falling back to per-package PUTs.
 #[test]
-fn recursive_publish_batch_is_unsupported() {
+fn recursive_publish_batches_selected_packages() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(&workspace, &[("project-1", private_pkg("project-1"))]);
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[("project-1", public_pkg("project-1")), ("project-2", public_pkg("project-2"))],
+    );
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+    let batch = server
+        .mock("PUT", "/-/pnpm/v1/publish")
+        .match_body(Matcher::PartialJson(serde_json::json!({
+            "packages": [
+                { "name": "project-1" },
+                { "name": "project-2" },
+            ],
+        })))
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+    let individual =
+        server.mock("PUT", Matcher::Regex(r"^/project-[12]$".to_string())).expect(0).create();
 
-    let assert = pacquet
+    clear_ci(pacquet)
         .with_arg("-r")
         .with_arg("publish")
         .with_arg("--batch")
+        .with_arg("--force")
         .with_arg("--no-git-checks")
         .assert()
-        .failure();
-    let stderr = assert.get_output().stderr.pipe_as_ref(String::from_utf8_lossy);
-    assert!(
-        stderr.contains("Batch publishing (--batch) is not yet supported"),
-        "expected the batch-unsupported message, got: {stderr}",
+        .success();
+    batch.assert();
+    individual.assert();
+
+    drop(root);
+}
+
+#[test]
+fn recursive_batch_publish_runs_completed_group_postpublish_scripts_before_a_later_failure() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut first_registry = mockito::Server::new();
+    let mut second_registry = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "project-1",
+                json!({
+                    "name": "project-1",
+                    "version": "1.0.0",
+                    "publishConfig": { "registry": format!("{}/", first_registry.url()) },
+                    "scripts": {
+                        "postpublish": r#"node -e "require('fs').writeFileSync('post-published', '')""#,
+                    },
+                }),
+            ),
+            (
+                "project-2",
+                json!({
+                    "name": "project-2",
+                    "version": "1.0.0",
+                    "dependencies": { "project-1": "1.0.0" },
+                    "publishConfig": { "registry": format!("{}/", second_registry.url()) },
+                    "scripts": {
+                        "postpublish": r#"node -e "require('fs').writeFileSync('post-published', '')""#,
+                    },
+                }),
+            ),
+        ],
     );
+    let workspace_manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("{workspace_manifest}linkWorkspacePackages: true\n"),
+    )
+    .expect("enable workspace linking");
+    write_registry_npmrc(&workspace, &format!("{}/", first_registry.url()));
+    let first_batch = first_registry
+        .mock("PUT", "/-/pnpm/v1/publish")
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+    let second_batch = second_registry
+        .mock("PUT", "/-/pnpm/v1/publish")
+        .with_status(500)
+        .with_body(r#"{"error":"publish failed"}"#)
+        .expect(1)
+        .create();
+
+    let assert = clear_ci(pacquet)
+        .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(first_batch.matched(), "the first registry was not published: {stderr}");
+    first_batch.assert();
+    second_batch.assert();
+    assert!(workspace.join("project-1/post-published").exists());
+    assert!(!workspace.join("project-2/post-published").exists());
+
+    drop(root);
+}
+
+#[test]
+fn recursive_batch_publish_rejects_mixed_credentials_for_one_registry() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[("project-1", public_pkg("@scope/project-1")), ("project-2", public_pkg("project-2"))],
+    );
+    let registry = format!("{}/", server.url());
+    let host = registry.strip_prefix("http://").unwrap_or(&registry);
+    fs::write(
+        workspace.join(".npmrc"),
+        format!(
+            "registry={registry}\n//{host}:_authToken=registry-token\n//{host}:@scope:_authToken=scoped-token\n",
+        ),
+    )
+    .expect("write .npmrc");
+    let batch = server.mock("PUT", "/-/pnpm/v1/publish").expect(0).create();
+
+    let assert = clear_ci(pacquet)
+        .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
+        .assert()
+        .failure();
+    batch.assert();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_BATCH_PUBLISH_CONFLICTING_CREDENTIALS"), "stderr: {stderr}");
+
+    drop(root);
+}
+
+#[test]
+fn recursive_batch_publish_accepts_one_scope_credential_for_every_package() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", public_pkg("@scope/project-1")),
+            ("project-2", public_pkg("@scope/project-2")),
+        ],
+    );
+    let registry = format!("{}/", server.url());
+    let host = registry.strip_prefix("http://").unwrap_or(&registry);
+    fs::write(
+        workspace.join(".npmrc"),
+        format!("registry={registry}\n//{host}:@scope:_authToken=scoped-token\n"),
+    )
+    .expect("write .npmrc");
+    let batch = server
+        .mock("PUT", "/-/pnpm/v1/publish")
+        .match_header("authorization", "Bearer scoped-token")
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+
+    clear_ci(pacquet)
+        .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
+        .assert()
+        .success();
+    batch.assert();
+
+    drop(root);
+}
+
+#[test]
+fn recursive_batch_publish_reports_an_unsupported_registry() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(&workspace, &[("project-1", public_pkg("project-1"))]);
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+    let batch = server.mock("PUT", "/-/pnpm/v1/publish").with_status(404).expect(1).create();
+
+    let assert = clear_ci(pacquet)
+        .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
+        .assert()
+        .failure();
+    batch.assert();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_BATCH_PUBLISH_UNSUPPORTED"), "stderr: {stderr}");
 
     drop(root);
 }

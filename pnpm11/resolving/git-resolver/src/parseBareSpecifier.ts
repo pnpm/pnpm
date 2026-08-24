@@ -104,7 +104,8 @@ async function fromHostedGit (hosted: any, dispatcherOptions: DispatcherOptions)
           _fill: hosted._fill,
           tarball: undefined,
         },
-        normalizedBareSpecifier: `git+${httpsUrl}`,
+        // `httpsUrl` is the `ls-remote` target, so it carries no committish.
+        normalizedBareSpecifier: hosted.https(),
         ...parseGitParams(hosted.committish),
       }
     }
