@@ -2,7 +2,7 @@ use super::{HOISTING_LIMITS_WORKSPACES, injected_member_key, link_root_component
 use crate::{SkippedSnapshots, VirtualStoreLayout};
 use pnpm_lockfile::{
     ImporterDepVersion, PackageKey, PkgName, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec,
+    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_testing_utils::fs::is_symlink_or_junction;
@@ -150,6 +150,7 @@ fn injected_members_link_declared_siblings() {
     link_root_component_members(
         &layout,
         &importers,
+        None,
         &id_set(&[importer_id.as_str()]),
         &[DependencyGroup::Prod],
         &SkippedSnapshots::default(),
@@ -210,12 +211,12 @@ fn injected_members_link_declared_siblings() {
     drop(dir);
 }
 
-/// A member whose slot has no `package.json` — a Bit workspace
-/// component, whose manifest exists only in memory on the Bit side —
-/// falls back to linking every other member of the root into its slot.
-/// Members that DO have a manifest keep the declared-only behavior.
+/// A member with no slot `package.json` and no lockfile snapshot to
+/// consult falls back to linking every other member of the root into
+/// its slot. Members that DO have a manifest keep the declared-only
+/// behavior.
 #[test]
-fn member_without_manifest_links_all_root_siblings() {
+fn member_without_manifest_or_snapshot_links_all_root_siblings() {
     let dir = tempdir().unwrap();
     let layout = VirtualStoreLayout::legacy(dir.path().join("vs"), 120);
 
@@ -244,6 +245,7 @@ fn member_without_manifest_links_all_root_siblings() {
     link_root_component_members(
         &layout,
         &importers,
+        None,
         &id_set(&[importer_id.as_str()]),
         &[DependencyGroup::Prod],
         &SkippedSnapshots::default(),
@@ -275,6 +277,122 @@ fn member_without_manifest_links_all_root_siblings() {
     drop(dir);
 }
 
+/// A member with no slot `package.json` whose lockfile snapshot is
+/// available gets only the siblings that snapshot declares — not the
+/// all-to-all clique. This is the Bit-workspace shape at scale: the
+/// snapshot of the member's exact peer variant carries its sibling
+/// `file:` edges, so the clique (one symlink per member pair) is never
+/// needed when the lockfile is present.
+#[test]
+fn member_without_manifest_links_snapshot_declared_siblings() {
+    let dir = tempdir().unwrap();
+    let layout = VirtualStoreLayout::legacy(dir.path().join("vs"), 120);
+
+    // None of the members carries a manifest; a declares b (in the
+    // lockfile), b declares c, c declares nothing.
+    let slots: HashMap<&str, std::path::PathBuf> =
+        [("@scope/a", "a"), ("@scope/b", "b"), ("@scope/c", "c")]
+            .into_iter()
+            .map(|(name, payload)| {
+                let slot = member_slot_modules_dir(&layout, name, payload);
+                fs::create_dir_all(slot.join(name)).unwrap();
+                fs::write(slot.join(name).join("index.js"), "").unwrap();
+                (name, slot)
+            })
+            .collect();
+
+    let mut deps = ResolvedDependencyMap::new();
+    for (name, payload) in [("@scope/a", "a"), ("@scope/b", "b"), ("@scope/c", "c")] {
+        deps.insert(name.parse().unwrap(), file_member(name, payload));
+    }
+
+    let importer_id = "node_modules/.bit_roots/root".to_string();
+    let mut importers = HashMap::new();
+    importers.insert(
+        importer_id.clone(),
+        ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
+    );
+
+    let snapshot_key = |name: &str, payload: &str| {
+        PackageKey::new(
+            name.parse::<PkgName>().unwrap(),
+            format!("file:{payload}").parse().unwrap(),
+        )
+    };
+    // A sibling edge as the lockfile records it: alias name mapped to a
+    // bare `file:` version ref (the `Plain` shape a scoped `file:` dep
+    // takes when its value carries no leading package name).
+    let sibling_edge = |name: &str, payload: &str| {
+        (
+            name.parse::<PkgName>().unwrap(),
+            SnapshotDepRef::Plain(format!("file:{payload}").parse().unwrap()),
+        )
+    };
+    let mut snapshots = HashMap::new();
+    snapshots.insert(
+        snapshot_key("@scope/a", "a"),
+        SnapshotEntry {
+            dependencies: Some(
+                [
+                    sibling_edge("@scope/b", "b"),
+                    // A registry reference whose alias collides with the
+                    // member name `@scope/c` — it resolves to a different
+                    // key than c's slot, so it must not be linked as c.
+                    (
+                        "@scope/c".parse::<PkgName>().unwrap(),
+                        SnapshotDepRef::Plain("2.0.0".parse().unwrap()),
+                    ),
+                ]
+                .into_iter()
+                .collect(),
+            ),
+            ..SnapshotEntry::default()
+        },
+    );
+    snapshots.insert(
+        snapshot_key("@scope/b", "b"),
+        SnapshotEntry {
+            dependencies: Some(std::iter::once(sibling_edge("@scope/c", "c")).collect()),
+            ..SnapshotEntry::default()
+        },
+    );
+    snapshots.insert(snapshot_key("@scope/c", "c"), SnapshotEntry::default());
+
+    link_root_component_members(
+        &layout,
+        &importers,
+        Some(&snapshots),
+        &id_set(&[importer_id.as_str()]),
+        &[DependencyGroup::Prod],
+        &SkippedSnapshots::default(),
+    )
+    .expect("linking should succeed");
+
+    let a_slot = &slots["@scope/a"];
+    let b_slot = &slots["@scope/b"];
+    let c_slot = &slots["@scope/c"];
+
+    assert!(
+        is_symlink_or_junction(&a_slot.join("@scope/b")).unwrap(),
+        "a must link its snapshot-declared sibling b",
+    );
+    assert!(
+        !a_slot.join("@scope/c").exists(),
+        "a must link neither the clique nor a registry ref that shares a member's alias",
+    );
+    assert_eq!(
+        fs::canonicalize(a_slot.join("@scope/b")).unwrap(),
+        fs::canonicalize(b_slot.join("@scope/b")).unwrap(),
+    );
+
+    assert!(is_symlink_or_junction(&b_slot.join("@scope/c")).unwrap());
+    assert!(!b_slot.join("@scope/a").exists());
+    assert!(!c_slot.join("@scope/a").exists());
+    assert!(!c_slot.join("@scope/b").exists());
+
+    drop(dir);
+}
+
 /// A slot `package.json` that exists but cannot be parsed is still a
 /// hard error — only a *missing* manifest triggers the clique fallback.
 #[test]
@@ -299,6 +417,7 @@ fn malformed_member_manifest_still_errors() {
     let result = link_root_component_members(
         &layout,
         &importers,
+        None,
         &id_set(&[importer_id.as_str()]),
         &[DependencyGroup::Prod],
         &SkippedSnapshots::default(),
@@ -344,6 +463,7 @@ fn non_root_component_importer_is_untouched() {
     link_root_component_members(
         &layout,
         &importers,
+        None,
         &id_set(&[]),
         &[DependencyGroup::Prod],
         &SkippedSnapshots::default(),
@@ -394,6 +514,7 @@ fn existing_member_dependency_is_not_clobbered() {
     link_root_component_members(
         &layout,
         &importers,
+        None,
         &id_set(&[importer_id.as_str()]),
         &[DependencyGroup::Prod],
         &SkippedSnapshots::default(),
@@ -425,6 +546,7 @@ fn empty_root_component_set_is_a_no_op() {
     let result = link_root_component_members(
         &layout,
         &importers,
+        None,
         &id_set(&[]),
         &[DependencyGroup::Prod],
         &SkippedSnapshots::default(),

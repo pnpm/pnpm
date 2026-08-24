@@ -2,7 +2,8 @@ use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, symlink_p
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_lockfile::{
-    ImporterDepVersion, PackageKey, PkgName, ProjectSnapshot, ResolvedDependencySpec, VersionPart,
+    ImporterDepVersion, PackageKey, PkgName, ProjectSnapshot, ResolvedDependencySpec,
+    SnapshotEntry, VersionPart,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use std::{
@@ -39,10 +40,13 @@ pub const HOISTING_LIMITS_WORKSPACES: &str = "workspaces";
 ///
 /// This restores exactly the edges the isolated linker creates for an
 /// ordinary dependency: for each member it symlinks the siblings that
-/// member *declares in its own manifest* into its slot `node_modules/`.
-/// It mirrors pnpm — each package's slot holds only its own declared
-/// children, and a transitive sibling resolves through the chain
-/// (`comp3 → comp2 → comp1`) rather than an all-to-all clique.
+/// member declares into its slot `node_modules/` — read from the
+/// slot's own `package.json` when one is materialized, else from the
+/// member's lockfile snapshot, else (with neither source) linking the
+/// whole root as a last resort. It mirrors pnpm — each package's slot
+/// holds only its own declared children, and a transitive sibling
+/// resolves through the chain (`comp3 → comp2 → comp1`) rather than
+/// an all-to-all clique.
 ///
 /// ## Why this is safe
 /// It fires only for importers whose manifest declares
@@ -57,6 +61,7 @@ pub const HOISTING_LIMITS_WORKSPACES: &str = "workspaces";
 pub fn link_root_component_members(
     layout: &VirtualStoreLayout,
     importers: &HashMap<String, ProjectSnapshot>,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     root_component_importers: &HashSet<String>,
     dependency_groups: &[DependencyGroup],
     skipped: &SkippedSnapshots,
@@ -72,7 +77,7 @@ pub fn link_root_component_members(
             continue;
         }
         let members = collect_injected_members(layout, importer, dependency_groups, skipped);
-        link_declared_siblings(&members)?;
+        link_declared_siblings(&members, snapshots)?;
     }
 
     Ok(())
@@ -84,6 +89,9 @@ struct Member {
     /// `@scope/name` — the name siblings import this member as, and the
     /// directory name under `node_modules/`.
     name: String,
+    /// The member's snapshot key (its exact peer variant), for looking
+    /// up the sibling edges the lockfile declares for this copy.
+    key: PackageKey,
     /// `<slot>/node_modules` — where this member's dependency symlinks
     /// live, and where sibling symlinks get added.
     slot_modules_dir: PathBuf,
@@ -133,7 +141,7 @@ fn collect_injected_members(
             }
             let slot_modules_dir = layout.slot_dir(&key).join("node_modules");
             let package_dir = slot_modules_dir.join(&dir_name);
-            members.push(Member { name: dir_name, slot_modules_dir, package_dir });
+            members.push(Member { name: dir_name, key, slot_modules_dir, package_dir });
         }
     }
     members
@@ -171,27 +179,32 @@ fn injected_member_key(
 /// Symlink each member's sibling dependencies into its slot
 /// `node_modules/`.
 ///
-/// A member's manifest is the source of truth for which siblings it
-/// depends on — it survives `excludeLinksFromLockfile` /
-/// `dedupeInjectedDeps`, where the lockfile edges do not. Only the
-/// `dependencies` / `optionalDependencies` / `peerDependencies` a
-/// member declares are linked, and only when the named package is
-/// itself a member of this same root (its peer-resolved slot), matching
-/// the isolated linker's per-package child linking.
+/// Only the siblings a member declares are linked, and only when the
+/// named package is itself a member of this same root (its
+/// peer-resolved slot), matching the isolated linker's per-package
+/// child linking. The declared set comes from the best source
+/// available for the member:
 ///
-/// A Bit workspace component carries no `package.json` in its source
-/// directory (its manifest lives only in memory on the Bit side, and
-/// Bit's read-package hooks strip sibling edges from it before it ever
-/// reaches the engine), so the materialized slot has no manifest to
-/// read. For such a member the declared-edge information is simply
-/// unavailable — fall back to linking **every** other member of this
-/// root into its slot. The clique is safe: member names are unique
-/// within one root's peer context, the links are additive (an entry the
-/// member already resolves for itself is never overwritten), and a
-/// member only ever `require`s what it actually depends on, so surplus
-/// links are inert. A manifest that exists but cannot be parsed is
-/// still a hard error.
-fn link_declared_siblings(members: &[Member]) -> Result<(), LinkRootComponentMembersError> {
+/// 1. The slot's `package.json`, when the materialized copy carries
+///    one — it survives `excludeLinksFromLockfile` /
+///    `dedupeInjectedDeps`, where lockfile edges may not.
+/// 2. The member's own lockfile snapshot (its exact peer-variant key),
+///    when the slot has no manifest — a Bit workspace component
+///    carries no `package.json` in its source directory (its manifest
+///    lives only in memory on the Bit side), but its snapshot still
+///    declares the sibling `file:` edges of this copy.
+/// 3. Every other member of the root, when neither exists. The clique
+///    is safe — member names are unique within one root's peer
+///    context, the links are additive, and a member only ever
+///    `require`s what it actually depends on, so surplus links are
+///    inert — but at a Bit-workspace scale it costs one symlink per
+///    (member, member) pair, which is why the snapshot is preferred.
+///
+/// A manifest that exists but cannot be parsed is still a hard error.
+fn link_declared_siblings(
+    members: &[Member],
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+) -> Result<(), LinkRootComponentMembersError> {
     // Within one root importer each member name is unique (one peer
     // context per root), so a declared name identifies at most one
     // sibling slot.
@@ -202,8 +215,6 @@ fn link_declared_siblings(members: &[Member]) -> Result<(), LinkRootComponentMem
         let manifest_path = host.package_dir.join("package.json");
         let manifest = match PackageManifest::from_path(manifest_path.clone()) {
             Ok(manifest) => Some(manifest),
-            // No manifest on disk — the Bit-workspace shape. Link the
-            // whole root clique instead (see the doc comment above).
             Err(PackageManifestError::NoImporterManifestFound(_)) => None,
             Err(source) => {
                 return Err(LinkRootComponentMembersError::ReadManifest {
@@ -213,8 +224,9 @@ fn link_declared_siblings(members: &[Member]) -> Result<(), LinkRootComponentMem
                 });
             }
         };
-        let siblings: Vec<&Member> = match &manifest {
-            Some(manifest) => manifest
+        let snapshot = || snapshots.and_then(|snapshots| snapshots.get(&host.key));
+        let siblings: Vec<&Member> = match (&manifest, snapshot()) {
+            (Some(manifest), _) => manifest
                 .dependencies([
                     DependencyGroup::Prod,
                     DependencyGroup::Optional,
@@ -224,7 +236,20 @@ fn link_declared_siblings(members: &[Member]) -> Result<(), LinkRootComponentMem
                 // package dir already lives in its slot.
                 .filter_map(|(dep_name, _)| by_name.get(dep_name).copied())
                 .collect(),
-            None => members.iter().collect(),
+            (None, Some(snapshot)) => [&snapshot.dependencies, &snapshot.optional_dependencies]
+                .into_iter()
+                .flatten()
+                .flatten()
+                .filter_map(|(alias, dep_ref)| {
+                    let sibling = by_name.get(alias.to_string().as_str()).copied()?;
+                    // Only an edge that resolves to this sibling's own
+                    // peer-variant slot: a registry, `link:`, or
+                    // other-variant reference that merely shares the
+                    // alias is not this member.
+                    (dep_ref.resolve(alias).as_ref() == Some(&sibling.key)).then_some(sibling)
+                })
+                .collect(),
+            (None, None) => members.iter().collect(),
         };
         for sibling in siblings {
             if sibling.name == host.name {

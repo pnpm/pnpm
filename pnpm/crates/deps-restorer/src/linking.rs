@@ -289,6 +289,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         link_root_component_members(
             layout,
             importers,
+            snapshots,
             root_component_importers,
             dependency_groups,
             skipped,
