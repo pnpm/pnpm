@@ -3,7 +3,7 @@ import npa from '@pnpm/npm-package-arg'
 
 import type { StageSubcommand } from './types.js'
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export function parseStagePackageSpec (rawSpec: string): { name: string, rawSpec: string } {
   let spec: ReturnType<typeof npa>

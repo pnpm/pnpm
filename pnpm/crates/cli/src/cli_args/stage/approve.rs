@@ -28,6 +28,7 @@ use super::{
 use crate::cli_args::{
     changelog::published_name,
     recursive::{discover_workspace_projects, sort_projects},
+    sanitize::sanitize_inline,
 };
 
 /// `pnpm stage approve` with no `<stage-id>` outside an interactive
@@ -41,19 +42,6 @@ use crate::cli_args::{
     )
 )]
 struct StageApproveIdRequired;
-
-/// Not every staged version of an approval batch reached the registry. The
-/// per-version outcome is already reported; this carries the count and the
-/// failing exit status.
-#[derive(Debug, Display, Error, Diagnostic)]
-#[display("Approved {approved} of {total} staged packages.")]
-#[diagnostic(code(ERR_PNPM_STAGE_APPROVE_INCOMPLETE))]
-struct StageApprovalsIncomplete {
-    #[error(not(source))]
-    approved: usize,
-    #[error(not(source))]
-    total: usize,
-}
 
 /// One staged version, as much of it as the registry's `-/stage` listing
 /// reported.
@@ -81,15 +69,20 @@ impl StageApprovalItem {
         }
     }
 
+    /// Reads one entry of the registry's `-/stage` listing. The entry is
+    /// registry-controlled input that ends up in a terminal prompt the user
+    /// picks releases from, so its id has to be the same UUID the other
+    /// subcommands accept, and its text is stripped of the control characters
+    /// that could redraw the prompt around a selection.
     fn from_value(item: &Value) -> Option<Self> {
         let string_field = |field: &str| {
             item.get(field)
                 .and_then(Value::as_str)
+                .map(|value| sanitize_inline(value).into_owned())
                 .filter(|value| !value.is_empty())
-                .map(str::to_owned)
         };
         Some(StageApprovalItem {
-            id: string_field("id")?,
+            id: string_field("id").filter(|id| is_uuid(id))?,
             package_name: string_field("packageName"),
             version: string_field("version"),
             tag: string_field("tag"),
@@ -184,10 +177,16 @@ pub(super) async fn stage_approve<Reporter: self::Reporter>(
 
 /// The `<stage-id>` arguments of `pnpm stage approve`, each validated as a
 /// UUID. An empty list asks for interactive selection.
+///
+/// A staged version repeated on the command line is one approval: sending the
+/// second request would either fail against the release the first one
+/// published, or count the same package twice.
 fn parse_stage_ids(params: &[String]) -> Result<Vec<String>, StageError> {
+    let mut seen = HashSet::new();
     params
         .iter()
         .skip(1)
+        .filter(|stage_id| seen.insert((*stage_id).clone()))
         .map(
             |stage_id| {
                 if is_uuid(stage_id) {
@@ -277,7 +276,14 @@ async fn approve_staged_packages<Reporter: self::Reporter>(
         }
     }
     if approved < items.len() {
-        return Err(StageApprovalsIncomplete { approved, total: items.len() }.into());
+        // pnpm prints this summary and exits 1. A command here either returns
+        // output or an error, never both, so print it the way the dispatcher
+        // prints a command's output and exit with the failing status.
+        #[expect(clippy::exit, reason = "an incomplete approval batch exits 1, mirroring pnpm")]
+        {
+            println!("Approved {approved} of {}.", render_package_count(items.len()));
+            std::process::exit(1);
+        }
     }
     Ok(Some(format!("Approved {} successfully.", render_package_count(approved))))
 }

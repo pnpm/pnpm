@@ -341,9 +341,35 @@ fn approve_skips_a_staged_package_whose_workspace_dependency_could_not_be_approv
     list_mock.assert();
     dependency_mock.assert();
     dependent_mock.assert();
-    assert_failure_with_code(&output, "ERR_PNPM_STAGE_APPROVE_INCOMPLETE");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Approved 0 of 2 staged packages."), "stderr: {stderr}");
+    assert!(!output.status.success(), "an incomplete approval batch must exit non-zero");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "Approved 0 of 2 staged packages.\n");
+}
+
+#[test]
+fn approve_sends_one_request_for_a_repeated_stage_id() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_registry_config(dir.path(), &registry);
+    let list_mock = server.mock("GET", "/-/stage").match_query(Matcher::Any).expect(0).create();
+    let approve_mock = server
+        .mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str())
+        .match_header("npm-otp", "123456")
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+
+    let output =
+        stage(dir.path(), &["approve", STAGE_ID, STAGE_ID, "--otp", "123456", "--reporter=silent"]);
+
+    list_mock.assert();
+    approve_mock.assert();
+    assert_success(&output);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        format!("Staged package {STAGE_ID} approved and published successfully.\n"),
+    );
 }
 
 #[test]

@@ -1,7 +1,7 @@
 import util from 'node:util'
 
 import { checkbox } from '@inquirer/prompts'
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import chalk from 'chalk'
 
@@ -12,7 +12,7 @@ import {
 } from './approvalOrder.js'
 import { createStageContext, type StageContext } from './context.js'
 import { fetchStageItems } from './items.js'
-import { parseStageIds, requireStageId } from './parsing.js'
+import { parseStageIds, UUID_REGEX } from './parsing.js'
 import { createStageOtpSession, type StageOtpSession } from './request.js'
 import type { StageItem, StageOptions } from './types.js'
 
@@ -29,11 +29,6 @@ export type StageApproveResult = string | { output: string, exitCode: number }
  */
 export async function stageApprove (opts: StageOptions, params: string[]): Promise<StageApproveResult> {
   const context = createStageContext(opts)
-  if (params.length === 1) {
-    const stageId = requireStageId(params, 'approve')
-    await approveStagedPackage(context, { id: stageId }, createStageOtpSession(context))
-    return `Staged package ${stageId} approved and published successfully.`
-  }
   if (params.length === 0) {
     requireInteractiveSelection()
     const stagedPackages = (await fetchStageItems(context)).filter(hasStageId)
@@ -42,12 +37,25 @@ export async function stageApprove (opts: StageOptions, params: string[]): Promi
     if (selected.length === 0) return 'No staged packages were selected.'
     return approveStagedPackages(context, opts, selected)
   }
-  return approveStagedPackages(context, opts, await resolveStageItems(context, parseStageIds(params, 'approve')))
+  // A staged version repeated on the command line is one approval: sending the
+  // second request would either fail against the release the first one
+  // published, or count the same package twice.
+  const stageIds = [...new Set(parseStageIds(params, 'approve'))]
+  if (stageIds.length === 1) {
+    const [stageId] = stageIds
+    await approveStagedPackage(context, { id: stageId }, createStageOtpSession(context))
+    return `Staged package ${stageId} approved and published successfully.`
+  }
+  return approveStagedPackages(context, opts, await resolveStageItems(context, stageIds))
 }
 
-/** A staged version the registry reported without an id cannot be approved. */
+/**
+ * A staged version the registry reported can only be approved through the id
+ * the other subcommands address it by — the same UUID the command line
+ * accepts, not an arbitrary string the registry puts in the listing.
+ */
 function hasStageId (item: StageItem): boolean {
-  return typeof item.id === 'string' && item.id !== ''
+  return typeof item.id === 'string' && UUID_REGEX.test(item.id)
 }
 
 function requireInteractiveSelection (): void {
@@ -147,9 +155,16 @@ function isStageRegistryError (err: unknown): err is Error {
   return util.types.isNativeError(err) && (err as PnpmError).code === 'ERR_PNPM_STAGE_REGISTRY_ERROR'
 }
 
+/**
+ * How the interactive picker names a staged version.
+ *
+ * The fields come from the registry and end up in a prompt the user picks
+ * releases from, so {@link renderRegistryText} keeps them from redrawing it.
+ */
 function renderStageItemChoice (item: StageItem): string {
   const details = [item.tag, item.createdAt && `staged ${item.createdAt}`, item.actor && `by ${item.actor}`]
-    .filter((detail) => detail != null && detail !== '')
+    .filter((detail): detail is string => detail != null && detail !== '')
+    .map((detail) => renderRegistryText(detail))
   return details.length > 0
     ? `${renderStageItemLabel(item)} (${details.join(', ')})`
     : renderStageItemLabel(item)
@@ -157,7 +172,13 @@ function renderStageItemChoice (item: StageItem): string {
 
 function renderStageItemLabel (item: StageItem): string {
   if (!item.packageName) return item.id ?? '<unknown staged package>'
-  return item.version ? `${item.packageName}@${item.version}` : item.packageName
+  const packageName = renderRegistryText(item.packageName)
+  return item.version ? `${packageName}@${renderRegistryText(item.version)}` : packageName
+}
+
+/** Registry-provided text, stripped of what could rewrite the terminal. */
+function renderRegistryText (text: string): string {
+  return redactAndSanitize(text)
 }
 
 /** The label an error message identifies a staged version by. */

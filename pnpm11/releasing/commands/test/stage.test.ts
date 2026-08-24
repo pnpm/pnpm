@@ -245,12 +245,14 @@ describe('stage command against the registry mock', () => {
         doneUrl: 'https://registry.example.com/-/v1/done?authId=test-auth-id',
       },
     }))
+    const restoreTty = forceNonInteractiveTty()
     try {
       await expect(stage.handler({
         ...stageOpts(registry.url),
         argv: { original: ['stage'] },
       }, ['approve', STAGE_ID])).rejects.toMatchObject({ code: 'ERR_PNPM_OTP_NON_INTERACTIVE' })
     } finally {
+      restoreTty()
       await registry.close()
     }
   })
@@ -529,13 +531,62 @@ describe('stage command against the registry mock', () => {
     }
   })
 
+  test('stage approve sends one request for a repeated stage id', async () => {
+    const seen: string[] = []
+    const registry = await createRegistry((request) => {
+      const stageId = approvedStageId(request)
+      if (stageId) {
+        seen.push(stageId)
+        return { status: 201, body: { ok: true } }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    try {
+      const result = await stage.handler({
+        ...stageOpts(registry.url),
+        cliOptions: { otp: '123456' },
+        otp: '123456',
+      }, ['approve', STAGE_ID, STAGE_ID])
+      expect(result).toBe(`Staged package ${STAGE_ID} approved and published successfully.`)
+      expect(seen).toEqual([STAGE_ID])
+      expect(registry.requests.filter(({ url }) => url.pathname === '/-/stage')).toHaveLength(0)
+    } finally {
+      await registry.close()
+    }
+  })
+
   test('stage approve without a stage id requires an interactive terminal', async () => {
     const registry = await createRegistry(() => ({ status: 500, body: { error: 'nothing should be requested' } }))
+    const restoreTty = forceNonInteractiveTty()
     try {
       await expect(stage.handler(stageOpts(registry.url), ['approve']))
         .rejects.toMatchObject({ code: 'ERR_PNPM_STAGE_ID_REQUIRED' })
       expect(registry.requests).toHaveLength(0)
     } finally {
+      restoreTty()
+      await registry.close()
+    }
+  })
+
+  test('stage approve does not offer a staged version the registry listed without a stage id', async () => {
+    const registry = await createRegistry((request) => {
+      if (request.method === 'GET' && request.url.pathname === '/-/stage') {
+        return {
+          status: 200,
+          body: {
+            items: [{ id: '../../../-/npm/v1/tokens', packageName: '@pnpmtest/spoofed', version: '1.0.0' }],
+            total: 1,
+          },
+        }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    const restoreTty = forceInteractiveTty()
+    try {
+      await expect(stage.handler(stageOpts(registry.url), ['approve']))
+        .resolves.toBe('There are no staged packages awaiting approval.')
+    } finally {
+      restoreTty()
       await registry.close()
     }
   })
@@ -686,10 +737,23 @@ function headerValue (value: http.IncomingHttpHeaders[string]): string | undefin
 }
 
 function forceInteractiveTty (): () => void {
+  return overrideTty(true)
+}
+
+function forceNonInteractiveTty (): () => void {
+  return overrideTty(false)
+}
+
+/**
+ * Pins both terminal streams to `isTTY`, so a test exercises the interactive
+ * or the non-interactive path whether or not the suite itself runs on a
+ * terminal. Returns the restore function.
+ */
+function overrideTty (isTTY: boolean): () => void {
   const originalStdin = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')
   const originalStdout = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY')
-  Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true })
-  Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true })
+  Object.defineProperty(process.stdin, 'isTTY', { value: isTTY, configurable: true })
+  Object.defineProperty(process.stdout, 'isTTY', { value: isTTY, configurable: true })
   return () => {
     if (originalStdin) {
       Object.defineProperty(process.stdin, 'isTTY', originalStdin)

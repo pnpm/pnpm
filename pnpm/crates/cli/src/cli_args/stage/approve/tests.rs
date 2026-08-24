@@ -2,6 +2,8 @@ use std::collections::HashSet;
 
 use pretty_assertions::assert_eq;
 
+use serde_json::json;
+
 use super::{
     StageApprovalItem, StageError, WorkspaceApprovalOrder, parse_stage_ids,
     sort_items_for_approval, unavailable_dependencies,
@@ -125,6 +127,17 @@ fn stage_ids_are_validated_as_uuids() {
 }
 
 #[test]
+fn a_repeated_stage_id_is_approved_once() {
+    let params = vec![
+        "approve".to_owned(),
+        "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f".to_owned(),
+        "2b8f1c14-4a0d-4a4a-9a2e-6c5a2f0a1b33".to_owned(),
+        "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f".to_owned(),
+    ];
+    assert_eq!(parse_stage_ids(&params).unwrap(), params[1..3]);
+}
+
+#[test]
 fn a_staged_version_is_named_by_its_package_and_falls_back_to_its_id() {
     let named = item("1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f", Some("foo"), Some("1.0.0"));
     assert_eq!(named.label(), "foo@1.0.0");
@@ -132,6 +145,31 @@ fn a_staged_version_is_named_by_its_package_and_falls_back_to_its_id() {
     let unlisted = item("1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f", None, None);
     assert_eq!(unlisted.label(), "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f");
     assert_eq!(unlisted.reference(), "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f");
+}
+
+#[test]
+fn a_listed_staged_version_is_stripped_of_terminal_control_characters() {
+    let listed = StageApprovalItem::from_value(&json!({
+        "id": "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f",
+        "packageName": "foo\u{1b}[2K\u{1b}[G",
+        "version": "1.0.0",
+        "actor": "zkochan\u{202e}",
+    }))
+    .expect("a staged version");
+    assert_eq!(listed.label(), "foo[2K[G@1.0.0");
+    assert_eq!(listed.choice(), "foo[2K[G@1.0.0 (by zkochan)");
+}
+
+#[test]
+fn a_listed_staged_version_without_a_uuid_id_is_dropped() {
+    assert!(
+        StageApprovalItem::from_value(&json!({
+            "id": "../../../-/npm/v1/tokens",
+            "packageName": "foo",
+            "version": "1.0.0",
+        }))
+        .is_none(),
+    );
 }
 
 #[test]
