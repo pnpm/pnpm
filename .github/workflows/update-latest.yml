@@ -124,16 +124,8 @@ jobs:
 
         # Both wrappers are exercised: self-update reinstalls the package it is
         # running from, so `pnpm` and `@pnpm/exe` resolve different published
-        # manifests and a broken one surfaces on only that wrapper. The gate is
-        # on the starting version, not the promoted one — `@pnpm/exe` is
-        # published up to v11 only, so a v12 starting point has just the one
-        # wrapper, while upgrading a v11 `@pnpm/exe` onto a v12 release is a
-        # path this must still cover.
-        packages=(pnpm)
-        if [ "${FROM%%.*}" -lt 12 ]; then
-          packages+=(@pnpm/exe)
-        fi
-        for package in "${packages[@]}"; do
+        # manifests and a broken one surfaces on only that wrapper.
+        for package in pnpm @pnpm/exe; do
           work=$(mktemp -d)
           # Isolate the whole pnpm environment so the upgrade resolves and
           # installs for real instead of reusing a warm store or global dir.
@@ -145,16 +137,13 @@ jobs:
           mkdir -p "$work/from"
           printf '{"name":"pnpm-upgrade-check","version":"0.0.0","private":true}\n' >"$work/from/package.json"
           # `--allow-build` is what makes this install the starting point rather
-          # than a fake one: pnpm blocks dependency build scripts by default,
-          # and the preinstall of whichever wrapper carries the native binary
-          # (`@pnpm/exe` up to v11, `pnpm` itself from v12) is what swaps its
-          # placeholder bin for the real native. Without it every run reproduces
-          # the exact breakage this gate exists to catch (the placeholder
-          # surviving) and blames the release.
+          # than a fake one: pnpm blocks dependency build scripts by default, and
+          # `@pnpm/exe`'s setup.js is what swaps its placeholder bin for the real
+          # native. Without it every run reproduces the exact breakage this gate
+          # exists to catch (the placeholder surviving) and blames the release.
           pn add "${package}@${FROM}" \
             --dir "$work/from" \
             --allow-build=@pnpm/exe \
-            --allow-build=pnpm \
             --registry="$REGISTRY"
           # Drive through the bin shim rather than a path into the package: the
           # entry point differs by major (pnpm.cjs in v10, pnpm.mjs in v11) and
@@ -178,9 +167,9 @@ jobs:
             upgraded="$PNPM_HOME/pnpm"
           fi
           # Run the upgraded binary rather than trust self-update's exit code:
-          # the wrapper's preinstall leaves its placeholder bin in place when
-          # the platform package ships no native, so that failure is invisible
-          # until the binary is actually invoked.
+          # `@pnpm/exe`'s preinstall leaves its placeholder bin in place when the
+          # platform package ships no native, so that failure is invisible until
+          # the binary is actually invoked.
           test "$("$upgraded" --version)" = "$VERSION"
 
           # Hand the rest of the gate to the release itself, so what is gated is
@@ -230,19 +219,12 @@ jobs:
         pn config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
 
         MAJOR="${VERSION%%.*}"
-        # `@pnpm/exe` is only published up to v11; from v12 the `pnpm` package
-        # is itself the native executable, so there is nothing to tag under
-        # that name.
-        packages=(pnpm)
-        if [ "$MAJOR" -lt 12 ]; then
-          packages+=(@pnpm/exe)
+        pn dist-tag add "pnpm@${VERSION}" "latest-${MAJOR}" --registry="$REGISTRY"
+        pn dist-tag add "@pnpm/exe@${VERSION}" "latest-${MAJOR}" --registry="$REGISTRY"
+        if [ "$TAG" != "latest-${MAJOR}" ]; then
+          pn dist-tag add "pnpm@${VERSION}" "${TAG}" --registry="$REGISTRY"
+          pn dist-tag add "@pnpm/exe@${VERSION}" "${TAG}" --registry="$REGISTRY"
         fi
-        for package in "${packages[@]}"; do
-          pn dist-tag add "${package}@${VERSION}" "latest-${MAJOR}" --registry="$REGISTRY"
-          if [ "$TAG" != "latest-${MAJOR}" ]; then
-            pn dist-tag add "${package}@${VERSION}" "${TAG}" --registry="$REGISTRY"
-          fi
-        done
 
   publish-to-winget:
     runs-on: blacksmith-4vcpu-ubuntu-2404

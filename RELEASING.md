@@ -68,7 +68,7 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
 
 6. After the workflow finishes, approve the staged npm packages. The TypeScript
    pnpm release stages `@pnpm/exe` and then `pnpm`. The Rust pnpm release
-   stages its native packages, then its `@pnpm/napi` wrapper, and finally
+   stages its native packages, then its `@pnpm/napi` and `@pnpm/exe` wrappers, and finally
    `pnpm`. Copy the stage IDs from the completed job's summary and approve each
    one from a maintainer's machine. Approve all packages in each dependency
    layer before moving to the next layer, leaving `pnpm` until last:

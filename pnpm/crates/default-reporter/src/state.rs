@@ -1588,8 +1588,9 @@ fn detect_install_source() -> PnpmInstallSource {
 /// user is running.
 ///
 /// pnpm names `@pnpm/exe` in the last case when it is running as a single
-/// executable. From v12 the native binary is published only as `pnpm`, so
-/// it always names `pnpm`.
+/// executable. The native binary is published under both `pnpm` and
+/// `@pnpm/exe` and carries no marker telling the two apart, and a global
+/// install of either replaces the other, so it always names `pnpm`.
 fn update_command(source: PnpmInstallSource, latest_version: &str) -> String {
     match source {
         PnpmInstallSource::Corepack => format!("corepack use pnpm@{latest_version}"),
