@@ -15,7 +15,8 @@ const execFileAsync = promisify(execFile)
 const scriptPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src/main.ts')
 // Node strips types on its own from v23.6; the older versions the test matrix
 // still covers need the flag to load the TypeScript entry point at all.
-const stripTypes = parseInt(process.versions.node, 10) < 23 ? ['--experimental-strip-types'] : []
+const [nodeMajor, nodeMinor] = process.versions.node.split('.').map(Number)
+const stripTypes = nodeMajor < 23 || (nodeMajor === 23 && nodeMinor < 6) ? ['--experimental-strip-types'] : []
 
 let workspaceDir: string
 
