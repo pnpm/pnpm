@@ -18,6 +18,15 @@ export function parseStagePackageSpec (rawSpec: string): { name: string, rawSpec
   return { name: spec.name, rawSpec: spec.rawSpec }
 }
 
+/**
+ * Validates every stage id in `params`. An empty `params` yields an empty
+ * array — the caller decides whether that is an error or a request for
+ * interactive selection.
+ */
+export function parseStageIds (params: string[], subcommand: StageSubcommand): string[] {
+  return params.map((stageId) => requireStageId([stageId], subcommand))
+}
+
 export function requireStageId (params: string[], subcommand: StageSubcommand): string {
   if (!params[0]) {
     throw new PnpmError('STAGE_ID_REQUIRED', `Missing required <stage-id> for "pnpm stage ${subcommand}"`)

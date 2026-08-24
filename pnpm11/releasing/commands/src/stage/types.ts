@@ -1,3 +1,5 @@
+import type { Config } from '@pnpm/config.reader'
+
 import * as publishCommand from '../publish/publish.js'
 
 export const STAGE_SUBCOMMANDS = ['publish', 'list', 'view', 'approve', 'reject', 'download'] as const
@@ -11,7 +13,9 @@ export type StageSubcommand = typeof STAGE_SUBCOMMANDS[number]
  * subcommands need only a subset (registry/auth/fetch/retry settings),
  * but accepting the full set keeps a single type across the dispatcher.
  */
-export type StageOptions = Parameters<typeof publishCommand.publish>[0] & {
+export type StageOptions = Parameters<typeof publishCommand.publish>[0]
+& Partial<Pick<Config, 'linkWorkspacePackages' | 'workspacePackagePatterns'>>
+& {
   cliOptions?: Record<string, unknown>
   json?: boolean
   otp?: string

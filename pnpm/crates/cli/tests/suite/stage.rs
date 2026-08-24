@@ -21,6 +21,7 @@ use std::{
 };
 
 const STAGE_ID: &str = "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f";
+const SECOND_STAGE_ID: &str = "2b8f1c14-4a0d-4a4a-9a2e-6c5a2f0a1b33";
 
 fn pacquet(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm")
@@ -211,6 +212,163 @@ fn approve_and_reject_send_the_configured_otp_and_stage_headers() {
         stdout.contains(&format!("Staged package {STAGE_ID} has been rejected.")),
         "stdout: {stdout}",
     );
+}
+
+/// A staged version of `package_name`, as the `-/stage` listing reports it.
+fn staged_item_of(stage_id: &str, package_name: &str) -> Value {
+    json!({
+        "id": stage_id,
+        "packageName": package_name,
+        "version": "1.0.0",
+        "tag": "latest",
+        "createdAt": "2026-03-16T09:00:00.000Z",
+        "actor": "user",
+        "actorType": "user",
+    })
+}
+
+#[test]
+fn approve_shares_one_one_time_password_across_a_batch() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_registry_config(dir.path(), &registry);
+    let list_mock = server
+        .mock("GET", "/-/stage")
+        .match_query(Matcher::Any)
+        .with_body(
+            json!({
+                "items": [
+                    staged_item_of(STAGE_ID, "@scope/first"),
+                    staged_item_of(SECOND_STAGE_ID, "@scope/second"),
+                ],
+                "total": 2,
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create();
+    let approve_mocks: Vec<mockito::Mock> = [STAGE_ID, SECOND_STAGE_ID]
+        .into_iter()
+        .map(|stage_id| {
+            server
+                .mock("POST", format!("/-/stage/{stage_id}/approve").as_str())
+                .match_header("npm-otp", "123456")
+                .with_status(201)
+                .with_body(r#"{"ok":true}"#)
+                .expect(1)
+                .create()
+        })
+        .collect();
+
+    let output = stage(
+        dir.path(),
+        &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
+    );
+
+    list_mock.assert();
+    for mock in &approve_mocks {
+        mock.assert();
+    }
+    assert_success(&output);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "Approved 2 staged packages successfully.\n",
+    );
+}
+
+/// A workspace whose `@scope/dependent` package depends on its
+/// `@scope/dependency` package.
+fn write_workspace_with_dependency(dir: &Path, registry: &str) {
+    write_registry_config(dir, registry);
+    fs::write(dir.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    for (location, manifest) in [
+        ("dependency", json!({ "name": "@scope/dependency", "version": "1.0.0" })),
+        (
+            "dependent",
+            json!({
+                "name": "@scope/dependent",
+                "version": "1.0.0",
+                "dependencies": { "@scope/dependency": "workspace:*" },
+            }),
+        ),
+    ] {
+        let package_dir = dir.join("packages").join(location);
+        fs::create_dir_all(&package_dir).expect("create the package directory");
+        fs::write(package_dir.join("package.json"), manifest.to_string())
+            .expect("write package.json");
+    }
+}
+
+/// The dependency is approved first, so a dependency that never reaches the
+/// registry keeps its dependent from being published against it.
+#[test]
+fn approve_skips_a_staged_package_whose_workspace_dependency_could_not_be_approved() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_workspace_with_dependency(dir.path(), &registry);
+    let list_mock = server
+        .mock("GET", "/-/stage")
+        .match_query(Matcher::Any)
+        .with_body(
+            json!({
+                "items": [
+                    staged_item_of(STAGE_ID, "@scope/dependent"),
+                    staged_item_of(SECOND_STAGE_ID, "@scope/dependency"),
+                ],
+                "total": 2,
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create();
+    let dependency_mock = server
+        .mock("POST", format!("/-/stage/{SECOND_STAGE_ID}/approve").as_str())
+        .with_status(409)
+        .with_body(r#"{"error":"version already exists"}"#)
+        .expect_at_least(1)
+        .create();
+    let dependent_mock =
+        server.mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str()).expect(0).create();
+
+    let output = stage(
+        dir.path(),
+        &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
+    );
+
+    list_mock.assert();
+    dependency_mock.assert();
+    dependent_mock.assert();
+    assert_failure_with_code(&output, "ERR_PNPM_STAGE_APPROVE_INCOMPLETE");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Approved 0 of 2 staged packages."), "stderr: {stderr}");
+}
+
+#[test]
+fn approve_without_a_stage_id_requires_an_interactive_terminal() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_registry_config(dir.path(), &registry);
+    let mock = server.mock("GET", Matcher::Any).expect(0).create();
+
+    // The spawned binary has no TTY, so the staged packages cannot be chosen.
+    let output = stage(dir.path(), &["approve"]);
+
+    mock.assert();
+    assert_failure_with_code(&output, "ERR_PNPM_STAGE_ID_REQUIRED");
+}
+
+#[test]
+fn approve_rejects_a_stage_id_that_is_not_a_uuid() {
+    let dir = tempfile::tempdir().expect("workspace");
+    write_registry_config(dir.path(), "http://localhost:4873/");
+
+    let output = stage(dir.path(), &["approve", STAGE_ID, "not-a-uuid"]);
+
+    assert_failure_with_code(&output, "ERR_PNPM_INVALID_STAGE_ID");
 }
 
 #[test]

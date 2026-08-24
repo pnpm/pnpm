@@ -8430,6 +8430,12 @@ importers:
       '@pnpm/workspace.projects-filter':
         specifier: workspace:*
         version: link:../../workspace/projects-filter
+      '@pnpm/workspace.projects-graph':
+        specifier: workspace:*
+        version: link:../../workspace/projects-graph
+      '@pnpm/workspace.projects-reader':
+        specifier: workspace:*
+        version: link:../../workspace/projects-reader
       '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
         version: link:../../workspace/projects-sorter
