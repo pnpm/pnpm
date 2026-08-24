@@ -17,13 +17,6 @@ export const BumpLevels = {
   major: 3,
 } as const
 
-const dirname = path.dirname(fileURLToPath(import.meta.url))
-const repoRoot = path.resolve(dirname, '../../../..')
-
-if (process.argv[1] != null && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  await writeReleaseText(repoRoot)
-}
-
 // The sponsors table is shared with the v12 release job, which cats this same
 // fragment onto its RELEASE.md. It is regenerated from pnpm.io's sponsors.json.
 // A missing fragment means someone moved it, not that there are no sponsors —
@@ -113,4 +106,12 @@ export function getChangelogEntry (changelog: string, version: string): Changelo
     content: unified().use(remarkStringify).stringify(ast),
     highestLevel,
   }
+}
+
+// The entry point stays at the bottom: a top-level `await` above a module-level
+// constant runs before that constant is initialized, and the release job only
+// finds out when the description fails to generate.
+if (process.argv[1] != null && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const dirname = path.dirname(fileURLToPath(import.meta.url))
+  await writeReleaseText(process.argv[2] ?? path.resolve(dirname, '../../../..'))
 }
