@@ -521,9 +521,9 @@ describe('createOtpSession', () => {
     const input = jest.fn(async () => '123456')
     const context = createOtpMockContext({ enquirer: { input } })
     const session = createOtpSession({ context, fetchOptions })
-    const seenOtps: Array<string | undefined> = []
+    const sentPasswords: Array<string | undefined> = []
     const operation = async (otp?: string): Promise<string> => {
-      seenOtps.push(otp)
+      sentPasswords.push(otp)
       if (otp !== '123456') throw new SyntheticOtpError(undefined)
       return 'published'
     }
@@ -531,19 +531,19 @@ describe('createOtpSession', () => {
     await expect(session.run(operation)).resolves.toBe('published')
     await expect(session.run(operation)).resolves.toBe('published')
 
-    expect(seenOtps).toEqual([undefined, '123456', '123456'])
+    expect(sentPasswords).toEqual([undefined, '123456', '123456'])
     expect(input).toHaveBeenCalledTimes(1)
   })
 
   it('asks for a new one-time password once the registry stops accepting the one it holds', async () => {
-    const otps = ['first-otp', 'second-otp']
-    const input = jest.fn(async () => otps.shift())
+    const passwords = ['first-otp', 'second-otp']
+    const input = jest.fn(async () => passwords.shift())
     const context = createOtpMockContext({ enquirer: { input } })
     const session = createOtpSession({ context, fetchOptions })
-    const seenOtps: Array<string | undefined> = []
+    const sentPasswords: Array<string | undefined> = []
     let acceptedOtp = 'first-otp'
     const operation = async (otp?: string): Promise<string> => {
-      seenOtps.push(otp)
+      sentPasswords.push(otp)
       if (otp !== acceptedOtp) throw new SyntheticOtpError(undefined)
       // The password expires right after the operation it was obtained for.
       acceptedOtp = 'second-otp'
@@ -553,7 +553,7 @@ describe('createOtpSession', () => {
     await expect(session.run(operation)).resolves.toBe('published')
     await expect(session.run(operation)).resolves.toBe('published')
 
-    expect(seenOtps).toEqual([undefined, 'first-otp', 'first-otp', 'second-otp'])
+    expect(sentPasswords).toEqual([undefined, 'first-otp', 'first-otp', 'second-otp'])
     expect(input).toHaveBeenCalledTimes(2)
   })
 

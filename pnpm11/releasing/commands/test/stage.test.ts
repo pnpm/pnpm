@@ -386,7 +386,7 @@ describe('stage command against the registry mock', () => {
       { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-batch-b', version: '1.0.0' },
       { id: THIRD_STAGE_ID, packageName: '@pnpmtest/stage-batch-c', version: '1.0.0' },
     ]
-    const otpsByStageId = new Map<string, Array<string | undefined>>()
+    const passwordsByStageId = new Map<string, Array<string | undefined>>()
     let baseUrl = ''
     let acceptedOtp = 'otp-1'
     const registry = await createRegistry((request) => {
@@ -399,7 +399,7 @@ describe('stage command against the registry mock', () => {
       const stageId = approvedStageId(request)
       if (stageId) {
         const otp = headerValue(request.headers['npm-otp'])
-        otpsByStageId.set(stageId, [...otpsByStageId.get(stageId) ?? [], otp])
+        passwordsByStageId.set(stageId, [...passwordsByStageId.get(stageId) ?? [], otp])
         if (otp === acceptedOtp) {
           // The password the first approval obtained expires right after it,
           // so the second approval has to obtain a new one.
@@ -423,9 +423,9 @@ describe('stage command against the registry mock', () => {
         ...stageOpts(registry.url),
       }, ['approve', STAGE_ID, SECOND_STAGE_ID, THIRD_STAGE_ID])
       expect(result).toStrictEqual({ exitCode: 0, output: 'Approved 3 staged packages successfully.' })
-      expect(otpsByStageId.get(STAGE_ID)).toEqual([undefined, 'otp-1'])
-      expect(otpsByStageId.get(SECOND_STAGE_ID)).toEqual(['otp-1', 'otp-2'])
-      expect(otpsByStageId.get(THIRD_STAGE_ID)).toEqual(['otp-2'])
+      expect(passwordsByStageId.get(STAGE_ID)).toEqual([undefined, 'otp-1'])
+      expect(passwordsByStageId.get(SECOND_STAGE_ID)).toEqual(['otp-1', 'otp-2'])
+      expect(passwordsByStageId.get(THIRD_STAGE_ID)).toEqual(['otp-2'])
     } finally {
       restoreTty()
       await registry.close()

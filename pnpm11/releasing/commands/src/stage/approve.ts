@@ -36,7 +36,7 @@ export async function stageApprove (opts: StageOptions, params: string[]): Promi
   }
   if (params.length === 0) {
     requireInteractiveSelection()
-    const stagedPackages = (await fetchStageItems(context)).filter(isApprovable)
+    const stagedPackages = (await fetchStageItems(context)).filter(hasStageId)
     if (stagedPackages.length === 0) return 'There are no staged packages awaiting approval.'
     const selected = await promptForStagedPackages(stagedPackages)
     if (selected.length === 0) return 'No staged packages were selected.'
@@ -46,7 +46,7 @@ export async function stageApprove (opts: StageOptions, params: string[]): Promi
 }
 
 /** A staged version the registry reported without an id cannot be approved. */
-function isApprovable (item: StageItem): boolean {
+function hasStageId (item: StageItem): boolean {
   return typeof item.id === 'string' && item.id !== ''
 }
 
