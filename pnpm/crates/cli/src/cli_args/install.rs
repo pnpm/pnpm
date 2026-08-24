@@ -388,9 +388,6 @@ impl InstallArgs {
             return false;
         }
         let config_root = config.root_project_manifest_dir(dir).to_path_buf();
-        if package_manager_needs_recording(&config_root, config.pm_on_fail) {
-            return false;
-        }
         if !pnpm_hooks::finder::find_pnpmfiles(
             &config_root,
             pnpm_package_manager::pnpmfile_selection(config),
@@ -406,6 +403,14 @@ impl InstallArgs {
         let Ok(manifest) = pnpm_package_manifest::PackageManifest::from_path(manifest_path) else {
             return false;
         };
+        // The pin reaches the lockfile from the install pipeline, which this
+        // short-circuit returns before. This manifest is the root one unless
+        // a workspace or `lockfileDir` put the root elsewhere, in which case
+        // the check reads that one.
+        let root_manifest = (config_root == dir).then(|| manifest.value());
+        if package_manager_needs_recording(&config_root, config.pm_on_fail, root_manifest) {
+            return false;
+        }
         let node_linker = self.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
         let Some(up_to_date) = install_already_up_to_date(&UpToDateFastPathCheck {
             config,

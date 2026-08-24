@@ -68,13 +68,27 @@ pub(crate) fn package_manager_to_sync(
 /// reporting success while leaving every `--frozen-lockfile` run failing on
 /// the unwritten entry.
 ///
+/// `root_manifest` is that manifest when the caller already holds it, so a
+/// fast path does not read the same file twice.
+///
 /// A manifest that cannot be read answers `false`: the full install path
 /// reports that, and a fast path is not where it should surface.
-pub(crate) fn package_manager_needs_recording(root_dir: &Path, on_fail: Option<PmOnFail>) -> bool {
-    let Ok(Some(manifest)) = read_manifest_json(&root_dir.join("package.json")) else {
-        return false;
+pub(crate) fn package_manager_needs_recording(
+    root_dir: &Path,
+    on_fail: Option<PmOnFail>,
+    root_manifest: Option<&Value>,
+) -> bool {
+    let read;
+    let manifest = if let Some(manifest) = root_manifest {
+        manifest
+    } else {
+        let Ok(Some(manifest)) = read_manifest_json(&root_dir.join("package.json")) else {
+            return false;
+        };
+        read = manifest;
+        &read
     };
-    let Some(package_manager) = package_manager_to_sync(&manifest, root_dir, on_fail) else {
+    let Some(package_manager) = package_manager_to_sync(manifest, root_dir, on_fail) else {
         return false;
     };
     !EnvLockfile::read(root_dir).ok().flatten().is_some_and(|env_lockfile| {
