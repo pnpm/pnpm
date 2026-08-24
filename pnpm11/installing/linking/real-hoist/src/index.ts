@@ -52,7 +52,11 @@ export type { HoisterResult }
  * injected workspace package and cannot explode that way.
  */
 export function getHoisterPkgId (depPath: string, pkgSnapshot: PackageSnapshot): string {
-  if ('directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null) {
+  // `resolution` is typed as required, but the lockfile is parsed from
+  // untyped YAML — guard so a malformed snapshot degrades to the
+  // collapsed identity instead of a TypeError here.
+  const resolution = pkgSnapshot.resolution as PackageSnapshot['resolution'] | undefined
+  if (resolution != null && 'directory' in resolution && resolution.directory != null) {
     return depPath
   }
   const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
