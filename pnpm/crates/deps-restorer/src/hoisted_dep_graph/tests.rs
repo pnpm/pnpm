@@ -1230,9 +1230,8 @@ fn walker_keeps_file_dep_peer_variants_apart() {
         packages,
         snapshots,
     );
-    let lockfile_dir = PathBuf::from("/repo");
     let opts = LockfileToHoistedDepGraphOptions {
-        lockfile_dir: lockfile_dir.clone(),
+        lockfile_dir: PathBuf::from("/repo"),
         ..LockfileToHoistedDepGraphOptions::default()
     };
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
@@ -1251,8 +1250,14 @@ fn walker_keeps_file_dep_peer_variants_apart() {
     );
     let r1_peer = result.graph[&r1_comp].children.get("peer").expect("r1's copy resolves peer");
     let r2_peer = result.graph[&r2_comp].children.get("peer").expect("r2's copy resolves peer");
-    assert_ne!(
-        r1_peer, r2_peer,
-        "each variant's copy must resolve its own peer: r1 {r1_peer:?} vs r2 {r2_peer:?}",
+    assert_eq!(
+        result.graph[r1_peer].dep_path,
+        DepPath::from("peer@1.0.0".to_string()),
+        "r1's copy must resolve the peer version r1 pinned",
+    );
+    assert_eq!(
+        result.graph[r2_peer].dep_path,
+        DepPath::from("peer@2.0.0".to_string()),
+        "r2's copy must resolve the peer version r2 pinned",
     );
 }

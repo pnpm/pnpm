@@ -1,5 +1,6 @@
 use super::{
-    HoistError, HoistOpts, HoisterResult, RcByPtr, build_hoist_ident_map, hoist, is_preferred_ident,
+    HoistError, HoistOpts, HoisterResult, RcByPtr, build_hoist_ident_map, hoist,
+    is_preferred_ident, percent_encode_path,
 };
 use indexmap::IndexSet;
 use pnpm_lockfile::{
@@ -1365,31 +1366,89 @@ fn file_dep_peer_variants_keep_their_own_copies() {
     let result =
         hoist(&lockfile, &HoistOpts::default()).expect("file-variant hoist should succeed");
 
-    // Collect every `comp` node in the result with the importer chain
-    // it sits under, and the reference it carries.
-    fn collect(node: &HoisterResult, path: &str, out: &mut Vec<(String, String)>) {
-        for child in node.dependencies.borrow().iter() {
-            let child = &child.0;
-            if child.name == "comp" {
-                let reference =
-                    child.references.borrow().iter().next().cloned().unwrap_or_default();
-                out.push((path.to_string(), reference));
-            }
-            collect(child, &format!("{path}/{}", child.name), out);
-        }
-    }
-    let mut comp_nodes = Vec::new();
-    collect(&result, "", &mut comp_nodes);
-
-    let mut references: Vec<String> =
-        comp_nodes.iter().map(|(_, reference)| reference.clone()).collect();
-    references.sort_unstable();
-    references.dedup();
+    // Node resolution walks up from the importer, so the copy an
+    // importer sees is the one nested in its own subtree — or the
+    // root's, when its variant was hoisted there. Either placement is
+    // correct only if the reference reached this way is the variant
+    // the importer declared.
+    let root_children = result.dependencies.borrow();
+    let comp_reference_seen_by = |importer: &str| -> String {
+        let importer_name = percent_encode_path(importer);
+        let importer_node =
+            &root_children.iter().find(|dep| dep.0.name == importer_name).unwrap().0;
+        let importer_children = importer_node.dependencies.borrow();
+        let comp = importer_children
+            .iter()
+            .find(|dep| dep.0.name == "comp")
+            .or_else(|| root_children.iter().find(|dep| dep.0.name == "comp"))
+            .unwrap_or_else(|| panic!("no comp reachable from {importer}"));
+        comp.0.references.borrow().iter().next().cloned().unwrap_or_default()
+    };
     assert_eq!(
-        references,
-        ["comp@file:comp(p@1.0.0)", "comp@file:comp(p@2.0.0)"],
-        "both injected peer variants must survive as distinct copies: {comp_nodes:#?}",
+        comp_reference_seen_by("node_modules/.bit_roots/r1"),
+        "comp@file:comp(p@1.0.0)",
+        "r1 must resolve the copy carrying its own peer variant",
     );
+    assert_eq!(
+        comp_reference_seen_by("node_modules/.bit_roots/r2"),
+        "comp@file:comp(p@2.0.0)",
+        "r2 must resolve the copy carrying its own peer variant",
+    );
+}
+
+/// A local tarball `file:` dependency collapses its peer variants like
+/// a registry package: every variant unpacks the same archive, so
+/// nesting a second copy per variant only costs disk — exactly the
+/// dedup the registry collapse exists for. Only *directory* `file:`
+/// snapshots are exempt (see [`pkg_id`]).
+#[test]
+fn file_tarball_peer_variants_collapse_like_registry_packages() {
+    let mut importers = HashMap::new();
+    importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), ProjectSnapshot::default());
+    for (importer_id, peer_ver) in [("packages/a", "1.0.0"), ("packages/b", "2.0.0")] {
+        let mut deps = ResolvedDependencyMap::new();
+        deps.insert(
+            pkg_name("tarpkg"),
+            ResolvedDependencySpec {
+                specifier: "file:tarpkg.tgz".to_string(),
+                version: ver_peer(&format!("file:tarpkg.tgz(p@{peer_ver})")).into(),
+            },
+        );
+        deps.insert(pkg_name("p"), resolved_dep(peer_ver));
+        importers.insert(
+            importer_id.to_string(),
+            ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
+        );
+    }
+
+    let mut snapshots = HashMap::new();
+    for peer_ver in ["1.0.0", "2.0.0"] {
+        let mut tar_deps = HashMap::new();
+        tar_deps.insert(pkg_name("p"), SnapshotDepRef::Plain(ver_peer(peer_ver)));
+        snapshots.insert(
+            dep_key("tarpkg", &format!("file:tarpkg.tgz(p@{peer_ver})")),
+            SnapshotEntry { dependencies: Some(tar_deps), ..SnapshotEntry::default() },
+        );
+        snapshots.insert(dep_key("p", peer_ver), SnapshotEntry::default());
+    }
+
+    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
+
+    let result =
+        hoist(&lockfile, &HoistOpts::default()).expect("tarball-variant hoist should succeed");
+    let root_children = result.dependencies.borrow();
+    let tarpkg = &root_children.iter().find(|dep| dep.0.name == "tarpkg").unwrap().0;
+    assert!(
+        tarpkg.references.borrow().contains("tarpkg@file:tarpkg.tgz(p@1.0.0)"),
+        "the first-seen variant is the canonical reference: {tarpkg:#?}",
+    );
+    for importer in ["packages%2Fa", "packages%2Fb"] {
+        let importer_node = &root_children.iter().find(|dep| dep.0.name == importer).unwrap().0;
+        assert!(
+            !importer_node.dependencies.borrow().iter().any(|dep| dep.0.name == "tarpkg"),
+            "a tarball peer variant must dedup against the root copy: {importer_node:#?}",
+        );
+    }
 }
 
 /// A nearer ancestor holding a different version of a name blocks

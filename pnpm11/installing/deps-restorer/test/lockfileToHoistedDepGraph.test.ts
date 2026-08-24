@@ -153,10 +153,18 @@ test('lockfileToHoistedDepGraph keeps file-dep peer variants apart', async () =>
 
   const compDirs = Object.keys(graph).filter((dir) => path.basename(dir) === 'comp')
   expect(compDirs).toHaveLength(2)
-  const [firstPeer, secondPeer] = compDirs.map((dir) => graph[dir].children.peer)
-  expect(firstPeer).toBeDefined()
-  expect(secondPeer).toBeDefined()
-  expect(firstPeer).not.toBe(secondPeer)
+  // Each copy must resolve the peer version its own variant pinned —
+  // asserting mere distinctness would also pass with the two variants
+  // swapped between importers.
+  const peerVersionByVariant = Object.fromEntries(compDirs.map((dir) => {
+    const variant = graph[dir].depPath
+    const peerDir = graph[dir].children.peer
+    return [variant, graph[peerDir].depPath]
+  }))
+  expect(peerVersionByVariant).toStrictEqual({
+    'comp@file:comp(peer@1.0.0)': 'peer@1.0.0',
+    'comp@file:comp(peer@2.0.0)': 'peer@2.0.0',
+  })
 })
 
 function fileVariantLockfile (): LockfileObject {
