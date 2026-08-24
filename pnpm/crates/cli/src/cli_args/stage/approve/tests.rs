@@ -1,4 +1,11 @@
-use super::*;
+use std::collections::HashSet;
+
+use pretty_assertions::assert_eq;
+
+use super::{
+    StageApprovalItem, StageError, WorkspaceApprovalOrder, parse_stage_ids,
+    sort_items_for_approval, unavailable_dependencies,
+};
 
 fn item(id: &str, package_name: Option<&str>, version: Option<&str>) -> StageApprovalItem {
     StageApprovalItem {
@@ -89,7 +96,7 @@ fn a_dependent_of_an_unpublished_package_is_blocked() {
             &unpublished,
             Some(&order),
         )
-        .is_empty()
+        .is_empty(),
     );
 }
 
@@ -98,7 +105,7 @@ fn nothing_is_blocked_without_workspace_knowledge() {
     let unpublished: HashSet<String> = std::iter::once("dependency".to_owned()).collect();
     assert!(
         unavailable_dependencies(&item("id", Some("dependent"), Some("1.0.0")), &unpublished, None)
-            .is_empty()
+            .is_empty(),
     );
 }
 
