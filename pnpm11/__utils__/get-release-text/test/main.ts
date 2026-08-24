@@ -13,6 +13,9 @@ const SPONSORS_FRAGMENT = '<!-- sponsors -->\n\n## Platinum Sponsors\n\n<!-- spo
 
 const execFileAsync = promisify(execFile)
 const scriptPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src/main.ts')
+// Node strips types on its own from v23.6; the older versions the test matrix
+// still covers need the flag to load the TypeScript entry point at all.
+const stripTypes = parseInt(process.versions.node, 10) < 23 ? ['--experimental-strip-types'] : []
 
 let workspaceDir: string
 
@@ -86,7 +89,7 @@ test('writes the release description when run as a script', async () => {
 
   // the release job runs the module, it doesn't import it; only this path
   // evaluates the top-level entry point
-  await execFileAsync(process.execPath, [scriptPath, workspaceDir])
+  await execFileAsync(process.execPath, [...stripTypes, scriptPath, workspaceDir])
 
   const release = await fs.readFile(path.join(workspaceDir, 'RELEASE.md'), 'utf8')
   expect(release).toContain('Fixed the release notes.')
