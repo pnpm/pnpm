@@ -17,6 +17,7 @@ use pnpm_env_installer::{
 };
 use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
+use pnpm_lockfile::EnvLockfile;
 use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
 use pnpm_resolving_npm_resolver::{
@@ -63,7 +64,7 @@ pub async fn sync_package_manager_dependencies(
     pnpm_version: &str,
     frozen_lockfile: bool,
     force_resync: bool,
-) -> Result<()> {
+) -> Result<EnvLockfile> {
     sync_engine_dependencies(
         config,
         root_dir,
@@ -78,7 +79,8 @@ pub async fn sync_package_manager_dependencies(
 
 /// Resolve the packages a package manager is installed from into the env
 /// lockfile at `root_dir`, so its bytes are pinned by integrity before any
-/// of them are downloaded or executed.
+/// of them are downloaded or executed. Returns that env lockfile, which the
+/// engine installer reads the closure from.
 pub async fn sync_engine_dependencies(
     config: &Config,
     root_dir: &Path,
@@ -87,7 +89,7 @@ pub async fn sync_engine_dependencies(
     version: &str,
     frozen_lockfile: bool,
     force_resync: bool,
-) -> Result<()> {
+) -> Result<EnvLockfile> {
     let context = EnvInstallerContext::for_package_manager(config)?;
     let options = context.options(root_dir, frozen_lockfile);
     resolve_package_manager_integrities(

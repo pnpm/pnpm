@@ -147,20 +147,30 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
             .await?;
             (version, bin_dir)
         }
-        SwitchSource::Resolve { env_root, frozen_lockfile, force_resync } => {
-            let resolved = config_deps::resolve_engine_version(config, "pnpm", &spec)
-                .await?
-                .ok_or_else(|| miette::miette!(r#"Cannot resolve pnpm version for "{}""#, spec))?;
-            if resolved.version == PNPM_VERSION {
-                if force_resync {
+        SwitchSource::Resolve { env_root, frozen_lockfile, force_resync, locked_version } => {
+            let version = match locked_version.filter(|_| frozen_lockfile) {
+                Some(locked) => locked,
+                None => {
+                    config_deps::resolve_engine_version(config, "pnpm", &spec)
+                        .await?
+                        .ok_or_else(|| {
+                            miette::miette!(r#"Cannot resolve pnpm version for "{}""#, spec)
+                        })?
+                        .version
+                }
+            };
+            if version == PNPM_VERSION {
+                if force_resync && !frozen_lockfile {
                     // No switch to perform, but the recorded entries are
                     // invalid — heal them now or every later invocation
-                    // re-resolves over the network.
+                    // re-resolves over the network. A frozen lockfile cannot
+                    // be written, and nothing is installed here, so the
+                    // repair waits for a run that may write.
                     config_deps::sync_package_manager_dependencies(
                         config,
                         &env_root,
                         &spec,
-                        &resolved.version,
+                        &version,
                         frozen_lockfile,
                         true,
                     )
@@ -168,18 +178,18 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
                 }
                 return Ok(false);
             }
-            assert_release_is_installable(&resolved.version)?;
+            assert_release_is_installable(&version)?;
             let bin_dir = Box::pin(install_engine_to_store::<SilentReporter>(
                 config,
                 PackageManager::Pnpm,
                 &env_root,
                 &spec,
-                &resolved.version,
+                &version,
                 frozen_lockfile,
                 force_resync,
             ))
             .await?;
-            (resolved.version, bin_dir)
+            (version, bin_dir)
         }
     };
 
@@ -703,6 +713,7 @@ fn switch_target(
                 env_root: root_dir.to_path_buf(),
                 frozen_lockfile,
                 force_resync: true,
+                locked_version: Some(version),
             },
         }));
     }
@@ -722,7 +733,12 @@ fn switch_target(
     };
     Ok(Some(SwitchTarget {
         spec,
-        source: SwitchSource::Resolve { env_root, frozen_lockfile, force_resync: false },
+        source: SwitchSource::Resolve {
+            env_root,
+            frozen_lockfile,
+            force_resync: false,
+            locked_version: None,
+        },
     }))
 }
 
@@ -1002,6 +1018,11 @@ enum SwitchSource {
         /// entries failed the bootstrap validation, so the resync heals the
         /// env lockfile instead of no-op'ing on the invalid entries.
         force_resync: bool,
+        /// The version those invalid entries record. A frozen lockfile
+        /// cannot record a fresh pick, so the repair re-resolves this
+        /// version rather than the range around it — the switch then runs
+        /// the pnpm the lockfile pins, which is what the flag is for.
+        locked_version: Option<String>,
     },
 }
 

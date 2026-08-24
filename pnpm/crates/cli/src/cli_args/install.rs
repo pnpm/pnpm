@@ -3,7 +3,8 @@ use crate::{
     cli_args::{
         legacy_pnpm_field::warn_ignored_pnpm_manifest_fields_in, lockfile_dir::LockfileDirArg,
         override_version_references::warn_deprecated_override_version_references,
-        pipelines::InstallFamilySelection, recursive::discover_workspace_projects,
+        package_manager::package_manager_needs_recording, pipelines::InstallFamilySelection,
+        recursive::discover_workspace_projects,
         supported_architectures::SupportedArchitecturesArgs,
     },
 };
@@ -402,6 +403,14 @@ impl InstallArgs {
         let Ok(manifest) = pnpm_package_manifest::PackageManifest::from_path(manifest_path) else {
             return false;
         };
+        // The pin reaches the lockfile from the install pipeline, which this
+        // short-circuit returns before. This manifest is the root one unless
+        // a workspace or `lockfileDir` put the root elsewhere, in which case
+        // the check reads that one.
+        let root_manifest = (config_root == dir).then(|| manifest.value());
+        if package_manager_needs_recording(&config_root, config.pm_on_fail, root_manifest) {
+            return false;
+        }
         let node_linker = self.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
         let Some(up_to_date) = install_already_up_to_date(&UpToDateFastPathCheck {
             config,

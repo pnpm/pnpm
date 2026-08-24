@@ -104,20 +104,24 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       ) {
         throw err
       }
-      // The persisted entries don't satisfy the current bootstrap rules — e.g.
-      // an earlier pnpm recorded resolutions carrying tarball URLs. Rather than
-      // refusing to run, discard them and resolve afresh through the trusted
-      // bootstrap registries, which yields entries in the accepted shape.
+      // The persisted entries do not satisfy the bootstrap rules — a
+      // resolution carrying a tarball URL, say. Rather than refusing to run,
+      // discard them and resolve afresh through the trusted bootstrap
+      // registries, which yields entries in the accepted shape.
+      //
+      // They already record a version that satisfies the pin, so a frozen
+      // lockfile has nothing to reject: the repair resolves that version
+      // rather than the range around it, keeps the result in memory, and
+      // leaves the lockfile as it is.
       delete envLockfile.importers['.'].packageManagerDependencies
       storeToUse ??= await createStoreController({ ...config, ...context, ...packageManagerConfig })
-      envLockfile = await resolvePackageManagerIntegrities(pm.version, {
+      envLockfile = await resolvePackageManagerIntegrities(config.frozenLockfile ? pmVersion : pm.version, {
         envLockfile,
         registriesByScope: packageManagerConfig.registriesByScope,
         rootDir: context.rootProjectManifestDir,
         storeController: storeToUse.ctrl,
         storeDir: storeToUse.dir,
-        save: persistLockfile,
-        frozenLockfile: config.frozenLockfile,
+        save: persistLockfile && !config.frozenLockfile,
       })
       pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
       if (!pmVersion) {
