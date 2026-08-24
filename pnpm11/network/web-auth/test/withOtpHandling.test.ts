@@ -1,5 +1,6 @@
 import { describe, expect, it, jest } from '@jest/globals'
 import {
+  createOtpSession,
   type OtpContext,
   OtpNonInteractiveError,
   OtpSecondChallengeError,
@@ -512,5 +513,55 @@ describe('SyntheticOtpError.fromUnknownBody', () => {
   it('returns empty body when body has no authUrl or doneUrl', () => {
     const err = SyntheticOtpError.fromUnknownBody(unexpectedWarn, { something: 'else' })
     expect(err.body).toEqual({})
+  })
+})
+
+describe('createOtpSession', () => {
+  it('reuses the one-time password it obtained across later operations', async () => {
+    const input = jest.fn(async () => '123456')
+    const context = createOtpMockContext({ enquirer: { input } })
+    const session = createOtpSession({ context, fetchOptions })
+    const sentPasswords: Array<string | undefined> = []
+    const operation = async (otp?: string): Promise<string> => {
+      sentPasswords.push(otp)
+      if (otp !== '123456') throw new SyntheticOtpError(undefined)
+      return 'published'
+    }
+
+    await expect(session.run(operation)).resolves.toBe('published')
+    await expect(session.run(operation)).resolves.toBe('published')
+
+    expect(sentPasswords).toEqual([undefined, '123456', '123456'])
+    expect(input).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks for a new one-time password once the registry stops accepting the one it holds', async () => {
+    const passwords = ['first-otp', 'second-otp']
+    const input = jest.fn(async () => passwords.shift())
+    const context = createOtpMockContext({ enquirer: { input } })
+    const session = createOtpSession({ context, fetchOptions })
+    const sentPasswords: Array<string | undefined> = []
+    let acceptedOtp = 'first-otp'
+    const operation = async (otp?: string): Promise<string> => {
+      sentPasswords.push(otp)
+      if (otp !== acceptedOtp) throw new SyntheticOtpError(undefined)
+      // The password expires right after the operation it was obtained for.
+      acceptedOtp = 'second-otp'
+      return 'published'
+    }
+
+    await expect(session.run(operation)).resolves.toBe('published')
+    await expect(session.run(operation)).resolves.toBe('published')
+
+    expect(sentPasswords).toEqual([undefined, 'first-otp', 'first-otp', 'second-otp'])
+    expect(input).toHaveBeenCalledTimes(2)
+  })
+
+  it('throws OtpSecondChallengeError when a freshly obtained password is challenged again', async () => {
+    const context = createOtpMockContext()
+    const session = createOtpSession({ context, fetchOptions })
+    await expect(session.run(async () => {
+      throw new SyntheticOtpError(undefined)
+    })).rejects.toThrow(OtpSecondChallengeError)
   })
 })

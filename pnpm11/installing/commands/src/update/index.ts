@@ -18,6 +18,7 @@ import { handleGlobalUpdate } from '@pnpm/global.commands'
 import { scanGlobalPackages } from '@pnpm/global.packages'
 import type { UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
 import { globalInfo } from '@pnpm/logger'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import type { IncludedDependencies, PackageVulnerabilityAudit, ProjectRootDir } from '@pnpm/types'
 import chalk from 'chalk'
 import { pick, unnest } from 'ramda'
@@ -28,7 +29,7 @@ import { createVulnerabilityUpdateMatching, installDeps } from '../installDeps.j
 import { createUpdateMatching, expandUpdateSelectorsForMatching, parseUpdateParam } from '../recursive.js'
 import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
 import { captureUpdateChangesetContext, generateUpdateChangeset } from './generateUpdateChangeset.js'
-import { getUpdateChoices, sanitizeUpdateChoiceText } from './getUpdateChoices.js'
+import { getUpdateChoices } from './getUpdateChoices.js'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
@@ -263,7 +264,7 @@ async function selectGlobalPackageGroups (
       name: outdated
         .map(({ alias, current, wanted, latestManifest }) =>
           [alias, current ?? 'missing', '→', opts.latest ? latestManifest?.version ?? wanted : wanted]
-            .map(sanitizeUpdateChoiceText)
+            .map(sanitizeInline)
             .join(' ')
         )
         .join(', '),

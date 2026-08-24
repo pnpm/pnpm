@@ -157,6 +157,9 @@
       "path": "../../text/ordinal-comparator"
     },
     {
+      "path": "../../text/sanitize"
+    },
+    {
       "path": "../../worker"
     },
     {

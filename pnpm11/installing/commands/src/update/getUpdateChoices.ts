@@ -1,6 +1,7 @@
 import { colorizeSemverDiff } from '@pnpm/colorize-semver-diff'
 import type { OutdatedPackage } from '@pnpm/deps.inspection.outdated'
 import { semverDiff } from '@pnpm/semver-diff'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import { getBorderCharacters, table } from '@zkochan/table'
 import { and, groupBy, isEmpty, pickBy, pluck } from 'ramda'
 import stringWidth from 'string-width'
@@ -102,7 +103,7 @@ export function getUpdateChoices (outdatedPkgsOfProjects: UpdateChoiceDependency
         name: outdatedPkg.name,
         message: renderedTable[i],
         value: outdatedPkg.name,
-        short: sanitizeUpdateChoiceText(outdatedPkg.name),
+        short: sanitizeInline(outdatedPkg.name),
       }
     })
 
@@ -130,7 +131,7 @@ function buildPkgChoice (outdatedPkg: UpdateChoiceDependency, workspacesEnabled:
   const label = outdatedPkg.packageName
 
   const raw: string[] = [
-    sanitizeUpdateChoiceText(label),
+    sanitizeInline(label),
     outdatedPkg.current ?? '',
     '❯',
     // Not sanitized: `colorizeSemverDiff` puts the highlighting escapes
@@ -138,23 +139,14 @@ function buildPkgChoice (outdatedPkg: UpdateChoiceDependency, workspacesEnabled:
     nextVersion,
   ]
   if (workspacesEnabled) {
-    raw.push(Array.from(workspaces ?? []).map(sanitizeUpdateChoiceText).join(', '))
+    raw.push(Array.from(workspaces ?? []).map(sanitizeInline).join(', '))
   }
-  raw.push(sanitizeUpdateChoiceText(getPkgUrl(outdatedPkg)))
+  raw.push(sanitizeInline(getPkgUrl(outdatedPkg)))
 
   return {
     raw,
     name: outdatedPkg.packageName,
   }
-}
-
-/**
- * Strip control and formatting characters from text that goes into a
- * single-line table cell.
- */
-export function sanitizeUpdateChoiceText (text: string): string {
-  // eslint-disable-next-line no-control-regex
-  return text.replace(/[\u0000-\u001F\u007F-\u009F\u00AD\u0600-\u0605\u061C\u06DD\u070F\u0890\u0891\u08E2\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\uFFF9-\uFFFB\u{110BD}\u{110CD}\u{13430}-\u{1343F}\u{1BCA0}-\u{1BCA3}\u{1D173}-\u{1D17A}\u{E0001}\u{E0020}-\u{E007F}]/gu, '')
 }
 
 function getPkgUrl (pkg: OutdatedPackage): string {
