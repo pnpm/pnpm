@@ -313,6 +313,7 @@ export async function getContextForSingleImporter (
   if (opts.hoistPattern?.length) {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
+  const hookedManifest = await opts.readPackageHook?.(manifest) ?? manifest
   const ctx: PnpmSingleContext = {
     extraBinPaths,
     extraNodePaths: getExtraNodePaths({
@@ -327,7 +328,7 @@ export async function getContextForSingleImporter (
     importerId,
     include: opts.include ?? include,
     lockfileDir: opts.lockfileDir,
-    manifest: await opts.readPackageHook?.(manifest) ?? manifest,
+    manifest: hookedManifest,
     modulesDir,
     modulesFile: modules,
     pendingBuilds,
@@ -346,7 +347,7 @@ export async function getContextForSingleImporter (
       force: opts.force,
       frozenLockfile: false,
       lockfileDir: opts.lockfileDir,
-      projects: [{ id: importerId, rootDir: opts.dir as ProjectRootDir }],
+      projects: [{ id: importerId, manifest: hookedManifest, rootDir: opts.dir as ProjectRootDir }],
       registry: opts.registriesByScope.default,
       useLockfile: opts.useLockfile,
       useGitBranchLockfile: opts.useGitBranchLockfile,

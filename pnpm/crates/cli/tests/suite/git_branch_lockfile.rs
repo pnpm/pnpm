@@ -204,3 +204,94 @@ fn merging_keeps_the_branch_lockfiles_on_a_check_only_dedupe() {
 
     drop((root, mock_instance));
 }
+
+/// The merge unions the two lockfiles' keys, so a dependency the main
+/// branch dropped after the branch lockfile was written comes back in
+/// the merged result. `--frozen-lockfile` never resolves, so nothing
+/// else takes it out again before the freshness check sees it.
+#[test]
+fn merging_drops_a_dependency_the_manifest_no_longer_declares() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let write_manifest = |dependencies: serde_json::Value| {
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({
+                "dependencies": dependencies,
+                "peerDependencies": { "@pnpm.e2e/bar": "100.0.0" },
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
+    };
+
+    set_branch(&workspace, "main");
+    write_manifest(serde_json::json!({ "@pnpm.e2e/foo": "1.0.0", "@pnpm.e2e/qar": "100.0.0" }));
+    pacquet.with_arg("install").assert().success();
+
+    // What the other branch last resolved, taken before `qar` was dropped.
+    let branch_lockfile = workspace.join("pnpm-lock.other.yaml");
+    fs::copy(workspace.join("pnpm-lock.yaml"), &branch_lockfile).expect("seed a branch lockfile");
+
+    write_manifest(serde_json::json!({ "@pnpm.e2e/foo": "1.0.0" }));
+    pacquet_in(&workspace).with_arg("install").assert().success();
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--merge-git-branch-lockfiles", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    assert!(!branch_lockfile.exists(), "the merged branch lockfile is deleted");
+    let shared = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(!shared.contains("@pnpm.e2e/qar"), "{shared}");
+    assert!(
+        shared.contains("@pnpm.e2e/bar@100.0.0"),
+        "the auto-installed peer is still declared, so it survives: {shared}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Reconciling the fold against the manifests must not double as a repair
+/// for an ordinary stale lockfile: `mergeGitBranchLockfilesBranchPattern`
+/// leaves merge mode on for every install on a matched branch, so a frozen
+/// install there still has to report drift the fold did not introduce.
+///
+/// A branch lockfile that is absent, empty, or carries no lockfile
+/// document all fold nothing in, and each has to reach the same verdict.
+#[test]
+fn merging_with_nothing_to_merge_still_rejects_an_outdated_lockfile() {
+    for branch_lockfile_content in [None, Some(""), Some("lockfileVersion: '9.0'\n")] {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        set_branch(&workspace, "main");
+        write_dependencies(&workspace, &serde_json::json!({ "@pnpm.e2e/foo": "1.0.0" }));
+        pacquet.with_arg("install").assert().success();
+
+        // The manifest drops the dependency without the lockfile being
+        // updated, and nothing gets folded in to explain the leftover entry.
+        write_dependencies(&workspace, &serde_json::json!({}));
+        if let Some(content) = branch_lockfile_content {
+            fs::write(workspace.join("pnpm-lock.other.yaml"), content)
+                .expect("write branch lockfile");
+        }
+
+        let assert = pacquet_in(&workspace)
+            .with_args(["install", "--merge-git-branch-lockfiles", "--frozen-lockfile"])
+            .assert()
+            .failure();
+        let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+        eprintln!("STDERR:\n{stderr}\n");
+        assert!(
+            stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
+            "branch lockfile {branch_lockfile_content:?} folds nothing in, \
+             so the drift must still be reported; got:\n{stderr}",
+        );
+
+        drop((root, mock_instance));
+    }
+}

@@ -12,8 +12,8 @@ use super::{
     dev_preinstall_already_ran, emit_initial_package_manifest,
     get_catalogs_from_workspace_manifest, gvs_build_marker_present,
     gvs_build_markers_may_require_recovery, load_workspace_projects, lockfile_root_dir,
-    map_frozen_lockfile_error, materialize, prepare_modules_state, run_dev_preinstall,
-    selected_manifest_freshness_inputs, try_fast_update_lockfile,
+    map_frozen_lockfile_error, materialize, prepare_modules_state, prune_merged_branch_lockfile,
+    run_dev_preinstall, selected_manifest_freshness_inputs, try_fast_update_lockfile,
     unapproved_recorded_ignored_builds, verify_lockfile_eagerly,
 };
 use pnpm_config::Config;
@@ -463,8 +463,16 @@ where
         // A broken lockfile is regenerable state, so only a frozen
         // install treats it as fatal (upstream `readLockfiles`).
         let phase_start = std::time::Instant::now();
-        let lockfile = match lockfile.get() {
-            Ok(lockfile) => lockfile,
+        let lockfile_source = lockfile;
+        // The fold's "before" is read out here rather than at its use site
+        // below: a load that failed leaves nothing cached, so asking later
+        // would retry it and turn a lockfile this arm chose to ignore into
+        // a fatal one.
+        let (lockfile, pre_merge_importers) = match lockfile_source.get() {
+            Ok(lockfile) => (
+                lockfile,
+                lockfile_source.pre_merge_importers().map_err(InstallError::LoadWantedLockfile)?,
+            ),
             Err(error) if !frozen_lockfile => {
                 Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                     level: LogLevel::Warn,
@@ -474,7 +482,7 @@ where
                     ),
                     prefix: prefix.clone(),
                 }));
-                None
+                (None, None)
             }
             Err(error) => return Err(InstallError::LoadWantedLockfile(error)),
         };
@@ -702,6 +710,20 @@ where
         // would hide the change of a real install creating `pnpm-lock.yaml`.
         let existing_wanted_lockfile = lockfile;
         let lockfile = lockfile.or(synthesized_lockfile.as_ref());
+        // The branch lockfiles were folded in at load, before any manifest
+        // was known. Reconcile the fold against them now, while every
+        // later stage — the fast update, the freshness check, and the
+        // rewrite the merge is saved by — still reads the same object.
+        let merged_branch_lockfile = match (pre_merge_importers, lockfile) {
+            (Some(pre_merge_importers), Some(lockfile)) => prune_merged_branch_lockfile(
+                lockfile,
+                pre_merge_importers,
+                &manifest_freshness_inputs,
+                config.auto_install_peers,
+            ),
+            _ => None,
+        };
+        let lockfile = merged_branch_lockfile.as_ref().or(lockfile);
         let can_fast_update_lockfile = !frozen_lockfile
             && !dry_run
             && prefer_frozen_lockfile

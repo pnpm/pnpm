@@ -1,9 +1,10 @@
-use crate::{Lockfile, extract_main_document, merge_lockfile_changes};
+use crate::{Lockfile, ProjectSnapshot, extract_main_document, merge_lockfile_changes};
 use derive_more::{Display, Error};
 use pipe_trait::Pipe;
 use pnpm_diagnostics::miette::{self, Diagnostic};
 use serde_saphyr::MessageFormatter;
 use std::{
+    collections::HashMap,
     env, fs,
     io::{self, ErrorKind},
     path::{Path, PathBuf},
@@ -98,17 +99,30 @@ impl Lockfile {
         dir: &Path,
         selection: &WantedLockfileSelection,
     ) -> Result<Option<Self>, LoadLockfileError> {
+        Ok(Self::load_wanted_detailed(dir, selection)?.lockfile)
+    }
+
+    /// [`Self::load_wanted`] keeping the importers the fold started from.
+    pub fn load_wanted_detailed(
+        dir: &Path,
+        selection: &WantedLockfileSelection,
+    ) -> Result<LoadedWantedLockfile, LoadLockfileError> {
         for file_name in selection.read_order() {
             let Some(lockfile) = Self::load_from_path(&dir.join(file_name))? else {
                 continue;
             };
             return if selection.merge_git_branch_lockfiles {
-                merge_git_branch_lockfiles(lockfile, dir).map(Some)
+                let pre_merge_importers = lockfile.importers.clone();
+                let merged = merge_git_branch_lockfiles(lockfile, dir)?;
+                Ok(LoadedWantedLockfile {
+                    lockfile: Some(merged),
+                    pre_merge_importers: Some(pre_merge_importers),
+                })
             } else {
-                Ok(Some(lockfile))
+                Ok(LoadedWantedLockfile { lockfile: Some(lockfile), pre_merge_importers: None })
             };
         }
-        Ok(None)
+        Ok(LoadedWantedLockfile::default())
     }
 
     /// Whether `<dir>/pnpm-lock.yaml` would load as `Some`: the file
@@ -193,6 +207,19 @@ impl Lockfile {
 
 #[cfg(test)]
 mod tests;
+
+/// A wanted lockfile as it was loaded, with the importers as they stood
+/// before `mergeGitBranchLockfiles` folded the branch lockfiles in.
+///
+/// Separating an entry the fold introduced from one the read file already
+/// carried needs that "before": the merged lockfile no longer holds it,
+/// and only the fold's own additions may be reconciled away against the
+/// manifests. `pre_merge_importers` is `None` when no fold was attempted.
+#[derive(Debug, Default)]
+pub struct LoadedWantedLockfile {
+    pub lockfile: Option<Lockfile>,
+    pub pre_merge_importers: Option<HashMap<String, ProjectSnapshot>>,
+}
 
 /// Which wanted-lockfile file an install reads and writes, and whether the
 /// other branches' lockfiles are folded into it.
