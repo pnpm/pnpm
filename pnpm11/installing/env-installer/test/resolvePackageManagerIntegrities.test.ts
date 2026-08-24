@@ -119,6 +119,44 @@ test('a lockfile that pins another version is not updated under frozenLockfile',
   })
 })
 
+// https://github.com/pnpm/pnpm/issues/14124: a pnpm below 11.20.0 pins
+// `@pnpm/exe` beside `pnpm` for a v12 version. The entry pins the wanted
+// version and cannot change which pnpm runs, so a frozen install accepts the
+// block a teammate's older pnpm left behind instead of failing on it.
+test('an entry for a package the running pnpm does not install from is accepted under frozenLockfile', async () => {
+  resolveManifestDependencies.mockClear()
+
+  const result = await resolvePackageManagerIntegrities('12.0.0', {
+    envLockfile: envLockfile({ 'pnpm': '12.0.0', '@pnpm/exe': '12.0.0' }),
+    registriesByScope: { default: 'https://mirror.example.com/' },
+    rootDir: '/repo',
+    storeController: {} as never,
+    storeDir: '/store',
+    frozenLockfile: true,
+  })
+
+  expect(result.importers['.'].packageManagerDependencies).toEqual({
+    'pnpm': { specifier: '12.0.0', version: '12.0.0' },
+    '@pnpm/exe': { specifier: '12.0.0', version: '12.0.0' },
+  })
+  expect(resolveManifestDependencies).not.toHaveBeenCalled()
+})
+
+test('an entry pinning another version is still refused under frozenLockfile', async () => {
+  await expect(
+    resolvePackageManagerIntegrities('12.0.0', {
+      envLockfile: envLockfile({ 'pnpm': '12.0.0', '@pnpm/exe': '11.23.0' }),
+      registriesByScope: { default: 'https://mirror.example.com/' },
+      rootDir: '/repo',
+      storeController: {} as never,
+      storeDir: '/store',
+      frozenLockfile: true,
+    })
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE',
+  })
+})
+
 // A resolution that is never saved cannot take the lockfile out of sync with
 // the manifest, so `--frozen-lockfile` has nothing to refuse. This is how a
 // legacy `packageManager` pin below v12 switches versions.

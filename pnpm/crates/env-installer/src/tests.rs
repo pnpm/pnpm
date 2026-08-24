@@ -549,6 +549,134 @@ async fn force_resync_under_frozen_lockfile_resolves_without_writing() {
     assert_eq!(std::fs::read_to_string(&lockfile_path).unwrap(), before);
 }
 
+/// A pnpm below 11.20.0 pins `@pnpm/exe` beside `pnpm` for a v12 version.
+/// The entry pins the wanted version and cannot change which pnpm runs, so a
+/// frozen lockfile accepts the block a teammate's older pnpm left behind,
+/// and a writable install rewrites it to the packages this pnpm installs
+/// from.
+#[tokio::test]
+async fn frozen_lockfile_accepts_an_engine_package_it_does_not_install_from() {
+    let harness = harness();
+    let root = TempDir::new().unwrap();
+    let fixtures = || {
+        FixtureResolver::new()
+            .package(serde_json::json!({
+                "name": "pnpm",
+                "version": "12.0.0",
+                "bin": "bin/pnpm.cjs",
+            }))
+            .package(serde_json::json!({
+                "name": "@pnpm/exe",
+                "version": "12.0.0",
+                "bin": "pnpm",
+            }))
+    };
+    // The set an older pnpm records for a v12 pin.
+    resolve_package_manager_integrities(
+        &["pnpm", "@pnpm/exe"],
+        "^12.0.0",
+        "12.0.0",
+        &fixtures(),
+        &options(&harness, root.path(), false),
+        false,
+    )
+    .await
+    .unwrap();
+    let lockfile_path = root.path().join("pnpm-lock.yaml");
+    let before = std::fs::read_to_string(&lockfile_path).unwrap();
+
+    resolve_package_manager_integrities(
+        pnpm_engine_packages("12.0.0"),
+        "^12.0.0",
+        "12.0.0",
+        &fixtures(),
+        &options(&harness, root.path(), true),
+        false,
+    )
+    .await
+    .expect("the block pins the wanted version, so there is nothing to update");
+    assert_eq!(std::fs::read_to_string(&lockfile_path).unwrap(), before);
+
+    let env = resolve_package_manager_integrities(
+        pnpm_engine_packages("12.0.0"),
+        "^12.0.0",
+        "12.0.0",
+        &fixtures(),
+        &options(&harness, root.path(), false),
+        false,
+    )
+    .await
+    .unwrap();
+
+    let recorded: Vec<&str> = env.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
+        .as_ref()
+        .expect("recorded package manager dependencies")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(recorded, ["pnpm"], "a writable install records what it installs from");
+}
+
+/// The tolerance is for a package pinned at the wanted version. One pinning
+/// anything else is a block that disagrees with the manifest.
+#[tokio::test]
+async fn frozen_lockfile_rejects_an_engine_package_pinned_at_another_version() {
+    let harness = harness();
+    let root = TempDir::new().unwrap();
+    let resolver = FixtureResolver::new()
+        .package(serde_json::json!({
+            "name": "pnpm",
+            "version": "12.0.0",
+            "bin": "bin/pnpm.cjs",
+        }))
+        .package(serde_json::json!({
+            "name": "@pnpm/exe",
+            "version": "12.0.0",
+            "bin": "pnpm",
+        }));
+    resolve_package_manager_integrities(
+        &["pnpm", "@pnpm/exe"],
+        "^12.0.0",
+        "12.0.0",
+        &resolver,
+        &options(&harness, root.path(), false),
+        false,
+    )
+    .await
+    .unwrap();
+    let mut env_lockfile = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    env_lockfile
+        .root_importer_mut()
+        .package_manager_dependencies
+        .as_mut()
+        .expect("recorded package manager dependencies")
+        .insert(
+            "@pnpm/exe".to_string(),
+            SpecifierAndResolution {
+                specifier: "^12.0.0".to_string(),
+                version: "11.23.0".to_string(),
+            },
+        );
+    env_lockfile.write(root.path()).unwrap();
+    let lockfile_path = root.path().join("pnpm-lock.yaml");
+    let before = std::fs::read_to_string(&lockfile_path).unwrap();
+
+    let error = resolve_package_manager_integrities(
+        pnpm_engine_packages("12.0.0"),
+        "^12.0.0",
+        "12.0.0",
+        &resolver,
+        &options(&harness, root.path(), true),
+        false,
+    )
+    .await
+    .expect_err("an entry pinning another version is an outdated lockfile");
+
+    assert!(matches!(error, ConfigDepError::FrozenLockfileOutdated { .. }), "{error:?}");
+    assert_eq!(std::fs::read_to_string(&lockfile_path).unwrap(), before);
+}
+
 /// Entries that do not record the pinned version are the case
 /// `--frozen-lockfile` exists for: recording them would take the lockfile
 /// out of sync with the manifest, so the command fails instead, and the

@@ -37,19 +37,40 @@ export interface ResolvePackageManagerIntegritiesOpts {
 }
 
 /**
- * Checks if the wanted pnpm version integrities are already fully resolved in the env lockfile.
+ * Whether the env lockfile already records what this pnpm writes for
+ * `pnpmVersion`: the pinned packages, and nothing besides them.
  */
 export function isPackageManagerResolved (
   envLockfile: EnvLockfile | undefined,
   pnpmVersion: string
 ): boolean {
-  if (!envLockfile) return false
-
-  const pmDeps = envLockfile.importers['.'].packageManagerDependencies
+  const pmDeps = envLockfile?.importers['.'].packageManagerDependencies
   if (pmDeps == null) return false
-  const wantedDeps = packageManagerDeps(pnpmVersion)
-  return Object.keys(pmDeps).length === wantedDeps.length &&
-    wantedDeps.every((name) => pmDeps[name]?.version === pnpmVersion)
+  return Object.keys(pmDeps).length === packageManagerDeps(pnpmVersion).length &&
+    pinsWantedPackageManager(envLockfile, pnpmVersion)
+}
+
+/**
+ * Whether the env lockfile pins the package manager the manifest asks for,
+ * even when it records more packages than this pnpm installs it from.
+ *
+ * A pnpm below 11.20.0 pins `@pnpm/exe` beside `pnpm` for a v12 version,
+ * because that is the set its own major is installed from. Such an entry pins
+ * the wanted version through the same integrity and cannot change which pnpm
+ * runs, so a frozen lockfile accepts it instead of failing a project whose
+ * lockfile a teammate's older pnpm last wrote. An entry pinning any other
+ * version is a lockfile that disagrees with the manifest, which is what the
+ * flag is for, and a writable install still rewrites the block to the
+ * packages this pnpm installs from.
+ */
+export function pinsWantedPackageManager (
+  envLockfile: EnvLockfile | undefined,
+  pnpmVersion: string
+): boolean {
+  const pmDeps = envLockfile?.importers['.'].packageManagerDependencies
+  if (pmDeps == null) return false
+  return packageManagerDeps(pnpmVersion).every((name) => pmDeps[name] != null) &&
+    Object.values(pmDeps).every((dep) => dep.version === pnpmVersion)
 }
 
 /**
@@ -92,6 +113,9 @@ export async function resolvePackageManagerIntegrities (
   }
 
   if (save && opts.frozenLockfile) {
+    if (pinsWantedPackageManager(envLockfile, pnpmVersion)) {
+      return envLockfile
+    }
     throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot update packageManagerDependencies with "frozen-lockfile" because the lockfile is not up to date')
   }
 
