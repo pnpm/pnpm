@@ -65,6 +65,7 @@
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
     "@pnpm/workspace.projects-graph": "workspace:*",

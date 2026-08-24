@@ -127,6 +127,9 @@
       "path": "../../testing/registry-mock"
     },
     {
+      "path": "../../text/sanitize"
+    },
+    {
       "path": "../../workspace/projects-filter"
     },
     {

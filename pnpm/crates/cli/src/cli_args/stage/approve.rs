@@ -81,8 +81,11 @@ impl StageApprovalItem {
                 .map(|value| sanitize_inline(value).into_owned())
                 .filter(|value| !value.is_empty())
         };
+        // The id is validated before sanitizing: stripping a formatting
+        // character out of it must not be what makes it a UUID.
+        let id = item.get("id").and_then(Value::as_str).filter(|id| is_uuid(id))?.to_owned();
         Some(StageApprovalItem {
-            id: string_field("id").filter(|id| is_uuid(id))?,
+            id,
             package_name: string_field("packageName"),
             version: string_field("version"),
             tag: string_field("tag"),
@@ -180,13 +183,15 @@ pub(super) async fn stage_approve<Reporter: self::Reporter>(
 ///
 /// A staged version repeated on the command line is one approval: sending the
 /// second request would either fail against the release the first one
-/// published, or count the same package twice.
+/// published, or count the same package twice. Stage ids are hexadecimal, so
+/// the same id in two spellings is the same id; the first spelling is the one
+/// that reaches the registry.
 fn parse_stage_ids(params: &[String]) -> Result<Vec<String>, StageError> {
     let mut seen = HashSet::new();
     params
         .iter()
         .skip(1)
-        .filter(|stage_id| seen.insert((*stage_id).clone()))
+        .filter(|stage_id| seen.insert(stage_id.to_lowercase()))
         .map(
             |stage_id| {
                 if is_uuid(stage_id) {

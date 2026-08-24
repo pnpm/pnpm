@@ -531,7 +531,7 @@ describe('stage command against the registry mock', () => {
     }
   })
 
-  test('stage approve sends one request for a repeated stage id', async () => {
+  test('stage approve sends one request for a repeated stage id, whatever its spelling', async () => {
     const seen: string[] = []
     const registry = await createRegistry((request) => {
       const stageId = approvedStageId(request)
@@ -546,7 +546,7 @@ describe('stage command against the registry mock', () => {
         ...stageOpts(registry.url),
         cliOptions: { otp: '123456' },
         otp: '123456',
-      }, ['approve', STAGE_ID, STAGE_ID])
+      }, ['approve', STAGE_ID, STAGE_ID.toUpperCase()])
       expect(result).toBe(`Staged package ${STAGE_ID} approved and published successfully.`)
       expect(seen).toEqual([STAGE_ID])
       expect(registry.requests.filter(({ url }) => url.pathname === '/-/stage')).toHaveLength(0)

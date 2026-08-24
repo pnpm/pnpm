@@ -1,8 +1,9 @@
 import util from 'node:util'
 
 import { checkbox } from '@inquirer/prompts'
-import { PnpmError, redactAndSanitize } from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import chalk from 'chalk'
 
 import {
@@ -37,16 +38,30 @@ export async function stageApprove (opts: StageOptions, params: string[]): Promi
     if (selected.length === 0) return 'No staged packages were selected.'
     return approveStagedPackages(context, opts, selected)
   }
-  // A staged version repeated on the command line is one approval: sending the
-  // second request would either fail against the release the first one
-  // published, or count the same package twice.
-  const stageIds = [...new Set(parseStageIds(params, 'approve'))]
+  const stageIds = dedupeStageIds(parseStageIds(params, 'approve'))
   if (stageIds.length === 1) {
     const [stageId] = stageIds
     await approveStagedPackage(context, { id: stageId }, createStageOtpSession(context))
     return `Staged package ${stageId} approved and published successfully.`
   }
   return approveStagedPackages(context, opts, await resolveStageItems(context, stageIds))
+}
+
+/**
+ * A staged version repeated on the command line is one approval: sending the
+ * second request would either fail against the release the first one
+ * published, or count the same package twice. Stage ids are hexadecimal, so
+ * the same id in two spellings is the same id; the first spelling is the one
+ * that reaches the registry.
+ */
+function dedupeStageIds (stageIds: string[]): string[] {
+  const seen = new Set<string>()
+  return stageIds.filter((stageId) => {
+    const key = stageId.toLowerCase()
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 /**
@@ -178,7 +193,7 @@ function renderStageItemLabel (item: StageItem): string {
 
 /** Registry-provided text, stripped of what could rewrite the terminal. */
 function renderRegistryText (text: string): string {
-  return redactAndSanitize(text)
+  return sanitizeInline(text)
 }
 
 /** The label an error message identifies a staged version by. */

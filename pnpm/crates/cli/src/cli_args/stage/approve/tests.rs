@@ -127,12 +127,12 @@ fn stage_ids_are_validated_as_uuids() {
 }
 
 #[test]
-fn a_repeated_stage_id_is_approved_once() {
+fn a_repeated_stage_id_is_approved_once_whatever_its_spelling() {
     let params = vec![
         "approve".to_owned(),
         "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f".to_owned(),
         "2b8f1c14-4a0d-4a4a-9a2e-6c5a2f0a1b33".to_owned(),
-        "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f".to_owned(),
+        "1DE6F3DB-2ED9-4D72-B3DD-8F0E2B474A2F".to_owned(),
     ];
     assert_eq!(parse_stage_ids(&params).unwrap(), params[1..3]);
 }
@@ -165,6 +165,15 @@ fn a_listed_staged_version_without_a_uuid_id_is_dropped() {
     assert!(
         StageApprovalItem::from_value(&json!({
             "id": "../../../-/npm/v1/tokens",
+            "packageName": "foo",
+            "version": "1.0.0",
+        }))
+        .is_none(),
+    );
+    // Sanitizing the id must not be what turns it into a UUID.
+    assert!(
+        StageApprovalItem::from_value(&json!({
+            "id": "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f\u{202e}",
             "packageName": "foo",
             "version": "1.0.0",
         }))
