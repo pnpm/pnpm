@@ -40,8 +40,21 @@ export type { HoisterResult }
  * `(alias, depPath)`, so an alias exposing a package under a second
  * name gets a node, and a directory, of its own. An index over the
  * result holds the list and resolves an edge to its first entry.
+ *
+ * An injected directory dependency (a `directory` resolution) keeps
+ * its peer suffix: every variant of it is a separate on-disk copy of
+ * the local package, materialized with its own peer-resolved
+ * dependency set, so collapsing the variants would rewire every
+ * dependent of the losing one onto the survivor's children (Bit's
+ * root components pin conflicting peers across such copies on
+ * purpose). The registry collapse exists to stop peer-variant
+ * explosion on large lockfiles; directory snapshots are one per
+ * injected workspace package and cannot explode that way.
  */
 export function getHoisterPkgId (depPath: string, pkgSnapshot: PackageSnapshot): string {
+  if ('directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null) {
+    return depPath
+  }
   const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
   return `${name}@${version}`
 }

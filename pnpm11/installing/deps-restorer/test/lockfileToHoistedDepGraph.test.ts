@@ -134,3 +134,55 @@ function peerVariantLockfile (): LockfileObject {
     },
   } as unknown as LockfileObject
 }
+
+// Peer variants of an injected directory dependency (a `directory`
+// resolution) do not collapse (see `getHoisterPkgId`): each importer
+// that declares one gets a copy carrying its own peer-resolved
+// dependency set, so its direct-dependency entry must point at its own
+// variant's location — not at a copy whose children resolve the other
+// peer.
+test('lockfileToHoistedDepGraph keeps file-dep peer variants apart', async () => {
+  const dir = tempDir(false)
+  const opts = hoistedOpts(dir)
+  opts.storeController = {
+    fetchPackage: () => ({ filesIndexFile: '' }),
+    getFilesIndexFilePath: () => ({ filesIndexFile: '' }),
+  } as unknown as typeof opts.storeController
+
+  const { graph } = await lockfileToHoistedDepGraph(fileVariantLockfile(), null, opts)
+
+  const compDirs = Object.keys(graph).filter((dir) => path.basename(dir) === 'comp')
+  expect(compDirs).toHaveLength(2)
+  const [firstPeer, secondPeer] = compDirs.map((dir) => graph[dir].children.peer)
+  expect(firstPeer).toBeDefined()
+  expect(secondPeer).toBeDefined()
+  expect(firstPeer).not.toBe(secondPeer)
+})
+
+function fileVariantLockfile (): LockfileObject {
+  const importer = (peerVersion: string) => ({
+    dependencies: {
+      comp: `file:comp(peer@${peerVersion})`,
+      peer: peerVersion,
+    },
+    specifiers: { comp: 'workspace:*', peer: peerVersion },
+  })
+  const compVariant = (peerVersion: string) => ({
+    resolution: { directory: 'comp', type: 'directory' },
+    dependencies: { peer: peerVersion },
+  })
+  return {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': { specifiers: {} },
+      'node_modules/.bit_roots/r1': importer('1.0.0'),
+      'node_modules/.bit_roots/r2': importer('2.0.0'),
+    },
+    packages: {
+      'comp@file:comp(peer@1.0.0)': compVariant('1.0.0'),
+      'comp@file:comp(peer@2.0.0)': compVariant('2.0.0'),
+      'peer@1.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
+      'peer@2.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
+    },
+  } as unknown as LockfileObject
+}

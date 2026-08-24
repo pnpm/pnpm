@@ -1316,6 +1316,82 @@ fn peer_suffix_variants_collapse_to_one_hoisted_copy() {
     );
 }
 
+/// Peer variants of an *injected directory* dependency (a `file:`
+/// snapshot) must NOT collapse: each variant is its own on-disk copy
+/// of the local package, materialized with its own peer-resolved
+/// dependency set. Collapsing them rewires every dependent of the
+/// losing variant onto the survivor's children — a Bit "root
+/// component" importer pinning `p@2` would silently resolve the
+/// `p@1` copy (teambit/bit's root-components e2e caught this).
+///
+/// The perf motivation for the registry collapse (peer-variant
+/// explosion on big lockfiles) does not apply here: `file:` variants
+/// exist only for injected workspace packages, a handful per root.
+#[test]
+fn file_dep_peer_variants_keep_their_own_copies() {
+    let mut importers = HashMap::new();
+    importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), ProjectSnapshot::default());
+    for (importer_id, peer_ver) in
+        [("node_modules/.bit_roots/r1", "1.0.0"), ("node_modules/.bit_roots/r2", "2.0.0")]
+    {
+        let mut deps = ResolvedDependencyMap::new();
+        deps.insert(
+            pkg_name("comp"),
+            ResolvedDependencySpec {
+                specifier: "workspace:*".to_string(),
+                version: ver_peer(&format!("file:comp(p@{peer_ver})")).into(),
+            },
+        );
+        deps.insert(pkg_name("p"), resolved_dep(peer_ver));
+        importers.insert(
+            importer_id.to_string(),
+            ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
+        );
+    }
+
+    let mut snapshots = HashMap::new();
+    for peer_ver in ["1.0.0", "2.0.0"] {
+        let mut comp_deps = HashMap::new();
+        comp_deps.insert(pkg_name("p"), SnapshotDepRef::Plain(ver_peer(peer_ver)));
+        snapshots.insert(
+            dep_key("comp", &format!("file:comp(p@{peer_ver})")),
+            SnapshotEntry { dependencies: Some(comp_deps), ..SnapshotEntry::default() },
+        );
+        snapshots.insert(dep_key("p", peer_ver), SnapshotEntry::default());
+    }
+
+    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
+
+    let result =
+        hoist(&lockfile, &HoistOpts::default()).expect("file-variant hoist should succeed");
+
+    // Collect every `comp` node in the result with the importer chain
+    // it sits under, and the reference it carries.
+    fn collect(node: &HoisterResult, path: &str, out: &mut Vec<(String, String)>) {
+        for child in node.dependencies.borrow().iter() {
+            let child = &child.0;
+            if child.name == "comp" {
+                let reference =
+                    child.references.borrow().iter().next().cloned().unwrap_or_default();
+                out.push((path.to_string(), reference));
+            }
+            collect(child, &format!("{path}/{}", child.name), out);
+        }
+    }
+    let mut comp_nodes = Vec::new();
+    collect(&result, "", &mut comp_nodes);
+
+    let mut references: Vec<String> =
+        comp_nodes.iter().map(|(_, reference)| reference.clone()).collect();
+    references.sort_unstable();
+    references.dedup();
+    assert_eq!(
+        references,
+        ["comp@file:comp(p@1.0.0)", "comp@file:comp(p@2.0.0)"],
+        "both injected peer variants must survive as distinct copies: {comp_nodes:#?}",
+    );
+}
+
 /// A nearer ancestor holding a different version of a name blocks
 /// both hoisting and same-node dedup for that name (upstream's
 /// "filled by parent" scan): removing the edge would make this
