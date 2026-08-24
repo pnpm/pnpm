@@ -96,11 +96,12 @@ const CONFIG_ONLY_SETTING_KEYS = [
 ] as const satisfies ReadonlyArray<keyof ConfigWithDeprecatedSettings>
 
 /**
- * Recognized keys that have no field on {@link WorkspaceManifest} or
- * {@link ConfigWithDeprecatedSettings}: the legacy build policies
- * `pnpm approve-builds` migrates into `allowBuilds`, and `executionEnv`.
+ * Recognized workspace keys that have no field on {@link WorkspaceManifest}
+ * or {@link ConfigWithDeprecatedSettings}: install-only settings and the
+ * legacy build policies `pnpm approve-builds` migrates into `allowBuilds`.
  */
 const UNTYPED_WORKSPACE_SETTING_KEYS = [
+  'confirmModulesPurge',
   'executionEnv',
   'ignoredBuiltDependencies',
   'neverBuiltDependencies',
