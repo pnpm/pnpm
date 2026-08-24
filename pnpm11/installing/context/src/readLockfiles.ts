@@ -132,7 +132,7 @@ export async function readLockfiles (
   }
   const existsWantedLockfile = files[0] != null
   const existsCurrentLockfile = files[1] != null
-  const wantedLockfile = files[0] ??
+  let wantedLockfile = files[0] ??
     (currentLockfile && clone(currentLockfile)) ??
     createLockfileObject(importerIds, sopts)
   // Cloning the current lockfile means the disk copy of the wanted lockfile is
@@ -153,12 +153,7 @@ export async function readLockfiles (
     for (const project of opts.projects) {
       pruneUndeclaredDependencies(wantedLockfile.importers[project.id], project.manifest, opts.autoInstallPeers)
     }
-    const pruned = pruneSharedLockfile(wantedLockfile)
-    if (pruned.packages == null) {
-      delete wantedLockfile.packages
-    } else {
-      wantedLockfile.packages = pruned.packages
-    }
+    wantedLockfile = pruneSharedLockfile(wantedLockfile)
   }
   return {
     currentLockfile,
@@ -198,18 +193,25 @@ function pruneUndeclaredDependencies (
 }
 
 // Mirrors how satisfiesPackageManifest assigns a manifest entry to a lockfile
-// field, so that pruning to the manifest can never leave the frozen-lockfile
-// check with a field it would reject.
+// field, so that pruning to the manifest hands the frozen-lockfile check the
+// same fields it derives for itself.
 function declaredDepNamesByField (
   manifest: ProjectManifest,
   autoInstallPeers: boolean
 ): Record<DependenciesField, Set<string>> {
   const optionalDependencies = new Set(Object.keys(manifest.optionalDependencies ?? {}))
-  const dependencies = new Set([
-    ...Object.keys(manifest.dependencies ?? {}),
-    ...autoInstallPeers ? Object.keys(manifest.peerDependencies ?? {}) : [],
-  ].filter((depName) => !optionalDependencies.has(depName)))
+  const dependencies = new Set(Object.keys(manifest.dependencies ?? {})
+    .filter((depName) => !optionalDependencies.has(depName)))
   const devDependencies = new Set(Object.keys(manifest.devDependencies ?? {})
     .filter((depName) => !optionalDependencies.has(depName) && !dependencies.has(depName)))
+  if (autoInstallPeers) {
+    // Only a peer that no other field declares is auto-installed; one that is
+    // also declared elsewhere stays under the field that declares it.
+    for (const depName of Object.keys(manifest.peerDependencies ?? {})) {
+      if (!optionalDependencies.has(depName) && !devDependencies.has(depName)) {
+        dependencies.add(depName)
+      }
+    }
+  }
   return { dependencies, devDependencies, optionalDependencies }
 }
