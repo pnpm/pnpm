@@ -903,6 +903,34 @@ describe('locked peer provider preferences', () => {
     expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeTruthy()
   })
 
+  // The locked-peer branch reads the consumer's own peer metadata, which resolved package
+  // metadata can omit at runtime.
+  test('a locked peer context on a package without peer metadata resolves without a peer suffix', async () => {
+    const dependenciesTree = createTree()
+    const consumer = dependenciesTree.get(consumerNodeId)!
+    dependenciesTree.set(consumerNodeId, {
+      ...consumer,
+      resolvedPackage: {
+        name: consumerPkg.name,
+        pkgIdWithPatchHash: consumerPkg.pkgIdWithPatchHash,
+        version: consumerPkg.version,
+        id: consumerPkg.id,
+      } as unknown as PartialResolvedPackage,
+    })
+    const resolutionOpts = options(dependenciesTree, new Map([
+      ['peer', currentPeerNodeId],
+      ['retainer', retainerNodeId],
+      ['wrapper', wrapperNodeId],
+    ]))
+    const initial = await resolvePeers(resolutionOpts)
+    const preferred = await resolvePeers({
+      ...resolutionOpts,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+
+    expect(preferred.dependenciesGraph['consumer/1.0.0' as DepPath]).toBeTruthy()
+  })
+
   test('does not replace a newly resolved nested peer provider', async () => {
     const resolutionOpts = options(createTree(currentPeerNodeId), new Map([
       ['retainer', retainerNodeId],
@@ -1489,6 +1517,130 @@ describe('dedupePeers', () => {
     const depPaths = Object.keys(dependenciesGraph)
     expect(depPaths).toContain('plugin/1.0.0(parser/1.0.0(typescript/1.0.0))(typescript/1.0.0)')
     expect(depPaths).not.toContain('plugin/1.0.0(parser/1.0.0(typescript/2.0.0))(typescript/1.0.0)')
+  })
+
+  // Resolved package metadata can omit `peerDependencies` at runtime, so peer resolution
+  // treats an absent field as an empty one.
+  test('a peer provider without a peerDependencies field does not break peer resolution', async () => {
+    const ts1Pkg = {
+      name: 'typescript',
+      pkgIdWithPatchHash: 'typescript/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const ts2Pkg = {
+      name: 'typescript',
+      pkgIdWithPatchHash: 'typescript/2.0.0' as PkgIdWithPatchHash,
+      version: '2.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const parserPkg = {
+      name: 'parser',
+      pkgIdWithPatchHash: 'parser/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      id: '' as PkgResolutionId,
+    } as unknown as PartialResolvedPackage
+    const pluginPkg = {
+      name: 'plugin',
+      pkgIdWithPatchHash: 'plugin/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { parser: { version: '*' }, typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const umbrellaPkg = {
+      name: 'umbrella',
+      pkgIdWithPatchHash: 'umbrella/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const appPkg = {
+      name: 'app',
+      pkgIdWithPatchHash: 'app/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const { dependenciesGraph } = await resolvePeers({
+      allPeerDepNames: new Set(['typescript', 'parser']),
+      projects: [
+        {
+          directNodeIdsByAlias: new Map([
+            ['typescript', '>typescript/2.0.0>' as NodeId],
+            ['parser', '>parser/1.0.0>' as NodeId],
+            ['app', '>app/1.0.0>' as NodeId],
+          ]),
+          topParents: [],
+          rootDir: '' as ProjectRootDir,
+          id: '.',
+        },
+      ],
+      resolvedImporters: {},
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>typescript/2.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: ts2Pkg,
+          depth: 0,
+        }],
+        ['>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 0,
+        }],
+        ['>app/1.0.0>' as NodeId, {
+          children: {
+            typescript: '>app/1.0.0>typescript/1.0.0>' as NodeId,
+            umbrella: '>app/1.0.0>umbrella/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: appPkg,
+          depth: 0,
+        }],
+        ['>app/1.0.0>typescript/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: ts1Pkg,
+          depth: 1,
+        }],
+        ['>app/1.0.0>umbrella/1.0.0>' as NodeId, {
+          children: {
+            plugin: '>app/1.0.0>umbrella/1.0.0>plugin/1.0.0>' as NodeId,
+            parser: '>app/1.0.0>umbrella/1.0.0>parser/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: umbrellaPkg,
+          depth: 1,
+        }],
+        ['>app/1.0.0>umbrella/1.0.0>plugin/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: pluginPkg,
+          depth: 2,
+        }],
+        ['>app/1.0.0>umbrella/1.0.0>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 2,
+        }],
+      ]),
+      virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
+      lockfileDir: '',
+      peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set(),
+    })
+    // plugin still resolves both of its peers, and the parser without peer metadata
+    // contributes none of its own.
+    const depPaths = Object.keys(dependenciesGraph)
+    expect(depPaths).toContain('plugin/1.0.0(parser/1.0.0)(typescript/1.0.0)')
+    expect(dependenciesGraph['plugin/1.0.0(parser/1.0.0)(typescript/1.0.0)' as DepPath].resolvedPeerNames)
+      .toEqual(new Set(['parser', 'typescript']))
+    expect(depPaths).toContain('parser/1.0.0')
   })
 
   // A cycle re-entry of `a` (a→b→a) resolves against truncated children and must
