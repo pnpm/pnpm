@@ -50,11 +50,12 @@ use crate::{
 /// `env_root` is where the engine's env lockfile (its resolved package
 /// closure) is written, under the pnpm home directory. `spec` is the
 /// user's bare specifier (a version, range, or dist-tag) and `version` the
-/// exact version it resolved to. `force_resync` discards recorded
-/// `packageManagerDependencies` and re-resolves them even when they look
-/// up to date. `frozen_lockfile` refuses that write instead of performing
-/// it; only a caller whose `env_root` is the project itself passes it,
-/// since a global env lockfile is not what `--frozen-lockfile` freezes.
+/// exact version it resolved to. `force_resync` and `frozen_lockfile` are
+/// the [`resolve_package_manager_integrities`] flags of the same name; only
+/// a caller whose `env_root` is the project itself passes the latter, since
+/// a global env lockfile is not what `--frozen-lockfile` freezes.
+///
+/// [`resolve_package_manager_integrities`]: pnpm_env_installer::resolve_package_manager_integrities
 pub(crate) async fn install_engine_to_store<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     pm: PackageManager,
@@ -83,13 +84,7 @@ pub(crate) async fn install_engine_to_store<Reporter: self::Reporter + 'static>(
             frozen_lockfile,
             force_resync,
         )
-        .await?;
-        EnvLockfile::read(env_root)
-            .map_err(miette::Report::new)
-            .wrap_err("read the package-manager env lockfile")?
-            .ok_or_else(|| {
-                miette::miette!("the package-manager env lockfile is missing after resolution")
-            })?
+        .await?
     };
     install_engine_from_env::<Reporter>(config, pm, &env, version).await
 }

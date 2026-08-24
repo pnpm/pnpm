@@ -152,10 +152,12 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
                 .await?
                 .ok_or_else(|| miette::miette!(r#"Cannot resolve pnpm version for "{}""#, spec))?;
             if resolved.version == PNPM_VERSION {
-                if force_resync {
+                if force_resync && !frozen_lockfile {
                     // No switch to perform, but the recorded entries are
                     // invalid — heal them now or every later invocation
-                    // re-resolves over the network.
+                    // re-resolves over the network. A frozen lockfile cannot
+                    // be written, and nothing is installed here, so the
+                    // repair waits for a run that may write.
                     config_deps::sync_package_manager_dependencies(
                         config,
                         &env_root,

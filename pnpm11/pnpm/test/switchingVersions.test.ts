@@ -231,6 +231,40 @@ test('devEngines.packageManager is not re-resolved under --frozen-lockfile', asy
   expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
 })
 
+// https://github.com/pnpm/pnpm/issues/14124: entries an earlier pnpm recorded
+// with tarball URLs are discarded and re-resolved before the bootstrap reads
+// them. That repair re-records the version the manifest already pins, so a
+// frozen lockfile has nothing to reject — it used to fail the command.
+test('devEngines.packageManager entries with a tarball resolution are repaired under --frozen-lockfile', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=9.1.0 <9.1.2',
+        onFail: 'download',
+      },
+    },
+  })
+  expect(execPnpmSync(['help'], { env }).stdout.toString()).toContain('Version 9.1.1')
+
+  // The shape an earlier pnpm wrote, which the bootstrap refuses to read.
+  const lockfile = fs.readFileSync('pnpm-lock.yaml', 'utf8').replace(
+    /resolution: \{integrity: ([^}]+)\}/,
+    'resolution: {integrity: $1, tarball: https://registry.npmjs.org/pnpm/-/pnpm-9.1.1.tgz}'
+  )
+  fs.writeFileSync('pnpm-lock.yaml', lockfile)
+  writeYamlFileSync('pnpm-workspace.yaml', { frozenLockfile: true })
+
+  const { stdout } = execPnpmSync(['help'], { env })
+
+  expect(stdout.toString()).toContain('Version 9.1.1')
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
+})
+
 test('devEngines.packageManager without onFail=download does not switch version', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')

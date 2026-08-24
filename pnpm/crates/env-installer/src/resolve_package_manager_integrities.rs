@@ -4,7 +4,7 @@ use crate::{
     options::ConfigDepsInstallOptions,
     prune::prune_env_lockfile,
     resolve_optional_subdeps::resolution_has_integrity,
-    verify_env_lockfile::write_verified_env_lockfile,
+    verify_env_lockfile::{verify_env_lockfile, write_verified_env_lockfile},
 };
 use pnpm_lockfile::{
     EnvLockfile, LockfileResolution, PackageKey, PkgName, PkgVerPeer, RegistryResolution,
@@ -18,12 +18,18 @@ const PACKAGE_MANAGER_DEPS_PNPM_ONLY: [&str; 1] = ["pnpm"];
 const PNPM_EXE_INTRODUCED: (u64, u64, u64) = (6, 17, 1);
 
 /// Resolve the closure of `package_manager_deps` — the packages a package
-/// manager is installed from — at `version`, and record it in the env
-/// lockfile at `opts.root_dir`.
+/// manager is installed from — at `version`, record it in the env lockfile
+/// at `opts.root_dir`, and return that lockfile.
 ///
 /// `force_resync` skips the recorded-entries fast path, so entries that look
 /// up to date but are invalid (e.g. resolutions carrying tarball URLs
-/// written by an earlier pnpm) are discarded and re-resolved.
+/// written by an earlier pnpm) are discarded and re-resolved. Such entries
+/// already record the version the manifest pins — only pnpm's own reading of
+/// them is at stake — so under `opts.frozen_lockfile` the re-resolution
+/// happens in memory and the lockfile is left untouched, rather than failing
+/// a command the manifest and the lockfile agree on. Entries that do not
+/// record the pinned version are the case `--frozen-lockfile` exists for and
+/// still fail.
 pub async fn resolve_package_manager_integrities(
     package_manager_deps: &[&str],
     wanted_specifier: &str,
@@ -31,7 +37,7 @@ pub async fn resolve_package_manager_integrities(
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
     force_resync: bool,
-) -> Result<(), ConfigDepError> {
+) -> Result<EnvLockfile, ConfigDepError> {
     let mut env_lockfile = EnvLockfile::read(opts.root_dir)
         .map_err(ConfigDepError::ReadLockfile)?
         .unwrap_or_else(EnvLockfile::create);
@@ -43,9 +49,10 @@ pub async fn resolve_package_manager_integrities(
             package_manager_deps,
         )
     {
-        return Ok(());
+        return Ok(env_lockfile);
     }
-    if opts.frozen_lockfile {
+    let repair_in_memory = force_resync && opts.frozen_lockfile;
+    if opts.frozen_lockfile && !force_resync {
         return Err(ConfigDepError::FrozenLockfileOutdated {
             message: r#"Cannot update packageManagerDependencies with "frozen-lockfile" because the lockfile is not up to date"#.to_string(),
         });
@@ -112,7 +119,12 @@ pub async fn resolve_package_manager_integrities(
     }
 
     prune_env_lockfile(&mut env_lockfile);
-    write_verified_env_lockfile(&env_lockfile, opts.root_dir)
+    if repair_in_memory {
+        verify_env_lockfile(&env_lockfile)?;
+    } else {
+        write_verified_env_lockfile(&env_lockfile, opts.root_dir)?;
+    }
+    Ok(env_lockfile)
 }
 
 /// Rewrite a registry tarball resolution to integrity-only form, dropping

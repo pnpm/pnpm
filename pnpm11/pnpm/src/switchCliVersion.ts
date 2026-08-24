@@ -108,6 +108,10 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       // an earlier pnpm recorded resolutions carrying tarball URLs. Rather than
       // refusing to run, discard them and resolve afresh through the trusted
       // bootstrap registries, which yields entries in the accepted shape.
+      //
+      // Those entries already record the version the manifest pins, so a
+      // frozen lockfile has nothing to reject here: the re-resolution stays in
+      // memory and the lockfile keeps the shape it had.
       delete envLockfile.importers['.'].packageManagerDependencies
       storeToUse ??= await createStoreController({ ...config, ...context, ...packageManagerConfig })
       envLockfile = await resolvePackageManagerIntegrities(pm.version, {
@@ -116,8 +120,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
         rootDir: context.rootProjectManifestDir,
         storeController: storeToUse.ctrl,
         storeDir: storeToUse.dir,
-        save: persistLockfile,
-        frozenLockfile: config.frozenLockfile,
+        save: persistLockfile && !config.frozenLockfile,
       })
       pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
       if (!pmVersion) {
