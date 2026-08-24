@@ -152,8 +152,8 @@ fn render_rows(choices: &[&Choice<'_>], workspaces_enabled: bool) -> Vec<ChoiceR
     let mut cells = vec![header];
     for choice in choices {
         let package = choice.package;
-        // The name, workspaces, and homepage are read out of manifests
-        // and registry metadata, so they are stripped of control
+        // The name, workspaces, and package URL include values read out
+        // of manifests and registry metadata, so they are stripped of control
         // characters before reaching the terminal: an escape sequence
         // would corrupt the prompt's redraw, and a newline would break
         // the row apart.
@@ -173,7 +173,15 @@ fn render_rows(choices: &[&Choice<'_>], workspaces_enabled: bool) -> Vec<ChoiceR
                     .join(", "),
             );
         }
-        row.push(package.homepage.as_deref().map(sanitize_inline).unwrap_or_default().into_owned());
+        let package_url = if package.github_action {
+            package.homepage.clone().unwrap_or_default()
+        } else {
+            format!(
+                "https://npmx.dev/package-changelog/{}/v/{}",
+                package.package_name, package.target,
+            )
+        };
+        row.push(sanitize_inline(&package_url).into_owned());
         cells.push(row);
     }
 
