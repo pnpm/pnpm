@@ -1176,11 +1176,10 @@ fn walker_wires_edges_declared_against_a_collapsed_peer_variant() {
     );
 }
 
-/// Peer variants of an injected directory dependency (`file:` snapshot)
-/// do not collapse (see [`pnpm_real_hoist::pkg_id`]): each importer that
-/// declares one gets a copy carrying its own peer-resolved dependency
-/// set, so its direct-dependency entry must point at its own variant's
-/// location — not at a copy whose children resolve the other peer.
+/// Peer variants of an injected directory dependency are exempt from
+/// the collapse (see [`pnpm_real_hoist::pkg_id`]), so the walk has to
+/// keep a location — and a direct-dependency entry — per variant,
+/// where every collapsed package funnels into one.
 #[test]
 fn walker_keeps_file_dep_peer_variants_apart() {
     let mut r1_deps = ResolvedDependencyMap::new();

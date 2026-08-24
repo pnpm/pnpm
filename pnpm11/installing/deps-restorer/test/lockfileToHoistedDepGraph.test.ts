@@ -135,12 +135,9 @@ function peerVariantLockfile (): LockfileObject {
   } as unknown as LockfileObject
 }
 
-// Peer variants of an injected directory dependency (a `directory`
-// resolution) do not collapse (see `getHoisterPkgId`): each importer
-// that declares one gets a copy carrying its own peer-resolved
-// dependency set, so its direct-dependency entry must point at its own
-// variant's location — not at a copy whose children resolve the other
-// peer.
+// Peer variants of an injected directory dependency are exempt from the
+// collapse (see `getHoisterPkgId`), so the walk has to keep a location
+// per variant, where every collapsed package funnels into one.
 test('lockfileToHoistedDepGraph keeps file-dep peer variants apart', async () => {
   const dir = tempDir(false)
   const opts = hoistedOpts(dir)
@@ -153,9 +150,6 @@ test('lockfileToHoistedDepGraph keeps file-dep peer variants apart', async () =>
 
   const compDirs = Object.keys(graph).filter((dir) => path.basename(dir) === 'comp')
   expect(compDirs).toHaveLength(2)
-  // Each copy must resolve the peer version its own variant pinned —
-  // asserting mere distinctness would also pass with the two variants
-  // swapped between importers.
   const peerVersionByVariant = Object.fromEntries(compDirs.map((dir) => {
     const variant = graph[dir].depPath
     const peerDir = graph[dir].children.peer

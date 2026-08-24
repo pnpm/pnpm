@@ -1317,17 +1317,10 @@ fn peer_suffix_variants_collapse_to_one_hoisted_copy() {
     );
 }
 
-/// Peer variants of an *injected directory* dependency (a `file:`
-/// snapshot) must NOT collapse: each variant is its own on-disk copy
-/// of the local package, materialized with its own peer-resolved
-/// dependency set. Collapsing them rewires every dependent of the
-/// losing variant onto the survivor's children — a Bit "root
-/// component" importer pinning `p@2` would silently resolve the
-/// `p@1` copy (teambit/bit's root-components e2e caught this).
-///
-/// The perf motivation for the registry collapse (peer-variant
-/// explosion on big lockfiles) does not apply here: `file:` variants
-/// exist only for injected workspace packages, a handful per root.
+/// Peer variants of an injected directory dependency are exempt from
+/// the collapse — see [`pkg_id`] for why. The fixture mirrors the
+/// teambit/bit root-components layout that caught the regression: two
+/// importers on the same `file:` package, pinning conflicting peers.
 #[test]
 fn file_dep_peer_variants_keep_their_own_copies() {
     let mut importers = HashMap::new();
@@ -1396,11 +1389,9 @@ fn file_dep_peer_variants_keep_their_own_copies() {
     );
 }
 
-/// A local tarball `file:` dependency collapses its peer variants like
-/// a registry package: every variant unpacks the same archive, so
-/// nesting a second copy per variant only costs disk — exactly the
-/// dedup the registry collapse exists for. Only *directory* `file:`
-/// snapshots are exempt (see [`pkg_id`]).
+/// The directory exemption in [`pkg_id`] must not widen to local
+/// tarballs: a `file:*.tgz` dependency collapses its peer variants
+/// like a registry package.
 #[test]
 fn file_tarball_peer_variants_collapse_like_registry_packages() {
     let mut importers = HashMap::new();
