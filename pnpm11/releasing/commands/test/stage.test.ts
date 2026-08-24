@@ -486,7 +486,7 @@ describe('stage command against the registry mock', () => {
         otp: '123456',
         workspaceDir,
         workspacePackagePatterns: ['packages/*'],
-      }, ['approve', STAGE_ID, SECOND_STAGE_ID])
+      }, ['approve', STAGE_ID.toUpperCase(), SECOND_STAGE_ID])
       expect(result).toStrictEqual({ exitCode: 0, output: 'Approved 2 staged packages successfully.' })
       expect(approved).toEqual([SECOND_STAGE_ID, STAGE_ID])
     } finally {

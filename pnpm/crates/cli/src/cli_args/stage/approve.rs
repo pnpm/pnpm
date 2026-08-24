@@ -212,19 +212,28 @@ async fn approval_items(context: &StageContext) -> miette::Result<Vec<StageAppro
         .collect())
 }
 
-/// The staged versions the given ids identify. An id the registry does not
-/// list is kept as is, so approving it fails on the registry's own error
-/// rather than on a guess about why it is missing.
+/// The staged versions the given ids identify. Stage ids are hexadecimal, so
+/// the lookup ignores their spelling: an id the listing carries in another
+/// casing still resolves to the package name the approval order and the
+/// dependency blocking are keyed on. An id the registry does not list at all
+/// is kept as is, so approving it fails on the registry's own error rather
+/// than on a guess about why it is missing.
 async fn resolve_approval_items(
     context: &StageContext,
     stage_ids: &[String],
 ) -> miette::Result<Vec<StageApprovalItem>> {
-    let listed: HashMap<String, StageApprovalItem> =
-        approval_items(context).await?.into_iter().map(|item| (item.id.clone(), item)).collect();
+    let listed: HashMap<String, StageApprovalItem> = approval_items(context)
+        .await?
+        .into_iter()
+        .map(|item| (item.id.to_lowercase(), item))
+        .collect();
     Ok(stage_ids
         .iter()
         .map(|stage_id| {
-            listed.get(stage_id).cloned().unwrap_or_else(|| StageApprovalItem::from_id(stage_id))
+            listed
+                .get(&stage_id.to_lowercase())
+                .cloned()
+                .unwrap_or_else(|| StageApprovalItem::from_id(stage_id))
         })
         .collect())
 }

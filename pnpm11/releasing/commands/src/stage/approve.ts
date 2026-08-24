@@ -69,7 +69,7 @@ function dedupeStageIds (stageIds: string[]): string[] {
  * the other subcommands address it by — the same UUID the command line
  * accepts, not an arbitrary string the registry puts in the listing.
  */
-function hasStageId (item: StageItem): boolean {
+function hasStageId (item: StageItem): item is StageItem & { id: string } {
   return typeof item.id === 'string' && UUID_REGEX.test(item.id)
 }
 
@@ -108,13 +108,17 @@ async function promptForStagedPackages (stagedPackages: StageItem[]): Promise<St
 }
 
 /**
- * The staged versions the given ids identify. An id the registry does not list
- * is kept as is, so approving it fails on the registry's own error rather than
- * on a guess about why it is missing.
+ * The staged versions the given ids identify. Stage ids are hexadecimal, so
+ * the lookup ignores their spelling: an id the listing carries in another
+ * casing still resolves to the package name the approval order and the
+ * dependency blocking are keyed on. An id the registry does not list at all is
+ * kept as is, so approving it fails on the registry's own error rather than on
+ * a guess about why it is missing.
  */
 async function resolveStageItems (context: StageContext, stageIds: string[]): Promise<StageItem[]> {
-  const itemsById = new Map((await fetchStageItems(context)).map((item) => [item.id, item]))
-  return stageIds.map((stageId) => itemsById.get(stageId) ?? { id: stageId })
+  const listedItems = (await fetchStageItems(context)).filter(hasStageId)
+  const itemsByStageId = new Map(listedItems.map((item) => [item.id.toLowerCase(), item]))
+  return stageIds.map((stageId) => itemsByStageId.get(stageId.toLowerCase()) ?? { id: stageId })
 }
 
 async function approveStagedPackages (

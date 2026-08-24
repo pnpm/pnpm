@@ -333,9 +333,18 @@ fn approve_skips_a_staged_package_whose_workspace_dependency_could_not_be_approv
     let dependent_mock =
         server.mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str()).expect(0).create();
 
+    // The dependent's id is given in another casing than the listing carries,
+    // so this also covers the listing lookup the approval order depends on.
     let output = stage(
         dir.path(),
-        &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
+        &[
+            "approve",
+            &STAGE_ID.to_uppercase(),
+            SECOND_STAGE_ID,
+            "--otp",
+            "123456",
+            "--reporter=silent",
+        ],
     );
 
     list_mock.assert();
