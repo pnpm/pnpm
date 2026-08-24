@@ -381,9 +381,9 @@ struct StageContext {
     web_auth_fetch_options: WebAuthFetchOptions,
 }
 
-/// An HTTP-level failure of a stage mutation, handed to
-/// [`with_otp_handling`]. Only the [`Otp`](Self::Otp) arm is a challenge it
-/// acts on; the rest propagate.
+/// An HTTP-level failure of a stage mutation, handed to the
+/// [`OtpSession`]. Only the [`Otp`](Self::Otp) arm is a challenge it acts on;
+/// the rest propagate.
 #[derive(Debug, Display, Error, Diagnostic)]
 enum StageHttpError {
     #[display("the registry requested a one-time password")]

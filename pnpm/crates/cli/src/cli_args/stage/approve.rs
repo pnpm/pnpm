@@ -1,10 +1,9 @@
 //! `pnpm stage approve` — publish staged versions, chosen interactively
 //! when none are named.
 //!
-//! A batch of versions is approved through a single
-//! [`OtpSession`](pnpm_network_web_auth::OtpSession), so one proof of
-//! presence covers all of them, and in workspace dependency order, so a
-//! package reaches the registry only after the workspace packages it
+//! A batch of versions is approved through a single [`OtpSession`], so one
+//! proof of presence covers all of them, and in workspace dependency order,
+//! so a package reaches the registry only after the workspace packages it
 //! depends on.
 
 use std::{
