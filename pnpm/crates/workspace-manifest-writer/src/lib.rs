@@ -26,6 +26,7 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 pub use pnpm_config::version_policy::ResolvedPackageVersions;
 
 mod edit;
+mod flow;
 mod model;
 mod render;
 
@@ -88,7 +89,7 @@ pub enum UpdateWorkspaceManifestError {
     OverrideConflict { path: std::path::PathBuf, key: String },
 
     #[display(
-        "Cannot edit {key:?} in {path:?}: it uses an inline (flow) YAML value. Reformat it to block style and try again."
+        "Cannot edit {key:?} in {path:?}: it uses an inline YAML value that cannot be edited in place (a multi-line flow collection, an alias, or a scalar). Reformat it to block style and try again."
     )]
     #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_UNSUPPORTED_INLINE_BLOCK))]
     UnsupportedInlineBlock { path: std::path::PathBuf, key: String },
@@ -116,6 +117,17 @@ fn has_control_char(value: &str) -> bool {
     value
         .chars()
         .any(|character| character.is_control() || matches!(character, '\u{2028}' | '\u{2029}'))
+}
+
+/// The first of `paths` whose value is written as an inline shape none of
+/// the writers can edit, named for the error message. A single-line flow
+/// collection is editable and never reported here; a multi-line one, an
+/// alias, or a scalar standing where a collection belongs is.
+fn unsupported_inline_key(text: &str, paths: &[&[&str]]) -> Option<String> {
+    paths
+        .iter()
+        .find(|path| edit::has_unsupported_inline_value(text, path))
+        .map(|path| path.join("."))
 }
 
 /// Inputs of [`update_workspace_manifest`].
@@ -161,6 +173,19 @@ pub fn update_workspace_manifest(
 
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    if let Some(updated_catalogs) = opts
+        .updated_catalogs
+        .filter(|catalogs| catalogs.values().any(|entries| !entries.is_empty()))
+    {
+        let named: Vec<Vec<&str>> =
+            updated_catalogs.keys().map(|name| vec!["catalogs", name.as_str()]).collect();
+        let mut paths: Vec<&[&str]> = vec![&["catalog"], &["catalogs"]];
+        paths.extend(named.iter().map(Vec::as_slice));
+        if let Some(key) = unsupported_inline_key(manifest.text(), &paths) {
+            return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+        }
+    }
 
     let mut changed = match opts.updated_catalogs {
         Some(updated_catalogs) => {
@@ -267,6 +292,13 @@ pub fn set_config_dependencies<'a>(
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
+    let entries: Vec<(&str, &str)> = entries.into_iter().collect();
+    if !entries.is_empty()
+        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["configDependencies"]])
+    {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+    }
+
     let mut changed = false;
     for (name, specifier) in entries {
         changed |= edit::add_config_dependency(&mut manifest, name, specifier)
@@ -339,6 +371,13 @@ where
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
+    let entries: Vec<(&str, bool)> = entries.into_iter().collect();
+    if !entries.is_empty()
+        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["allowBuilds"]])
+    {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+    }
+
     let mut changed = false;
     for (name, value) in entries {
         // The block-style splice writes `- name: true` on one line, so a
@@ -395,6 +434,13 @@ where
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
+    let names: Vec<&str> = names.into_iter().collect();
+    if !names.is_empty()
+        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["allowBuilds"]])
+    {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+    }
+
     let mut changed = false;
     for name in names {
         // Same guard as `set_allow_builds`: the block-style splice writes
@@ -433,6 +479,12 @@ pub fn set_patched_dependencies(
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
+    if !patched_dependencies.is_empty()
+        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["patchedDependencies"]])
+    {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+    }
+
     let changed = edit::add_patched_dependencies(&mut manifest, patched_dependencies)
         .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
     if !changed {
@@ -470,13 +522,11 @@ where
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
-    // The block-style splice can't safely edit an inline (flow) `overrides:`
-    // mapping; refuse rather than corrupt it.
-    if edit::top_level_has_inline_value(manifest.text(), "overrides") {
-        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
-            path,
-            key: "overrides".to_string(),
-        });
+    let entries: Vec<(&str, &str)> = entries.into_iter().collect();
+    if !entries.is_empty()
+        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["overrides"]])
+    {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }
 
     let mut changed = false;
@@ -534,13 +584,11 @@ pub fn set_audit_ignore_ghsas(
         });
     }
 
-    // The block-style splice can't safely edit an inline (flow) `auditConfig:`
-    // mapping; refuse rather than corrupt it.
-    if edit::top_level_has_inline_value(manifest.text(), "auditConfig") {
-        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
-            path,
-            key: "auditConfig".to_string(),
-        });
+    if let Some(key) = unsupported_inline_key(
+        manifest.text(),
+        &[&["auditConfig"], &["auditConfig", "ignoreGhsas"]],
+    ) {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }
 
     let changed = edit::set_audit_ignore_ghsas(&mut manifest, ghsas)
@@ -579,6 +627,10 @@ pub fn set_minimum_release_age_excludes(
 
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    if let Some(key) = unsupported_inline_key(manifest.text(), &[&["minimumReleaseAgeExclude"]]) {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+    }
 
     if !edit::set_minimum_release_age_excludes(&mut manifest, excludes) {
         return Ok(());
@@ -637,6 +689,13 @@ pub fn update_manifest_field(
     let mut manifest = Manifest::parse(original.as_deref()).map_err(|source| {
         UpdateWorkspaceManifestError::Parse { path: path.to_path_buf(), source }
     })?;
+
+    if edit::document_root_is_inline(manifest.text()) {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path: path.to_path_buf(),
+            key: key.to_string(),
+        });
+    }
 
     let changed = if value.is_null() {
         edit::remove_top_level_field(&mut manifest, key)

@@ -167,7 +167,26 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 #[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorkspaceSettings {
+    pub bail: Option<bool>,
     pub ci: Option<bool>,
+    pub update_notifier: Option<bool>,
+    pub color: Option<crate::ColorMode>,
+    pub embed_readme: Option<bool>,
+    pub ignore_workspace_root_check: Option<bool>,
+    pub optional: Option<bool>,
+    pub package_lock: Option<bool>,
+    pub pending: Option<bool>,
+    pub recursive_install: Option<bool>,
+    pub reverse: Option<bool>,
+    pub stream: Option<bool>,
+    pub aggregate_output: Option<bool>,
+    pub reporter_hide_prefix: Option<bool>,
+    pub use_stderr: Option<bool>,
+    pub ignore_workspace: Option<bool>,
+    pub shell_emulator: Option<bool>,
+    pub skip_manifest_obfuscation: Option<bool>,
+    pub sort: Option<bool>,
+    pub use_beta_cli: Option<bool>,
     pub hoist: Option<bool>,
 
     /// Tri-state `hoistPattern` — see `deserialize_double_option`.
@@ -330,6 +349,12 @@ pub struct WorkspaceSettings {
     /// `maxSockets` — per-origin concurrent-connection cap. See
     /// [`Config::max_sockets`]. Default unset (no per-origin cap).
     pub max_sockets: Option<usize>,
+    /// `maxsockets` — npm's spelling of [`Self::max_sockets`], which pnpm
+    /// reads too. A field of its own rather than a serde alias, because a
+    /// file carrying both spellings is a duplicate field to serde and
+    /// would fail the whole parse; pnpm takes it and lets the canonical
+    /// spelling win.
+    pub maxsockets: Option<usize>,
     pub fetch_timeout: Option<u64>,
     /// The `fetchWarnTimeoutMs` YAML value in milliseconds. [`None`] leaves
     /// [`Config::fetch_warn_timeout_ms`] unchanged.
@@ -519,6 +544,12 @@ pub struct WorkspaceSettings {
     /// [`Config::changed_files_ignore_pattern`].
     pub changed_files_ignore_pattern: Option<Vec<String>>,
 
+    /// `legacyDirFiltering` from `pnpm-workspace.yaml` — see
+    /// [`Config::legacy_dir_filtering`].
+    ///
+    /// [`Config::legacy_dir_filtering`]: crate::Config::legacy_dir_filtering
+    pub legacy_dir_filtering: Option<bool>,
+
     /// `syncInjectedDepsAfterScripts` from `pnpm-workspace.yaml` — see
     /// [`Config::sync_injected_deps_after_scripts`].
     pub sync_injected_deps_after_scripts: Option<Vec<String>>,
@@ -615,6 +646,36 @@ pub struct WorkspaceSettings {
     /// `initType` from `pnpm-workspace.yaml` /
     /// `~/.config/pnpm/config.yaml`. See [`InitType`].
     pub init_type: Option<InitType>,
+
+    /// `initAuthorName` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_author_name`].
+    ///
+    /// [`Config::init_author_name`]: crate::Config::init_author_name
+    pub init_author_name: Option<String>,
+
+    /// `initAuthorEmail` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_author_email`].
+    ///
+    /// [`Config::init_author_email`]: crate::Config::init_author_email
+    pub init_author_email: Option<String>,
+
+    /// `initAuthorUrl` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_author_url`].
+    ///
+    /// [`Config::init_author_url`]: crate::Config::init_author_url
+    pub init_author_url: Option<String>,
+
+    /// `initLicense` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_license`].
+    ///
+    /// [`Config::init_license`]: crate::Config::init_license
+    pub init_license: Option<String>,
+
+    /// `initVersion` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_version`].
+    ///
+    /// [`Config::init_version`]: crate::Config::init_version
+    pub init_version: Option<String>,
 
     /// `pmOnFail` from `pnpm-workspace.yaml`. See [`PmOnFail`].
     pub pm_on_fail: Option<PmOnFail>,
@@ -1198,6 +1259,13 @@ impl WorkspaceSettings {
         self.never_built_dependencies = None;
         self.ignored_built_dependencies = None;
         self.hoist = None;
+        self.embed_readme = None;
+        self.ignore_workspace_root_check = None;
+        self.pending = None;
+        self.recursive_install = None;
+        self.reverse = None;
+        self.skip_manifest_obfuscation = None;
+        self.sort = None;
         self.hoist_pattern = None;
         self.public_hoist_pattern = None;
         self.shamefully_hoist = None;
@@ -1242,6 +1310,7 @@ impl WorkspaceSettings {
         self.package_extensions = None;
         self.test_pattern = None;
         self.changed_files_ignore_pattern = None;
+        self.legacy_dir_filtering = None;
         self.sync_injected_deps_after_scripts = None;
         self.allow_unused_patches = None;
         self.save_catalog_name = None;
@@ -1451,6 +1520,13 @@ impl WorkspaceSettings {
             config.catalog_prune = v;
         }
 
+        // Tri-state on `Config`: `exec` treats "never asked" differently
+        // from an explicit `false`, so the macro's "apply when set" shape
+        // would collapse the distinction.
+        if let Some(v) = self.reporter_hide_prefix {
+            config.reporter_hide_prefix = Some(v);
+        }
+
         // pnpm spells the setting `gitBranchLockfile` and exposes the
         // resolved answer as `useGitBranchLockfile`; the macro below can
         // only apply fields the two structs name identically.
@@ -1473,7 +1549,11 @@ impl WorkspaceSettings {
         }
 
         apply! {
-            ci, hoist, shamefully_hoist,
+            bail, ci, update_notifier, color, embed_readme, ignore_workspace_root_check,
+            optional, package_lock, pending, recursive_install, reverse,
+            stream, aggregate_output, use_stderr, ignore_workspace, shell_emulator,
+            skip_manifest_obfuscation, sort, use_beta_cli,
+            hoist, shamefully_hoist,
             node_linker, node_experimental_package_map, node_package_map_type,
             symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
@@ -1512,7 +1592,7 @@ impl WorkspaceSettings {
             enable_global_virtual_store,
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
-            test_pattern, changed_files_ignore_pattern,
+            test_pattern, changed_files_ignore_pattern, legacy_dir_filtering,
             sync_injected_deps_after_scripts,
             resolution_mode, catalog_mode, catalog_prune,
             minimum_release_age_exclude_prune, save_peer, save_exact,
@@ -1560,6 +1640,21 @@ impl WorkspaceSettings {
         }
         if let Some(save_catalog_name) = self.save_catalog_name {
             config.save_catalog_name = Some(save_catalog_name);
+        }
+        if let Some(init_author_name) = self.init_author_name {
+            config.init_author_name = Some(init_author_name);
+        }
+        if let Some(init_author_email) = self.init_author_email {
+            config.init_author_email = Some(init_author_email);
+        }
+        if let Some(init_author_url) = self.init_author_url {
+            config.init_author_url = Some(init_author_url);
+        }
+        if let Some(init_license) = self.init_license {
+            config.init_license = Some(init_license);
+        }
+        if let Some(init_version) = self.init_version {
+            config.init_version = Some(init_version);
         }
         if let Some(save_prefix) = self.save_prefix {
             config.save_prefix = Some(save_prefix);
@@ -1687,6 +1782,11 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.node_download_mirrors {
             config.node_download_mirrors = v;
+        }
+        // npm's spelling first, so the canonical one wins when a single
+        // file carries both.
+        if let Some(v) = self.maxsockets {
+            config.max_sockets = Some(v);
         }
         if let Some(v) = self.max_sockets {
             config.max_sockets = Some(v);

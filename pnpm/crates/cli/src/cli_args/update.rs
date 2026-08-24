@@ -29,8 +29,11 @@ pub struct UpdateDependencyOptions {
     /// Update packages only in "devDependencies".
     #[clap(short = 'D', long)]
     dev: bool,
+    /// Update packages only in "optionalDependencies".
+    #[clap(long, overrides_with = "no_optional")]
+    optional: bool,
     /// Don't update packages in "optionalDependencies".
-    #[clap(long)]
+    #[clap(long, overrides_with = "optional")]
     no_optional: bool,
 }
 
@@ -38,14 +41,17 @@ impl UpdateDependencyOptions {
     /// The dependency groups whose direct dependencies the update may
     /// match. Returns the groups for which the corresponding inclusion bit
     /// is set.
+    ///
+    /// This narrows what the update *matches*, not what the install that
+    /// follows it materializes: pnpm leaves the `included` set recorded in
+    /// `.modules.yaml` untouched for an update, so these flags never reach
+    /// [`Config::optional`] and friends.
     fn include_direct(&self) -> Vec<DependencyGroup> {
         // `Some(true)` only when the flag was explicitly passed: the raw
         // CLI flags are read rather than the merged config.
         let production = self.prod.then_some(true);
         let dev = self.dev.then_some(true);
-        // There is no positive `--optional` flag for update; `--no-optional`
-        // sets it to `false`, otherwise it stays unset.
-        let optional = self.no_optional.then_some(false);
+        let optional = self.optional.then_some(true).or_else(|| self.no_optional.then_some(false));
 
         let ne_true = |flag: Option<bool>| flag != Some(true);
         let dependencies = production == Some(true) || (ne_true(dev) && ne_true(optional));
@@ -169,7 +175,7 @@ impl UpdateArgs {
         let workspace_packages = self
             .check_workspace_option(state.config.workspace_dir.as_deref())?
             .map(|workspace_root| {
-                recursive::discover_workspace_projects(workspace_root)
+                recursive::discover_workspace_projects(workspace_root, state.config)
                     .map(|(projects, _)| build_workspace_packages_map(Some(&projects)))
             })
             .transpose()?

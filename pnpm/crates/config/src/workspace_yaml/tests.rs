@@ -3,7 +3,7 @@ use super::{
     registries::{RegistryDeclaration, RegistryEntry},
 };
 use crate::{
-    AuditLevel, CatalogMode, Config, GlobalShims, GlobalShimsSetting, HoistingLimits,
+    AuditLevel, CatalogMode, ColorMode, Config, GlobalShims, GlobalShimsSetting, HoistingLimits,
     LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode, ScriptsPrependNodePath,
     ShimPolicy, TrustPolicy, api::EnvVar,
 };
@@ -39,6 +39,89 @@ packages:
     assert!(matches!(settings.node_linker, Some(NodeLinker::Hoisted)));
     assert_eq!(settings.node_experimental_package_map, Some(true));
     assert_eq!(settings.node_package_map_type, Some(NodePackageMapType::Loose));
+}
+
+#[test]
+fn parity_settings_parse_and_apply() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+bail: false
+color: never
+embedReadme: true
+ignoreWorkspaceRootCheck: true
+optional: false
+packageLock: false
+pending: true
+recursiveInstall: false
+reverse: true
+shellEmulator: true
+skipManifestObfuscation: true
+sort: false
+useBetaCli: true
+",
+    )
+    .unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.bail);
+    assert_eq!(config.color, ColorMode::Never);
+    assert!(config.embed_readme);
+    assert!(config.ignore_workspace_root_check);
+    assert!(!config.optional);
+    assert!(!config.package_lock);
+    assert!(config.pending);
+    assert!(!config.recursive_install);
+    assert!(config.reverse);
+    assert!(config.shell_emulator);
+    assert!(config.skip_manifest_obfuscation);
+    assert!(!config.sort);
+    assert!(config.use_beta_cli);
+}
+
+#[test]
+fn color_accepts_boolean_compatibility_values() {
+    let always: WorkspaceSettings = serde_saphyr::from_str("color: true\n").unwrap();
+    let never: WorkspaceSettings = serde_saphyr::from_str("color: false\n").unwrap();
+    assert_eq!(always.color, Some(ColorMode::Always));
+    assert_eq!(never.color, Some(ColorMode::Never));
+}
+
+#[test]
+fn parity_settings_follow_global_config_key_routing() {
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+bail: false
+color: never
+embedReadme: true
+ignoreWorkspaceRootCheck: true
+optional: false
+packageLock: false
+pending: true
+recursiveInstall: false
+reverse: true
+shellEmulator: true
+skipManifestObfuscation: true
+sort: false
+useBetaCli: true
+",
+    )
+    .unwrap();
+    settings.clear_workspace_only_fields();
+
+    assert_eq!(settings.bail, Some(false));
+    assert_eq!(settings.color, Some(ColorMode::Never));
+    assert_eq!(settings.optional, Some(false));
+    assert_eq!(settings.package_lock, Some(false));
+    assert_eq!(settings.shell_emulator, Some(true));
+    assert_eq!(settings.use_beta_cli, Some(true));
+    assert_eq!(settings.embed_readme, None);
+    assert_eq!(settings.ignore_workspace_root_check, None);
+    assert_eq!(settings.pending, None);
+    assert_eq!(settings.recursive_install, None);
+    assert_eq!(settings.reverse, None);
+    assert_eq!(settings.skip_manifest_obfuscation, None);
+    assert_eq!(settings.sort, None);
 }
 
 #[test]

@@ -311,6 +311,11 @@ export interface Config extends OptionsFromRootManifest {
   syncInjectedDepsAfterScripts?: string[]
   initPackageManager: boolean
   initType: 'commonjs' | 'module'
+  initAuthorName?: string
+  initAuthorEmail?: string
+  initAuthorUrl?: string
+  initLicense?: string
+  initVersion?: string
   dangerouslyAllowAllBuilds: boolean
   ci: boolean
   preserveAbsolutePaths?: boolean

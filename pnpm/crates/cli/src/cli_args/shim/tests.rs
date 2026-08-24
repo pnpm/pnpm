@@ -1,5 +1,9 @@
-use super::{installed_shims, virtual_shim_package, virtual_shims};
-use pnpm_cmd_shim::{Host as CmdShimHost, link_virtual_shims};
+use super::{
+    VirtualShimPublication, installed_shims, publish_virtual_shims, record_virtual_shim_state,
+    remove_virtual_shim_state, virtual_shim_bins_to_restore, virtual_shim_owner,
+    virtual_shim_state_path, virtual_shims,
+};
+use pnpm_cmd_shim::{Host as CmdShimHost, link_virtual_shims, virtual_shim_package};
 use std::{collections::HashMap, fs};
 use tempfile::tempdir;
 
@@ -17,6 +21,17 @@ fn a_generated_shim_names_the_package_it_stands_for() {
             ("yarnpkg".to_string(), "yarn".to_string()),
         ]),
     );
+}
+
+#[cfg(windows)]
+#[test]
+fn a_virtual_shim_removes_the_native_executable_flavor() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("node.exe"), b"native node").unwrap();
+
+    link_virtual_shims::<CmdShimHost>("node", &["node"], dir.path()).expect("link the shim");
+
+    assert!(!dir.path().join("node.exe").exists());
 }
 
 /// A bin whose shim points at an installed target is somebody else's —
@@ -47,6 +62,41 @@ fn only_the_named_package_s_shims_are_reported() {
 #[test]
 fn a_body_that_only_mentions_the_marker_is_not_a_shim() {
     assert_eq!(virtual_shim_package("echo '# cmd-shim-target=pkg:yarn'\n"), None);
+}
+
+#[test]
+fn a_binary_in_the_global_bin_slot_is_not_a_virtual_shim() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("tool");
+    fs::write(&path, [0xff, 0xfe]).unwrap();
+
+    assert_eq!(virtual_shim_owner(&path).unwrap(), None);
+}
+
+#[test]
+fn failed_publication_retains_intent_for_a_retry() {
+    let root = tempdir().unwrap();
+    let bin_dir = root.path().join("bin");
+    let config_dir = root.path().join("config");
+    let bin_path = bin_dir.join("tool");
+    fs::create_dir_all(&bin_path).unwrap();
+    let config = pnpm_config::Config { config_dir: Some(config_dir.clone()), ..Default::default() };
+    let bins = vec!["tool".to_string()];
+    let publication = || VirtualShimPublication {
+        config: &config,
+        bin_dir: &bin_dir,
+        package: "tool",
+        bins: &bins,
+    };
+
+    publish_virtual_shims(&publication()).expect_err("the occupied bin path should fail");
+    assert!(bin_path.is_dir());
+    assert_eq!(virtual_shim_bins_to_restore(&bin_dir, "tool").unwrap(), bins);
+    assert!(fs::read_to_string(config_dir.join("config.yaml")).unwrap().contains("tool: auto"));
+
+    fs::remove_dir(&bin_path).unwrap();
+    publish_virtual_shims(&publication()).expect("retry publication");
+    assert_eq!(virtual_shim_owner(&bin_path).unwrap().as_deref(), Some("tool"));
 }
 
 /// A globally installed package manager opts into project-aware
@@ -105,4 +155,60 @@ fn a_bin_name_with_an_extension_is_still_discovered() {
     link_virtual_shims::<CmdShimHost>("tool", &["tool.js"], dir.path()).expect("link the shim");
 
     assert_eq!(installed_shims(dir.path(), "tool"), ["tool.js"]);
+}
+
+#[test]
+fn restoration_state_round_trips_scoped_packages_and_bins() {
+    let dir = tempdir().unwrap();
+    let bins = vec!["tool".to_string(), "tool.js".to_string()];
+
+    record_virtual_shim_state(dir.path(), "@scope/tool", &bins).expect("record state");
+
+    assert_eq!(virtual_shim_bins_to_restore(dir.path(), "@scope/tool").expect("read state"), bins);
+    let state_path = virtual_shim_state_path(dir.path(), "@scope/tool");
+    assert_eq!(state_path.parent(), Some(dir.path()));
+
+    remove_virtual_shim_state(dir.path(), "@scope/tool").expect("remove state");
+    assert!(
+        virtual_shim_bins_to_restore(dir.path(), "@scope/tool")
+            .expect("read removed state")
+            .is_empty(),
+    );
+}
+
+#[test]
+fn restoration_state_rejects_unsafe_bin_names() {
+    let dir = tempdir().unwrap();
+    let state_path = virtual_shim_state_path(dir.path(), "tool");
+    fs::write(
+        &state_path,
+        serde_json::to_vec(&serde_json::json!({
+            "package": "tool",
+            "bins": ["../outside"],
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let error = virtual_shim_bins_to_restore(dir.path(), "tool").unwrap_err();
+    let error = error.to_string();
+    assert!(error.contains(r#"invalid bin name "../outside""#), "{error}");
+}
+
+#[test]
+fn restoration_state_rejects_invalid_package_owners() {
+    let dir = tempdir().unwrap();
+    let state_path = virtual_shim_state_path(dir.path(), "../tool");
+    fs::write(
+        &state_path,
+        serde_json::to_vec(&serde_json::json!({
+            "package": "../tool",
+            "bins": ["tool"],
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let error = virtual_shim_bins_to_restore(dir.path(), "../tool").unwrap_err().to_string();
+    assert!(error.contains("invalid package owner"), "{error}");
 }

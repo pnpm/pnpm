@@ -2,7 +2,7 @@ use super::{
     KeptRangeVerdict, UpdateError, apply_bumped_manifest_specs, expand_update_selectors,
     insert_update_target, is_workspace_local_path_specifier, judge_against_kept_range,
     parse_update_param, persist_selected_manifests, prepare_selected_manifests,
-    selected_project_indices, update_target_name,
+    reject_versions_of_indirect_update_specs, selected_project_indices, update_target_name,
 };
 use pnpm_config::{CatalogMode, Config};
 use pnpm_network::ThrottledClient;
@@ -627,4 +627,59 @@ fn keeps_a_negated_alias_selector_negated() {
     let expanded = expand_update_selectors(&parsed);
 
     assert_eq!(expanded[1].pattern, "!foo");
+}
+
+/// Run the indirect-version check over `selectors` against a single manifest
+/// declaring `foo` directly.
+fn reject_indirect(selectors: &[&str]) -> Result<(), super::UpdateError> {
+    let dir = tempdir().expect("create temp dir");
+    let package_json = dir.path().join("package.json");
+    std::fs::write(
+        &package_json,
+        json!({ "name": "a", "dependencies": { "foo": "^1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    let manifest = PackageManifest::from_path(package_json).expect("read package.json");
+    let parsed = selectors.iter().map(|input| parse_update_param(input)).collect::<Vec<_>>();
+    reject_versions_of_indirect_update_specs::<SilentReporter>(
+        &parsed,
+        &[&manifest],
+        &[DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        "prefix",
+    )
+}
+
+#[test]
+fn an_exact_version_nothing_declares_directly_is_rejected() {
+    let err = reject_indirect(&["bar@1.2.3"]).expect_err("bar is not a direct dependency");
+    let rendered = err.to_string();
+    assert!(rendered.contains(r#""bar" (requested "1.2.3")"#), "{rendered}");
+}
+
+#[test]
+fn a_version_any_manifest_declares_directly_is_accepted() {
+    reject_indirect(&["foo@1.2.3"]).expect("foo is a direct dependency");
+}
+
+#[test]
+fn a_negated_selector_is_not_judged() {
+    // `!bar` excludes a name; the version on it requests nothing. Checked with
+    // no manifests too: with one, the "everything but bar" matcher happens to
+    // match some other direct dependency and hides the misclassification.
+    reject_indirect(&["!bar@1.2.3"]).expect("a negated selector requests no version");
+    let parsed = [parse_update_param("!bar@1.2.3")];
+    reject_versions_of_indirect_update_specs::<SilentReporter>(
+        &parsed,
+        &[],
+        &[DependencyGroup::Prod],
+        "prefix",
+    )
+    .expect("a negated selector requests no version");
+}
+
+#[test]
+fn a_range_or_a_tag_is_not_rejected() {
+    for selector in ["bar@^1.2.3", "bar@latest"] {
+        reject_indirect(&[selector]).unwrap_or_else(|err| panic!("{selector}: {err}"));
+    }
 }

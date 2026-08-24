@@ -28,9 +28,8 @@ pub(crate) fn emit_config_warning(message: &str) {
     // Styling is keyed off stdout, not stderr: pnpm's `formatWarn` colors
     // with chalk's default (stdout-probing) instance even though
     // `console.warn` writes to stderr.
-    let colors = Colors {
-        enabled: std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none(),
-    };
+    let colors =
+        Colors { enabled: pnpm_default_reporter::colors_enabled(std::io::stdout().is_terminal()) };
     let _ = writeln!(std::io::stderr(), "{} {message}", colors.warn_label());
 }
 

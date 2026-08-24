@@ -20,10 +20,11 @@ export async function checkForUpdates (config: Config): Promise<void> {
     state = await loadJsonFile(stateFile)
   } catch {}
 
-  if (
-    state?.lastUpdateCheck &&
-    (Date.now() - new Date(state.lastUpdateCheck).valueOf()) < UPDATE_CHECK_FREQUENCY
-  ) return
+  // A missing, unparsable, or future timestamp reads as "never checked", so
+  // a corrupted state file — or a clock that moved backwards — makes pnpm
+  // check again rather than go quiet until the recorded time comes around.
+  const sinceLastCheck = Date.now() - new Date(state?.lastUpdateCheck ?? '').valueOf()
+  if (sinceLastCheck >= 0 && sinceLastCheck < UPDATE_CHECK_FREQUENCY) return
 
   const { resolve } = createResolver({
     ...config,

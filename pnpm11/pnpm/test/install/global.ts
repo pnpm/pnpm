@@ -206,6 +206,50 @@ test('approve-builds during global add does not produce a doubled modules path',
   expect(fs.existsSync(path.join(pkgPath!, 'generated-by-install.js'))).toBe(true)
 })
 
+test('approve-builds -g approves pending builds in every global install group', async () => {
+  prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: [],
+    allowBuilds: { 'caller-project-policy': true },
+  })
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = {
+    [PATH_NAME]: `${path.join(pnpmHome, 'bin')}${path.delimiter}${process.env[PATH_NAME]!}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
+  await execPnpm(['add', '-g', '@pnpm.e2e/install-script-example@1.0.0'], { env })
+  await execPnpm(['add', '-g', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], { env })
+
+  const installScriptPkg = findGlobalPkg(globalPkgDir(pnpmHome), '@pnpm.e2e/install-script-example')!
+  const preAndPostinstallPkg = findGlobalPkg(globalPkgDir(pnpmHome), '@pnpm.e2e/pre-and-postinstall-scripts-example')!
+  expect(fs.existsSync(path.join(installScriptPkg, 'generated-by-install.js'))).toBe(false)
+  expect(fs.existsSync(path.join(preAndPostinstallPkg, 'generated-by-postinstall.js'))).toBe(false)
+
+  const globalWorkspaceManifestPath = path.join(globalPkgDir(pnpmHome), 'pnpm-workspace.yaml')
+  writeYamlFileSync(globalWorkspaceManifestPath, {
+    allowBuilds: { 'existing-global-policy': false },
+  })
+
+  await execPnpm(['approve-builds', '-g', '--all'], { env })
+
+  expect(fs.existsSync(path.join(installScriptPkg, 'generated-by-install.js'))).toBe(true)
+  expect(fs.existsSync(path.join(preAndPostinstallPkg, 'generated-by-postinstall.js'))).toBe(true)
+  const localWorkspaceManifest = readYamlFileSync<{ allowBuilds?: Record<string, boolean> }>('pnpm-workspace.yaml')
+  expect(localWorkspaceManifest.allowBuilds).toMatchObject({
+    'caller-project-policy': true,
+  })
+  expect(localWorkspaceManifest.allowBuilds).not.toHaveProperty('existing-global-policy')
+  const globalWorkspaceManifest = readYamlFileSync<{ allowBuilds?: Record<string, boolean> }>(globalWorkspaceManifestPath)
+  expect(globalWorkspaceManifest.allowBuilds).toMatchObject({
+    'existing-global-policy': false,
+  })
+  expect(globalWorkspaceManifest.allowBuilds).not.toHaveProperty('caller-project-policy')
+})
+
 // CONTEXT: dangerously-allow-all-builds has been removed from rc files, as a result, this test no longer applies
 // TODO: Maybe we should create a yaml config file specifically for `--global`? After all, this test is to serve such use-cases
 test.skip('dangerously-allow-all-builds=true in global config', async () => {

@@ -34,7 +34,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_config::{Config, Host, PNPM_VERSION, PmOnFail};
+use pnpm_config::{ColorMode, Config, Host, PNPM_VERSION, PmOnFail};
 use pnpm_default_reporter::DefaultReporter;
 use pnpm_env_installer::is_package_manager_resolved;
 use pnpm_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
@@ -210,6 +210,13 @@ fn pre_command_plan_from_input(
             .map_err(miette::Report::new)
             .wrap_err("load configuration")?;
     config_overrides.apply(&mut config);
+    if let Some(color) = switch.color {
+        config.color = color;
+    }
+    super::reporter::configure_color(config.color);
+    if config.ci {
+        pnpm_default_reporter::force_append_only();
+    }
     if let Some(state_dir) = switch.state_dir.as_deref() {
         apply_state_dir_override::<Host>(&mut config, state_dir, &dir);
     }
@@ -578,10 +585,12 @@ enum KeyIssueReporting {
 
 fn key_issue_reporting(command: &CliCommand) -> KeyIssueReporting {
     match command {
+        CliCommand::Get(get) if get.key.is_some() => KeyIssueReporting::Skip,
         CliCommand::Config(args) => match &args.command {
             ConfigSubcommand::Get(get) if get.key.is_some() => KeyIssueReporting::Skip,
             _ => KeyIssueReporting::WarnOnly,
         },
+        CliCommand::Get(_) | CliCommand::Set(_) => KeyIssueReporting::WarnOnly,
         _ => KeyIssueReporting::Enforce,
     }
 }
@@ -632,6 +641,9 @@ fn is_global(command: &CliCommand) -> bool {
             ConfigSubcommand::Delete(args) => args.flags.global,
             ConfigSubcommand::List(args) => args.flags.global,
         },
+        CliCommand::Get(args) => args.flags.global,
+        CliCommand::Set(args) => args.flags.global,
+        CliCommand::Env(args) => args.global,
         CliCommand::List(args) | CliCommand::Ll(args) => args.global,
         CliCommand::Outdated(args) => args.global,
         CliCommand::Prefix(args) => args.global,
@@ -884,6 +896,11 @@ fn should_skip_command(command: &CliCommand) -> bool {
             | CliCommand::Doctor(_)
             | CliCommand::FindHash(_)
             | CliCommand::Runtime(_)
+            | CliCommand::Env(_)
+            | CliCommand::Edit(_)
+            | CliCommand::Profile(_)
+            | CliCommand::Token(_)
+            | CliCommand::Xmas(_)
             | CliCommand::SelfUpdate(_)
             | CliCommand::Setup(_)
             | CliCommand::Shim(_)
@@ -901,15 +918,19 @@ fn should_skip_command_name(command: &str) -> bool {
             | "completion-server"
             | "dlx"
             | "doctor"
+            | "edit"
             | "env"
             | "find-hash"
+            | "profile"
             | "runtime"
             | "rt"
             | "self-update"
             | "setup"
             | "shim"
             | "store"
-            | "with",
+            | "token"
+            | "with"
+            | "xmas",
     )
 }
 
@@ -992,6 +1013,7 @@ struct SwitchInput {
     /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command
     /// line. `None` leaves the `frozenLockfile` setting to answer.
     frozen_lockfile: Option<bool>,
+    color: Option<ColorMode>,
 }
 
 impl SwitchInput {
@@ -1002,6 +1024,7 @@ impl SwitchInput {
             npmrc_auth_file: args.npmrc_auth_file.clone(),
             command: Some(command_name(&args.command).to_string()),
             frozen_lockfile: frozen_lockfile_flag(&args.command),
+            color: args.color.or_else(|| args.no_color.then_some(ColorMode::Never)),
         }
     }
 
@@ -1013,6 +1036,7 @@ impl SwitchInput {
             npmrc_auth_file: None,
             command: None,
             frozen_lockfile: None,
+            color: None,
         };
         let mut index = 1;
         while index < argv.len() {
@@ -1131,6 +1155,13 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Root(_) => "root",
         CliCommand::Prefix(_) => "prefix",
         CliCommand::Config(_) => "config",
+        CliCommand::Get(_) => "get",
+        CliCommand::Set(_) => "set",
+        CliCommand::Env(_) => "env",
+        CliCommand::Edit(_) => "edit",
+        CliCommand::Profile(_) => "profile",
+        CliCommand::Token(_) => "token",
+        CliCommand::Xmas(_) => "xmas",
         CliCommand::Pkg(_) => "pkg",
         CliCommand::PackApp(_) => "pack-app",
         CliCommand::Store(_) => "store",

@@ -6,7 +6,7 @@ use crate::{
         WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
-    decide_catalog, emit_initial_package_manifest,
+    decide_catalog, emit_initial_package_manifest, included_direct_groups,
     manifest_spec_bumps::ManifestSpecBumps,
     package_manifest_prefix,
     resolution_policy::{PickPolicy, create_configured_npm_resolver},
@@ -15,6 +15,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use node_semver::Version;
 use pnpm_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
@@ -38,7 +39,10 @@ use pnpm_reporter::{
 };
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets, VersionLine, real_package_name_of};
-use pnpm_resolving_npm_resolver::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
+use pnpm_resolving_npm_resolver::{
+    DeclaredSpecifiers, calc_specifier_for_workspace_dep, calc_version_range,
+    infer_range_spec_style,
+};
 use pnpm_resolving_resolver_base::{
     PreferredVersions, ResolveOptions, Resolver, UpdateBehavior, VersionSelectorType,
     WantedDependency, WorkspacePackages, WorkspacePackagesByVersion,
@@ -165,6 +169,16 @@ pub enum UpdateError {
     #[diagnostic(code(ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES))]
     NoPackageInDependencies,
 
+    /// A versioned selector named a package no selected project declares
+    /// directly, so there is nowhere to record the requested version.
+    #[display("{message}")]
+    #[diagnostic(code(ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP), help("{hint}"))]
+    UpdateVersionOnIndirectDep {
+        #[error(not(source))]
+        message: String,
+        hint: String,
+    },
+
     /// A `--workspace` selector named a dependency that no workspace
     /// project publishes.
     #[display(r#""{_0}" not found in the workspace"#)]
@@ -177,6 +191,17 @@ pub enum UpdateError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UPDATE_RESOLVE_LATEST))]
     ResolveLatest {
         name: String,
+        #[error(source)]
+        error: pnpm_resolving_resolver_base::ResolveError,
+    },
+
+    /// A resolver failed while resolving the dist tag an explicit
+    /// `<name>@<tag>` update selector named.
+    #[display("Failed to resolve {name}@{tag}: {error}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UPDATE_RESOLVE_TAG))]
+    ResolveTag {
+        name: String,
+        tag: String,
         #[error(source)]
         error: pnpm_resolving_resolver_base::ResolveError,
     },
@@ -306,6 +331,16 @@ impl Update<'_> {
         }
         let lockfile_specifier_project_manifests =
             (!save).then(|| vec![(manifest_dir.clone(), manifest.clone())]);
+        if !latest && depth > 0 {
+            let selectors =
+                packages.iter().map(|input| parse_update_param(input)).collect::<Vec<_>>();
+            reject_versions_of_indirect_update_specs::<Reporter>(
+                &selectors,
+                &[manifest],
+                &include_direct,
+                &package_manifest_prefix(manifest),
+            )?;
+        }
         let mut latest_chain = None;
         let Some(prepared) = prepare_manifest::<Reporter>(
             manifest,
@@ -368,7 +403,7 @@ impl Update<'_> {
             // `include` is always all-true for updates: the materialized
             // `node_modules` layout must not change just because the
             // update scope was narrowed.
-            dependency_groups: DIRECT_GROUPS,
+            dependency_groups: included_direct_groups(config.optional),
             frozen_lockfile: false,
             // `update` always re-resolves against the registry, so the
             // auto-frozen / repeat-install fast paths must not fire.
@@ -555,7 +590,7 @@ impl Update<'_> {
             emit_initial_manifest: false,
             lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
-            dependency_groups: DIRECT_GROUPS,
+            dependency_groups: included_direct_groups(config.optional),
             frozen_lockfile: false,
             prefer_frozen_lockfile: Some(false),
             ignore_manifest_check: false,
@@ -912,18 +947,6 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                     }
                 }
             }
-            for selector in &selectors {
-                let Some(version) = selector.version.as_deref() else { continue };
-                tracing::warn!(
-                    target: "pnpm_package_manager::update",
-                    pattern = selector.pattern,
-                    version,
-                    r#""{}" is not a direct dependency, so the requested version "{version}" is ignored — "{}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare to pnpm-workspace.yaml, e.g.: overrides: {{ "{}@<declared range>": "{version}" }}"#,
-                    selector.pattern,
-                    selector.pattern,
-                    selector.pattern,
-                );
-            }
         } else {
             if latest && !save {
                 emit_latest_ignored::<Reporter>(rewrite_ctx.manifest);
@@ -951,8 +974,10 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                         .iter()
                         .find(|selector| matcher_one(&selector.pattern).matches(name))
                         .and_then(|selector| selector.version.clone());
-                    // A cataloged dependency writes `catalog:` to the manifest, so a version
-                    // named on the command line only reaches the lockfile as a preference.
+                    // Seeded whatever the manifest ends up recording, so the
+                    // install locks the version that was asked for. A selector
+                    // naming a range or a tag is not a version and seeds
+                    // nothing.
                     if let Some(version) = requested.as_deref() {
                         crate::install_with_fresh_lockfile::prefer_requested_version(
                             &mut preferred_versions_override,
@@ -988,6 +1013,45 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                                 None
                             }
                         }
+                    } else if save
+                        && let Some(tag) = requested.as_deref().filter(|specifier| {
+                            get_version_selector_type(specifier) == Some(VersionSelectorType::Tag)
+                        })
+                    {
+                        // A dist tag names no version until it is resolved, so
+                        // an entry pinning a version or a range records what the
+                        // tag resolved to, keeping the operator it already pins.
+                        // An entry that already tracks a tag keeps tracking one.
+                        // Anything else — a `catalog:` reference, a `workspace:`
+                        // or `npm:` alias, a path or git dependency — declares
+                        // something no version round-trips, so it stands and the
+                        // selector reaches the install as a preference only.
+                        let rewritten = match get_version_selector_type(previous) {
+                            Some(VersionSelectorType::Version | VersionSelectorType::Range) => {
+                                match tag_version(&rewrite_ctx, latest_chain, name, tag).await? {
+                                    Some(version) => {
+                                        crate::install_with_fresh_lockfile::prefer_requested_version(
+                                            &mut preferred_versions_override,
+                                            name,
+                                            &version.to_string(),
+                                        );
+                                        Some(calc_version_range(
+                                            &version,
+                                            infer_range_spec_style(previous),
+                                            None,
+                                            range_spec_style,
+                                        ))
+                                    }
+                                    None => requested,
+                                }
+                            }
+                            Some(VersionSelectorType::Tag) => requested,
+                            None => None,
+                        };
+                        // A declaration that already says what the selector
+                        // settles on is not a rewrite; recording it would mark
+                        // the manifest dirty and persist it for nothing.
+                        rewritten.filter(|specifier| specifier != previous)
                     } else {
                         if save && requested.is_none() {
                             bump_targets.insert(name.clone());
@@ -1124,6 +1188,23 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
     let mut catalogs_override = None;
     let mut workspace_dir_for_catalogs = None;
     let mut any_work = false;
+
+    // Once per command, across every selected project: a selector that is a
+    // direct dependency of one project is legitimately versioned even where a
+    // sibling only reaches it transitively. `--depth 0` reports
+    // `NoPackageInDependencies` instead, and `--latest` rejects versioned
+    // selectors outright.
+    if !latest && depth > 0 {
+        let selectors = packages.iter().map(|input| parse_update_param(input)).collect::<Vec<_>>();
+        let manifests =
+            selected_indices.iter().map(|&index| &projects[index].manifest).collect::<Vec<_>>();
+        reject_versions_of_indirect_update_specs::<Reporter>(
+            &selectors,
+            &manifests,
+            include_direct,
+            &workspace_root.to_string_lossy(),
+        )?;
+    }
 
     for &index in selected_indices {
         let Some(prepared) = prepare_manifest::<Reporter>(
@@ -1469,6 +1550,91 @@ fn insert_update_target(targets: &mut UpdateTargets, selectors: &[ParsedSelector
     }
 }
 
+/// Whether any of `manifests` declares a dependency `selector` names, so the
+/// update has a manifest entry to write the requested version into.
+fn selector_matches_a_direct_dependency(
+    selector: &ParsedSelector,
+    manifests: &[&PackageManifest],
+    include_direct: &[DependencyGroup],
+) -> bool {
+    let matcher = matcher_one(&selector.pattern);
+    manifests.iter().any(|manifest| {
+        manifest.dependencies(include_direct.iter().copied()).any(|(name, _)| matcher.matches(name))
+    })
+}
+
+/// `pacquet update <dep>@<version>` where `<dep>` matches no direct dependency
+/// has nowhere to record the version. An update resolves such a target the way
+/// a fresh install would -- which a command-line version cannot influence -- so
+/// honoring the request would mean writing a lockfile entry no manifest backs,
+/// and the next fresh resolve would undo it. Neither npm nor Yarn accepts a
+/// version here either. Fail rather than resolve to something else and leave
+/// the caller a zero exit status to read.
+///
+/// A range or a tag names no single version to record, so updating within the
+/// dependents' ranges is a reasonable reading of it: those only warn. A
+/// negated selector excludes names rather than requesting one, so it is not
+/// judged here at all.
+///
+/// The override the hint recommends is scoped to the dependents' declared
+/// range so it cannot violate any consumer's range; that range lives in the
+/// dependents' manifests, which this layer does not read, hence the
+/// placeholder.
+fn reject_versions_of_indirect_update_specs<Reporter: self::Reporter>(
+    selectors: &[ParsedSelector],
+    manifests: &[&PackageManifest],
+    include_direct: &[DependencyGroup],
+    prefix: &str,
+) -> Result<(), UpdateError> {
+    let mut pinned = Vec::new();
+    for selector in selectors {
+        let Some(version) = selector.version.as_deref() else { continue };
+        // A negated selector excludes names; a version on one asks for nothing.
+        if selector.pattern.starts_with('!')
+            || selector_matches_a_direct_dependency(selector, manifests, include_direct)
+        {
+            continue;
+        }
+        let pattern = &selector.pattern;
+        if node_semver::Version::parse(version).is_err() {
+            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Warn,
+                message: format!(
+                    r#""{pattern}" is not a direct dependency, so the requested "{version}" is ignored — "{pattern}" is updated to what a fresh install would resolve."#,
+                ),
+                prefix: prefix.to_string(),
+            }));
+            continue;
+        }
+        pinned.push((pattern.clone(), version.to_string()));
+    }
+    if pinned.is_empty() {
+        return Ok(());
+    }
+    let subjects = pinned
+        .iter()
+        .map(|(pattern, version)| format!(r#""{pattern}" (requested "{version}")"#))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let tail = if pinned.len() == 1 {
+        "is not a direct dependency, so the requested version cannot"
+    } else {
+        "are not direct dependencies, so the requested versions cannot"
+    };
+    let overrides = pinned
+        .iter()
+        .map(|(pattern, version)| format!("    {pattern}@<declared range>: {version}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let names = pinned.iter().map(|(pattern, _)| pattern.as_str()).collect::<Vec<_>>().join(" ");
+    Err(UpdateError::UpdateVersionOnIndirectDep {
+        message: format!("{subjects} {tail} be recorded."),
+        hint: format!(
+            "An update resolves a transitive dependency the way a fresh install would, so a version on the command line has no effect on it. To pin one, add an override scoped to the range its dependents declare to pnpm-workspace.yaml:\n\n  overrides:\n{overrides}\n\nTo update it within the range its dependents already declare, drop the version: pnpm update {names}",
+        ),
+    })
+}
+
 /// The name an update target for `matched` is keyed by. A manifest keys a
 /// dependency by its alias, but the resolver matches update targets — and
 /// [`UpdateSeedPolicy::DropOnly`] keys them — by the package name the edge
@@ -1652,6 +1818,42 @@ async fn latest_specifier(
     Ok(resolved
         .and_then(|result| result.normalized_bare_specifier)
         .filter(|specifier| *specifier != effective))
+}
+
+/// The version dist tag `tag` names for `name`, or `None` when no resolver
+/// in the chain claims the dependency.
+///
+/// An explicit `<name>@<tag>` selector asks for the version behind exactly
+/// that tag, so — unlike [`latest_specifier`], which reaches for whichever
+/// of the declared range and the `latest` tag is higher — the tag is the
+/// whole specifier resolved here.
+async fn tag_version(
+    ctx: &LatestRewriteCtx<'_, '_>,
+    chain: &mut Option<LatestResolverChain>,
+    name: &str,
+    tag: &str,
+) -> Result<Option<Version>, UpdateError> {
+    let chain = ensure_latest_resolver_chain(chain, ctx)?;
+    let wanted = WantedDependency {
+        alias: Some(name.to_string()),
+        bare_specifier: Some(tag.to_string()),
+        ..WantedDependency::default()
+    };
+    let manifest_dir =
+        ctx.manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+    let opts = ResolveOptions {
+        project_dir: manifest_dir.clone(),
+        lockfile_dir: manifest_dir,
+        default_tag: Some(tag.to_string()),
+        published_by: chain.published_by,
+        published_by_exclude: chain.published_by_exclude.clone(),
+        dry_run: ctx.lockfile_only,
+        ..ResolveOptions::default()
+    };
+    let resolved = Resolver::resolve(&chain.resolver, &wanted, &opts).await.map_err(|error| {
+        UpdateError::ResolveTag { name: name.to_string(), tag: tag.to_string(), error }
+    })?;
+    Ok(resolved.and_then(|result| result.name_ver).map(|name_ver| name_ver.suffix))
 }
 
 /// The resolvers that can answer "what is the latest for this dependency",

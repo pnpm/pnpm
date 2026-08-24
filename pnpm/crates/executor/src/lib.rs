@@ -3,18 +3,23 @@ mod extend_path;
 mod lifecycle;
 mod make_env;
 mod run_script;
+mod script_exit;
 mod shell;
+mod shell_emulator;
 
 pub use bundled_node_gyp::bundled_node_gyp_bin;
 pub use extend_path::{ScriptsPrependNodePath, extend_path};
 pub use lifecycle::{
     DEV_PREINSTALL_ALREADY_RAN_ENV, DEV_PREINSTALL_STAGE, LifecycleScriptError,
-    PROJECT_LIFECYCLE_STAGES, RunPostinstallHooks, push_script_arg, run_dev_preinstall_hook,
-    run_lifecycle_hook, run_postinstall_hooks, run_project_lifecycle_scripts,
+    PROJECT_LIFECYCLE_STAGES, RunPostinstallHooks, StreamedScript, push_script_arg,
+    run_dev_preinstall_hook, run_lifecycle_hook, run_postinstall_hooks,
+    run_project_lifecycle_scripts,
 };
 pub use make_env::{EnvBuild, EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env};
-pub use run_script::{RunScript, RunScriptError, run_script};
+pub use run_script::{RunScript, RunScriptError, ScriptOutput, run_script};
+pub use script_exit::ScriptExit;
 pub use shell::{ScriptShellError, SelectedShell, select_shell};
+pub use shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;

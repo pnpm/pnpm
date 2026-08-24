@@ -9,11 +9,11 @@ use crate::{
     Envelope, FetchingProgressLog, FetchingProgressMessage, GetHostName, GlobalLog, HookLog, Host,
     IgnoredScriptsLog, LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileVerificationLog,
     LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog,
-    PackageManifestLog, PackageManifestMessage, PnpmErrorLog, PnpmLog, ProgressLog,
-    ProgressMessage, PromptAction, PromptLog, RemovedRoot, Reporter, RequestRetryError,
-    RequestRetryLog, RootLog, RootMessage, SilentReporter, SkippedOptionalDependencyLog,
-    SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
-    StatsLog, StatsMessage, SummaryLog,
+    PackageManifestLog, PackageManifestMessage, PeerDependencyIssuesLog, PnpmErrorLog, PnpmLog,
+    ProgressLog, ProgressMessage, PromptAction, PromptLog, RemovedRoot, Reporter,
+    RequestRetryError, RequestRetryLog, RootLog, RootMessage, SilentReporter,
+    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalParent,
+    SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
 
 #[test]
@@ -1168,4 +1168,37 @@ fn deprecation_event_transitive_matches_pnpm_wire_shape() {
     assert_eq!(json["name"], "pnpm:deprecation");
     assert_eq!(json["pkgName"], "request");
     assert_eq!(json["depth"], 3);
+}
+
+#[test]
+fn peer_dependency_issues_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::PeerDependencyIssues(PeerDependencyIssuesLog {
+        level: LogLevel::Debug,
+        issues_by_projects: serde_json::json!({
+            ".": {
+                "bad": {
+                    "react": [{
+                        "parents": [{ "name": "react-inspector", "version": "6.0.2" }],
+                        "optional": false,
+                        "wantedRange": "^18.0.0",
+                        "foundVersion": "19.1.0",
+                        "resolvedFrom": [],
+                    }],
+                },
+                "missing": {},
+                "conflicts": [],
+                "intersections": {},
+            },
+        }),
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+
+    assert_eq!(json["name"], "pnpm:peer-dependency-issues");
+    assert_eq!(json["level"], "debug");
+    assert_eq!(json["issuesByProjects"]["."]["bad"]["react"][0]["foundVersion"], "19.1.0");
 }

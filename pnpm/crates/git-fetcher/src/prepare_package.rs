@@ -149,6 +149,7 @@ pub fn prepare_package<Reporter: self::Reporter>(
         node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: opts.scripts_prepend_node_path,
         script_shell: opts.script_shell,
+        shell_emulator: false,
         optional: false,
     };
 

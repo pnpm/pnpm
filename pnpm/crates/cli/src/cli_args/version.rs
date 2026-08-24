@@ -172,7 +172,7 @@ impl VersionArgs {
         let mut changes: Vec<VersionChange> = Vec::new();
         if recursive {
             let base = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-            let (projects, _) = discover_workspace_projects(&base)?;
+            let (projects, _) = discover_workspace_projects(&base, config)?;
             let selection =
                 select_recursive_projects(&projects, config, &base, AutoExcludeRoot::Disabled)?;
             for pkg_dir in selection.selected.keys() {
@@ -378,7 +378,7 @@ impl VersionArgs {
 
         let intents = read_change_intents(&workspace_dir)?;
         let ledger = read_ledger(&workspace_dir)?;
-        let (projects, _) = discover_workspace_projects(&workspace_dir)?;
+        let (projects, _) = discover_workspace_projects(&workspace_dir, config)?;
         let engine_projects = to_engine_projects(&projects);
         let published_names = changelog::published_names(&projects);
 
@@ -523,6 +523,7 @@ fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
             config.scripts_prepend_node_path,
         ),
         script_shell: script_shell.as_deref(),
+        shell_emulator: config.shell_emulator,
         optional: false,
     };
     let parent_env: HashMap<String, String> = std::env::vars().collect();

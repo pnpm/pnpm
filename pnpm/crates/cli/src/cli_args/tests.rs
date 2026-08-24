@@ -10,9 +10,11 @@ use super::{
         read_manifest_json,
     },
     reporter::{LogLevelSetting, ReporterType},
+    store::StoreCommand,
     unlink::UnlinkArgs,
 };
 use clap::Parser;
+use pnpm_config::ColorMode;
 use pnpm_default_reporter::SummaryScope;
 use std::path::Path;
 use tempfile::TempDir;
@@ -295,6 +297,16 @@ fn parallel_before_run_is_a_recursive_unsorted_run_option() {
 }
 
 #[test]
+fn parallel_before_exec_is_a_recursive_unsorted_exec_option() {
+    let mut parsed = CliArgs::try_parse_from(["pacquet", "--parallel", "exec", "echo"])
+        .expect("parses --parallel before exec");
+    parsed.validate_command_scoped_global_options().expect("exec accepts --parallel");
+    parsed.apply_parallel_run_options();
+    assert!(parsed.recursive);
+    assert!(parsed.no_sort);
+}
+
+#[test]
 fn parallel_after_run_script_is_forwarded_to_the_script() {
     let parsed = CliArgs::try_parse_from(["pacquet", "run", "build", "--parallel"])
         .expect("parses --parallel as a script argument");
@@ -472,7 +484,7 @@ fn recursive_by_default_command_is_promoted_inside_workspace() {
     let workspace = tempfile::tempdir().expect("creates workspace");
     std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages: []\n")
         .expect("writes workspace manifest");
-    for command in ["list", "why", "peers"] {
+    for command in ["install", "list", "why", "peers"] {
         let mut parsed = CliArgs::try_parse_from([
             "pacquet",
             "--dir",
@@ -485,6 +497,25 @@ fn recursive_by_default_command_is_promoted_inside_workspace() {
 
         assert!(parsed.recursive, "{command} should be recursive inside a workspace");
     }
+}
+
+#[test]
+fn color_accepts_modes_and_boolean_spellings() {
+    for (value, expected) in [
+        ("always", ColorMode::Always),
+        ("auto", ColorMode::Auto),
+        ("never", ColorMode::Never),
+        ("true", ColorMode::Always),
+        ("false", ColorMode::Never),
+    ] {
+        let color = format!("--color={value}");
+        let parsed = CliArgs::try_parse_from(["pacquet", color.as_str(), "install"])
+            .expect("color mode parses");
+        assert_eq!(parsed.color, Some(expected));
+    }
+    let parsed =
+        CliArgs::try_parse_from(["pacquet", "--color", "install"]).expect("bare color parses");
+    assert_eq!(parsed.color, Some(ColorMode::Always));
 }
 
 #[test]
@@ -933,6 +964,47 @@ fn every_command_pnpm_takes_ignore_pnpmfile_on_takes_it() {
     }
 }
 
+/// <https://github.com/pnpm/pnpm/issues/14107>
+#[test]
+fn dedupe_takes_the_install_options_pnpm_documents_for_it() {
+    let args = dedupe_args(&[
+        "pacquet",
+        "dedupe",
+        "--lockfile-only",
+        "--ignore-scripts",
+        "--offline",
+        "--prefer-offline",
+    ]);
+    assert!(args.lockfile_only);
+    assert!(args.ignore_scripts);
+    assert!(args.offline);
+    assert!(args.prefer_offline);
+
+    let mut config = pnpm_config::Config::default();
+    args.apply_cli_config(&mut config);
+    assert!(config.ignore_scripts);
+    assert!(config.offline);
+    assert!(config.prefer_offline);
+
+    let negated = dedupe_args(&[
+        "pacquet",
+        "dedupe",
+        "--no-ignore-scripts",
+        "--no-offline",
+        "--no-prefer-offline",
+    ]);
+    let mut config = pnpm_config::Config {
+        ignore_scripts: true,
+        offline: true,
+        prefer_offline: true,
+        ..pnpm_config::Config::default()
+    };
+    negated.apply_cli_config(&mut config);
+    assert!(!config.ignore_scripts, "the CLI negation turns a yaml `true` back off");
+    assert!(!config.offline);
+    assert!(!config.prefer_offline);
+}
+
 #[test]
 fn dedupe_ignore_pnpmfile_flag_applies_to_config() {
     let mut config = pnpm_config::Config::default();
@@ -965,4 +1037,69 @@ fn unlink_args(argv: &[&str]) -> UnlinkArgs {
         CliCommand::Unlink(unlink) => unlink,
         other => panic!("expected unlink, got {other:?}"),
     }
+}
+
+#[test]
+fn get_and_set_are_top_level_spellings_of_the_config_subcommands() {
+    let CliCommand::Get(get) = command(&["pacquet", "get", "store-dir"]) else {
+        panic!("expected get");
+    };
+    assert_eq!(get.key.as_deref(), Some("store-dir"));
+
+    let CliCommand::Set(set) = command(&["pacquet", "set", "store-dir", "/tmp/store", "--global"])
+    else {
+        panic!("expected set");
+    };
+    assert_eq!(set.key.as_deref(), Some("store-dir"));
+    assert_eq!(set.value.as_deref(), Some("/tmp/store"));
+    assert!(set.flags.global);
+}
+
+#[test]
+fn get_and_set_report_through_stderr_like_config_does() {
+    for argv in [
+        ["pacquet", "get", "store-dir"].as_slice(),
+        ["pacquet", "set", "store-dir", "/tmp/store"].as_slice(),
+        ["pacquet", "config", "get", "store-dir"].as_slice(),
+    ] {
+        assert!(command(argv).uses_stderr_reporter(), "{argv:?}");
+    }
+}
+
+#[test]
+fn env_collects_its_subcommand_and_arguments() {
+    let CliCommand::Env(env) = command(&["pacquet", "env", "use", "24", "--global"]) else {
+        panic!("expected env");
+    };
+    assert!(env.global);
+    assert_eq!(env.params, ["use", "24"]);
+}
+
+#[test]
+fn the_unimplemented_npm_commands_parse_instead_of_falling_through_to_a_script() {
+    assert!(matches!(command(&["pacquet", "edit", "foo"]), CliCommand::Edit(_)));
+    assert!(matches!(command(&["pacquet", "profile", "get"]), CliCommand::Profile(_)));
+    assert!(matches!(
+        command(&["pacquet", "token", "create", "--read-only"]),
+        CliCommand::Token(_),
+    ));
+    assert!(matches!(command(&["pacquet", "xmas"]), CliCommand::Xmas(_)));
+}
+
+#[test]
+fn store_status_and_add_are_subcommands_of_store() {
+    let CliCommand::Store(StoreCommand::Status) = command(&["pacquet", "store", "status"]) else {
+        panic!("expected store status");
+    };
+
+    let CliCommand::Store(StoreCommand::Add(add)) =
+        command(&["pacquet", "store", "add", "express@4", "typescript@2.1.0"])
+    else {
+        panic!("expected store add");
+    };
+    assert_eq!(add.packages, ["express@4", "typescript@2.1.0"]);
+}
+
+fn command(argv: &[&str]) -> CliCommand {
+    CliArgs::try_parse_from(argv).expect("parses").command
 }

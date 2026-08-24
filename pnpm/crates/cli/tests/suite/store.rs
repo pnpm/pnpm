@@ -170,3 +170,103 @@ fn empty_store_dir_override_restores_the_platform_default() {
 
     drop(root);
 }
+
+#[test]
+fn store_status_reports_an_untouched_store() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    pacquet.arg("add").arg("is-odd@3.0.1").assert().success();
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .args(["store", "status"])
+        .output()
+        .expect("run pacquet store status");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(output.status.success(), "store status must succeed on a clean store");
+    assert!(stderr.contains("Packages in the store are untouched"), "stderr={stderr}");
+}
+
+#[test]
+fn store_status_reports_a_package_edited_after_it_was_linked_out() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    pacquet.arg("add").arg("is-odd@3.0.1").assert().success();
+
+    let installed_index = workspace.join("node_modules/.pnpm/is-odd@3.0.1/node_modules/is-odd");
+    fs::write(installed_index.join("index.js"), "module.exports = 'tampered'\n")
+        .expect("edit the installed package");
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .args(["store", "status"])
+        .output()
+        .expect("run pacquet store status");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(!output.status.success(), "store status must fail once a package is modified");
+    assert!(stderr.contains("ERR_PNPM_MODIFIED_DEPENDENCY"), "stderr={stderr}");
+    assert!(stderr.contains("is-odd@3.0.1"), "stderr={stderr}");
+}
+
+#[test]
+fn store_add_fetches_a_package_without_touching_the_project() {
+    let CommandTempCwd { pacquet, workspace, root: _root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    pacquet.with_args(["store", "add", "is-odd@3.0.1"]).assert().success();
+
+    assert!(!workspace.join("node_modules").exists(), "store add must not install anything");
+    assert!(!workspace.join("package.json").exists(), "store add must not write a manifest");
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "store add must not write a lockfile");
+
+    // The package is now in the store, which is the whole point: the row
+    // the fetch wrote is what a later install reuses.
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    let store_index = pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
+        .expect("open the store index store add just wrote");
+    let keys = store_index.keys().expect("read the store index keys");
+    assert!(
+        keys.iter().any(|key| key.contains("is-odd@3.0.1")),
+        "store add must record is-odd@3.0.1 in the store index, got {keys:?}",
+    );
+}
+
+#[test]
+fn store_add_fails_when_a_package_cannot_be_fetched() {
+    let CommandTempCwd { pacquet, root: _root, .. } = CommandTempCwd::init().add_mocked_registry();
+
+    let output = pacquet
+        .with_args(["store", "add", "@pnpm/this-package-does-not-exist@1.0.0"])
+        .output()
+        .expect("run pacquet store add for a missing package");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(!output.status.success(), "store add must fail when a package cannot be fetched");
+    assert!(stderr.contains("ERR_PNPM_STORE_ADD_FAILURE"), "stderr={stderr}");
+}
+
+/// The resolver chain claims every protocol pnpm supports, but only an
+/// archive can be put in the store. A local dependency is refused by name
+/// rather than failing further down as a resolution-shape mismatch.
+#[test]
+fn store_add_refuses_a_specifier_with_no_archive_to_fetch() {
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let local_package = workspace.join("local-pkg");
+    fs::create_dir_all(&local_package).expect("create the local package");
+    fs::write(local_package.join("package.json"), r#"{"name":"local-pkg","version":"1.0.0"}"#)
+        .expect("write the local package manifest");
+
+    let output = pacquet
+        .with_args(["store", "add", "./local-pkg"])
+        .output()
+        .expect("run pacquet store add for a local dependency");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_STORE_ADD_UNSUPPORTED_SPEC"), "stderr={stderr}");
+}

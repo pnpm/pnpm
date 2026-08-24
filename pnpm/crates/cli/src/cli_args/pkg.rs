@@ -129,8 +129,8 @@ impl PkgArgs {
         if config.workspace_dir.is_none() {
             return Err(PkgError::RecursiveNoRoot.into());
         }
-        let (projects, _patterns) =
-            discover_workspace_projects(workspace_root).wrap_err("discover workspace projects")?;
+        let (projects, _patterns) = discover_workspace_projects(workspace_root, config)
+            .wrap_err("discover workspace projects")?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         if selection.selected.is_empty() {

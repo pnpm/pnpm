@@ -13,46 +13,94 @@ use pretty_assertions::assert_eq;
 #[test]
 fn dependency_options_to_dependency_groups() {
     use DependencyGroup::{Dev, Optional, Prod};
-    let create_list = |opts: InstallDependencyOptions| opts.dependency_groups().collect::<Vec<_>>();
+    let create_list =
+        |opts: InstallDependencyOptions| opts.dependency_groups(true).collect::<Vec<_>>();
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: false, dev: false, no_optional: false }),
+        create_list(InstallDependencyOptions {
+            prod: false,
+            dev: false,
+            optional: false,
+            no_optional: false,
+        }),
         [Prod, Dev, Optional],
     );
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: true, dev: false, no_optional: false }),
+        create_list(InstallDependencyOptions {
+            prod: true,
+            dev: false,
+            optional: false,
+            no_optional: false,
+        }),
         [Prod, Optional],
     );
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: false, dev: true, no_optional: false }),
+        create_list(InstallDependencyOptions {
+            prod: false,
+            dev: true,
+            optional: false,
+            no_optional: false,
+        }),
         [Dev],
     );
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: false, dev: false, no_optional: true }),
+        create_list(InstallDependencyOptions {
+            prod: false,
+            dev: false,
+            optional: false,
+            no_optional: true,
+        }),
         [Prod, Dev],
     );
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: true, dev: false, no_optional: true }),
+        create_list(InstallDependencyOptions {
+            prod: true,
+            dev: false,
+            optional: false,
+            no_optional: true,
+        }),
         [Prod],
     );
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: false, dev: true, no_optional: true }),
+        create_list(InstallDependencyOptions {
+            prod: false,
+            dev: true,
+            optional: false,
+            no_optional: true,
+        }),
         [Dev],
     );
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: true, dev: true, no_optional: false }),
+        create_list(InstallDependencyOptions {
+            prod: true,
+            dev: true,
+            optional: false,
+            no_optional: false,
+        }),
         [Prod, Optional],
     );
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: true, dev: true, no_optional: true }),
+        create_list(InstallDependencyOptions {
+            prod: true,
+            dev: true,
+            optional: false,
+            no_optional: true,
+        }),
         [Prod],
+    );
+
+    assert_eq!(
+        InstallDependencyOptions { prod: false, dev: false, optional: true, no_optional: false }
+            .dependency_groups(false)
+            .collect::<Vec<_>>(),
+        [Prod, Dev, Optional],
     );
 }
 

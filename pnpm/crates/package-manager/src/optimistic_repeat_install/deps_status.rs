@@ -4,9 +4,10 @@ use super::{
     Config, Host, Lockfile, LockfileConflictCheckFailure, ManifestStat, NodeLinker,
     OptimisticRepeatInstallCheck, WorkspaceState, catalogs_cache_matches,
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
-    first_lockfile_requiring_conflict_safe_install, first_project_missing_modules_dir,
-    first_setting_drift, modified_at_or_after, modified_manifests_match_lockfile,
-    patches_modified_since, pnpmfiles_drift, project_structure_matches, stat_manifests,
+    filesystem_now_ms, first_lockfile_requiring_conflict_safe_install,
+    first_project_missing_modules_dir, first_setting_drift, modified_at_or_after,
+    modified_manifests_match_lockfile, patches_modified_since, pnpmfiles_drift,
+    project_structure_matches, refreshed_validation_baseline_ms, stat_manifests,
     update_workspace_state, wanted_lockfile_modified,
 };
 
@@ -151,6 +152,8 @@ pub fn check_deps_status_before_run(
 
     let projects_to_check: Vec<&ManifestStat<'_>> =
         if lockfile_modified { manifest_stats.iter().collect() } else { modified };
+    let filesystem_now =
+        if is_workspace_install { filesystem_now_ms(workspace_root) } else { None };
     // The TypeScript run/exec handler does not forward `dedupePeers`
     // into `checkDepsStatus`, so its pre-run lockfile check uses the
     // false default even when the workspace setting is true.
@@ -169,6 +172,10 @@ pub fn check_deps_status_before_run(
                     catalogs,
                     project_manifests,
                     state.filtered_install,
+                );
+                new_state.last_validated_timestamp = refreshed_validation_baseline_ms(
+                    new_state.last_validated_timestamp,
+                    filesystem_now,
                 );
                 // The gate ignored `dev`/`optional`/`production` drift
                 // above; writing today's (default-group) values here

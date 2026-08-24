@@ -361,14 +361,14 @@ fn update_transitive_glob_mixed_with_direct_selector() {
     drop((root, anchor));
 }
 
-/// `pacquet update <pkg>@<version>` on a package that is only present
-/// as a transitive dependency ignores the version part: there is no
-/// manifest entry to write it into, and an update resolves the target
-/// the way a fresh install would. The version part triggers a warning
-/// recommending a `pnpm.overrides` entry — the mechanism that does pin
-/// transitive dependencies.
+/// `pacquet update <pkg>@<version>` on a package that is only present as a
+/// transitive dependency has no manifest entry to write the version into, and
+/// an update resolves the target the way a fresh install would — so the
+/// version could only reach the lockfile as an entry nothing backs. The
+/// command fails and points at `overrides`, the mechanism that does pin a
+/// transitive dependency.
 #[test]
-fn update_transitive_ignores_requested_version() {
+fn update_transitive_rejects_a_requested_version() {
     let (root, workspace, anchor) = setup();
 
     // Pin the transitive dep-of-pkg-with-1-dep at 100.0.0 (via a direct
@@ -380,24 +380,26 @@ fn update_transitive_ignores_requested_version() {
 
     write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0" }}"#));
 
-    // The update requests 100.0.0, but the version part of a
-    // transitive-only selector is ignored: the target re-resolves to the
-    // highest version in pkg-with-1-dep's ^100.0.0 range (100.1.0),
-    // exactly as a fresh install with the target's lockfile entries
-    // deleted would.
-    pacquet(&workspace, ["update", &format!("{DEP}@100.0.0")]).assert().success();
+    let output = pacquet(&workspace, ["update", &format!("{DEP}@100.0.0")])
+        .output()
+        .expect("run pacquet update");
+    let rendered = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    eprintln!("STATUS: {}\nOUTPUT:\n{rendered}", output.status);
+
+    assert!(!output.status.success(), "a version that cannot be recorded should fail");
+    assert!(
+        rendered.contains("ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP"),
+        "the failure must carry the UPDATE_VERSION_ON_INDIRECT_DEP code",
+    );
 
     eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
-    // Only presence is asserted: the update does not prune the previous
-    // version's now-orphaned virtual-store directory.
     assert!(
-        virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
-        "the target should re-resolve to highest-in-range, like a fresh install",
-    );
-    let lock = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
-    assert!(
-        !lock.contains("dep-of-pkg-with-1-dep@100.0.0"),
-        "the ignored requested version must not pin the target in the lockfile",
+        !virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
+        "a rejected update must not have resolved anything",
     );
 
     drop((root, anchor));
@@ -1868,7 +1870,7 @@ fn update_selectors_override_ignore_dependencies() {
     anchor.set_dist_tag(FOO, "100.0.0", "latest");
     anchor.set_dist_tag(BAR, "100.0.0", "latest");
 
-    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "100.0.0", "{BAR}": "100.0.0" }}"#));
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "100.0.0", "{BAR}": "^100.0.0" }}"#));
     set_ignore_dependencies(&workspace, &[FOO]);
     pacquet(&workspace, ["install"]).assert().success();
 
@@ -1886,6 +1888,72 @@ fn update_selectors_override_ignore_dependencies() {
     let packages = lockfile_package_keys(&workspace);
     assert!(packages.contains(&format!("{FOO}@100.1.0")), "{packages:?}");
     assert!(packages.contains(&format!("{BAR}@100.1.0")), "{packages:?}");
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("100.1.0"));
+    assert_eq!(dep_spec(&workspace, BAR).as_deref(), Some("^100.1.0"));
+
+    drop((root, anchor));
+}
+
+/// A `catalog:` entry declares a reference, not a range, so it is not
+/// something a resolved version can replace. The catalog entry keeps
+/// bounding the dependency, and the update moves the lockfile within it.
+#[test]
+fn update_tag_selector_preserves_catalog_reference() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+    anchor.set_dist_tag(FOO, "100.0.0", "latest");
+    set_named_catalog(&workspace, "grp1", &[(FOO, "^100.0.0")]);
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:grp1" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{FOO}@100.0.0")), "{packages:?}");
+
+    anchor.set_dist_tag(FOO, "100.1.0", "latest");
+    pacquet(&workspace, ["update", &format!("{FOO}@latest")]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:grp1"));
+    let yaml = read_workspace_yaml(&workspace);
+    assert!(yaml.contains("^100.0.0"), "catalog entry should be untouched: {yaml}");
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{FOO}@100.1.0")), "{packages:?}");
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// The selector names the tag to resolve, which need not be the tag the
+/// registry publishes as `latest`, nor the highest published version.
+#[test]
+fn update_tag_selector_resolves_the_named_tag() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    anchor.set_dist_tag(FOO, "100.0.0", "canary");
+    pacquet(&workspace, ["update", &format!("{FOO}@canary")]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("^100.0.0"));
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{FOO}@100.0.0")), "{packages:?}");
+
+    drop((root, anchor));
+}
+
+/// A manifest that already tracks a dist tag keeps tracking one, so the
+/// selector's tag replaces it rather than being resolved into a range.
+#[test]
+fn update_tag_selector_replaces_a_declared_tag() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+    anchor.set_dist_tag(FOO, "100.1.0", "latest");
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "latest" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    anchor.set_dist_tag(FOO, "100.0.0", "canary");
+    pacquet(&workspace, ["update", &format!("{FOO}@canary")]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("canary"));
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{FOO}@100.0.0")), "{packages:?}");
 
     drop((root, anchor));
 }

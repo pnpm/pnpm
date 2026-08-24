@@ -17,7 +17,7 @@ use pnpm_reporter::{
     PackageManifestLog, PackageManifestMessage, PnpmErrorLog, PnpmLog, ProgressLog,
     ProgressMessage, RootLog, RootMessage, ScopeLog, SkippedOptionalDependencyLog,
     SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
-    StatsLog, StatsMessage, SummaryLog,
+    StatsLog, StatsMessage, SummaryLog, UpdateCheckLog,
 };
 
 const CWD: &str = "/repo";
@@ -1324,6 +1324,36 @@ fn the_ignored_builds_instruction_can_be_replaced() {
     assert!(!frame.contains("pnpm approve-builds"), "frame: {frame}");
 }
 
+fn update_check(current_version: &str, latest_version: &str) -> LogEvent {
+    LogEvent::UpdateCheck(UpdateCheckLog {
+        level: LogLevel::Debug,
+        current_version: current_version.to_string(),
+        latest_version: latest_version.to_string(),
+    })
+}
+
+#[test]
+fn a_newer_pnpm_is_announced_with_its_changelog() {
+    let mut reporter = state(false);
+
+    let frame = render(&mut reporter, vec![update_check("11.22.0", "12.0.0")]);
+
+    assert!(frame.contains("Update available! 11.22.0 → 12.0.0."), "frame: {frame}");
+    assert!(frame.contains("Changelog: https://pnpm.io/v/12.0.0"), "frame: {frame}");
+    assert!(frame.contains("To update, run: "), "frame: {frame}");
+}
+
+/// The registry's `latest` trails a prerelease build of the next major, so
+/// the notice would be an invitation to downgrade.
+#[test]
+fn nothing_is_announced_unless_the_latest_version_is_ahead() {
+    let mut reporter = state(false);
+
+    assert_eq!(render(&mut reporter, vec![update_check("12.0.0", "11.22.0")]), "");
+    assert_eq!(render(&mut reporter, vec![update_check("12.0.0", "12.0.0")]), "");
+    assert_eq!(render(&mut reporter, vec![update_check("12.0.0-rc.8", "11.22.0")]), "");
+}
+
 #[test]
 fn linked_packages_appear_in_the_summary_by_default() {
     let mut reporter = state(false);
@@ -1429,4 +1459,142 @@ fn hide_lifecycle_output_stops_the_streaming_even_under_append_only() {
     }
 
     assert!(!lines.iter().any(|line| line.contains("downloading the binary")), "lines: {lines:#?}");
+}
+
+fn lifecycle_script(wd: &str, stage: &str, script: &str) -> LogEvent {
+    LogEvent::Lifecycle(LifecycleLog {
+        level: LogLevel::Debug,
+        message: LifecycleMessage::Script {
+            dep_path: wd.to_string(),
+            optional: false,
+            script: script.to_string(),
+            stage: stage.to_string(),
+            wd: wd.to_string(),
+        },
+    })
+}
+
+fn lifecycle_line(wd: &str, stage: &str, line: &str) -> LogEvent {
+    LogEvent::Lifecycle(LifecycleLog {
+        level: LogLevel::Debug,
+        message: LifecycleMessage::Stdio {
+            dep_path: wd.to_string(),
+            line: line.to_string(),
+            stage: stage.to_string(),
+            stdio: LifecycleStdio::Stdout,
+            wd: wd.to_string(),
+        },
+    })
+}
+
+fn lifecycle_exit(wd: &str, stage: &str, exit_code: i32) -> LogEvent {
+    LogEvent::Lifecycle(LifecycleLog {
+        level: LogLevel::Debug,
+        message: LifecycleMessage::Exit {
+            dep_path: wd.to_string(),
+            exit_code,
+            optional: false,
+            stage: stage.to_string(),
+            wd: wd.to_string(),
+        },
+    })
+}
+
+/// Two projects whose `postinstall` output interleaves, plus a third
+/// that starts and finishes in between.
+fn interleaved_lifecycle_events() -> Vec<LogEvent> {
+    vec![
+        lifecycle_script("/repo/packages/foo", "postinstall", "node foo"),
+        lifecycle_line("/repo/packages/foo", "postinstall", "foo I"),
+        lifecycle_script("/repo/packages/bar", "postinstall", "node bar"),
+        lifecycle_line("/repo/packages/bar", "postinstall", "bar I"),
+        lifecycle_line("/repo/packages/foo", "postinstall", "foo II"),
+        lifecycle_exit("/repo/packages/bar", "postinstall", 0),
+        lifecycle_exit("/repo/packages/foo", "postinstall", 0),
+    ]
+}
+
+fn emitted_lines(reporter: &mut ReporterState, events: Vec<LogEvent>) -> Vec<String> {
+    let mut lines = Vec::new();
+    for event in events {
+        if let Output::Lines(emitted) = reporter.handle(&event) {
+            lines.extend(emitted);
+        }
+    }
+    lines
+}
+
+/// Port of upstream's `groups lifecycle output when streamLifecycleOutput
+/// is used` (`cli/default-reporter/test/reportingLifecycleScripts.ts`):
+/// `--stream` streams the lifecycle lines even though the rest of the
+/// frame still renders in place.
+#[test]
+fn stream_lifecycle_output_streams_without_append_only() {
+    let mut reporter = state_with_options(ReporterOptions {
+        stream_lifecycle_output: true,
+        ..ReporterOptions::default()
+    });
+
+    let frame = render(&mut reporter, interleaved_lifecycle_events());
+
+    assert_eq!(
+        frame,
+        "\
+packages/foo postinstall$ node foo
+packages/foo postinstall: foo I
+packages/bar postinstall$ node bar
+packages/bar postinstall: bar I
+packages/foo postinstall: foo II
+packages/bar postinstall: Done
+packages/foo postinstall: Done",
+    );
+}
+
+/// Port of upstream's `groups lifecycle output when append-only and
+/// aggregate-output are used with mixed stages`: each script's lines are
+/// withheld until it exits, so an interleaving sibling cannot split them.
+#[test]
+fn aggregate_output_withholds_each_script_until_it_exits() {
+    let mut reporter = state_with_options(ReporterOptions {
+        append_only: true,
+        aggregate_output: true,
+        ..ReporterOptions::default()
+    });
+
+    let lines = emitted_lines(&mut reporter, interleaved_lifecycle_events());
+
+    assert_eq!(
+        lines,
+        [
+            "packages/bar postinstall$ node bar\npackages/bar postinstall: bar I\npackages/bar postinstall: Done",
+            "packages/foo postinstall$ node foo\npackages/foo postinstall: foo I\npackages/foo postinstall: foo II\npackages/foo postinstall: Done",
+        ],
+    );
+}
+
+/// Port of upstream's `groups lifecycle output when append-only and
+/// reporter-hide-prefix are used`: only the script's own output loses the
+/// prefix — the command echo and the `Done` line keep theirs.
+#[test]
+fn hide_lifecycle_prefix_only_drops_it_from_output_lines() {
+    let mut reporter = state_with_options(ReporterOptions {
+        append_only: true,
+        hide_lifecycle_prefix: true,
+        ..ReporterOptions::default()
+    });
+
+    let lines = emitted_lines(&mut reporter, interleaved_lifecycle_events());
+
+    assert_eq!(
+        lines,
+        [
+            "packages/foo postinstall$ node foo",
+            "foo I",
+            "packages/bar postinstall$ node bar",
+            "bar I",
+            "foo II",
+            "packages/bar postinstall: Done",
+            "packages/foo postinstall: Done",
+        ],
+    );
 }

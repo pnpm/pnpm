@@ -76,6 +76,23 @@ fn build_appends_run_order(name: &str) -> Value {
     })
 }
 
+fn write_concurrency_probe(workspace: &Path) {
+    fs::write(
+        workspace.join("track-concurrency.sh"),
+        r#"marker=../active-$(basename "$PWD")
+mkdir "$marker"
+sleep 0.2
+set -- ../active-*
+[ -e "$1" ] || set --
+[ "$#" -ge 2 ] && touch ../saw-parallel
+[ "$#" -gt 2 ] && touch ../exceeded-concurrency
+sleep 0.2
+rmdir "$marker"
+"#,
+    )
+    .expect("write concurrency probe");
+}
+
 /// `pacquet -r run <script>` runs the script in every workspace project,
 /// in topological order derived from the workspace dependency graph.
 #[test]
@@ -102,6 +119,74 @@ fn recursive_run_executes_script_in_every_project() {
         !workspace.join("ran.txt").exists(),
         "scripts must run from each package root, not the workspace root",
     );
+
+    drop(root);
+}
+
+#[test]
+fn recursive_run_respects_workspace_concurrency() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = |name: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "scripts": { "build": "sh ../track-concurrency.sh" },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", manifest("project-1")),
+            ("project-2", manifest("project-2")),
+            ("project-3", manifest("project-3")),
+        ],
+    );
+    write_concurrency_probe(&workspace);
+
+    pacquet.with_args(["--workspace-concurrency=2", "-r", "run", "build"]).assert().success();
+
+    assert!(workspace.join("saw-parallel").exists(), "two scripts should overlap");
+    assert!(
+        !workspace.join("exceeded-concurrency").exists(),
+        "no more than two scripts should overlap",
+    );
+
+    drop(root);
+}
+
+/// Without a workspace-level loader, recursive run preloads the `.pnp.cjs`
+/// belonging to each selected project rather than resolving once from the
+/// invocation directory.
+#[test]
+fn recursive_run_preloads_each_project_pnp_loader() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = |name: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "scripts": { "build": "node -e 0" },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[("project-1", manifest("project-1")), ("project-2", manifest("project-2"))],
+    );
+    for name in ["project-1", "project-2"] {
+        fs::write(
+            workspace.join(name).join(".pnp.cjs"),
+            "require('fs').writeFileSync('pnp-loader-ran.txt', '')",
+        )
+        .expect("write project PnP loader");
+    }
+
+    pacquet.with_args(["-r", "run", "build"]).assert().success();
+
+    for name in ["project-1", "project-2"] {
+        assert!(
+            workspace.join(name).join("pnp-loader-ran.txt").exists(),
+            "{name} should preload its own PnP loader",
+        );
+    }
 
     drop(root);
 }
@@ -976,6 +1061,7 @@ fn recursive_run_mixed_filter_runs_prod_selected_before_regular() {
     );
 
     pacquet
+        .with_arg("--workspace-concurrency=1")
         .with_arg("-r")
         .with_arg("--filter")
         .with_arg("alpha")
@@ -1028,6 +1114,73 @@ fn recursive_run_no_sort_uses_workspace_order() {
         &workspace,
         &[
             (
+                "z-app",
+                json!({
+                    "name": "z-app",
+                    "version": "1.0.0",
+                    "scripts": { "build": "echo z-app >> ../order.log" },
+                    "dependencies": { "a-lib": "workspace:*" },
+                }),
+            ),
+            ("a-lib", build_appends_run_order("a-lib")),
+        ],
+    );
+
+    pacquet
+        .with_arg("--workspace-concurrency=1")
+        .with_arg("--no-sort")
+        .with_arg("--filter-prod=z-app")
+        .with_arg("--filter=a-lib")
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "z-app\na-lib\n");
+
+    drop(root);
+}
+
+#[test]
+fn recursive_run_no_sort_reverse_and_resume_transform_workspace_order() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("z-first", build_appends_run_order("z-first")),
+            ("m-middle", build_appends_run_order("m-middle")),
+            ("a-last", build_appends_run_order("a-last")),
+        ],
+    );
+
+    pacquet
+        .with_args([
+            "--workspace-concurrency=1",
+            "--no-sort",
+            "--reverse",
+            "--resume-from=m-middle",
+            "-r",
+            "run",
+            "build",
+        ])
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "m-middle\na-last\n");
+
+    drop(root);
+}
+
+#[test]
+fn recursive_run_reads_sort_from_workspace_config() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
                 "app",
                 json!({
                     "name": "app",
@@ -1039,17 +1192,55 @@ fn recursive_run_no_sort_uses_workspace_order() {
             ("lib", build_appends_run_order("lib")),
         ],
     );
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - app\n  - lib\nsort: false\n")
+        .expect("write workspace settings");
 
-    pacquet
-        .with_arg("--no-sort")
-        .with_arg("-r")
-        .with_arg("run")
-        .with_arg("build")
-        .assert()
-        .success();
+    pacquet.with_args(["--workspace-concurrency=1", "-r", "run", "build"]).assert().success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     assert_eq!(order, "app\nlib\n");
+
+    drop(root);
+}
+
+#[test]
+fn recursive_run_reads_reverse_from_workspace_config() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "app",
+                json!({
+                    "name": "app",
+                    "version": "1.0.0",
+                    "scripts": { "build": "echo app >> ../order.log" },
+                    "dependencies": { "lib": "workspace:*" },
+                }),
+            ),
+            ("lib", build_appends_run_order("lib")),
+        ],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - app\n  - lib\nreverse: true\n",
+    )
+    .expect("write workspace settings");
+
+    pacquet.with_args(["-r", "run", "build"]).assert().success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "app\nlib\n");
+
+    fs::remove_file(workspace.join("order.log")).expect("clear order log");
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["-r", "--no-reverse", "run", "build"])
+        .assert()
+        .success();
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "lib\napp\n");
 
     drop(root);
 }
@@ -1169,6 +1360,76 @@ fn recursive_run_report_summary_records_every_package_status() {
     drop(root);
 }
 
+#[test]
+fn recursive_run_bail_summary_records_every_completed_batch_result() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = |name: &str, body: &str| json!({ "name": name, "version": "1.0.0", "scripts": { "build": body } });
+    write_workspace(
+        &workspace,
+        &[("fails", manifest("fails", "exit 1")), ("passes", manifest("passes", "true"))],
+    );
+
+    pacquet
+        .with_args([
+            "--workspace-concurrency=2",
+            "--no-sort",
+            "--report-summary",
+            "-r",
+            "run",
+            "build",
+        ])
+        .assert()
+        .failure();
+
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(statuses.get("fails").map(String::as_str), Some("failure"));
+    assert_eq!(statuses.get("passes").map(String::as_str), Some("passed"));
+
+    drop(root);
+}
+
+#[test]
+fn recursive_run_reads_bail_from_workspace_config() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "fails",
+                json!({
+                    "name": "fails",
+                    "version": "1.0.0",
+                    "scripts": { "build": "exit 1" },
+                }),
+            ),
+            (
+                "continues",
+                json!({
+                    "name": "continues",
+                    "version": "1.0.0",
+                    "dependencies": { "fails": "workspace:*" },
+                    "scripts": { "build": "touch ran.txt" },
+                }),
+            ),
+        ],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - fails\n  - continues\nbail: false\n",
+    )
+    .expect("write workspace settings");
+
+    let output = pacquet.with_args(["-r", "run", "build"]).output().expect("run recursive script");
+
+    assert!(!output.status.success(), "the failed project must still fail the command");
+    assert!(
+        workspace.join("continues/ran.txt").exists(),
+        "bail: false must continue with later topological chunks",
+    );
+
+    drop(root);
+}
+
 /// With bail on (the default) and `--report-summary`, the first failing
 /// script aborts the run *after* the summary is written: the run fails
 /// with `ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL`, the summary records the
@@ -1184,6 +1445,7 @@ fn recursive_run_bail_writes_summary_then_stops_at_first_failure() {
     );
 
     let output = pacquet
+        .with_arg("--workspace-concurrency=1")
         .with_arg("-r")
         .with_arg("run")
         .with_arg("--report-summary")
@@ -1796,4 +2058,260 @@ fn recursive_run_keeps_a_pass_when_a_later_selected_script_is_a_no_op() {
     );
 
     drop(root);
+}
+
+/// Port of upstream's `pnpm run with --stream should prefix output`
+/// (`pnpm/test/monorepo/index.ts`).
+#[test]
+fn stream_prefixes_recursive_script_output_with_the_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("project-1", echoes_ok("project-1")), ("project-2", echoes_ok("project-2"))],
+    );
+
+    let output = pacquet
+        .with_args(["--stream", "--config.verify-deps-before-run=false", "-r", "run", "test"])
+        .output()
+        .expect("run test");
+    assert!(output.status.success(), "streamed run failed: {output:?}");
+    assert_eq!(
+        sorted_lines(&output.stdout),
+        [
+            "Scope: all 2 workspace projects",
+            "project-1 test$ echo OK",
+            "project-1 test: Done",
+            "project-1 test: OK",
+            "project-2 test$ echo OK",
+            "project-2 test: Done",
+            "project-2 test: OK",
+        ],
+    );
+
+    drop(root);
+}
+
+/// Port of upstream's `run --reporter-hide-prefix should hide prefix`
+/// (`pnpm/test/monorepo/index.ts`): only the script's own output loses
+/// the prefix — the command echo and the `Done` line keep theirs.
+#[test]
+fn reporter_hide_prefix_drops_the_prefix_from_streamed_script_output() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("project-1", echoes_ok("project-1")), ("project-2", echoes_ok("project-2"))],
+    );
+
+    let output = pacquet
+        .with_args([
+            "--stream",
+            "--reporter-hide-prefix",
+            "--config.verify-deps-before-run=false",
+            "-r",
+            "run",
+            "test",
+        ])
+        .output()
+        .expect("run test");
+    assert!(output.status.success(), "streamed run failed: {output:?}");
+    assert_eq!(
+        sorted_lines(&output.stdout),
+        [
+            "OK",
+            "OK",
+            "Scope: all 2 workspace projects",
+            "project-1 test$ echo OK",
+            "project-1 test: Done",
+            "project-2 test$ echo OK",
+            "project-2 test: Done",
+        ],
+    );
+
+    drop(root);
+}
+
+/// `--parallel` expands to `--stream` in pnpm's `run` shorthand table,
+/// so a parallel run is prefixed even without the flag — otherwise the
+/// interleaved output of concurrent projects is unattributable.
+#[test]
+fn parallel_implies_stream() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("project-1", echoes_ok("project-1")), ("project-2", echoes_ok("project-2"))],
+    );
+
+    let output = pacquet
+        .with_args(["--parallel", "--config.verify-deps-before-run=false", "run", "test"])
+        .output()
+        .expect("run test");
+    assert!(output.status.success(), "parallel run failed: {output:?}");
+    assert_eq!(
+        sorted_lines(&output.stdout),
+        [
+            "Scope: all 2 workspace projects",
+            "project-1 test$ echo OK",
+            "project-1 test: Done",
+            "project-1 test: OK",
+            "project-2 test$ echo OK",
+            "project-2 test: Done",
+            "project-2 test: OK",
+        ],
+    );
+
+    drop(root);
+}
+
+/// Without `--stream` the children inherit the terminal, so their output
+/// carries no prefix at all.
+#[test]
+fn recursive_run_inherits_stdio_without_stream() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("project-1", echoes_ok("project-1")), ("project-2", echoes_ok("project-2"))],
+    );
+
+    let output = pacquet
+        .with_args(["--config.verify-deps-before-run=false", "-r", "run", "test"])
+        .output()
+        .expect("run test");
+    assert!(output.status.success(), "recursive run failed: {output:?}");
+    assert_eq!(sorted_lines(&output.stdout), ["OK", "OK", "Scope: all 2 workspace projects"]);
+
+    drop(root);
+}
+
+/// Non-UTF-8 output must not stall the pump: the child keeps writing past
+/// the bad bytes, so a reader that gave up there would leave it blocked on
+/// a full pipe with the run waiting on it forever.
+#[test]
+fn streamed_output_survives_non_utf8_bytes() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    // A lone 0xff is invalid UTF-8 in any position. The padding after it
+    // is what fills the pipe if the pump stops draining.
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({
+                "name": "project-1",
+                "version": "1.0.0",
+                "scripts": {
+                    "test": r#"node -e "process.stdout.write(Buffer.from([0xff])); console.log('x'.repeat(200000)); console.log('done')""#,
+                },
+            }),
+        )],
+    );
+
+    let output = pacquet
+        .with_args(["--stream", "--config.verify-deps-before-run=false", "-r", "run", "test"])
+        .output()
+        .expect("run test");
+    assert!(output.status.success(), "streamed run failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("project-1 test: done"), "the pump stopped early: {stdout}");
+
+    drop(root);
+}
+
+/// `--aggregate-output` withholds each project's streamed lines until it
+/// exits, so a slow project cannot interleave into a fast one's block.
+#[test]
+fn aggregate_output_keeps_each_project_in_one_block() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    // `node -e` rather than `sleep`, whose fractional argument is a GNU
+    // extension. project-2 finishes well inside project-1's gap, so
+    // without aggregation its lines would land between project-1's two.
+    let prints_two_lines_apart = |name: &str, delay: u32| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "scripts": {
+                "test": format!(
+                    r#"node -e "console.log('first'); setTimeout(() => console.log('second'), {delay})""#,
+                ),
+            },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", prints_two_lines_apart("project-1", 2000)),
+            ("project-2", prints_two_lines_apart("project-2", 0)),
+        ],
+    );
+
+    let output = pacquet
+        .with_args([
+            "--parallel",
+            "--aggregate-output",
+            "--config.verify-deps-before-run=false",
+            "run",
+            "test",
+        ])
+        .output()
+        .expect("run test");
+    assert!(output.status.success(), "aggregated run failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    // The faster project finishes first, and each project's four lines
+    // land together.
+    let blocks = stdout.trim().split("project-1 test$").collect::<Vec<_>>();
+    assert_eq!(blocks.len(), 2, "project-1's block must be contiguous: {stdout}");
+    assert!(
+        !blocks[1].contains("project-2"),
+        "project-2 must have flushed before project-1 started printing: {stdout}",
+    );
+
+    drop(root);
+}
+
+/// `--use-stderr` moves the reporter's own output to stderr, leaving
+/// stdout to the command — here, the scripts' streamed lines still reach
+/// stderr with it, since the reporter is what prints them.
+#[test]
+fn use_stderr_diverts_reporter_output() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &[("project-1", echoes_ok("project-1"))]);
+
+    let output = pacquet
+        .with_args([
+            "--use-stderr",
+            "--stream",
+            "--config.verify-deps-before-run=false",
+            "-r",
+            "run",
+            "test",
+        ])
+        .output()
+        .expect("run test");
+    assert!(output.status.success(), "run failed: {output:?}");
+    assert_eq!(sorted_lines(&output.stdout), Vec::<String>::new());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("project-1 test: OK"),
+        "the reporter must have written to stderr: {output:?}",
+    );
+
+    drop(root);
+}
+
+/// A package whose `test` script echoes a fixed marker, so a test can
+/// assert on the reporter's framing of it rather than on the payload.
+fn echoes_ok(name: &str) -> Value {
+    json!({
+        "name": name,
+        "version": "1.0.0",
+        "scripts": { "test": "echo OK" },
+    })
+}
+
+/// Sorted so a test does not depend on the order two concurrent projects
+/// finish in.
+fn sorted_lines(stdout: &[u8]) -> Vec<String> {
+    let stdout = String::from_utf8_lossy(stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    let mut lines = stdout.trim().lines().map(str::to_string).collect::<Vec<_>>();
+    lines.sort();
+    lines
 }

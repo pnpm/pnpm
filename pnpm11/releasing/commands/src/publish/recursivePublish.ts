@@ -48,7 +48,6 @@ Partial<Pick<Config,
 | 'localAddress'
 | 'lockfileDir'
 | 'noProxy'
-| 'npmPath'
 | 'offline'
 | 'strictSsl'
 | 'unsafePerm'

@@ -131,7 +131,7 @@ catalog:
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
   '@reflink/reflink': 0.1.19
-  '@rushstack/worker-pool': 0.7.23
+  '@rushstack/worker-pool': 0.7.25
   '@stylistic/eslint-plugin': ^5.10.0
   '@types/adm-zip': ^0.5.8
   '@types/archy': 0.0.36
@@ -224,7 +224,7 @@ catalog:
   encode-registry: ^3.0.1
   esbuild: ^0.28.2
   escape-string-regexp: ^5.0.0
-  eslint: ^10.8.1
+  eslint: ^10.9.0
   eslint-plugin-import-x: ^4.17.1
   eslint-plugin-jest: ^29.16.1
   eslint-plugin-n: ^18.3.0

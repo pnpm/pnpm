@@ -12,7 +12,7 @@ use super::{
     ci::CiArgs,
     clean::CleanArgs,
     completion::{CompletionArgs, CompletionServerArgs},
-    config::ConfigArgs,
+    config::{ConfigArgs, ConfigGetArgs, ConfigSetArgs},
     create::CreateArgs,
     dedupe::DedupeArgs,
     deploy::DeployArgs,
@@ -21,6 +21,7 @@ use super::{
     dlx::DlxArgs,
     docs::DocsArgs,
     doctor::DoctorArgs,
+    env::EnvArgs,
     exec::ExecArgs,
     fetch::FetchArgs,
     find_hash::FindHashArgs,
@@ -35,6 +36,7 @@ use super::{
     list::ListArgs,
     login::LoginArgs,
     logout::LogoutArgs,
+    not_implemented::NotImplementedArgs,
     outdated::OutdatedArgs,
     owner::OwnerArgs,
     pack::PackArgs,
@@ -104,8 +106,20 @@ pub struct CliArgs {
     pub version: Option<bool>,
 
     /// Force colored output.
-    #[clap(long, global = true)]
-    pub color: bool,
+    #[clap(
+        long,
+        global = true,
+        num_args = 0..=1,
+        require_equals = true,
+        default_missing_value = "always",
+        value_parser = parse_color_mode,
+        overrides_with = "no_color"
+    )]
+    pub color: Option<pnpm_config::ColorMode>,
+
+    /// Disable colored output.
+    #[clap(long = "no-color", global = true, hide = true, overrides_with = "color")]
+    pub no_color: bool,
 
     /// Automatically answer yes to prompts.
     #[clap(short = 'y', long, global = true)]
@@ -239,6 +253,14 @@ pub struct CliArgs {
     #[clap(long = "no-sort", global = true, overrides_with = "sort")]
     pub no_sort: bool,
 
+    /// Process recursive workspace projects in reverse order.
+    #[clap(long, global = true, overrides_with = "no_reverse")]
+    pub reverse: bool,
+
+    /// Process recursive workspace projects in their normal order.
+    #[clap(long = "no-reverse", global = true, hide = true, overrides_with = "reverse")]
+    pub no_reverse: bool,
+
     /// Maximum number of workspace projects to process in parallel.
     #[clap(long = "workspace-concurrency", global = true)]
     pub workspace_concurrency: Option<i32>,
@@ -257,16 +279,75 @@ pub struct CliArgs {
     pub report_summary: bool,
 
     /// Recursive only: keep going after a project fails.
-    #[clap(long = "no-bail", global = true, hide = true)]
+    #[clap(long = "no-bail", global = true, hide = true, overrides_with = "bail")]
     pub no_bail: bool,
+
+    /// Stop a recursive command after the first failure.
+    #[clap(long, global = true, hide = true, overrides_with = "no_bail")]
+    pub bail: bool,
 
     /// Don't fail when the named script is undefined.
     #[clap(long = "if-present", hide = true)]
     pub if_present: bool,
+
+    /// Stream a recursive command's script output as it arrives, one
+    /// prefixed line at a time.
+    #[clap(long, global = true)]
+    pub stream: bool,
+
+    /// Hold each script's streamed output until the script exits, then
+    /// print it as one block.
+    #[clap(long = "aggregate-output", global = true)]
+    pub aggregate_output: bool,
+
+    /// Divert the reporter's output to stderr, leaving stdout for the
+    /// command's own result.
+    #[clap(long = "use-stderr", global = true)]
+    pub use_stderr: bool,
+
+    /// Omit the project prefix from the streamed output of running
+    /// scripts. A `run` / `exec` option pnpm accepts anywhere on the
+    /// command line, like the recursive-run flags above.
+    #[clap(
+        long = "reporter-hide-prefix",
+        global = true,
+        hide = true,
+        overrides_with = "no_reporter_hide_prefix"
+    )]
+    pub reporter_hide_prefix: bool,
+
+    /// Prefix the streamed output of running scripts with the project
+    /// it came from, overriding a `reporterHidePrefix: true` setting.
+    #[clap(
+        long = "no-reporter-hide-prefix",
+        global = true,
+        hide = true,
+        overrides_with = "reporter_hide_prefix"
+    )]
+    pub no_reporter_hide_prefix: bool,
+
+    /// Run as if the project were standalone, ignoring any
+    /// `pnpm-workspace.yaml` above it.
+    #[clap(long = "ignore-workspace", global = true)]
+    pub ignore_workspace: bool,
+
+    /// Glob patterns selecting the workspace's projects, overriding the
+    /// `packages` field of `pnpm-workspace.yaml`. Repeat to add more.
+    #[clap(long = "workspace-packages", global = true)]
+    pub workspace_packages: Vec<String>,
 }
 
 fn parse_store_dir(value: &str) -> Result<PathBuf, std::convert::Infallible> {
     Ok(PathBuf::from(value))
+}
+
+fn parse_color_mode(value: &str) -> Result<pnpm_config::ColorMode, &'static str> {
+    match value {
+        "always" | "true" => Ok(pnpm_config::ColorMode::Always),
+        "auto" => Ok(pnpm_config::ColorMode::Auto),
+        "never" | "false" => Ok(pnpm_config::ColorMode::Never),
+        _ => Err("expected one of: auto, always, never"),
+    }
 }
 
 impl CliArgs {
@@ -296,6 +377,12 @@ impl CliArgs {
         if self.parallel {
             self.validate_parallel_global_option()?;
         }
+        if self.reporter_hide_prefix {
+            self.validate_run_scoped_global_option("--reporter-hide-prefix")?;
+        }
+        if self.no_reporter_hide_prefix {
+            self.validate_run_scoped_global_option("--no-reporter-hide-prefix")?;
+        }
         Ok(())
     }
 
@@ -319,6 +406,7 @@ impl CliArgs {
         if self.parallel {
             self.recursive = true;
             self.no_sort = true;
+            self.stream = true;
         }
     }
 
@@ -359,9 +447,13 @@ impl CliArgs {
     /// Promote commands marked recursive-by-default by pnpm when they run
     /// inside a workspace.
     pub fn promote_recursive_by_default(&mut self) {
+        let dir = dunce::canonicalize(&self.dir)
+            .or_else(|_| std::path::absolute(&self.dir))
+            .unwrap_or_else(|_| self.dir.clone())
+            .pipe_deref(pnpm_fs::lexical_normalize);
         if !self.recursive
             && self.command.recursive_by_default()
-            && pnpm_workspace::find_workspace_dir(&self.dir).is_ok_and(|dir| dir.is_some())
+            && pnpm_workspace::find_workspace_dir(&dir).is_ok_and(|dir| dir.is_some())
         {
             self.recursive = true;
         }
@@ -419,6 +511,7 @@ impl CliArgs {
         if matches!(
             self.command,
             CliCommand::Run(_)
+                | CliCommand::Exec(_)
                 | CliCommand::External(_)
                 | CliCommand::Test(_)
                 | CliCommand::Start(_)
@@ -575,6 +668,8 @@ pub enum CliCommand {
     /// Manage runtimes.
     #[clap(visible_alias = "rt")]
     Runtime(RuntimeArgs),
+    /// Manage Node.js versions. Deprecated in favour of `pnpm runtime`.
+    Env(EnvArgs),
     /// Manage context-aware shims for packages that are not installed
     /// globally, so a project decides which version runs.
     Shim(ShimArgs),
@@ -599,6 +694,12 @@ pub enum CliCommand {
     /// Manage the pnpm configuration files.
     #[clap(visible_alias = "c")]
     Config(ConfigArgs),
+    /// Print the config value for the provided key. Shorthand for
+    /// `pnpm config get`.
+    Get(ConfigGetArgs),
+    /// Set the config key to the value provided. Shorthand for
+    /// `pnpm config set`.
+    Set(ConfigSetArgs),
     /// Manages your package.json.
     Pkg(PkgArgs),
     /// Pack a `CommonJS` entry file into a standalone executable for one or more target platforms.
@@ -657,6 +758,16 @@ pub enum CliCommand {
     /// single invocation, ignoring the "packageManager" and
     /// "devEngines.packageManager" fields of the project's manifest.
     With(WithArgs),
+    /// Not implemented in pnpm. Use the npm CLI directly.
+    // Registered rather than left to the external-subcommand fallback so
+    // it names npm instead of failing as a missing package script.
+    Edit(NotImplementedArgs),
+    /// Not implemented in pnpm. Use the npm CLI directly.
+    Profile(NotImplementedArgs),
+    /// Not implemented in pnpm. Use the npm CLI directly.
+    Token(NotImplementedArgs),
+    /// Not implemented in pnpm. Use the npm CLI directly.
+    Xmas(NotImplementedArgs),
     #[clap(external_subcommand)]
     External(Vec<String>),
 }
@@ -670,6 +781,9 @@ impl CliCommand {
             CliCommand::ApproveBuilds(args) => args.global,
             CliCommand::Bin(args) => args.global,
             CliCommand::Config(args) => args.is_global(),
+            CliCommand::Env(args) => args.global,
+            CliCommand::Get(args) => args.flags.global,
+            CliCommand::Set(args) => args.flags.global,
             CliCommand::List(args) | CliCommand::Ll(args) => args.global,
             CliCommand::Outdated(args) => args.global,
             CliCommand::Prefix(args) => args.global,
@@ -681,10 +795,12 @@ impl CliCommand {
         }
     }
 
-    fn recursive_by_default(&self) -> bool {
+    pub(super) fn recursive_by_default(&self) -> bool {
         matches!(
             self,
-            CliCommand::List(_)
+            CliCommand::Install(_)
+                | CliCommand::InstallTest(_)
+                | CliCommand::List(_)
                 | CliCommand::Ll(_)
                 | CliCommand::Why(_)
                 | CliCommand::Peers(_)
@@ -716,14 +832,15 @@ impl CliCommand {
 
     /// Whether reporter output (warnings, progress) goes to stderr so this
     /// command's stdout stays a clean, machine-readable value — pnpm's
-    /// `COMMANDS_WITH_STDERR_REPORTER`. pnpm's set also lists the top-level
-    /// `set` / `get` commands, which pacquet does not have.
+    /// `COMMANDS_WITH_STDERR_REPORTER`.
     pub(crate) fn uses_stderr_reporter(&self) -> bool {
         matches!(
             self,
             CliCommand::Dlx(_)
                 | CliCommand::Create(_)
                 | CliCommand::Config(_)
+                | CliCommand::Get(_)
+                | CliCommand::Set(_)
                 | CliCommand::Sbom(_)
                 | CliCommand::Shim(_)
                 | CliCommand::With(_)
@@ -743,6 +860,7 @@ impl CliCommand {
             CliCommand::Add(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Remove(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Runtime(args) if args.global => SummaryScope::AllPrefixes,
+            CliCommand::Env(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Update(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Dlx(_) | CliCommand::Create(_) => SummaryScope::AllPrefixes,
             _ => SummaryScope::CurrentPrefix,

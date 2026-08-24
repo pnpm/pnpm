@@ -1,7 +1,7 @@
 use super::{
     HoistedPackageMapOptions, PackageMapOptions, absolute_package_url,
     dependencies_graph_to_package_map, link_target_id, lockfile_to_package_map,
-    make_node_package_map_option, to_relative_url,
+    make_node_package_map_option, make_node_require_option, to_relative_url,
 };
 use crate::{DependenciesGraphNode, LockfileToDepGraphResult, VirtualStoreLayout};
 use pnpm_lockfile::{
@@ -377,6 +377,22 @@ fn package_map_node_options_replaces_existing_package_map_option() {
             Some(r#"--experimental-package-map="/quo\"te/old.json" --inspect"#),
         ),
         "--inspect --experimental-package-map=/new/.package-map.json",
+    );
+}
+
+#[test]
+fn pnp_node_options_preserve_existing_options_and_quote_the_loader_path() {
+    assert_eq!(
+        make_node_require_option(Path::new("/repo/.pnp.cjs"), Some("--max-old-space-size=4096")),
+        "--max-old-space-size=4096 --require=/repo/.pnp.cjs",
+    );
+    assert_eq!(
+        make_node_require_option(Path::new("/repo with spaces/.pnp.cjs"), Some("")),
+        r#"--require="/repo with spaces/.pnp.cjs""#,
+    );
+    assert_eq!(
+        make_node_require_option(Path::new(r"C:\repo\.pnp.cjs"), Some("")),
+        r#"--require="C:\\repo\\.pnp.cjs""#,
     );
 }
 

@@ -6,7 +6,8 @@ use crate::{
         WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
-    decide_catalog_outcome, emit_initial_package_manifest, package_manifest_prefix,
+    decide_catalog_outcome, emit_initial_package_manifest, included_direct_groups,
+    package_manifest_prefix,
     resolution_policy::{PickPolicy, pick_package_context},
     resolve_latest::LatestPicker,
     selected_project_indices,
@@ -282,7 +283,7 @@ where
             // include filter: like `remove`, the re-resolve walks every
             // dependency group so the other groups' entries stay in the
             // lockfile, the virtual store, and `node_modules`.
-            dependency_groups: DIRECT_GROUPS,
+            dependency_groups: included_direct_groups(config.optional),
             frozen_lockfile: false,
             // `None` defers to `config.prefer_frozen_lockfile`, which is
             // what lets the fast lockfile update absorb the manifest edit
@@ -437,7 +438,7 @@ where
                 // See the `dependency_groups` comment in [`Self::run`]:
                 // the save target must not narrow the install's include
                 // set.
-                dependency_groups: DIRECT_GROUPS,
+                dependency_groups: included_direct_groups(config.optional),
                 frozen_lockfile: false,
                 // See the `prefer_frozen_lockfile` comment in [`Self::run`].
                 prefer_frozen_lockfile: named_a_version.then_some(false),

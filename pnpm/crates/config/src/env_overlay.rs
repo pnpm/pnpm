@@ -12,7 +12,7 @@
 //! as a low-priority auth-file fallback.
 
 use crate::{
-    AuditLevel, CatalogMode, HoistingLimits, InitType, NodeLinker, NodePackageMapType,
+    AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, NodeLinker, NodePackageMapType,
     PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol,
     ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings,
     api::EnvVar,
@@ -136,8 +136,27 @@ impl WorkspaceSettings {
             };
         }
 
+        json_field!(bail, "BAIL");
         json_field!(ci, "CI");
+        json_field!(update_notifier, "UPDATE_NOTIFIER");
+        enum_field!(color, "COLOR", ColorMode);
+        json_field!(embed_readme, "EMBED_README");
         json_field!(ignore_pnpmfile, "IGNORE_PNPMFILE");
+        json_field!(ignore_workspace_root_check, "IGNORE_WORKSPACE_ROOT_CHECK");
+        json_field!(optional, "OPTIONAL");
+        json_field!(package_lock, "PACKAGE_LOCK");
+        json_field!(pending, "PENDING");
+        json_field!(recursive_install, "RECURSIVE_INSTALL");
+        json_field!(reverse, "REVERSE");
+        json_field!(stream, "STREAM");
+        json_field!(aggregate_output, "AGGREGATE_OUTPUT");
+        json_field!(reporter_hide_prefix, "REPORTER_HIDE_PREFIX");
+        json_field!(use_stderr, "USE_STDERR");
+        json_field!(ignore_workspace, "IGNORE_WORKSPACE");
+        json_field!(shell_emulator, "SHELL_EMULATOR");
+        json_field!(skip_manifest_obfuscation, "SKIP_MANIFEST_OBFUSCATION");
+        json_field!(sort, "SORT");
+        json_field!(use_beta_cli, "USE_BETA_CLI");
         json_field!(hoist, "HOIST");
         tri_array_field!(hoist_pattern, "HOIST_PATTERN");
         tri_array_field!(public_hoist_pattern, "PUBLIC_HOIST_PATTERN");
@@ -220,6 +239,7 @@ impl WorkspaceSettings {
         json_field!(fetch_retry_mintimeout, "FETCH_RETRY_MINTIMEOUT");
         json_field!(fetch_retry_maxtimeout, "FETCH_RETRY_MAXTIMEOUT");
         json_field!(network_concurrency, "NETWORK_CONCURRENCY");
+        json_field!(maxsockets, "MAXSOCKETS");
         json_field!(max_sockets, "MAX_SOCKETS");
         json_field!(fetch_timeout, "FETCH_TIMEOUT");
         json_field!(fetch_warn_timeout_ms, "FETCH_WARN_TIMEOUT_MS");
@@ -247,6 +267,7 @@ impl WorkspaceSettings {
         json_field!(workspace_concurrency, "WORKSPACE_CONCURRENCY");
         json_field!(git_shallow_hosts, "GIT_SHALLOW_HOSTS");
         json_field!(test_pattern, "TEST_PATTERN");
+        json_field!(legacy_dir_filtering, "LEGACY_DIR_FILTERING");
         json_field!(sync_injected_deps_after_scripts, "SYNC_INJECTED_DEPS_AFTER_SCRIPTS");
         json_field!(changed_files_ignore_pattern, "CHANGED_FILES_IGNORE_PATTERN");
         json_field!(supported_architectures, "SUPPORTED_ARCHITECTURES");
@@ -267,6 +288,11 @@ impl WorkspaceSettings {
         enum_field!(pm_on_fail, "PM_ON_FAIL", PmOnFail);
         json_field!(init_package_manager, "INIT_PACKAGE_MANAGER");
         enum_field!(init_type, "INIT_TYPE", InitType);
+        string_field!(init_author_name, "INIT_AUTHOR_NAME");
+        string_field!(init_author_email, "INIT_AUTHOR_EMAIL");
+        string_field!(init_author_url, "INIT_AUTHOR_URL");
+        string_field!(init_license, "INIT_LICENSE");
+        string_field!(init_version, "INIT_VERSION");
         // pnpm applies this env var on presence alone (`!= null`) and
         // assigns the raw value without validation, so presence always
         // overrides the other config layers: an empty value assigns an

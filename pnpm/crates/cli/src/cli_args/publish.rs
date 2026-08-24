@@ -5,10 +5,8 @@
 //! onto its options, runs the git checks and publish-lifecycle scripts, and
 //! packs the project before handing the tarball off.
 //!
-//! `--recursive` (workspace publishing) lives in
-//! [`recursive`]; `--batch` (a single batched request to a pnpr-style
-//! registry) is accepted for surface parity but not yet ported — it errors
-//! rather than silently doing nothing.
+//! `--recursive` (workspace publishing), including pnpr's batch endpoint,
+//! lives in [`recursive`].
 
 mod recursive;
 
@@ -28,7 +26,7 @@ use pnpm_publish::{
 use pnpm_reporter::Reporter;
 use serde_json::Value;
 
-use crate::cli_args::registry_client::build_registry_client;
+use crate::cli_args::{install::resolve_bool_override, registry_client::build_registry_client};
 
 /// Publish a package to the registry.
 #[derive(Debug, Args)]
@@ -67,10 +65,24 @@ pub struct PublishFlags {
     #[clap(long = "ignore-scripts")]
     pub ignore_scripts: bool,
 
+    /// Embed the README contents in the published manifest.
+    #[clap(long = "embed-readme", overrides_with = "no_embed_readme")]
+    pub embed_readme: bool,
+    /// Do not embed README contents in the published manifest.
+    #[clap(long = "no-embed-readme", hide = true, overrides_with = "embed_readme")]
+    pub no_embed_readme: bool,
+
     /// Keep the original `packageManager` field and publish-lifecycle scripts
     /// in the published manifest instead of stripping them.
-    #[clap(long = "skip-manifest-obfuscation")]
+    #[clap(long = "skip-manifest-obfuscation", overrides_with = "no_skip_manifest_obfuscation")]
     pub skip_manifest_obfuscation: bool,
+    /// Apply pnpm's normal published-manifest filtering.
+    #[clap(
+        long = "no-skip-manifest-obfuscation",
+        hide = true,
+        overrides_with = "skip_manifest_obfuscation"
+    )]
+    pub no_skip_manifest_obfuscation: bool,
 
     /// One-time password for two-factor-authenticated registries.
     #[clap(long)]
@@ -105,6 +117,28 @@ pub struct PublishFlags {
 pub(super) enum PublishedPackages {
     Single(Box<PublishSummary>),
     Recursive(Vec<PublishSummary>),
+}
+
+struct PackedDirectory {
+    project_dir: std::path::PathBuf,
+    source_manifest: Value,
+    published_manifest: Value,
+    tarball_data: Vec<u8>,
+    tarball_path: String,
+    contents: Vec<String>,
+    unpacked_size: u64,
+}
+
+impl PackedDirectory {
+    fn packed_pkg(&self) -> PackedPkg<'_> {
+        PackedPkg {
+            published_manifest: &self.published_manifest,
+            tarball_data: &self.tarball_data,
+            tarball_path: &self.tarball_path,
+            contents: &self.contents,
+            unpacked_size: self.unpacked_size,
+        }
+    }
 }
 
 impl PublishedPackages {
@@ -227,6 +261,19 @@ impl PublishArgs {
         opts: &PublishPackedPkgOptions,
         network: &PublishNetwork<'_>,
     ) -> miette::Result<PublishSummary> {
+        let packed = self.pack_directory::<Reporter>(project_dir, config).await?;
+        let summary =
+            publish_packed_pkg::<Host, Reporter>(&packed.packed_pkg(), opts, network).await?;
+
+        self.run_post_publish_scripts::<Reporter>(&packed, config)?;
+        Ok(summary)
+    }
+
+    async fn pack_directory<Reporter: self::Reporter>(
+        &self,
+        project_dir: &Path,
+        config: &Config,
+    ) -> miette::Result<PackedDirectory> {
         let manifest = pnpm_package_manifest::safe_read_package_json_from_dir(project_dir)
             .into_diagnostic()
             .wrap_err("read package.json")?
@@ -253,30 +300,33 @@ impl PublishArgs {
         let tarball_data = std::fs::read(&pack_result.tarball_path)
             .into_diagnostic()
             .wrap_err("read packed tarball")?;
-
-        let summary = publish_packed_pkg::<Host, Reporter>(
-            &PackedPkg {
-                published_manifest: &pack_result.published_manifest,
-                tarball_data: &tarball_data,
-                tarball_path: &pack_result.tarball_path,
-                contents: &pack_result.contents,
-                unpacked_size: pack_result.unpacked_size,
-            },
-            opts,
-            network,
-        )
-        .await?;
         drop(pack_destination);
 
+        Ok(PackedDirectory {
+            project_dir: project_dir.to_path_buf(),
+            source_manifest: manifest,
+            published_manifest: pack_result.published_manifest,
+            tarball_data,
+            tarball_path: pack_result.tarball_path,
+            contents: pack_result.contents,
+            unpacked_size: pack_result.unpacked_size,
+        })
+    }
+
+    fn run_post_publish_scripts<Reporter: self::Reporter>(
+        &self,
+        packed: &PackedDirectory,
+        config: &Config,
+    ) -> miette::Result<()> {
         if !self.should_ignore_scripts(config) {
             run_publish_scripts::<Reporter>(
-                project_dir,
+                &packed.project_dir,
                 config,
-                &manifest,
+                &packed.source_manifest,
                 &["publish", "postpublish"],
             )?;
         }
-        Ok(summary)
+        Ok(())
     }
 
     /// Whether to skip every publish-related lifecycle script. `--ignore-scripts`
@@ -305,10 +355,18 @@ impl PublishArgs {
             catalogs: crate::cli_args::catalogs::configured_catalogs(config)?,
             ignore_scripts: self.should_ignore_scripts(config),
             unsafe_perm: config.unsafe_perm,
-            embed_readme: false,
+            embed_readme: resolve_bool_override(
+                self.flags.embed_readme,
+                self.flags.no_embed_readme,
+                config.embed_readme,
+            ),
             pack_gzip_level: None,
             node_linker: config.node_linker,
-            skip_manifest_obfuscation: self.flags.skip_manifest_obfuscation,
+            skip_manifest_obfuscation: resolve_bool_override(
+                self.flags.skip_manifest_obfuscation,
+                self.flags.no_skip_manifest_obfuscation,
+                config.skip_manifest_obfuscation,
+            ),
             user_agent: config.user_agent.clone(),
             extra_bin_paths: config.extra_bin_paths.clone(),
             extra_env: config.extra_env.clone(),
@@ -390,6 +448,7 @@ fn run_publish_scripts<Reporter: self::Reporter>(
         node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: ScriptsPrependNodePath::default(),
         script_shell: None,
+        shell_emulator: false,
         optional: false,
     };
     let parent_env: HashMap<String, String> = std::env::vars().collect();

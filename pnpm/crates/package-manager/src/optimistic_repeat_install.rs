@@ -66,8 +66,9 @@ pub(crate) use settings::{
     recorded_supported_architectures_match, settings_match,
 };
 pub(crate) use timestamps::{
-    FileMtime, file_mtime, file_mtime_from_metadata, lockfile_modified_since, modified_at_or_after,
-    mtime_ms, validation_baseline_ms, wanted_lockfile_modified,
+    FileMtime, file_mtime, file_mtime_from_metadata, filesystem_now_ms, lockfile_modified_since,
+    modified_at_or_after, mtime_ms, refreshed_validation_baseline_ms, validation_baseline_ms,
+    wanted_lockfile_modified,
 };
 
 use std::{
@@ -359,6 +360,8 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     // than just the modified ones.
     let projects_to_check: Vec<&ManifestStat<'_>> =
         if lockfile_modified { manifest_stats.iter().collect() } else { modified };
+    let filesystem_now =
+        if is_workspace_install { filesystem_now_ms(workspace_root) } else { None };
     match modified_manifests_match_lockfile(check, &state, &projects_to_check, config.dedupe_peers)
     {
         Ok(loaded_current) => {
@@ -378,7 +381,7 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
                 // `filtered_install` forward: clearing it would claim every
                 // importer is materialized when a filtered install left the
                 // unselected ones untouched.
-                let new_state = crate::install::build_workspace_state::<Host>(
+                let mut new_state = crate::install::build_workspace_state::<Host>(
                     workspace_root,
                     config,
                     node_linker,
@@ -387,6 +390,10 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
                     catalogs,
                     project_manifests,
                     state.filtered_install,
+                );
+                new_state.last_validated_timestamp = refreshed_validation_baseline_ms(
+                    new_state.last_validated_timestamp,
+                    filesystem_now,
                 );
                 if let Err(error) = update_workspace_state(workspace_root, &new_state) {
                     tracing::warn!(

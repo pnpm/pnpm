@@ -25,6 +25,7 @@ mod optimistic_repeat_install;
 mod overrides;
 mod package_extender;
 mod patch;
+mod peer_dependency_issues;
 mod prefetching_resolver;
 mod prune_virtual_store;
 mod remove;
@@ -83,6 +84,14 @@ pub(crate) const DIRECT_GROUPS: [pnpm_package_manifest::DependencyGroup; 3] = [
     pnpm_package_manifest::DependencyGroup::Dev,
     pnpm_package_manifest::DependencyGroup::Optional,
 ];
+
+pub(crate) fn included_direct_groups(
+    include_optional: bool,
+) -> impl Iterator<Item = pnpm_package_manifest::DependencyGroup> {
+    DIRECT_GROUPS.into_iter().filter(move |group| {
+        include_optional || *group != pnpm_package_manifest::DependencyGroup::Optional
+    })
+}
 
 pub(crate) fn package_manifest_prefix(manifest: &pnpm_package_manifest::PackageManifest) -> String {
     manifest.path().parent().unwrap_or_else(|| manifest.path()).to_string_lossy().into_owned()

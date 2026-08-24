@@ -2,7 +2,8 @@ use super::{
     ConfigOverrides, apply_registry_override, apply_state_dir_override, apply_store_dir_override,
 };
 use pnpm_config::{
-    Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail, RuntimeOnFail,
+    ColorMode, Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail,
+    RuntimeOnFail,
 };
 use pnpm_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;
@@ -244,6 +245,26 @@ fn extract_applies_the_minimum_release_age_overrides() {
 }
 
 #[test]
+fn max_sockets_overrides_win_over_the_config_layers_in_either_spelling() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.maxsockets=4", "install"]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+    let mut config = Config { max_sockets: Some(2), ..Config::default() };
+    overrides.apply(&mut config);
+    assert_eq!(config.max_sockets, Some(4));
+
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.maxsockets=4",
+        "--config.max-sockets=9",
+        "install",
+    ]));
+    let mut config = Config::default();
+    overrides.apply(&mut config);
+    assert_eq!(config.max_sockets, Some(9), "the canonical spelling wins over npm's");
+}
+
+#[test]
 fn repeated_minimum_release_age_exclude_overrides_collect_into_a_list() {
     let (overrides, _) = ConfigOverrides::extract(argv([
         "--config.minimum-release-age-exclude=pnpm",
@@ -313,6 +334,61 @@ fn extract_applies_ignore_scripts_override() {
         config.explicit_settings.get("ignoreScripts"),
         Some(&serde_json::Value::Bool(false)),
     );
+}
+
+#[test]
+fn extract_applies_default_parity_overrides() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.bail=false",
+        "--config.ci=true",
+        "--config.color=never",
+        "--config.embed-readme=true",
+        "--config.ignore-workspace-root-check=true",
+        "--config.optional=false",
+        "--config.package-lock=false",
+        "--config.pending=true",
+        "--config.recursive-install=false",
+        "--config.reverse=true",
+        "--config.shell-emulator=true",
+        "--config.skip-manifest-obfuscation=true",
+        "--config.sort=false",
+        "--config.use-beta-cli=true",
+        "install",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let mut config = Config::default();
+    overrides.apply(&mut config);
+    assert!(!config.bail);
+    assert!(config.ci);
+    assert_eq!(config.color, ColorMode::Never);
+    assert!(config.embed_readme);
+    assert!(config.ignore_workspace_root_check);
+    assert!(!config.optional);
+    assert!(!config.package_lock);
+    assert!(!config.lockfile);
+    assert!(config.pending);
+    assert!(!config.recursive_install);
+    assert!(config.reverse);
+    assert!(config.shell_emulator);
+    assert!(config.skip_manifest_obfuscation);
+    assert!(!config.sort);
+    assert!(config.use_beta_cli);
+}
+
+#[test]
+fn explicit_lockfile_override_wins_over_package_lock() {
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.package-lock=false",
+        "--config.lockfile=true",
+        "install",
+    ]));
+    let mut config = Config::default();
+    overrides.apply(&mut config);
+    assert!(!config.package_lock);
+    assert!(config.lockfile);
 }
 
 #[test]

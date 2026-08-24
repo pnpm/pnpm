@@ -76,6 +76,44 @@ fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
         || detect_ci()
 }
 
+/// Controls ANSI color rendering in CLI output.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ColorMode {
+    Always,
+    #[default]
+    Auto,
+    Never,
+}
+
+impl<'de> Deserialize<'de> for ColorMode {
+    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
+    where
+        Deserializer: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Value {
+            Bool(bool),
+            Mode(Mode),
+        }
+
+        #[derive(Deserialize)]
+        #[serde(rename_all = "kebab-case")]
+        enum Mode {
+            Always,
+            Auto,
+            Never,
+        }
+
+        Ok(match Value::deserialize(deserializer)? {
+            Value::Bool(true) | Value::Mode(Mode::Always) => ColorMode::Always,
+            Value::Bool(false) | Value::Mode(Mode::Never) => ColorMode::Never,
+            Value::Mode(Mode::Auto) => ColorMode::Auto,
+        })
+    }
+}
+
 /// `virtualStoreType`: where the virtual store lives, and therefore who
 /// shares it.
 ///
@@ -830,11 +868,100 @@ pub enum PackageImportMethod {
 /// (project-structural settings).
 #[derive(Debug, Clone, SmartDefault)]
 pub struct Config {
+    /// Whether recursive commands stop after the first failure.
+    #[default = true]
+    pub bail: bool,
+
     /// Whether pnpm is running in a continuous-integration environment.
     /// Defaults to automatic CI detection and may be overridden through
     /// configuration.
     #[default(_code = "default_ci::<Host>(is_ci::cached)")]
     pub ci: bool,
+
+    /// `updateNotifier` — whether `pnpm install` / `pnpm add` may check
+    /// the registry once a day for a newer pnpm and print a notice when
+    /// one exists. Setting it to `false` silences the check entirely.
+    #[default = true]
+    pub update_notifier: bool,
+
+    /// ANSI color policy for human-readable output.
+    pub color: ColorMode,
+
+    /// Include a package's README in the generated manifest when packing.
+    pub embed_readme: bool,
+
+    /// Permit `add` to modify a multi-package workspace root without `-w`.
+    pub ignore_workspace_root_check: bool,
+
+    /// Include optional dependencies in install-family operations.
+    #[default = true]
+    pub optional: bool,
+
+    /// npm-compatible alias used when `lockfile` was not set explicitly.
+    #[default = true]
+    pub package_lock: bool,
+
+    /// Rebuild only dependencies and projects whose builds are pending.
+    pub pending: bool,
+
+    /// Make an unfiltered workspace install operate recursively.
+    #[default = true]
+    pub recursive_install: bool,
+
+    /// Reverse the project order of recursive commands.
+    pub reverse: bool,
+
+    /// Stream a recursive command's script output as it arrives, one
+    /// prefixed line at a time, instead of letting the child write to the
+    /// terminal directly.
+    pub stream: bool,
+
+    /// Hold each script's streamed output until the script exits, then
+    /// print it as one block. Only affects streamed output.
+    pub aggregate_output: bool,
+
+    /// Omit the project prefix from the streamed output lines of running
+    /// scripts. `None` means the user never asked either way, which
+    /// `exec` distinguishes from an explicit `false`.
+    pub reporter_hide_prefix: Option<bool>,
+
+    /// Route reporter output to stderr, leaving stdout for the command's
+    /// own machine-readable result.
+    pub use_stderr: bool,
+
+    /// Treat the project as standalone: no workspace root is discovered,
+    /// so `pnpm-workspace.yaml` contributes neither settings nor sibling
+    /// projects.
+    ///
+    /// Only a caller that seeds this *before* [`Self::current`] — the
+    /// `--ignore-workspace` flag — suppresses the search. pnpm resolves
+    /// the workspace dir from argv alone (`getWorkspaceDir` in
+    /// `config/reader/src/index.ts` reads the parsed CLI options, never
+    /// the merged configuration), so a value arriving from a
+    /// configuration file or `PNPM_CONFIG_IGNORE_WORKSPACE` lands here
+    /// too late to affect discovery — deliberately, since a
+    /// `pnpm-workspace.yaml` cannot coherently ask not to be read. Such
+    /// a value still reaches the settings-only readers, matching pnpm's
+    /// `handleIgnoredBuilds`.
+    pub ignore_workspace: bool,
+
+    /// Glob patterns selecting the workspace's projects, from
+    /// `--workspace-packages` or `pnpm-workspace.yaml`'s `packages`.
+    /// `None` outside a workspace.
+    pub workspace_package_patterns: Option<Vec<String>>,
+
+    /// Run lifecycle scripts through pnpm's portable shell emulator.
+    pub shell_emulator: bool,
+
+    /// Preserve publish-only manifest fields in packed manifests.
+    pub skip_manifest_obfuscation: bool,
+
+    /// Sort recursive workspace projects topologically.
+    #[default = true]
+    pub sort: bool,
+
+    /// Select the beta CLI implementation when one is available.
+    pub use_beta_cli: bool,
 
     /// The problem keys of the project's own `pnpm-workspace.yaml` (see
     /// [`WorkspaceKeyIssues`]), for the CLI to report. Empty when there is no
@@ -1894,6 +2021,13 @@ pub struct Config {
     /// all match, the project is selected without its dependents.
     pub test_pattern: Vec<String>,
 
+    /// `legacyDirFiltering` — match a `{<dir>}` filter selector by
+    /// directory subtree instead of by glob. Glob matching, the default,
+    /// selects the project whose own directory matches the pattern; the
+    /// legacy subtree matching selects the projects strictly below that
+    /// directory instead.
+    pub legacy_dir_filtering: bool,
+
     /// `syncInjectedDepsAfterScripts` from `pnpm-workspace.yaml` /
     /// `PNPM_CONFIG_SYNC_INJECTED_DEPS_AFTER_SCRIPTS`. Names the scripts
     /// after which every injected copy of the package that ran them is
@@ -2073,6 +2207,26 @@ pub struct Config {
     ///
     /// Defaults to `module`.
     pub init_type: InitType,
+
+    /// `init-author-name` / `initAuthorName` config: the name part of the
+    /// `name <email> (url)` author `pnpm init` writes.
+    pub init_author_name: Option<String>,
+
+    /// `init-author-email` / `initAuthorEmail` config: the email part of
+    /// the author `pnpm init` writes. See [`Self::init_author_name`].
+    pub init_author_email: Option<String>,
+
+    /// `init-author-url` / `initAuthorUrl` config: the url part of the
+    /// author `pnpm init` writes. See [`Self::init_author_name`].
+    pub init_author_url: Option<String>,
+
+    /// `init-license` / `initLicense` config: the `license` field
+    /// `pnpm init` writes, replacing the `ISC` the scaffold carries.
+    pub init_license: Option<String>,
+
+    /// `init-version` / `initVersion` config: the `version` field
+    /// `pnpm init` writes, replacing the `1.0.0` the scaffold carries.
+    pub init_version: Option<String>,
 
     /// `pm-on-fail` / `pmOnFail` config: what to do when the project's
     /// `packageManager` / `devEngines.packageManager` pin doesn't match the
@@ -3027,11 +3181,19 @@ impl Config {
         // Resolve the workspace dir before reading the project `.npmrc`
         // so subdirectory invocations use the workspace-root config:
         // the workspace dir, falling back to the local prefix.
+        //
+        // `--ignore-workspace` stops the search outright, which is what
+        // makes the flag mean "standalone project": with no workspace dir
+        // there is no shared lockfile, no sibling projects, and no
+        // `pnpm-workspace.yaml` settings layer. Only the flag reaches
+        // this far — see [`Config::ignore_workspace`].
         let env_workspace_dir = Sys::var_os("NPM_CONFIG_WORKSPACE_DIR")
             .or_else(|| Sys::var_os("npm_config_workspace_dir"))
             .filter(|value| !value.is_empty())
             .map(PathBuf::from);
-        let workspace_yaml = if let Some(env_dir) = env_workspace_dir {
+        let workspace_yaml = if self.ignore_workspace {
+            None
+        } else if let Some(env_dir) = env_workspace_dir {
             // Env-var path: load yaml directly from the env dir. A
             // missing file is silent, but the re-anchor still fires
             // because the user has explicitly told us where the
@@ -3305,6 +3467,12 @@ impl Config {
             // path when the yaml file is missing and `apply_to` (which also
             // writes it) never runs.
             self.workspace_dir = Some(base_dir.clone());
+            self.workspace_package_patterns = Some(
+                settings
+                    .as_ref()
+                    .and_then(|settings| settings.packages.clone())
+                    .unwrap_or_else(|| vec![".".to_string()]),
+            );
             if let Some(mut settings) = settings {
                 // CI detection is process state. A repository-controlled
                 // manifest must not be able to turn it off; trusted global
@@ -3383,6 +3551,10 @@ impl Config {
             self.registries_by_scope.insert("default".to_string(), normalized.clone());
             self.package_manager_bootstrap.registry.clone_from(&normalized);
             self.package_manager_bootstrap.registries.insert("default".to_string(), normalized);
+        }
+
+        if !self.explicit_settings.contains_key("lockfile") {
+            self.lockfile = self.package_lock;
         }
 
         // A pinned `lockfileDir` moves the root `node_modules` and the

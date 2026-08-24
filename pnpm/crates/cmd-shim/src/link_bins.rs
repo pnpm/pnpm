@@ -1057,6 +1057,9 @@ where
     let mut written = Vec::new();
     for bin in bins {
         let shim_path = bins_dir.join(bin);
+        if cfg!(windows) {
+            remove_stale_bin(&with_extension_appended(&shim_path, "exe"))?;
+        }
         let mut flavors = vec![(shim_path.clone(), generate_virtual_sh_shim(package, &shim_path))];
         if cfg!(windows) {
             let cmd_path = with_extension_appended(&shim_path, "cmd");

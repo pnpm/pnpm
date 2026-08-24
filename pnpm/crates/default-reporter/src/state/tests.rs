@@ -1,4 +1,4 @@
-use super::cached_verdict;
+use super::{PnpmInstallSource, cached_verdict, update_command};
 use chrono::{DateTime, Utc};
 use pretty_assertions::assert_eq;
 
@@ -30,4 +30,11 @@ fn falls_back_to_the_timeless_wording_without_a_usable_timestamp() {
 fn clamps_a_future_timestamp_to_zero() {
     let now = at("2026-07-25T12:00:00.000Z");
     assert_eq!(cached_verdict(Some("2026-07-25T12:00:05.000Z"), now), "verified 0ms ago");
+}
+
+#[test]
+fn each_way_of_installing_pnpm_gets_its_own_update_command() {
+    assert_eq!(update_command(PnpmInstallSource::Corepack, "12.0.0"), "corepack use pnpm@12.0.0");
+    assert_eq!(update_command(PnpmInstallSource::PnpmHome, "12.0.0"), "pnpm self-update");
+    assert_eq!(update_command(PnpmInstallSource::Elsewhere, "12.0.0"), "pnpm add -g pnpm");
 }

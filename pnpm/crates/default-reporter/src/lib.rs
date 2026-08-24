@@ -25,6 +25,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use pnpm_config::ColorMode;
 use pnpm_reporter::{FetchingProgressMessage, LogEvent, PromptAction, Reporter};
 
 use crate::{
@@ -39,8 +40,12 @@ static FORCE_APPEND_ONLY: OnceLock<bool> = OnceLock::new();
 static SUMMARY_SCOPE: OnceLock<SummaryScope> = OnceLock::new();
 static REPORTS_SCOPE: OnceLock<bool> = OnceLock::new();
 static HIDE_ADDED_PKGS_PROGRESS: OnceLock<bool> = OnceLock::new();
+static STREAM_LIFECYCLE_OUTPUT: OnceLock<bool> = OnceLock::new();
+static AGGREGATE_OUTPUT: OnceLock<bool> = OnceLock::new();
+static HIDE_LIFECYCLE_PREFIX: OnceLock<bool> = OnceLock::new();
 static IS_RECURSIVE: OnceLock<bool> = OnceLock::new();
 static MAX_LOG_LEVEL: OnceLock<MaxLogLevel> = OnceLock::new();
+static COLOR_MODE: OnceLock<ColorMode> = OnceLock::new();
 
 /// Verbosity ceiling for the rendered output, from pnpm's `--loglevel`
 /// setting. Mirrors `LOG_LEVEL_NUMBER` in `@pnpm/cli.default-reporter`
@@ -119,6 +124,26 @@ pub fn set_hide_added_pkgs_progress(hide_added_pkgs_progress: bool) {
     let _ = HIDE_ADDED_PKGS_PROGRESS.set(hide_added_pkgs_progress);
 }
 
+/// Stream lifecycle script output line by line instead of collecting it
+/// into a collapsible block — pnpm's `--stream`. Call once before the
+/// first event.
+pub fn stream_lifecycle_output() {
+    let _ = STREAM_LIFECYCLE_OUTPUT.set(true);
+}
+
+/// Hold each script's streamed output until it exits, then print the run
+/// as one block — pnpm's `--aggregate-output`. Call once before the first
+/// event.
+pub fn aggregate_output() {
+    let _ = AGGREGATE_OUTPUT.set(true);
+}
+
+/// Drop the project prefix from streamed script output lines — pnpm's
+/// `--reporter-hide-prefix`. Call once before the first event.
+pub fn hide_lifecycle_prefix() {
+    let _ = HIDE_LIFECYCLE_PREFIX.set(true);
+}
+
 /// Configure whether the running command operates recursively.
 ///
 /// This must be called before the reporter is initialized. Only the first
@@ -132,6 +157,19 @@ pub fn set_is_recursive(is_recursive: bool) {
 /// [`MaxLogLevel::Info`], pnpm's fallback when no `loglevel` is given.
 pub fn set_max_log_level(level: MaxLogLevel) {
     let _ = MAX_LOG_LEVEL.set(level);
+}
+
+/// Configure ANSI color rendering. Call before the first reporter event.
+pub fn set_color_mode(mode: ColorMode) {
+    let _ = COLOR_MODE.set(mode);
+}
+
+pub fn colors_enabled(is_terminal: bool) -> bool {
+    match COLOR_MODE.get().copied().unwrap_or_default() {
+        ColorMode::Always => true,
+        ColorMode::Auto => is_terminal && std::env::var_os("NO_COLOR").is_none(),
+        ColorMode::Never => false,
+    }
 }
 
 fn cwd() -> String {
@@ -196,7 +234,7 @@ impl Sink {
         let columns = if is_tty { terminal_columns().unwrap_or(80) } else { 80 };
         // pnpm's `outputMaxWidth`: `columns - 2` on a TTY, else 80.
         let width = if is_tty { columns.saturating_sub(2) } else { 80 };
-        let colors = Colors { enabled: is_tty && std::env::var_os("NO_COLOR").is_none() };
+        let colors = Colors { enabled: colors_enabled(is_tty) };
         let state = ReporterState::new_with_options(
             cwd(),
             width,
@@ -208,6 +246,9 @@ impl Sink {
                 hide_added_pkgs_progress: HIDE_ADDED_PKGS_PROGRESS.get().copied().unwrap_or(false),
                 is_recursive: IS_RECURSIVE.get().copied().unwrap_or(false),
                 max_log_level: MAX_LOG_LEVEL.get().copied().unwrap_or(MaxLogLevel::Info),
+                stream_lifecycle_output: STREAM_LIFECYCLE_OUTPUT.get().copied().unwrap_or(false),
+                aggregate_output: AGGREGATE_OUTPUT.get().copied().unwrap_or(false),
+                hide_lifecycle_prefix: HIDE_LIFECYCLE_PREFIX.get().copied().unwrap_or(false),
                 ..state::ReporterOptions::default()
             },
         );

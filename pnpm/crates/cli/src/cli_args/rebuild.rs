@@ -28,8 +28,12 @@ pub struct RebuildArgs {
 
     /// Rebuild packages that were not built during installation, such as
     /// under `--ignore-scripts`.
-    #[clap(long)]
+    #[clap(long, overrides_with = "no_pending")]
     pub pending: bool,
+
+    /// Rebuild all matching packages, including those without pending builds.
+    #[clap(long = "no-pending", hide = true, overrides_with = "pending")]
+    pub no_pending: bool,
 }
 
 impl RebuildArgs {

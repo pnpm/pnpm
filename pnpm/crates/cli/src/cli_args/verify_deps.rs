@@ -122,8 +122,7 @@ fn warn(silent: bool, message: &str) {
     if silent {
         return;
     }
-    let colors = Colors {
-        enabled: std::io::stderr().is_terminal() && std::env::var_os("NO_COLOR").is_none(),
-    };
+    let colors =
+        Colors { enabled: pnpm_default_reporter::colors_enabled(std::io::stderr().is_terminal()) };
     eprintln!("{} {message}", colors.warn_label());
 }

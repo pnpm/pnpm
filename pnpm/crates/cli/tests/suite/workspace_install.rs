@@ -73,6 +73,72 @@ fn assert_frozen_outdated(workspace: &Path) {
     );
 }
 
+#[test]
+fn recursive_install_false_selects_the_current_project_and_its_dependencies() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str(
+        "packages:\n  - 'packages/*'\nrecursiveInstall: false\ndedupePeerDependents: false\n",
+    );
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write workspace settings");
+
+    for (dir, manifest) in [
+        (
+            "a",
+            serde_json::json!({
+                "name": "a",
+                "version": "1.0.0",
+                "dependencies": {
+                    "b": "workspace:*",
+                    "is-positive": "1.0.0",
+                },
+            }),
+        ),
+        (
+            "b",
+            serde_json::json!({
+                "name": "b",
+                "version": "1.0.0",
+                "dependencies": { "is-negative": "1.0.0" },
+            }),
+        ),
+        (
+            "unrelated",
+            serde_json::json!({
+                "name": "unrelated",
+                "version": "1.0.0",
+                "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+            }),
+        ),
+    ] {
+        let project = workspace.join("packages").join(dir);
+        fs::create_dir_all(&project).expect("create project");
+        fs::write(project.join("package.json"), manifest.to_string()).expect("write manifest");
+    }
+
+    pacquet_at(&workspace.join("packages/a")).with_arg("install").assert().success();
+
+    assert!(workspace.join("packages/a/node_modules/is-positive/package.json").exists());
+    assert!(workspace.join("packages/b/node_modules/is-negative/package.json").exists());
+    assert!(
+        !workspace
+            .join("packages/unrelated/node_modules/@pnpm.e2e/hello-world-js-bin/package.json")
+            .exists(),
+        "the unfiltered install must not include an unrelated workspace project",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// A workspace with two sibling projects, each pulling in a
 /// different mocked package, runs through the fresh-resolve path and
 /// writes per-importer lockfile entries plus per-importer

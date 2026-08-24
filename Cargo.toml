@@ -59,6 +59,7 @@ pnpm-directory-fetcher                 = { path = "pnpm/crates/directory-fetcher
 pnpm-git-fetcher                       = { path = "pnpm/crates/git-fetcher" }
 pnpm-global                            = { path = "pnpm/crates/global" }
 pnpm-deps-inspection                   = { path = "pnpm/crates/deps-inspection" }
+pnpm-deps-inspection-peers             = { path = "pnpm/crates/deps-inspection-peers" }
 pnpm-deps-path                         = { path = "pnpm/crates/deps-path" }
 pnpm-deps-restorer                     = { path = "pnpm/crates/deps-restorer" }
 pnpm-detect-libc                       = { path = "pnpm/crates/detect-libc" }
@@ -114,6 +115,7 @@ chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 console = { version = "0.16.3" }
 crossterm = { version = "0.29.0" }
 dashmap = { version = "6.2.1" }
+deno_task_shell = { version = "0.33.3" }
 derive_more = { version = "2.1.1", features = ["full"] }
 dialoguer = { version = "0.12.0", default-features = false }
 diffy = { version = "0.5.0" }

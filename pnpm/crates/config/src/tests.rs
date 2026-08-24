@@ -292,6 +292,30 @@ pub fn have_default_values() {
 }
 
 #[test]
+fn package_lock_is_the_lockfile_fallback() {
+    let package_lock_only = tempdir().unwrap();
+    fs::write(package_lock_only.path().join("pnpm-workspace.yaml"), "packageLock: false\n")
+        .unwrap();
+    let config = Config::new()
+        .current::<HostNoHome>(package_lock_only.path())
+        .expect("packageLock config loads");
+    assert!(!config.package_lock);
+    assert!(!config.lockfile);
+
+    let explicit_lockfile = tempdir().unwrap();
+    fs::write(
+        explicit_lockfile.path().join("pnpm-workspace.yaml"),
+        "packageLock: false\nlockfile: true\n",
+    )
+    .unwrap();
+    let config = Config::new()
+        .current::<HostNoHome>(explicit_lockfile.path())
+        .expect("lockfile config loads");
+    assert!(!config.package_lock);
+    assert!(config.lockfile);
+}
+
+#[test]
 pub fn state_dir_uses_only_trusted_config_sources() {
     fake_env!(load_with_fake_env);
     let xdg = tempdir().expect("xdg tempdir");
@@ -3269,6 +3293,92 @@ pub fn engine_strict_node_version_and_max_sockets_from_workspace_yaml() {
     assert!(config.engine_strict);
     assert_eq!(config.node_version.as_deref(), Some("18.20.4"));
     assert_eq!(config.max_sockets, Some(5));
+}
+
+/// npm spells the setting `maxsockets`; pnpm reads either spelling, so a
+/// config carried over from npm keeps working.
+#[test]
+pub fn max_sockets_accepts_npms_lowercase_spelling() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "maxsockets: 7\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.max_sockets, Some(7));
+}
+
+/// One file may carry both spellings — the canonical one wins, and the
+/// pair is not a duplicate key that fails the whole parse.
+#[test]
+pub fn max_sockets_takes_the_canonical_spelling_when_a_file_has_both() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "maxSockets: 5\nmaxsockets: 7\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.max_sockets, Some(5));
+}
+
+/// The environment is a later layer than the file, so npm's spelling there
+/// still wins over the canonical spelling in `pnpm-workspace.yaml`.
+#[test]
+pub fn max_sockets_from_the_environment_wins_over_the_workspace_yaml() {
+    fake_env!(load_with_fake_env);
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "maxSockets: 4\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    set_fake_env(&[("PNPM_CONFIG_MAXSOCKETS", "8")]);
+    assert_eq!(load_with_fake_env(tmp.path()).max_sockets, Some(8));
+}
+
+#[test]
+pub fn max_sockets_accepts_both_spellings_from_the_environment() {
+    fake_env!(load_with_fake_env);
+    let tmp = tempdir().unwrap();
+
+    set_fake_env(&[("PNPM_CONFIG_MAXSOCKETS", "7")]);
+    assert_eq!(load_with_fake_env(tmp.path()).max_sockets, Some(7));
+
+    // The pnpm spelling wins over npm's when a shell exports both.
+    set_fake_env(&[("PNPM_CONFIG_MAXSOCKETS", "7"), ("PNPM_CONFIG_MAX_SOCKETS", "9")]);
+    assert_eq!(load_with_fake_env(tmp.path()).max_sockets, Some(9));
+}
+
+#[test]
+pub fn update_notifier_and_legacy_dir_filtering_default_and_come_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    assert!(config.update_notifier);
+    assert!(!config.legacy_dir_filtering);
+
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "updateNotifier: false\nlegacyDirFiltering: true\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(!config.update_notifier);
+    assert!(config.legacy_dir_filtering);
+}
+
+#[test]
+pub fn init_settings_come_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    assert_eq!(config.init_author_name, None);
+    assert_eq!(config.init_license, None);
+    assert_eq!(config.init_version, None);
+
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "initAuthorName: pnpm\ninitAuthorEmail: xxxxxx@pnpm.com\ninitAuthorUrl: https://www.github.com/pnpm\ninitLicense: MIT\ninitVersion: 2.0.0\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.init_author_name.as_deref(), Some("pnpm"));
+    assert_eq!(config.init_author_email.as_deref(), Some("xxxxxx@pnpm.com"));
+    assert_eq!(config.init_author_url.as_deref(), Some("https://www.github.com/pnpm"));
+    assert_eq!(config.init_license.as_deref(), Some("MIT"));
+    assert_eq!(config.init_version.as_deref(), Some("2.0.0"));
 }
 
 #[test]

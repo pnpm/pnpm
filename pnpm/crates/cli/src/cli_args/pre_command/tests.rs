@@ -361,6 +361,7 @@ fn pre_command_input(dir: &Path) -> PreCommandInput {
             npmrc_auth_file: None,
             command: Some("run".to_string()),
             frozen_lockfile: None,
+            color: None,
         },
         global: false,
         check_runtimes: true,
