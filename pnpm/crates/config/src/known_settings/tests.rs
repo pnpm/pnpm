@@ -38,6 +38,14 @@ fn annotates_a_typo_with_the_closest_setting() {
 }
 
 #[test]
+fn annotates_a_setting_from_another_pnpm_version() {
+    assert_eq!(
+        annotate_unknown_setting("confirmModulesPurge"),
+        r#""confirmModulesPurge" (a pnpm v11 setting)"#,
+    );
+}
+
+#[test]
 fn annotates_an_unmatchable_key_bare() {
     assert_eq!(annotate_unknown_setting("zzzXqjWv"), r#""zzzXqjWv""#);
 }

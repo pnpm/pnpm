@@ -1000,6 +1000,21 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect((config as unknown as Record<string, unknown>)['zzzNotASettingZzz']).toBe(true)
   })
 
+  test('confirmModulesPurge is recognized in pnpm-workspace.yaml', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { confirmModulesPurge: false })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect((config as unknown as Record<string, unknown>)['confirmModulesPurge']).toBe(false)
+    expect(warnings).not.toContainEqual(expect.stringContaining('confirmModulesPurge'))
+  })
+
   test('a null-valued key sets nothing, so it is not reported', async () => {
     prepareEmpty()
 
