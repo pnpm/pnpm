@@ -66,6 +66,10 @@
     - approve-builds-clears-legacy-settings
     - drop-modules-yaml-registries
     - registries-by-scope-by-prefix
+"@pnpm/building.commands@1101.1.0":
+  dir: pnpm11/building/commands
+  intents:
+    - bright-pandas-approve
 "@pnpm/building.during-install@1102.0.11":
   dir: pnpm11/building/during-install
   intents:
@@ -277,6 +281,11 @@
     - registry-server-type
     - verify-deps-before-run-from-env
     - virtual-store-type
+"@pnpm/config.reader@1102.0.1":
+  dir: pnpm11/config/reader
+  intents:
+    - confirm-modules-purge-setting
+    - rust-cli-honors-inert-settings
 "@pnpm/config.registry-auth-key@1100.0.0":
   dir: pnpm11/config/registry-auth-key
   intents:
@@ -949,6 +958,10 @@
   intents:
     - drop-modules-yaml-registries
     - registries-by-scope-by-prefix
+"@pnpm/installing.context@1101.0.1":
+  dir: pnpm11/installing/context
+  intents:
+    - merged-branch-lockfiles-drop-removed-deps
 "@pnpm/installing.dedupe.check@1100.1.5":
   dir: pnpm11/installing/dedupe/check
   intents:
@@ -1118,6 +1131,10 @@
     - drop-modules-yaml-registries
     - hoisted-collapsed-peer-variant-edges
     - registries-by-scope-by-prefix
+"@pnpm/installing.deps-restorer@1103.0.1":
+  dir: pnpm11/installing/deps-restorer
+  intents:
+    - hoisted-file-dep-peer-variants-stay-apart
 "@pnpm/installing.env-installer@1102.0.12":
   dir: pnpm11/installing/env-installer
   intents:
@@ -1156,6 +1173,10 @@
   dir: pnpm11/installing/linking/real-hoist
   intents:
     - hoisted-collapsed-peer-variant-edges
+"@pnpm/installing.linking.real-hoist@1100.1.15":
+  dir: pnpm11/installing/linking/real-hoist
+  intents:
+    - hoisted-file-dep-peer-variants-stay-apart
 "@pnpm/installing.linking.real-hoist@1100.1.9":
   dir: pnpm11/installing/linking/real-hoist
   intents:
@@ -1212,6 +1233,10 @@
   dir: pnpm11/lockfile/fs
   intents:
     - inert-lockfile-setting-updates
+"@pnpm/lockfile.fs@1100.2.4":
+  dir: pnpm11/lockfile/fs
+  intents:
+    - merged-branch-lockfiles-drop-removed-deps
 "@pnpm/lockfile.make-dedicated-lockfile@1100.0.30":
   dir: pnpm11/lockfile/make-dedicated-lockfile
   intents:
@@ -1545,6 +1570,10 @@
     - early-rings-mix
     - registries-by-scope-by-prefix
     - version-dry-run-writes-nothing
+"@pnpm/releasing.commands@1101.0.1":
+  dir: pnpm11/releasing/commands
+  intents:
+    - quick-wolves-publish
 "@pnpm/releasing.exportable-manifest@1100.1.10":
   dir: pnpm11/releasing/exportable-manifest
   intents:
@@ -1895,6 +1924,10 @@
   dir: pnpm11/workspace/commands
   intents:
     - fix-init-dev-engines-semver
+"@pnpm/workspace.commands@1100.1.38":
+  dir: pnpm11/workspace/commands
+  intents:
+    - rust-cli-honors-inert-settings
 "@pnpm/workspace.injected-deps-syncer@1100.0.28":
   dir: pnpm11/workspace/injected-deps-syncer
   intents:
@@ -1922,6 +1955,10 @@
   dir: pnpm11/workspace/projects-filter
   intents:
     - root-only-workspace-discovery
+"@pnpm/workspace.projects-filter@1100.0.39":
+  dir: pnpm11/workspace/projects-filter
+  intents:
+    - rust-cli-honors-inert-settings
 "@pnpm/workspace.projects-graph@1100.0.28":
   dir: pnpm11/workspace/projects-graph
   intents:
@@ -2349,6 +2386,17 @@ pacquet@12.0.0-rc.1:
     - update-no-save-respects-kept-range
     - version-json-empty-output
     - windows-symlink-privilege-fallback
+pacquet@12.0.0-rc.10:
+  dir: pnpm/npm/pnpm
+  intents:
+    - confirm-modules-purge-setting
+    - corepack-build-in-a-dev-engines-pin
+    - drop-static-analysis-compat-entries
+    - frozen-lockfile-package-manager-repair
+    - hoisted-file-dep-peer-variants-stay-apart
+    - merged-branch-lockfiles-drop-removed-deps
+    - record-package-manager-pin-on-fast-path
+    - tolerate-a-foreign-package-manager-entry
 pacquet@12.0.0-rc.2:
   dir: pnpm/npm/pnpm
   intents:
@@ -2825,3 +2873,14 @@ pnpm@11.23.0:
     - verify-deps-before-run-from-env
     - version-dry-run-writes-nothing
     - virtual-store-type
+pnpm@11.24.0:
+  dir: pnpm11/pnpm
+  intents:
+    - bright-pandas-approve
+    - confirm-modules-purge-setting
+    - frozen-lockfile-package-manager-repair
+    - hoisted-file-dep-peer-variants-stay-apart
+    - merged-branch-lockfiles-drop-removed-deps
+    - quick-wolves-publish
+    - rust-cli-honors-inert-settings
+    - tolerate-a-foreign-package-manager-entry
