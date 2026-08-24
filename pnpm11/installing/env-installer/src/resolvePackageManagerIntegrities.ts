@@ -1,4 +1,4 @@
-import { parseRegistryQualifiedVersion } from '@pnpm/deps.path'
+import { parseRegistryQualifiedVersion, refToRelative, removeSuffix } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { convertToLockfileFile, createEnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
@@ -37,17 +37,19 @@ export interface ResolvePackageManagerIntegritiesOpts {
 }
 
 /**
- * Whether the env lockfile already records what this pnpm writes for
- * `pnpmVersion`: the pinned packages, and nothing besides them.
+ * Checks if the wanted pnpm version integrities are already fully resolved in the env lockfile.
  */
 export function isPackageManagerResolved (
   envLockfile: EnvLockfile | undefined,
   pnpmVersion: string
 ): boolean {
-  const pmDeps = envLockfile?.importers['.'].packageManagerDependencies
+  if (!envLockfile) return false
+
+  const pmDeps = envLockfile.importers['.'].packageManagerDependencies
   if (pmDeps == null) return false
-  return Object.keys(pmDeps).length === packageManagerDeps(pnpmVersion).length &&
-    pinsWantedPackageManager(envLockfile, pnpmVersion)
+  const wantedDeps = packageManagerDeps(pnpmVersion)
+  return Object.keys(pmDeps).length === wantedDeps.length &&
+    wantedDeps.every((name) => pmDeps[name]?.version === pnpmVersion)
 }
 
 /**
@@ -59,18 +61,31 @@ export function isPackageManagerResolved (
  * the wanted version through the same integrity and cannot change which pnpm
  * runs, so a frozen lockfile accepts it instead of failing a project whose
  * lockfile a teammate's older pnpm last wrote. An entry pinning any other
- * version is a lockfile that disagrees with the manifest, which is what the
- * flag is for, and a writable install still rewrites the block to the
- * packages this pnpm installs from.
+ * version, or one the lockfile carries no package to install from, is a
+ * lockfile that disagrees with the manifest, which is what the flag is for,
+ * and a writable install still rewrites the block to the packages this pnpm
+ * installs from.
  */
 export function pinsWantedPackageManager (
   envLockfile: EnvLockfile | undefined,
   pnpmVersion: string
 ): boolean {
-  const pmDeps = envLockfile?.importers['.'].packageManagerDependencies
+  if (!envLockfile) return false
+
+  const pmDeps = envLockfile.importers['.'].packageManagerDependencies
   if (pmDeps == null) return false
   return packageManagerDeps(pnpmVersion).every((name) => pmDeps[name] != null) &&
-    Object.values(pmDeps).every((dep) => dep.version === pnpmVersion)
+    Object.entries(pmDeps).every(([name, dep]) =>
+      dep.version === pnpmVersion && isRecordedForInstall(envLockfile, name, dep.version)
+    )
+}
+
+/** Whether the lockfile carries the records the bootstrap installs `name@version` from. */
+function isRecordedForInstall (envLockfile: EnvLockfile, name: string, version: string): boolean {
+  const depPath = refToRelative(version, name)
+  return depPath != null &&
+    envLockfile.packages[removeSuffix(depPath)] != null &&
+    envLockfile.snapshots[depPath] != null
 }
 
 /**

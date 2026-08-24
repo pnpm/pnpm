@@ -53,12 +53,7 @@ pub async fn resolve_package_manager_integrities(
     }
     let repair_in_memory = force_resync && opts.frozen_lockfile;
     if opts.frozen_lockfile && !force_resync {
-        if pins_wanted_package_manager(
-            &env_lockfile,
-            wanted_specifier,
-            version,
-            package_manager_deps,
-        ) {
+        if pins_wanted_package_manager(&env_lockfile, version, package_manager_deps) {
             return Ok(env_lockfile);
         }
         return Err(ConfigDepError::FrozenLockfileOutdated {
@@ -173,21 +168,18 @@ pub fn is_package_manager_resolved(
 }
 
 /// Whether the env lockfile already records what this pnpm would write for
-/// `pnpm_version`: the pinned packages, and nothing besides them.
+/// `pnpm_version`: the pinned packages under the specifier they were pinned
+/// from, and nothing besides them.
 fn is_package_manager_resolved_with_deps(
     env_lockfile: &EnvLockfile,
     wanted_specifier: &str,
     pnpm_version: &str,
     package_manager_deps: &[&str],
 ) -> bool {
-    recorded_package_manager_deps(env_lockfile)
-        .is_some_and(|pm_deps| pm_deps.len() == package_manager_deps.len())
-        && pins_wanted_package_manager(
-            env_lockfile,
-            wanted_specifier,
-            pnpm_version,
-            package_manager_deps,
-        )
+    recorded_package_manager_deps(env_lockfile).is_some_and(|pm_deps| {
+        pm_deps.len() == package_manager_deps.len()
+            && pm_deps.values().all(|dep| dep.specifier == wanted_specifier)
+    }) && pins_wanted_package_manager(env_lockfile, pnpm_version, package_manager_deps)
 }
 
 /// Whether the env lockfile pins the package manager the manifest asks for,
@@ -198,12 +190,12 @@ fn is_package_manager_resolved_with_deps(
 /// pins the wanted version through the same integrity and cannot change
 /// which pnpm runs, so a frozen lockfile accepts it instead of failing a
 /// project whose lockfile a teammate's older pnpm last wrote. An entry
-/// pinning any other version is a lockfile that disagrees with the manifest,
-/// which is what the flag is for, and a writable install still rewrites the
-/// block to the packages this pnpm installs from.
+/// pinning any other version, or one the lockfile carries no package to
+/// install from, is a lockfile that disagrees with the manifest, which is
+/// what the flag is for, and a writable install still rewrites the block to
+/// the packages this pnpm installs from.
 fn pins_wanted_package_manager(
     env_lockfile: &EnvLockfile,
-    wanted_specifier: &str,
     pnpm_version: &str,
     package_manager_deps: &[&str],
 ) -> bool {
@@ -212,8 +204,7 @@ fn pins_wanted_package_manager(
     };
     package_manager_deps.iter().all(|name| pm_deps.contains_key(*name))
         && pm_deps.iter().all(|(name, dep)| {
-            dep.specifier == wanted_specifier
-                && dep.version == pnpm_version
+            dep.version == pnpm_version
                 && package_manager_entry_exists(env_lockfile, name, &dep.version)
         })
 }

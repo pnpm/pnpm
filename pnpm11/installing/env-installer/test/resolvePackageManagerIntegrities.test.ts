@@ -142,6 +142,25 @@ test('an entry for a package the running pnpm does not install from is accepted 
   expect(resolveManifestDependencies).not.toHaveBeenCalled()
 })
 
+test('an entry the lockfile carries no package for is refused under frozenLockfile', async () => {
+  const withoutRecords = envLockfile({ 'pnpm': '12.0.0', '@pnpm/exe': '12.0.0' })
+  withoutRecords.packages = {}
+  withoutRecords.snapshots = {}
+
+  await expect(
+    resolvePackageManagerIntegrities('12.0.0', {
+      envLockfile: withoutRecords,
+      registriesByScope: { default: 'https://mirror.example.com/' },
+      rootDir: '/repo',
+      storeController: {} as never,
+      storeDir: '/store',
+      frozenLockfile: true,
+    })
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE',
+  })
+})
+
 test('an entry pinning another version is still refused under frozenLockfile', async () => {
   await expect(
     resolvePackageManagerIntegrities('12.0.0', {
@@ -190,17 +209,20 @@ test('an in-memory resolution is performed under frozenLockfile', async () => {
 })
 
 function envLockfile (packageManagerDependencies: Record<string, string>): EnvLockfile {
+  const pinned = Object.entries(packageManagerDependencies)
   return {
     lockfileVersion: '9.0',
     importers: {
       '.': {
         configDependencies: {},
         packageManagerDependencies: Object.fromEntries(
-          Object.entries(packageManagerDependencies).map(([name, version]) => [name, { specifier: version, version }])
+          pinned.map(([name, version]) => [name, { specifier: version, version }])
         ),
       },
     },
-    packages: {},
-    snapshots: {},
+    packages: Object.fromEntries(
+      pinned.map(([name, version]) => [`${name}@${version}`, { resolution: { integrity: `sha512-${name}` } }])
+    ),
+    snapshots: Object.fromEntries(pinned.map(([name, version]) => [`${name}@${version}`, {}])),
   } as unknown as EnvLockfile
 }
