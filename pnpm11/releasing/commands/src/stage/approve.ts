@@ -5,6 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { sanitizeInline } from '@pnpm/text.sanitize'
 import chalk from 'chalk'
+import validateNpmPackageName from 'validate-npm-package-name'
 
 import {
   readWorkspaceApprovalOrder,
@@ -12,6 +13,7 @@ import {
   unavailableDependencies,
 } from './approvalOrder.js'
 import { createStageContext, type StageContext } from './context.js'
+import type { StageRegistryError } from './errors.js'
 import { fetchStageItems } from './items.js'
 import { parseStageIds, UUID_REGEX } from './parsing.js'
 import { createStageOtpSession, stageJsonRequest, type StageOtpSession } from './request.js'
@@ -68,23 +70,37 @@ function dedupeStageIds (stageIds: string[]): string[] {
  * Reads one staged version the registry reported.
  *
  * The entry is registry-controlled input that ends up in a terminal prompt the
- * user picks releases from, and whose package name is matched against the
- * workspace to order the approvals, so its id has to be the same UUID the
- * other subcommands address a staged version by — checked before sanitizing,
- * so that stripping a formatting character cannot be what makes it one — and
- * its text is stripped of the control characters that could redraw the prompt
- * around a selection or hide a name from the workspace match.
+ * user picks releases from, so every field is taken as it came and checked
+ * rather than repaired:
+ *
+ * - the id has to be the same UUID the other subcommands address a staged
+ *   version by, and the package name a name npm would accept — both checked
+ *   before anything is stripped, so that removing a hidden character can
+ *   never be what makes a value valid. A name that fails carries no workspace
+ *   identity, so the version is approved outside the workspace order rather
+ *   than under the name it resembles;
+ * - the remaining fields are shown and nothing more, so they are stripped of
+ *   the control characters that could redraw the prompt around a selection.
  */
 function toApprovalItem (item: StageItem): ApprovalItem | undefined {
   if (typeof item.id !== 'string' || !UUID_REGEX.test(item.id)) return undefined
   return {
     id: item.id,
-    packageName: sanitizedField(item.packageName),
+    packageName: validPackageName(item.packageName),
     version: sanitizedField(item.version),
     tag: sanitizedField(item.tag),
     createdAt: sanitizedField(item.createdAt),
     actor: sanitizedField(item.actor),
   }
+}
+
+/**
+ * The name a staged version publishes under, if the registry named it the way
+ * npm would. A valid name is URL-safe, so it is also safe to display as it is.
+ */
+function validPackageName (value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  return validateNpmPackageName(value).validForOldPackages ? value : undefined
 }
 
 function sanitizedField (value: unknown): string | undefined {
@@ -145,7 +161,11 @@ async function resolveStageItems (context: StageContext, stageIds: string[]): Pr
         url: new URL(`-/stage/${stageId}`, context.registry).href,
         action: `view staged package ${stageId}`,
       })
-    } catch {
+    } catch (err: unknown) {
+      // Only the registry answering "no such staged version" is survivable
+      // here. An authentication failure or a broken connection applies to
+      // every id in the batch, so it aborts before anything is approved.
+      if (!isMissingStageError(err)) throw err
       return { id: stageId }
     }
     return toApprovalItem({ ...item, id: stageId }) ?? { id: stageId }
@@ -203,6 +223,10 @@ async function approveStagedPackage (context: StageContext, item: ApprovalItem, 
 
 function isStageRegistryError (err: unknown): err is Error {
   return util.types.isNativeError(err) && (err as PnpmError).code === 'ERR_PNPM_STAGE_REGISTRY_ERROR'
+}
+
+function isMissingStageError (err: unknown): boolean {
+  return isStageRegistryError(err) && (err as StageRegistryError).status === 404
 }
 
 /** How the interactive picker names a staged version. */

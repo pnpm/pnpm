@@ -17,13 +17,14 @@ use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::{Config, LinkWorkspacePackages};
 use pnpm_network_web_auth::{Host as WebAuthHost, OtpSession, StdinIsTty, StdoutIsTty};
 use pnpm_reporter::Reporter;
+use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use pnpm_workspace::GraphPkg;
 use pnpm_workspace_projects_graph::{CreateProjectsGraphOptions, create_projects_graph};
 use serde_json::Value;
 
 use super::{
-    StageArgs, StageContext, StageError, fetch_stage_items, global_info, global_warn, is_uuid,
-    stage_endpoint_url, stage_json_request, stage_request_in_session,
+    StageArgs, StageContext, StageError, StageRegistryError, fetch_stage_items, global_info,
+    global_warn, is_uuid, stage_endpoint_url, stage_json_request, stage_request_in_session,
 };
 use crate::cli_args::{
     changelog::published_name,
@@ -69,11 +70,12 @@ impl StageApprovalItem {
         }
     }
 
-    /// Reads one entry of the registry's `-/stage` listing. The entry is
+    /// Reads one staged version the registry described. The entry is
     /// registry-controlled input that ends up in a terminal prompt the user
-    /// picks releases from, so its id has to be the same UUID the other
-    /// subcommands accept, and its text is stripped of the control characters
-    /// that could redraw the prompt around a selection.
+    /// picks releases from, so every field is taken as it came and checked
+    /// rather than repaired; the fields that are only displayed are stripped
+    /// of the control characters that could redraw the prompt around a
+    /// selection.
     fn from_value(item: &Value) -> Option<Self> {
         let string_field = |field: &str| {
             item.get(field)
@@ -81,12 +83,20 @@ impl StageApprovalItem {
                 .map(|value| sanitize_inline(value).into_owned())
                 .filter(|value| !value.is_empty())
         };
-        // The id is validated before sanitizing: stripping a formatting
-        // character out of it must not be what makes it a UUID.
+        // The id and the package name are validated as they came: removing a
+        // hidden character must never be what makes a value valid. A name
+        // that fails carries no workspace identity, so the version is
+        // approved outside the workspace order rather than under the name it
+        // resembles. A valid name is URL-safe, so it is also safe to display.
         let id = item.get("id").and_then(Value::as_str).filter(|id| is_uuid(id))?.to_owned();
+        let package_name = item
+            .get("packageName")
+            .and_then(Value::as_str)
+            .filter(|name| is_valid_old_npm_package_name(name))
+            .map(str::to_owned);
         Some(StageApprovalItem {
             id,
-            package_name: string_field("packageName"),
+            package_name,
             version: string_field("version"),
             tag: string_field("tag"),
             created_at: string_field("createdAt"),
@@ -229,7 +239,15 @@ async fn resolve_approval_items(
         let url = stage_endpoint_url(&context.registry, &format!("-/stage/{stage_id}"))?;
         let action = format!("view staged package {stage_id}");
         let described: Option<Value> =
-            stage_json_request(context, url.as_str(), &action).await.ok();
+            match stage_json_request(context, url.as_str(), &action).await {
+                Ok(described) => Some(described),
+                // Only the registry answering "no such staged version" is
+                // survivable here. An authentication failure or a broken
+                // connection applies to every id in the batch, so it aborts
+                // before anything is approved.
+                Err(error) if is_missing_stage_error(&error) => None,
+                Err(error) => return Err(error),
+            };
         items.push(
             described
                 .as_ref()
@@ -334,6 +352,10 @@ async fn approve_staged_package<Reporter: self::Reporter>(
 
 fn is_stage_registry_error(error: &miette::Report) -> bool {
     error.code().is_some_and(|code| code.to_string() == "ERR_PNPM_STAGE_REGISTRY_ERROR")
+}
+
+fn is_missing_stage_error(error: &miette::Report) -> bool {
+    error.downcast_ref::<StageRegistryError>().is_some_and(|error| error.status == 404)
 }
 
 fn record_unpublished(item: &StageApprovalItem, unpublished_package_names: &mut HashSet<String>) {

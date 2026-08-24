@@ -148,20 +148,34 @@ fn a_staged_version_is_named_by_its_package_and_falls_back_to_its_id() {
 }
 
 #[test]
-fn a_listed_staged_version_is_stripped_of_terminal_control_characters() {
-    let listed = StageApprovalItem::from_value(&json!({
+fn a_described_staged_version_is_stripped_of_terminal_control_characters() {
+    let described = StageApprovalItem::from_value(&json!({
         "id": "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f",
-        "packageName": "foo\u{1b}[2K\u{1b}[G",
-        "version": "1.0.0",
+        "packageName": "foo",
+        "version": "1.0.0\u{1b}[2K",
         "actor": "zkochan\u{202e}",
     }))
     .expect("a staged version");
-    assert_eq!(listed.label(), "foo[2K[G@1.0.0");
-    assert_eq!(listed.choice(), "foo[2K[G@1.0.0 (by zkochan)");
+    assert_eq!(described.label(), "foo@1.0.0[2K");
+    assert_eq!(described.choice(), "foo@1.0.0[2K (by zkochan)");
+}
+
+/// A name only npm would reject carries no workspace identity: sanitizing it
+/// must not be what makes it match a workspace package.
+#[test]
+fn a_described_staged_version_with_an_invalid_package_name_carries_no_name() {
+    let described = StageApprovalItem::from_value(&json!({
+        "id": "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f",
+        "packageName": "@scope/dependency\u{202e}",
+        "version": "1.0.0",
+    }))
+    .expect("a staged version");
+    assert_eq!(described.package_name, None);
+    assert_eq!(described.label(), "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f");
 }
 
 #[test]
-fn a_listed_staged_version_without_a_uuid_id_is_dropped() {
+fn a_described_staged_version_without_a_uuid_id_is_dropped() {
     assert!(
         StageApprovalItem::from_value(&json!({
             "id": "../../../-/npm/v1/tokens",

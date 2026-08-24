@@ -563,6 +563,70 @@ describe('stage command against the registry mock', () => {
     }
   })
 
+  test('stage approve aborts the batch when a staged version cannot be read', async () => {
+    const approveAttempts: string[] = []
+    const registry = await createRegistry((request) => {
+      if (describedStageId(request)) {
+        return { status: 401, body: { error: 'unauthorized' } }
+      }
+      const stageId = approvedStageId(request)
+      if (stageId) {
+        approveAttempts.push(stageId)
+        return { status: 201, body: { ok: true } }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    try {
+      await expect(stage.handler({
+        ...stageOpts(registry.url),
+        cliOptions: { otp: '123456' },
+        otp: '123456',
+      }, ['approve', STAGE_ID, SECOND_STAGE_ID])).rejects.toMatchObject({ code: 'ERR_PNPM_STAGE_REGISTRY_ERROR' })
+      expect(approveAttempts).toHaveLength(0)
+    } finally {
+      await registry.close()
+    }
+  })
+
+  test('stage approve treats a package name the registry made up as no name at all', async () => {
+    const items = [
+      { id: STAGE_ID, packageName: '@pnpmtest/stage-dependent', version: '1.0.0' },
+      // The dependency's name only looks like the workspace package's.
+      { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-dependency\u202E', version: '1.0.0' },
+    ]
+    const workspaceDir = prepareWorkspaceWithDependency()
+    const approved: string[] = []
+    const registry = await createRegistry((request) => {
+      const describedStageIdOfRequest = describedStageId(request)
+      if (describedStageIdOfRequest) {
+        const item = items.find(({ id }) => id === describedStageIdOfRequest)
+        return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
+      }
+      const stageId = approvedStageId(request)
+      if (stageId) {
+        approved.push(stageId)
+        return { status: 201, body: { ok: true } }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    try {
+      const result = await stage.handler({
+        ...stageOpts(registry.url),
+        cliOptions: { otp: '123456' },
+        dir: workspaceDir,
+        otp: '123456',
+        workspaceDir,
+        workspacePackagePatterns: ['packages/*'],
+      }, ['approve', STAGE_ID, SECOND_STAGE_ID])
+      expect(result).toStrictEqual({ exitCode: 0, output: 'Approved 2 staged packages successfully.' })
+      // Without a workspace identity it sorts after the workspace packages
+      // instead of ahead of the dependent it resembles.
+      expect(approved).toEqual([STAGE_ID, SECOND_STAGE_ID])
+    } finally {
+      await registry.close()
+    }
+  })
+
   test('stage approve without a stage id requires an interactive terminal', async () => {
     const registry = await createRegistry(() => ({ status: 500, body: { error: 'nothing should be requested' } }))
     const restoreTty = forceNonInteractiveTty()

@@ -142,6 +142,10 @@ pub enum StageError {
 pub struct StageRegistryError {
     #[error(not(source))]
     message: String,
+    /// The response status, kept so a caller can tell "no such staged
+    /// version" apart from a failure that applies to every request.
+    #[error(not(source))]
+    pub status: u16,
 }
 
 impl StageRegistryError {
@@ -157,7 +161,7 @@ impl StageRegistryError {
         } else {
             format!("Failed to {action} (status {status_display}): {trimmed}")
         };
-        StageRegistryError { message }
+        StageRegistryError { message, status }
     }
 }
 
