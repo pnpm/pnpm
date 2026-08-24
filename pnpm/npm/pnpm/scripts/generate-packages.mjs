@@ -1,14 +1,13 @@
 // Adapted from Rome (https://github.com/rome/tools/blob/392d188a49/npm/rome/scripts/generate-packages.mjs).
 //
-// Generates the per-platform `@pnpm/exe.<target>` native packages and the
-// `@pnpm/exe` wrapper (an equal-content copy of the committed wrapper).
+// Generates the per-platform `@pnpm/exe.<target>` native packages.
 //
 // The committed wrapper is the private workspace package `pacquet` (so its
 // name can't collide with the TypeScript CLI package `pnpm`, which the
 // meta-updater and pnpm's own name-keyed resolution key on); this script
 // rewrites it into the publishable `pnpm` manifest.
 
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fs from "node:fs";
 
@@ -16,34 +15,16 @@ import * as fs from "node:fs";
 // `pnpm-<codeTarget>` archives and extracts the binaries under these names.
 const EXTRACTED_BIN_NAME = "pnpm";
 // Prefix of the generated native package dirs. Kept distinct from `pnpm` so
-// the dirs can't be caught by the `pnpm/npm/pnpm*` glob the release
-// workflow publishes the wrapper packages with.
+// the release workflow can address them separately from the `pnpm/npm/pnpm`
+// wrapper dir they sit beside.
 const PACKAGE_DIR_PREFIX = "pacquet";
 // Binary file name inside each native package; `installPnpm`'s
 // `linkExePlatformBinary` hardcodes `pnpm`, so both must agree.
 const NATIVE_BIN_FILE = "pnpm";
-const EXE_WRAPPER_NAME = "@pnpm/exe";
-const EXE_WRAPPER_DIR = "pnpm-exe";
 // Ships with every package that carries the native binary, wrapper or not:
 // the BSD 2-Clause code the engine is derived from asks for its notice in the
 // materials accompanying a binary distribution.
 const NOTICES_FILE = "THIRD-PARTY-NOTICES.md";
-// Files shared verbatim by both wrappers: the root-level bins + preinstall +
-// the Corepack entry points + README + the third-party notices. Both wrappers
-// publish the same `files` list, so anything named there has to be copied here
-// too.
-const WRAPPER_FILES = [
-  "pnpm",
-  "pn",
-  "pnpx",
-  "pnx",
-  "install.js",
-  "native-binary.mjs",
-  "bin/pnpm.mjs",
-  "bin/pnpx.mjs",
-  "README.md",
-  NOTICES_FILE,
-];
 
 const PNPM_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const PACKAGES_ROOT = resolve(PNPM_ROOT, "..");
@@ -131,48 +112,6 @@ function patchPnpmWrapperManifest() {
   fs.writeFileSync(MANIFEST_PATH, JSON.stringify(rootManifest));
 }
 
-// Generate the `@pnpm/exe` wrapper as a copy of the `pnpm` wrapper with only the
-// name + repo.directory changed. Must run after `patchPnpmWrapperManifest` so the
-// copied manifest already carries the version and optionalDependencies.
-function generateExeWrapper() {
-  const exeRoot = resolve(PACKAGES_ROOT, EXE_WRAPPER_DIR);
-  fs.rmSync(exeRoot, { recursive: true, force: true });
-  fs.mkdirSync(exeRoot, { recursive: true });
-
-  // Copy instead of symlinking so the tarball is self-contained for publish.
-  for (const file of WRAPPER_FILES) {
-    fs.mkdirSync(dirname(resolve(exeRoot, file)), { recursive: true });
-    fs.copyFileSync(resolve(PNPM_ROOT, file), resolve(exeRoot, file));
-    fs.chmodSync(resolve(exeRoot, file), fs.statSync(resolve(PNPM_ROOT, file)).mode);
-  }
-
-  // Both wrappers place the native binary next to themselves, so both need
-  // their own copy of the node-gyp payload for it to be found at
-  // `<exe dir>/dist`. Built by scripts/bundle-node-gyp.mjs; absent when
-  // generating packages without having run it.
-  const distRoot = resolve(PNPM_ROOT, "dist");
-  if (fs.existsSync(distRoot)) {
-    fs.cpSync(distRoot, resolve(exeRoot, "dist"), { recursive: true });
-  }
-
-  const baseManifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf-8"));
-  // The wrapper states its own name outright, so it must not inherit the base
-  // manifest's `publishConfig.name` rename — that would publish it as `pnpm`.
-  const { name: _renamedTo, ...publishConfig } = baseManifest.publishConfig ?? {};
-  const exeManifest = {
-    ...baseManifest,
-    name: EXE_WRAPPER_NAME,
-    repository: { ...baseManifest.repository, directory: `pnpm/npm/${EXE_WRAPPER_DIR}` },
-  };
-  if (Object.keys(publishConfig).length > 0) {
-    exeManifest.publishConfig = publishConfig;
-  } else {
-    delete exeManifest.publishConfig;
-  }
-  console.log(`Create wrapper ${exeRoot}`);
-  fs.writeFileSync(resolve(exeRoot, "package.json"), JSON.stringify(exeManifest));
-}
-
 // `@pnpm/exe.<target>` is the convention `installPnpm`'s relinker already
 // anticipates (`exePlatformPkgDirNameNext`), so a switch to v12 needs no special
 // case.
@@ -196,4 +135,3 @@ for (const target of TARGETS) {
 }
 
 patchPnpmWrapperManifest();
-generateExeWrapper();
