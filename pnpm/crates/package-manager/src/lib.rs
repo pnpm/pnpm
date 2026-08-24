@@ -27,6 +27,7 @@ mod package_extender;
 mod patch;
 mod peer_dependency_issues;
 mod prefetching_resolver;
+mod prune_merged_branch_lockfile;
 mod prune_virtual_store;
 mod remove;
 mod resolution_observer;

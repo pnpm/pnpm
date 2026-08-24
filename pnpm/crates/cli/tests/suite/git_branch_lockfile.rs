@@ -204,3 +204,52 @@ fn merging_keeps_the_branch_lockfiles_on_a_check_only_dedupe() {
 
     drop((root, mock_instance));
 }
+
+/// The merge unions the two lockfiles' keys, so a dependency the main
+/// branch dropped after the branch lockfile was written comes back in
+/// the merged result. `--frozen-lockfile` never resolves, so nothing
+/// else takes it out again before the freshness check sees it.
+#[test]
+fn merging_drops_a_dependency_the_manifest_no_longer_declares() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let write_manifest = |dependencies: serde_json::Value| {
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({
+                "dependencies": dependencies,
+                "peerDependencies": { "@pnpm.e2e/bar": "100.0.0" },
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
+    };
+
+    set_branch(&workspace, "main");
+    write_manifest(serde_json::json!({ "@pnpm.e2e/foo": "1.0.0", "@pnpm.e2e/qar": "100.0.0" }));
+    pacquet.with_arg("install").assert().success();
+
+    // What the other branch last resolved, taken before `qar` was dropped.
+    let branch_lockfile = workspace.join("pnpm-lock.other.yaml");
+    fs::copy(workspace.join("pnpm-lock.yaml"), &branch_lockfile).expect("seed a branch lockfile");
+
+    write_manifest(serde_json::json!({ "@pnpm.e2e/foo": "1.0.0" }));
+    pacquet_in(&workspace).with_arg("install").assert().success();
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--merge-git-branch-lockfiles", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    assert!(!branch_lockfile.exists(), "the merged branch lockfile is deleted");
+    let shared = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(!shared.contains("@pnpm.e2e/qar"), "{shared}");
+    assert!(
+        shared.contains("@pnpm.e2e/bar@100.0.0"),
+        "the auto-installed peer is still declared, so it survives: {shared}",
+    );
+
+    drop((root, mock_instance));
+}

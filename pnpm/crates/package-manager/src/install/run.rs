@@ -12,8 +12,8 @@ use super::{
     dev_preinstall_already_ran, emit_initial_package_manifest,
     get_catalogs_from_workspace_manifest, gvs_build_marker_present,
     gvs_build_markers_may_require_recovery, load_workspace_projects, lockfile_root_dir,
-    map_frozen_lockfile_error, materialize, prepare_modules_state, run_dev_preinstall,
-    selected_manifest_freshness_inputs, try_fast_update_lockfile,
+    map_frozen_lockfile_error, materialize, prepare_modules_state, prune_merged_branch_lockfile,
+    run_dev_preinstall, selected_manifest_freshness_inputs, try_fast_update_lockfile,
     unapproved_recorded_ignored_builds, verify_lockfile_eagerly,
 };
 use pnpm_config::Config;
@@ -702,6 +702,19 @@ where
         // would hide the change of a real install creating `pnpm-lock.yaml`.
         let existing_wanted_lockfile = lockfile;
         let lockfile = lockfile.or(synthesized_lockfile.as_ref());
+        // The branch lockfiles were folded in at load, before any manifest
+        // was known. Reconcile the merge against them now, while every
+        // later stage — the fast update, the freshness check, and the
+        // rewrite the merge is saved by — still reads the same object.
+        let merged_branch_lockfile =
+            config.merge_git_branch_lockfiles.then_some(lockfile).flatten().map(|lockfile| {
+                prune_merged_branch_lockfile(
+                    lockfile,
+                    &manifest_freshness_inputs,
+                    config.auto_install_peers,
+                )
+            });
+        let lockfile = merged_branch_lockfile.as_ref().or(lockfile);
         let can_fast_update_lockfile = !frozen_lockfile
             && !dry_run
             && prefer_frozen_lockfile
