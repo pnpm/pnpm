@@ -2,36 +2,54 @@ use crate::{PkgName, ProjectSnapshot, freshness::auto_installed_peer_deps};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use std::collections::HashSet;
 
-/// Drop every entry of `importer` that `manifest` no longer declares,
-/// per dependency group. For the callers holding a lockfile no
-/// resolution has reconciled against the manifests: the merge of the git
-/// branch lockfiles unions their keys, so it can only ever add.
+/// Drop the entries of `importer` that `manifest` does not declare and
+/// `pre_merge` did not already carry, per dependency group. Reports
+/// whether anything was dropped.
+///
+/// `pre_merge` is the same importer before the git branch lockfiles were
+/// folded in. The fold unions keys, so it can only ever add, and only
+/// what it added may be taken back out: an undeclared entry the read file
+/// already held is drift the freshness check owns, not the fold's to
+/// repair.
 ///
 /// Which group a manifest entry belongs to is derived exactly the way
 /// [`crate::satisfies_package_manifest`] derives it, so pruning to the
 /// manifest hands that check the fields it expects to find.
 pub fn prune_undeclared_importer_deps(
     importer: &mut ProjectSnapshot,
+    pre_merge: Option<&ProjectSnapshot>,
     manifest: &PackageManifest,
     auto_install_peers: bool,
-) {
+) -> bool {
     let declared = DeclaredNames::of(manifest, auto_install_peers);
-    for (declared_in_group, field) in [
-        (&declared.prod, &mut importer.dependencies),
-        (&declared.dev, &mut importer.dev_dependencies),
-        (&declared.optional, &mut importer.optional_dependencies),
+    let mut pruned = false;
+    for (declared_in_group, group, field) in [
+        (&declared.prod, DependencyGroup::Prod, &mut importer.dependencies),
+        (&declared.dev, DependencyGroup::Dev, &mut importer.dev_dependencies),
+        (&declared.optional, DependencyGroup::Optional, &mut importer.optional_dependencies),
     ] {
         let Some(dependencies) = field.as_mut() else { continue };
-        dependencies.retain(|name, _| declared_in_group.contains(name));
+        let before = dependencies.len();
+        dependencies.retain(|name, _| {
+            declared_in_group.contains(name)
+                || pre_merge
+                    .and_then(|pre| pre.get_map_by_group(group))
+                    .is_some_and(|pre| pre.contains_key(name))
+        });
+        pruned |= dependencies.len() != before;
         if dependencies.is_empty() {
             *field = None;
         }
     }
     if let Some(specifiers) = importer.specifiers.as_mut() {
         specifiers.retain(|name, _| {
-            PkgName::parse(name.as_str()).is_ok_and(|name| declared.contains_anywhere(&name))
+            PkgName::parse(name.as_str()).is_ok_and(|parsed| declared.contains_anywhere(&parsed))
+                || pre_merge
+                    .and_then(|pre| pre.specifiers.as_ref())
+                    .is_some_and(|pre| pre.contains_key(name))
         });
     }
+    pruned
 }
 
 /// The manifest's dependency names split into the importer groups they
@@ -43,10 +61,8 @@ struct DeclaredNames {
 }
 
 impl DeclaredNames {
-    /// An alias the manifest declares in several groups belongs to the
-    /// most specific one: optional wins over prod, prod over dev. An
-    /// auto-installed peer joins `dependencies`, but only when no other
-    /// group declares it — see [`auto_installed_peer_deps`].
+    /// Precedence for an alias several groups declare: optional over
+    /// prod, prod over dev.
     fn of(manifest: &PackageManifest, auto_install_peers: bool) -> Self {
         let names_of = |group| {
             manifest.dependencies([group]).filter_map(|(name, _)| PkgName::parse(name).ok())

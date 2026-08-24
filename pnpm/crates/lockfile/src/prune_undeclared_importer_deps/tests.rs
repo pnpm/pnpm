@@ -7,8 +7,6 @@ fn manifest(value: serde_json::Value) -> PackageManifest {
     PackageManifest::from_value(PathBuf::from("/project/package.json"), value)
 }
 
-/// An importer that records `foo` and `bar` under the group each name
-/// is listed in, with a `specifiers` map covering both.
 fn importer(source: &str) -> ProjectSnapshot {
     serde_saphyr::from_str(source).expect("parse importer")
 }
@@ -31,6 +29,7 @@ fn drops_a_dependency_the_manifest_no_longer_declares() {
     let mut importer = importer(FOO_AND_BAR);
     prune_undeclared_importer_deps(
         &mut importer,
+        None,
         &manifest(json!({ "dependencies": { "foo": "^1.0.0" } })),
         true,
     );
@@ -46,6 +45,7 @@ fn keeps_every_declared_dependency() {
     let mut importer = importer(FOO_AND_BAR);
     prune_undeclared_importer_deps(
         &mut importer,
+        None,
         &manifest(json!({ "dependencies": { "foo": "^1.0.0", "bar": "^2.0.0" } })),
         true,
     );
@@ -70,6 +70,7 @@ devDependencies:
     );
     prune_undeclared_importer_deps(
         &mut importer,
+        None,
         &manifest(json!({ "dependencies": { "foo": "^1.0.0" } })),
         true,
     );
@@ -82,6 +83,7 @@ fn keeps_an_auto_installed_peer() {
     let mut importer = importer(FOO_AND_BAR);
     prune_undeclared_importer_deps(
         &mut importer,
+        None,
         &manifest(json!({
             "dependencies": { "foo": "^1.0.0" },
             "peerDependencies": { "bar": "^2.0.0" },
@@ -96,6 +98,7 @@ fn drops_a_peer_that_is_not_auto_installed() {
     let mut importer = importer(FOO_AND_BAR);
     prune_undeclared_importer_deps(
         &mut importer,
+        None,
         &manifest(json!({
             "dependencies": { "foo": "^1.0.0" },
             "peerDependencies": { "bar": "^2.0.0" },
@@ -105,10 +108,9 @@ fn drops_a_peer_that_is_not_auto_installed() {
     assert_eq!(importer.dependencies.as_ref().expect("dependencies").len(), 1);
 }
 
-/// A peer that another group already declares is not auto-installed, so
-/// it belongs to that group and must survive there. Folding every peer
-/// into `dependencies` would strip it from `devDependencies` and leave
-/// the freshness check looking at a field the manifest disagrees with.
+/// Folding every peer into `dependencies` would strip this one from
+/// `devDependencies` and leave the freshness check reading a field the
+/// manifest disagrees with.
 #[test]
 fn keeps_a_dev_dependency_that_is_also_declared_as_a_peer() {
     let mut importer = importer(
@@ -123,6 +125,7 @@ devDependencies:
     );
     prune_undeclared_importer_deps(
         &mut importer,
+        None,
         &manifest(json!({
             "devDependencies": { "foo": "^1.0.0" },
             "peerDependencies": { "foo": "^1.0.0" },
@@ -147,6 +150,7 @@ optionalDependencies:
     );
     prune_undeclared_importer_deps(
         &mut importer,
+        None,
         &manifest(json!({
             "dependencies": { "foo": "^1.0.0" },
             "optionalDependencies": { "foo": "^1.0.0" },
@@ -159,7 +163,23 @@ optionalDependencies:
 #[test]
 fn empties_an_importer_the_manifest_declares_nothing_for() {
     let mut importer = importer(FOO_AND_BAR);
-    prune_undeclared_importer_deps(&mut importer, &manifest(json!({})), true);
+    prune_undeclared_importer_deps(&mut importer, None, &manifest(json!({})), true);
     assert!(importer.dependencies.is_none());
     assert!(importer.specifiers.as_ref().expect("specifiers").is_empty());
+}
+
+/// An undeclared entry the read file already carried is not the fold's to
+/// take back out; leaving it in place keeps the freshness check able to
+/// report it.
+#[test]
+fn keeps_an_undeclared_entry_the_fold_did_not_introduce() {
+    let pre_merge = importer(FOO_AND_BAR);
+    let mut importer = importer(FOO_AND_BAR);
+    prune_undeclared_importer_deps(
+        &mut importer,
+        Some(&pre_merge),
+        &manifest(json!({ "dependencies": { "foo": "^1.0.0" } })),
+        true,
+    );
+    assert_eq!(importer.dependencies.as_ref().expect("dependencies").len(), 2);
 }

@@ -640,7 +640,11 @@ test('install with --merge-git-branch-lockfiles keeps a dependency that is also 
   project.hasNot('is-positive')
 })
 
-test('--merge-git-branch-lockfiles still rejects an outdated lockfile when there is nothing to merge', async () => {
+test.each([
+  ['no branch lockfile exists', undefined],
+  ['the only branch lockfile is empty', ''],
+  ['the only branch lockfile has no lockfile document', 'lockfileVersion: \'9.0\'\n'],
+])('--merge-git-branch-lockfiles still rejects an outdated lockfile when %s', async (_name, branchLockfileContent) => {
   prepareEmpty()
 
   // The lockfile records a dependency the manifest never declared, and no
@@ -671,6 +675,10 @@ test('--merge-git-branch-lockfiles still rejects an outdated lockfile when there
 
   const branchName: string = 'main-branch'
   jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+
+  if (branchLockfileContent != null) {
+    fs.writeFileSync(path.resolve('pnpm-lock.other.yaml'), branchLockfileContent)
+  }
 
   await expect(
     install({}, testDefaults({

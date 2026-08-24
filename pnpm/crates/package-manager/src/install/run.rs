@@ -463,8 +463,16 @@ where
         // A broken lockfile is regenerable state, so only a frozen
         // install treats it as fatal (upstream `readLockfiles`).
         let phase_start = std::time::Instant::now();
-        let lockfile = match lockfile.get() {
-            Ok(lockfile) => lockfile,
+        let lockfile_source = lockfile;
+        // The fold's "before" is read out here rather than at its use site
+        // below: a load that failed leaves nothing cached, so asking later
+        // would retry it and turn a lockfile this arm chose to ignore into
+        // a fatal one.
+        let (lockfile, pre_merge_importers) = match lockfile_source.get() {
+            Ok(lockfile) => (
+                lockfile,
+                lockfile_source.pre_merge_importers().map_err(InstallError::LoadWantedLockfile)?,
+            ),
             Err(error) if !frozen_lockfile => {
                 Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                     level: LogLevel::Warn,
@@ -474,7 +482,7 @@ where
                     ),
                     prefix: prefix.clone(),
                 }));
-                None
+                (None, None)
             }
             Err(error) => return Err(InstallError::LoadWantedLockfile(error)),
         };
@@ -703,25 +711,18 @@ where
         let existing_wanted_lockfile = lockfile;
         let lockfile = lockfile.or(synthesized_lockfile.as_ref());
         // The branch lockfiles were folded in at load, before any manifest
-        // was known. Reconcile the merge against them now, while every
+        // was known. Reconcile the fold against them now, while every
         // later stage — the fast update, the freshness check, and the
         // rewrite the merge is saved by — still reads the same object.
-        // Only a load that actually merged something needs it: an ordinary
-        // lockfile the manifests have outgrown must still reach the
-        // freshness check rather than be quietly repaired here.
-        let load_merged_branch_lockfiles = config.merge_git_branch_lockfiles
-            && existing_wanted_lockfile.is_some()
-            && !Lockfile::git_branch_lockfiles(&workspace_root)
-                .map_err(InstallError::FindGitBranchLockfiles)?
-                .is_empty();
-        let merged_branch_lockfile =
-            load_merged_branch_lockfiles.then_some(lockfile).flatten().map(|lockfile| {
-                prune_merged_branch_lockfile(
-                    lockfile,
-                    &manifest_freshness_inputs,
-                    config.auto_install_peers,
-                )
-            });
+        let merged_branch_lockfile = match (pre_merge_importers, lockfile) {
+            (Some(pre_merge_importers), Some(lockfile)) => prune_merged_branch_lockfile(
+                lockfile,
+                pre_merge_importers,
+                &manifest_freshness_inputs,
+                config.auto_install_peers,
+            ),
+            _ => None,
+        };
         let lockfile = merged_branch_lockfile.as_ref().or(lockfile);
         let can_fast_update_lockfile = !frozen_lockfile
             && !dry_run

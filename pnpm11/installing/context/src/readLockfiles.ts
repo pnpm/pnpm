@@ -5,13 +5,11 @@ import { PnpmError } from '@pnpm/error'
 import {
   createLockfileObject,
   existsNonEmptyWantedLockfile,
-  getGitBranchLockfileNames,
   isEmptyLockfile,
   type LockfileObject,
   type ProjectSnapshot,
   readCurrentLockfile,
-  readWantedLockfile,
-  readWantedLockfileAndAutofixConflicts,
+  readWantedLockfileWithMergeInfo,
 } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import { logger } from '@pnpm/logger'
@@ -68,6 +66,7 @@ export async function readLockfiles (
   }
   const fileReads = [] as Array<Promise<LockfileObject | undefined | null>>
   let lockfileHadConflicts: boolean = false
+  let preMergeImporters: LockfileObject['importers'] | undefined
   let wantedLockfileFileExists = false
   if (opts.useLockfile) {
     wantedLockfileFileExists = await existsNonEmptyWantedLockfile(opts.lockfileDir, lockfileOpts)
@@ -75,9 +74,10 @@ export async function readLockfiles (
       fileReads.push(
         (async () => {
           try {
-            const { lockfile, hadConflicts } = await readWantedLockfileAndAutofixConflicts(opts.lockfileDir, lockfileOpts)
-            lockfileHadConflicts = hadConflicts
-            return lockfile
+            const read = await readWantedLockfileWithMergeInfo(opts.lockfileDir, { ...lockfileOpts, autofixMergeConflicts: true })
+            lockfileHadConflicts = read.hadConflicts
+            preMergeImporters = read.preMergeImporters
+            return read.lockfile
           } catch (err: any) { // eslint-disable-line
             logger.warn({
               message: `Ignoring broken lockfile at ${opts.lockfileDir}: ${err.message as string}`,
@@ -88,7 +88,13 @@ export async function readLockfiles (
         })()
       )
     } else {
-      fileReads.push(readWantedLockfile(opts.lockfileDir, lockfileOpts))
+      fileReads.push(
+        (async () => {
+          const read = await readWantedLockfileWithMergeInfo(opts.lockfileDir, lockfileOpts)
+          preMergeImporters = read.preMergeImporters
+          return read.lockfile
+        })()
+      )
     }
   } else {
     if (await existsNonEmptyWantedLockfile(opts.lockfileDir, lockfileOpts)) {
@@ -147,16 +153,24 @@ export async function readLockfiles (
       }
     }
   }
-  // The merge takes the union of the two lockfiles' keys, so it can only add:
-  // a dependency the manifests no longer declare is reinstated by it, and the
-  // manifests are the only record that it is gone. Gated on a merge having
-  // actually run, so that an ordinary lockfile the manifests have outgrown is
-  // still reported by the frozen check rather than quietly repaired here.
-  if (opts.mergeGitBranchLockfiles && existsWantedLockfile && (await getGitBranchLockfileNames(opts.lockfileDir)).length > 0) {
+  // The merge takes the union of the two lockfiles' keys, so a dependency the
+  // manifests no longer declare comes back with it, and the manifests are the
+  // only record that it is gone. Entries the read file already carried are
+  // left alone: that drift is the frozen check's to report, not the merge's
+  // to repair.
+  if (preMergeImporters != null) {
+    let prunedAnyImporter = false
     for (const project of opts.projects) {
-      pruneUndeclaredDependencies(wantedLockfile.importers[project.id], project.manifest, opts.autoInstallPeers)
+      prunedAnyImporter = pruneMergedDependencies({
+        importer: wantedLockfile.importers[project.id],
+        preMergeImporter: preMergeImporters[project.id],
+        manifest: project.manifest,
+        autoInstallPeers: opts.autoInstallPeers,
+      }) || prunedAnyImporter
     }
-    wantedLockfile = pruneSharedLockfile(wantedLockfile)
+    if (prunedAnyImporter) {
+      wantedLockfile = pruneSharedLockfile(wantedLockfile)
+    }
   }
   return {
     currentLockfile,
@@ -170,18 +184,24 @@ export async function readLockfiles (
   }
 }
 
-function pruneUndeclaredDependencies (
-  importer: ProjectSnapshot,
-  manifest: ProjectManifest,
-  autoInstallPeers: boolean
-): void {
-  const declaredDepNames = declaredDepNamesByField(manifest, autoInstallPeers)
+function pruneMergedDependencies (
+  opts: {
+    importer: ProjectSnapshot
+    preMergeImporter: ProjectSnapshot | undefined
+    manifest: ProjectManifest
+    autoInstallPeers: boolean
+  }
+): boolean {
+  const { importer, preMergeImporter } = opts
+  const declaredDepNames = declaredDepNamesByField(opts.manifest, opts.autoInstallPeers)
+  let pruned = false
   for (const depField of DEPENDENCIES_FIELDS) {
     const deps = importer[depField]
     if (deps == null) continue
     for (const depName of Object.keys(deps)) {
-      if (!declaredDepNames[depField].has(depName)) {
+      if (!declaredDepNames[depField].has(depName) && preMergeImporter?.[depField]?.[depName] == null) {
         delete deps[depName]
+        pruned = true
       }
     }
     if (Object.keys(deps).length === 0) {
@@ -189,10 +209,14 @@ function pruneUndeclaredDependencies (
     }
   }
   for (const depName of Object.keys(importer.specifiers)) {
-    if (DEPENDENCIES_FIELDS.every((depField) => !declaredDepNames[depField].has(depName))) {
+    if (
+      DEPENDENCIES_FIELDS.every((depField) => !declaredDepNames[depField].has(depName)) &&
+      preMergeImporter?.specifiers?.[depName] == null
+    ) {
       delete importer.specifiers[depName]
     }
   }
+  return pruned
 }
 
 // Mirrors how satisfiesPackageManifest assigns a manifest entry to a lockfile
@@ -208,8 +232,8 @@ function declaredDepNamesByField (
   const devDependencies = new Set(Object.keys(manifest.devDependencies ?? {})
     .filter((depName) => !optionalDependencies.has(depName) && !dependencies.has(depName)))
   if (autoInstallPeers) {
-    // Only a peer that no other field declares is auto-installed; one that is
-    // also declared elsewhere stays under the field that declares it.
+    // A peer another field declares is not auto-installed, so it stays where
+    // that field puts it.
     for (const depName of Object.keys(manifest.peerDependencies ?? {})) {
       if (!optionalDependencies.has(depName) && !devDependencies.has(depName)) {
         dependencies.add(depName)

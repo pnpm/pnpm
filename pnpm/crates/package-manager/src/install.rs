@@ -675,13 +675,6 @@ pub enum InstallError {
     #[display("Failed to remove the git branch lockfiles: {_0}")]
     CleanGitBranchLockfiles(#[error(source)] std::io::Error),
 
-    /// Surfaces a failure to list the per-branch lockfiles, which decides
-    /// whether the loaded lockfile is a merge that still needs reconciling
-    /// against the manifests.
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_FIND_GIT_BRANCH_LOCKFILES))]
-    #[display("Failed to look for the git branch lockfiles: {_0}")]
-    FindGitBranchLockfiles(#[error(source)] std::io::Error),
-
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR))]
     #[display("Failed to remove modules directory contents: {_0}")]
     RemoveModulesDir(#[error(source)] std::io::Error),
