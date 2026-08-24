@@ -2397,6 +2397,12 @@ pacquet@12.0.0-rc.10:
     - merged-branch-lockfiles-drop-removed-deps
     - record-package-manager-pin-on-fast-path
     - tolerate-a-foreign-package-manager-entry
+pacquet@12.0.0-rc.11:
+  dir: pnpm/npm/pnpm
+  intents:
+    - root-component-siblings-from-snapshot
+    - stage-approve-interactive
+    - tidy-pianos-tap
 pacquet@12.0.0-rc.2:
   dir: pnpm/npm/pnpm
   intents:
