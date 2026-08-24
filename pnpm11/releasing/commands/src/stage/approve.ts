@@ -14,8 +14,8 @@ import {
 import { createStageContext, type StageContext } from './context.js'
 import { fetchStageItems } from './items.js'
 import { parseStageIds, UUID_REGEX } from './parsing.js'
-import { createStageOtpSession, type StageOtpSession } from './request.js'
-import type { StageItem, StageOptions } from './types.js'
+import { createStageOtpSession, stageJsonRequest, type StageOtpSession } from './request.js'
+import type { ApprovalItem, StageItem, StageOptions } from './types.js'
 
 export type StageApproveResult = string | { output: string, exitCode: number }
 
@@ -32,7 +32,7 @@ export async function stageApprove (opts: StageOptions, params: string[]): Promi
   const context = createStageContext(opts)
   if (params.length === 0) {
     requireInteractiveSelection()
-    const stagedPackages = (await fetchStageItems(context)).filter(hasStageId)
+    const stagedPackages = (await fetchStageItems(context)).map(toApprovalItem).filter((item) => item != null)
     if (stagedPackages.length === 0) return 'There are no staged packages awaiting approval.'
     const selected = await promptForStagedPackages(stagedPackages)
     if (selected.length === 0) return 'No staged packages were selected.'
@@ -65,12 +65,32 @@ function dedupeStageIds (stageIds: string[]): string[] {
 }
 
 /**
- * A staged version the registry reported can only be approved through the id
- * the other subcommands address it by — the same UUID the command line
- * accepts, not an arbitrary string the registry puts in the listing.
+ * Reads one staged version the registry reported.
+ *
+ * The entry is registry-controlled input that ends up in a terminal prompt the
+ * user picks releases from, and whose package name is matched against the
+ * workspace to order the approvals, so its id has to be the same UUID the
+ * other subcommands address a staged version by — checked before sanitizing,
+ * so that stripping a formatting character cannot be what makes it one — and
+ * its text is stripped of the control characters that could redraw the prompt
+ * around a selection or hide a name from the workspace match.
  */
-function hasStageId (item: StageItem): item is StageItem & { id: string } {
-  return typeof item.id === 'string' && UUID_REGEX.test(item.id)
+function toApprovalItem (item: StageItem): ApprovalItem | undefined {
+  if (typeof item.id !== 'string' || !UUID_REGEX.test(item.id)) return undefined
+  return {
+    id: item.id,
+    packageName: sanitizedField(item.packageName),
+    version: sanitizedField(item.version),
+    tag: sanitizedField(item.tag),
+    createdAt: sanitizedField(item.createdAt),
+    actor: sanitizedField(item.actor),
+  }
+}
+
+function sanitizedField (value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const sanitized = sanitizeInline(value)
+  return sanitized === '' ? undefined : sanitized
 }
 
 function requireInteractiveSelection (): void {
@@ -81,7 +101,7 @@ function requireInteractiveSelection (): void {
 }
 
 /** Shows the checkbox prompt; an interrupted prompt selects nothing. */
-async function promptForStagedPackages (stagedPackages: StageItem[]): Promise<StageItem[]> {
+async function promptForStagedPackages (stagedPackages: ApprovalItem[]): Promise<ApprovalItem[]> {
   try {
     return await checkbox({
       choices: stagedPackages.map((item) => ({
@@ -108,23 +128,34 @@ async function promptForStagedPackages (stagedPackages: StageItem[]): Promise<St
 }
 
 /**
- * The staged versions the given ids identify. Stage ids are hexadecimal, so
- * the lookup ignores their spelling: an id the listing carries in another
- * casing still resolves to the package name the approval order and the
- * dependency blocking are keyed on. An id the registry does not list at all is
- * kept as is, so approving it fails on the registry's own error rather than on
- * a guess about why it is missing.
+ * The staged versions the given ids identify, each read from the registry's
+ * entry for that id rather than from the full staged listing, which a busy
+ * registry can page far beyond what the batch needs.
+ *
+ * A version the registry does not describe is kept as its bare id, so
+ * approving it fails on the registry's own error rather than on a guess about
+ * why it is missing; it also carries no package name, so it is approved
+ * outside the workspace order.
  */
-async function resolveStageItems (context: StageContext, stageIds: string[]): Promise<StageItem[]> {
-  const listedItems = (await fetchStageItems(context)).filter(hasStageId)
-  const itemsByStageId = new Map(listedItems.map((item) => [item.id.toLowerCase(), item]))
-  return stageIds.map((stageId) => itemsByStageId.get(stageId.toLowerCase()) ?? { id: stageId })
+async function resolveStageItems (context: StageContext, stageIds: string[]): Promise<ApprovalItem[]> {
+  return Promise.all(stageIds.map(async (stageId) => {
+    let item: StageItem
+    try {
+      item = await stageJsonRequest<StageItem>(context, {
+        url: new URL(`-/stage/${stageId}`, context.registry).href,
+        action: `view staged package ${stageId}`,
+      })
+    } catch {
+      return { id: stageId }
+    }
+    return toApprovalItem({ ...item, id: stageId }) ?? { id: stageId }
+  }))
 }
 
 async function approveStagedPackages (
   context: StageContext,
   opts: StageOptions,
-  items: StageItem[]
+  items: ApprovalItem[]
 ): Promise<StageApproveResult> {
   const order = await readWorkspaceApprovalOrder(opts)
   const sortedItems = sortStageItemsForApproval(items, order)
@@ -162,7 +193,7 @@ async function approveStagedPackages (
   }
 }
 
-async function approveStagedPackage (context: StageContext, item: StageItem, session: StageOtpSession): Promise<void> {
+async function approveStagedPackage (context: StageContext, item: ApprovalItem, session: StageOtpSession): Promise<void> {
   await session.request({
     url: new URL(`-/stage/${item.id}/approve`, context.registry).href,
     init: { method: 'POST' },
@@ -174,35 +205,23 @@ function isStageRegistryError (err: unknown): err is Error {
   return util.types.isNativeError(err) && (err as PnpmError).code === 'ERR_PNPM_STAGE_REGISTRY_ERROR'
 }
 
-/**
- * How the interactive picker names a staged version.
- *
- * The fields come from the registry and end up in a prompt the user picks
- * releases from, so {@link renderRegistryText} keeps them from redrawing it.
- */
-function renderStageItemChoice (item: StageItem): string {
+/** How the interactive picker names a staged version. */
+function renderStageItemChoice (item: ApprovalItem): string {
   const details = [item.tag, item.createdAt && `staged ${item.createdAt}`, item.actor && `by ${item.actor}`]
     .filter((detail): detail is string => detail != null && detail !== '')
-    .map((detail) => renderRegistryText(detail))
   return details.length > 0
     ? `${renderStageItemLabel(item)} (${details.join(', ')})`
     : renderStageItemLabel(item)
 }
 
-function renderStageItemLabel (item: StageItem): string {
-  if (!item.packageName) return item.id ?? '<unknown staged package>'
-  const packageName = renderRegistryText(item.packageName)
-  return item.version ? `${packageName}@${renderRegistryText(item.version)}` : packageName
-}
-
-/** Registry-provided text, stripped of what could rewrite the terminal. */
-function renderRegistryText (text: string): string {
-  return sanitizeInline(text)
+function renderStageItemLabel (item: ApprovalItem): string {
+  if (!item.packageName) return item.id
+  return item.version ? `${item.packageName}@${item.version}` : item.packageName
 }
 
 /** The label an error message identifies a staged version by. */
-function renderStageItemReference (item: StageItem): string {
-  return item.packageName ? `${renderStageItemLabel(item)} (${item.id})` : item.id ?? '<unknown staged package>'
+function renderStageItemReference (item: ApprovalItem): string {
+  return item.packageName ? `${renderStageItemLabel(item)} (${item.id})` : item.id
 }
 
 function renderPackageCount (count: number): string {

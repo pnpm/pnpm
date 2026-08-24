@@ -233,21 +233,17 @@ fn approve_shares_one_one_time_password_across_a_batch() {
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     write_registry_config(dir.path(), &registry);
-    let list_mock = server
-        .mock("GET", "/-/stage")
-        .match_query(Matcher::Any)
-        .with_body(
-            json!({
-                "items": [
-                    staged_item_of(STAGE_ID, "@scope/first"),
-                    staged_item_of(SECOND_STAGE_ID, "@scope/second"),
-                ],
-                "total": 2,
+    let described_mocks: Vec<mockito::Mock> =
+        [(STAGE_ID, "@scope/first"), (SECOND_STAGE_ID, "@scope/second")]
+            .into_iter()
+            .map(|(stage_id, package_name)| {
+                server
+                    .mock("GET", format!("/-/stage/{stage_id}").as_str())
+                    .with_body(staged_item_of(stage_id, package_name).to_string())
+                    .expect(1)
+                    .create()
             })
-            .to_string(),
-        )
-        .expect(1)
-        .create();
+            .collect();
     let approve_mocks: Vec<mockito::Mock> = [STAGE_ID, SECOND_STAGE_ID]
         .into_iter()
         .map(|stage_id| {
@@ -266,8 +262,7 @@ fn approve_shares_one_one_time_password_across_a_batch() {
         &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
     );
 
-    list_mock.assert();
-    for mock in &approve_mocks {
+    for mock in described_mocks.iter().chain(&approve_mocks) {
         mock.assert();
     }
     assert_success(&output);
@@ -309,21 +304,17 @@ fn approve_skips_a_staged_package_whose_workspace_dependency_could_not_be_approv
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     write_workspace_with_dependency(dir.path(), &registry);
-    let list_mock = server
-        .mock("GET", "/-/stage")
-        .match_query(Matcher::Any)
-        .with_body(
-            json!({
-                "items": [
-                    staged_item_of(STAGE_ID, "@scope/dependent"),
-                    staged_item_of(SECOND_STAGE_ID, "@scope/dependency"),
-                ],
-                "total": 2,
+    let described_mocks: Vec<mockito::Mock> =
+        [(STAGE_ID, "@scope/dependent"), (SECOND_STAGE_ID, "@scope/dependency")]
+            .into_iter()
+            .map(|(stage_id, package_name)| {
+                server
+                    .mock("GET", format!("/-/stage/{stage_id}").as_str())
+                    .with_body(staged_item_of(stage_id, package_name).to_string())
+                    .expect(1)
+                    .create()
             })
-            .to_string(),
-        )
-        .expect(1)
-        .create();
+            .collect();
     let dependency_mock = server
         .mock("POST", format!("/-/stage/{SECOND_STAGE_ID}/approve").as_str())
         .with_status(409)
@@ -333,21 +324,14 @@ fn approve_skips_a_staged_package_whose_workspace_dependency_could_not_be_approv
     let dependent_mock =
         server.mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str()).expect(0).create();
 
-    // The dependent's id is given in another casing than the listing carries,
-    // so this also covers the listing lookup the approval order depends on.
     let output = stage(
         dir.path(),
-        &[
-            "approve",
-            &STAGE_ID.to_uppercase(),
-            SECOND_STAGE_ID,
-            "--otp",
-            "123456",
-            "--reporter=silent",
-        ],
+        &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
     );
 
-    list_mock.assert();
+    for mock in &described_mocks {
+        mock.assert();
+    }
     dependency_mock.assert();
     dependent_mock.assert();
     assert!(!output.status.success(), "an incomplete approval batch must exit non-zero");
@@ -360,7 +344,7 @@ fn approve_sends_one_request_for_a_repeated_stage_id() {
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     write_registry_config(dir.path(), &registry);
-    let list_mock = server.mock("GET", "/-/stage").match_query(Matcher::Any).expect(0).create();
+    let read_mock = server.mock("GET", Matcher::Any).expect(0).create();
     let approve_mock = server
         .mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str())
         .match_header("npm-otp", "123456")
@@ -372,7 +356,7 @@ fn approve_sends_one_request_for_a_repeated_stage_id() {
     let output =
         stage(dir.path(), &["approve", STAGE_ID, STAGE_ID, "--otp", "123456", "--reporter=silent"]);
 
-    list_mock.assert();
+    read_mock.assert();
     approve_mock.assert();
     assert_success(&output);
     assert_eq!(

@@ -23,7 +23,7 @@ use serde_json::Value;
 
 use super::{
     StageArgs, StageContext, StageError, fetch_stage_items, global_info, global_warn, is_uuid,
-    stage_endpoint_url, stage_request_in_session,
+    stage_endpoint_url, stage_json_request, stage_request_in_session,
 };
 use crate::cli_args::{
     changelog::published_name,
@@ -212,30 +212,43 @@ async fn approval_items(context: &StageContext) -> miette::Result<Vec<StageAppro
         .collect())
 }
 
-/// The staged versions the given ids identify. Stage ids are hexadecimal, so
-/// the lookup ignores their spelling: an id the listing carries in another
-/// casing still resolves to the package name the approval order and the
-/// dependency blocking are keyed on. An id the registry does not list at all
-/// is kept as is, so approving it fails on the registry's own error rather
-/// than on a guess about why it is missing.
+/// The staged versions the given ids identify, each read from the registry's
+/// entry for that id rather than from the full staged listing, which a busy
+/// registry can page far beyond what the batch needs.
+///
+/// A version the registry does not describe is kept as its bare id, so
+/// approving it fails on the registry's own error rather than on a guess
+/// about why it is missing; it also carries no package name, so it is
+/// approved outside the workspace order.
 async fn resolve_approval_items(
     context: &StageContext,
     stage_ids: &[String],
 ) -> miette::Result<Vec<StageApprovalItem>> {
-    let listed: HashMap<String, StageApprovalItem> = approval_items(context)
-        .await?
-        .into_iter()
-        .map(|item| (item.id.to_lowercase(), item))
-        .collect();
-    Ok(stage_ids
-        .iter()
-        .map(|stage_id| {
-            listed
-                .get(&stage_id.to_lowercase())
-                .cloned()
-                .unwrap_or_else(|| StageApprovalItem::from_id(stage_id))
-        })
-        .collect())
+    let mut items = Vec::with_capacity(stage_ids.len());
+    for stage_id in stage_ids {
+        let url = stage_endpoint_url(&context.registry, &format!("-/stage/{stage_id}"))?;
+        let action = format!("view staged package {stage_id}");
+        let described: Option<Value> =
+            stage_json_request(context, url.as_str(), &action).await.ok();
+        items.push(
+            described
+                .as_ref()
+                .and_then(|item| StageApprovalItem::from_value(&with_id(item, stage_id)))
+                .unwrap_or_else(|| StageApprovalItem::from_id(stage_id)),
+        );
+    }
+    Ok(items)
+}
+
+/// The registry's description of a staged version, keyed by the id the
+/// command line named it with: the id in the body is the registry's own
+/// spelling, and hexadecimal ids are the same id in any casing.
+fn with_id(item: &Value, stage_id: &str) -> Value {
+    let mut item = item.clone();
+    if let Some(object) = item.as_object_mut() {
+        object.insert("id".to_owned(), Value::String(stage_id.to_owned()));
+    }
+    item
 }
 
 /// Show the checkbox prompt; an interrupted prompt selects nothing.

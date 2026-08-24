@@ -40,6 +40,20 @@ export interface StageItem {
   [key: string]: unknown
 }
 
+/**
+ * One staged version as `pnpm stage approve` works with it: the fields it
+ * displays and orders by, validated and sanitized out of the registry's
+ * {@link StageItem}.
+ */
+export interface ApprovalItem {
+  id: string
+  packageName?: string
+  version?: string
+  tag?: string
+  createdAt?: string
+  actor?: string
+}
+
 export interface StageListResponse {
   items: StageItem[]
   total: number

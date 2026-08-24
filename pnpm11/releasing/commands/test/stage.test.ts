@@ -392,8 +392,10 @@ describe('stage command against the registry mock', () => {
     let baseUrl = ''
     let acceptedOtp = 'otp-1'
     const registry = await createRegistry((request) => {
-      if (request.method === 'GET' && request.url.pathname === '/-/stage') {
-        return { status: 200, body: { items, total: items.length } }
+      const describedStageIdOfRequest = describedStageId(request)
+      if (describedStageIdOfRequest) {
+        const item = items.find(({ id }) => id === describedStageIdOfRequest)
+        return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
       }
       if (request.method === 'GET' && request.url.pathname === '/-/v1/done') {
         return { status: 200, body: { token: acceptedOtp } }
@@ -440,8 +442,10 @@ describe('stage command against the registry mock', () => {
       { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-passing', version: '1.0.0' },
     ]
     const registry = await createRegistry((request) => {
-      if (request.method === 'GET' && request.url.pathname === '/-/stage') {
-        return { status: 200, body: { items, total: items.length } }
+      const describedStageIdOfRequest = describedStageId(request)
+      if (describedStageIdOfRequest) {
+        const item = items.find(({ id }) => id === describedStageIdOfRequest)
+        return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
       }
       const stageId = approvedStageId(request)
       if (stageId === STAGE_ID) return { status: 409, body: { error: 'version already exists' } }
@@ -468,8 +472,10 @@ describe('stage command against the registry mock', () => {
     ]
     const approved: string[] = []
     const registry = await createRegistry((request) => {
-      if (request.method === 'GET' && request.url.pathname === '/-/stage') {
-        return { status: 200, body: { items, total: items.length } }
+      const describedStageIdOfRequest = describedStageId(request)
+      if (describedStageIdOfRequest) {
+        const item = items.find(({ id }) => id === describedStageIdOfRequest)
+        return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
       }
       const stageId = approvedStageId(request)
       if (stageId) {
@@ -486,7 +492,7 @@ describe('stage command against the registry mock', () => {
         otp: '123456',
         workspaceDir,
         workspacePackagePatterns: ['packages/*'],
-      }, ['approve', STAGE_ID.toUpperCase(), SECOND_STAGE_ID])
+      }, ['approve', STAGE_ID, SECOND_STAGE_ID])
       expect(result).toStrictEqual({ exitCode: 0, output: 'Approved 2 staged packages successfully.' })
       expect(approved).toEqual([SECOND_STAGE_ID, STAGE_ID])
     } finally {
@@ -502,8 +508,10 @@ describe('stage command against the registry mock', () => {
     ]
     const approveAttempts: string[] = []
     const registry = await createRegistry((request) => {
-      if (request.method === 'GET' && request.url.pathname === '/-/stage') {
-        return { status: 200, body: { items, total: items.length } }
+      const describedStageIdOfRequest = describedStageId(request)
+      if (describedStageIdOfRequest) {
+        const item = items.find(({ id }) => id === describedStageIdOfRequest)
+        return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
       }
       const stageId = approvedStageId(request)
       if (stageId) {
@@ -549,7 +557,7 @@ describe('stage command against the registry mock', () => {
       }, ['approve', STAGE_ID, STAGE_ID.toUpperCase()])
       expect(result).toBe(`Staged package ${STAGE_ID} approved and published successfully.`)
       expect(seen).toEqual([STAGE_ID])
-      expect(registry.requests.filter(({ url }) => url.pathname === '/-/stage')).toHaveLength(0)
+      expect(registry.requests.filter(({ method }) => method === 'GET')).toHaveLength(0)
     } finally {
       await registry.close()
     }
@@ -631,6 +639,16 @@ describe('stage command against the registry mock', () => {
     }
   })
 })
+
+/**
+ * The stage id a `GET /-/stage/<id>` request describes, as `stage approve`
+ * reads a named staged version's metadata.
+ */
+function describedStageId (request: RegistryRequest): string | undefined {
+  if (request.method !== 'GET') return undefined
+  const match = /^\/-\/stage\/([^/]+)$/.exec(request.url.pathname)
+  return match?.[1]
+}
 
 function approvedStageId (request: RegistryRequest): string | undefined {
   if (request.method !== 'POST') return undefined

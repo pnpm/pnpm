@@ -4,7 +4,7 @@ import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { sortProjects } from '@pnpm/workspace.projects-sorter'
 
 import { publishedName } from '../publishedNames.js'
-import type { StageItem, StageOptions } from './types.js'
+import type { ApprovalItem, StageOptions } from './types.js'
 
 /**
  * Where each workspace package sits in the order its siblings have to be
@@ -65,7 +65,7 @@ export async function readWorkspaceApprovalOrder (opts: StageOptions): Promise<W
  * workspace packages it depends on. Staged versions of packages outside the
  * workspace keep their original relative order, after the workspace ones.
  */
-export function sortStageItemsForApproval (items: StageItem[], order?: WorkspaceApprovalOrder): StageItem[] {
+export function sortStageItemsForApproval (items: ApprovalItem[], order?: WorkspaceApprovalOrder): ApprovalItem[] {
   return items
     .map((item, index) => ({ item, index, chunkIndex: chunkIndexOf(item, order) }))
     .sort((left, right) => left.chunkIndex - right.chunkIndex || left.index - right.index)
@@ -77,7 +77,7 @@ export function sortStageItemsForApproval (items: StageItem[], order?: Workspace
  * therefore will not be on the registry by the time `item` would be approved.
  */
 export function unavailableDependencies (
-  item: StageItem,
+  item: ApprovalItem,
   unpublishedPackageNames: Set<string>,
   order?: WorkspaceApprovalOrder
 ): string[] {
@@ -86,7 +86,7 @@ export function unavailableDependencies (
     .filter((dependencyName) => unpublishedPackageNames.has(dependencyName))
 }
 
-function chunkIndexOf (item: StageItem, order?: WorkspaceApprovalOrder): number {
+function chunkIndexOf (item: ApprovalItem, order?: WorkspaceApprovalOrder): number {
   const chunkIndex = item.packageName ? order?.chunkIndexByPackageName.get(item.packageName) : undefined
   return chunkIndex ?? Number.MAX_SAFE_INTEGER
 }
