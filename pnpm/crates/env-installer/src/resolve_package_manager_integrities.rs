@@ -53,6 +53,9 @@ pub async fn resolve_package_manager_integrities(
     }
     let repair_in_memory = force_resync && opts.frozen_lockfile;
     if opts.frozen_lockfile && !force_resync {
+        if pins_wanted_package_manager(&env_lockfile, version, package_manager_deps) {
+            return Ok(env_lockfile);
+        }
         return Err(ConfigDepError::FrozenLockfileOutdated {
             message: r#"Cannot update packageManagerDependencies with "frozen-lockfile" because the lockfile is not up to date"#.to_string(),
         });
@@ -164,27 +167,55 @@ pub fn is_package_manager_resolved(
     )
 }
 
+/// Whether the env lockfile already records what this pnpm would write for
+/// `pnpm_version`: the pinned packages under the specifier they were pinned
+/// from, and nothing besides them.
 fn is_package_manager_resolved_with_deps(
     env_lockfile: &EnvLockfile,
     wanted_specifier: &str,
     pnpm_version: &str,
     package_manager_deps: &[&str],
 ) -> bool {
-    let Some(pm_deps) = env_lockfile
+    recorded_package_manager_deps(env_lockfile).is_some_and(|pm_deps| {
+        pm_deps.len() == package_manager_deps.len()
+            && pm_deps.values().all(|dep| dep.specifier == wanted_specifier)
+    }) && pins_wanted_package_manager(env_lockfile, pnpm_version, package_manager_deps)
+}
+
+/// Whether the env lockfile pins the package manager the manifest asks for,
+/// even when it records more packages than this pnpm installs it from.
+///
+/// A pnpm below 11.20.0 pins `@pnpm/exe` beside `pnpm` for a v12 version,
+/// because that is the set its own major is installed from. Such an entry
+/// pins the wanted version through the same integrity and cannot change
+/// which pnpm runs, so a frozen lockfile accepts it instead of failing a
+/// project whose lockfile a teammate's older pnpm last wrote. An entry
+/// pinning any other version, or one the lockfile carries no package to
+/// install from, is a lockfile that disagrees with the manifest, which is
+/// what the flag is for, and a writable install still rewrites the block to
+/// the packages this pnpm installs from.
+fn pins_wanted_package_manager(
+    env_lockfile: &EnvLockfile,
+    pnpm_version: &str,
+    package_manager_deps: &[&str],
+) -> bool {
+    let Some(pm_deps) = recorded_package_manager_deps(env_lockfile) else {
+        return false;
+    };
+    package_manager_deps.iter().all(|name| pm_deps.contains_key(*name))
+        && pm_deps.iter().all(|(name, dep)| {
+            dep.version == pnpm_version
+                && package_manager_entry_exists(env_lockfile, name, &dep.version)
+        })
+}
+
+fn recorded_package_manager_deps(
+    env_lockfile: &EnvLockfile,
+) -> Option<&std::collections::BTreeMap<String, SpecifierAndResolution>> {
+    env_lockfile
         .importers
         .get(EnvLockfile::ROOT_IMPORTER_KEY)
         .and_then(|importer| importer.package_manager_dependencies.as_ref())
-    else {
-        return false;
-    };
-    pm_deps.len() == package_manager_deps.len()
-        && package_manager_deps.iter().all(|name| {
-            pm_deps.get(*name).is_some_and(|dep| {
-                dep.specifier == wanted_specifier
-                    && dep.version == pnpm_version
-                    && package_manager_entry_exists(env_lockfile, name, &dep.version)
-            })
-        })
 }
 
 /// The packages the env lockfile pins for `pnpm_version`.
