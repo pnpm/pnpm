@@ -319,6 +319,68 @@ describe('checkDepsStatus - settings change detection', () => {
     expect(result.upToDate).toBe(false)
     expect(result.issue).toBe('The value of the enableGlobalVirtualStore setting has changed')
   })
+
+  it('does not report a change when an unrecorded enableGlobalVirtualStore meets the false CI resolves it to', async () => {
+    // An install outside CI leaves the setting unset, so the state file has no
+    // key for it. Under `CI=true`, config resolution fills in the `false` the
+    // setting already defaulted to. Both mean "global virtual store off".
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      enableGlobalVirtualStore: false,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.issue).not.toBe('The value of the enableGlobalVirtualStore setting has changed')
+  })
+
+  it('does not report a change when a state file recorded enableGlobalVirtualStore: false and the setting is now unset', async () => {
+    // The reverse direction: the CI install records `false`, and the next run
+    // outside CI resolves the setting to `undefined`.
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        enableGlobalVirtualStore: false,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      enableGlobalVirtualStore: undefined,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.issue).not.toBe('The value of the enableGlobalVirtualStore setting has changed')
+  })
 })
 
 describe('checkDepsStatus - pnpmfile modification', () => {
