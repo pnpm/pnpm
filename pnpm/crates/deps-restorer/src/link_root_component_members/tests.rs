@@ -332,7 +332,20 @@ fn member_without_manifest_links_snapshot_declared_siblings() {
     snapshots.insert(
         snapshot_key("@scope/a", "a"),
         SnapshotEntry {
-            dependencies: Some(std::iter::once(sibling_edge("@scope/b", "b")).collect()),
+            dependencies: Some(
+                [
+                    sibling_edge("@scope/b", "b"),
+                    // A registry reference whose alias collides with the
+                    // member name `@scope/c` — it resolves to a different
+                    // key than c's slot, so it must not be linked as c.
+                    (
+                        "@scope/c".parse::<PkgName>().unwrap(),
+                        SnapshotDepRef::Plain("2.0.0".parse().unwrap()),
+                    ),
+                ]
+                .into_iter()
+                .collect(),
+            ),
             ..SnapshotEntry::default()
         },
     );
@@ -359,21 +372,19 @@ fn member_without_manifest_links_snapshot_declared_siblings() {
     let b_slot = &slots["@scope/b"];
     let c_slot = &slots["@scope/c"];
 
-    // `a` links its snapshot-declared sibling `b`, and nothing else.
     assert!(
         is_symlink_or_junction(&a_slot.join("@scope/b")).unwrap(),
         "a must link its snapshot-declared sibling b",
     );
     assert!(
         !a_slot.join("@scope/c").exists(),
-        "a must not gain the clique — c is not declared in a's snapshot",
+        "a must link neither the clique nor a registry ref that shares a member's alias",
     );
     assert_eq!(
         fs::canonicalize(a_slot.join("@scope/b")).unwrap(),
         fs::canonicalize(b_slot.join("@scope/b")).unwrap(),
     );
 
-    // `b` links `c`, not `a`; `c` links nothing.
     assert!(is_symlink_or_junction(&b_slot.join("@scope/c")).unwrap());
     assert!(!b_slot.join("@scope/a").exists());
     assert!(!c_slot.join("@scope/a").exists());

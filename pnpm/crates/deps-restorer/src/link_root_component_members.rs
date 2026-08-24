@@ -240,7 +240,14 @@ fn link_declared_siblings(
                 .into_iter()
                 .flatten()
                 .flatten()
-                .filter_map(|(alias, _)| by_name.get(alias.to_string().as_str()).copied())
+                .filter_map(|(alias, dep_ref)| {
+                    let sibling = by_name.get(alias.to_string().as_str()).copied()?;
+                    // Only an edge that resolves to this sibling's own
+                    // peer-variant slot: a registry, `link:`, or
+                    // other-variant reference that merely shares the
+                    // alias is not this member.
+                    (dep_ref.resolve(alias).as_ref() == Some(&sibling.key)).then_some(sibling)
+                })
                 .collect(),
             (None, None) => members.iter().collect(),
         };
