@@ -30,12 +30,19 @@ runs:
       run: | # zizmor: ignore[github-env]
         $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
         $installPath = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
-        & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe" modify --installPath "$installPath" --add Microsoft.VisualStudio.Component.VC.Llvm.Clang --add Microsoft.VisualStudio.Component.VC.Llvm.ClangToolset --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --quiet --norestart
-        if ($LASTEXITCODE -ne 0) { throw "Visual Studio installer exited with $LASTEXITCODE" }
+        & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe" modify --installPath "$installPath" --add Microsoft.VisualStudio.Component.VC.Llvm.Clang --add Microsoft.VisualStudio.Component.VC.Llvm.ClangToolset --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --quiet --norestart --wait
+        # `--wait` is what makes $LASTEXITCODE report the install rather than
+        # just the launch. 3010 is the installer's "succeeded, wants a
+        # reboot"; `--norestart` is why it wants one, and the components are
+        # usable without it.
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) { throw "Visual Studio installer exited with $LASTEXITCODE" }
         $llvmDir = Join-Path $installPath 'VC\Tools\Llvm'
         $deadline = (Get-Date).AddMinutes(5)
         $installerRunning = $true
         $clangCl = $null
+        # `--wait` above should have left nothing running, but the installer
+        # spawns work in processes it does not always account for, so poll for
+        # a quiet installer and a real clang-cl before trusting the toolchain.
         do {
           $installerRunning = @(Get-Process -Name 'vs_installer', 'vs_setup', 'setup' -ErrorAction SilentlyContinue).Count -gt 0
           $clangCl = Join-Path $llvmDir 'x64\bin\clang-cl.exe'

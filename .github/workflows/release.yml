@@ -553,12 +553,12 @@ jobs:
           path: node-gyp-payload.tar.gz
 
   # The CLI binary and the NAPI addon are built by two matrices on separate
-  # runners rather than back to back on one. They are compiled under different
-  # Cargo profiles (`release` and `napi-release`, which differ for the reason
-  # documented on those profiles), so Cargo keeps them in separate target
-  # directories and they share not one compiled dependency. Building both in
-  # one job paid for the whole dependency graph twice in series, which put the
-  # slowest leg — win32-arm64 — at ~17 minutes instead of ~11.
+  # runners. They are compiled under different Cargo profiles (`release` and
+  # `napi-release`, which differ for the reason documented on those profiles),
+  # so Cargo keeps them in separate target directories and they share no
+  # compiled dependency: sharing a runner would only make one leg walk the
+  # whole dependency graph twice in series, and the release waits on its
+  # slowest leg.
   build-rust:
     needs:
       - plan
@@ -771,7 +771,10 @@ jobs:
           # Downloaded by the same `binaries-rust-*` pattern the CLI archives
           # are, so both land in one directory for the jobs downstream.
           name: binaries-rust-napi-${{ matrix.code-target }}
-          path: "*.node"
+          # Named exactly, not globbed: the artifact must carry the one file
+          # the step above attested and nothing else that happens to be in the
+          # workspace root.
+          path: pnpm-napi.${{ matrix.code-target }}.node
 
   verify-rust-artifacts:
     name: Verify pnpm (Rust) npm artifacts
