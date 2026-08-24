@@ -3,7 +3,8 @@ use crate::{
     cli_args::{
         legacy_pnpm_field::warn_ignored_pnpm_manifest_fields_in, lockfile_dir::LockfileDirArg,
         override_version_references::warn_deprecated_override_version_references,
-        pipelines::InstallFamilySelection, recursive::discover_workspace_projects,
+        package_manager::package_manager_needs_recording, pipelines::InstallFamilySelection,
+        recursive::discover_workspace_projects,
         supported_architectures::SupportedArchitecturesArgs,
     },
 };
@@ -387,6 +388,9 @@ impl InstallArgs {
             return false;
         }
         let config_root = config.root_project_manifest_dir(dir).to_path_buf();
+        if package_manager_needs_recording(&config_root, config.pm_on_fail) {
+            return false;
+        }
         if !pnpm_hooks::finder::find_pnpmfiles(
             &config_root,
             pnpm_package_manager::pnpmfile_selection(config),
