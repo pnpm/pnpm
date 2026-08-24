@@ -327,7 +327,7 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
 /// can't drift apart. `pnpm bump` keeps this constant in sync with the
 /// version of the npm wrapper package (`pnpm/npm/pnpm/package.json`);
 /// the release workflow verifies the two match before building.
-pub const PNPM_VERSION: &str = "12.0.0-rc.10";
+pub const PNPM_VERSION: &str = "12.0.0-rc.11";
 
 /// The command that installs pnpm with the standalone script, as documented
 /// at <https://pnpm.io/installation>: the PowerShell form on Windows, the
