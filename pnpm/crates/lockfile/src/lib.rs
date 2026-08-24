@@ -297,9 +297,12 @@ impl Lockfile {
 }
 
 /// Whether `path` ends in a tarball extension (`.tgz`, `.tar.gz`, or
-/// `.tar`, case-insensitively), so the directory-vs-tarball boundary
-/// applied here matches the resolver's at resolve time.
-fn is_local_tarball_path(path: &str) -> bool {
+/// `.tar`, case-insensitively) — the directory-vs-tarball boundary the
+/// resolver applies to a `file:` spec at resolve time. Public so
+/// consumers classifying a `file:` snapshot key (such as the hoister's
+/// identity function) draw the same line.
+#[must_use]
+pub fn is_local_tarball_path(path: &str) -> bool {
     let lower = path.as_bytes();
     let ends_with_ci = |suffix: &str| {
         let bytes = suffix.as_bytes();

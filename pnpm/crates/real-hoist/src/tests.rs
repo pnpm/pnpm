@@ -1,5 +1,6 @@
 use super::{
-    HoistError, HoistOpts, HoisterResult, RcByPtr, build_hoist_ident_map, hoist, is_preferred_ident,
+    HoistError, HoistOpts, HoisterResult, RcByPtr, build_hoist_ident_map, hoist,
+    is_preferred_ident, percent_encode_path,
 };
 use indexmap::IndexSet;
 use pnpm_lockfile::{
@@ -1314,6 +1315,131 @@ fn peer_suffix_variants_collapse_to_one_hoisted_copy() {
         hoisted_x.references.borrow().contains("x@1.0.0(p@1.0.0)"),
         "the first-seen variant is the canonical reference: {hoisted_x:#?}",
     );
+}
+
+/// Peer variants of an injected directory dependency are exempt from
+/// the collapse — see [`pkg_id`] for why. The fixture mirrors the
+/// teambit/bit root-components layout that caught the regression: two
+/// importers on the same `file:` package, pinning conflicting peers.
+#[test]
+fn file_dep_peer_variants_keep_their_own_copies() {
+    let mut importers = HashMap::new();
+    importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), ProjectSnapshot::default());
+    for (importer_id, peer_ver) in
+        [("node_modules/.bit_roots/r1", "1.0.0"), ("node_modules/.bit_roots/r2", "2.0.0")]
+    {
+        let mut deps = ResolvedDependencyMap::new();
+        deps.insert(
+            pkg_name("comp"),
+            ResolvedDependencySpec {
+                specifier: "workspace:*".to_string(),
+                version: ver_peer(&format!("file:comp(p@{peer_ver})")).into(),
+            },
+        );
+        deps.insert(pkg_name("p"), resolved_dep(peer_ver));
+        importers.insert(
+            importer_id.to_string(),
+            ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
+        );
+    }
+
+    let mut snapshots = HashMap::new();
+    for peer_ver in ["1.0.0", "2.0.0"] {
+        let mut comp_deps = HashMap::new();
+        comp_deps.insert(pkg_name("p"), SnapshotDepRef::Plain(ver_peer(peer_ver)));
+        snapshots.insert(
+            dep_key("comp", &format!("file:comp(p@{peer_ver})")),
+            SnapshotEntry { dependencies: Some(comp_deps), ..SnapshotEntry::default() },
+        );
+        snapshots.insert(dep_key("p", peer_ver), SnapshotEntry::default());
+    }
+
+    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
+
+    let result =
+        hoist(&lockfile, &HoistOpts::default()).expect("file-variant hoist should succeed");
+
+    // Node resolution walks up from the importer, so the copy an
+    // importer sees is the one nested in its own subtree — or the
+    // root's, when its variant was hoisted there. Either placement is
+    // correct only if the reference reached this way is the variant
+    // the importer declared.
+    let root_children = result.dependencies.borrow();
+    let comp_reference_seen_by = |importer: &str| -> String {
+        let importer_name = percent_encode_path(importer);
+        let importer_node =
+            &root_children.iter().find(|dep| dep.0.name == importer_name).unwrap().0;
+        let importer_children = importer_node.dependencies.borrow();
+        let comp = importer_children
+            .iter()
+            .find(|dep| dep.0.name == "comp")
+            .or_else(|| root_children.iter().find(|dep| dep.0.name == "comp"))
+            .unwrap_or_else(|| panic!("no comp reachable from {importer}"));
+        comp.0.references.borrow().iter().next().cloned().unwrap_or_default()
+    };
+    assert_eq!(
+        comp_reference_seen_by("node_modules/.bit_roots/r1"),
+        "comp@file:comp(p@1.0.0)",
+        "r1 must resolve the copy carrying its own peer variant",
+    );
+    assert_eq!(
+        comp_reference_seen_by("node_modules/.bit_roots/r2"),
+        "comp@file:comp(p@2.0.0)",
+        "r2 must resolve the copy carrying its own peer variant",
+    );
+}
+
+/// The directory exemption in [`pkg_id`] must not widen to local
+/// tarballs: a `file:*.tgz` dependency collapses its peer variants
+/// like a registry package.
+#[test]
+fn file_tarball_peer_variants_collapse_like_registry_packages() {
+    let mut importers = HashMap::new();
+    importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), ProjectSnapshot::default());
+    for (importer_id, peer_ver) in [("packages/a", "1.0.0"), ("packages/b", "2.0.0")] {
+        let mut deps = ResolvedDependencyMap::new();
+        deps.insert(
+            pkg_name("tarpkg"),
+            ResolvedDependencySpec {
+                specifier: "file:tarpkg.tgz".to_string(),
+                version: ver_peer(&format!("file:tarpkg.tgz(p@{peer_ver})")).into(),
+            },
+        );
+        deps.insert(pkg_name("p"), resolved_dep(peer_ver));
+        importers.insert(
+            importer_id.to_string(),
+            ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
+        );
+    }
+
+    let mut snapshots = HashMap::new();
+    for peer_ver in ["1.0.0", "2.0.0"] {
+        let mut tar_deps = HashMap::new();
+        tar_deps.insert(pkg_name("p"), SnapshotDepRef::Plain(ver_peer(peer_ver)));
+        snapshots.insert(
+            dep_key("tarpkg", &format!("file:tarpkg.tgz(p@{peer_ver})")),
+            SnapshotEntry { dependencies: Some(tar_deps), ..SnapshotEntry::default() },
+        );
+        snapshots.insert(dep_key("p", peer_ver), SnapshotEntry::default());
+    }
+
+    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
+
+    let result =
+        hoist(&lockfile, &HoistOpts::default()).expect("tarball-variant hoist should succeed");
+    let root_children = result.dependencies.borrow();
+    let tarpkg = &root_children.iter().find(|dep| dep.0.name == "tarpkg").unwrap().0;
+    assert!(
+        tarpkg.references.borrow().contains("tarpkg@file:tarpkg.tgz(p@1.0.0)"),
+        "the first-seen variant is the canonical reference: {tarpkg:#?}",
+    );
+    for importer in ["packages%2Fa", "packages%2Fb"] {
+        let importer_node = &root_children.iter().find(|dep| dep.0.name == importer).unwrap().0;
+        assert!(
+            !importer_node.dependencies.borrow().iter().any(|dep| dep.0.name == "tarpkg"),
+            "a tarball peer variant must dedup against the root copy: {importer_node:#?}",
+        );
+    }
 }
 
 /// A nearer ancestor holding a different version of a name blocks
