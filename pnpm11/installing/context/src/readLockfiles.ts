@@ -5,6 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import {
   createLockfileObject,
   existsNonEmptyWantedLockfile,
+  getGitBranchLockfileNames,
   isEmptyLockfile,
   type LockfileObject,
   type ProjectSnapshot,
@@ -146,10 +147,12 @@ export async function readLockfiles (
       }
     }
   }
-  // A branch lockfile is a snapshot taken before the main branch removed a
-  // dependency, and merging it back can only ever add entries, so the manifests
-  // are the only record of what has since been dropped.
-  if (opts.mergeGitBranchLockfiles) {
+  // The merge takes the union of the two lockfiles' keys, so it can only add:
+  // a dependency the manifests no longer declare is reinstated by it, and the
+  // manifests are the only record that it is gone. Gated on a merge having
+  // actually run, so that an ordinary lockfile the manifests have outgrown is
+  // still reported by the frozen check rather than quietly repaired here.
+  if (opts.mergeGitBranchLockfiles && existsWantedLockfile && (await getGitBranchLockfileNames(opts.lockfileDir)).length > 0) {
     for (const project of opts.projects) {
       pruneUndeclaredDependencies(wantedLockfile.importers[project.id], project.manifest, opts.autoInstallPeers)
     }

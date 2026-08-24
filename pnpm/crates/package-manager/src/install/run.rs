@@ -706,8 +706,16 @@ where
         // was known. Reconcile the merge against them now, while every
         // later stage — the fast update, the freshness check, and the
         // rewrite the merge is saved by — still reads the same object.
+        // Only a load that actually merged something needs it: an ordinary
+        // lockfile the manifests have outgrown must still reach the
+        // freshness check rather than be quietly repaired here.
+        let load_merged_branch_lockfiles = config.merge_git_branch_lockfiles
+            && existing_wanted_lockfile.is_some()
+            && !Lockfile::git_branch_lockfiles(&workspace_root)
+                .map_err(InstallError::FindGitBranchLockfiles)?
+                .is_empty();
         let merged_branch_lockfile =
-            config.merge_git_branch_lockfiles.then_some(lockfile).flatten().map(|lockfile| {
+            load_merged_branch_lockfiles.then_some(lockfile).flatten().map(|lockfile| {
                 prune_merged_branch_lockfile(
                     lockfile,
                     &manifest_freshness_inputs,

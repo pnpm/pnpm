@@ -253,3 +253,35 @@ fn merging_drops_a_dependency_the_manifest_no_longer_declares() {
 
     drop((root, mock_instance));
 }
+
+/// Reconciling the merge against the manifests must not double as a repair
+/// for an ordinary stale lockfile: `mergeGitBranchLockfilesBranchPattern`
+/// leaves merge mode on for every install on a matched branch, so a frozen
+/// install there still has to report drift it did not merge in.
+#[test]
+fn merging_with_nothing_to_merge_still_rejects_an_outdated_lockfile() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    set_branch(&workspace, "main");
+    write_dependencies(&workspace, &serde_json::json!({ "@pnpm.e2e/foo": "1.0.0" }));
+    pacquet.with_arg("install").assert().success();
+
+    // The manifest drops the dependency without the lockfile being updated,
+    // and no branch lockfile exists to explain the leftover entry.
+    write_dependencies(&workspace, &serde_json::json!({}));
+
+    let assert = pacquet_in(&workspace)
+        .with_args(["install", "--merge-git-branch-lockfiles", "--frozen-lockfile"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(
+        stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
+        "the drift was not merged in, so it must still be reported; got:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}

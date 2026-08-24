@@ -639,3 +639,44 @@ test('install with --merge-git-branch-lockfiles keeps a dependency that is also 
   expect(wantedLockfileAfterMergeOther.importers['.'].dependencies).toBeUndefined()
   project.hasNot('is-positive')
 })
+
+test('--merge-git-branch-lockfiles still rejects an outdated lockfile when there is nothing to merge', async () => {
+  prepareEmpty()
+
+  // The lockfile records a dependency the manifest never declared, and no
+  // branch lockfile exists to explain it.
+  writeYamlFileSync(WANTED_LOCKFILE, {
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': {
+            specifier: '^3.1.0',
+            version: '3.1.0',
+          },
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      'is-positive@3.1.0': {
+        resolution: {
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
+        },
+      },
+    },
+    snapshots: {
+      'is-positive@3.1.0': {},
+    },
+  }, { lineWidth: 1000 })
+
+  const branchName: string = 'main-branch'
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+
+  await expect(
+    install({}, testDefaults({
+      useGitBranchLockfile: true,
+      mergeGitBranchLockfiles: true,
+      frozenLockfile: true,
+    }))
+  ).rejects.toThrow(/ERR_PNPM_OUTDATED_LOCKFILE|not up to date/)
+})
