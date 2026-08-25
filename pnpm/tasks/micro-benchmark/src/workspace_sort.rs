@@ -1,5 +1,5 @@
 //! Topological sorting of a many-project workspace: the projects-graph
-//! build plus the [`graph_sequencer`] pass, composed the way an install
+//! build plus the [`graph_sequencer()`] pass, composed the way an install
 //! composes them (once for the recursive project selection, once for the
 //! workspace-cycle report).
 //!
