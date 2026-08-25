@@ -793,3 +793,36 @@ test('virtualStoreOnly suppresses hoisting even with explicit hoistPattern', asy
   // No importer-level symlinks
   expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeFalsy()
 })
+
+// A dependency's lifecycle script runs in the store, where the directory above
+// its `node_modules` is a slot rather than the project that installed it.
+// Reading the manifest there is how every git-hook installer looks for its
+// consumer; pnpm does not run a dependency's scripts on a project's behalf, but
+// the read has to resolve rather than take the install down with it.
+// https://github.com/pnpm/pnpm/issues/13318
+test('a lifecycle script that reads the manifest above its node_modules does not fail the install', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/reads-consumer-manifest': '1.0.0',
+    },
+  }
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    fastUnpack: false,
+    allowBuilds: { '@pnpm.e2e/reads-consumer-manifest': true },
+  }))
+
+  const versionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/reads-consumer-manifest/1.0.0')
+  const hashes = fs.readdirSync(versionDir)
+  expect(hashes).toHaveLength(1)
+  const slotDir = path.join(versionDir, hashes[0])
+  expect(JSON.parse(fs.readFileSync(path.join(slotDir, 'package.json'), 'utf8'))).toStrictEqual({ private: true })
+
+  // What the script read is the slot, and it declares nothing about the
+  // project that installed the package.
+  const readFrom = path.join(slotDir, 'node_modules/@pnpm.e2e/reads-consumer-manifest/read-consumer-manifest-from.txt')
+  expect(fs.readFileSync(readFrom, 'utf8')).toBe(slotDir)
+})

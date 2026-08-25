@@ -1,0 +1,13 @@
+{
+  "name": "@pnpm.e2e/reads-consumer-manifest",
+  "version": "1.0.0",
+  "description": "A package whose postinstall reads the manifest of the project it assumes installed it",
+  "scripts": {
+    "postinstall": "node read-consumer-manifest"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pnpm/pnpm/tree/master/test/packages/reads-consumer-manifest"
+  }
+}

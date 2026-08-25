@@ -1,4 +1,6 @@
+import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/deps.path'
@@ -323,6 +325,40 @@ export function calcGlobalVirtualStorePathWithSubdeps (
   const depsHash = hashObject({ id: fullPkgId, deps: childHashes })
   const hexDigest = hashObjectWithoutSorting({ engine: null, deps: depsHash }, { encoding: 'hex' })
   return formatGlobalVirtualStorePath(name, version, hexDigest)
+}
+
+/**
+ * The manifest every global virtual store slot carries, and what it is for.
+ *
+ * A dependency's lifecycle scripts run in `<slot>/node_modules/<name>`. A
+ * package that wants to know which project installed it reads the manifest
+ * above that `node_modules` — the convention every git-hook installer follows.
+ * In a project's own virtual store it finds the project; a slot is shared by
+ * every project that resolves the same dependencies, so there is no project
+ * there to find, and pnpm does not run a dependency's scripts on any project's
+ * behalf. The read still has to resolve, or a package that merely *looks*
+ * takes the install down with it (pnpm/pnpm#13318) — so the slot answers with
+ * a manifest that declares nothing.
+ *
+ * Byte-identical to what the Rust CLI writes (`create_virtual_dir_by_snapshot`),
+ * since both fill the same store.
+ */
+const VIRTUAL_STORE_SLOT_MANIFEST = `{
+  "private": true
+}
+`
+
+/**
+ * Write {@link VIRTUAL_STORE_SLOT_MANIFEST} into a slot, once. Concurrent
+ * installs materialize the same slot, so losing the race is success — every
+ * writer has the same bytes.
+ */
+export async function writeVirtualStoreSlotManifest (slotDir: string): Promise<void> {
+  try {
+    await fs.writeFile(path.join(slotDir, 'package.json'), VIRTUAL_STORE_SLOT_MANIFEST, { flag: 'wx' })
+  } catch (err: unknown) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
+  }
 }
 
 // Use @/ prefix for unscoped packages to maintain uniform 4-level directory depth

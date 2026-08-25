@@ -16,6 +16,7 @@ use pnpm_reporter::{
 use std::{
     collections::HashMap,
     fs, io,
+    io::Write,
     path::{Path, PathBuf},
     sync::atomic::AtomicU8,
 };
@@ -90,6 +91,45 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     pub link_concurrency_probe: Option<&'a tests::LinkConcurrencyProbe>,
 }
 
+/// The manifest every global virtual store slot carries, and what it is for.
+///
+/// A dependency's lifecycle scripts run in `<slot>/node_modules/<name>`. A
+/// package that wants to know which project installed it reads the manifest
+/// above that `node_modules` — the convention every git-hook installer
+/// follows. In a project's own virtual store it finds the project; a slot is
+/// shared by every project that resolves the same dependencies, so there is no
+/// project there to find, and pnpm does not run a dependency's scripts on any
+/// project's behalf. The read still has to resolve, or a package that merely
+/// *looks* takes the install down with it
+/// ([pnpm/pnpm#13318](https://github.com/pnpm/pnpm/issues/13318)) — so the slot
+/// answers with a manifest that declares nothing.
+///
+/// Byte-identical to what the TypeScript CLI writes
+/// (`writeVirtualStoreSlotManifest`), since both fill the same store.
+const VIRTUAL_STORE_SLOT_MANIFEST: &str = "{\n  \"private\": true\n}\n";
+
+/// Write [`VIRTUAL_STORE_SLOT_MANIFEST`] into a slot, once.
+///
+/// Concurrent installs materialize the same slot, so losing the race is
+/// success — every writer has the same bytes. A failure is not worth failing an
+/// install over either: the manifest only keeps a package that looks for its
+/// consumer from crashing, and the install it would abort is the one that
+/// still has every other reason to succeed.
+fn write_slot_manifest(slot_dir: &Path) {
+    let path = slot_dir.join("package.json");
+    match fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+        Ok(mut file) => {
+            if let Err(error) = file.write_all(VIRTUAL_STORE_SLOT_MANIFEST.as_bytes()) {
+                tracing::warn!(target: "pnpm::store", ?error, path = %path.display(), "could not write the virtual store slot manifest");
+            }
+        }
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+        Err(error) => {
+            tracing::warn!(target: "pnpm::store", ?error, path = %path.display(), "could not write the virtual store slot manifest");
+        }
+    }
+}
+
 /// Error type of [`CreateVirtualDirBySnapshot`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum CreateVirtualDirError {
@@ -148,13 +188,17 @@ impl CreateVirtualDirBySnapshot<'_> {
         let _link_concurrency_guard =
             link_concurrency_probe.map(tests::LinkConcurrencyProbe::enter);
 
-        let virtual_node_modules_dir = layout.slot_dir(package_key).join("node_modules");
+        let slot_dir = layout.slot_dir(package_key);
+        let virtual_node_modules_dir = slot_dir.join("node_modules");
         fs::create_dir_all(&virtual_node_modules_dir).map_err(|error| {
             CreateVirtualDirError::CreateNodeModulesDir {
                 dir: virtual_node_modules_dir.clone(),
                 error,
             }
         })?;
+        if layout.enable_global_virtual_store() {
+            write_slot_manifest(&slot_dir);
+        }
 
         let save_path =
             safe_join_modules_dir(&virtual_node_modules_dir, &package_key.name.to_string())

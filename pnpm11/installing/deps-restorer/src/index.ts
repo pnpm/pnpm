@@ -22,7 +22,7 @@ import {
   lockfileToDepGraph,
   type LockfileToDepGraphOptions,
 } from '@pnpm/deps.graph-builder'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, writeVirtualStoreSlotManifest } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -470,7 +470,14 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   } else if (opts.enableModulesDir !== false || opts.enableGlobalVirtualStore) {
     if (!skipGvsInternalLinking) {
       if (opts.enableModulesDir !== false) {
-        await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
+        await Promise.all(depNodes.map(async (depNode) => {
+          await fs.mkdir(depNode.modules, { recursive: true })
+          // A slot is not a project, and a dependency's lifecycle scripts run
+          // one directory below it — see `writeVirtualStoreSlotManifest`.
+          if (opts.enableGlobalVirtualStore) {
+            await writeVirtualStoreSlotManifest(path.dirname(depNode.modules))
+          }
+        }))
       }
       await Promise.all([
         opts.symlink === false || opts.enableModulesDir === false

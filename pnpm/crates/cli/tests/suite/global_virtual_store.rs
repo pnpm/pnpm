@@ -1516,3 +1516,45 @@ fn virtual_store_type_selects_where_packages_are_materialized() {
         drop((root, mock_instance));
     }
 }
+
+/// A dependency's lifecycle script runs in the store, where the directory above
+/// its `node_modules` is a slot rather than the project that installed it.
+/// Reading the manifest there is how every git-hook installer looks for its
+/// consumer; pnpm does not run a dependency's scripts on a project's behalf,
+/// but the read has to resolve rather than take the install down with it.
+/// <https://github.com/pnpm/pnpm/issues/13318>
+#[test]
+fn a_lifecycle_script_may_read_the_manifest_above_its_node_modules() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/reads-consumer-manifest": "1.0.0" }),
+    );
+    set_gvs_workspace_yaml(
+        &workspace,
+        &allow_builds_yaml(&[("@pnpm.e2e/reads-consumer-manifest", true)]),
+    );
+
+    pacquet(&workspace).with_arg("install").assert().success();
+
+    let slot_dir =
+        sole_hash_dir(&pkg_version_dir(&store_dir, "@pnpm.e2e/reads-consumer-manifest", "1.0.0"));
+    assert_eq!(
+        fs::read_to_string(slot_dir.join("package.json")).expect("read the slot manifest"),
+        "{\n  \"private\": true\n}\n",
+    );
+
+    // What the script read is the slot, and it declares nothing about the
+    // project that installed the package.
+    let read_from = pkg_in_slot(&slot_dir, "@pnpm.e2e/reads-consumer-manifest")
+        .join("read-consumer-manifest-from.txt");
+    assert_eq!(
+        fs::read_to_string(&read_from).expect("read what the script recorded"),
+        slot_dir.to_string_lossy(),
+    );
+
+    drop((root, mock_instance));
+}

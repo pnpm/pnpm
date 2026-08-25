@@ -6,7 +6,7 @@ import {
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, writeVirtualStoreSlotManifest } from '@pnpm/deps.graph-hasher'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
 import type {
@@ -434,7 +434,14 @@ async function linkNewPackages (
 
   const newPkgs = props<DepPath, DependenciesGraphNode>(newDepPaths, depGraph)
 
-  await Promise.all(newPkgs.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
+  await Promise.all(newPkgs.map(async (depNode) => {
+    await fs.mkdir(depNode.modules, { recursive: true })
+    // A slot is not a project, and a dependency's lifecycle scripts run one
+    // directory below it — see `writeVirtualStoreSlotManifest`.
+    if (opts.enableGlobalVirtualStore) {
+      await writeVirtualStoreSlotManifest(path.dirname(depNode.modules))
+    }
+  }))
   await Promise.all([
     !opts.symlink
       ? Promise.resolve()

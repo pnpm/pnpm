@@ -233,7 +233,19 @@ fn gvs_paths_only(files: Vec<String>) -> Vec<String> {
     files
         .into_iter()
         .filter(|path| path.starts_with("links/") || path.starts_with("v11/links/"))
+        .filter(|path| !is_slot_manifest(path))
         .collect()
+}
+
+/// The manifest a slot carries to say it is not a project (see
+/// `write_slot_manifest`). It sits directly in the slot, one directory above
+/// the `node_modules` every other slot path goes through — and the `pnpm` this
+/// test compares against is whichever release is on `PATH`, which only writes
+/// it from the version that ships this. The subject here is where the two
+/// stacks address their slots, not which bookkeeping files pnpm keeps in them.
+fn is_slot_manifest(path: &str) -> bool {
+    path.rsplit_once('/')
+        .is_some_and(|(slot, file)| file == "package.json" && !slot.contains("/node_modules"))
 }
 
 /// Run pnpm-then-pacquet against a shared workspace and compare the
