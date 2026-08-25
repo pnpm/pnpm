@@ -116,7 +116,7 @@ pub(crate) fn report_summary(
         .collect::<Vec<_>>()
         .join(" | ");
     format!(
-        "{} vulnerabilities found\nSeverity: {severities}",
+        "{} vulnerabilities found\nSeverity: {severities}\n",
         red(&total_vulnerability_count.to_string()),
     )
 }

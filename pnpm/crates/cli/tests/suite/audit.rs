@@ -116,7 +116,7 @@ fn audit_exits_zero_when_every_vulnerability_is_below_audit_level() {
         pacquet.arg("audit").arg("--audit-level").arg("high").output().expect("run pacquet audit");
 
     assert_success(&output);
-    assert_eq!(stdout(&output), "1 vulnerabilities found\nSeverity: 1 moderate");
+    assert_eq!(stdout(&output), "1 vulnerabilities found\nSeverity: 1 moderate\n");
     mock.assert();
 }
 
@@ -500,7 +500,7 @@ fn audit_defaults_to_low_and_ignores_info_for_exit_code() {
     let output = pacquet.arg("audit").output().expect("run pacquet audit");
 
     assert_success(&output);
-    assert_eq!(stdout(&output), "1 vulnerabilities found\nSeverity: 1 info");
+    assert_eq!(stdout(&output), "1 vulnerabilities found\nSeverity: 1 info\n");
     mock.assert();
 }
 
