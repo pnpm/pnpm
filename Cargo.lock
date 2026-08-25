@@ -5960,6 +5960,7 @@ dependencies = [
  "pnpm-catalogs-types",
  "pnpm-config",
  "pnpm-config-dir",
+ "pnpm-crypto-hash",
  "pnpm-env-replace",
  "pnpm-lockfile",
  "pnpm-lockfile-verification",

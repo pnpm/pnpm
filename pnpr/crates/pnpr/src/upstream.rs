@@ -4,6 +4,10 @@ use crate::{
     package_name::PackageName,
 };
 use chrono::{DateTime, Timelike, Utc};
+use pnpm_lockfile::{
+    TarballRevision, integrity_addressed_registry_tarball_url,
+    is_integrity_addressed_registry_tarball_url,
+};
 use pnpm_network::ThrottledClient;
 use reqwest::{
     StatusCode,
@@ -11,6 +15,7 @@ use reqwest::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use ssri::Integrity;
 use std::{
     fmt,
     sync::{Arc, Mutex},
@@ -302,6 +307,25 @@ impl Upstream {
         Ok(FetchOutcome::Ok(response))
     }
 
+    /// Fetch an immutable sha512 registry artifact without following redirects.
+    pub async fn fetch_revision_tarball_response(
+        &self,
+        digest: &str,
+    ) -> Result<FetchOutcome<reqwest::Response>> {
+        self.ensure_available()?;
+        let url = format!("{}/-/tarballs/sha512/{digest}", self.base.trim_end_matches('/'));
+        let client = self.client.acquire_for_url_without_redirects_with_priority(&url, 0).await;
+        let request = client.get(&url).timeout(self.timeout).headers(self.headers.clone());
+        let response = self.run(request, &url).await?;
+        if response.status() == StatusCode::NOT_FOUND {
+            self.breaker.record_success();
+            return Ok(FetchOutcome::NotFound);
+        }
+        let response = self.checked(response, &url).await?;
+        self.breaker.record_success();
+        Ok(FetchOutcome::Ok(response))
+    }
+
     /// Fail fast with [`RegistryError::UpstreamUnavailable`] when the
     /// breaker is open, so callers never pay a request to a known-down
     /// upstream.
@@ -362,16 +386,40 @@ impl Upstream {
 /// and single-version manifest shape (`{ dist: ... }` at the top level)
 /// so a single helper covers both endpoints.
 pub fn rewrite_tarball_urls(value: &mut Value, pkg: &PackageName, public_url: &str) {
+    rewrite_tarball_urls_from_registry(value, pkg, None, public_url);
+}
+
+/// Rewrite tarball URLs from an upstream registry, preserving valid revision routes.
+pub fn rewrite_upstream_tarball_urls(
+    value: &mut Value,
+    pkg: &PackageName,
+    source_registry: &str,
+    public_url: &str,
+) {
+    rewrite_tarball_urls_from_registry(value, pkg, Some(source_registry), public_url);
+}
+
+fn rewrite_tarball_urls_from_registry(
+    value: &mut Value,
+    pkg: &PackageName,
+    source_registry: Option<&str>,
+    public_url: &str,
+) {
     let public_url = public_url.trim_end_matches('/');
     if let Some(versions) = value.get_mut("versions").and_then(Value::as_object_mut) {
         for manifest in versions.values_mut() {
-            rewrite_dist_tarball(manifest, pkg, public_url);
+            rewrite_dist_tarball(manifest, pkg, source_registry, public_url);
         }
     }
-    rewrite_dist_tarball(value, pkg, public_url);
+    rewrite_dist_tarball(value, pkg, source_registry, public_url);
 }
 
-fn rewrite_dist_tarball(value: &mut Value, pkg: &PackageName, public_url: &str) {
+fn rewrite_dist_tarball(
+    value: &mut Value,
+    pkg: &PackageName,
+    source_registry: Option<&str>,
+    public_url: &str,
+) {
     // Every string `dist.tarball` must be rewritten to a route on *this*
     // server, where integrity and OSV are enforced — never passed through.
     // When the upstream URL has no usable basename (e.g. it ends in `/`), fall
@@ -385,8 +433,22 @@ fn rewrite_dist_tarball(value: &mut Value, pkg: &PackageName, public_url: &str) 
     let Some(dist) = value.get_mut("dist").and_then(Value::as_object_mut) else {
         return;
     };
+    let revision_url = source_registry.and_then(|source_registry| {
+        let revision = dist.get("revision")?.as_u64()?;
+        TarballRevision::try_from(revision).ok()?;
+        let integrity: Integrity = dist.get("integrity")?.as_str()?.parse().ok()?;
+        let tarball = dist.get("tarball")?.as_str()?;
+        if !is_integrity_addressed_registry_tarball_url(tarball, &integrity, source_registry) {
+            return None;
+        }
+        integrity_addressed_registry_tarball_url(&integrity, public_url)
+    });
     let Some(tarball_value) = dist.get_mut("tarball") else { return };
     if !tarball_value.is_string() {
+        return;
+    }
+    if let Some(revision_url) = revision_url {
+        *tarball_value = Value::String(revision_url);
         return;
     }
     let filename = tarball_value
@@ -421,13 +483,40 @@ pub fn extract_version_manifest(
     version_or_tag: &str,
     public_url: &str,
 ) -> Option<Value> {
+    extract_version_manifest_from_registry(packument, pkg, version_or_tag, None, public_url)
+}
+
+/// Extract a version manifest while preserving valid upstream revision routes.
+pub fn extract_upstream_version_manifest(
+    packument: &Value,
+    pkg: &PackageName,
+    version_or_tag: &str,
+    source_registry: &str,
+    public_url: &str,
+) -> Option<Value> {
+    extract_version_manifest_from_registry(
+        packument,
+        pkg,
+        version_or_tag,
+        Some(source_registry),
+        public_url,
+    )
+}
+
+fn extract_version_manifest_from_registry(
+    packument: &Value,
+    pkg: &PackageName,
+    version_or_tag: &str,
+    source_registry: Option<&str>,
+    public_url: &str,
+) -> Option<Value> {
     let resolved = packument
         .get("dist-tags")
         .and_then(|tags| tags.get(version_or_tag))
         .and_then(Value::as_str)
         .unwrap_or(version_or_tag);
     let mut manifest = packument.get("versions")?.get(resolved)?.clone();
-    rewrite_tarball_urls(&mut manifest, pkg, public_url);
+    rewrite_tarball_urls_from_registry(&mut manifest, pkg, source_registry, public_url);
     Some(manifest)
 }
 

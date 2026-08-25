@@ -17,7 +17,8 @@ use crate::{
     streaming,
     upstream::{
         CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
-        extract_version_manifest, rewrite_tarball_urls, tarball_basename,
+        extract_upstream_version_manifest, extract_version_manifest, rewrite_tarball_urls,
+        rewrite_upstream_tarball_urls, tarball_basename,
     },
 };
 use axum::{
@@ -35,6 +36,7 @@ use axum::{
 };
 use chrono::Utc;
 use indexmap::IndexMap;
+use pnpm_crypto_hash::integrity_addressed_tarball_integrity;
 use serde_json::{Value, json};
 use ssri::Integrity;
 use std::{
@@ -736,6 +738,7 @@ async fn get_tarball_scoped(
 /// 4-segment GET:
 /// * `/-/package/{pkg}/dist-tags` — packument's `dist-tags` object.
 /// * `/-/org/{scope}/team` — the teams of the registry claiming `@scope`.
+/// * `/-/tarballs/sha512/{digest}` — immutable artifact through the default registry.
 /// * `/~<name>/-/v1/search` — search through a registry endpoint.
 /// * `/~<name>/@scope/{pkg}/{version}` — scoped version manifest through a
 ///   registry endpoint.
@@ -745,6 +748,15 @@ async fn get_four_segments(
     OriginalUri(uri): OriginalUri,
     Path((a, b, c, d)): Path<(String, String, String, String)>,
 ) -> Response {
+    if a == "-" && b == "tarballs" && c == "sha512" {
+        let Some(registry) = default_registry_target(&state) else { return not_found() };
+        let response = serve_revision_tarball(&state, &identity, &registry, &d).await;
+        return if revision_registry_is_private(&state, &registry) {
+            private_no_cache(response)
+        } else {
+            response
+        };
+    }
     if a == "-" && b == "package" && d == "dist-tags" {
         let response = get_dist_tags(&state, &identity, None, &c).await;
         return private_if_caller_gated(&state, &c, response);
@@ -776,6 +788,7 @@ async fn get_four_segments(
 /// * `/~<name>/-/package/<pkg>/dist-tags` — dist-tags through a registry
 ///   endpoint.
 /// * `/~<name>/-/org/{scope}/team` — org teams through a registry endpoint.
+/// * `/~<name>/-/tarballs/sha512/{digest}` — immutable artifact through an upstream.
 ///
 /// Every other 5-segment GET is a not-found catchall (the route exists so
 /// DELETE/PUT can sit on the same path).
@@ -788,6 +801,9 @@ async fn get_five_segments(
         return private_no_cache(get_team_members(&state, &identity, None, &c, &d));
     }
     if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
+        if b == "-" && c == "tarballs" && d == "sha512" {
+            return private_no_cache(serve_revision_tarball(&state, &identity, registry, &e).await);
+        }
         if b.starts_with('@') && d == "-" {
             let full = format!("{b}/{c}");
             return private_no_cache(
@@ -1329,8 +1345,21 @@ async fn serve_registry_version_manifest(
             return not_found();
         }
     }
-    let Some(manifest) = extract_version_manifest(&packument, &name, version_or_tag, tarball_base)
-    else {
+    let revision_registry = match &resolved_source {
+        RegistrySource::Upstream(source) => revision_source_registry(state, registry, source),
+        RegistrySource::Hosted(_) | RegistrySource::Unclaimed | RegistrySource::NotFound => None,
+    };
+    let manifest = match revision_registry {
+        Some(source_registry) => extract_upstream_version_manifest(
+            &packument,
+            &name,
+            version_or_tag,
+            source_registry,
+            tarball_base,
+        ),
+        None => extract_version_manifest(&packument, &name, version_or_tag, tarball_base),
+    };
+    let Some(manifest) = manifest else {
         return not_found();
     };
     match serde_json::to_vec(&manifest) {
@@ -1377,6 +1406,39 @@ fn authorized_upstream<'a>(
         })));
     }
     state.inner.upstreams.get(upstream).ok_or_else(|| Box::new(not_found()))
+}
+
+fn authorized_revision_upstream<'a>(
+    state: &'a AppState,
+    identity: &Identity,
+    registry: &str,
+) -> Result<&'a Upstream, Box<Response>> {
+    if !matches!(state.inner.config.registries.get(registry), Some(Registry::Upstream { .. })) {
+        return Err(Box::new(not_found()));
+    }
+    let Some(config) = state.inner.config.upstreams.get(registry) else {
+        return Err(Box::new(not_found()));
+    };
+    if config.rules.refines_access() {
+        return Err(Box::new(not_found()));
+    }
+    authorized_upstream(state, identity, registry)
+}
+
+fn revision_registry_is_private(state: &AppState, registry: &str) -> bool {
+    state.inner.config.upstreams.get(registry).is_some_and(|config| config.access.is_some())
+}
+
+fn revision_source_registry<'a>(
+    state: &'a AppState,
+    addressed_registry: &str,
+    source: &str,
+) -> Option<&'a str> {
+    if addressed_registry != source {
+        return None;
+    }
+    let config = state.inner.config.upstreams.get(source)?;
+    (!config.rules.refines_access()).then_some(config.url.as_str())
 }
 
 /// The disposable cache namespace for an upstream registry's `/~<name>/` route —
@@ -1638,6 +1700,7 @@ async fn serve_packument_via_upstream(
     upstream: &str,
     name: &PackageName,
     tarball_base: &str,
+    revision_registry: Option<&str>,
 ) -> Response {
     let bytes = match load_upstream_packument_for(state, identity, upstream, name).await {
         Ok(Some(bytes)) => bytes,
@@ -1648,6 +1711,7 @@ async fn serve_packument_via_upstream(
         name,
         &bytes,
         tarball_base,
+        revision_registry,
         state.inner.osv_index.as_ref(),
         wants_abbreviated(headers),
     ) {
@@ -1797,6 +1861,66 @@ async fn serve_tarball_via_upstream(
     match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
         Ok(body) => tarball_response(body, None),
         Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
+    }
+}
+
+async fn serve_revision_tarball(
+    state: &AppState,
+    identity: &Identity,
+    registry: &str,
+    digest: &str,
+) -> Response {
+    let Some(integrity) = integrity_addressed_tarball_integrity(digest) else {
+        return not_found();
+    };
+    let upstream = match authorized_revision_upstream(state, identity, registry) {
+        Ok(upstream) => upstream,
+        Err(response) => return *response,
+    };
+    let namespace = upstream_cache_namespace(state, registry);
+    if upstream.caches() {
+        match state.inner.storage.open_upstream_revision_tarball(&namespace, digest).await {
+            Ok(Some((file, len))) => {
+                return tarball_response(streaming::stream_file(file), Some(len));
+            }
+            Ok(None) => {}
+            Err(err) => {
+                tracing::warn!(?err, %registry, %digest, "revision tarball cache open failed");
+            }
+        }
+    }
+    let response = match upstream.fetch_revision_tarball_response(digest).await {
+        Ok(FetchOutcome::Ok(response)) => response,
+        Ok(FetchOutcome::NotFound) => return not_found(),
+        Err(err) => return error_response(&err),
+    };
+    let write =
+        match state.inner.storage.open_upstream_revision_tarball_tmp(&namespace, digest).await {
+            Ok(write) => write,
+            Err(err) => return error_response(&err),
+        };
+    if !upstream.caches() {
+        return match streaming::download_verified_to_temp(
+            response,
+            write,
+            &integrity,
+            MAX_TARBALL_BYTES,
+        )
+        .await
+        {
+            Ok((file, len, tmp_path)) => {
+                tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
+            }
+            Err(err) => {
+                error_response(&tarball_stream_error_for_package(err, "registry revision", digest))
+            }
+        };
+    }
+    match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
+        Ok(body) => tarball_response(body, None),
+        Err(err) => {
+            error_response(&tarball_stream_error_for_package(err, "registry revision", digest))
+        }
     }
 }
 
@@ -1962,8 +2086,17 @@ async fn serve_registry_packument(
             {
                 return error_response(&err);
             }
-            serve_packument_via_upstream(state, identity, headers, source, &name, tarball_base)
-                .await
+            let revision_registry = revision_source_registry(state, registry, source);
+            serve_packument_via_upstream(
+                state,
+                identity,
+                headers,
+                source,
+                &name,
+                tarball_base,
+                revision_registry,
+            )
+            .await
         }
         // A hosted denial answers per its gate tier (see `hosted_gate`): a
         // registry-default denial is a not-found mask, an explicit
@@ -2094,6 +2227,7 @@ async fn serve_hosted_packument(
             name,
             &bytes,
             tarball_base,
+            None,
             state.inner.osv_index.as_ref(),
             wants_abbreviated(headers),
         ) {
@@ -2212,7 +2346,7 @@ fn expected_tarball_dist(
     // legitimate registry, so fail closed rather than pick by iteration order.
     if matches.next().is_some() {
         return Err(tarball_integrity_error(
-            name,
+            name.as_str(),
             filename,
             "packument declares the same dist.tarball basename for multiple versions".to_string(),
         ));
@@ -2223,18 +2357,26 @@ fn expected_tarball_dist(
     // neither stays unservable: bytes never leave unverified.
     let integrity = if let Some(declared) = dist.integrity.as_deref() {
         streaming::parse_integrity(declared).map_err(|err| {
-            tarball_integrity_error(name, filename, format!("malformed dist.integrity: {err}"))
+            tarball_integrity_error(
+                name.as_str(),
+                filename,
+                format!("malformed dist.integrity: {err}"),
+            )
         })?
     } else {
         let shasum = dist.shasum.as_deref().ok_or_else(|| {
             tarball_integrity_error(
-                name,
+                name.as_str(),
                 filename,
                 format!("packument has no dist.integrity or dist.shasum for {version:?}"),
             )
         })?;
         Integrity::from_hex(shasum, ssri::Algorithm::Sha1).map_err(|err| {
-            tarball_integrity_error(name, filename, format!("malformed dist.shasum: {err}"))
+            tarball_integrity_error(
+                name.as_str(),
+                filename,
+                format!("malformed dist.shasum: {err}"),
+            )
         })?
     };
     Ok(Some(TarballDist { version: version.clone(), integrity }))
@@ -2245,25 +2387,35 @@ fn tarball_stream_error(
     name: &PackageName,
     filename: &str,
 ) -> RegistryError {
+    tarball_stream_error_for_package(err, name.as_str(), filename)
+}
+
+fn tarball_stream_error_for_package(
+    err: streaming::TarballStreamError,
+    package: &str,
+    filename: &str,
+) -> RegistryError {
     match err {
         streaming::TarballStreamError::Upstream { url, source } => {
             RegistryError::Upstream { url, source }
         }
         streaming::TarballStreamError::Io(err) => RegistryError::Io(err),
-        streaming::TarballStreamError::Integrity(err) => {
-            tarball_integrity_error(name, filename, format!("integrity verification failed: {err}"))
-        }
+        streaming::TarballStreamError::Integrity(err) => tarball_integrity_error(
+            package,
+            filename,
+            format!("integrity verification failed: {err}"),
+        ),
         streaming::TarballStreamError::TooLarge { limit, received } => tarball_integrity_error(
-            name,
+            package,
             filename,
             format!("tarball body exceeds {limit} byte limit (received {received} bytes)"),
         ),
     }
 }
 
-fn tarball_integrity_error(name: &PackageName, filename: &str, reason: String) -> RegistryError {
+fn tarball_integrity_error(package: &str, filename: &str, reason: String) -> RegistryError {
     RegistryError::TarballIntegrity {
-        package: name.as_str().to_string(),
+        package: package.to_string(),
         filename: filename.to_string(),
         reason,
     }
@@ -4185,12 +4337,18 @@ fn packument_response(
     name: &PackageName,
     bytes: &[u8],
     tarball_base: &str,
+    revision_registry: Option<&str>,
     osv_index: Option<&Arc<crate::resolver::OsvIndex>>,
     abbreviated: bool,
 ) -> Result<Response, RegistryError> {
     let mut doc: Value = serde_json::from_slice(bytes)?;
     filter_osv_vulnerable_versions(&mut doc, name, osv_index);
-    rewrite_tarball_urls(&mut doc, name, tarball_base);
+    match revision_registry {
+        Some(source_registry) => {
+            rewrite_upstream_tarball_urls(&mut doc, name, source_registry, tarball_base);
+        }
+        None => rewrite_tarball_urls(&mut doc, name, tarball_base),
+    }
     let last_modified = packument_last_modified(&doc);
     let (body, content_type) = if abbreviated {
         let trimmed = abbreviate_packument(&doc, Utc::now());

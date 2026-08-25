@@ -36,6 +36,19 @@ pub fn integrity_addressed_tarball_path(integrity: &Integrity) -> Option<String>
     Some(format!("-/tarballs/sha512/{}", URL_SAFE_NO_PAD.encode(digest)))
 }
 
+/// Parse the digest segment of an integrity-addressed sha512 tarball path.
+#[must_use]
+pub fn integrity_addressed_tarball_integrity(digest: &str) -> Option<Integrity> {
+    if digest.len() != 86 {
+        return None;
+    }
+    let bytes = URL_SAFE_NO_PAD.decode(digest).ok()?;
+    if bytes.len() != 64 || URL_SAFE_NO_PAD.encode(&bytes) != digest {
+        return None;
+    }
+    format!("sha512-{}", BASE64.encode(bytes)).parse().ok()
+}
+
 /// Compute the `sha256-<base64>` digest of `input`.
 ///
 /// Produces `` `sha256-${base64}` ``. This is the shape pnpm writes for

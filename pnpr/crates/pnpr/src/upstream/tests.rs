@@ -1,6 +1,7 @@
 use super::{
     CacheValidators, CircuitBreaker, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
-    extract_version_manifest, rewrite_tarball_urls, tarball_basename,
+    extract_version_manifest, rewrite_tarball_urls, rewrite_upstream_tarball_urls,
+    tarball_basename,
 };
 use crate::{config::UpstreamConfig, error::RegistryError, package_name::PackageName};
 use chrono::{DateTime, TimeZone, Utc};
@@ -72,6 +73,28 @@ async fn fetch_tarball_response_forwards_configured_headers() {
 
     assert!(matches!(outcome, FetchOutcome::Ok(_)));
     mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_revision_tarball_rejects_redirects_and_forwards_headers() {
+    let mut server = mockito::Server::new_async().await;
+    let redirect = server
+        .mock("GET", "/-/tarballs/sha512/digest")
+        .match_header("authorization", "Bearer secret-token")
+        .match_header("x-org", "acme")
+        .with_status(302)
+        .with_header("location", "/redirected.tgz")
+        .expect(1)
+        .create_async()
+        .await;
+    let redirected = server.mock("GET", "/redirected.tgz").expect(0).create_async().await;
+
+    let upstream = upstream(server.url(), auth_and_custom_headers());
+    let result = upstream.fetch_revision_tarball_response("digest").await;
+
+    assert!(matches!(result, Err(RegistryError::UpstreamStatus { status: 302, .. })));
+    redirect.assert_async().await;
+    redirected.assert_async().await;
 }
 
 #[tokio::test]
@@ -197,6 +220,65 @@ fn rewrites_npm_form_tarball() {
         "http://127.0.0.1:4873/foo/-/foo-1.0.0.tgz",
     );
     assert_eq!(doc["versions"]["1.0.0"]["dist"]["shasum"], "abc");
+}
+
+#[test]
+fn preserves_valid_upstream_revision_route_on_the_public_registry() {
+    let digest = "A".repeat(86);
+    let mut doc = json!({
+        "versions": {
+            "1.0.0": {
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": format!("https://upstream.test/npm/-/tarballs/sha512/{digest}"),
+                    "integrity": format!("sha512-{digest}=="),
+                    "revision": 2,
+                }
+            }
+        }
+    });
+    let name = PackageName::parse("foo").unwrap();
+
+    rewrite_upstream_tarball_urls(
+        &mut doc,
+        &name,
+        "https://upstream.test/npm/",
+        "http://pnpr.test/~corp/",
+    );
+
+    assert_eq!(
+        doc["versions"]["1.0.0"]["dist"]["tarball"],
+        format!("http://pnpr.test/~corp/-/tarballs/sha512/{digest}"),
+    );
+    assert_eq!(doc["versions"]["1.0.0"]["dist"]["revision"], 2);
+}
+
+#[test]
+fn does_not_preserve_an_invalid_upstream_revision_route() {
+    let digest = "A".repeat(86);
+    let name = PackageName::parse("foo").unwrap();
+    for (revision, tarball) in [
+        (json!(0), format!("https://upstream.test/-/tarballs/sha512/{digest}")),
+        (json!(2), format!("https://other.test/-/tarballs/sha512/{digest}")),
+    ] {
+        let mut doc = json!({
+            "version": "1.0.0",
+            "dist": {
+                "tarball": tarball,
+                "integrity": format!("sha512-{digest}=="),
+                "revision": revision,
+            }
+        });
+
+        rewrite_upstream_tarball_urls(
+            &mut doc,
+            &name,
+            "https://upstream.test/",
+            "http://pnpr.test/~corp/",
+        );
+
+        assert_eq!(doc["dist"]["tarball"], format!("http://pnpr.test/~corp/foo/-/{digest}"));
+    }
 }
 
 #[test]
