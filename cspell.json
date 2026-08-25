@@ -130,6 +130,7 @@
     "garply",
     "gcttmf",
     "getattr",
+    "getcwd",
     "ghes",
     "ghsa",
     "ghsas",
