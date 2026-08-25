@@ -321,7 +321,6 @@ fn probe_host(wanted: &WantedPm) -> bool {
     })
 }
 
-/// Reject a git package preparation that is not allowed by project policy.
 pub fn assert_package_build_allowed(
     allow_build: AllowBuildRef<'_>,
     pkg_resolution_id: &str,
