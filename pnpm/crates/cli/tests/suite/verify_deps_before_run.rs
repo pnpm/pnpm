@@ -16,15 +16,31 @@ use serde_json::json;
 use std::{fs, path::Path};
 
 fn write_manifest(workspace: &Path, marker: &Path) {
-    let manifest = json!({
+    write_manifest_with_dependency_groups(workspace, marker, json!({}));
+}
+
+/// The fixture manifest — a `hello` script that touches `marker` —
+/// extended with the dependency groups the caller needs.
+fn write_manifest_with_dependency_groups(
+    workspace: &Path,
+    marker: &Path,
+    groups: serde_json::Value,
+) {
+    let serde_json::Value::Object(mut manifest) = json!({
         "name": "verify-deps-project",
         "version": "0.0.0",
         "scripts": {
             "hello": format!(r#"touch "{}""#, marker.display()),
         },
-    })
-    .to_string();
-    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    }) else {
+        unreachable!("the manifest literal is an object")
+    };
+    let serde_json::Value::Object(groups) = groups else {
+        panic!("the dependency groups must be an object")
+    };
+    manifest.extend(groups);
+    fs::write(workspace.join("package.json"), serde_json::Value::Object(manifest).to_string())
+        .expect("write package.json");
 }
 
 /// The default action is `install` (pnpm's
@@ -55,41 +71,40 @@ fn install_action_reruns_a_production_only_install() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let marker = workspace.join("marker.txt");
-    let write_manifest = |foo_version: &str| {
-        fs::write(
-            workspace.join("package.json"),
+    let write_project = |foo_version: &str| {
+        write_manifest_with_dependency_groups(
+            &workspace,
+            &marker,
             json!({
-                "name": "verify-deps-project",
-                "version": "0.0.0",
                 "dependencies": {
                     "@pnpm.e2e/foo": foo_version,
                 },
                 "devDependencies": {
                     "@pnpm.e2e/bar": "100.0.0",
                 },
-                "scripts": {
-                    "hello": format!(r#"touch "{}""#, marker.display()),
-                },
-            })
-            .to_string(),
-        )
-        .expect("write package.json");
+            }),
+        );
     };
 
-    write_manifest("100.0.0");
+    write_project("100.0.0");
     pacquet.with_args(["install", "--prod"]).assert().success();
     assert!(
         !workspace.join("node_modules/@pnpm.e2e/bar").exists(),
         "a production-only install must skip devDependencies",
     );
 
-    write_manifest("100.1.0");
+    write_project("100.1.0");
     bump_mtime(&workspace.join("package.json"));
 
     pacquet_in(&workspace).with_args(["run", "hello"]).assert().success();
     assert!(marker.exists(), "the script must run after the spawned install");
-    assert!(
-        workspace.join("node_modules/@pnpm.e2e/foo/package.json").exists(),
+    let installed: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(workspace.join("node_modules/@pnpm.e2e/foo/package.json"))
+            .expect("read the installed @pnpm.e2e/foo manifest"),
+    )
+    .expect("parse the installed @pnpm.e2e/foo manifest");
+    assert_eq!(
+        installed["version"], "100.1.0",
         "the spawned install must install the updated production dependency",
     );
     assert!(
