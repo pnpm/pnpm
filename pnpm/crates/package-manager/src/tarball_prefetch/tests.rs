@@ -17,6 +17,7 @@ fn sample_index() -> PackageFilesIndex {
     PackageFilesIndex {
         manifest: None,
         requires_build: Some(false),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,

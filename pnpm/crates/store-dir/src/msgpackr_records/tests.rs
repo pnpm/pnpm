@@ -140,6 +140,7 @@ fn round_trips_plain_msgpack_through_transcoder() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: Some(false),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -275,6 +276,7 @@ fn encode_emits_record_header_for_top_level_struct() {
     let idx = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: None,
@@ -290,6 +292,7 @@ fn encode_roundtrips_single_file() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -306,6 +309,7 @@ fn encode_roundtrips_many_files_sharing_one_slot() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -334,6 +338,7 @@ fn encode_handles_fixint_in_slot_range_safely() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -348,6 +353,7 @@ fn encode_omits_checked_at_when_none() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -370,6 +376,7 @@ fn encode_allocates_separate_slots_for_distinct_cafs_shapes() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -389,12 +396,27 @@ fn encode_requires_build_when_set() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: Some(true),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: None,
     };
     let roundtripped = roundtrip(&original);
     assert_eq!(roundtripped.requires_build, Some(true));
+}
+
+#[test]
+fn encode_requires_prepare_when_set() {
+    let original = PackageFilesIndex {
+        manifest: None,
+        requires_build: Some(true),
+        requires_prepare: Some(true),
+        algo: "sha512".to_string(),
+        files: HashMap::new(),
+        side_effects: None,
+    };
+    let roundtripped = roundtrip(&original);
+    assert_eq!(roundtripped.requires_prepare, Some(true));
 }
 
 #[test]
@@ -412,6 +434,7 @@ fn encode_outer_field_order_matches_msgpackr() {
     let idx = PackageFilesIndex {
         manifest: None,
         requires_build: Some(true),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -440,6 +463,7 @@ fn encode_omits_requires_build_when_none() {
     let idx = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: None,
@@ -466,6 +490,7 @@ fn encode_side_effects_roundtrip() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: Some(side_effects),
@@ -482,6 +507,7 @@ fn encode_side_effects_with_only_added_omits_deleted_field() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: Some(side_effects),
@@ -508,6 +534,7 @@ fn encode_allocates_separate_slots_for_distinct_side_effects_shapes() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: Some(side_effects),
@@ -551,6 +578,7 @@ fn encode_roundtrips_simple_manifest() {
     let original = PackageFilesIndex {
         manifest: Some(manifest),
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: None,
@@ -576,6 +604,7 @@ fn encode_record_encodes_nested_objects_in_manifest() {
     let idx = PackageFilesIndex {
         manifest: Some(manifest),
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: None,
@@ -607,6 +636,7 @@ fn encode_shares_slot_for_same_shaped_nested_objects() {
     let idx = PackageFilesIndex {
         manifest: Some(manifest),
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: None,
@@ -644,6 +674,7 @@ fn encode_roundtrips_all_json_value_kinds() {
     let idx = PackageFilesIndex {
         manifest: Some(manifest),
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: None,
@@ -661,6 +692,7 @@ fn encode_roundtrips_manifest_with_other_fields() {
     let original = PackageFilesIndex {
         manifest: Some(serde_json::json!({ "name": "x", "bin": "cli.js" })),
         requires_build: Some(true),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,

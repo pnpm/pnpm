@@ -50,6 +50,7 @@ pub(crate) fn extract_zip_entries(
     let mut pkg_files_idx = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::with_capacity(entry_count),
         side_effects: None,

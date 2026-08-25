@@ -6622,6 +6622,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/exec.prepare-package':
+        specifier: workspace:*
+        version: link:../../exec/prepare-package
       '@pnpm/fetching.fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base

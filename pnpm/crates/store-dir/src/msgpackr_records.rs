@@ -615,7 +615,7 @@ fn write_str(writer: &mut Vec<u8>, text: &str) {
 /// ## Optional-field handling
 ///
 /// - **`PackageFilesIndex`**: `algo` and `files` are always emitted;
-///   `requires_build`, `manifest`, and `side_effects` are included
+///   `requires_build`, `requires_prepare`, `manifest`, and `side_effects` are included
 ///   in the record schema only when `Some`. The `manifest`
 ///   ([`serde_json::Value`]) is encoded recursively, with every
 ///   nested JSON object record-encoded so a pnpm reader sees them as
@@ -739,14 +739,17 @@ fn encode_pkg_files_index_value(
     state: &mut EncodeState,
     idx: &PackageFilesIndex,
 ) -> Result<(), EncodeError> {
-    // Field order `[algo, requiresBuild?, manifest?, files, sideEffects?]`.
+    // Field order `[algo, requiresBuild?, requiresPrepare?, manifest?, files, sideEffects?]`.
     // Optional fields are omitted from the schema when `None`, matching
     // msgpackr's field-omit-when-absent shape so a pnpm reader sees the
     // same JS object regardless of whether pacquet or pnpm wrote the row.
-    let mut fields: Vec<&str> = Vec::with_capacity(5);
+    let mut fields: Vec<&str> = Vec::with_capacity(6);
     fields.push("algo");
     if idx.requires_build.is_some() {
         fields.push("requiresBuild");
+    }
+    if idx.requires_prepare.is_some() {
+        fields.push("requiresPrepare");
     }
     if idx.manifest.is_some() {
         fields.push("manifest");
@@ -762,6 +765,9 @@ fn encode_pkg_files_index_value(
     write_str(writer, &idx.algo);
     if let Some(rb) = idx.requires_build {
         write_bool(writer, rb);
+    }
+    if let Some(rp) = idx.requires_prepare {
+        write_bool(writer, rp);
     }
     if let Some(manifest) = &idx.manifest {
         encode_json_value(writer, state, manifest)?;

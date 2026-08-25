@@ -782,7 +782,7 @@ test('do not build the package when scripts are ignored', async () => {
       retries: 1,
     },
   })
-  const { filesMap } = await fetch.gitHostedTarball(cafs, resolution, {
+  const { filesMap, requiresPrepare } = await fetch.gitHostedTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
@@ -790,6 +790,7 @@ test('do not build the package when scripts are ignored', async () => {
 
   expect(filesMap.has('package.json')).toBeTruthy()
   expect(filesMap.has('prepare.txt')).toBeFalsy()
+  expect(requiresPrepare).toBe(true)
   expect(globalWarn).toHaveBeenCalledWith(`The git-hosted package fetched from "${tarball}" has to be built but the build scripts were ignored.`)
 })
 

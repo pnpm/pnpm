@@ -651,6 +651,7 @@ fn assemble_extract_output(
     let pkg_files_idx = PackageFilesIndex {
         manifest,
         requires_build: Some(requires_build),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,

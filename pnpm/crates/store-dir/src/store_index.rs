@@ -1010,6 +1010,10 @@ pub struct PackageFilesIndex {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requires_build: Option<bool>,
 
+    /// Whether fetching the git package required running preparation scripts.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requires_prepare: Option<bool>,
+
     /// The digest algorithm used for every `files.*.digest` entry, e.g. `sha512`.
     pub algo: String,
 

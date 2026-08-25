@@ -49,15 +49,17 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       throw new PnpmError('GIT_CHECKOUT_FAILED', `received commit ${receivedCommit.trim()} does not match expected value ${resolution.commit}`)
     }
     let pkgDir: string
+    let requiresPrepare: boolean
     try {
       const prepareResult = await preparePackage({
         allowBuild: opts.allowBuild,
         ignoreScripts: createOpts.ignoreScripts,
-        pkgResolutionId: createGitHostedPkgId(resolution),
+        pkgResolutionId: opts.pkgResolutionId ?? createGitHostedPkgId(resolution),
         unsafePerm: createOpts.unsafePerm,
         userAgent: createOpts.userAgent,
       }, tempLocation, resolution.path ?? '')
       pkgDir = prepareResult.pkgDir
+      requiresPrepare = prepareResult.shouldBeBuilt
       if (ignoreScripts && prepareResult.shouldBeBuilt) {
         globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
       }
@@ -78,6 +80,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       dir: pkgDir,
       files,
       filesIndexFile: opts.filesIndexFile,
+      requiresPrepare,
       readManifest: opts.readManifest,
       pkg: opts.pkg,
     })

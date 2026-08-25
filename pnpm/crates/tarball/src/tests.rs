@@ -422,6 +422,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: Some(false),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -575,6 +576,7 @@ async fn prefetch_cas_paths_returns_hits_for_live_index_rows() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: Some(false),
+        requires_prepare: Some(true),
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -595,6 +597,7 @@ async fn prefetch_cas_paths_returns_hits_for_live_index_rows() {
     let map = prefetched.cas_paths.get(&index_key).expect("hit");
     assert_eq!(map.get("package.json"), Some(&pkg_json_path));
     assert_eq!(prefetched.requires_build.get(&index_key), Some(&false));
+    assert_eq!(prefetched.requires_prepare.get(&index_key), Some(&true));
     drop(store_dir);
 }
 
@@ -624,6 +627,7 @@ async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
     let entry = PackageFilesIndex {
         manifest: Some(serde_json::from_slice(manifest_bytes).unwrap()),
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -677,6 +681,7 @@ async fn prefetch_cas_paths_omits_failed_integrity_entries() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: Some(false),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -737,6 +742,7 @@ async fn prefetch_cas_paths_skips_filesystem_checks_when_verify_disabled() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: Some(false),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -789,6 +795,7 @@ async fn falls_through_when_cafs_file_missing() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -841,6 +848,7 @@ fn seed_row_holding_another_package(store_path: &StoreDir, index_key: &str) {
     let entry = PackageFilesIndex {
         manifest: Some(serde_json::json!({ "name": "other-package", "version": "9.9.9" })),
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -997,6 +1005,7 @@ async fn falls_through_when_digest_is_malformed() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -1065,6 +1074,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -1143,6 +1153,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,

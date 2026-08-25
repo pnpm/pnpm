@@ -38,6 +38,7 @@ fn index_with(algo: &str, info: Vec<(&str, CafsFileInfo)>) -> PackageFilesIndex 
     PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: algo.to_string(),
         files: info.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
         side_effects: None,
@@ -390,6 +391,7 @@ fn side_effects_overlay_adds_and_drops_correctly() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".into(),
         files: HashMap::from([
             ("a.js".to_string(), info(&base_digest, 4, 0o644, None)),
@@ -419,6 +421,7 @@ fn side_effects_overlay_added_shadows_base_on_collision() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".into(),
         files: HashMap::from([("collide.js".to_string(), info(&base_digest, 4, 0o644, None))]),
         side_effects: Some(side_effects),
@@ -468,6 +471,7 @@ fn side_effects_overlay_malformed_added_digest_drops_cache_key_entry() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".into(),
         files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
         side_effects: Some(side_effects),
@@ -517,6 +521,7 @@ fn side_effects_overlay_unsafe_added_path_drops_cache_key_entry() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".into(),
         files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
         side_effects: Some(side_effects),
@@ -554,6 +559,7 @@ fn side_effects_overlay_keys_are_independent() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".into(),
         files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
         side_effects: Some(side_effects),
@@ -573,6 +579,7 @@ fn index_with_one_file(path: &str, content: &[u8]) -> PackageFilesIndex {
     PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::from([(
             path.to_string(),

@@ -1760,6 +1760,7 @@ async fn write_path_populates_side_effects_row() {
     let base_row = PackageFilesIndex {
         manifest: None,
         requires_build: Some(true),
+        requires_prepare: None,
         algo: HASH_ALGORITHM.to_string(),
         files: base_files,
         side_effects: None,
@@ -1901,6 +1902,7 @@ async fn write_path_disabled_skips_upload() {
     let base_row = PackageFilesIndex {
         manifest: None,
         requires_build: Some(true),
+        requires_prepare: None,
         algo: HASH_ALGORITHM.to_string(),
         files: HashMap::new(),
         side_effects: None,
@@ -2141,6 +2143,7 @@ async fn upload_error_does_not_interrupt_install() {
     let base_row = PackageFilesIndex {
         manifest: None,
         requires_build: Some(true),
+        requires_prepare: None,
         algo: HASH_ALGORITHM.to_string(),
         files: HashMap::new(),
         side_effects: None,
@@ -2351,6 +2354,7 @@ async fn write_path_cache_key_includes_patch_hash() {
     let base_row = PackageFilesIndex {
         manifest: None,
         requires_build: Some(true),
+        requires_prepare: None,
         algo: HASH_ALGORITHM.to_string(),
         files: base_files,
         side_effects: None,

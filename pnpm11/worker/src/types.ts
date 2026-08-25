@@ -62,6 +62,7 @@ export interface AddDirToStoreMessage {
   appendManifest?: DependencyManifest
   files?: string[]
   includeNodeModules?: boolean
+  requiresPrepare?: boolean
 }
 
 export interface ReadPkgFromCafsMessage {
