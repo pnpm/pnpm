@@ -187,9 +187,7 @@ fn shared_input_key_excludes_engine_and_includes_patch() {
         "x@1.0.0".to_string(),
         DepsGraphNode { full_pkg_id: "x@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
     );
-    let mut cache = HashMap::from([("x@1.0.0".to_string(), "stale-platform-hash".to_string())]);
-    let key =
-        calc_dep_state_input_key(&graph, &mut cache, &"x@1.0.0".to_string(), Some("patchhex"));
+    let key = calc_dep_state_input_key(&graph, &"x@1.0.0".to_string(), Some("patchhex"));
     let deps_hash = hash_object(&serde_json::json!({
         "id": "x@1.0.0:sha512-x",
         "deps": {},
@@ -202,9 +200,61 @@ fn shared_input_key_excludes_engine_and_includes_patch() {
 fn shared_input_key_rejects_a_missing_root() {
     calc_dep_state_input_key(
         &HashMap::<String, DepsGraphNode<String>>::new(),
-        &mut HashMap::new(),
         &"missing@1.0.0".to_string(),
         None,
+    );
+}
+
+#[test]
+fn shared_input_keys_isolate_cyclic_roots() {
+    let mut graph = HashMap::new();
+    graph.insert(
+        "a@1.0.0".to_string(),
+        DepsGraphNode {
+            full_pkg_id: "a@1.0.0:sha512-a".to_string(),
+            children: IndexMap::from([("b".to_string(), "b@1.0.0".to_string())]),
+        },
+    );
+    graph.insert(
+        "b@1.0.0".to_string(),
+        DepsGraphNode {
+            full_pkg_id: "b@1.0.0:sha512-b".to_string(),
+            children: IndexMap::from([("a".to_string(), "a@1.0.0".to_string())]),
+        },
+    );
+
+    let truncated_a = hash_object(&serde_json::json!({
+        "id": "a@1.0.0:sha512-a",
+        "deps": {},
+    }));
+    let nested_b = hash_object(&serde_json::json!({
+        "id": "b@1.0.0:sha512-b",
+        "deps": { "a": truncated_a },
+    }));
+    let root_a = hash_object(&serde_json::json!({
+        "id": "a@1.0.0:sha512-a",
+        "deps": { "b": nested_b },
+    }));
+    let truncated_b = hash_object(&serde_json::json!({
+        "id": "b@1.0.0:sha512-b",
+        "deps": {},
+    }));
+    let nested_a = hash_object(&serde_json::json!({
+        "id": "a@1.0.0:sha512-a",
+        "deps": { "b": truncated_b },
+    }));
+    let root_b = hash_object(&serde_json::json!({
+        "id": "b@1.0.0:sha512-b",
+        "deps": { "a": nested_a },
+    }));
+
+    assert_eq!(
+        calc_dep_state_input_key(&graph, &"a@1.0.0".to_string(), None),
+        format!("dependency-side-effects:v1:deps={root_a}"),
+    );
+    assert_eq!(
+        calc_dep_state_input_key(&graph, &"b@1.0.0".to_string(), None),
+        format!("dependency-side-effects:v1:deps={root_b}"),
     );
 }
 

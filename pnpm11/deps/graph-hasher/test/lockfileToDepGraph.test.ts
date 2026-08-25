@@ -312,25 +312,21 @@ describe('lockfileToDepGraph with variations resolution', () => {
     expect(new Set([glibc, musl, darwin]).size).toBe(3)
   })
 
-  test('input keys remain isolated when one graph and cache serve different platform selectors', () => {
+  test('input keys remain isolated when one graph serves different platform selectors', () => {
     const graph = graphFor(linuxGlibcSelector)
-    const cache = {}
     const depPath = 'node@runtime:22.0.0' as DepPath
     const glibc = calcDepStateInputKey({
       depsGraph: graph,
-      cache,
       depPath,
       supportedArchitectures: linuxGlibcSelector,
     })
     const musl = calcDepStateInputKey({
       depsGraph: graph,
-      cache,
       depPath,
       supportedArchitectures: linuxMuslSelector,
     })
     const darwin = calcDepStateInputKey({
       depsGraph: graph,
-      cache,
       depPath,
       supportedArchitectures: darwinSelector,
     })

@@ -97,7 +97,6 @@ export const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX = 'dependency-side-effects
 
 export interface CalcDepStateInputKeyOptions<T extends string> {
   depsGraph: DepsGraph<T>
-  cache: DepsStateCache
   depPath: T
   patchFileHash?: string
   supportedArchitectures?: SupportedArchitectures
@@ -109,8 +108,9 @@ export interface CalcDepStateInputKeyOptions<T extends string> {
  *
  * `depsGraph` must contain `depPath`, and every reachable node must provide
  * either `fullPkgId` or the resolution metadata needed to derive it. The
- * function does not mutate the graph, but populates `cache`; cache entries are
- * scoped by `supportedArchitectures` and may be reused by later calls.
+ * function does not mutate the graph or caller state. Each call uses an
+ * isolated cache, so the result is independent of earlier roots and platform
+ * selections.
  *
  * The returned key starts with {@link DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX},
  * followed by the recursive dependency-graph hash and, when non-empty, the
@@ -127,7 +127,7 @@ export function calcDepStateInputKey<T extends string> (
   }
   const depGraphHash = calcDepGraphHash({
     depsGraph: opts.depsGraph,
-    cache: opts.cache,
+    cache: {},
     parents: new Set(),
     depPath: opts.depPath,
     context: createDepGraphHashContext(opts.supportedArchitectures),
