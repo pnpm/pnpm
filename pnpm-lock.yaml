@@ -1839,6 +1839,9 @@ importers:
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../../fs/hard-link-dir
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
       '@pnpm/patching.apply-patch':
         specifier: workspace:*
         version: link:../../patching/apply-patch
@@ -1848,6 +1851,9 @@ importers:
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
+      '@pnpm/pnpr.client':
+        specifier: workspace:*
+        version: link:../../../pnpr/client
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../../store/controller-types
@@ -6207,6 +6213,9 @@ importers:
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
+      '@pnpm/pnpr.client':
+        specifier: workspace:*
+        version: link:../../../pnpr/client
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../../store/controller-types
@@ -10337,6 +10346,9 @@ importers:
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../pnpm11/crypto/object-hasher
+      '@pnpm/deps.graph-hasher':
+        specifier: workspace:*
+        version: link:../../pnpm11/deps/graph-hasher
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../pnpm11/core/error
@@ -10346,9 +10358,18 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../pnpm11/lockfile/types
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../../pnpm11/network/auth-header
+      '@pnpm/store.controller-types':
+        specifier: workspace:*
+        version: link:../../pnpm11/store/controller-types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../pnpm11/core/types
+      p-limit:
+        specifier: 'catalog:'
+        version: 7.3.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'

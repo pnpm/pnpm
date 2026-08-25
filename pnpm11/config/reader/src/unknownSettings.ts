@@ -35,6 +35,7 @@ const TYPED_WORKSPACE_MANIFEST_KEYS = [
   'pnprServer',
   'registries',
   'requiredScripts',
+  'sharedSideEffectsCache',
   'supportedArchitectures',
   'update',
   'updateConfig',

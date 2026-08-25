@@ -23,6 +23,8 @@ use crate::{
 const ARTIFACT_CACHE_DIR: &str = "shared-artifacts/v0";
 const ARTIFACT_LOCK_WAIT: Duration = Duration::from_secs(30);
 const ARTIFACT_LOCK_ABANDONED_AFTER: Duration = Duration::from_hours(1);
+const MAX_OWNER_ARTIFACT_BYTES: u64 = 1024 * 1024 * 1024;
+const MAX_GLOBAL_ARTIFACT_BYTES: u64 = 10 * MAX_OWNER_ARTIFACT_BYTES;
 
 pub(crate) fn parse_publish(body: &[u8]) -> Result<PublishArtifactRequest> {
     serde_json::from_slice(body)
@@ -37,12 +39,12 @@ pub(crate) async fn publish(
     let validated = request.validate().map_err(|err| protocol_error(&err))?;
     let payload = validated.payload;
     let mut uploads = validated.blobs;
+    let artifact_root = cache_storage.join(ARTIFACT_CACHE_DIR);
     let owner_dir = owner_dir(cache_storage, username, &payload.owner)?;
     let entry_digest = entry_digest(&request.key, &payload.package, &payload.source_integrity);
     let key_dir = owner_dir.join("entries").join(&entry_digest);
     let _publication_lock =
-        acquire_publication_lock(owner_dir.join("locks").join(format!("{entry_digest}.lock")))
-            .await?;
+        acquire_publication_lock(artifact_root.join(".locks").join("publication.lock")).await?;
     let envelope_digest = request.envelope.digest().map_err(|err| protocol_error(&err))?;
     let variant_path = key_dir.join(format!("{envelope_digest}.json"));
     let already_present = fs::try_exists(&variant_path).await?;
@@ -55,24 +57,27 @@ pub(crate) async fn publish(
     let required: BTreeMap<&str, u64> =
         payload.manifest.added.iter().map(|file| (file.integrity.as_str(), file.size)).collect();
 
+    let envelope_bytes = serde_json::to_vec(&request.envelope)?;
     let blobs_dir = owner_dir.join("blobs");
+    let mut new_blobs = Vec::new();
+    let mut added_bytes = if already_present { 0 } else { envelope_bytes.len() as u64 };
     for (integrity, size) in required {
         let id = blob_id(integrity).map_err(|err| protocol_error(&err))?;
         let path = blobs_dir.join(&id);
-        let (bytes, uploaded) = match uploads.remove(integrity) {
-            Some(bytes) => (bytes, true),
-            None => (
-                match fs::read(&path).await {
-                    Ok(bytes) => bytes,
-                    Err(err) if err.kind() == ErrorKind::NotFound => {
-                        return Err(bad_request(format!(
-                            "signed manifest references blob {id} without uploading it",
-                        )));
-                    }
-                    Err(err) => return Err(err.into()),
-                },
-                false,
-            ),
+        let (bytes, is_new) = match uploads.remove(integrity) {
+            Some(bytes) => {
+                let is_new = !fs::try_exists(&path).await?;
+                (bytes, is_new)
+            }
+            None => match fs::read(&path).await {
+                Ok(bytes) => (bytes, false),
+                Err(err) if err.kind() == ErrorKind::NotFound => {
+                    return Err(bad_request(format!(
+                        "signed manifest references blob {id} without uploading it",
+                    )));
+                }
+                Err(err) => return Err(err.into()),
+            },
         };
         if bytes.len() as u64 != size {
             return Err(bad_request(format!(
@@ -82,16 +87,89 @@ pub(crate) async fn publish(
             )));
         }
         verify_blob(integrity, &bytes).map_err(|err| protocol_error(&err))?;
-        if uploaded && !fs::try_exists(&path).await? {
-            write_atomic(&path, &bytes).await?;
+        if is_new {
+            added_bytes =
+                added_bytes.checked_add(bytes.len() as u64).ok_or_else(storage_quota_error)?;
+            new_blobs.push((path, bytes));
         }
     }
 
+    enforce_storage_quota(&artifact_root, &owner_dir, added_bytes).await?;
+    for (path, bytes) in new_blobs {
+        write_atomic(&path, &bytes).await?;
+    }
     if !already_present {
-        let envelope_bytes = serde_json::to_vec(&request.envelope)?;
         write_atomic(&variant_path, &envelope_bytes).await?;
     }
     Ok(!already_present)
+}
+
+async fn enforce_storage_quota(
+    artifact_root: &Path,
+    owner_dir: &Path,
+    added_bytes: u64,
+) -> Result<()> {
+    enforce_storage_quota_with_limits(
+        artifact_root,
+        owner_dir,
+        added_bytes,
+        MAX_OWNER_ARTIFACT_BYTES,
+        MAX_GLOBAL_ARTIFACT_BYTES,
+    )
+    .await
+}
+
+async fn enforce_storage_quota_with_limits(
+    artifact_root: &Path,
+    owner_dir: &Path,
+    added_bytes: u64,
+    owner_limit: u64,
+    global_limit: u64,
+) -> Result<()> {
+    let owner_bytes = stored_bytes(owner_dir, None);
+    let global_bytes = stored_bytes(artifact_root, Some(".locks"));
+    let (owner_bytes, global_bytes) = tokio::try_join!(owner_bytes, global_bytes)?;
+    if owner_bytes.checked_add(added_bytes).is_none_or(|total| total > owner_limit) {
+        return Err(storage_quota_error());
+    }
+    if global_bytes.checked_add(added_bytes).is_none_or(|total| total > global_limit) {
+        return Err(storage_quota_error());
+    }
+    Ok(())
+}
+
+async fn stored_bytes(root: &Path, ignored_root_entry: Option<&str>) -> Result<u64> {
+    let mut directories = vec![root.to_path_buf()];
+    let mut total = 0_u64;
+    while let Some(directory) = directories.pop() {
+        let mut entries = match fs::read_dir(&directory).await {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.into()),
+        };
+        while let Some(entry) = entries.next_entry().await? {
+            if directory == root
+                && ignored_root_entry.is_some_and(|ignored| entry.file_name() == ignored)
+            {
+                continue;
+            }
+            let file_type = entry.file_type().await?;
+            if file_type.is_dir() {
+                directories.push(entry.path());
+            } else if file_type.is_file() {
+                total = total
+                    .checked_add(entry.metadata().await?.len())
+                    .ok_or_else(storage_quota_error)?;
+            }
+        }
+    }
+    Ok(total)
+}
+
+fn storage_quota_error() -> RegistryError {
+    bad_request(format!(
+        "shared artifact storage quota exceeded ({MAX_OWNER_ARTIFACT_BYTES} bytes per owner, {MAX_GLOBAL_ARTIFACT_BYTES} bytes globally)",
+    ))
 }
 
 pub(crate) async fn resolve(

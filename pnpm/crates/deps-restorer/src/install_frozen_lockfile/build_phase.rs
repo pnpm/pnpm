@@ -188,6 +188,8 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     } = inputs;
 
     let patches = resolve_snapshot_patches(config, patch_groups, snapshots)?;
+    let shared_side_effects_publisher =
+        crate::shared_side_effects::shared_side_effects_publisher(config, snapshots);
 
     // Convert `pnpm-config`'s mirror enum to the executor's
     // canonical type. Config's enum carries the yaml-deserialize impl;
@@ -228,8 +230,10 @@ pub fn run_build_phase<Reporter: self::Reporter>(
             side_effects_maps_by_snapshot: Some(side_effects_maps_by_snapshot),
             requires_build_by_snapshot: Some(requires_build_by_snapshot),
             engine_name,
-            side_effects_cache: config.side_effects_cache_read(),
+            side_effects_cache: config.side_effects_cache_read()
+                || config.shared_side_effects_cache.is_some(),
             side_effects_cache_write: config.side_effects_cache_write(),
+            shared_side_effects_publisher: shared_side_effects_publisher.as_ref(),
             store_dir: Some(&config.store_dir),
             store_index_writer: Some(store_index_writer),
             patches: patches.as_ref(),

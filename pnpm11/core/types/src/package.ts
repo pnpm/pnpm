@@ -286,6 +286,7 @@ export interface PnpmSettings {
   httpsProxy?: string
   noProxy?: string | boolean
   pnprServer?: string
+  sharedSideEffectsCache?: SharedSideEffectsCacheSettings
   versioning?: VersioningSettings
   /**
    * Where the virtual store lives, and therefore who shares it: one store
@@ -299,6 +300,16 @@ export interface PnpmSettings {
    * The boolean spelling of {@link PnpmSettings.virtualStoreType}.
    */
   enableGlobalVirtualStore?: boolean
+}
+
+/**
+ * Organization-owned dependency build artifacts accepted by this workspace.
+ * The public keys are base64-encoded P-256 SubjectPublicKeyInfo DER values.
+ */
+export interface SharedSideEffectsCacheSettings {
+  organization: string
+  packages: string[]
+  trustedKeys: Record<string, string>
 }
 
 export type VirtualStoreType = 'global' | 'project'

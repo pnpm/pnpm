@@ -62,6 +62,7 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/pnpr.client": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",

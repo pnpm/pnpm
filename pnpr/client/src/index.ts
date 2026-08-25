@@ -1,3 +1,10 @@
+export {
+  applySharedSideEffectsToInstall,
+  publishBuiltSharedSideEffects,
+  type PublishBuiltSharedSideEffectsOptions,
+  type SharedSideEffectsInstallNode,
+  type SharedSideEffectsInstallOptions,
+} from './installSharedSideEffects.js'
 export { type ResponseMetadata } from './protocol.js'
 export { type PnprProject, resolveViaPnprServer, type ResolveViaPnprServerOptions, type ResolveViaPnprServerResult } from './resolveViaPnprServer.js'
 export {
@@ -20,6 +27,7 @@ export {
   type OwnerScope,
   type PackageIdentity,
   platformFingerprint,
+  pnprSupportsSharedSideEffects,
   publishSharedSideEffects,
   resolveSharedSideEffects,
   SIGNATURE_ALGORITHM,

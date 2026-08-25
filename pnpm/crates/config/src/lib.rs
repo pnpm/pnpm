@@ -59,9 +59,9 @@ use crate::defaults::{
 };
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
-    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, UpdateConfig,
-    UpdateSettings, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings,
-    decided_allow_builds,
+    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting,
+    SharedSideEffectsCacheSettings, UpdateConfig, UpdateSettings, WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
     registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
     workspace_root_or,
 };
@@ -1760,6 +1760,8 @@ pub struct Config {
     /// compute runs remotely, the result is materialized locally).
     /// `None` runs the normal local resolution flow.
     pub pnpr_server: Option<String>,
+
+    pub shared_side_effects_cache: Option<SharedSideEffectsCacheSettings>,
 
     /// Path to the user-level `.npmrc` to read auth from, overriding the
     /// default `~/.npmrc`. The `npmrcAuthFile` setting (and the

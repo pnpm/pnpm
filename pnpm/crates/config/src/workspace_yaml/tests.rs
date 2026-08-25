@@ -968,6 +968,28 @@ allowBuilds:
     assert_eq!(config.allow_builds.get("esbuild").copied(), Some(true));
 }
 
+#[test]
+fn parses_shared_side_effects_cache_from_yaml_and_applies() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sharedSideEffectsCache:
+  organization: acme
+  packages:
+    - native-addon
+  trustedKeys:
+    acme-2026: cHVibGljLWtleQ==
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    let shared = config.shared_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.organization, "acme");
+    assert_eq!(shared.packages, ["native-addon"]);
+    assert_eq!(shared.trusted_keys.get("acme-2026").map(String::as_str), Some("cHVibGljLWtleQ=="));
+}
+
 /// pnpm scaffolds `allowBuilds` entries with a placeholder string for the
 /// user to replace. The file pnpm wrote must stay loadable, and the
 /// undecided package must stay under the default-deny policy rather than

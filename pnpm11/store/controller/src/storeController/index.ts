@@ -95,11 +95,12 @@ export function createPackageStore (
     prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir, storeIndex: initOpts.storeIndex }),
     requestPackage: packageRequester.requestPackage,
     upload,
+    addFileToStore: cafs.addFile,
     clearResolutionCache: initOpts.clearResolutionCache,
   }
 
-  async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }): Promise<void> {
-    await addFilesFromDir({
+  async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }) {
+    const result = await addFilesFromDir({
       storeDir: cafs.storeDir,
       storeIndex: initOpts.storeIndex,
       dir: builtPkgLocation,
@@ -107,5 +108,9 @@ export function createPackageStore (
       filesIndexFile: opts.filesIndexFile,
       pkg: {},
     })
+    return {
+      filesMap: result.filesMap,
+      sideEffects: result.sideEffects,
+    }
   }
 }

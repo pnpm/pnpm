@@ -4666,6 +4666,7 @@ name = "pnpm-deps-restorer"
 version = "0.0.1"
 dependencies = [
  "async-trait",
+ "base64 0.23.1",
  "derive_more",
  "dunce",
  "flate2",
@@ -4680,6 +4681,7 @@ dependencies = [
  "pnpm-cmd-shim",
  "pnpm-config",
  "pnpm-deps-path",
+ "pnpm-detect-libc",
  "pnpm-directory-fetcher",
  "pnpm-executor",
  "pnpm-fs",
@@ -4693,6 +4695,7 @@ dependencies = [
  "pnpm-package-is-installable",
  "pnpm-package-manifest",
  "pnpm-patching",
+ "pnpm-pnpr-client",
  "pnpm-real-hoist",
  "pnpm-reporter",
  "pnpm-resolving-deps-resolver",

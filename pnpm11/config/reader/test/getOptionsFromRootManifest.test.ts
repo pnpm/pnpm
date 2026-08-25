@@ -98,6 +98,20 @@ test('getOptionsFromPnpmSettings() converts allowBuilds', () => {
   })
 })
 
+test('getOptionsFromPnpmSettings() reads shared side-effects cache settings', () => {
+  const sharedSideEffectsCache = {
+    organization: 'acme',
+    packages: ['native-addon'],
+    trustedKeys: {
+      // cspell:disable-next-line
+      'acme-2026': 'cHVibGljLWtleQ==',
+    },
+  }
+  expect(getOptionsFromPnpmSettings(process.cwd(), {
+    sharedSideEffectsCache,
+  })).toStrictEqual({ sharedSideEffectsCache })
+})
+
 test('getOptionsFromPnpmSettings() rejects non-string overrides values', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     overrides: {

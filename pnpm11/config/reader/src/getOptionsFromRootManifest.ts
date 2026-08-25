@@ -40,7 +40,7 @@ export type OptionsFromRootManifest = {
   registriesByPrefix?: Record<string, string>
   registryOptionsByUrl?: Record<string, RegistryOptions>
   auditIgnorePrune?: boolean
-} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'updateConfig'>
+} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'sharedSideEffectsCache' | 'updateConfig'>
 
 interface GetOptionsFromPnpmSettingsOptions {
   manifest?: ProjectManifest

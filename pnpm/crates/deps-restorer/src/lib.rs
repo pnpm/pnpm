@@ -28,6 +28,7 @@ pub mod prune_stale_modules;
 pub mod remove_quarantine;
 pub mod retry_config;
 pub mod safe_join_modules_dir;
+mod shared_side_effects;
 pub mod store_init;
 pub mod symlink_direct_dependencies;
 pub mod symlink_package;

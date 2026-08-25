@@ -2,8 +2,9 @@ use std::collections::{BTreeMap, HashSet};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use p256::{
+    SecretKey,
     ecdsa::{SigningKey, signature::Signer as _},
-    pkcs8::EncodePublicKey as _,
+    pkcs8::{EncodePrivateKey as _, EncodePublicKey as _},
 };
 use sha2::{Digest as _, Sha512};
 
@@ -74,6 +75,21 @@ fn verifies_the_exact_signed_payload_bytes() {
     let other_public_key =
         p256::PublicKey::from(other_private_key.verifying_key()).to_public_key_der().unwrap();
     assert!(envelope.verify(other_public_key.as_bytes()).is_err());
+}
+
+#[test]
+fn signs_a_payload_that_the_verifier_accepts() {
+    let secret_key = SecretKey::from_slice(&[7; 32]).unwrap();
+    let private_key_der = secret_key.to_pkcs8_der().unwrap();
+    let private_key = SigningKey::from(secret_key);
+    let public_key =
+        p256::PublicKey::from(private_key.verifying_key()).to_public_key_der().unwrap();
+    let expected = payload(integrity(b"addon"));
+
+    let envelope =
+        SignedArtifactEnvelope::sign(&expected, "acme-2026", private_key_der.as_bytes()).unwrap();
+
+    assert_eq!(envelope.verify(public_key.as_bytes()).unwrap(), expected);
 }
 
 #[test]

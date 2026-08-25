@@ -13,7 +13,7 @@ import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { PreferredVersions, ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { AllowedDeprecatedVersions, PackageExtension, PackageVulnerabilityAudit, PeerDependencyRules, ReadPackageHook, RegistryConfig, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
+import type { AllowedDeprecatedVersions, PackageExtension, PackageVulnerabilityAudit, PeerDependencyRules, ReadPackageHook, RegistryConfig, RegistryContext, SharedSideEffectsCacheSettings, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 
 import { pnpmPkgJson } from '../pnpmPkgJson.js'
 import type { ReporterFunction } from '../types.js'
@@ -271,6 +271,7 @@ export interface StrictInstallOptions extends RegistryContext {
    * only the files missing from the client's store.
    */
   pnprServer?: string
+  sharedSideEffectsCache?: SharedSideEffectsCacheSettings
 }
 
 export type InstallOptions =

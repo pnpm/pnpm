@@ -9,8 +9,11 @@ use std::collections::{BTreeMap, HashSet};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use derive_more::{Display, Error};
 use p256::{
-    ecdsa::{Signature, VerifyingKey, signature::Verifier as _},
-    pkcs8::DecodePublicKey as _,
+    ecdsa::{
+        Signature, SigningKey, VerifyingKey,
+        signature::{Signer as _, Verifier as _},
+    },
+    pkcs8::{DecodePrivateKey as _, DecodePublicKey as _},
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256, Sha512};
@@ -193,6 +196,38 @@ pub struct ArtifactBlobRequest {
 }
 
 impl SignedArtifactEnvelope {
+    pub fn sign(
+        payload: &ArtifactPayload,
+        key_id: impl Into<String>,
+        private_key_pkcs8: &[u8],
+    ) -> Result<Self, ArtifactProtocolError> {
+        payload.validate()?;
+        let key_id = key_id.into();
+        validate_scalar("key id", &key_id, 256)?;
+        let payload_bytes = serde_json::to_vec(payload).map_err(|error| {
+            ArtifactProtocolError::InvalidEnvelope(format!(
+                "payload could not be serialized: {error}",
+            ))
+        })?;
+        if payload_bytes.len() > MAX_SIGNED_PAYLOAD_SIZE {
+            return Err(ArtifactProtocolError::InvalidEnvelope(format!(
+                "signed payload exceeds {MAX_SIGNED_PAYLOAD_SIZE} bytes",
+            )));
+        }
+        let private_key = SigningKey::from_pkcs8_der(private_key_pkcs8).map_err(|_| {
+            ArtifactProtocolError::InvalidEnvelope(
+                "private key is not PKCS#8-encoded P-256 key material".to_string(),
+            )
+        })?;
+        let signature: Signature = private_key.sign(&payload_bytes);
+        Ok(Self {
+            algorithm: SIGNATURE_ALGORITHM.to_string(),
+            key_id,
+            payload: BASE64.encode(payload_bytes),
+            signature: BASE64.encode(signature.to_der().as_bytes()),
+        })
+    }
+
     pub fn decode_payload(&self) -> Result<(ArtifactPayload, Vec<u8>), ArtifactProtocolError> {
         validate_scalar("signature algorithm", &self.algorithm, 64)?;
         if self.algorithm != SIGNATURE_ALGORITHM {

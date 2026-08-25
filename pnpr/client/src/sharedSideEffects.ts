@@ -1,4 +1,4 @@
-import { createHash, createPrivateKey, createPublicKey, sign as cryptoSign, verify as cryptoVerify } from 'node:crypto'
+import { createHash, createPrivateKey, createPublicKey, KeyObject, sign as cryptoSign, verify as cryptoVerify } from 'node:crypto'
 import http from 'node:http'
 import https from 'node:https'
 import { URL } from 'node:url'
@@ -101,8 +101,7 @@ export interface VerifiedArtifact {
 
 export interface CreateSignedArtifactEnvelopeOptions {
   keyId: string
-  /** A PEM private key accepted by `node:crypto`. */
-  privateKey: string | Buffer
+  privateKey: string | Buffer | KeyObject
 }
 
 export interface PublishSharedSideEffectsOptions {
@@ -145,7 +144,9 @@ export function createSignedArtifactEnvelope (
   if (payloadBytes.byteLength > MAX_SIGNED_PAYLOAD_SIZE) {
     throw new Error(`Signed artifact payload exceeds ${MAX_SIGNED_PAYLOAD_SIZE} bytes`)
   }
-  const privateKey = createPrivateKey(opts.privateKey)
+  const privateKey = opts.privateKey instanceof KeyObject
+    ? opts.privateKey
+    : createPrivateKey(opts.privateKey)
   if (privateKey.asymmetricKeyType !== 'ec' || privateKey.asymmetricKeyDetails?.namedCurve !== 'prime256v1') {
     throw new Error('Shared artifact signing key must be a P-256 EC private key')
   }
@@ -173,6 +174,23 @@ export async function publishSharedSideEffects (
     maxResponseSize: 64 * 1024,
   })
   assertSuccess(response, '/-/pnpr/v0/artifacts')
+}
+
+export async function pnprSupportsSharedSideEffects (
+  opts: Pick<ResolveSharedSideEffectsOptions, 'registryUrl' | 'authorization'>
+): Promise<boolean> {
+  const response = await request({
+    registryUrl: opts.registryUrl,
+    path: '-/pnpr',
+    method: 'GET',
+    authorization: opts.authorization,
+    maxResponseSize: 64 * 1024,
+  })
+  if (response.statusCode < 200 || response.statusCode >= 300) return false
+  const parsed = JSON.parse(response.body.toString('utf8')) as {
+    pnpr?: { artifacts?: unknown }
+  }
+  return Array.isArray(parsed.pnpr?.artifacts) && parsed.pnpr.artifacts.includes(0)
 }
 
 export async function resolveSharedSideEffects (
@@ -729,9 +747,9 @@ function parseResolveResponse (body: Buffer): ResolveArtifactsResponse {
 interface RequestOptions {
   registryUrl: string
   path: string
-  method: 'POST' | 'PUT'
+  method: 'GET' | 'POST' | 'PUT'
   authorization?: string
-  body: Buffer
+  body?: Buffer
   maxResponseSize: number
 }
 
@@ -747,9 +765,10 @@ async function request (opts: RequestOptions): Promise<BufferedResponse> {
     throw new Error(`Unsupported pnpr registry protocol ${JSON.stringify(url.protocol)}`)
   }
   const requestFn = url.protocol === 'https:' ? https.request : http.request
-  const headers: http.OutgoingHttpHeaders = {
-    'Content-Type': 'application/json',
-    'Content-Length': opts.body.byteLength,
+  const headers: http.OutgoingHttpHeaders = {}
+  if (opts.body != null) {
+    headers['Content-Type'] = 'application/json'
+    headers['Content-Length'] = opts.body.byteLength
   }
   if (opts.authorization != null) headers.Authorization = opts.authorization
 

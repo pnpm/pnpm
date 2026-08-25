@@ -8,9 +8,9 @@ use pnpm_shared_artifact_protocol::{
     SIGNATURE_ALGORITHM, SignedArtifactEnvelope,
 };
 use tempfile::TempDir;
-use tokio::sync::Barrier;
+use tokio::{fs, sync::Barrier};
 
-use super::{ResolveBudget, is_variant_file, publish};
+use super::{ResolveBudget, enforce_storage_quota_with_limits, is_variant_file, publish};
 
 #[test]
 fn resolve_budget_bounds_combined_scanned_and_serialized_bytes() {
@@ -45,6 +45,24 @@ fn variant_files_have_canonical_envelope_digest_names() {
     assert!(is_variant_file(format!("{digest}.json").as_ref()));
     assert!(!is_variant_file(format!("{digest}.json.tmp").as_ref()));
     assert!(!is_variant_file(format!("{}.json", "A".repeat(64)).as_ref()));
+}
+
+#[tokio::test]
+async fn publication_storage_is_bounded_per_owner_and_globally() {
+    let storage = TempDir::new().unwrap();
+    let root = storage.path().join("shared-artifacts/v0");
+    let owner = root.join("owner");
+    let other_owner = root.join("other-owner");
+    fs::create_dir_all(&owner).await.unwrap();
+    fs::create_dir_all(&other_owner).await.unwrap();
+    fs::create_dir_all(root.join(".locks")).await.unwrap();
+    fs::write(owner.join("entry"), b"123456").await.unwrap();
+    fs::write(other_owner.join("entry"), b"123").await.unwrap();
+    fs::write(root.join(".locks/lock-state"), vec![0; 100]).await.unwrap();
+
+    enforce_storage_quota_with_limits(&root, &owner, 4, 10, 13).await.unwrap();
+    assert!(enforce_storage_quota_with_limits(&root, &owner, 5, 10, 20).await.is_err());
+    assert!(enforce_storage_quota_with_limits(&root, &owner, 4, 20, 12).await.is_err());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 16)]

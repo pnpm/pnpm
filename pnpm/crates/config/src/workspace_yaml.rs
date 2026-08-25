@@ -141,6 +141,14 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
     allow_builds.into_iter().filter_map(|(pkg, value)| Some((pkg, value.decided()?))).collect()
 }
 
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SharedSideEffectsCacheSettings {
+    pub organization: String,
+    pub packages: Vec<String>,
+    pub trusted_keys: BTreeMap<String, String>,
+}
+
 /// Settings readable from `pnpm-workspace.yaml`.
 ///
 /// pnpm 10+ moved the bulk of its configuration (`storeDir`, `registry`,
@@ -259,6 +267,7 @@ pub struct WorkspaceSettings {
     /// older `<scope>: <url>` shape and is read as one.
     pub registries: Option<BTreeMap<String, RegistryEntry>>,
     pub pnpr_server: Option<String>,
+    pub shared_side_effects_cache: Option<SharedSideEffectsCacheSettings>,
     pub https_proxy: Option<String>,
     pub http_proxy: Option<String>,
     pub no_proxy: Option<serde_json::Value>,
@@ -1307,6 +1316,7 @@ impl WorkspaceSettings {
         self.pnpmfile = None;
         self.config_dependencies = None;
         self.allow_builds = None;
+        self.shared_side_effects_cache = None;
         self.supported_architectures = None;
         self.ignored_optional_dependencies = None;
         self.overrides = None;
@@ -1714,6 +1724,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);
+        }
+        if let Some(v) = self.shared_side_effects_cache {
+            config.shared_side_effects_cache = Some(v);
         }
         if let Some(v) = self.named_registries {
             if declared_prefixes {

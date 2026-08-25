@@ -44,10 +44,99 @@ pnprServer: http://localhost:4000
 ## Shared side-effects artifact PoC
 
 Set `resolver.artifacts: true` in pnpr's YAML to advertise and mount the
-organization-scoped v0 endpoints. The feature is off by default and is not yet
-wired into `pnpm install`. In this PoC, an `organization` owner's name must
-equal the authenticated pnpr username; publisher-owned artifacts are rejected
-until publisher discovery is defined.
+organization-scoped v0 endpoints. The feature is off by default. Both the
+TypeScript and Rust CLIs automatically query it during normal and frozen
+lockfile installs when `pnprServer` and `sharedSideEffectsCache` are configured.
+In this PoC, an `organization` owner's name must equal the authenticated pnpr
+username; publisher-owned artifacts are rejected until publisher discovery is
+defined.
+
+Add the client policy to `pnpm-workspace.yaml`:
+
+```yaml
+pnprServer: http://127.0.0.1:7677
+allowBuilds:
+  native-addon: true
+sharedSideEffectsCache:
+  organization: acme
+  packages:
+    - native-addon
+  trustedKeys:
+    acme-2026: <base64 P-256 public key in DER encoding>
+```
+
+`packages` is an independent eligibility allowlist. A package must also have
+`requiresBuild: true`, pass `allowBuilds`, and have a verified source integrity.
+`--ignore-scripts` disables remote reuse. An unavailable server, invalid
+signature, incompatible platform, or bad blob falls back to the ordinary local
+build. The PoC supports Linux glibc on x64 and arm64.
+
+Set these environment variables only on a trusted builder to publish the build
+diff produced by `pnpm install`:
+
+```sh
+export PNPM_SHARED_SIDE_EFFECTS_CACHE_PUBLISH=true
+export PNPM_SHARED_SIDE_EFFECTS_CACHE_KEY_ID=acme-2026
+export PNPM_SHARED_SIDE_EFFECTS_CACHE_PRIVATE_KEY='<base64 P-256 PKCS#8 DER private key>'
+export PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILDER_ID='ci/main/42'
+```
+
+Optional provenance fields are
+`PNPM_SHARED_SIDE_EFFECTS_CACHE_IMAGE_DIGEST`,
+`PNPM_SHARED_SIDE_EFFECTS_CACHE_ARCHITECTURE_BASELINE`, and
+`PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILD_ENV` (a JSON object whose values are
+strings). Do not commit the private key.
+
+### Local trial
+
+Build this branch first:
+
+```sh
+pnpm install
+pnpm --filter pnpm run compile
+cargo build -p pnpr
+```
+
+Start pnpr with a temporary config that enables account creation and artifacts:
+
+```yaml
+storage: /tmp/pnpr-shared-artifacts/storage
+cache: /tmp/pnpr-shared-artifacts/cache
+secret: replace-with-a-local-secret-at-least-32-bytes
+resolver:
+  enabled: true
+  artifacts: true
+auth:
+  htpasswd:
+    file: /tmp/pnpr-shared-artifacts/htpasswd
+    max_users: 1
+```
+
+```sh
+target/debug/pnpr --config /tmp/pnpr-shared-artifacts/config.yaml
+node pnpm11/pnpm/dist/pnpm.mjs login --registry=http://127.0.0.1:7677
+```
+
+Use the login name as `sharedSideEffectsCache.organization`. The login writes
+the bearer token that pnpm reuses for artifact publication, lookup, and blob
+downloads. Generate a P-256 key pair with Node.js and copy the printed public
+key into `trustedKeys`:
+
+<!-- cspell:disable -->
+```sh
+node -e "const {generateKeyPairSync}=require('node:crypto');const {privateKey,publicKey}=generateKeyPairSync('ec',{namedCurve:'prime256v1'});console.log('private='+privateKey.export({format:'der',type:'pkcs8'}).toString('base64'));console.log('public='+publicKey.export({format:'der',type:'spki'}).toString('base64'))"
+```
+<!-- cspell:enable -->
+
+Run the first install with the publication variables set. Then unset
+`PNPM_SHARED_SIDE_EFFECTS_CACHE_PUBLISH`, remove the project's `node_modules`,
+and run the same install again. Keep both `sideEffectsCache` and
+`sideEffectsCacheReadonly` false while testing if the same machine's ordinary
+local side-effects cache would otherwise hide the remote lookup. pnpr should log
+one batch resolve and blob reads, and the second install should materialize the
+built files without running the package's lifecycle scripts. Use
+`just cli -- install` instead of the bundled JavaScript CLI to exercise the Rust
+implementation.
 
 The PoC implements the main trust boundary from the
 [shared side-effects cache RFC](https://github.com/pnpm/rfcs/pull/20):
@@ -68,7 +157,8 @@ The PoC implements the main trust boundary from the
 
 Publication serializes the variant-count check and envelope write with a
 cross-process filesystem lock, so pnpr processes sharing one local cache enforce
-the eight-variant cap together.
+the eight-variant cap together. The PoC rejects writes above 1 GiB per owner or
+10 GiB across the server's artifact cache.
 
 ### v0 compatibility tags
 
@@ -126,11 +216,13 @@ checked before lookup.
 Blob reads use the same authorization as lookup and send one owner-scoped
 `POST /-/pnpr/v0/artifacts/blob` request per unique SHA-512 integrity. Callers
 may issue those independent requests in parallel. A non-success response or a
-digest mismatch is a cache miss; a mismatch must quarantine the selected
-envelope digest before any bytes reach CAFS or the importer. The PoC exposes the
-verified envelope digest and the digest-verifying download primitive; persistent
-quarantine is part of the deferred automatic store integration.
+digest mismatch rejects the selected variant for the current install before its
+mapping reaches the importer. The PoC exposes the verified envelope digest and
+the digest-verifying download primitive; persistent quarantine is deferred to
+the production protocol.
 
-Publisher discovery, key distribution and revocation, lockfile pinning,
-persistent quarantine, and automatic store import are deliberately left for a
-production protocol once the RFC resolves those policy questions.
+Publisher discovery, key distribution and revocation, lockfile pinning, and
+persistent quarantine are deliberately left for a production protocol once the
+RFC resolves those policy questions. Remote mappings are kept in memory for the
+current install and are looked up and revalidated again on later installs; they
+are not persisted as unlabelled local side-effects entries.

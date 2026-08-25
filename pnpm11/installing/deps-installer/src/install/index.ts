@@ -2125,6 +2125,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         registriesByScope: ctx.registriesByScope,
         rootModulesDir: ctx.rootModulesDir,
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
+        sharedSideEffectsCache: opts.sharedSideEffectsCache,
+        pnprServer: opts.pnprServer,
+        configByUri: opts.configByUri,
         symlink: opts.symlink,
         skipped: ctx.skipped,
         skipRuntimes: opts.skipRuntimes,
@@ -2236,11 +2239,15 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           scriptShell: opts.scriptShell,
           shellEmulator: opts.shellEmulator,
           sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
+          sharedSideEffectsCache: opts.sharedSideEffectsCache,
           storeController: opts.storeController,
+          supportedArchitectures: opts.supportedArchitectures,
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
           enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
           frozenStore: opts.frozenStore,
+          configByUri: opts.configByUri,
+          pnprServer: opts.pnprServer,
         })).ignoredBuilds
         if (ignoredBuildsFromBuild?.size) {
           ignoredBuilds ??= new Set()
