@@ -111,8 +111,11 @@ struct AppInner {
     auth: AuthState,
     /// Serializes the read-modify-write packument flows per package so
     /// two concurrent writers to the same package on this instance can't
-    /// lose each other's changes. See [`PackageLocks`].
-    package_locks: PackageLocks,
+    /// lose each other's changes.
+    package_locks: StripedLocks,
+    /// Keeps the variant-limit decision and envelope publication atomic for
+    /// one artifact key within this server instance.
+    artifact_locks: StripedLocks,
     /// Lazily-built engine backing the `/-/pnpr/v0/resolve` endpoint. Built on
     /// first such request so servers that never receive one pay nothing.
     resolver: std::sync::OnceLock<crate::resolver::Resolver>,
@@ -127,30 +130,20 @@ struct HostedOriginalRef {
     version: String,
 }
 
-/// Per-package serialization for the read-modify-write packument flows
-/// (publish, dist-tag changes, partial-unpublish). Without it, two
-/// concurrent publishes of the same package both read the old
-/// packument, merge their own version in, and write back — last writer
-/// wins and the other version is silently lost.
-///
-/// A fixed stripe set of mutexes keyed by a hash of the package name
-/// serializes writers to the same package while letting different
-/// packages proceed in parallel. The fixed count bounds memory (unlike
-/// a per-name map that grows with every package ever published); two
-/// packages that hash to the same stripe just serialize against each
-/// other, which is harmless.
+/// A fixed stripe set bounds lock memory while serializing writers for the
+/// same logical resource. Hash collisions only reduce concurrency.
 ///
 /// This guards concurrency **within one instance**. Across replicas
 /// sharing one hosted store, the same race needs a conditional write
 /// (S3 `If-Match` / `ETag`); that is the cross-replica half tracked in
 /// [pnpm/pnpm#12199](https://github.com/pnpm/pnpm/issues/12199).
-struct PackageLocks {
+struct StripedLocks {
     stripes: Box<[tokio::sync::Mutex<()>]>,
 }
 
-impl PackageLocks {
-    /// Number of stripes. 64 keeps false sharing between distinct
-    /// packages rare while staying tiny in memory.
+impl StripedLocks {
+    /// Number of stripes. 64 keeps false sharing between distinct resources
+    /// rare while staying tiny in memory.
     const STRIPES: usize = 64;
 
     fn new() -> Self {
@@ -158,10 +151,7 @@ impl PackageLocks {
         Self { stripes }
     }
 
-    /// Lock the stripe owning `name`, held until the returned guard is
-    /// dropped. Callers hold it across the whole read-modify-write so the
-    /// read and the write are atomic with respect to other same-package
-    /// writers.
+    /// Lock the stripe owning `name`, held until the returned guard is dropped.
     async fn lock(&self, name: &str) -> tokio::sync::MutexGuard<'_, ()> {
         self.stripes[self.stripe_index(name)].lock().await
     }
@@ -294,7 +284,8 @@ fn router_with_auth_and_osv(
             upstream_cache_namespaces,
             config,
             auth,
-            package_locks: PackageLocks::new(),
+            package_locks: StripedLocks::new(),
+            artifact_locks: StripedLocks::new(),
             resolver: std::sync::OnceLock::new(),
             osv_index,
         }),
@@ -4955,9 +4946,18 @@ async fn serve_publish_artifact(
         Ok(username) => username,
         Err(err) => return error_response(&err),
     };
+    let request = match crate::shared_artifacts::parse_publish(&body) {
+        Ok(request) => request,
+        Err(err) => return private_no_cache(error_response(&err)),
+    };
+    let _artifact_guard = state.inner.artifact_locks.lock(&request.key).await;
     private_no_cache(
-        match crate::shared_artifacts::publish(&state.inner.config.cache_storage, &username, &body)
-            .await
+        match crate::shared_artifacts::publish(
+            &state.inner.config.cache_storage,
+            &username,
+            request,
+        )
+        .await
         {
             Ok(true) => StatusCode::CREATED.into_response(),
             Ok(false) => StatusCode::OK.into_response(),
@@ -5004,7 +5004,7 @@ async fn serve_artifact_blob(
             .header(header::VARY, "Authorization")
             .body(Body::from(bytes))
             .expect("static artifact blob response always builds"),
-        Ok(None) => StatusCode::NOT_FOUND.into_response(),
-        Err(err) => error_response(&err),
+        Ok(None) => private_no_cache(StatusCode::NOT_FOUND.into_response()),
+        Err(err) => private_no_cache(error_response(&err)),
     }
 }

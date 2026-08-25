@@ -21,9 +21,16 @@ use crate::{
 
 const ARTIFACT_CACHE_DIR: &str = "shared-artifacts/v0";
 
-pub(crate) async fn publish(cache_storage: &Path, username: &str, body: &[u8]) -> Result<bool> {
-    let request: PublishArtifactRequest = serde_json::from_slice(body)
-        .map_err(|err| bad_request(format!("invalid shared artifact request: {err}")))?;
+pub(crate) fn parse_publish(body: &[u8]) -> Result<PublishArtifactRequest> {
+    serde_json::from_slice(body)
+        .map_err(|err| bad_request(format!("invalid shared artifact request: {err}")))
+}
+
+pub(crate) async fn publish(
+    cache_storage: &Path,
+    username: &str,
+    request: PublishArtifactRequest,
+) -> Result<bool> {
     let (payload, _) = request.envelope.decode_payload().map_err(|err| protocol_error(&err))?;
     let owner_dir = owner_dir(cache_storage, username, &payload.owner)?;
     if payload.input_key != request.key {

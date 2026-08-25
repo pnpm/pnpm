@@ -124,6 +124,9 @@ export function createSignedArtifactEnvelope (
     throw new Error(`Signed artifact payload exceeds ${MAX_SIGNED_PAYLOAD_SIZE} bytes`)
   }
   const privateKey = createPrivateKey(opts.privateKey)
+  if (privateKey.asymmetricKeyType !== 'ec' || privateKey.asymmetricKeyDetails?.namedCurve !== 'prime256v1') {
+    throw new Error('Shared artifact signing key must be a P-256 EC private key')
+  }
   const signature = cryptoSign('sha256', payloadBytes, {
     key: privateKey,
     dsaEncoding: 'der',
@@ -146,6 +149,9 @@ export function verifySignedArtifactEnvelope (
     format: 'der',
     type: 'spki',
   })
+  if (publicKey.asymmetricKeyType !== 'ec' || publicKey.asymmetricKeyDetails?.namedCurve !== 'prime256v1') {
+    throw new Error('Shared artifact verification key must be a P-256 EC public key')
+  }
   if (!cryptoVerify('sha256', payloadBytes, publicKey, signatureBytes)) {
     throw new Error('Shared artifact signature verification failed')
   }
@@ -403,8 +409,14 @@ function validateManifestPath (path: string): void {
   if (Array.from(path).some(character => isControl(character))) {
     throw new Error(`Shared artifact path ${JSON.stringify(path)} contains a control character`)
   }
-  if (path.split('/').some(segment => segment === '' || segment === '.' || segment === '..')) {
-    throw new Error(`Shared artifact path ${JSON.stringify(path)} has an empty, dot, or parent segment`)
+  if (path.split('/').some(segment =>
+    segment === '' ||
+    segment === '.' ||
+    segment === '..' ||
+    segment.endsWith('.') ||
+    segment.endsWith(' ')
+  )) {
+    throw new Error(`Shared artifact path ${JSON.stringify(path)} has an empty, dot, parent, or Windows-normalized segment`)
   }
 }
 

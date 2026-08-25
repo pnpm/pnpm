@@ -79,6 +79,10 @@ fn rejects_paths_before_the_importer_can_see_them() {
         "C:/escape",
         "double//segment",
         "dot/./segment",
+        "trailing-dot.",
+        "trailing-space ",
+        "dir/trailing-dot.",
+        "dir/trailing-space ",
         "nul\0byte",
     ] {
         assert!(validate_manifest_path(unsafe_path).is_err(), "accepted {unsafe_path:?}");

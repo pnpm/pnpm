@@ -49,6 +49,22 @@ describe('signed shared artifacts', () => {
     expect(() => verifySignedArtifactEnvelope(envelope, publicKeySpki)).toThrow('signature verification failed')
   })
 
+  test('rejects signing and verification keys outside P-256', () => {
+    const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2_048 })
+    expect(() => createSignedArtifactEnvelope(payload(), {
+      keyId: 'acme-rsa',
+      privateKey: privateKey.export({ format: 'pem', type: 'pkcs8' }),
+    })).toThrow('P-256 EC private key')
+
+    const { privateKey: p256PrivateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+    const envelope = createSignedArtifactEnvelope(payload(), {
+      keyId: 'acme-2026',
+      privateKey: p256PrivateKey.export({ format: 'pem', type: 'pkcs8' }),
+    })
+    const publicKeySpki = publicKey.export({ format: 'der', type: 'spki' }).toString('base64')
+    expect(() => verifySignedArtifactEnvelope(envelope, publicKeySpki)).toThrow('P-256 EC public key')
+  })
+
   test.each([
     '/absolute',
     '../escape',
@@ -57,6 +73,10 @@ describe('signed shared artifacts', () => {
     'C:/escape',
     'double//segment',
     'dot/./segment',
+    'trailing-dot.',
+    'trailing-space ',
+    'dir/trailing-dot.',
+    'dir/trailing-space ',
     'nul\0byte',
   ])('rejects unsafe manifest path %p before signing', (path) => {
     const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })

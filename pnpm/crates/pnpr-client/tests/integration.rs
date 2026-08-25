@@ -16,6 +16,7 @@
 use std::{
     collections::BTreeMap,
     net::{Ipv4Addr, SocketAddr},
+    sync::Arc,
     time::Duration,
 };
 
@@ -37,6 +38,7 @@ use tempfile::TempDir;
 use tokio::{
     io::{AsyncReadExt as _, AsyncWriteExt as _},
     net::TcpListener,
+    sync::Barrier,
 };
 
 /// Start an in-process pnpr with the fast-path endpoints, allowlisting
@@ -248,6 +250,12 @@ fn options(
 }
 
 fn signed_artifact_fixture() -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
+    signed_artifact_fixture_with_builder_id("ci/main/42")
+}
+
+fn signed_artifact_fixture_with_builder_id(
+    builder_id: &str,
+) -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
     let blob = b"native-addon".to_vec();
     let integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(&blob)));
     let payload = ArtifactPayload {
@@ -255,7 +263,7 @@ fn signed_artifact_fixture() -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
         source_integrity: "sha512-source".to_string(),
         input_key: "dependency-side-effects:v1:deps=abc".to_string(),
         owner: OwnerScope::organization("pnpr-client"),
-        builder_id: "ci/main/42".to_string(),
+        builder_id: builder_id.to_string(),
         builder_profile: BuilderProfile {
             image_digest: Some("sha256:image".to_string()),
             architecture_baseline: "x86-64-v2".to_string(),
@@ -872,6 +880,73 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
         .await
         .expect("download verified blob");
     assert_eq!(bytes, expected_blob);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 16)]
+async fn concurrent_artifact_publications_respect_the_variant_limit() {
+    const PUBLICATIONS: usize = 16;
+
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
+    let barrier = Arc::new(Barrier::new(PUBLICATIONS + 1));
+    let mut publications = Vec::with_capacity(PUBLICATIONS);
+    for index in 0..PUBLICATIONS {
+        let barrier = Arc::clone(&barrier);
+        let pnpr_url = pnpr_url.clone();
+        let pnpr_auth = pnpr_auth.clone();
+        let (publish, _, _) =
+            signed_artifact_fixture_with_builder_id(&format!("ci/concurrent/{index}"));
+        publications.push(tokio::spawn(async move {
+            barrier.wait().await;
+            PnprClient::new(pnpr_url).publish_artifact(&publish, Some(&pnpr_auth)).await
+        }));
+    }
+    barrier.wait().await;
+
+    let mut accepted = 0;
+    let mut rejected = Vec::new();
+    for publication in publications {
+        match publication.await.expect("publication task") {
+            Ok(()) => accepted += 1,
+            Err(err) => rejected.push(err.to_string()),
+        }
+    }
+    assert_eq!(accepted, pnpm_shared_artifact_protocol::MAX_VARIANTS_PER_CANDIDATE);
+    assert_eq!(rejected.len(), PUBLICATIONS - accepted);
+    assert!(rejected.iter().all(|error| error.contains("variant limit")));
+}
+
+#[tokio::test]
+async fn artifact_blob_misses_and_errors_are_caller_scoped() {
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
+    let http = reqwest::Client::new();
+    let missing_integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(b"missing")));
+    let missing = http
+        .post(format!("{pnpr_url}-/pnpr/v0/artifacts/blob"))
+        .header(reqwest::header::AUTHORIZATION, &pnpr_auth)
+        .json(&ArtifactBlobRequest {
+            owner: OwnerScope::organization("pnpr-client"),
+            integrity: missing_integrity,
+        })
+        .send()
+        .await
+        .expect("missing blob response");
+    assert_eq!(missing.status(), reqwest::StatusCode::NOT_FOUND);
+    assert_eq!(missing.headers()[reqwest::header::CACHE_CONTROL], "private, no-store");
+    assert_eq!(missing.headers()[reqwest::header::VARY], "Authorization");
+
+    let invalid = http
+        .post(format!("{pnpr_url}-/pnpr/v0/artifacts/blob"))
+        .header(reqwest::header::AUTHORIZATION, &pnpr_auth)
+        .json(&serde_json::json!({
+            "owner": { "type": "organization", "name": "pnpr-client" },
+            "integrity": "not-an-integrity",
+        }))
+        .send()
+        .await
+        .expect("invalid blob response");
+    assert_eq!(invalid.status(), reqwest::StatusCode::BAD_REQUEST);
+    assert_eq!(invalid.headers()[reqwest::header::CACHE_CONTROL], "private, no-store");
+    assert_eq!(invalid.headers()[reqwest::header::VARY], "Authorization");
 }
 
 #[tokio::test]

@@ -334,8 +334,17 @@ pub fn validate_manifest_path(path: &str) -> Result<(), ArtifactProtocolError> {
     if path.chars().any(char::is_control) {
         return Err(invalid_path(path, "control characters are not allowed"));
     }
-    if path.split('/').any(|segment| segment.is_empty() || segment == "." || segment == "..") {
-        return Err(invalid_path(path, "empty, dot, and parent segments are not allowed"));
+    if path.split('/').any(|segment| {
+        segment.is_empty()
+            || segment == "."
+            || segment == ".."
+            || segment.ends_with('.')
+            || segment.ends_with(' ')
+    }) {
+        return Err(invalid_path(
+            path,
+            "empty, dot, parent, and Windows-normalized segments are not allowed",
+        ));
     }
     Ok(())
 }
