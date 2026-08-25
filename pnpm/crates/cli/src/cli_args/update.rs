@@ -24,7 +24,7 @@ use std::{collections::HashSet, path::Path};
 #[derive(Debug, Clone, Args)]
 pub struct UpdateDependencyOptions {
     /// Update packages only in "dependencies" and "optionalDependencies".
-    #[clap(short = 'P', long)]
+    #[clap(short = 'P', long, visible_alias = "production")]
     prod: bool,
     /// Update packages only in "devDependencies".
     #[clap(short = 'D', long)]

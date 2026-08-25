@@ -60,7 +60,7 @@ impl NodeLinkerArg {
 pub struct InstallDependencyOptions {
     /// Install only production dependencies. devDependencies are skipped,
     /// and removed if already installed. Takes precedence over `NODE_ENV`.
-    #[arg(short = 'P', long)]
+    #[arg(short = 'P', long, visible_alias = "production")]
     prod: bool,
     /// Install only devDependencies. Regular dependencies are skipped, and
     /// removed if already installed, regardless of `NODE_ENV`.

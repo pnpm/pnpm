@@ -75,7 +75,7 @@ pub struct SbomArgs {
     pub supplier: Option<String>,
 
     /// Only include production dependencies.
-    #[clap(long, short = 'P')]
+    #[clap(long, short = 'P', visible_alias = "production")]
     pub prod: bool,
 
     /// Only include dev dependencies.
