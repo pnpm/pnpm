@@ -15,100 +15,145 @@ export interface Result<T> {
 /**
  * Performs topological sorting on a graph while supporting node restrictions.
  *
+ * The nodes are interned to indices up front and each chunk is gathered from
+ * the nodes whose degree a removal drops to zero, so a workspace-scale graph
+ * (thousands of projects in thousands of chunks) sorts in O(V log V + E)
+ * instead of scanning every node once per chunk.
+ *
  * @param {Graph<T>}  graph - The graph represented as a Map where keys are nodes and values are their outgoing edges.
  * @param {T[]} includedNodes - An array of nodes that should be included in the sorting process. Other nodes will be ignored.
  * @returns {Result<T>} An object containing the result of the sorting, including safe, chunks, and cycles.
  */
 export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...graph.keys()]): Result<T> {
-  // Initialize reverseGraph with empty arrays for all nodes.
-  const reverseGraph = new Map<T, T[]>()
-  for (const key of graph.keys()) {
-    reverseGraph.set(key, [])
+  // Included nodes are interned first, so an id below includedCount is an
+  // included node and id order chunks the way includedNodes orders them.
+  const indexOf = new Map<T, number>()
+  const nodes: T[] = []
+  function intern (node: T): number {
+    let id = indexOf.get(node)
+    if (id === undefined) {
+      id = nodes.length
+      indexOf.set(node, id)
+      nodes.push(node)
+    }
+    return id
   }
-
-  // Calculate outDegree and reverseGraph for the included nodes.
-  const nodes = new Set<T>(includedNodes)
-  const visited = new Set<T>()
-  const outDegree = new Map<T, number>()
+  for (const node of includedNodes) {
+    intern(node)
+  }
+  const includedCount = nodes.length
   for (const [from, edges] of graph.entries()) {
-    outDegree.set(from, 0)
+    intern(from)
     for (const to of edges) {
-      if (nodes.has(from) && nodes.has(to)) {
-        changeOutDegree(from, 1)
-        reverseGraph.get(to)!.push(from)
-      }
-    }
-    if (!nodes.has(from)) {
-      visited.add(from)
+      intern(to)
     }
   }
 
-  const chunks: T[][] = []
-  const cycles: T[][] = []
-  let safe = true
-  while (nodes.size) {
-    const chunk: T[] = []
-    let minDegree = Number.MAX_SAFE_INTEGER
-    for (const node of nodes) {
-      const degree = outDegree.get(node)!
-      if (degree === 0) {
-        chunk.push(node)
+  const adjacency: number[][] = nodes.map(() => [])
+  const reverseGraph: number[][] = nodes.map(() => [])
+  const outDegree: number[] = nodes.map(() => 0)
+  for (const [from, edges] of graph.entries()) {
+    const fromId = indexOf.get(from)!
+    for (const to of edges) {
+      const toId = indexOf.get(to)!
+      adjacency[fromId].push(toId)
+      if (fromId < includedCount && toId < includedCount) {
+        outDegree[fromId]++
+        reverseGraph[toId].push(fromId)
       }
-      minDegree = Math.min(minDegree, degree)
     }
+  }
 
-    if (minDegree === 0) {
-      chunk.forEach(removeNode)
-      chunks.push(chunk)
-    } else {
-      const cycleNodes: T[] = []
-      for (const node of nodes) {
-        const cycle = findCycle(node)
-        if (cycle.length) {
-          cycles.push(cycle)
-          cycle.forEach(removeNode)
-          cycleNodes.push(...cycle)
+  // A non-included node is born removed: chunks never contain it and the
+  // cycle search does not walk through it.
+  const removed: boolean[] = nodes.map((_, id) => id >= includedCount)
 
-          if (cycle.length > 1) {
-            safe = false
+  const chunks: number[][] = []
+  const cycles: number[][] = []
+  let safe = true
+
+  let remaining = includedCount
+  // The ids whose degree is zero, i.e. the next chunk. Kept sorted so a
+  // chunk lists its nodes in includedNodes order.
+  let current: number[] = []
+  for (let id = 0; id < includedCount; id++) {
+    if (outDegree[id] === 0) {
+      current.push(id)
+    }
+  }
+  while (remaining > 0) {
+    const next: number[] = []
+    const removeNode = (id: number) => {
+      removed[id] = true
+      for (const parent of reverseGraph[id]) {
+        if (outDegree[parent] > 0) {
+          outDegree[parent]--
+          if (outDegree[parent] === 0 && !removed[parent]) {
+            next.push(parent)
           }
         }
       }
-      chunks.push(cycleNodes)
     }
-  }
 
-  return { safe, chunks, cycles }
-
-  // Function to update the outDegree of a node.
-  function changeOutDegree (node: T, value: number) {
-    const degree = outDegree.get(node) ?? 0
-    outDegree.set(node, degree + value)
-  }
-
-  // Function to remove a node from the graph.
-  function removeNode (node: T) {
-    for (const from of reverseGraph.get(node)!) {
-      changeOutDegree(from, -1)
+    if (current.length === 0) {
+      // Every remaining node keeps a dependency alive: cycles. Break them
+      // the way the scan finds them, in includedNodes order.
+      const cycleIds: number[] = []
+      for (let id = 0; id < includedCount; id++) {
+        if (removed[id]) {
+          continue
+        }
+        const cycle = findCycle(id)
+        if (cycle.length === 0) {
+          continue
+        }
+        if (cycle.length > 1) {
+          safe = false
+        }
+        for (const node of cycle) {
+          removeNode(node)
+        }
+        cycleIds.push(...cycle)
+        cycles.push(cycle)
+      }
+      remaining -= cycleIds.length
+      chunks.push(cycleIds)
+    } else {
+      for (const id of current) {
+        removeNode(id)
+      }
+      remaining -= current.length
+      chunks.push(current)
     }
-    visited.add(node)
-    nodes.delete(node)
+    // Breaking a cycle removes its members one by one, so an earlier
+    // member's removal can drop a later member to degree zero right before
+    // that member is removed too — filter those out of the zero-degree set
+    // instead of re-chunking them.
+    current = next.filter((id) => !removed[id]).sort((left, right) => left - right)
   }
 
-  function findCycle (startNode: T): T[] {
-    const queue: Array<[T, T[]]> = [[startNode, [startNode]]]
-    const cycleVisited = new Set<T>()
-    const cycles: T[][] = []
+  return {
+    safe,
+    chunks: chunks.map((chunk) => chunk.map((id) => nodes[id])),
+    cycles: cycles.map((cycle) => cycle.map((id) => nodes[id])),
+  }
+
+  // The longest of the shortest cycles running from startId back to itself
+  // through nodes not yet removed, or empty when there is none.
+  function findCycle (startId: number): number[] {
+    const queue: Array<[number, number[]]> = [[startId, [startId]]]
+    const cycleVisited = new Set<number>()
+    const foundCycles: number[][] = []
 
     while (queue.length) {
       const [id, cycle] = queue.shift()!
-      for (const to of graph.get(id)!) {
-        if (to === startNode) {
+      for (const to of adjacency[id]) {
+        if (to === startId) {
           cycleVisited.add(to)
-          cycles.push([...cycle])
+          foundCycles.push([...cycle])
           continue
         }
-        if (visited.has(to) || cycleVisited.has(to)) {
+        if (removed[to] || cycleVisited.has(to)) {
           continue
         }
         cycleVisited.add(to)
@@ -116,10 +161,10 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
       }
     }
 
-    if (!cycles.length) {
+    if (foundCycles.length === 0) {
       return []
     }
-    cycles.sort((a, b) => b.length - a.length)
-    return cycles[0]
+    foundCycles.sort((a, b) => b.length - a.length)
+    return foundCycles[0]
   }
 }

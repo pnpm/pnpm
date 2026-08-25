@@ -382,3 +382,23 @@ test('graph with three cycles', () => {
     }
   )
 })
+
+// A dense chain — every node depends on its nine predecessors — makes as
+// many chunks as nodes. Guards the O(V + E) rewrite: the quadratic
+// per-chunk full scan took seconds at workspace scale
+// (https://github.com/pnpm/pnpm/issues/14149).
+test('deep chain sorts in linear time', () => {
+  const count = 20_000
+  const names = Array.from({ length: count }, (_, i) => `project-${i.toString().padStart(5, '0')}`)
+  const graph = new Map<string, string[]>(
+    names.map((name, i) => [name, names.slice(Math.max(0, i - 9), i)])
+  )
+  const startedAt = performance.now()
+  const result = graphSequencer(graph, names)
+  const elapsedMs = performance.now() - startedAt
+  expect(result.safe).toBe(true)
+  expect(result.chunks).toHaveLength(count)
+  expect(result.chunks[0]).toStrictEqual([names[0]])
+  expect(result.chunks[count - 1]).toStrictEqual([names[count - 1]])
+  expect(elapsedMs).toBeLessThan(5000)
+})
