@@ -1,6 +1,4 @@
-use super::{
-    corepack_integrity, declared_package_manager, describe_pin, record_package_manager_pin,
-};
+use super::{declared_package_manager, describe_pin, record_package_manager_pin};
 use crate::engine_pm::channel::PackageManager;
 use serde_json::json;
 
@@ -114,35 +112,6 @@ fn clearing_the_package_manager_keeps_a_dev_engines_runtime() {
             "packageManager": "yarn@4.9.2",
         }),
     );
-}
-
-/// Corepack pins Yarn Classic by the sha512 of the npm tarball, which is
-/// the integrity the registry publishes — the same hash `corepack use`
-/// writes, without downloading anything.
-#[test]
-fn a_yarn_classic_pin_carries_the_integrity_corepack_records() {
-    let manifest = json!({
-        "dist": { "integrity": "sha512-vlN9G+SFrIJKO/A/CmuGZ9zoQAqXNPBUXqk8LMKFVMc+wYRDDKMRQmzcQlvyBMk2C4x/xz2R1L3+dSHOtwSlfQ==" },
-    });
-    assert_eq!(
-        corepack_integrity("yarn", Some(&manifest)).as_deref(),
-        // `node -e 'Buffer.from(<base64>, "base64").toString("hex")'` —
-        // corepack's own conversion of the same integrity.
-        Some(
-            "sha512.be537d1be485ac824a3bf03f0a6b8667dce8400a9734f0545ea93c2cc28554c73ec1844\
-             30ca311426cdc425bf204c9360b8c7fc73d91d4bdfe7521ceb704a57d",
-        ),
-    );
-}
-
-/// Yarn Berry is not downloaded from npm by corepack, so npm's integrity
-/// is not the hash it would verify, and the pin carries none.
-#[test]
-fn a_yarn_berry_pin_carries_no_integrity() {
-    let manifest = json!({ "dist": { "integrity": "sha512-AAAA" } });
-    assert_eq!(corepack_integrity("@yarnpkg/cli-dist", Some(&manifest)), None);
-    assert_eq!(corepack_integrity("yarn", None), None);
-    assert_eq!(corepack_integrity("yarn", Some(&json!({}))), None);
 }
 
 /// A specifier that locates a package to install under the package

@@ -809,10 +809,10 @@ fn a_manifest_that_is_not_an_object_fails_instead_of_panicking() {
 
 /// Yarn is started from a project pin by corepack, which reads only
 /// `packageManager` and only accepts an exact version there — so a Yarn
-/// pin is resolved and written the way `corepack use` writes it, down to
-/// the integrity corepack verifies the Classic tarball with.
+/// pin is resolved to one, and carries nothing else: the release corepack
+/// downloads is corepack's to verify, not pnpm's to pin.
 #[test]
-fn a_yarn_pin_is_recorded_the_way_corepack_writes_it() {
+fn a_yarn_pin_is_recorded_as_the_exact_version_corepack_requires() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(
         &workspace,
@@ -825,13 +825,11 @@ fn a_yarn_pin_is_recorded_the_way_corepack_writes_it() {
     let manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
     let pin = manifest["packageManager"].as_str().expect("a recorded package manager");
-    let (version, integrity) = pin
-        .strip_prefix("yarn@")
-        .and_then(|reference| reference.split_once('+'))
-        .unwrap_or_else(|| panic!("expected an exact version with an integrity, got {pin}"));
-    let version = node_semver::Version::parse(version).expect("an exact version");
+    let reference =
+        pin.strip_prefix("yarn@").unwrap_or_else(|| panic!("expected a Yarn pin, got {pin}"));
+    let version = node_semver::Version::parse(reference).expect("an exact version");
     assert_eq!(version.major, 1, "{pin}");
-    assert!(integrity.starts_with("sha512."), "{pin}");
+    assert!(!reference.contains('+'), "{pin}");
     assert_eq!(manifest.get("devEngines"), None, "{manifest}");
 }
 
