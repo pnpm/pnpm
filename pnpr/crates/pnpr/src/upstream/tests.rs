@@ -1,7 +1,7 @@
 use super::{
-    CacheValidators, CircuitBreaker, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
-    extract_version_manifest, rewrite_tarball_urls, rewrite_upstream_tarball_urls,
-    tarball_basename,
+    CacheValidators, CircuitBreaker, FetchOutcome, PackumentFetch, UPSTREAM_ERROR_BODY_LIMIT,
+    Upstream, abbreviate_packument, extract_version_manifest, rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls, tarball_basename,
 };
 use crate::{config::UpstreamConfig, error::RegistryError, package_name::PackageName};
 use chrono::{DateTime, TimeZone, Utc};
@@ -84,6 +84,7 @@ async fn fetch_revision_tarball_rejects_redirects_and_forwards_headers() {
         .match_header("x-org", "acme")
         .with_status(302)
         .with_header("location", "/redirected.tgz")
+        .with_body("x".repeat(UPSTREAM_ERROR_BODY_LIMIT + 1))
         .expect(1)
         .create_async()
         .await;
@@ -92,7 +93,11 @@ async fn fetch_revision_tarball_rejects_redirects_and_forwards_headers() {
     let upstream = upstream(server.url(), auth_and_custom_headers());
     let result = upstream.fetch_revision_tarball_response("digest").await;
 
-    assert!(matches!(result, Err(RegistryError::UpstreamStatus { status: 302, .. })));
+    assert!(matches!(
+        result,
+        Err(RegistryError::UpstreamStatus { status: 302, body, .. })
+            if body == format!("{} (response body truncated)", "x".repeat(UPSTREAM_ERROR_BODY_LIMIT))
+    ));
     redirect.assert_async().await;
     redirected.assert_async().await;
 }

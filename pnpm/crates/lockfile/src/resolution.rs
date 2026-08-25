@@ -1,4 +1,4 @@
-use derive_more::{Display, Error, From, TryInto};
+use derive_more::{Display, Error, From, Into, TryInto};
 use pipe_trait::Pipe;
 use pnpm_crypto_hash::integrity_addressed_tarball_path;
 use pnpm_diagnostics::miette::Diagnostic;
@@ -64,7 +64,9 @@ pub struct RegistryResolution {
 pub const MAX_TARBALL_REVISION: u64 = 9_007_199_254_740_991;
 
 /// A positive registry artifact revision in JavaScript's safe-integer range.
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Into,
+)]
 #[serde(try_from = "u64", into = "u64")]
 pub struct TarballRevision(u64);
 
@@ -84,12 +86,6 @@ impl TryFrom<u64> for TarballRevision {
         } else {
             Err(InvalidTarballRevisionError { revision })
         }
-    }
-}
-
-impl From<TarballRevision> for u64 {
-    fn from(revision: TarballRevision) -> Self {
-        revision.0
     }
 }
 

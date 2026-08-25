@@ -8,7 +8,7 @@ use pnpm_lockfile::{
     TarballRevision, integrity_addressed_registry_tarball_url,
     is_integrity_addressed_registry_tarball_url,
 };
-use pnpm_network::ThrottledClient;
+use pnpm_network::{ThrottledClient, read_limited_body};
 use reqwest::{
     StatusCode,
     header::{self, HeaderMap, HeaderValue},
@@ -21,6 +21,8 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
+
+const UPSTREAM_ERROR_BODY_LIMIT: usize = 64 * 1024;
 
 /// Wraps a shared [`ThrottledClient`] (so the registry inherits pnpm's
 /// tuned reqwest defaults: `User-Agent: pnpm`, HTTP/1.1, hickory DNS,
@@ -360,9 +362,23 @@ impl Upstream {
         if status.is_server_error() {
             self.breaker.record_failure();
         }
-        let body = response.text().await.unwrap_or_default();
+        let body = read_upstream_error_body(response).await;
         Err(RegistryError::UpstreamStatus { url: url.to_string(), status: status.as_u16(), body })
     }
+}
+
+async fn read_upstream_error_body(response: reqwest::Response) -> String {
+    let Ok(body) = read_limited_body(response, UPSTREAM_ERROR_BODY_LIMIT).await else {
+        return String::new();
+    };
+    let mut text = String::from_utf8_lossy(&body.bytes).into_owned();
+    if body.truncated {
+        if !text.is_empty() && !text.chars().next_back().is_some_and(char::is_whitespace) {
+            text.push(' ');
+        }
+        text.push_str("(response body truncated)");
+    }
+    text
 }
 
 /// Rewrite every `dist.tarball` in `value` to a URL served by *this*
