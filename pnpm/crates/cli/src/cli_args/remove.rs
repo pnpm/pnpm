@@ -99,6 +99,7 @@ impl RemoveArgs {
             ordered_groups,
             ordered_dirs,
             selected_dirs,
+            install_dirs,
             active_manifest_is_standin,
         } = selection;
         let lockfile_path = state.lockfile_path();
@@ -126,6 +127,7 @@ impl RemoveArgs {
             &ordered_groups,
             &ordered_dirs,
             selected_dirs.as_ref(),
+            install_dirs.as_ref(),
             active_manifest_is_standin,
         )
         .await

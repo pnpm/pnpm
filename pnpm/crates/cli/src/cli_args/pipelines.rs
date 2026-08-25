@@ -39,6 +39,7 @@ pub(crate) struct InstallFamilySelection {
     pub(crate) ordered_groups: Vec<Vec<PathBuf>>,
     pub(crate) ordered_dirs: Vec<PathBuf>,
     pub(crate) selected_dirs: Arc<HashSet<PathBuf>>,
+    pub(crate) install_dirs: Arc<HashSet<PathBuf>>,
     pub(crate) active_manifest_is_standin: bool,
 }
 
@@ -172,7 +173,8 @@ pub(crate) fn select_workspace_projects(
             vec![selection.selected.keys().cloned().collect()]
         };
         let ordered_dirs = ordered_groups.iter().flatten().cloned().collect();
-        let selected_dirs = Arc::new(selection.selected.keys().cloned().collect());
+        let selected_dirs: Arc<HashSet<PathBuf>> =
+            Arc::new(selection.selected.keys().cloned().collect());
         (ordered_groups, ordered_dirs, selected_dirs)
     };
 
@@ -185,6 +187,14 @@ pub(crate) fn select_workspace_projects(
         && !projects
             .iter()
             .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_active_dir);
+    let normalized_workspace_root = pnpm_fs::lexical_normalize(&workspace_root);
+    let mut install_dirs = selected_dirs.as_ref().clone();
+    if let Some(workspace_root_project) = projects
+        .iter()
+        .find(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_workspace_root)
+    {
+        install_dirs.insert(workspace_root_project.root_dir.clone());
+    }
 
     Ok(Some(InstallFamilySelection {
         workspace_root,
@@ -192,6 +202,7 @@ pub(crate) fn select_workspace_projects(
         ordered_groups,
         ordered_dirs,
         selected_dirs,
+        install_dirs: Arc::new(install_dirs),
         active_manifest_is_standin,
     }))
 }

@@ -484,6 +484,7 @@ const WORKSPACE_DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const WORKSPACE_HELLO: &str = "@pnpm.e2e/hello-world-js-bin";
 const WORKSPACE_HELLO_PARENT: &str = "@pnpm.e2e/hello-world-js-bin-parent";
 const WORKSPACE_PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
+const WORKSPACE_ROOT_DEP: &str = "@foo/no-deps";
 const MISSING_PEERS_PARENT: &str = "@pnpm.e2e/abc-parent-with-missing-peers";
 
 fn configure_workspace(workspace: &Path) {
@@ -750,6 +751,16 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
     configure_workspace(&workspace);
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "workspace-root",
+            "version": "1.0.0",
+            "private": true,
+        })
+        .to_string(),
+    )
+    .expect("write workspace root manifest");
     write_workspace_project(&workspace, "selected", "selected", (WORKSPACE_HELLO, "0.0.0"));
     write_workspace_project(&workspace, "unselected", "unselected", (WORKSPACE_PARENT, "100.0.0"));
     pacquet_at(&workspace)
@@ -761,6 +772,18 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
     let prior_unselected = workspace_importer(&before, "packages/unselected").clone();
     let prior_parent = workspace_snapshot_entries(&before, WORKSPACE_PARENT);
     let prior_child = workspace_snapshot_entries(&before, WORKSPACE_DEP);
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "workspace-root",
+            "version": "1.0.0",
+            "private": true,
+            "dependencies": { WORKSPACE_ROOT_DEP: "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("add workspace root dependency");
+    let root_manifest = fs::read(workspace.join("package.json")).expect("read root manifest");
     replace_workspace_dependency(&workspace, "selected", (WORKSPACE_HELLO, "1.0.0"));
     replace_workspace_dependency(&workspace, "unselected", (WORKSPACE_HELLO_PARENT, "1.0.0"));
     let unselected_manifest =
@@ -790,12 +813,21 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
     assert_eq!(workspace_snapshot_entries(&after, WORKSPACE_DEP), prior_child);
     assert!(workspace_snapshot_entries(&after, WORKSPACE_HELLO_PARENT).is_empty());
     assert_eq!(workspace_importer_version(&after, "packages/selected", WORKSPACE_HELLO), "1.0.0");
-    assert!(!after.importers.contains_key("."));
+    assert_eq!(workspace_importer_version(&after, ".", WORKSPACE_ROOT_DEP), "1.0.0");
+    assert_eq!(
+        fs::read(workspace.join("package.json")).expect("read root manifest"),
+        root_manifest,
+    );
 
     if lockfile_only {
         assert!(!workspace.join("node_modules").exists());
         assert!(!store_dir.join("v11/index.db").exists());
     } else {
+        assert!(
+            is_symlink_or_junction(&workspace.join("node_modules").join(WORKSPACE_ROOT_DEP))
+                .unwrap_or(false),
+            "workspace root dependency must be linked",
+        );
         assert!(workspace_has_link(&workspace, "selected", WORKSPACE_HELLO));
         assert!(!workspace.join("packages/unselected/node_modules").exists());
         assert!(workspace_slot(&workspace, WORKSPACE_HELLO, "1.0.0").exists());
@@ -805,7 +837,7 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
         let current = read_workspace_current_lockfile(&workspace);
         assert_eq!(
             current.importers.keys().cloned().collect::<std::collections::BTreeSet<_>>(),
-            std::collections::BTreeSet::from(["packages/selected".to_string()]),
+            std::collections::BTreeSet::from([".".to_string(), "packages/selected".to_string()]),
         );
     }
 
@@ -813,12 +845,12 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
 }
 
 #[test]
-fn filtered_workspace_install_via_pnpr_materializes_only_selected_closure() {
+fn filtered_workspace_install_via_pnpr_materializes_the_root_and_selected_closure() {
     assert_filtered_workspace_pnpr(false);
 }
 
 #[test]
-fn filtered_workspace_pnpr_lockfile_only_merges_prior_wanted_without_root_importer() {
+fn filtered_workspace_pnpr_lockfile_only_merges_the_root_and_selected_importers() {
     assert_filtered_workspace_pnpr(true);
 }
 

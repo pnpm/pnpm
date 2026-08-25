@@ -173,6 +173,7 @@ impl Remove<'_> {
         ordered_groups: &[Vec<std::path::PathBuf>],
         ordered_dirs: &[std::path::PathBuf],
         selected_dirs: &HashSet<std::path::PathBuf>,
+        install_dirs: &HashSet<std::path::PathBuf>,
         active_manifest_is_standin: bool,
     ) -> Result<(), RemoveError> {
         let Remove {
@@ -245,6 +246,7 @@ impl Remove<'_> {
             ordered_groups,
             ordered_dirs,
             selected_dirs,
+            install_dirs,
             active_manifest_is_standin,
         })
         .await

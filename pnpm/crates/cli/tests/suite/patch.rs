@@ -1493,6 +1493,51 @@ fn setup_configured_patch_with_allow_unused(
     (root, workspace, npmrc_info)
 }
 
+fn setup_filtered_patch_workspace() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
+        .expect("write root package.json");
+    let project = workspace.join("packages").join("pkg-a");
+    fs::create_dir_all(&project).expect("create pkg-a dir");
+    fs::write(
+        project.join("package.json"),
+        serde_json::json!({
+            "name": "pkg-a",
+            "dependencies": {
+                "is-positive": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write pkg-a package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(workspace.join("patches").join("is-positive@1.0.0.patch"), IS_POSITIVE_PATCH)
+        .expect("write patch file");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str(concat!(
+        "packages:\n",
+        "  - 'packages/*'\n",
+        "patchedDependencies:\n",
+        "  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n",
+    ));
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    (root, workspace, npmrc_info)
+}
+
+fn append_unused_filtered_patch(workspace: &Path) {
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str("  is-negative@1.0.0: patches/is-positive@1.0.0.patch\n");
+    fs::write(workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+}
+
 #[test]
 fn unused_patch_fails_with_err_pnpm_unused_patch() {
     let (root, workspace, npmrc_info) = setup_configured_patch_with_allow_unused(
@@ -1555,45 +1600,12 @@ fn unused_patch_warns_when_allow_unused_patches_is_set() {
     drop((root, mock_instance));
 }
 
-/// pnpm only verifies patch usage when every workspace importer was part
-/// of the resolution, so a filtered install must not fail on an unused
-/// patch.
+/// pnpm skips patch usage validation when a first filtered install's
+/// previous wanted lockfile does not cover every resolved importer.
 #[test]
 fn unused_patch_is_not_checked_on_a_filtered_install() {
-    let CommandTempCwd { root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
-        .expect("write root package.json");
-    let project = workspace.join("packages").join("pkg-a");
-    fs::create_dir_all(&project).expect("create pkg-a dir");
-    fs::write(
-        project.join("package.json"),
-        serde_json::json!({
-            "name": "pkg-a",
-            "dependencies": {
-                "is-positive": "1.0.0",
-            },
-        })
-        .to_string(),
-    )
-    .expect("write pkg-a package.json");
-    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
-    fs::write(workspace.join("patches").join("is-positive@1.0.0.patch"), IS_POSITIVE_PATCH)
-        .expect("write patch file");
-    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
-    let mut workspace_yaml =
-        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
-    if !workspace_yaml.ends_with('\n') {
-        workspace_yaml.push('\n');
-    }
-    workspace_yaml.push_str(concat!(
-        "packages:\n",
-        "  - 'packages/*'\n",
-        "patchedDependencies:\n",
-        "  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n",
-        "  is-negative@1.0.0: patches/is-positive@1.0.0.patch\n",
-    ));
-    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    let (root, workspace, npmrc_info) = setup_filtered_patch_workspace();
+    append_unused_filtered_patch(&workspace);
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let output =
@@ -1604,6 +1616,29 @@ fn unused_patch_is_not_checked_on_a_filtered_install() {
     assert!(
         !stderr.contains("ERR_PNPM_UNUSED_PATCH"),
         "filtered install should not run the unused-patch check: {stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A filtered selection augmented with the workspace root covers every
+/// importer once the previous wanted lockfile does too, so pnpm validates
+/// unused patches.
+#[test]
+fn unused_patch_is_checked_for_a_complete_root_augmented_filtered_install() {
+    let (root, workspace, npmrc_info) = setup_filtered_patch_workspace();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    pacquet(&workspace, ["install"]).assert().success();
+    append_unused_filtered_patch(&workspace);
+
+    let output =
+        pacquet(&workspace, ["install", "--filter", "pkg-a"]).output().expect("run install");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "complete filtered install should fail: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_UNUSED_PATCH"),
+        "complete filtered install should run the unused-patch check: {stderr}",
     );
 
     drop((root, mock_instance));
