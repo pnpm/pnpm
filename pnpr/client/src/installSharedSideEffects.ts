@@ -49,19 +49,34 @@ export interface SharedSideEffectsInstallOptions<T extends string> {
   warn?: (message: string) => void
 }
 
+export interface SharedSideEffectsInstallPrerequisites {
+  ignoreScripts: boolean
+  nodeVersion?: string
+  pnprServer?: string
+  settings?: SharedSideEffectsCacheSettings
+  storeController: StoreController
+}
+
+export function canApplySharedSideEffectsToInstall (
+  opts: SharedSideEffectsInstallPrerequisites
+): boolean {
+  return opts.pnprServer != null &&
+    opts.settings != null &&
+    opts.settings.packages.length > 0 &&
+    !opts.ignoreScripts &&
+    currentLinuxGlibcPlatform(opts.nodeVersion) != null &&
+    opts.storeController.addFileToStore != null
+}
+
 export async function applySharedSideEffectsToInstall<T extends string> (
   opts: SharedSideEffectsInstallOptions<T>
 ): Promise<Map<T, string>> {
+  if (!canApplySharedSideEffectsToInstall(opts)) return new Map()
   const platform = currentLinuxGlibcPlatform(opts.nodeVersion)
-  if (
-    opts.pnprServer == null ||
-    opts.settings == null ||
-    opts.ignoreScripts ||
-    platform == null ||
-    opts.storeController.addFileToStore == null
-  ) return new Map()
+  const { pnprServer, settings } = opts
+  if (platform == null || pnprServer == null || settings == null) return new Map()
 
-  const eligiblePackages = new Set(opts.settings.packages)
+  const eligiblePackages = new Set(settings.packages)
   const allowedBuilds = new Set<string>()
   const grouped = new Map<string, {
     candidate: ArtifactCandidate
@@ -109,7 +124,7 @@ export async function applySharedSideEffectsToInstall<T extends string> (
         key: inputKey,
         package: { name: node.name, version: node.version },
         sourceIntegrity,
-        owner: { type: 'organization', name: opts.settings.organization },
+        owner: { type: 'organization', name: settings.organization },
       },
       localCacheKey,
       nodes: [node],
@@ -117,10 +132,10 @@ export async function applySharedSideEffectsToInstall<T extends string> (
   }
   if (grouped.size === 0) return new Map()
 
-  const authorization = createGetAuthHeaderByURI(opts.configByUri)(opts.pnprServer)
+  const authorization = createGetAuthHeaderByURI(opts.configByUri)(pnprServer)
   try {
     if (!await pnprSupportsSharedSideEffects({
-      registryUrl: opts.pnprServer,
+      registryUrl: pnprServer,
       authorization,
     })) return new Map()
   } catch (err: unknown) {
@@ -131,7 +146,7 @@ export async function applySharedSideEffectsToInstall<T extends string> (
   let resolved
   try {
     resolved = await resolveSharedSideEffects({
-      registryUrl: opts.pnprServer,
+      registryUrl: pnprServer,
       authorization,
       candidates: Array.from(grouped.values(), ({ candidate }) => candidate),
       supportedTags: linuxGlibcSupportedTags(platform),
@@ -140,7 +155,7 @@ export async function applySharedSideEffectsToInstall<T extends string> (
         eligiblePackages,
         allowedBuilds,
       },
-      trustedKeys: opts.settings.trustedKeys,
+      trustedKeys: settings.trustedKeys,
     })
   } catch (err: unknown) {
     opts.warn?.(`Shared side-effects cache lookup failed: ${errorMessage(err)}`)

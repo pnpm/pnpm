@@ -1,9 +1,11 @@
 export {
   applySharedSideEffectsToInstall,
+  canApplySharedSideEffectsToInstall,
   publishBuiltSharedSideEffects,
   type PublishBuiltSharedSideEffectsOptions,
   type SharedSideEffectsInstallNode,
   type SharedSideEffectsInstallOptions,
+  type SharedSideEffectsInstallPrerequisites,
 } from './installSharedSideEffects.js'
 export { type ResponseMetadata } from './protocol.js'
 export { type PnprProject, resolveViaPnprServer, type ResolveViaPnprServerOptions, type ResolveViaPnprServerResult } from './resolveViaPnprServer.js'

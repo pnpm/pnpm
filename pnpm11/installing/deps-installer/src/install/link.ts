@@ -24,8 +24,8 @@ import {
 } from '@pnpm/lockfile.filtering'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
-import { applySharedSideEffectsToInstall } from '@pnpm/pnpr.client'
-import type { StoreController, TarballResolution } from '@pnpm/store.controller-types'
+import { applySharedSideEffectsToInstall, canApplySharedSideEffectsToInstall } from '@pnpm/pnpr.client'
+import type { PackageFilesResponse, StoreController, TarballResolution } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   DepPath,
@@ -535,36 +535,51 @@ async function linkAllPkgs (
   // rather than pnpm's own `process.version`. Computed once outside
   // the per-node loop.
   const nodeVersion = findRuntimeNodeVersion(Object.keys(opts.depGraph))
-  const fetched = await Promise.all(depNodes.map(async (depNode) => ({
-    depNode,
-    files: (await depNode.fetching()).files,
-  })))
-  for (const { depNode, files } of fetched) depNode.requiresBuild = files.requiresBuild
-  const remoteHits = await applySharedSideEffectsToInstall({
-    allowBuild: opts.allowBuild,
-    configByUri: opts.configByUri,
-    depsGraph: opts.depGraph,
-    depsStateCache: opts.depsStateCache,
+  const filesResponses = new Map<DepPath, PackageFilesResponse>()
+  let remoteHits = new Map<DepPath, string>()
+  if (canApplySharedSideEffectsToInstall({
     ignoreScripts: opts.ignoreScripts,
     nodeVersion,
-    nodes: fetched.map(({ depNode, files }) => ({
-      graphKey: depNode.depPath,
-      depPath: depNode.depPath,
-      files,
-      name: depNode.name,
-      patchFileHash: depNode.patch?.hash,
-      resolution: depNode.resolution,
-      version: depNode.version,
-    })),
     pnprServer: opts.pnprServer,
     settings: opts.sharedSideEffectsCache,
-    sideEffectsCacheRead: opts.sideEffectsCacheRead,
     storeController,
-    supportedArchitectures: opts.supportedArchitectures,
-    warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
-  })
+  })) {
+    const fetched = await Promise.all(depNodes.map(async (depNode) => ({
+      depNode,
+      files: (await depNode.fetching()).files,
+    })))
+    for (const { depNode, files } of fetched) {
+      depNode.requiresBuild = files.requiresBuild
+      filesResponses.set(depNode.depPath, files)
+    }
+    remoteHits = await applySharedSideEffectsToInstall({
+      allowBuild: opts.allowBuild,
+      configByUri: opts.configByUri,
+      depsGraph: opts.depGraph,
+      depsStateCache: opts.depsStateCache,
+      ignoreScripts: opts.ignoreScripts,
+      nodeVersion,
+      nodes: fetched.map(({ depNode, files }) => ({
+        graphKey: depNode.depPath,
+        depPath: depNode.depPath,
+        files,
+        name: depNode.name,
+        patchFileHash: depNode.patch?.hash,
+        resolution: depNode.resolution,
+        version: depNode.version,
+      })),
+      pnprServer: opts.pnprServer,
+      settings: opts.sharedSideEffectsCache,
+      sideEffectsCacheRead: opts.sideEffectsCacheRead,
+      storeController,
+      supportedArchitectures: opts.supportedArchitectures,
+      warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
+    })
+  }
   await Promise.all(
-    fetched.map(async ({ depNode, files }): Promise<undefined> => {
+    depNodes.map(async (depNode): Promise<undefined> => {
+      const files = filesResponses.get(depNode.depPath) ?? (await depNode.fetching()).files
+      depNode.requiresBuild = files.requiresBuild
       let sideEffectsCacheKey: string | undefined
       if (remoteHits.has(depNode.depPath)) {
         sideEffectsCacheKey = remoteHits.get(depNode.depPath)

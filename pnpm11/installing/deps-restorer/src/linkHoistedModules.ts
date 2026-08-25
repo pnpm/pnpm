@@ -12,7 +12,7 @@ import type {
 } from '@pnpm/deps.graph-builder'
 import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
 import { logger } from '@pnpm/logger'
-import { applySharedSideEffectsToInstall } from '@pnpm/pnpr.client'
+import { applySharedSideEffectsToInstall, canApplySharedSideEffectsToInstall } from '@pnpm/pnpr.client'
 import type {
   PackageFilesResponse,
   StoreController,
@@ -65,41 +65,53 @@ export async function linkHoistedModules (
   const nodeVersion = findRuntimeNodeVersion(
     Object.values(graph).map((node) => node.depPath)
   )
-  const fetched = (await Promise.all(Object.entries(graph).map(async ([dir, depNode]) => {
-    if (depNode.fetching == null) return
-    try {
-      const filesResponse = (await depNode.fetching()).files
-      depNode.requiresBuild = filesResponse.requiresBuild
-      return { depNode, dir, filesResponse }
-    } catch (err: unknown) {
-      if (depNode.optional) return
-      throw err
-    }
-  }))).filter((entry): entry is NonNullable<typeof entry> => entry != null)
-  const filesResponses = new Map(fetched.map(({ dir, filesResponse }) => [dir, filesResponse]))
-  const remoteHits = await applySharedSideEffectsToInstall({
-    allowBuild: opts.allowBuild,
-    configByUri: opts.configByUri,
-    depsGraph: graph,
-    depsStateCache: opts.depsStateCache,
+  const filesResponses = new Map<string, PackageFilesResponse>()
+  let remoteHits = new Map<string, string>()
+  if (canApplySharedSideEffectsToInstall({
     ignoreScripts: opts.ignoreScripts,
     nodeVersion,
-    nodes: fetched.map(({ depNode, dir, filesResponse }) => ({
-      graphKey: dir,
-      depPath: depNode.depPath,
-      files: filesResponse,
-      name: depNode.name,
-      patchFileHash: depNode.patch?.hash,
-      resolution: depNode.resolution,
-      version: depNode.version,
-    })),
     pnprServer: opts.pnprServer,
     settings: opts.sharedSideEffectsCache,
-    sideEffectsCacheRead: opts.sideEffectsCacheRead,
     storeController,
-    supportedArchitectures: opts.supportedArchitectures,
-    warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
-  })
+  })) {
+    const fetched = (await Promise.all(Object.entries(graph).map(async ([dir, depNode]) => {
+      if (depNode.fetching == null) return
+      try {
+        const filesResponse = (await depNode.fetching()).files
+        depNode.requiresBuild = filesResponse.requiresBuild
+        return { depNode, dir, filesResponse }
+      } catch (err: unknown) {
+        if (depNode.optional) return
+        throw err
+      }
+    }))).filter((entry): entry is NonNullable<typeof entry> => entry != null)
+    for (const { dir, filesResponse } of fetched) {
+      filesResponses.set(dir, filesResponse)
+    }
+    remoteHits = await applySharedSideEffectsToInstall({
+      allowBuild: opts.allowBuild,
+      configByUri: opts.configByUri,
+      depsGraph: graph,
+      depsStateCache: opts.depsStateCache,
+      ignoreScripts: opts.ignoreScripts,
+      nodeVersion,
+      nodes: fetched.map(({ depNode, dir, filesResponse }) => ({
+        graphKey: dir,
+        depPath: depNode.depPath,
+        files: filesResponse,
+        name: depNode.name,
+        patchFileHash: depNode.patch?.hash,
+        resolution: depNode.resolution,
+        version: depNode.version,
+      })),
+      pnprServer: opts.pnprServer,
+      settings: opts.sharedSideEffectsCache,
+      sideEffectsCacheRead: opts.sideEffectsCacheRead,
+      storeController,
+      supportedArchitectures: opts.supportedArchitectures,
+      warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
+    })
+  }
   await Promise.all(
     Object.entries(hierarchy)
       .map(([parentDir, depsHierarchy]) => {

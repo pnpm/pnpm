@@ -49,7 +49,12 @@ const resolveViaPnprServer = jest.fn(async (
   }
 })
 
-jest.unstable_mockModule('@pnpm/pnpr.client', () => ({ resolveViaPnprServer }))
+jest.unstable_mockModule('@pnpm/pnpr.client', () => ({
+  applySharedSideEffectsToInstall: async () => new Map(),
+  canApplySharedSideEffectsToInstall: () => false,
+  publishBuiltSharedSideEffects: async () => undefined,
+  resolveViaPnprServer,
+}))
 
 const { install, mutateModules } = await import('@pnpm/installing.deps-installer')
 
