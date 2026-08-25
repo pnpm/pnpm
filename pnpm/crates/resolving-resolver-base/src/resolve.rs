@@ -250,8 +250,7 @@ pub trait PackageVersionGuard: Send + Sync + std::fmt::Debug {
     fn check<'a>(&'a self, name: &'a str, version: &'a str) -> PackageVersionGuardFuture<'a>;
 }
 
-/// Reload behavior the dispatcher passes per-resolve. A tri-state
-/// (`false | 'compatible' | 'latest'`).
+/// Reload behavior the dispatcher passes per-resolve.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum UpdateBehavior {
     /// Keep the lockfile-pinned version. The `false` state.
@@ -261,6 +260,8 @@ pub enum UpdateBehavior {
     Compatible,
     /// Bump to the latest. The `'latest'` state.
     Latest,
+    /// Refresh registry revisions without changing package versions.
+    Patches,
 }
 
 /// Previously-resolved entry from the lockfile, threaded so resolvers

@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto'
+import fs from 'node:fs'
+import http from 'node:http'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -12,6 +15,89 @@ import {
   execPnpm,
   execPnpmSync,
 } from './utils/index.js'
+
+test('update --patches refreshes a registry revision without changing the version', async () => {
+  const storage = process.env.PNPM_REGISTRY_MOCK_STORAGE
+  if (storage == null) throw new Error('PNPM_REGISTRY_MOCK_STORAGE is required')
+  const firstTarball = fs.readFileSync(path.join(storage, 'ajv-keywords', 'ajv-keywords-1.5.0.tgz'))
+  const secondTarball = Buffer.from(firstTarball)
+  secondTarball[9] = firstTarball[9] === 0xff ? 0x03 : 0xff
+  const firstIntegrity = `sha512-${createHash('sha512').update(firstTarball).digest('base64')}`
+  const secondIntegrity = `sha512-${createHash('sha512').update(secondTarball).digest('base64')}`
+
+  let revision = 1
+  let registry = ''
+  const server = http.createServer((request, response) => {
+    const artifacts = [firstTarball, secondTarball].map((tarball, index) => {
+      const digest = createHash('sha512').update(tarball).digest()
+      return {
+        integrity: `sha512-${digest.toString('base64')}`,
+        manifest: {},
+        revision: index + 1,
+        tarball: `${registry}-/tarballs/sha512/${digest.toString('base64url')}`,
+        bytes: tarball,
+      }
+    })
+    if (request.url === '/ajv-keywords') {
+      const current = artifacts[revision - 1]
+      response.writeHead(200, { 'Content-Type': 'application/json' })
+      response.end(JSON.stringify({
+        name: 'ajv-keywords',
+        'dist-tags': { latest: '1.5.0' },
+        versions: {
+          '1.5.0': {
+            name: 'ajv-keywords',
+            version: '1.5.0',
+            dist: {
+              integrity: current.integrity,
+              revision,
+              revisions: artifacts.slice(0, revision).map((artifact) => ({
+                integrity: artifact.integrity,
+                manifest: artifact.manifest,
+                revision: artifact.revision,
+                tarball: artifact.tarball,
+              })),
+              tarball: current.tarball,
+            },
+          },
+        },
+      }))
+      return
+    }
+    const artifact = artifacts.find(({ tarball }) => request.url === new URL(tarball).pathname)
+    if (artifact != null) {
+      response.writeHead(200, { 'Content-Type': 'application/octet-stream' })
+      response.end(artifact.bytes)
+      return
+    }
+    response.writeHead(404).end()
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  registry = `http://127.0.0.1:${(server.address() as { port: number }).port}/`
+
+  try {
+    const project = prepare({ dependencies: { 'ajv-keywords': '^1.5.0' } })
+    await execPnpm(['install', `--registry=${registry}`])
+    expect(project.readLockfile().packages['ajv-keywords@1.5.0'].resolution).toStrictEqual({
+      integrity: firstIntegrity,
+      revision: 1,
+    })
+    const manifest = await readPackageJsonFromDir('.')
+
+    revision = 2
+    await execPnpm(['update', '--patches', `--registry=${registry}`])
+
+    expect(await readPackageJsonFromDir('.')).toStrictEqual(manifest)
+    expect(project.readLockfile().packages['ajv-keywords@1.5.0'].resolution).toStrictEqual({
+      integrity: secondIntegrity,
+      revision: 2,
+    })
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => error == null ? resolve() : reject(error))
+    })
+  }
+})
 
 test('update <dep>', async () => {
   const project = prepare()

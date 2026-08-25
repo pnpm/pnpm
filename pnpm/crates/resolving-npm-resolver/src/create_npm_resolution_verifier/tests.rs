@@ -2,7 +2,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use pnpm_config::{TrustPolicy, version_policy::create_package_version_policy};
-use pnpm_lockfile::{LockfileResolution, PkgName, RegistryResolution, TarballResolution};
+use pnpm_lockfile::{
+    LockfileResolution, PkgName, RegistryResolution, TarballResolution, TarballRevision,
+};
 use pnpm_network::{
     AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient, UpstreamRouteHook,
 };
@@ -241,6 +243,128 @@ async fn verifies_tarball_url_when_no_policy_active() {
         panic!("expected Err, got {result:?}");
     };
     assert_eq!(code, "TARBALL_URL_MISMATCH");
+}
+
+const REVISION_ONE_DIGEST: &str =
+    "Umd2iCLuYk1I_OFexcp5y9YCy39MIVelFlVpkfIu-Me173sY0f9BxZNw77CFhlHUSpNsEbexRMSP4E3zxqPo2g";
+const REVISION_TWO_DIGEST: &str =
+    "rMKNsr63tCuqHLAkPUAcy04_zkTXsCh5pSeZqt_1QVItiCJZiy-mZPnVFWwAySSAXXXDhovVbCrLgdN-mONa3A";
+
+fn revision_integrity(digest: &str) -> Integrity {
+    format!("sha512-{}==", digest.replace('_', "/").replace('-', "+"))
+        .parse()
+        .expect("revision integrity")
+}
+
+#[test]
+fn does_not_verify_a_revision_without_an_active_policy() {
+    let verifier = create_npm_resolution_verifier(default_opts("https://registry.example/"));
+    let resolution = LockfileResolution::Registry(RegistryResolution {
+        integrity: revision_integrity(REVISION_ONE_DIGEST),
+        revision: Some(TarballRevision::try_from(1).unwrap()),
+    });
+    let name = "revision-pkg".parse::<PkgName>().unwrap();
+    assert!(!verifier.might_verify(&resolution, ctx(&name, "1.0.0")));
+}
+
+#[tokio::test]
+async fn accepts_an_advertised_historical_revision() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let packument = serde_json::json!({
+        "name": "revision-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "revision-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": revision_integrity(REVISION_TWO_DIGEST).to_string(),
+                    "tarball": format!("{registry}-/tarballs/sha512/{REVISION_TWO_DIGEST}"),
+                    "revision": 2,
+                    "revisions": [{
+                        "revision": 1,
+                        "integrity": revision_integrity(REVISION_ONE_DIGEST).to_string(),
+                        "tarball": format!("{registry}-/tarballs/sha512/{REVISION_ONE_DIGEST}"),
+                        "manifest": {},
+                    }, {
+                        "revision": 2,
+                        "integrity": revision_integrity(REVISION_TWO_DIGEST).to_string(),
+                        "tarball": format!("{registry}-/tarballs/sha512/{REVISION_TWO_DIGEST}"),
+                        "manifest": {},
+                    }],
+                }
+            }
+        },
+        "time": { "1.0.0": "2020-01-01T00:00:00.000Z" }
+    });
+    server
+        .mock("GET", "/revision-pkg")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(1);
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Registry(RegistryResolution {
+        integrity: revision_integrity(REVISION_ONE_DIGEST),
+        revision: Some(TarballRevision::try_from(1).unwrap()),
+    });
+    let name = "revision-pkg".parse::<PkgName>().unwrap();
+    assert_eq!(verifier.verify(&resolution, ctx(&name, "1.0.0")).await, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
+async fn rejects_a_revision_with_an_unadvertised_integrity() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let packument = serde_json::json!({
+        "name": "revision-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "revision-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": revision_integrity(REVISION_TWO_DIGEST).to_string(),
+                    "tarball": format!("{registry}-/tarballs/sha512/{REVISION_TWO_DIGEST}"),
+                    "revision": 2,
+                    "revisions": [{
+                        "revision": 1,
+                        "integrity": revision_integrity(REVISION_ONE_DIGEST).to_string(),
+                        "tarball": format!("{registry}-/tarballs/sha512/{REVISION_ONE_DIGEST}"),
+                        "manifest": {},
+                    }, {
+                        "revision": 2,
+                        "integrity": revision_integrity(REVISION_TWO_DIGEST).to_string(),
+                        "tarball": format!("{registry}-/tarballs/sha512/{REVISION_TWO_DIGEST}"),
+                        "manifest": {},
+                    }],
+                }
+            }
+        },
+        "time": { "1.0.0": "2020-01-01T00:00:00.000Z" }
+    });
+    server
+        .mock("GET", "/revision-pkg")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(1);
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Registry(RegistryResolution {
+        integrity: revision_integrity(REVISION_TWO_DIGEST),
+        revision: Some(TarballRevision::try_from(1).unwrap()),
+    });
+    let name = "revision-pkg".parse::<PkgName>().unwrap();
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected revision mismatch, got {result:?}");
+    };
+    assert_eq!(code, "TARBALL_REVISION_MISMATCH");
 }
 
 #[tokio::test]

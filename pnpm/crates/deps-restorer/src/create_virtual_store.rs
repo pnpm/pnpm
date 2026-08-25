@@ -597,6 +597,11 @@ impl CreateVirtualStore<'_> {
                         // directory resolution, so a warm slot's source
                         // is immutable by construction.
                         source_is_mutable: false,
+                        force_import: package_content_changed(
+                            current_packages,
+                            packages,
+                            snapshot_key,
+                        ),
                         needs_build_marker_source: needs_build_marker
                             .then_some(
                                 needs_build_marker_source
@@ -704,6 +709,11 @@ impl CreateVirtualStore<'_> {
                                     cas_paths,
                                     requires_build,
                                     source_is_mutable,
+                                    force_import: package_content_changed(
+                                        current_packages,
+                                        packages,
+                                        snapshot_key,
+                                    ),
                                 }),
                             ))
                         }
@@ -1020,6 +1030,7 @@ struct ColdCapture<'a> {
     cas_paths: HashMap<String, PathBuf>,
     requires_build: bool,
     source_is_mutable: bool,
+    force_import: bool,
 }
 
 struct SlotLink<'a> {
@@ -1028,6 +1039,7 @@ struct SlotLink<'a> {
     cas_paths: &'a HashMap<String, PathBuf>,
     warm_cache_key: Option<&'a str>,
     source_is_mutable: bool,
+    force_import: bool,
     needs_build_marker_source: Option<&'a Path>,
     /// Child aliases dropped since the previous install, threaded into
     /// [`crate::CreateVirtualDirBySnapshot::removed_aliases`] so their
@@ -1128,6 +1140,7 @@ fn link_cold_chunk<Reporter: self::Reporter>(
             cas_paths: &capture.cas_paths,
             warm_cache_key: None,
             source_is_mutable: capture.source_is_mutable,
+            force_import: capture.force_import,
             needs_build_marker_source: snapshot_needs_build_marker(
                 capture.snapshot_key,
                 capture.requires_build,
@@ -1203,6 +1216,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
                 package_key: slot.snapshot_key,
                 snapshot: slot.snapshot,
                 source_is_mutable: slot.source_is_mutable,
+                force_import: slot.force_import,
                 include_optional_dependencies,
                 symlink,
                 skipped,
@@ -1417,6 +1431,16 @@ fn integrity_equal(current: Option<&PackageMetadata>, wanted: Option<&PackageMet
     let current_integrity = current.and_then(|meta| meta.resolution.integrity());
     let wanted_integrity = wanted.and_then(|meta| meta.resolution.integrity());
     current_integrity == wanted_integrity
+}
+
+fn package_content_changed(
+    current_packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    wanted_packages: &HashMap<PackageKey, PackageMetadata>,
+    snapshot_key: &PackageKey,
+) -> bool {
+    let current = current_packages.and_then(|packages| packages.get(&snapshot_key.without_peer()));
+    let wanted = wanted_packages.get(&snapshot_key.without_peer());
+    current.is_some() && !integrity_equal(current, wanted)
 }
 
 /// True for the [`InstallPackageBySnapshotError`] variants pacquet

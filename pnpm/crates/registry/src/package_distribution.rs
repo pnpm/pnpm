@@ -9,6 +9,8 @@ pub struct PackageDistribution {
     pub tarball: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revision: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revisions: Option<serde_json::Value>,
     pub file_count: Option<usize>,
     pub unpacked_size: Option<usize>,
 

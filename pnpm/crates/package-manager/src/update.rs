@@ -106,6 +106,9 @@ pub struct Update<'a> {
     /// direct dependencies to their `latest` dist-tag, rewriting
     /// `package.json`.
     pub latest: bool,
+    /// `--patches`: refresh registry revisions while retaining every locked
+    /// package version and leaving manifest specifiers unchanged.
+    pub patches: bool,
     /// `--save-exact` / `-E`: write the resolved version without a range
     /// operator when rewriting the manifest under `--latest`. Only applies
     /// to dependencies whose current specifier has no recoverable pin; an
@@ -301,6 +304,7 @@ impl Update<'_> {
             lockfile_path,
             packages,
             latest,
+            patches,
             save_exact,
             save,
             include_direct,
@@ -385,6 +389,7 @@ impl Update<'_> {
             bump_targets,
             ..
         } = prepared;
+        let seed_policy = if patches { UpdateSeedPolicy::RefreshRevisions } else { seed_policy };
         let importer_id = pnpm_workspace::importer_id_from_root_dir(&workspace_root, &manifest_dir);
         let bumps = (!bump_targets.is_empty()).then(|| ManifestSpecBumps {
             targets: BTreeMap::from([(importer_id.clone(), bump_targets)]),
@@ -411,7 +416,7 @@ impl Update<'_> {
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
-            update_checksums: false,
+            update_checksums: patches,
             mutation: update_mutation(packages, latest),
             installs_only: true,
             resolved_packages,
@@ -497,6 +502,7 @@ impl Update<'_> {
             lockfile_path,
             packages,
             latest,
+            patches,
             save_exact,
             save,
             include_direct,
@@ -597,7 +603,7 @@ impl Update<'_> {
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
-            update_checksums: false,
+            update_checksums: patches,
             mutation: update_mutation(packages, latest),
             installs_only: true,
             resolved_packages,
@@ -606,9 +612,13 @@ impl Update<'_> {
             lockfile_only,
             dry_run: false,
             persist_policy_excludes: save,
-            update_seed_policy: UpdateSeedPolicy::ByImporter {
-                policies: prepared.seed_policies,
-                max_depth: UpdateDepth::new(depth),
+            update_seed_policy: if patches {
+                UpdateSeedPolicy::RefreshRevisions
+            } else {
+                UpdateSeedPolicy::ByImporter {
+                    policies: prepared.seed_policies,
+                    max_depth: UpdateDepth::new(depth),
+                }
             },
             preferred_versions_override: Some(prepared.preferred_versions_override),
             auth_override: None,
@@ -1241,8 +1251,8 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
         }
         match prepared.seed_policy {
             UpdateSeedPolicy::KeepAll => {}
-            UpdateSeedPolicy::KeepAllResolveAll => {
-                unreachable!("update never uses the dedupe seed policy")
+            UpdateSeedPolicy::KeepAllResolveAll | UpdateSeedPolicy::RefreshRevisions => {
+                unreachable!("manifest preparation never uses a whole-graph seed policy")
             }
             UpdateSeedPolicy::DropAll { .. } => {
                 seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropAll);

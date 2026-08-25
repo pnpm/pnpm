@@ -115,6 +115,7 @@ fn range_spec(name: &str, range: &str) -> RegistryPackageSpec {
         name: name.to_string(),
         fetch_spec: range.to_string(),
         spec_type: RegistryPackageSpecType::Range,
+        revision: None,
         normalized_bare_specifier: None,
     }
 }
@@ -124,6 +125,7 @@ fn version_spec(name: &str, version: &str) -> RegistryPackageSpec {
         name: name.to_string(),
         fetch_spec: version.to_string(),
         spec_type: RegistryPackageSpecType::Version,
+        revision: None,
         normalized_bare_specifier: None,
     }
 }

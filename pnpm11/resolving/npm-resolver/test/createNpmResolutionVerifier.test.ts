@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer'
+
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
@@ -616,6 +618,88 @@ test('createNpmResolutionVerifier() rejects a non-string tarball instead of cras
 })
 
 const FAKE_INTEGRITY = 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=='
+
+function revisionIntegrity (revision: 0 | 1 | 2): string {
+  return `sha512-${Buffer.alloc(64, revision).toString('base64')}`
+}
+
+function revisionTarball (revision: 0 | 1 | 2): string {
+  return `https://registry.npmjs.org/-/tarballs/sha512/${Buffer.alloc(64, revision).toString('base64url')}`
+}
+
+test('createNpmResolutionVerifier() does not fetch metadata for a revision without an active policy', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  await expect(verifier.verify(
+    { integrity: revisionIntegrity(1), revision: 1 } as unknown as Resolution,
+    { name: 'revision-pkg', version: '1.0.0' }
+  )).resolves.toStrictEqual({ ok: true })
+})
+
+test('createNpmResolutionVerifier() accepts an advertised historical revision', async () => {
+  const meta = {
+    name: 'revision-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'revision-pkg',
+        version: '1.0.0',
+        dist: {
+          integrity: revisionIntegrity(2),
+          tarball: revisionTarball(2),
+          revision: 2,
+          revisions: [
+            { revision: 0, integrity: revisionIntegrity(0), tarball: revisionTarball(0), manifest: {} },
+            { revision: 1, integrity: revisionIntegrity(1), tarball: revisionTarball(1), manifest: {} },
+            { revision: 2, integrity: revisionIntegrity(2), tarball: revisionTarball(2), manifest: {} },
+          ],
+        },
+      },
+    },
+    time: { '1.0.0': '2020-01-01T00:00:00.000Z' },
+  }
+  getMockAgent().get('https://registry.npmjs.org')
+    .intercept({ path: '/revision-pkg', method: 'GET' })
+    .reply(200, meta)
+    .persist()
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({ minimumReleaseAge: 1 }))
+  await expect(verifier.verify(
+    { integrity: revisionIntegrity(1), revision: 1 } as unknown as Resolution,
+    { name: 'revision-pkg', version: '1.0.0' }
+  )).resolves.toStrictEqual({ ok: true })
+})
+
+test('createNpmResolutionVerifier() rejects a revision whose integrity is not in registry history', async () => {
+  const meta = {
+    name: 'revision-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'revision-pkg',
+        version: '1.0.0',
+        dist: {
+          integrity: revisionIntegrity(2),
+          tarball: revisionTarball(2),
+          revision: 2,
+          revisions: [
+            { revision: 1, integrity: revisionIntegrity(1), tarball: revisionTarball(1), manifest: {} },
+            { revision: 2, integrity: revisionIntegrity(2), tarball: revisionTarball(2), manifest: {} },
+          ],
+        },
+      },
+    },
+    time: { '1.0.0': '2020-01-01T00:00:00.000Z' },
+  }
+  getMockAgent().get('https://registry.npmjs.org')
+    .intercept({ path: '/revision-pkg', method: 'GET' })
+    .reply(200, meta)
+    .persist()
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({ minimumReleaseAge: 1 }))
+  const result = await verifier.verify(
+    { integrity: revisionIntegrity(0), revision: 1 } as unknown as Resolution,
+    { name: 'revision-pkg', version: '1.0.0' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'TARBALL_REVISION_MISMATCH' })
+})
 
 test('createNpmResolutionVerifier() flags a lockfile tarball URL that does not match the registry metadata', async () => {
   // The version is old enough to clear minimumReleaseAge, but the lockfile

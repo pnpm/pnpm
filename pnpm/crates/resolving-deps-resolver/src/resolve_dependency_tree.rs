@@ -314,6 +314,15 @@ pub enum ResolveDependencyTreeError {
     #[display("Failed to resolve dependency: {_0}")]
     Resolve(#[error(not(source))] String),
 
+    #[display("Conflicting registry revisions were requested for \"{name}@{version}\".")]
+    #[diagnostic(
+        code(ERR_PNPM_REVISION_CONFLICT),
+        help(
+            "A single package name and version can resolve to only one registry artifact in an install."
+        )
+    )]
+    RevisionConflict { name: String, version: String },
+
     /// The registry publishes the package but nothing the request accepts,
     /// raised with the `ERR_PNPM_NO_MATCHING_VERSION` code.
     #[diagnostic(transparent)]

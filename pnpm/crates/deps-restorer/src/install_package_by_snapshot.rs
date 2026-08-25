@@ -691,6 +691,7 @@ impl InstallPackageBySnapshot<'_> {
                 package_key,
                 snapshot,
                 source_is_mutable,
+                force_import: false,
                 include_optional_dependencies,
                 symlink: config.symlink,
                 skipped,

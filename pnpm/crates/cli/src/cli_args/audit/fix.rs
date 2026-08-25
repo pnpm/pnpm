@@ -540,6 +540,7 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
             lockfile_path: Some(&lockfile_path),
             packages: &[],
             latest: false,
+            patches: false,
             save_exact: false,
             save: true,
             include_direct: vec![

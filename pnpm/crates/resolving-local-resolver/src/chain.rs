@@ -205,8 +205,8 @@ fn local_options(opts: &ResolveOptions) -> LocalResolverOptions {
         lockfile_dir: Some(opts.lockfile_dir.clone()),
         current_pkg: None,
         update: match opts.update {
-            UpdateBehavior::Off => LocalResolverUpdate::Off,
             UpdateBehavior::Compatible | UpdateBehavior::Latest => LocalResolverUpdate::On,
+            UpdateBehavior::Off | UpdateBehavior::Patches => LocalResolverUpdate::Off,
         },
     }
 }

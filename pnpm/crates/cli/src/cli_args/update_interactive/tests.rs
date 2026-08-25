@@ -47,6 +47,7 @@ importers:
         .await;
     let mut config = Config::new();
     config.registry = registry;
+    config.cache_dir = temp.path().join("cache");
     config.minimum_release_age = Some(60);
     let projects =
         [InteractiveUpdateProject { manifest: &manifest, importer_id: "packages/a".to_string() }];
@@ -109,6 +110,7 @@ importers:
         .await;
     let mut config = Config::new();
     config.registry = registry;
+    config.cache_dir = temp.path().join("cache");
     let projects = [
         InteractiveUpdateProject { manifest: &foo, importer_id: "packages/a".to_string() },
         InteractiveUpdateProject { manifest: &bar, importer_id: "packages/b".to_string() },
@@ -174,6 +176,7 @@ importers:
         .await;
     let mut config = Config::new();
     config.registry = registry;
+    config.cache_dir = temp.path().join("cache");
     let projects = [
         InteractiveUpdateProject { manifest: &direct, importer_id: "packages/a".to_string() },
         InteractiveUpdateProject { manifest: &alias, importer_id: "packages/b".to_string() },
@@ -234,6 +237,7 @@ importers:
         .await;
     let mut config = Config::new();
     config.registry = registry;
+    config.cache_dir = temp.path().join("cache");
     let projects = [
         InteractiveUpdateProject { manifest: &first, importer_id: "packages/a".to_string() },
         InteractiveUpdateProject { manifest: &second, importer_id: "packages/b".to_string() },
@@ -297,6 +301,7 @@ importers:
             .await;
         let mut config = Config::new();
         config.registry = registry;
+        config.cache_dir = temp.path().join("cache");
         let projects = [InteractiveUpdateProject {
             manifest: &manifest,
             importer_id: "packages/a".to_string(),

@@ -948,8 +948,14 @@ async fn upstream_endpoint_preserves_and_serves_revision_tarballs() {
         "dist-tags": { "latest": "1.0.0" },
         "versions": { "1.0.0": { "name": "foo", "version": "1.0.0", "dist": {
             "tarball": format!("{}/{}", upstream.url(), revision_path),
-            "integrity": integrity_text,
+            "integrity": integrity_text.clone(),
             "revision": 2,
+            "revisions": [{
+                "revision": 2,
+                "integrity": integrity_text,
+                "tarball": format!("{}/{}", upstream.url(), revision_path),
+                "manifest": {},
+            }],
         } } },
     });
     let packument_mock = upstream

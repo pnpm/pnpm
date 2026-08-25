@@ -1,6 +1,9 @@
-use pnpm_lockfile::PkgNameVerPeer;
+use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, RegistryResolution, TarballRevision};
 
-use super::landed_on_prior_entry;
+use super::{
+    exact_registry_specifier_for_revision_refresh, landed_on_prior_entry,
+    registry_revisions_conflict,
+};
 
 fn key(raw: &str) -> PkgNameVerPeer {
     raw.parse().expect("parse snapshot key")
@@ -32,6 +35,66 @@ fn strips_the_resolved_id_patch_suffix() {
 fn matches_a_name_prefixed_file_id() {
     assert!(landed_on_prior_entry(&key("foo@file:packages/foo"), "foo@file:packages/foo"));
     assert!(!landed_on_prior_entry(&key("foo@file:packages/foo"), "file:packages/foo"));
+}
+
+fn revision_resolution(revision: u64, integrity: &str) -> LockfileResolution {
+    LockfileResolution::Registry(RegistryResolution {
+        integrity: integrity.parse().unwrap(),
+        revision: Some(TarballRevision::try_from(revision).unwrap()),
+    })
+}
+
+#[test]
+fn conflicting_registry_revisions_are_detected() {
+    assert!(registry_revisions_conflict(
+        &revision_resolution(
+            1,
+            "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+        ),
+        &revision_resolution(
+            2,
+            "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=="
+        ),
+    ));
+}
+
+#[test]
+fn identical_registry_revisions_can_share_an_identity() {
+    let resolution = revision_resolution(
+        1,
+        "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+    );
+    assert!(!registry_revisions_conflict(&resolution, &resolution));
+}
+
+#[test]
+fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selectors() {
+    assert_eq!(exact_registry_specifier_for_revision_refresh("^1.0.0", "1.2.3", None), "1.2.3");
+    assert_eq!(
+        exact_registry_specifier_for_revision_refresh("npm:@scope/pkg@^1.0.0", "1.2.3", None,),
+        "npm:@scope/pkg@1.2.3",
+    );
+    assert_eq!(
+        exact_registry_specifier_for_revision_refresh(
+            "corp:@scope/pkg@^1.0.0",
+            "1.2.3",
+            Some("corp"),
+        ),
+        "corp:@scope/pkg@1.2.3",
+    );
+    assert_eq!(
+        exact_registry_specifier_for_revision_refresh("1.2.3+r1", "1.2.3", None),
+        "1.2.3+r1",
+    );
+    assert_eq!(exact_registry_specifier_for_revision_refresh("^1.2.3+r1", "1.2.3", None), "1.2.3");
+    assert_eq!(
+        exact_registry_specifier_for_revision_refresh(
+            "git+https://example.test/repo.git",
+            "1.2.3",
+            None
+        ),
+        "git+https://example.test/repo.git",
+    );
 }
 
 /// A resolver that hands back no manifest still has to give the package

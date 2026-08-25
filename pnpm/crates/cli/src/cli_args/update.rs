@@ -90,6 +90,10 @@ pub struct UpdateArgs {
     #[clap(short = 'L', long)]
     pub latest: bool,
 
+    /// Refresh registry revisions without changing package versions.
+    #[clap(long)]
+    pub patches: bool,
+
     /// Write the resolved version without a range operator when
     /// rewriting the manifest under `--latest`.
     #[clap(short = 'E', long = "save-exact")]
@@ -162,6 +166,11 @@ enum WorkspaceUpdateError {
     OutsideWorkspace,
 }
 
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("--patches cannot be combined with package selectors, --latest, or --interactive")]
+#[diagnostic(code(ERR_PNPM_PATCHES_WITH_SELECTOR))]
+struct PatchesWithSelectorError;
+
 impl UpdateArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
@@ -171,6 +180,7 @@ impl UpdateArgs {
         self,
         mut state: State,
     ) -> miette::Result<()> {
+        self.check_patches_options()?;
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let workspace_packages = self
             .check_workspace_option(state.config.workspace_dir.as_deref())?
@@ -258,6 +268,7 @@ impl UpdateArgs {
                 lockfile_path: Some(&lockfile_path),
                 packages: &package_selectors,
                 latest: self.latest,
+                patches: self.patches,
                 save_exact: self.save_exact || config.save_exact,
                 save: !self.no_save,
                 include_direct,
@@ -288,6 +299,7 @@ impl UpdateArgs {
         mut state: State,
         selection: InstallFamilySelection,
     ) -> miette::Result<()> {
+        self.check_patches_options()?;
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let workspace_packages = self
             .check_workspace_option(state.config.workspace_dir.as_deref())?
@@ -370,6 +382,7 @@ impl UpdateArgs {
                 lockfile_path: Some(&lockfile_path),
                 packages: &package_selectors,
                 latest: self.latest,
+                patches: self.patches,
                 save_exact: self.save_exact || config.save_exact,
                 save: !self.no_save,
                 include_direct,
@@ -409,6 +422,7 @@ impl UpdateArgs {
         self,
         config: &'static Config,
     ) -> miette::Result<()> {
+        self.check_patches_options()?;
         self.check_workspace_option(None)?;
         let selected_hashes: Option<HashSet<String>> = if self.interactive {
             match crate::cli_args::update_interactive::select_global_package_groups(
@@ -458,6 +472,13 @@ impl UpdateArgs {
             return Err(WorkspaceUpdateError::LatestWithWorkspace.into());
         }
         workspace_root.ok_or_else(|| WorkspaceUpdateError::OutsideWorkspace.into()).map(Some)
+    }
+
+    fn check_patches_options(&self) -> miette::Result<()> {
+        if self.patches && (!self.packages.is_empty() || self.latest || self.interactive) {
+            return Err(PatchesWithSelectorError.into());
+        }
+        Ok(())
     }
 
     fn should_update_github_actions(

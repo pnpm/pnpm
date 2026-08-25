@@ -63,6 +63,9 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     /// short-circuit in [`fn@crate::import_indexed_dir`] would otherwise
     /// leave the previous install's copy in place forever.
     pub source_is_mutable: bool,
+    /// Whether an existing slot contains a different immutable artifact
+    /// under the same package key and must be replaced.
+    pub force_import: bool,
     /// Whether links from the snapshot's `optionalDependencies` map
     /// participate in the slot layout.
     pub include_optional_dependencies: bool,
@@ -135,6 +138,7 @@ impl CreateVirtualDirBySnapshot<'_> {
             package_key,
             snapshot,
             source_is_mutable,
+            force_import,
             include_optional_dependencies,
             symlink,
             skipped,
@@ -179,7 +183,7 @@ impl CreateVirtualDirBySnapshot<'_> {
         };
         // Mutable sources can reuse a slot for different contents, so a complete import may be stale.
         let safe_to_skip = layout.enable_global_virtual_store() && !source_is_mutable;
-        let import_opts = if interrupted_build || source_is_mutable {
+        let import_opts = if interrupted_build || source_is_mutable || force_import {
             ImportIndexedDirOpts { force: true, keep_modules_dir: true, safe_to_skip }
         } else {
             ImportIndexedDirOpts { safe_to_skip, ..ImportIndexedDirOpts::default() }

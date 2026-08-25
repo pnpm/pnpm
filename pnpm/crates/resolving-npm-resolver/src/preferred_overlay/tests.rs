@@ -66,6 +66,7 @@ fn range_spec() -> RegistryPackageSpec {
         name: "foo".to_string(),
         fetch_spec: ">=2.1.3 <3.0.0-0".to_string(),
         spec_type: RegistryPackageSpecType::Range,
+        revision: None,
         normalized_bare_specifier: None,
     }
 }

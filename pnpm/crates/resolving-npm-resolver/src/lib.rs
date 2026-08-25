@@ -73,8 +73,9 @@ pub use pick_package::{
 };
 pub use pick_package_from_meta::{
     PickPackageFromMetaError, PickPackageFromMetaOptions, PickVersionByVersionRangeOptions,
-    RegistryPackageSpec, RegistryPackageSpecType, filter_pkg_metadata_by_publish_date,
-    pick_lowest_version_by_version_range, pick_package_from_meta, pick_version_by_version_range,
+    RegistryPackageSpec, RegistryPackageSpecType, RegistryRevisionSelector,
+    filter_pkg_metadata_by_publish_date, pick_lowest_version_by_version_range,
+    pick_package_from_meta, pick_version_by_version_range,
 };
 pub use pnpm_lockfile::pick_registry_for_package;
 pub use registry_url::to_registry_url;

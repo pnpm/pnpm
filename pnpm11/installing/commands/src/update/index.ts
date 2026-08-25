@@ -89,6 +89,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     'include-github-actions': Boolean,
     interactive: Boolean,
     latest: Boolean,
+    patches: Boolean,
     recursive: Boolean,
     workspace: Boolean,
   }
@@ -134,6 +135,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: 'Ignore version ranges in package.json',
             name: '--latest',
             shortAlias: '-L',
+          },
+          {
+            description: 'Refresh registry revisions without changing package versions',
+            name: '--patches',
           },
           {
             description: 'Update packages only in "dependencies" and "optionalDependencies"',
@@ -190,6 +195,7 @@ export type UpdateCommandOptions = InstallCommandOptions & {
   includeGithubActions?: boolean
   interactive?: boolean
   latest?: boolean
+  patches?: boolean
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
 }
 
@@ -198,6 +204,7 @@ export async function handler (
   params: string[] = [],
   commands?: CommandHandlerMap
 ): Promise<string | undefined> {
+  assertPatchesOptions(params, opts)
   if (opts.global) {
     if (!opts.bin) {
       throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
@@ -410,6 +417,7 @@ async function update (
   opts: UpdateCommandOptions,
   rebuildHandler?: CommandHandler
 ): Promise<void> {
+  assertPatchesOptions(dependencies, opts)
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
   const updateActions = shouldUpdateGitHubActions(opts, includeDirect)
   if (opts.latest) {
@@ -451,9 +459,10 @@ async function update (
       include,
       includeDirect,
       update: true,
+      updatePatches: opts.patches,
       updateToLatest: opts.latest,
       updateMatching,
-      updatePackageManifest: opts.save !== false,
+      updatePackageManifest: opts.patches ? false : opts.save !== false,
       resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
       // `--dry-run` is an `install`-only preview; never let a config-level
       // `dry-run` turn `update` into a no-op check.
@@ -470,6 +479,12 @@ async function update (
   }
   if (changesetContext != null) {
     await generateUpdateChangeset(changesetContext)
+  }
+}
+
+function assertPatchesOptions (dependencies: string[], opts: UpdateCommandOptions): void {
+  if (opts.patches && (dependencies.length > 0 || opts.latest || opts.interactive)) {
+    throw new PnpmError('PATCHES_WITH_SELECTOR', '--patches cannot be combined with package selectors, --latest, or --interactive')
   }
 }
 

@@ -271,6 +271,10 @@ pub enum UpdateSeedPolicy {
     /// `pacquet dedupe` uses this to preserve valid pins while rebuilding
     /// the graph around the fewest compatible versions.
     KeepAllResolveAll,
+    /// Re-resolve every registry edge at its locked version using fresh
+    /// metadata. `pacquet update --patches` uses this to pick the registry's
+    /// current revision without allowing semver movement.
+    RefreshRevisions,
     /// Withhold every lockfile pin. `pacquet update` with no package
     /// selectors — the whole graph re-resolves to highest-in-range.
     DropAll {
@@ -331,9 +335,9 @@ impl UpdateSeedPolicy {
 
     fn max_depth(&self) -> UpdateDepth {
         match self {
-            UpdateSeedPolicy::KeepAll | UpdateSeedPolicy::KeepAllResolveAll => {
-                UpdateDepth::UNLIMITED
-            }
+            UpdateSeedPolicy::KeepAll
+            | UpdateSeedPolicy::KeepAllResolveAll
+            | UpdateSeedPolicy::RefreshRevisions => UpdateDepth::UNLIMITED,
             UpdateSeedPolicy::DropAll { max_depth }
             | UpdateSeedPolicy::DropOnly { max_depth, .. }
             | UpdateSeedPolicy::ByImporter { max_depth, .. } => *max_depth,
@@ -357,7 +361,9 @@ fn update_reuse_scopes(
 
     match policy {
         UpdateSeedPolicy::KeepAll => (UpdateReuseScope::All, BTreeMap::new()),
-        UpdateSeedPolicy::KeepAllResolveAll => (UpdateReuseScope::None, BTreeMap::new()),
+        UpdateSeedPolicy::KeepAllResolveAll | UpdateSeedPolicy::RefreshRevisions => {
+            (UpdateReuseScope::None, BTreeMap::new())
+        }
         UpdateSeedPolicy::DropAll { .. } => (UpdateReuseScope::None, BTreeMap::new()),
         UpdateSeedPolicy::DropOnly { targets, .. } => {
             (UpdateReuseScope::Except(targets.clone()), BTreeMap::new())
@@ -1028,6 +1034,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             package_version_guard: package_version_guard.clone(),
             workspace_packages: workspace_packages.clone(),
             update_checksums,
+            update_behavior: if matches!(update_seed_policy, UpdateSeedPolicy::RefreshRevisions) {
+                pnpm_resolving_resolver_base::UpdateBehavior::Patches
+            } else {
+                pnpm_resolving_resolver_base::UpdateBehavior::Off
+            },
         };
         let lockfile_reuse_seed = resolve::lockfile_reuse_seed(resolve::ReuseSeedInputs {
             config,

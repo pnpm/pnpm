@@ -229,15 +229,27 @@ fn rewrites_npm_form_tarball() {
 
 #[test]
 fn preserves_valid_upstream_revision_route_on_the_public_registry() {
-    let digest = "A".repeat(86);
+    let current_digest = "A".repeat(86);
+    let original_digest = "Q".repeat(86);
     let mut doc = json!({
         "versions": {
             "1.0.0": {
                 "version": "1.0.0",
                 "dist": {
-                    "tarball": format!("https://upstream.test/npm/-/tarballs/sha512/{digest}"),
-                    "integrity": format!("sha512-{digest}=="),
+                    "tarball": format!("https://upstream.test/npm/-/tarballs/sha512/{current_digest}"),
+                    "integrity": format!("sha512-{current_digest}=="),
                     "revision": 2,
+                    "revisions": [{
+                        "revision": 0,
+                        "integrity": format!("sha512-{original_digest}=="),
+                        "tarball": format!("https://upstream.test/npm/-/tarballs/sha512/{original_digest}"),
+                        "manifest": { "dependencies": { "bar": "1" } },
+                    }, {
+                        "revision": 2,
+                        "integrity": format!("sha512-{current_digest}=="),
+                        "tarball": format!("https://upstream.test/npm/-/tarballs/sha512/{current_digest}"),
+                        "manifest": {},
+                    }],
                 }
             }
         }
@@ -253,9 +265,41 @@ fn preserves_valid_upstream_revision_route_on_the_public_registry() {
 
     assert_eq!(
         doc["versions"]["1.0.0"]["dist"]["tarball"],
-        format!("http://pnpr.test/~corp/-/tarballs/sha512/{digest}"),
+        format!("http://pnpr.test/~corp/-/tarballs/sha512/{current_digest}"),
     );
     assert_eq!(doc["versions"]["1.0.0"]["dist"]["revision"], 2);
+    assert_eq!(
+        doc["versions"]["1.0.0"]["dist"]["revisions"][0]["tarball"],
+        format!("http://pnpr.test/~corp/-/tarballs/sha512/{original_digest}"),
+    );
+    assert_eq!(
+        doc["versions"]["1.0.0"]["dist"]["revisions"][1]["tarball"],
+        format!("http://pnpr.test/~corp/-/tarballs/sha512/{current_digest}"),
+    );
+}
+
+#[test]
+fn drops_invalid_upstream_revision_history_entries() {
+    let digest = "A".repeat(86);
+    let mut doc = json!({
+        "version": "1.0.0",
+        "dist": {
+            "tarball": format!("https://upstream.test/-/tarballs/sha512/{digest}"),
+            "integrity": format!("sha512-{digest}=="),
+            "revision": 2,
+            "revisions": [{
+                "revision": 1,
+                "integrity": format!("sha512-{digest}=="),
+                "tarball": format!("https://other.test/-/tarballs/sha512/{digest}"),
+                "manifest": {},
+            }],
+        },
+    });
+    let name = PackageName::parse("foo").unwrap();
+
+    rewrite_upstream_tarball_urls(&mut doc, &name, "https://upstream.test/", "http://pnpr.test/");
+
+    assert_eq!(doc["dist"]["revisions"], json!([]));
 }
 
 #[test]

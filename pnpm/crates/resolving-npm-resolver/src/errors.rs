@@ -216,6 +216,34 @@ pub struct InvalidTarballRevisionMetadataError {
     pub reason: String,
 }
 
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Invalid registry revision in version specifier \"{specifier}\"")]
+#[diagnostic(code(ERR_PNPM_INVALID_REVISION_SPEC))]
+pub struct InvalidRevisionSpecifierError {
+    #[error(not(source))]
+    pub specifier: String,
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("No revision {revision} is advertised for {name}@{version}")]
+#[diagnostic(code(ERR_PNPM_NO_MATCHING_REVISION))]
+pub struct NoMatchingRevisionError {
+    #[error(not(source))]
+    pub name: String,
+    pub version: String,
+    pub revision: u64,
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("The revision history for {name}@{version} is invalid: {reason}.")]
+#[diagnostic(code(ERR_PNPM_MALFORMED_METADATA))]
+pub struct MalformedRevisionHistoryError {
+    #[error(not(source))]
+    pub name: String,
+    pub version: String,
+    pub reason: String,
+}
+
 impl InvalidTarballRevisionMetadataError {
     #[must_use]
     pub fn new(tarball: &str, reason: impl Into<String>) -> Self {

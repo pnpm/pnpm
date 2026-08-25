@@ -399,6 +399,7 @@ export interface ResolveOptions {
   preferWorkspacePackages?: boolean
   workspacePackages?: WorkspacePackages
   update?: false | 'compatible' | 'latest'
+  updatePatches?: boolean
   /**
    * True only when this specific package matches the user's update target
    * (e.g. `pnpm up <name>`). Unlike `update`, this is false for unrelated
