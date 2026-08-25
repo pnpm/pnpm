@@ -164,16 +164,16 @@ describe('integrity-addressed tarball URLs', () => {
   })
 
   test.each([
-    `sha512-${SHA512_BASE64}?r1`,
-    'sha512-AAAA',
-    `sha512-${'A'.repeat(1024 * 1024)}`,
-    `sha256-${SHA512_BASE64}`,
-    `${SHA512_BASE64}`,
-    {},
-    [],
-    1,
-    true,
-  ])('does not recognize %s', (integrity) => {
+    { name: 'a revision suffix', integrity: `sha512-${SHA512_BASE64}?r1` },
+    { name: 'a truncated digest', integrity: 'sha512-AAAA' },
+    { name: 'an oversized digest', integrity: `sha512-${'A'.repeat(1024 * 1024)}` },
+    { name: 'a different algorithm', integrity: `sha256-${SHA512_BASE64}` },
+    { name: 'a missing algorithm', integrity: SHA512_BASE64 },
+    { name: 'an object', integrity: {} },
+    { name: 'an array', integrity: [] },
+    { name: 'a number', integrity: 1 },
+    { name: 'a boolean', integrity: true },
+  ])('does not recognize $name', ({ integrity }) => {
     expect(parseIntegrityAddress(integrity)).toBeUndefined()
   })
 
