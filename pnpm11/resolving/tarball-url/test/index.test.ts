@@ -169,6 +169,10 @@ describe('integrity-addressed tarball URLs', () => {
     `sha512-${'A'.repeat(1024 * 1024)}`,
     `sha256-${SHA512_BASE64}`,
     `${SHA512_BASE64}`,
+    {},
+    [],
+    1,
+    true,
   ])('does not recognize %s', (integrity) => {
     expect(parseIntegrityAddress(integrity)).toBeUndefined()
   })

@@ -520,6 +520,43 @@ async fn no_redirect_client_returns_the_first_redirect_response() {
 }
 
 #[tokio::test]
+async fn from_clients_uses_the_supplied_no_redirect_configuration() {
+    let mut registry = mockito::Server::new_async().await;
+    let start_mock = registry
+        .mock("GET", "/start")
+        .match_header("user-agent", "strict-client")
+        .with_status(302)
+        .with_header("location", "/final")
+        .expect(1)
+        .create_async()
+        .await;
+    let final_mock = registry.mock("GET", "/final").expect(0).create_async().await;
+    let client = reqwest::Client::builder()
+        .user_agent("ordinary-client")
+        .build()
+        .expect("build ordinary client");
+    let client_without_redirects = reqwest::Client::builder()
+        .user_agent("strict-client")
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("build strict client");
+    let client = ThrottledClient::from_clients(client, client_without_redirects);
+    let url = format!("{}/start", registry.url());
+
+    let response = client
+        .acquire_for_url_without_redirects_with_priority(&url, 0)
+        .await
+        .get(&url)
+        .send()
+        .await
+        .expect("strict client returns the redirect response");
+
+    assert_eq!(response.status(), 302);
+    start_mock.assert_async().await;
+    final_mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn https_target_uses_configured_proxy() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind proxy");
     let proxy_addr = listener.local_addr().expect("proxy address");

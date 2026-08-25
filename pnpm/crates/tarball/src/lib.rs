@@ -357,7 +357,7 @@ impl<'a> DownloadTarballToStore<'a> {
                 // error the cache slot must transition to `Failed` and
                 // we must `notify_waiters` so concurrent requesters
                 // wake up and surface a sibling-fetch error instead of
-                // parking on the Notify forever (the original deadlock).
+                // parking on the Notify forever.
                 // Ordinary fetches remove the failed slot so a later caller
                 // can retry. A revision-addressed fetch keeps it terminal for
                 // this install, preserving the protocol's one-GET contract.

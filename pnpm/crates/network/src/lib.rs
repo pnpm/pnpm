@@ -44,8 +44,7 @@ use std::{
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 /// Fallback `User-Agent` for the install client's no-config
-/// constructors ([`ThrottledClient::new_for_installs`],
-/// [`ThrottledClient::from_client`]) and for the case where a
+/// constructors ([`ThrottledClient::new_for_installs`]) and for the case where a
 /// configured user-agent string cannot be encoded as an HTTP header
 /// value.
 ///
@@ -550,18 +549,13 @@ impl ThrottledClient {
         })
     }
 
-    /// Construct a throttled client wrapping a pre-built [`Client`].
-    /// Useful for tests that want different timeout values than
-    /// [`Self::new_for_installs`] sets — e.g. sub-second connect
-    /// timeouts so firewalled / unreachable URLs fail within the
-    /// test-suite budget instead of waiting on TCP retry.
+    /// Construct a throttled client wrapping aligned pre-built clients.
+    /// `client_without_redirects` must carry the same TLS, proxy, timeout,
+    /// headers, and protocol settings as `client`, differing only in its
+    /// redirect policy.
     #[must_use]
-    pub fn from_client(client: Client) -> Self {
+    pub fn from_clients(client: Client, client_without_redirects: Client) -> Self {
         let semaphore = PrioritySemaphore::new(default_network_concurrency());
-        let client_without_redirects = Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .expect("build no-redirect HTTP client");
         ThrottledClient {
             semaphore,
             client_without_redirects,

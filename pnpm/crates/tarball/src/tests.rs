@@ -153,13 +153,19 @@ fn allocate_tarball_buffer_rejects_absurd_content_length() {
 /// could stall for minutes of TCP retry. One-second bounds are
 /// plenty for loopback and keep the failure mode deterministic.
 fn fast_fail_client() -> ThrottledClient {
-    let client = reqwest::Client::builder()
-        .no_proxy()
-        .connect_timeout(std::time::Duration::from_secs(1))
-        .timeout(std::time::Duration::from_secs(1))
-        .build()
-        .expect("build reqwest client");
-    ThrottledClient::from_client(client)
+    let build = |redirect| {
+        reqwest::Client::builder()
+            .no_proxy()
+            .connect_timeout(std::time::Duration::from_secs(1))
+            .timeout(std::time::Duration::from_secs(1))
+            .redirect(redirect)
+            .build()
+            .expect("build reqwest client")
+    };
+    ThrottledClient::from_clients(
+        build(reqwest::redirect::Policy::limited(10)),
+        build(reqwest::redirect::Policy::none()),
+    )
 }
 
 /// Pin `walk_reqwest_chain`'s contract: a `NetworkError` formed

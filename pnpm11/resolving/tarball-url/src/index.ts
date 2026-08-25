@@ -1,8 +1,11 @@
 import { Buffer } from 'node:buffer'
+import util from 'node:util'
 
+import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import type { RegistryServerType } from '@pnpm/types'
 
 const PUBLIC_NPM_REGISTRY = 'https://registry.npmjs.org/'
+const SHA512_INTEGRITY_LENGTH = 'sha512-'.length + 88
 
 /**
  * registry.npmjs.org is the one registry whose layout pnpm knows without being
@@ -27,37 +30,6 @@ export interface IntegrityAddress {
   digest: Buffer
 }
 
-export function parseIntegrityAddress (integrity: string): IntegrityAddress | undefined {
-  const algorithmSeparator = integrity.indexOf('-')
-  if (algorithmSeparator === -1 || integrity.indexOf('-', algorithmSeparator + 1) !== -1) {
-    return undefined
-  }
-  const algorithm = integrity.slice(0, algorithmSeparator)
-  if (algorithm !== 'sha512') return undefined
-
-  const encodedDigest = integrity.slice(algorithmSeparator + 1)
-  if (encodedDigest.length !== 88) return undefined
-  const digest = Buffer.from(encodedDigest, 'base64')
-  if (digest.byteLength !== 64 || digest.toString('base64') !== encodedDigest) return undefined
-
-  return {
-    algorithm,
-    digest,
-  }
-}
-
-export function getIntegrityAddressedTarballUrl (
-  integrity: string,
-  registry: string
-): string | undefined {
-  const parsed = parseIntegrityAddress(integrity)
-  if (parsed == null) return undefined
-  return new URL(
-    `-/tarballs/${parsed.algorithm}/${parsed.digest.toString('base64url')}`,
-    normalizeRegistry(registry)
-  ).toString()
-}
-
 export function isIntegrityAddressedRegistryTarballUrl (
   tarball: string,
   integrity: string,
@@ -69,6 +41,40 @@ export function isIntegrityAddressedRegistryTarballUrl (
     return new URL(tarball).toString() === expected
   } catch {
     return false
+  }
+}
+
+export function getIntegrityAddressedTarballUrl (
+  integrity: unknown,
+  registry: string
+): string | undefined {
+  const parsed = parseIntegrityAddress(integrity)
+  if (parsed == null) return undefined
+  return new URL(
+    `-/tarballs/${parsed.algorithm}/${parsed.digest.toString('base64url')}`,
+    normalizeRegistry(registry)
+  ).toString()
+}
+
+export function parseIntegrityAddress (integrity: unknown): IntegrityAddress | undefined {
+  if (typeof integrity !== 'string' || integrity.length !== SHA512_INTEGRITY_LENGTH) return undefined
+  let parsed: ReturnType<typeof parseIntegrity>
+  try {
+    parsed = parseIntegrity(integrity)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_INVALID_INTEGRITY') {
+      return undefined
+    }
+    throw err
+  }
+  if (
+    parsed.algorithm !== 'sha512' ||
+    parsed.hexDigest.length !== 128 ||
+    formatIntegrity(parsed.algorithm, parsed.hexDigest) !== integrity
+  ) return undefined
+  return {
+    algorithm: parsed.algorithm,
+    digest: Buffer.from(parsed.hexDigest, 'hex'),
   }
 }
 

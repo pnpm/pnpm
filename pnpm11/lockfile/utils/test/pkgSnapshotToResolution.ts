@@ -209,6 +209,22 @@ test.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '1', '01'])(
   }
 )
 
+test.each([{}, [], 1, true])(
+  'pkgSnapshotToResolution() rejects non-string revision integrity %#',
+  (integrity) => {
+    expect(() => pkgSnapshotToResolution('foo@1.0.0', {
+      resolution: {
+        integrity,
+        revision: 2,
+      } as never,
+    }, {
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
+    })).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_INVALID_TARBALL_REVISION',
+    }))
+  }
+)
+
 test.each([
   { tarball: 'file:../foo.tgz' },
   { tarball: 'https://codeload.github.com/foo/bar/tar.gz/abc', gitHosted: true },

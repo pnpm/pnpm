@@ -130,11 +130,16 @@ async fn should_surface_a_web_login_transport_failure_as_a_request_error() {
     let addr = listener.local_addr().expect("read the assigned port");
     let registry = format!("http://{addr}/");
     let config_dir = Path::new("/mock/config");
-    let http_client = pnpm_network::ThrottledClient::from_client(
+    let build_client = |redirect| {
         reqwest::Client::builder()
             .timeout(std::time::Duration::from_millis(25))
+            .redirect(redirect)
             .build()
-            .expect("build short-lived client"),
+            .expect("build short-lived client")
+    };
+    let http_client = pnpm_network::ThrottledClient::from_clients(
+        build_client(reqwest::redirect::Policy::limited(10)),
+        build_client(reqwest::redirect::Policy::none()),
     );
 
     let err = login::<FakeHost, RecordingReporter>(&http_client, opts(&registry, config_dir))
