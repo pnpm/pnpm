@@ -2467,6 +2467,68 @@ async fn revision_addressed_mem_cache_does_not_retry_a_failed_prefetch() {
 }
 
 #[tokio::test]
+async fn revision_addressed_mem_cache_does_not_reuse_a_redirect_permitting_fetch() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let redirect = server
+        .mock("GET", "/-/tarballs/sha512/digest")
+        .with_status(302)
+        .with_header("location", "/redirected.tgz")
+        .expect(2)
+        .create_async()
+        .await;
+    let redirected = server
+        .mock("GET", "/redirected.tgz")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(1)
+        .create_async()
+        .await;
+    let url = format!("{}/-/tarballs/sha512/digest", server.url());
+    let expected = integrity(FASTIFY_ERROR_INTEGRITY);
+    let client = ThrottledClient::default();
+    let mem_cache = MemCache::default();
+    let auth_headers = AuthHeaders::default();
+    let verified_files_cache = SharedVerifiedFilesCache::default();
+    let download = || DownloadTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+        package_integrity: Some(&expected),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: &url,
+        package_id: "test-pkg",
+        requester: "",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &auth_headers,
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: None,
+        append_manifest: None,
+    };
+
+    download()
+        .run_with_mem_cache::<SilentReporter>(&mem_cache)
+        .await
+        .expect("an ordinary fetch may follow the redirect");
+    let err = download()
+        .run_revision_addressed_with_mem_cache::<SilentReporter>(&mem_cache)
+        .await
+        .expect_err("a revision fetch must make its own request and reject the redirect");
+
+    assert!(matches!(err, TarballError::HttpStatus(_)), "got {err:?}");
+    redirect.assert_async().await;
+    redirected.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
 async fn retries_integrity_mismatch_until_exhausted() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;

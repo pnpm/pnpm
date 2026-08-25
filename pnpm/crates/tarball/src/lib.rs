@@ -185,13 +185,13 @@ impl<'a> DownloadTarballToStore<'a> {
     ///
     /// # Caller invariant: stable filter per URL
     ///
-    /// The cache is keyed on `package_url` alone, as pnpm's
-    /// `tarballCache` is, so a second caller fetching the same URL with
-    /// a different [`ignore_file_pattern`] silently receives the map the
-    /// first caller's filter produced. Every fetch of a URL must use the
-    /// same filter. Nothing enforces this; today it holds because URLs
-    /// encode `(name, version, integrity)` and filters are keyed by
-    /// package name.
+    /// The cache is keyed on `package_url` and whether the request uses the
+    /// revision-addressed network policy. Within either policy, a second
+    /// caller fetching the same URL with a different [`ignore_file_pattern`]
+    /// silently receives the map the first caller's filter produced. Every
+    /// fetch of a URL must use the same filter. Nothing enforces this; today
+    /// it holds because URLs encode `(name, version, integrity)` and filters
+    /// are keyed by package name.
     ///
     /// [`ignore_file_pattern`]: DownloadTarballToStore::ignore_file_pattern
     pub async fn run_with_mem_cache<Reporter: self::Reporter>(
@@ -223,6 +223,11 @@ impl<'a> DownloadTarballToStore<'a> {
             requester,
             ..
         } = &self;
+        let mem_cache_key = if revision_addressed {
+            format!("revision-addressed:{package_url}")
+        } else {
+            package_url.to_string()
+        };
         let cache_key = store_index_cache_key(package_integrity, package_id);
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
 
@@ -244,7 +249,7 @@ impl<'a> DownloadTarballToStore<'a> {
             emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
             let cas_paths = Arc::clone(cas_paths);
             let cache_lock = Arc::new(RwLock::new(CacheValue::Available(Arc::clone(&cas_paths))));
-            mem_cache.insert(package_url.to_string(), cache_lock);
+            mem_cache.insert(mem_cache_key, cache_lock);
             return Ok(cas_paths);
         }
 
@@ -254,7 +259,7 @@ impl<'a> DownloadTarballToStore<'a> {
         // Claim ownership atomically so concurrent callers cannot both start
         // the one network fetch for this URL. The entry guard is dropped when
         // this match returns, before either branch awaits the cache lock.
-        let (cache_lock, owner_notify) = match mem_cache.entry(package_url.to_string()) {
+        let (cache_lock, owner_notify) = match mem_cache.entry(mem_cache_key.clone()) {
             dashmap::mapref::entry::Entry::Occupied(entry) => (Arc::clone(entry.get()), None),
             dashmap::mapref::entry::Entry::Vacant(entry) => {
                 let notify = Arc::new(Notify::new());
@@ -371,7 +376,7 @@ impl<'a> DownloadTarballToStore<'a> {
                         *cache_write = CacheValue::Failed;
                         drop(cache_write);
                         if !revision_addressed {
-                            mem_cache.remove(package_url);
+                            mem_cache.remove(&mem_cache_key);
                         }
                         notify.notify_waiters();
                         Err(err)
