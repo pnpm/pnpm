@@ -268,6 +268,60 @@ test('patch package throws an exception if not all patches are applied', async (
   ).rejects.toThrow('The following patches were not used: is-negative@1.0.0')
 })
 
+test('patch package throws an exception for an unused patch during an incremental install', async () => {
+  prepareEmpty()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const manifest = {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  const opts = testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await install(manifest, opts)
+
+  await expect(install(manifest, {
+    ...opts,
+    patchedDependencies: {
+      'is-negative@1.0.0': patchPath,
+    },
+  })).rejects.toThrow('The following patches were not used: is-negative@1.0.0')
+})
+
+test('an incremental install recognizes a patch in an untouched locked subtree', async () => {
+  const project = prepareEmpty()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const opts = testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies: {
+      'is-positive@1.0.0': patchPath,
+    },
+    overrides: {
+      'is-positive': '1.0.0',
+    },
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await install({
+    dependencies: {
+      'is-not-positive': '1.0.0',
+    },
+  }, opts)
+
+  await install({
+    dependencies: {
+      'is-negative': '1.0.0',
+      'is-not-positive': '1.0.0',
+    },
+  }, opts)
+
+  const patchFileHash = await createHexHashFromFile(patchPath)
+  expect(project.readLockfile().snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
+})
+
 test('the patched package is updated if the patch is modified', async () => {
   prepareEmpty()
   f.copy('patch-pkg', 'patches')

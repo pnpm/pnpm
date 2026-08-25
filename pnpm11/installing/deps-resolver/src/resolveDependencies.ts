@@ -24,7 +24,7 @@ import {
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
-import type { PatchInfo } from '@pnpm/patching.types'
+import type { ExtendedPatchInfo, PatchInfo } from '@pnpm/patching.types'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
 import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
@@ -157,7 +157,6 @@ export interface ResolutionContext extends RegistryContext {
   autoInstallPeersFromHighestMatch: boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allPreferredVersions?: PreferredVersions
-  appliedPatches: Set<string>
   updatedSet: Set<string>
   catalogResolver: CatalogResolver
   defaultTag: string
@@ -315,7 +314,7 @@ export interface ResolvedPackage {
   optionalDependencies: Set<string>
   hasBin: boolean
   hasBundledDependencies: boolean
-  patch?: PatchInfo
+  patch?: PatchInfo & { key?: string }
   prepare: boolean
   pkgIdWithPatchHash: PkgIdWithPatchHash
   requiresBuild?: boolean
@@ -2104,7 +2103,6 @@ async function resolveDependency (
     let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
     const patch = getPatchInfo(ctx.patchedDependencies, pkg.name, pkg.version)
     if (patch) {
-      ctx.appliedPatches.add(patch.key)
       pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patch.hash})` as PkgIdWithPatchHash
     }
 
@@ -2378,7 +2376,7 @@ function getResolvedPackage (
     force: boolean
     hasBin: boolean
     parentImporterId: string
-    patch?: PatchInfo
+    patch?: ExtendedPatchInfo
     pkg: PackageManifest
     pkgResponse: PackageResponse
     prepare: boolean

@@ -152,7 +152,6 @@ export interface ResolveDependencyTreeResult {
   resolvedImporters: ResolvedImporters
   resolvedPkgsById: ResolvedPkgsById
   wantedToBeSkippedPackageIds: Set<string>
-  appliedPatches: Set<string>
   time?: Record<string, string>
   /**
    * Policy violations collected inline during resolution — the
@@ -213,7 +212,6 @@ export async function resolveDependencyTree<T> (
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     wantedLockfile: opts.wantedLockfile,
-    appliedPatches: new Set<string>(),
     updatedSet: new Set<string>(),
     workspacePackages: opts.workspacePackages,
     missingPeersOfChildrenByPkgId: {},
@@ -358,7 +356,6 @@ export async function resolveDependencyTree<T> (
     resolvedImporters,
     resolvedPkgsById: ctx.resolvedPkgsById,
     wantedToBeSkippedPackageIds,
-    appliedPatches: ctx.appliedPatches,
     time,
     allPeerDepNames: ctx.allPeerDepNames,
     resolutionPolicyViolations: ctx.resolutionPolicyViolations,

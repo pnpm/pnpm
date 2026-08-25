@@ -175,7 +175,6 @@ export async function resolveDependencies (
     resolvedImporters,
     resolvedPkgsById,
     wantedToBeSkippedPackageIds,
-    appliedPatches,
     time,
     allPeerDepNames,
     resolutionPolicyViolations,
@@ -209,19 +208,6 @@ export async function resolveDependencies (
   }
 
   opts.storeController.clearResolutionCache()
-
-  // We only check whether patches were applied in cases when the whole lockfile was reanalyzed.
-  if (
-    opts.patchedDependencies &&
-    (opts.forceFullResolution || !Object.keys(opts.wantedLockfile.packages ?? {})?.length) &&
-    Object.keys(opts.wantedLockfile.importers).length === importers.length
-  ) {
-    verifyPatches({
-      patchedDependencies: opts.patchedDependencies,
-      appliedPatches,
-      allowUnusedPatches: opts.allowUnusedPatches,
-    })
-  }
 
   const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project) => {
     const resolvedImporter = resolvedImporters[project.id]
@@ -304,6 +290,17 @@ export async function resolveDependencies (
       resolvedPeerProviderPaths: initiallyResolvedPeers.pathsByNodeId,
     })
     : initiallyResolvedPeers
+
+  if (
+    opts.patchedDependencies &&
+    Object.keys(opts.wantedLockfile.importers).length === importers.length
+  ) {
+    verifyPatches({
+      patchedDependencies: opts.patchedDependencies,
+      appliedPatches: getAppliedPatchKeys(dependenciesGraph),
+      allowUnusedPatches: opts.allowUnusedPatches,
+    })
+  }
 
   const preserveDedupedWorkspaceLinks = Boolean(opts.dedupeInjectedDeps)
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
@@ -491,6 +488,14 @@ function treeHasLockedPeerContexts (dependenciesTree: DependenciesTree<ResolvedP
     if (node.lockedPeerContext != null) return true
   }
   return false
+}
+
+function getAppliedPatchKeys (dependenciesGraph: DependenciesGraph): Set<string> {
+  const appliedPatchKeys = new Set<string>()
+  for (const pkg of Object.values(dependenciesGraph)) {
+    if (pkg.patch?.key != null) appliedPatchKeys.add(pkg.patch.key)
+  }
+  return appliedPatchKeys
 }
 
 function addDirectDependenciesToLockfile (
