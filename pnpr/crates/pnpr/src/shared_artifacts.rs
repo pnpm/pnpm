@@ -31,7 +31,22 @@ struct ArtifactUsage {
     global_bytes: u64,
     owner_bytes: BTreeMap<String, u64>,
     #[serde(default, deserialize_with = "deserialize_pending_usage")]
-    pending: BTreeMap<String, Vec<PendingUsageFile>>,
+    pending: BTreeMap<String, PendingUsage>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct PendingUsage {
+    owner: String,
+    lock: PendingUsageLock,
+    files: Vec<PendingUsageFile>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+enum PendingUsageLock {
+    Entry { entry: String },
+    Owner,
+    Global,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -64,7 +79,8 @@ pub(crate) async fn publish(
     let owner = owner_usage_key(&owner_dir)?;
     let entry_digest = entry_digest(&request.key, &payload.package, &payload.source_integrity);
     let key_dir = owner_dir.join("entries").join(&entry_digest);
-    let _owner_lock = acquire_artifact_lock(owner_lock_path(&artifact_root, &owner)).await?;
+    let _entry_lock =
+        acquire_artifact_lock(entry_lock_path(&artifact_root, &owner, &entry_digest)).await?;
     let envelope_digest = request.envelope.digest().map_err(|err| protocol_error(&err))?;
     let variant_path = key_dir.join(format!("{envelope_digest}.json"));
     let already_present = fs::try_exists(&variant_path).await?;
@@ -76,6 +92,11 @@ pub(crate) async fn publish(
 
     let required: BTreeMap<&str, u64> =
         payload.manifest.added.iter().map(|file| (file.integrity.as_str(), file.size)).collect();
+    let mut blob_locks = Vec::with_capacity(required.len());
+    for integrity in required.keys() {
+        let id = blob_id(integrity).map_err(|err| protocol_error(&err))?;
+        blob_locks.push(acquire_artifact_lock(blob_lock_path(&artifact_root, &owner, &id)).await?);
+    }
 
     let envelope_bytes = serde_json::to_vec(&request.envelope)?;
     let blobs_dir = owner_dir.join("blobs");
@@ -128,25 +149,31 @@ pub(crate) async fn publish(
             envelope_bytes.len() as u64,
         )?);
     }
-    reserve_storage_quota(&artifact_root, &owner, pending_files).await?;
+    let reservation = reservation_id(&owner, &entry_digest, &envelope_digest);
+    reserve_storage_quota(&artifact_root, &reservation, &owner, &entry_digest, pending_files)
+        .await?;
     for (path, bytes) in new_blobs {
         write_atomic(&path, &bytes).await?;
     }
     if !already_present {
         write_atomic(&variant_path, &envelope_bytes).await?;
     }
-    clear_storage_reservation(&artifact_root, &owner).await?;
+    clear_storage_reservation(&artifact_root, &reservation).await?;
     Ok(!already_present)
 }
 
 async fn reserve_storage_quota(
     artifact_root: &Path,
+    reservation: &str,
     owner: &str,
+    entry: &str,
     files: Vec<PendingUsageFile>,
 ) -> Result<()> {
     reserve_storage_quota_with_limits(
         artifact_root,
+        reservation,
         owner,
+        entry,
         files,
         MAX_OWNER_ARTIFACT_BYTES,
         MAX_GLOBAL_ARTIFACT_BYTES,
@@ -156,14 +183,16 @@ async fn reserve_storage_quota(
 
 async fn reserve_storage_quota_with_limits(
     artifact_root: &Path,
+    reservation: &str,
     owner: &str,
+    entry: &str,
     files: Vec<PendingUsageFile>,
     owner_limit: u64,
     global_limit: u64,
 ) -> Result<()> {
     let _usage_lock = acquire_artifact_lock(usage_lock_path(artifact_root)).await?;
     let mut usage = load_artifact_usage(artifact_root).await?;
-    if reconcile_pending_usage(artifact_root, &mut usage, owner).await? {
+    if reconcile_pending_usage(artifact_root, &mut usage, owner, entry).await? {
         write_artifact_usage(artifact_root, &usage).await?;
     }
     let added_bytes = files.iter().try_fold(0_u64, |total, file| {
@@ -181,19 +210,31 @@ async fn reserve_storage_quota_with_limits(
     }
     usage.global_bytes = next_global_bytes;
     usage.owner_bytes.insert(owner.to_string(), next_owner_bytes);
-    if usage.pending.insert(owner.to_string(), files).is_some() {
+    if usage
+        .pending
+        .insert(
+            reservation.to_string(),
+            PendingUsage {
+                owner: owner.to_string(),
+                lock: PendingUsageLock::Entry { entry: entry.to_string() },
+                files,
+            },
+        )
+        .is_some()
+    {
         return Err(RegistryError::Internal {
-            reason: "shared artifact owner already has a pending storage reservation".to_string(),
+            reason: "shared artifact publication already has a pending storage reservation"
+                .to_string(),
         });
     }
     write_artifact_usage(artifact_root, &usage).await?;
     Ok(())
 }
 
-async fn clear_storage_reservation(artifact_root: &Path, owner: &str) -> Result<()> {
+async fn clear_storage_reservation(artifact_root: &Path, reservation: &str) -> Result<()> {
     let _usage_lock = acquire_artifact_lock(usage_lock_path(artifact_root)).await?;
     let mut usage = load_artifact_usage(artifact_root).await?;
-    if usage.pending.remove(owner).is_none() {
+    if usage.pending.remove(reservation).is_none() {
         return Err(RegistryError::Internal {
             reason: "shared artifact storage reservation is missing after publication".to_string(),
         });
@@ -237,25 +278,39 @@ async fn reconcile_pending_usage(
     artifact_root: &Path,
     usage: &mut ArtifactUsage,
     locked_owner: &str,
+    locked_entry: &str,
 ) -> Result<bool> {
-    let owners: Vec<String> = usage.pending.keys().cloned().collect();
+    let reservations: Vec<String> = usage.pending.keys().cloned().collect();
     let mut reconciled = false;
-    for owner in owners {
-        let _owner_lock = if owner == locked_owner {
+    for reservation in reservations {
+        let pending = usage.pending.get(&reservation).ok_or_else(|| RegistryError::Internal {
+            reason: "shared artifact pending storage reservation disappeared".to_string(),
+        })?;
+        let caller_holds_lock = pending.owner == locked_owner
+            && matches!(
+                &pending.lock,
+                PendingUsageLock::Entry { entry } if entry == locked_entry,
+            );
+        let _publication_lock = if caller_holds_lock {
             None
         } else {
-            let Some(owner_lock) =
-                try_acquire_artifact_lock(owner_lock_path(artifact_root, &owner)).await?
+            let Some(publication_lock) = try_acquire_artifact_lock(pending_lock_path(
+                artifact_root,
+                &pending.owner,
+                &pending.lock,
+            ))
+            .await?
             else {
                 continue;
             };
-            Some(owner_lock)
+            Some(publication_lock)
         };
-        let files = usage.pending.remove(&owner).ok_or_else(|| RegistryError::Internal {
-            reason: "shared artifact pending storage reservation disappeared".to_string(),
-        })?;
+        let pending =
+            usage.pending.remove(&reservation).ok_or_else(|| RegistryError::Internal {
+                reason: "shared artifact pending storage reservation disappeared".to_string(),
+            })?;
         reconciled = true;
-        for file in files {
+        for file in pending.files {
             let relative_path = Path::new(&file.path);
             if relative_path.as_os_str().is_empty()
                 || !relative_path
@@ -280,10 +335,11 @@ async fn reconcile_pending_usage(
                     reason: "shared artifact global usage counter underflow".to_string(),
                 }
             })?;
-            let owner_bytes =
-                usage.owner_bytes.get_mut(&owner).ok_or_else(|| RegistryError::Internal {
+            let owner_bytes = usage.owner_bytes.get_mut(&pending.owner).ok_or_else(|| {
+                RegistryError::Internal {
                     reason: "shared artifact usage state is missing the pending owner".to_string(),
-                })?;
+                }
+            })?;
             *owner_bytes =
                 owner_bytes.checked_sub(file.size).ok_or_else(|| RegistryError::Internal {
                     reason: "shared artifact owner usage counter underflow".to_string(),
@@ -312,25 +368,76 @@ fn owner_lock_path(artifact_root: &Path, owner: &str) -> PathBuf {
         .join(format!("{}.lock", digest_segment(owner.as_bytes())))
 }
 
+fn entry_lock_path(artifact_root: &Path, owner: &str, entry: &str) -> PathBuf {
+    artifact_root
+        .join(".locks")
+        .join("entries")
+        .join(digest_segment(owner.as_bytes()))
+        .join(format!("{}.lock", digest_segment(entry.as_bytes())))
+}
+
+fn blob_lock_path(artifact_root: &Path, owner: &str, blob: &str) -> PathBuf {
+    artifact_root
+        .join(".locks")
+        .join("blobs")
+        .join(digest_segment(owner.as_bytes()))
+        .join(format!("{}.lock", digest_segment(blob.as_bytes())))
+}
+
+fn pending_lock_path(
+    artifact_root: &Path,
+    owner: &str,
+    pending_lock: &PendingUsageLock,
+) -> PathBuf {
+    match pending_lock {
+        PendingUsageLock::Entry { entry } => entry_lock_path(artifact_root, owner, entry),
+        PendingUsageLock::Owner => owner_lock_path(artifact_root, owner),
+        PendingUsageLock::Global => artifact_root.join(".locks").join("publication.lock"),
+    }
+}
+
+fn reservation_id(owner: &str, entry: &str, envelope: &str) -> String {
+    let mut bytes = Vec::with_capacity(owner.len() + entry.len() + envelope.len() + 2);
+    bytes.extend_from_slice(owner.as_bytes());
+    bytes.push(0);
+    bytes.extend_from_slice(entry.as_bytes());
+    bytes.push(0);
+    bytes.extend_from_slice(envelope.as_bytes());
+    digest_segment(&bytes)
+}
+
 fn deserialize_pending_usage<'de, Deserializer>(
     deserializer: Deserializer,
-) -> std::result::Result<BTreeMap<String, Vec<PendingUsageFile>>, Deserializer::Error>
+) -> std::result::Result<BTreeMap<String, PendingUsage>, Deserializer::Error>
 where
     Deserializer: serde::Deserializer<'de>,
 {
     #[derive(serde::Deserialize)]
     #[serde(untagged)]
     enum PendingUsageState {
-        Current(BTreeMap<String, Vec<PendingUsageFile>>),
-        Legacy(Option<LegacyPendingUsage>),
+        Current(BTreeMap<String, PendingUsage>),
+        OwnerScoped(BTreeMap<String, Vec<PendingUsageFile>>),
+        Global(Option<LegacyPendingUsage>),
     }
 
     Ok(match <PendingUsageState as serde::Deserialize>::deserialize(deserializer)? {
         PendingUsageState::Current(pending) => pending,
-        PendingUsageState::Legacy(Some(pending)) => {
-            BTreeMap::from([(pending.owner, pending.files)])
-        }
-        PendingUsageState::Legacy(None) => BTreeMap::new(),
+        PendingUsageState::OwnerScoped(pending) => pending
+            .into_iter()
+            .map(|(owner, files)| {
+                let reservation = format!("legacy-owner-{}", digest_segment(owner.as_bytes()));
+                (reservation, PendingUsage { owner, lock: PendingUsageLock::Owner, files })
+            })
+            .collect(),
+        PendingUsageState::Global(Some(pending)) => BTreeMap::from([(
+            "legacy-global".to_string(),
+            PendingUsage {
+                owner: pending.owner,
+                lock: PendingUsageLock::Global,
+                files: pending.files,
+            },
+        )]),
+        PendingUsageState::Global(None) => BTreeMap::new(),
     })
 }
 

@@ -2,18 +2,19 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use pnpm_shared_artifact_protocol::{
-    ARTIFACT_KIND, ArtifactManifest, ArtifactPayload, ArtifactVariant, BuilderProfile,
-    CompatibilityConstraints, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE, OwnerScope,
-    PackageIdentity, PublishArtifactRequest, ResolveArtifactsResponse, ResolvedArtifact,
-    SIGNATURE_ALGORITHM, SignedArtifactEnvelope,
+    ARTIFACT_KIND, ArtifactBlobUpload, ArtifactFile, ArtifactManifest, ArtifactPayload,
+    ArtifactVariant, BuilderProfile, CompatibilityConstraints, MAX_RESOLVE_RESPONSE_SIZE,
+    MAX_VARIANTS_PER_CANDIDATE, OwnerScope, PackageIdentity, PublishArtifactRequest,
+    ResolveArtifactsResponse, ResolvedArtifact, SIGNATURE_ALGORITHM, SignedArtifactEnvelope,
 };
+use sha2::{Digest as _, Sha512};
 use tempfile::TempDir;
 use tokio::{fs, sync::Barrier, time::timeout};
 
 use super::{
-    ResolveBudget, acquire_artifact_lock, artifact_usage_path, is_variant_file,
-    load_artifact_usage, owner_dir, owner_lock_path, owner_usage_key, pending_usage_file, publish,
-    reserve_storage_quota_with_limits,
+    ResolveBudget, acquire_artifact_lock, artifact_usage_path, entry_lock_path, is_variant_file,
+    load_artifact_usage, owner_dir, owner_usage_key, pending_usage_file, publish,
+    reserve_storage_quota_with_limits, stored_bytes,
 };
 
 #[test]
@@ -66,19 +67,45 @@ async fn publication_storage_is_bounded_per_owner_and_globally() {
 
     let owner_key = owner_usage_key(&owner).unwrap();
     let pending = pending_usage_file(&root, &owner.join("new-entry"), 4).unwrap();
-    reserve_storage_quota_with_limits(&root, &owner_key, vec![pending], 10, 13).await.unwrap();
+    reserve_storage_quota_with_limits(
+        &root,
+        "reservation",
+        &owner_key,
+        "entry",
+        vec![pending],
+        10,
+        13,
+    )
+    .await
+    .unwrap();
 
     let too_large_for_owner = pending_usage_file(&root, &owner.join("owner-overflow"), 5).unwrap();
     assert!(
-        reserve_storage_quota_with_limits(&root, &owner_key, vec![too_large_for_owner], 10, 20)
-            .await
-            .is_err(),
+        reserve_storage_quota_with_limits(
+            &root,
+            "owner-overflow",
+            &owner_key,
+            "entry",
+            vec![too_large_for_owner],
+            10,
+            20,
+        )
+        .await
+        .is_err(),
     );
     let too_large_globally = pending_usage_file(&root, &owner.join("global-overflow"), 4).unwrap();
     assert!(
-        reserve_storage_quota_with_limits(&root, &owner_key, vec![too_large_globally], 20, 12)
-            .await
-            .is_err(),
+        reserve_storage_quota_with_limits(
+            &root,
+            "global-overflow",
+            &owner_key,
+            "entry",
+            vec![too_large_globally],
+            20,
+            12,
+        )
+        .await
+        .is_err(),
     );
 }
 
@@ -94,25 +121,68 @@ async fn legacy_pending_usage_is_reconciled() {
     .await
     .unwrap();
 
-    reserve_storage_quota_with_limits(&root, "owner", Vec::new(), 10, 10).await.unwrap();
+    reserve_storage_quota_with_limits(&root, "reservation", "owner", "entry", Vec::new(), 10, 10)
+        .await
+        .unwrap();
     let usage = load_artifact_usage(&root).await.unwrap();
     assert_eq!(usage.global_bytes, 0);
     assert_eq!(usage.owner_bytes.get("owner"), Some(&0));
 }
 
 #[tokio::test]
-async fn active_owner_reservations_are_not_reconciled() {
+async fn owner_scoped_pending_usage_is_reconciled() {
+    let storage = TempDir::new().unwrap();
+    let root = storage.path().join("shared-artifacts/v0");
+    fs::create_dir_all(root.join(".locks")).await.unwrap();
+    fs::write(
+        artifact_usage_path(&root),
+        br#"{"global_bytes":4,"owner_bytes":{"owner":4},"pending":{"owner":[{"path":"owner/missing","size":4}]}}"#,
+    )
+    .await
+    .unwrap();
+
+    reserve_storage_quota_with_limits(&root, "reservation", "owner", "entry", Vec::new(), 10, 10)
+        .await
+        .unwrap();
+    let usage = load_artifact_usage(&root).await.unwrap();
+    assert_eq!(usage.global_bytes, 0);
+    assert_eq!(usage.owner_bytes.get("owner"), Some(&0));
+}
+
+#[tokio::test]
+async fn active_entry_reservations_are_not_reconciled() {
     let storage = TempDir::new().unwrap();
     let root = storage.path().join("shared-artifacts/v0");
     let owner = "active-owner";
-    let _owner_lock = acquire_artifact_lock(owner_lock_path(&root, owner)).await.unwrap();
+    let entry = "active-entry";
+    let _entry_lock = acquire_artifact_lock(entry_lock_path(&root, owner, entry)).await.unwrap();
     let pending = pending_usage_file(&root, &root.join(owner).join("pending"), 4).unwrap();
-    reserve_storage_quota_with_limits(&root, owner, vec![pending], 10, 10).await.unwrap();
+    reserve_storage_quota_with_limits(
+        &root,
+        "active-reservation",
+        owner,
+        entry,
+        vec![pending],
+        10,
+        10,
+    )
+    .await
+    .unwrap();
 
-    reserve_storage_quota_with_limits(&root, "other-owner", Vec::new(), 10, 10).await.unwrap();
+    reserve_storage_quota_with_limits(
+        &root,
+        "other-reservation",
+        owner,
+        "other-entry",
+        Vec::new(),
+        10,
+        10,
+    )
+    .await
+    .unwrap();
     let usage = load_artifact_usage(&root).await.unwrap();
     assert_eq!(usage.global_bytes, 4);
-    assert!(usage.pending.contains_key(owner));
+    assert!(usage.pending.contains_key("active-reservation"));
 }
 
 #[tokio::test]
@@ -129,19 +199,21 @@ async fn an_unlocked_publication_lock_file_is_reused() {
 }
 
 #[tokio::test]
-async fn an_owner_lock_does_not_block_another_owner() {
+async fn an_entry_lock_does_not_block_another_entry() {
     let storage = TempDir::new().unwrap();
     let root = storage.path().join("shared-artifacts/v0");
     let acme_dir = owner_dir(storage.path(), "acme", &OwnerScope::organization("acme")).unwrap();
     let acme_owner = owner_usage_key(&acme_dir).unwrap();
-    let _acme_lock = acquire_artifact_lock(owner_lock_path(&root, &acme_owner)).await.unwrap();
+    let _acme_lock = acquire_artifact_lock(entry_lock_path(&root, &acme_owner, "unrelated-entry"))
+        .await
+        .unwrap();
 
     let published = timeout(
         std::time::Duration::from_secs(5),
-        publish(storage.path(), "other", publication_for("other", "ci/other-owner")),
+        publish(storage.path(), "acme", publication_for("acme", "ci/other-entry")),
     )
     .await
-    .expect("an unrelated owner must not wait for the held owner lock")
+    .expect("an unrelated entry must not wait for the held entry lock")
     .unwrap();
     assert!(published);
 }
@@ -157,6 +229,33 @@ async fn duplicate_publication_does_not_rewrite_usage() {
 
     assert!(!publish(storage.path(), "acme", request).await.unwrap());
     assert_eq!(fs::read(usage_path).await.unwrap(), before);
+}
+
+#[tokio::test]
+async fn concurrent_entries_count_a_shared_blob_once() {
+    let storage = TempDir::new().unwrap();
+    let first = publish(
+        storage.path(),
+        "acme",
+        publication_with_blob("dependency-side-effects:v1:first", "ci/first"),
+    );
+    let second = publish(
+        storage.path(),
+        "acme",
+        publication_with_blob("dependency-side-effects:v1:second", "ci/second"),
+    );
+    let (first, second) = tokio::join!(first, second);
+    assert!(first.unwrap());
+    assert!(second.unwrap());
+
+    let root = storage.path().join("shared-artifacts/v0");
+    let owner_dir = owner_dir(storage.path(), "acme", &OwnerScope::organization("acme")).unwrap();
+    let owner = owner_usage_key(&owner_dir).unwrap();
+    let usage = load_artifact_usage(&root).await.unwrap();
+    let actual_bytes = stored_bytes(&owner_dir, None).await.unwrap();
+    assert_eq!(usage.global_bytes, actual_bytes);
+    assert_eq!(usage.owner_bytes.get(&owner), Some(&actual_bytes));
+    assert!(usage.pending.is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 16)]
@@ -197,11 +296,39 @@ fn publication(builder_id: &str) -> PublishArtifactRequest {
 }
 
 fn publication_for(owner: &str, builder_id: &str) -> PublishArtifactRequest {
+    publication_request(owner, "dependency-side-effects:v1:deps=abc", builder_id, None)
+}
+
+fn publication_with_blob(input_key: &str, builder_id: &str) -> PublishArtifactRequest {
+    publication_request("acme", input_key, builder_id, Some(b"shared addon"))
+}
+
+fn publication_request(
+    owner: &str,
+    input_key: &str,
+    builder_id: &str,
+    blob: Option<&[u8]>,
+) -> PublishArtifactRequest {
+    let (added, blobs) = match blob {
+        Some(bytes) => {
+            let integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(bytes)));
+            (
+                vec![ArtifactFile {
+                    path: "build/addon.node".to_string(),
+                    integrity: integrity.clone(),
+                    mode: 0o755,
+                    size: bytes.len() as u64,
+                }],
+                vec![ArtifactBlobUpload { integrity, data: BASE64.encode(bytes) }],
+            )
+        }
+        None => (Vec::new(), Vec::new()),
+    };
     let payload = ArtifactPayload {
         kind: ARTIFACT_KIND.to_string(),
         package: PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
         source_integrity: "sha512-source".to_string(),
-        input_key: "dependency-side-effects:v1:deps=abc".to_string(),
+        input_key: input_key.to_string(),
         owner: OwnerScope::organization(owner),
         builder_id: builder_id.to_string(),
         builder_profile: BuilderProfile {
@@ -210,7 +337,7 @@ fn publication_for(owner: &str, builder_id: &str) -> PublishArtifactRequest {
             environment: BTreeMap::new(),
         },
         compatibility: CompatibilityConstraints::Universal,
-        manifest: ArtifactManifest { added: Vec::new(), deleted: Vec::new() },
+        manifest: ArtifactManifest { added, deleted: Vec::new() },
     };
     let payload_bytes = serde_json::to_vec(&payload).unwrap();
     PublishArtifactRequest {
@@ -221,6 +348,6 @@ fn publication_for(owner: &str, builder_id: &str) -> PublishArtifactRequest {
             payload: BASE64.encode(payload_bytes),
             signature: "MAYCAQECAQE=".to_string(),
         },
-        blobs: Vec::new(),
+        blobs,
     }
 }
