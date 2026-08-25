@@ -436,7 +436,7 @@ test('dependents of a cycle sort in linear time', () => {
 // from walking every downstream ring per cycle.
 test('chained components sort in linear time', () => {
   const ringCount = 5_000
-  const names = Array.from({ length: ringCount }, (_, i) => [`a-${i.toString().padStart(4, '0')}`, `b-${i.toString().padStart(4, '0')}`] as const)
+  const names: Array<[string, string]> = Array.from({ length: ringCount }, (_, i) => [`a-${i.toString().padStart(4, '0')}`, `b-${i.toString().padStart(4, '0')}`])
   const graph = new Map<string, string[]>()
   for (const [i, [a, b]] of names.entries()) {
     const aEdges = [b]
