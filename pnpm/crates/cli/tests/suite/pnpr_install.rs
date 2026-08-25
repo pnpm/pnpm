@@ -757,7 +757,6 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
             "name": "workspace-root",
             "version": "1.0.0",
             "private": true,
-            "dependencies": { WORKSPACE_ROOT_DEP: "1.0.0" },
         })
         .to_string(),
     )
@@ -773,6 +772,17 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
     let prior_unselected = workspace_importer(&before, "packages/unselected").clone();
     let prior_parent = workspace_snapshot_entries(&before, WORKSPACE_PARENT);
     let prior_child = workspace_snapshot_entries(&before, WORKSPACE_DEP);
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "workspace-root",
+            "version": "1.0.0",
+            "private": true,
+            "dependencies": { WORKSPACE_ROOT_DEP: "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("add workspace root dependency");
     replace_workspace_dependency(&workspace, "selected", (WORKSPACE_HELLO, "1.0.0"));
     replace_workspace_dependency(&workspace, "unselected", (WORKSPACE_HELLO_PARENT, "1.0.0"));
     let unselected_manifest =
