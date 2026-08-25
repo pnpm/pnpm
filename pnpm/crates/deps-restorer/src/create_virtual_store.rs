@@ -412,6 +412,7 @@ impl CreateVirtualStore<'_> {
             survivors: mut snapshot_entries,
             skipped_entries,
             marker_rebuilds,
+            has_git_hosted_survivor,
         } = snapshot_plan::plan_snapshots::<Reporter>(&snapshot_plan::SnapshotPlanInputs {
             snapshots,
             packages,
@@ -473,6 +474,7 @@ impl CreateVirtualStore<'_> {
             &prefetch,
             allow_build_policy,
             config.ignore_scripts,
+            has_git_hosted_survivor,
         )?;
         let partition::Partition {
             warm,
@@ -909,10 +911,9 @@ fn enforce_cached_git_prepare_policy(
     prefetch: &PrefetchResult,
     allow_build_policy: &crate::AllowBuildPolicy,
     ignore_scripts: bool,
+    has_git_hosted_survivor: bool,
 ) -> Result<(), CreateVirtualStoreError> {
-    if ignore_scripts
-        || !packages.values().any(|metadata| is_git_hosted_resolution(&metadata.resolution))
-    {
+    if ignore_scripts || !has_git_hosted_survivor {
         return Ok(());
     }
     for (snapshot_key, _snapshot, cache_key) in snapshots {
@@ -1261,7 +1262,7 @@ fn snapshot_cache_key(
     packages: &HashMap<PackageKey, PackageMetadata>,
     ignore_scripts: bool,
     runtime_platform_selector: &PlatformSelector,
-) -> Result<Option<String>, CreateVirtualStoreError> {
+) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
     let metadata_key = snapshot_key.without_peer();
     let metadata = packages.get(&metadata_key).ok_or_else(|| {
         CreateVirtualStoreError::MissingPackageMetadata {
@@ -1280,7 +1281,7 @@ fn snapshot_cache_key(
             // skip that refusal — pnpm likewise asserts fetchability
             // before it consults the store.
             if t.integrity.is_none() && !unverified_fetch_is_allowed(&t.tarball) {
-                return Ok(None);
+                return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
             }
             // Git-hosted tarballs land in the CAS via
             // `pnpm_git_fetcher::GitHostedTarballFetcher`, which
@@ -1292,11 +1293,19 @@ fn snapshot_cache_key(
             // `built` tracks `!ignore_scripts` in lock-step with the
             // dispatcher's write key, so the prefetch and the write
             // address the same slot.
-            Ok(store_index_key_for_resolution(&metadata.resolution, &pkg_id, !ignore_scripts))
+            Ok(SnapshotCacheKey {
+                value: store_index_key_for_resolution(
+                    &metadata.resolution,
+                    &pkg_id,
+                    !ignore_scripts,
+                ),
+                is_git_hosted: t.is_git_hosted(),
+            })
         }
-        LockfileResolution::Registry(r) => {
-            Ok(Some(store_index_key(&r.integrity.to_string(), &pkg_id)))
-        }
+        LockfileResolution::Registry(r) => Ok(SnapshotCacheKey {
+            value: Some(store_index_key(&r.integrity.to_string(), &pkg_id)),
+            is_git_hosted: false,
+        }),
         LockfileResolution::Directory(_) => {
             // Directory resolutions are injected workspace deps and
             // bypass the CAFS entirely (the directory-fetcher returns
@@ -1307,7 +1316,7 @@ fn snapshot_cache_key(
             // changed since the last install). Returning `Ok(None)`
             // routes the snapshot
             // through the cold path which runs the fetcher.
-            Ok(None)
+            Ok(SnapshotCacheKey { value: None, is_git_hosted: false })
         }
         LockfileResolution::Git(_) => {
             // `Git` resolutions land in CAS via
@@ -1320,7 +1329,14 @@ fn snapshot_cache_key(
             // whether the snapshot is already in `index.db`. `built`
             // tracks `!ignore_scripts` to match the dispatcher's
             // write key.
-            Ok(store_index_key_for_resolution(&metadata.resolution, &pkg_id, !ignore_scripts))
+            Ok(SnapshotCacheKey {
+                value: store_index_key_for_resolution(
+                    &metadata.resolution,
+                    &pkg_id,
+                    !ignore_scripts,
+                ),
+                is_git_hosted: true,
+            })
         }
         // Runtime artifacts (Node.js / Bun / Deno): the per-archive
         // integrity is the warm-cache key, same shape as the
@@ -1329,9 +1345,10 @@ fn snapshot_cache_key(
         // path's variant selector + binary fetcher writes the row
         // under this key when it succeeds, so a re-install hits
         // here instead of cold-fetching the runtime archive again.
-        LockfileResolution::Binary(binary) => {
-            Ok(Some(store_index_key(&binary.integrity.to_string(), &pkg_id)))
-        }
+        LockfileResolution::Binary(binary) => Ok(SnapshotCacheKey {
+            value: Some(store_index_key(&binary.integrity.to_string(), &pkg_id)),
+            is_git_hosted: false,
+        }),
         // `Variations` is a meta-shape: its integrity lives on the
         // *picked* variant, not the wrapper. Run the same host-
         // matching selector the cold path runs so the warm key
@@ -1345,26 +1362,32 @@ fn snapshot_cache_key(
             let Some(variant) =
                 select_platform_variant(&variations.variants, runtime_platform_selector)
             else {
-                return Ok(None);
+                return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
             };
             match &variant.resolution {
-                LockfileResolution::Binary(binary) => {
-                    Ok(Some(store_index_key(&binary.integrity.to_string(), &pkg_id)))
-                }
+                LockfileResolution::Binary(binary) => Ok(SnapshotCacheKey {
+                    value: Some(store_index_key(&binary.integrity.to_string(), &pkg_id)),
+                    is_git_hosted: false,
+                }),
                 // Non-`Binary` variant (corrupt lockfile, or a
                 // future shape pacquet doesn't recognise). The
                 // cold path raises the typed
                 // `VariantHasNonBinaryResolution` error; we just
                 // skip the warm key.
-                _ => Ok(None),
+                _ => Ok(SnapshotCacheKey { value: None, is_git_hosted: false }),
             }
         }
         // Custom resolutions have no built-in warm-cache key — the
         // cold path consults the pnpmfile custom fetchers, and the
         // delegated resolution (unknowable here) determines the row
         // that gets written.
-        LockfileResolution::Custom(_) => Ok(None),
+        LockfileResolution::Custom(_) => Ok(SnapshotCacheKey { value: None, is_git_hosted: false }),
     }
+}
+
+struct SnapshotCacheKey {
+    value: Option<String>,
+    is_git_hosted: bool,
 }
 
 /// Two snapshots agree on dependency wiring when both their

@@ -48,6 +48,7 @@ pub(super) struct SnapshotPlan<'a> {
     /// approved build scripts.
     pub skipped_entries: Vec<SnapshotWithCacheKey<'a>>,
     pub marker_rebuilds: HashSet<PackageKey>,
+    pub has_git_hosted_survivor: bool,
 }
 
 /// Partition the lockfile's snapshots into what this install must do
@@ -84,6 +85,7 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
     // current-lockfile skip keeps its store-index rows.
     let mut marker_probe_keys = HashSet::new();
     let mut marker_rebuilds = HashSet::new();
+    let mut has_git_hosted_survivor = false;
     let snapshot_entries = snapshots
         .iter()
         // Reason 1: installability skip. Drop entirely.
@@ -156,7 +158,8 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
                     ignore_scripts,
                     runtime_platform_selector,
                 )?;
-                entries.push((snapshot_key, snapshot, cache_key));
+                has_git_hosted_survivor |= cache_key.is_git_hosted;
+                entries.push((snapshot_key, snapshot, cache_key.value));
             }
             Ok::<_, CreateVirtualStoreError>(entries)
         })?;
@@ -195,11 +198,16 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
                 runtime_platform_selector,
             )
             .ok()
-            .flatten();
+            .and_then(|cache_key| cache_key.value);
             (snapshot_key, snapshot, cache_key)
         })
         .collect();
-    Ok(SnapshotPlan { survivors: snapshot_entries, skipped_entries, marker_rebuilds })
+    Ok(SnapshotPlan {
+        survivors: snapshot_entries,
+        skipped_entries,
+        marker_rebuilds,
+        has_git_hosted_survivor,
+    })
 }
 
 fn optional_children_match(
