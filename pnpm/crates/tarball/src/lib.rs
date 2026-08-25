@@ -8,10 +8,11 @@ mod zip_archive;
 pub use download::*;
 pub use error::*;
 pub(crate) use extract::{
+    GZIP_MAGIC, STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
     STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, allocate_tarball_buffer, apply_append_manifest,
-    apply_placeholder_manifest, decompress_gzip, extract_tarball_entries,
-    normalize_bundled_manifest, should_stream_extract, stream_extract_gzipped_channel,
-    stream_extract_gzipped_tarball, tar_entry_payload,
+    apply_placeholder_manifest, body_chunk_channel, decompress_gzip, extract_gzipped_tarball,
+    is_eager_decode_limit_exceeded, non_gzip_body_error, normalize_bundled_manifest,
+    oversized_manifest_error, stream_extract_gzipped_channel, tar_entry_payload,
 };
 pub use local_tarball::*;
 pub use prefetch::*;
@@ -86,7 +87,7 @@ fn streaming_extract_semaphore() -> &'static Semaphore {
 }
 
 /// Dedicated rayon pool for the per-file CAS-write phase of extraction
-/// ([`extract_tarball_entries`]).
+/// ([`crate::extract::extract_tarball_entries`]).
 ///
 /// Separate from the global pool because the install overlaps
 /// extraction with linking, and the linker runs on the global pool:

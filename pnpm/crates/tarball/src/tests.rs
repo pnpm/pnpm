@@ -9,7 +9,8 @@ use super::{
     extract::{
         STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD, allocate_tarball_buffer,
         apply_append_manifest, apply_placeholder_manifest, bounded_gzip_size_hint, decompress_gzip,
-        extract_tarball_entries, normalize_bundled_manifest, should_stream_extract,
+        extract_gzipped_tarball, extract_tarball_entries, gzip_isize_hint,
+        is_eager_decode_limit_exceeded, normalize_bundled_manifest, should_stream_extract,
         stream_extract_gzipped_tarball,
     },
     local_tarball::{
@@ -17,7 +18,7 @@ use super::{
         read_local_tarball_buffer, read_local_tarball_metadata,
     },
     prefetch::{PrefetchedCasPaths, prefetch_cas_paths},
-    zip_archive::extract_zip_entries,
+    zip_archive::{extract_zip_entries, write_zip_entry_to_cas},
 };
 use pipe_trait::Pipe;
 use pnpm_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, ThrottledClient, UNPRIORITIZED};
@@ -30,7 +31,7 @@ use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::{
     collections::HashMap,
-    io::{Cursor, ErrorKind},
+    io::{Cursor, ErrorKind, Read},
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -1380,6 +1381,123 @@ fn extract_tarball_reads_a_manifest_that_starts_with_a_utf8_bom() {
     drop(tempdir);
 }
 
+/// Build a gzipped tar that inflates to more than
+/// [`MAX_UNTRUSTED_PREALLOC_BYTES`] from a compressed body small enough
+/// that [`should_stream_extract`] sees nothing suspicious about it — the
+/// gzip bomb the eager decode ceiling exists for.
+///
+/// `generated` entries are `(path, size)` pairs of filler produced
+/// straight into the encoder, so the archive only ever exists
+/// compressed; `verbatim` entries carry their own bytes.
+fn gzip_bomb_tarball(generated: &[(&str, u64)], verbatim: &[(&str, &[u8])]) -> Vec<u8> {
+    fn header(size: u64) -> tar::Header {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(size);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_cksum();
+        header
+    }
+
+    let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    let mut builder = tar::Builder::new(encoder);
+    for &(path, size) in generated {
+        builder
+            .append_data(&mut header(size), path, std::io::repeat(b'a').take(size))
+            .expect("append generated entry");
+    }
+    for &(path, bytes) in verbatim {
+        builder
+            .append_data(&mut header(bytes.len() as u64), path, bytes)
+            .expect("append verbatim entry");
+    }
+    builder.into_inner().expect("finish tar").finish().expect("finish gzip")
+}
+
+/// Nothing an archive says about itself bounds what it decodes to:
+/// `dist.unpackedSize` is the publisher's claim and the compressed
+/// length says nothing about the ratio, so the eager decode measures the
+/// archive itself and stops at the ceiling.
+#[test]
+fn decompress_gzip_stops_at_the_eager_ceiling() {
+    let bomb =
+        gzip_bomb_tarball(&[("package/bomb.bin", MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)], &[]);
+    assert!(
+        !should_stream_extract(bomb.len(), None),
+        "the compressed body must look small enough to route to the eager path",
+    );
+
+    let err = decompress_gzip(&bomb, None).expect_err("the archive must not inflate past the cap");
+    assert!(is_eager_decode_limit_exceeded(&err), "expected an output-limit refusal, got {err:?}");
+    assert!(is_transient_error(&err), "a decode failure must remain retryable");
+}
+
+/// A lockfile records no unpacked size, so on a frozen install the
+/// archive's own gzip trailer is the only claim about it there is — and
+/// a good enough one to route a large archive straight to the streaming
+/// extractor instead of discovering its size by decoding it twice.
+#[test]
+fn gzip_isize_hint_routes_a_large_archive_before_it_is_decoded() {
+    let bomb =
+        gzip_bomb_tarball(&[("package/bomb.bin", MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)], &[]);
+    let hint = gzip_isize_hint(&bomb).expect("a gzip stream carries an unpacked size");
+    assert!(
+        hint > MAX_UNTRUSTED_PREALLOC_BYTES,
+        "the trailer must report the archive's real size, got {hint}",
+    );
+    assert!(should_stream_extract(bomb.len(), Some(hint)));
+
+    assert_eq!(gzip_isize_hint(b"not a gzip stream at all"), None);
+    // Faked magic over garbage: the trailer of a body that cannot decode
+    // is not a size, and reading it as one would route the body away
+    // from the path whose error says it is not a gzip stream.
+    let mut faked = vec![0x1f_u8, 0x8b];
+    faked.extend(std::iter::repeat_n(0xa5_u8, 64));
+    assert_eq!(gzip_isize_hint(&faked), None);
+}
+
+/// Reaching the eager decode ceiling refuses no package: an archive that
+/// under-reports its unpacked size takes the eager path, exceeds the
+/// ceiling, and is extracted in full by the streaming extractor, which
+/// holds a bounded window of it rather than the whole thing.
+#[test]
+fn extract_gzipped_tarball_streams_an_archive_past_the_eager_ceiling() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let payload_size = MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1;
+    let mut bomb = gzip_bomb_tarball(
+        &[("package/bomb.bin", payload_size), ("package/tail.txt", 3)],
+        &[("package/package.json", br#"{"name":"bomb"}"#)],
+    );
+    // Rewrite the trailer's unpacked size so nothing warns the router
+    // ahead of the decode — the shape a bomb takes once the trailer is
+    // a signal.
+    let trailer = bomb.len() - 4;
+    bomb[trailer..].copy_from_slice(&1024_u32.to_le_bytes());
+    assert!(
+        !should_stream_extract(bomb.len(), gzip_isize_hint(&bomb)),
+        "the fixture must look small enough to route to the eager path",
+    );
+
+    let (cas_paths, pkg_files_idx) = extract_gzipped_tarball(&bomb, None, store_path, None)
+        .expect("an archive past the eager ceiling must still extract");
+
+    dbg!(cas_paths.keys().collect::<Vec<_>>());
+    assert_eq!(pkg_files_idx.files["bomb.bin"].size, payload_size);
+    assert_eq!(
+        std::fs::metadata(&cas_paths["bomb.bin"]).expect("stat the streamed entry").len(),
+        payload_size,
+        "the oversized entry must land in the CAS in full",
+    );
+    assert_eq!(
+        std::fs::read(&cas_paths["tail.txt"]).expect("read the trailing entry"),
+        b"aaa",
+        "entries after the oversized one must still be extracted",
+    );
+
+    drop(tempdir);
+}
+
 #[test]
 fn should_stream_extract_pivots_on_compressed_size_and_unpacked_hint() {
     assert!(!should_stream_extract(0, None));
@@ -1928,6 +2046,31 @@ async fn read_local_tarball_metadata_reads_integrity_and_bundled_manifest() {
     let manifest = metadata.manifest.expect("bundled manifest");
     assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("@fastify/error"));
     assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("3.3.0"));
+}
+
+/// A `file:` tarball is read to learn the name and version its
+/// specifier does not carry, so the eager decode ceiling must not turn
+/// a large local archive into an unresolvable dependency: past the
+/// ceiling the manifest is found by streaming instead.
+#[tokio::test]
+async fn read_local_tarball_metadata_reads_a_manifest_past_the_eager_ceiling() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+
+    let archive = gzip_bomb_tarball(
+        &[("package/payload.bin", MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)],
+        &[("package/package.json", br#"{"name":"huge","version":"1.0.0"}"#)],
+    );
+    std::fs::write(&tarball_path, &archive).unwrap();
+
+    let metadata = read_local_tarball_metadata(&tarball_path)
+        .await
+        .expect("an archive past the eager ceiling must still resolve");
+
+    let manifest = metadata.manifest.expect("bundled manifest");
+    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("huge"));
+    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("1.0.0"));
+    assert!(metadata.has_manifest_entry);
 }
 
 /// The manifest is the package's only source of identity here, so an
@@ -3898,6 +4041,94 @@ fn extract_zip_normalizes_dot_segments_in_entry_paths() {
     drop(tempdir);
 }
 
+/// A source that keeps producing bytes, counting how many were taken
+/// from it. `cap` is a safety net for the very regression under test: a
+/// caller that forgets to bound its read gets an error instead of an
+/// endless loop, and the byte count says what happened.
+struct EndlessReader {
+    bytes_read: u64,
+    cap: u64,
+}
+
+impl Read for EndlessReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.bytes_read >= self.cap {
+            return Err(std::io::Error::other("test reader ran past its safety cap"));
+        }
+        let take = buf.len().min(usize::try_from(self.cap - self.bytes_read).unwrap_or(usize::MAX));
+        buf[..take].fill(b'x');
+        self.bytes_read += take as u64;
+        Ok(take)
+    }
+}
+
+/// A zip entry's decompressed size is a claim in the central directory,
+/// not a limit the deflate stream behind it respects. An entry that
+/// keeps producing bytes past what it declared is the zip bomb: it must
+/// be rejected, and the read must stop rather than following the stream
+/// to wherever it ends — on the buffered and the direct-to-store branch
+/// alike.
+#[test]
+fn write_zip_entry_to_cas_stops_reading_an_entry_longer_than_it_claims() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    for declared_size in [16, STREAM_ENTRY_BUFFER_MAX + 1] {
+        let mut liar = EndlessReader { bytes_read: 0, cap: declared_size * 8 };
+        let err = write_zip_entry_to_cas(
+            &mut liar,
+            declared_size,
+            "https://example.test/bomb.zip",
+            "big.bin",
+            store_path,
+            false,
+        )
+        .expect_err("an entry that outruns its declared size must be rejected");
+        assert!(
+            matches!(err, TarballError::ReadZipEntries { .. }),
+            "expected ReadZipEntries for declared_size {declared_size}, got {err:?}",
+        );
+        assert!(
+            liar.bytes_read <= declared_size + 1,
+            "the read must stop just past the declared {declared_size} bytes, took {}",
+            liar.bytes_read,
+        );
+    }
+
+    drop(tempdir);
+}
+
+/// The counterpart of the rejection above: a truthful entry past the
+/// buffering ceiling streams into the CAS in full, so bounding the read
+/// costs a runtime archive's biggest member nothing.
+#[test]
+fn write_zip_entry_to_cas_streams_a_truthful_oversized_entry() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let declared_size = STREAM_ENTRY_BUFFER_MAX + 1;
+    let mut payload = std::io::repeat(b'x').take(declared_size);
+    let (file_path, _, size) = write_zip_entry_to_cas(
+        &mut payload,
+        declared_size,
+        "https://example.test/runtime.zip",
+        "bin/node",
+        store_path,
+        true,
+    )
+    .expect("an oversized entry must stream into the store");
+
+    assert_eq!(size, declared_size);
+    assert_eq!(
+        std::fs::metadata(&file_path).expect("stat the streamed entry").len(),
+        declared_size,
+    );
+    assert!(
+        file_path.to_string_lossy().ends_with("-exec"),
+        "executable entries must keep the -exec CAS suffix on the streaming branch",
+    );
+
+    drop(tempdir);
+}
+
 /// `offline: true` short-circuits the fetcher before any network
 /// request when the package isn't in the local store. Mocks a server
 /// with `.expect(0)` so the assertion fires *only* if the fetcher
@@ -4516,7 +4747,7 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
 
     let (reference_keep, reference_store) = tempdir_with_leaked_path();
     let (reference_paths, reference_idx) =
-        super::stream_extract_gzipped_tarball(&body, reference_store, None)
+        stream_extract_gzipped_tarball(&body, reference_store, None)
             .expect("the reference extraction of the same bytes must succeed");
     assert_eq!(
         cas_paths.keys().collect::<std::collections::BTreeSet<_>>(),
@@ -4537,6 +4768,115 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
     );
 
     drop(reference_keep);
+    drop(store_dir_keep);
+}
+
+/// A chunked response advertises no length, so nothing decides up front
+/// that its body is large — the buffered path has to notice while it
+/// runs. Past the point where the archive would be extracted as a stream
+/// anyway, it is, and the download completes as it would have with a
+/// `Content-Length`.
+#[tokio::test]
+async fn chunked_download_extracts_a_body_past_the_buffering_threshold() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let body = incompressible_tarball(STREAM_EXTRACT_COMPRESSED_THRESHOLD);
+    assert!(
+        body.len() > STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+        "the body must outgrow the buffering threshold to exercise the handover",
+    );
+    let pinned = Integrity::from(&body);
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_chunked_body(move |writer| writer.write_all(&body))
+        .expect(1)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    let (verified, cas_paths, _) = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&pinned),
+        None,
+        0,
+        "noise@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+    )
+    .await
+    .expect("a chunked body must download and extract");
+    mock.assert_async().await;
+
+    assert_eq!(verified.to_string(), pinned.to_string());
+    assert!(cas_paths.contains_key("noise.bin"), "got {:?}", cas_paths.keys().collect::<Vec<_>>());
+    drop(store_dir_keep);
+}
+
+/// A body that never was an archive still has to be read to its end
+/// before it can be judged: whether it hashes to the pinned integrity is
+/// what decides between "someone tampered with this download" and "this
+/// package is not a gzip stream". Dropping the bytes instead of keeping
+/// them must not change which of the two is reported.
+#[tokio::test]
+async fn oversized_non_gzip_body_reports_the_integrity_verdict_first() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let body = vec![b'n'; STREAM_EXTRACT_COMPRESSED_THRESHOLD + (1 << 16)];
+    let matching = Integrity::from(&body);
+    let wrong = Integrity::from(b"the body the registry was supposed to serve");
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(body)
+        .expect(6)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    async fn fetch_err(
+        url: &str,
+        pinned: &Integrity,
+        store_path: &'static StoreDir,
+    ) -> TarballError {
+        fetch_and_extract_with_retry::<SilentReporter>(
+            &ThrottledClient::default(),
+            url,
+            Some(pinned),
+            None,
+            0,
+            "noise@1.0.0",
+            "",
+            store_path,
+            fast_retry_opts(),
+            &AuthHeaders::default(),
+            None,
+            None,
+        )
+        .await
+        .expect_err("a body that is not an archive must fail")
+    }
+
+    let err = fetch_err(&url, &wrong, store_path).await;
+    assert!(
+        matches!(err, TarballError::Checksum(_)),
+        "a body that does not hash to the pinned integrity must report that, got {err:?}",
+    );
+
+    let err = fetch_err(&url, &matching, store_path).await;
+    assert!(
+        matches!(err, TarballError::DecodeGzip(_)),
+        "a body that hashes correctly but is not gzip must report the decode failure, got {err:?}",
+    );
+
+    mock.assert_async().await;
     drop(store_dir_keep);
 }
 
