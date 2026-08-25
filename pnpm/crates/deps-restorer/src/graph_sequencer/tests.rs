@@ -146,8 +146,9 @@ fn cycle_members_appear_in_one_chunk_only() {
 
 #[test]
 fn layers_resume_after_a_cycle_chunk() {
-    // d is a plain leaf below the a↔b cycle; e depends on d. The order
-    // must be: leaf layer, cycle chunk, then the cycle's dependent.
+    // d is a plain leaf below the a↔b cycle; e depends on the cycle
+    // through a. The order must be: leaf layer, cycle chunk, then the
+    // cycle's dependent.
     let graph_map = graph(&[("a", &["b", "d"]), ("b", &["a"]), ("d", &[]), ("e", &["a"])]);
     let nodes = included(&["a", "b", "d", "e"]);
     let result = graph_sequencer(&graph_map, &nodes);
@@ -180,5 +181,69 @@ fn deep_chain_sorts_in_linear_time() {
     assert!(
         elapsed < std::time::Duration::from_secs(5),
         "a {count}-node chain must sort in linear time, took {elapsed:?}",
+    );
+}
+
+#[test]
+fn dependents_of_a_cycle_sort_in_linear_time() {
+    // Many nodes lead into one large ring and are listed before it. The
+    // component filter must keep the cycle pass from paying a full ring
+    // walk per dependent, and the order stays: ring chunk first, then
+    // every dependent at once.
+    let ring_len = 3_000;
+    let dependent_count = 30_000;
+    let dependents: Vec<String> = (0..dependent_count).map(|i| format!("dep-{i:05}")).collect();
+    let ring: Vec<String> = (0..ring_len).map(|i| format!("ring-{i:04}")).collect();
+    let mut graph_map: HashMap<String, Vec<String>> = HashMap::new();
+    for (i, name) in dependents.iter().enumerate() {
+        graph_map.insert(name.clone(), vec![ring[i % ring_len].clone()]);
+    }
+    for (i, name) in ring.iter().enumerate() {
+        graph_map.insert(name.clone(), vec![ring[(i + 1) % ring_len].clone()]);
+    }
+    let included: Vec<String> = dependents.iter().chain(ring.iter()).cloned().collect();
+    let started = std::time::Instant::now();
+    let result = graph_sequencer(&graph_map, &included);
+    let elapsed = started.elapsed();
+    dbg!(elapsed);
+    assert!(!result.safe);
+    assert_eq!(result.cycles.len(), 1, "one ring, one reported cycle: {:?}", result.cycles.len());
+    assert_eq!(result.chunks.len(), 2);
+    assert_eq!(result.chunks[0].len(), ring_len);
+    assert_eq!(result.chunks[1].len(), dependent_count);
+    assert!(
+        elapsed < std::time::Duration::from_secs(5),
+        "dependents of a cycle must not each pay a ring walk, took {elapsed:?}",
+    );
+}
+
+#[test]
+fn chained_components_sort_in_linear_time() {
+    // Thousands of two-node rings, each pointing into the next. Confining
+    // the cycle search to a ring's own strongly connected component keeps
+    // one pass from walking every downstream ring per cycle.
+    let ring_count = 5_000;
+    let names: Vec<(String, String)> =
+        (0..ring_count).map(|i| (format!("a-{i:04}"), format!("b-{i:04}"))).collect();
+    let mut graph_map: HashMap<String, Vec<String>> = HashMap::new();
+    for (i, (a, b)) in names.iter().enumerate() {
+        let mut a_edges = vec![b.clone()];
+        if let Some((next_a, _)) = names.get(i + 1) {
+            a_edges.push(next_a.clone());
+        }
+        graph_map.insert(a.clone(), a_edges);
+        graph_map.insert(b.clone(), vec![a.clone()]);
+    }
+    let included: Vec<String> = names.iter().flat_map(|(a, b)| [a.clone(), b.clone()]).collect();
+    let started = std::time::Instant::now();
+    let result = graph_sequencer(&graph_map, &included);
+    let elapsed = started.elapsed();
+    dbg!(elapsed);
+    assert!(!result.safe);
+    assert_eq!(result.cycles.len(), ring_count);
+    assert_eq!(result.chunks.len(), 1, "one pass breaks every ring: {}", result.chunks.len());
+    assert!(
+        elapsed < std::time::Duration::from_secs(5),
+        "chained components must sort in linear time, took {elapsed:?}",
     );
 }

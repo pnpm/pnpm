@@ -402,3 +402,56 @@ test('deep chain sorts in linear time', () => {
   expect(result.chunks[count - 1]).toStrictEqual([names[count - 1]])
   expect(elapsedMs).toBeLessThan(5000)
 })
+
+// Many nodes lead into one large ring and are listed before it. The
+// component filter must keep the cycle pass from paying a full ring walk
+// per dependent, and the order stays: ring chunk first, then every
+// dependent at once.
+test('dependents of a cycle sort in linear time', () => {
+  const ringLen = 3_000
+  const dependentCount = 30_000
+  const dependents = Array.from({ length: dependentCount }, (_, i) => `dep-${i.toString().padStart(5, '0')}`)
+  const ring = Array.from({ length: ringLen }, (_, i) => `ring-${i.toString().padStart(4, '0')}`)
+  const graph = new Map<string, string[]>()
+  for (const [i, name] of dependents.entries()) {
+    graph.set(name, [ring[i % ringLen]])
+  }
+  for (const [i, name] of ring.entries()) {
+    graph.set(name, [ring[(i + 1) % ringLen]])
+  }
+  const included = [...dependents, ...ring]
+  const startedAt = performance.now()
+  const result = graphSequencer(graph, included)
+  const elapsedMs = performance.now() - startedAt
+  expect(result.safe).toBe(false)
+  expect(result.cycles).toHaveLength(1)
+  expect(result.chunks).toHaveLength(2)
+  expect(result.chunks[0]).toHaveLength(ringLen)
+  expect(result.chunks[1]).toHaveLength(dependentCount)
+  expect(elapsedMs).toBeLessThan(5000)
+})
+
+// Thousands of two-node rings, each pointing into the next. Confining the
+// cycle search to a ring's own strongly connected component keeps one pass
+// from walking every downstream ring per cycle.
+test('chained components sort in linear time', () => {
+  const ringCount = 5_000
+  const names = Array.from({ length: ringCount }, (_, i) => [`a-${i.toString().padStart(4, '0')}`, `b-${i.toString().padStart(4, '0')}`] as const)
+  const graph = new Map<string, string[]>()
+  for (const [i, [a, b]] of names.entries()) {
+    const aEdges = [b]
+    if (i + 1 < ringCount) {
+      aEdges.push(names[i + 1][0])
+    }
+    graph.set(a, aEdges)
+    graph.set(b, [a])
+  }
+  const included = names.flatMap(([a, b]) => [a, b])
+  const startedAt = performance.now()
+  const result = graphSequencer(graph, included)
+  const elapsedMs = performance.now() - startedAt
+  expect(result.safe).toBe(false)
+  expect(result.cycles).toHaveLength(ringCount)
+  expect(result.chunks).toHaveLength(1)
+  expect(elapsedMs).toBeLessThan(5000)
+})

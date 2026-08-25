@@ -18,7 +18,11 @@ export interface Result<T> {
  * The nodes are interned to indices up front and each chunk is gathered from
  * the nodes whose degree a removal drops to zero, so a workspace-scale graph
  * (thousands of projects in thousands of chunks) sorts in O(V log V + E)
- * instead of scanning every node once per chunk.
+ * instead of scanning every node once per chunk. Cycle discovery is confined
+ * to each strongly connected component: nodes that merely lead into a cycle
+ * cost nothing extra, and only enumerating the cycles inside one component
+ * pays that component's size per reported cycle (the price of the
+ * established cycle-reporting semantics).
  *
  * @param {Graph<T>}  graph - The graph represented as a Map where keys are nodes and values are their outgoing edges.
  * @param {T[]} includedNodes - An array of nodes that should be included in the sorting process. Other nodes will be ignored.
@@ -98,12 +102,19 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
     if (current.length === 0) {
       // Every remaining node keeps a dependency alive: cycles. Break them
       // the way the scan finds them, in includedNodes order.
+      //
+      // A cycle through a node lies entirely inside the node's strongly
+      // connected component, so only members of a non-trivial component
+      // (or self-loops) are searched, and each search stays inside its
+      // component. Without the filter, every node that merely leads
+      // *into* a cycle pays a full reachability walk that finds nothing.
+      const components = computeStronglyConnectedComponents(adjacency, removed)
       const cycleIds: number[] = []
       for (let id = 0; id < includedCount; id++) {
-        if (removed[id]) {
+        if (removed[id] || !mayLieOnCycle(components, id)) {
           continue
         }
-        const cycle = findCycle(id)
+        const cycle = findCycle(id, components)
         if (cycle.length === 0) {
           continue
         }
@@ -113,7 +124,12 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
         for (const node of cycle) {
           removeNode(node)
         }
-        cycleIds.push(...cycle)
+        // Appended one by one: a call-spread turns every cycle member into
+        // a function argument, and a pathological workspace-sized cycle
+        // would overflow the engine's argument limit.
+        for (const node of cycle) {
+          cycleIds.push(node)
+        }
         cycles.push(cycle)
       }
       remaining -= cycleIds.length
@@ -139,21 +155,24 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
   }
 
   // The longest of the shortest cycles running from startId back to itself
-  // through nodes not yet removed, or empty when there is none.
-  function findCycle (startId: number): number[] {
+  // through nodes not yet removed, or empty when there is none. The walk
+  // stays inside startId's strongly connected component — no cycle through
+  // startId can leave it.
+  function findCycle (startId: number, components: StronglyConnectedComponents): number[] {
     const queue: Array<[number, number[]]> = [[startId, [startId]]]
+    let head = 0
     const cycleVisited = new Set<number>()
     const foundCycles: number[][] = []
 
-    while (queue.length) {
-      const [id, cycle] = queue.shift()!
+    while (head < queue.length) {
+      const [id, cycle] = queue[head++]
       for (const to of adjacency[id]) {
         if (to === startId) {
           cycleVisited.add(to)
           foundCycles.push([...cycle])
           continue
         }
-        if (removed[to] || cycleVisited.has(to)) {
+        if (removed[to] || cycleVisited.has(to) || components.componentOf[to] !== components.componentOf[startId]) {
           continue
         }
         cycleVisited.add(to)
@@ -167,4 +186,91 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
     foundCycles.sort((a, b) => b.length - a.length)
     return foundCycles[0]
   }
+
+  // Whether a cycle through the node can exist: it shares a non-trivial
+  // component with another node, or loops onto itself. Removals since the
+  // components were computed can make this a false positive — the search
+  // then comes back empty, exactly as it would have without the filter —
+  // but never a false negative, because removals only take cycles away.
+  function mayLieOnCycle (components: StronglyConnectedComponents, id: number): boolean {
+    return components.componentSize[components.componentOf[id]] >= 2 || adjacency[id].includes(id)
+  }
+}
+
+// The strongly connected components of the not-yet-removed subgraph,
+// computed with an iterative Tarjan walk (recursion would overflow on a
+// workspace-deep chain). Removed nodes belong to no component.
+interface StronglyConnectedComponents {
+  componentOf: number[]
+  componentSize: number[]
+}
+
+function computeStronglyConnectedComponents (adjacency: number[][], removed: boolean[]): StronglyConnectedComponents {
+  const nodeCount = adjacency.length
+  const NONE = -1
+  const discovery: number[] = new Array(nodeCount).fill(NONE)
+  const lowLink: number[] = new Array(nodeCount).fill(0)
+  const onStack: boolean[] = new Array(nodeCount).fill(false)
+  const stack: number[] = []
+  const componentOf: number[] = new Array(nodeCount).fill(NONE)
+  const componentSize: number[] = []
+  let nextDiscovery = 0
+  // Explicit DFS frames of [node, next edge position].
+  const frames: Array<[number, number]> = []
+
+  for (let root = 0; root < nodeCount; root++) {
+    if (removed[root] || discovery[root] !== NONE) {
+      continue
+    }
+    discovery[root] = nextDiscovery
+    lowLink[root] = nextDiscovery
+    nextDiscovery++
+    stack.push(root)
+    onStack[root] = true
+    frames.push([root, 0])
+    while (frames.length > 0) {
+      const frame = frames[frames.length - 1]
+      const node = frame[0]
+      const edgeIndex = frame[1]
+      frame[1]++
+      if (edgeIndex < adjacency[node].length) {
+        const to = adjacency[node][edgeIndex]
+        if (removed[to]) {
+          continue
+        }
+        if (discovery[to] === NONE) {
+          discovery[to] = nextDiscovery
+          lowLink[to] = nextDiscovery
+          nextDiscovery++
+          stack.push(to)
+          onStack[to] = true
+          frames.push([to, 0])
+        } else if (onStack[to]) {
+          lowLink[node] = Math.min(lowLink[node], discovery[to])
+        }
+      } else {
+        frames.pop()
+        if (frames.length > 0) {
+          const parent = frames[frames.length - 1][0]
+          lowLink[parent] = Math.min(lowLink[parent], lowLink[node])
+        }
+        if (lowLink[node] === discovery[node]) {
+          const component = componentSize.length
+          let size = 0
+          for (;;) {
+            const member = stack.pop()!
+            onStack[member] = false
+            componentOf[member] = component
+            size++
+            if (member === node) {
+              break
+            }
+          }
+          componentSize.push(size)
+        }
+      }
+    }
+  }
+
+  return { componentOf, componentSize }
 }

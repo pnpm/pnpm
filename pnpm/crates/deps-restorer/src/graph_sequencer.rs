@@ -28,7 +28,11 @@ pub struct GraphSequencerResult<Node> {
 /// from the nodes whose degree a removal drops to zero, so a workspace-scale
 /// graph (thousands of projects in thousands of chunks) sorts in
 /// `O(V log V + E)` instead of scanning — and hashing — every node once per
-/// chunk.
+/// chunk. Cycle discovery is confined to each strongly connected component:
+/// nodes that merely lead into a cycle cost nothing extra, and only
+/// enumerating the cycles *inside* one component pays that component's size
+/// per reported cycle (the price of the established cycle-reporting
+/// semantics).
 pub fn graph_sequencer<Node>(
     graph: &HashMap<Node, Vec<Node>>,
     included: &[Node],
@@ -97,12 +101,20 @@ where
         if current.is_empty() {
             // Every remaining node keeps a dependency alive: cycles. Break
             // them the way the scan finds them, in `included` order.
+            //
+            // A cycle through a node lies entirely inside the node's
+            // strongly connected component, so only members of a
+            // non-trivial component (or self-loops) are searched, and each
+            // search stays inside its component. Without the filter, every
+            // node that merely leads *into* a cycle pays a full
+            // reachability walk that finds nothing.
+            let components = StronglyConnectedComponents::compute(&adjacency, &removed);
             let mut cycle_ids: Vec<usize> = Vec::new();
             for id in 0..included_count {
-                if removed[id] {
+                if removed[id] || !components.may_lie_on_cycle(id, &adjacency) {
                     continue;
                 }
-                let cycle = find_cycle(id, &adjacency, &removed);
+                let cycle = find_cycle(id, &adjacency, &removed, &components);
                 if cycle.is_empty() {
                     continue;
                 }
@@ -160,9 +172,107 @@ impl<'graph, Node: Eq + Hash + Clone> Interner<'graph, Node> {
     }
 }
 
+/// The strongly connected components of the not-yet-removed subgraph,
+/// computed with an iterative Tarjan walk (recursion would overflow on a
+/// workspace-deep chain). Removed nodes belong to no component.
+struct StronglyConnectedComponents {
+    component_of: Vec<usize>,
+    component_size: Vec<usize>,
+}
+
+impl StronglyConnectedComponents {
+    const NONE: usize = usize::MAX;
+
+    fn compute(adjacency: &[Vec<usize>], removed: &[bool]) -> Self {
+        let node_count = adjacency.len();
+        let mut discovery = vec![Self::NONE; node_count];
+        let mut low_link = vec![0; node_count];
+        let mut on_stack = vec![false; node_count];
+        let mut stack: Vec<usize> = Vec::new();
+        let mut component_of = vec![Self::NONE; node_count];
+        let mut component_size: Vec<usize> = Vec::new();
+        let mut next_discovery = 0;
+        // Explicit DFS frames of (node, next edge position).
+        let mut frames: Vec<(usize, usize)> = Vec::new();
+
+        for root in 0..node_count {
+            if removed[root] || discovery[root] != Self::NONE {
+                continue;
+            }
+            discovery[root] = next_discovery;
+            low_link[root] = next_discovery;
+            next_discovery += 1;
+            stack.push(root);
+            on_stack[root] = true;
+            frames.push((root, 0));
+            while let Some(frame) = frames.last_mut() {
+                let node = frame.0;
+                let edge_index = frame.1;
+                frame.1 += 1;
+                if let Some(&to) = adjacency[node].get(edge_index) {
+                    if removed[to] {
+                        continue;
+                    }
+                    if discovery[to] == Self::NONE {
+                        discovery[to] = next_discovery;
+                        low_link[to] = next_discovery;
+                        next_discovery += 1;
+                        stack.push(to);
+                        on_stack[to] = true;
+                        frames.push((to, 0));
+                    } else if on_stack[to] {
+                        low_link[node] = low_link[node].min(discovery[to]);
+                    }
+                } else {
+                    frames.pop();
+                    if let Some(&(parent, _)) = frames.last() {
+                        low_link[parent] = low_link[parent].min(low_link[node]);
+                    }
+                    if low_link[node] == discovery[node] {
+                        let component = component_size.len();
+                        let mut size = 0;
+                        loop {
+                            let member = stack.pop().expect("Tarjan stack holds the component");
+                            on_stack[member] = false;
+                            component_of[member] = component;
+                            size += 1;
+                            if member == node {
+                                break;
+                            }
+                        }
+                        component_size.push(size);
+                    }
+                }
+            }
+        }
+
+        StronglyConnectedComponents { component_of, component_size }
+    }
+
+    /// Whether a cycle through `node` can exist: it shares a non-trivial
+    /// component with another node, or loops onto itself. Removals since
+    /// [`Self::compute`] can make this a false positive — the search then
+    /// comes back empty, exactly as it would have without the filter —
+    /// but never a false negative, because removals only take cycles away.
+    fn may_lie_on_cycle(&self, node: usize, adjacency: &[Vec<usize>]) -> bool {
+        self.component_size[self.component_of[node]] >= 2 || adjacency[node].contains(&node)
+    }
+
+    fn shares_component(&self, left: usize, right: usize) -> bool {
+        self.component_of[left] == self.component_of[right]
+    }
+}
+
 /// The longest of the shortest cycles running from `start` back to itself
-/// through nodes not yet removed, or empty when there is none.
-fn find_cycle(start: usize, adjacency: &[Vec<usize>], removed: &[bool]) -> Vec<usize> {
+/// through nodes not yet removed, or empty when there is none. The walk
+/// stays inside `start`'s strongly connected component — no cycle through
+/// `start` can leave it.
+fn find_cycle(
+    start: usize,
+    adjacency: &[Vec<usize>],
+    removed: &[bool],
+    components: &StronglyConnectedComponents,
+) -> Vec<usize> {
     let mut queue: VecDeque<(usize, Vec<usize>)> = VecDeque::new();
     queue.push_back((start, vec![start]));
     let mut cycle_visited = vec![false; adjacency.len()];
@@ -175,7 +285,7 @@ fn find_cycle(start: usize, adjacency: &[Vec<usize>], removed: &[bool]) -> Vec<u
                 found_cycles.push(cycle.clone());
                 continue;
             }
-            if removed[to] || cycle_visited[to] {
+            if removed[to] || cycle_visited[to] || !components.shares_component(start, to) {
                 continue;
             }
             cycle_visited[to] = true;
