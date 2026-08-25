@@ -99,6 +99,21 @@ fn an_unreachable_registry_pins_the_running_pnpm() {
     drop(root);
 }
 
+/// `offline` keeps `pnpm init` off the network altogether. The fixture's
+/// registry is reachable and serving a newer pnpm, so a pin of the running
+/// version is only possible if the lookup never happened.
+#[test]
+fn offline_pins_the_running_pnpm_without_a_lookup() {
+    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
+        pinning_fixture(LATEST_PNPM);
+    pacquet.env("PNPM_CONFIG_OFFLINE", "true");
+    pacquet.with_arg("init").assert().success();
+
+    assert_pinned_to_the_running_pnpm(&workspace);
+
+    drop((root, npmrc_info));
+}
+
 fn assert_pinned_to_the_running_pnpm(dir: &Path) {
     let manifest = fs::read_to_string(dir.join("package.json")).expect("read from package.json");
     let pin = format!(r#""packageManager": "pnpm@{}""#, pnpm_config::PNPM_VERSION);
