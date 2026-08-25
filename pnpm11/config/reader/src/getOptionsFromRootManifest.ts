@@ -116,7 +116,7 @@ const REGISTRY_DECLARATION_FIELDS = new Set(['serverType', 'supportsTimeField', 
  * pnpm reads: the scope-routed URLs, the `<prefix>:`-addressed URLs, and the
  * per-registry options. The declaration map itself does not travel.
  */
-function (settings: OptionsFromRootManifest): void {
+function translateRegistrySettings (settings: OptionsFromRootManifest): void {
   // Both settings are read under the names a user writes and removed, because
   // the keys the rest of pnpm reads are the lookups they feed.
   const written = settings as Pick<PnpmSettings, 'namedRegistries' | 'registries'>
