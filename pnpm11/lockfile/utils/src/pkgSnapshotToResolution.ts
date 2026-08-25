@@ -5,7 +5,12 @@ import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
-import { getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
+import {
+  getIntegrityAddressedTarballUrl,
+  getNpmTarballUrl,
+  isIntegrityAddressedRegistryTarballUrl,
+  isValidTarballRevision,
+} from '@pnpm/resolving.tarball-url'
 import type { RegistryContext } from '@pnpm/types'
 
 import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
@@ -23,6 +28,21 @@ export function pkgSnapshotToResolution (
     // Avoid URL string-coercion from malformed YAML lockfile values.
     throw new PnpmError('INVALID_TARBALL_RESOLUTION',
       `Cannot install package "${depPath}": its lockfile entry has a non-string "tarball" field.`)
+  }
+  if (resolution.revision != null && !isValidTarballRevision(resolution.revision)) {
+    throw new PnpmError('INVALID_TARBALL_REVISION',
+      `Cannot install package "${depPath}": its lockfile entry has an invalid "revision" field.`)
+  }
+  if (
+    resolution.revision != null &&
+    (
+      Boolean(resolution.type) ||
+      resolution.tarball?.startsWith('file:') ||
+      resolution.gitHosted === true
+    )
+  ) {
+    throw new PnpmError('INVALID_TARBALL_REVISION',
+      `Cannot install package "${depPath}": its lockfile entry with a revision does not identify a registry tarball.`)
   }
   if (
     Boolean(resolution.type) ||
@@ -46,8 +66,8 @@ export function pkgSnapshotToResolution (
     registry = normalizeRegistriesByPrefix(opts.registriesByPrefix)[registryName]
     if (!registry) {
       throw new PnpmError('MISSING_NAMED_REGISTRY',
-        `Cannot install package "${depPath}": it was resolved from the named registry '${registryName}:', which is not present in the registriesByPrefix setting.`,
-        { hint: `Add '${registryName}' to the registriesByPrefix setting in pnpm-workspace.yaml.` })
+        `Cannot install package "${depPath}": its registry prefix '${registryName}:' is not declared by the registries setting.`,
+        { hint: `Add a registries entry with "prefix: ${registryName}" to pnpm-workspace.yaml.` })
     }
   } else if (name != null && name[0] === '@') {
     registry = opts.registriesByScope[name.split('/')[0]]
@@ -57,8 +77,29 @@ export function pkgSnapshotToResolution (
   }
   let tarball!: string
   if (!resolution.tarball) {
-    tarball = getTarball(registry)
+    if (resolution.revision == null) {
+      tarball = getTarball(registry)
+    } else {
+      const integrityTarball = resolution.integrity == null
+        ? undefined
+        : getIntegrityAddressedTarballUrl(resolution.integrity, registry)
+      if (integrityTarball == null) {
+        throw new PnpmError('INVALID_TARBALL_REVISION',
+          `Cannot install package "${depPath}": its lockfile entry with a revision has invalid or missing integrity.`)
+      }
+      tarball = integrityTarball
+    }
   } else {
+    if (
+      resolution.revision != null &&
+      (
+        resolution.integrity == null ||
+        !isIntegrityAddressedRegistryTarballUrl(resolution.tarball, resolution.integrity, registry)
+      )
+    ) {
+      throw new PnpmError('INVALID_TARBALL_REVISION',
+        `Cannot install package "${depPath}": its lockfile entry with a revision has a mismatched tarball URL.`)
+    }
     tarball = new url.URL(resolution.tarball,
       registry.endsWith('/') ? registry : `${registry}/`
     ).toString()

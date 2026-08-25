@@ -90,7 +90,8 @@ pub async fn resolve_package_manager_integrities(
         }
         let registry = opts.pick_registry(&package.name);
         let mut metadata =
-            package_metadata(&package.name, &package.version, &package.result, registry, false);
+            package_metadata(&package.name, &package.version, &package.result, registry, false)
+                .map_err(ConfigDepError::LockfileForm)?;
         metadata.resolution = strip_registry_tarball_url(metadata.resolution);
         env_lockfile.packages.insert(package.key.clone(), metadata);
 
@@ -144,10 +145,11 @@ fn strip_registry_tarball_url(resolution: LockfileResolution) -> LockfileResolut
         LockfileResolution::Tarball(TarballResolution {
             tarball,
             integrity: Some(integrity),
+            revision: None,
             git_hosted: None | Some(false),
             path: None,
         }) if !tarball.starts_with("file:") => {
-            LockfileResolution::Registry(RegistryResolution { integrity })
+            LockfileResolution::Registry(RegistryResolution { integrity, revision: None })
         }
         other => other,
     }

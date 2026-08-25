@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { isWellFormedRegistryName, RESERVED_VERSION_PREFIXES } from '@pnpm/deps.path'
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactUrlForDisplay } from '@pnpm/error'
 import type {
   FetchFromRegistry,
   GetAuthHeader,
@@ -31,6 +31,10 @@ import type {
 import {
   EXISTING_VERSION_SELECTOR_WEIGHT,
 } from '@pnpm/resolving.resolver-base'
+import {
+  isIntegrityAddressedRegistryTarballUrl,
+  isValidTarballRevision,
+} from '@pnpm/resolving.tarball-url'
 import { storeIndexKey } from '@pnpm/store.index'
 import type {
   DependencyManifest,
@@ -767,10 +771,7 @@ async function resolveNpm (
 
   warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
   const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
-  const resolution = {
-    integrity: getIntegrity(pickedPackage.dist),
-    tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
-  }
+  const resolution = createRegistryTarballResolution(pickedPackage.dist, registry)
   let normalizedBareSpecifier: string | undefined
   if (opts.calcSpecifier) {
     normalizedBareSpecifier = spec.normalizedBareSpecifier ?? calcSpecifier({
@@ -839,7 +840,7 @@ function mergeNamedRegistries (userDefined?: Record<string, string>): Record<str
         RESERVED_VERSION_PREFIXES.has(alias)
           ? `'${alias}' cannot be used as a named registry alias: it is a reserved dependency specifier prefix.`
           : `'${alias}' cannot be used as a named registry alias: aliases must start with a letter and contain only letters, digits, ".", "_", and "-".`,
-        { hint: 'Rename the entry in the registriesByPrefix setting.' }
+        { hint: 'Change the prefix on the corresponding registries entry.' }
       )
     }
     if (typeof url !== 'string' || !isValidHttpUrl(url)) {
@@ -943,10 +944,7 @@ async function pickFromSimpleRegistry (
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   }
   warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
-  const resolution = {
-    integrity: getIntegrity(pickedPackage.dist),
-    tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
-  }
+  const resolution = createRegistryTarballResolution(pickedPackage.dist, registry)
   const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
@@ -1293,6 +1291,33 @@ function getIntegrity (dist: {
     throw new PnpmError('INVALID_TARBALL_INTEGRITY', `Tarball "${dist.tarball}" has invalid shasum specified in its metadata: ${dist.shasum}`)
   }
   return integrity.toString()
+}
+
+function createRegistryTarballResolution (
+  dist: PackageInRegistry['dist'],
+  registry: string
+): TarballResolution {
+  const integrity = getIntegrity(dist)
+  const tarball = normalizeRegistryUrl(dist.tarball)
+  if (dist.revision == null) {
+    return { integrity, tarball }
+  }
+  if (!isValidTarballRevision(dist.revision)) {
+    throw new PnpmError('MALFORMED_METADATA',
+      `Tarball "${redactUrlForDisplay(dist.tarball)}" has an invalid revision in its metadata: ${String(dist.revision)}`)
+  }
+  if (
+    integrity == null ||
+    !isIntegrityAddressedRegistryTarballUrl(tarball, integrity, registry)
+  ) {
+    throw new PnpmError('MALFORMED_METADATA',
+      `Tarball "${redactUrlForDisplay(dist.tarball)}" has revision ${dist.revision} but is not addressed by its complete integrity.`)
+  }
+  return {
+    integrity,
+    revision: dist.revision,
+    tarball,
+  }
 }
 
 /**

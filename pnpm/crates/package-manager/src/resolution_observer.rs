@@ -42,6 +42,9 @@ pub struct ResolvedPackageHint<'a> {
     /// registry published one. The per-file term of the download
     /// priority's pipeline-work estimate.
     pub file_count: Option<usize>,
+    /// Registry artifact revision. Its presence selects the immutable
+    /// one-request, no-redirect download policy on the client.
+    pub revision: Option<u64>,
     /// Whether the package resolved from a registry (npm / named / jsr), so
     /// [`Self::tarball_url`] is the registry packument's `dist.tarball`. A
     /// server router must classify such a package by its *registry* route, not
@@ -109,6 +112,12 @@ impl ObservingResolver {
         let name = name_ver.name.to_string();
         let version = name_ver.suffix.to_string();
         let integrity = integrity.to_string();
+        let revision = match &result.resolution {
+            pnpm_lockfile::LockfileResolution::Tarball(tarball) => {
+                tarball.revision.map(pnpm_lockfile::TarballRevision::get)
+            }
+            _ => None,
+        };
         self.observer.on_resolved(ResolvedPackageHint {
             id: &id,
             name: &name,
@@ -117,6 +126,7 @@ impl ObservingResolver {
             tarball_url,
             unpacked_size: manifest_unpacked_size(result.manifest.as_deref()),
             file_count: manifest_file_count(result.manifest.as_deref()),
+            revision,
             from_registry: is_registry_resolution(&result.resolved_via),
         });
     }

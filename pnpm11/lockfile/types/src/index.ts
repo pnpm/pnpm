@@ -90,6 +90,7 @@ export interface TarballResolution {
   type?: undefined
   tarball: string
   integrity?: string
+  revision?: number
   path?: string
   /**
    * True for tarballs sourced from a git host (codeload.github.com /
@@ -162,6 +163,7 @@ export interface VariationsResolution {
 
 export type LockfileResolution = Resolution | VariationsResolution | {
   integrity: string
+  revision?: number
 }
 
 export type PackageSnapshot = LockfilePackageInfo & LockfilePackageSnapshot

@@ -329,6 +329,10 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let Ok((package_url, integrity)) = extract_tarball(&result.resolution) else {
             return;
         };
+        let revision_addressed = matches!(
+            &result.resolution,
+            LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
+        );
         // The npm picker's `dist.tarball` is the canonical URL the
         // install path will look up in `MemCache`. Tarball-resolver
         // and git-resolver paths can leave `name_ver` unset (they
@@ -385,7 +389,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             //
             // Result is intentionally discarded — the `MemCache`
             // carries success / failure state to the install path.
-            let _ = DownloadTarballToStore {
+            let download = DownloadTarballToStore {
                 http_client: &http_client,
                 store_dir,
                 store_index,
@@ -406,9 +410,12 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 offline,
                 progress_reported: Some(progress_reported),
                 append_manifest: None,
-            }
-            .run_with_mem_cache::<Reporter>(&mem_cache)
-            .await;
+            };
+            let _ = if revision_addressed {
+                download.run_revision_addressed_with_mem_cache::<Reporter>(&mem_cache).await
+            } else {
+                download.run_with_mem_cache::<Reporter>(&mem_cache).await
+            };
         });
     }
 

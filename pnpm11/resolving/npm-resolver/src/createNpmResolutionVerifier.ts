@@ -221,7 +221,7 @@ export function createNpmResolutionVerifier (
         return {
           ok: false,
           code: MISSING_NAMED_REGISTRY_VIOLATION_CODE,
-          reason: `was resolved from the named registry '${registryName}:', which is not present in the registriesByPrefix setting`,
+          reason: `has registry prefix '${registryName}:', which is not declared by the registries setting`,
         }
       }
       registry = namedRegistry

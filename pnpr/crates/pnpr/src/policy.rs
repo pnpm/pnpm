@@ -292,6 +292,12 @@ impl PackageRules {
         self.rules.iter().any(|rule| rule.publish.is_some() || rule.unpublish.is_some())
     }
 
+    /// Whether any package carries an explicit access policy.
+    #[must_use]
+    pub fn refines_access(&self) -> bool {
+        self.rules.iter().any(|rule| rule.access.is_some())
+    }
+
     /// The effective permissions for `package`: the **most specific**
     /// matching entry's fields, each falling back to the registry-level
     /// default. Selection is order-free — the restricted pattern language

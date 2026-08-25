@@ -153,13 +153,19 @@ fn allocate_tarball_buffer_rejects_absurd_content_length() {
 /// could stall for minutes of TCP retry. One-second bounds are
 /// plenty for loopback and keep the failure mode deterministic.
 fn fast_fail_client() -> ThrottledClient {
-    let client = reqwest::Client::builder()
-        .no_proxy()
-        .connect_timeout(std::time::Duration::from_secs(1))
-        .timeout(std::time::Duration::from_secs(1))
-        .build()
-        .expect("build reqwest client");
-    ThrottledClient::from_client(client)
+    let build = |redirect| {
+        reqwest::Client::builder()
+            .no_proxy()
+            .connect_timeout(std::time::Duration::from_secs(1))
+            .timeout(std::time::Duration::from_secs(1))
+            .redirect(redirect)
+            .build()
+            .expect("build reqwest client")
+    };
+    ThrottledClient::from_clients(
+        build(reqwest::redirect::Policy::limited(10)),
+        build(reqwest::redirect::Policy::none()),
+    )
 }
 
 /// Pin `walk_reqwest_chain`'s contract: a `NetworkError` formed
@@ -1884,6 +1890,7 @@ async fn download_pipeline_extracts_via_streaming_path_for_large_unpacked_hint()
             &AuthHeaders::default(),
             None,
             None,
+            false,
         )
         .await
         .expect("download with a large unpacked-size hint");
@@ -2323,6 +2330,7 @@ async fn retries_then_succeeds_on_transient_5xx() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect("transient 503 should be followed by a successful retry");
@@ -2331,6 +2339,209 @@ async fn retries_then_succeeds_on_transient_5xx() {
     assert!(cas_paths.contains_key("package.json"));
     fail.assert_async().await;
     ok.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn revision_addressed_tarball_does_not_retry_a_transient_failure() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let digest = "A".repeat(86);
+    let path = format!("/-/tarballs/sha512/{digest}");
+    let mock = server.mock("GET", path.as_str()).with_status(503).expect(1).create_async().await;
+    let url = format!("{}{path}", server.url());
+    let expected = integrity(&format!("sha512-{digest}=="));
+
+    let err = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&expected),
+        None,
+        0,
+        "test-pkg",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+        true,
+    )
+    .await
+    .expect_err("a revision-addressed 503 must fail after one request");
+
+    assert!(matches!(err, TarballError::HttpStatus(_)), "got {err:?}");
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn revision_addressed_tarball_does_not_follow_a_redirect() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let digest = "A".repeat(86);
+    let path = format!("/-/tarballs/sha512/{digest}");
+    let redirect = server
+        .mock("GET", path.as_str())
+        .with_status(302)
+        .with_header("location", "/redirected.tgz")
+        .expect(1)
+        .create_async()
+        .await;
+    let redirected = server
+        .mock("GET", "/redirected.tgz")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(0)
+        .create_async()
+        .await;
+    let url = format!("{}{path}", server.url());
+    let expected = integrity(&format!("sha512-{digest}=="));
+
+    let err = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&expected),
+        None,
+        0,
+        "test-pkg",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+        true,
+    )
+    .await
+    .expect_err("a revision-addressed redirect must not be followed");
+
+    assert!(matches!(err, TarballError::HttpStatus(_)), "got {err:?}");
+    redirect.assert_async().await;
+    redirected.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn revision_addressed_mem_cache_does_not_retry_a_failed_prefetch() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let digest = "A".repeat(86);
+    let path = format!("/-/tarballs/sha512/{digest}");
+    let mock = server.mock("GET", path.as_str()).with_status(503).expect(1).create_async().await;
+    let url = format!("{}{path}", server.url());
+    let expected = integrity(&format!("sha512-{digest}=="));
+    let client = ThrottledClient::default();
+    let mem_cache = MemCache::default();
+    let auth_headers = AuthHeaders::default();
+    let verified_files_cache = SharedVerifiedFilesCache::default();
+    let download = || DownloadTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+        package_integrity: Some(&expected),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: &url,
+        package_id: "test-pkg",
+        requester: "",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &auth_headers,
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: None,
+        append_manifest: None,
+    };
+
+    let (first, second) = futures_util::future::join(
+        download().run_revision_addressed_with_mem_cache::<SilentReporter>(&mem_cache),
+        download().run_revision_addressed_with_mem_cache::<SilentReporter>(&mem_cache),
+    )
+    .await;
+    let first = first.expect_err("the first revision-addressed consumer must fail");
+    let second = second.expect_err("the second revision-addressed consumer must fail");
+    assert!(
+        matches!(&first, TarballError::HttpStatus(_))
+            && matches!(&second, TarballError::SiblingFetchFailed { .. })
+            || matches!(&second, TarballError::HttpStatus(_))
+                && matches!(&first, TarballError::SiblingFetchFailed { .. }),
+        "one consumer must own the request and the other inherit its failure; got {first:?} and {second:?}",
+    );
+
+    let later = download()
+        .run_revision_addressed_with_mem_cache::<SilentReporter>(&mem_cache)
+        .await
+        .expect_err("a later consumer must inherit the terminal failure");
+    assert!(matches!(later, TarballError::SiblingFetchFailed { .. }), "got {later:?}");
+
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn revision_addressed_mem_cache_does_not_reuse_a_redirect_permitting_fetch() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let redirect = server
+        .mock("GET", "/-/tarballs/sha512/digest")
+        .with_status(302)
+        .with_header("location", "/redirected.tgz")
+        .expect(2)
+        .create_async()
+        .await;
+    let redirected = server
+        .mock("GET", "/redirected.tgz")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(1)
+        .create_async()
+        .await;
+    let url = format!("{}/-/tarballs/sha512/digest", server.url());
+    let expected = integrity(FASTIFY_ERROR_INTEGRITY);
+    let client = ThrottledClient::default();
+    let mem_cache = MemCache::default();
+    let auth_headers = AuthHeaders::default();
+    let verified_files_cache = SharedVerifiedFilesCache::default();
+    let download = || DownloadTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+        package_integrity: Some(&expected),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: &url,
+        package_id: "test-pkg",
+        requester: "",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &auth_headers,
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: None,
+        append_manifest: None,
+    };
+
+    download()
+        .run_with_mem_cache::<SilentReporter>(&mem_cache)
+        .await
+        .expect("an ordinary fetch may follow the redirect");
+    let err = download()
+        .run_revision_addressed_with_mem_cache::<SilentReporter>(&mem_cache)
+        .await
+        .expect_err("a revision fetch must make its own request and reject the redirect");
+
+    assert!(matches!(err, TarballError::HttpStatus(_)), "got {err:?}");
+    redirect.assert_async().await;
+    redirected.assert_async().await;
     drop(store_dir_keep);
 }
 
@@ -2368,6 +2579,7 @@ async fn retries_integrity_mismatch_until_exhausted() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect_err("integrity mismatch should exhaust the retry budget");
@@ -2623,6 +2835,7 @@ async fn fails_fast_on_404() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect_err("404 must fail-fast without retry");
@@ -2662,6 +2875,7 @@ async fn retries_other_4xx_codes() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect_err("non-401/403/404 4xx should exhaust the retry budget");
@@ -2696,6 +2910,7 @@ async fn retry_exhaustion_returns_last_error() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect_err("permanent 500s should exhaust the retry budget");
@@ -2896,6 +3111,7 @@ async fn zero_retries_makes_a_single_attempt() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect_err("retries=0 must surface the first failure");
@@ -2943,6 +3159,7 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
         &auth_headers,
         None,
         None,
+        false,
     )
     .await
     .expect("server should accept the request once the bearer header is attached");
@@ -2985,6 +3202,7 @@ async fn fetch_attaches_authorization_header_when_scope_creds_match_package_id()
         &auth_headers,
         None,
         None,
+        false,
     )
     .await
     .expect("server should accept the request once the scoped bearer header is attached");
@@ -3041,6 +3259,7 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
         &auth_headers,
         None,
         None,
+        false,
     )
     .await
     .expect("retry attempt should also carry the bearer header");
@@ -3476,6 +3695,7 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect("transient 503 should be followed by a successful retry");
@@ -3568,6 +3788,7 @@ async fn started_fires_for_connection_level_failures() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect_err("connect-refused must surface as a TarballError");
@@ -3785,6 +4006,7 @@ async fn request_retry_event_fires_per_retried_attempt() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect("transient 503 should be followed by a successful retry");
@@ -4687,6 +4909,7 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
             &AuthHeaders::default(),
             None,
             None,
+            false,
         )
         .await
         .expect("the download should succeed");
@@ -4749,6 +4972,7 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect("a well-formed pinned tarball must download and extract");
@@ -4820,6 +5044,7 @@ async fn chunked_download_extracts_a_body_past_the_buffering_threshold() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect("a chunked body must download and extract");
@@ -4870,6 +5095,7 @@ async fn oversized_non_gzip_body_reports_the_integrity_verdict_first() {
             &AuthHeaders::default(),
             None,
             None,
+            false,
         )
         .await
         .expect_err("a body that is not an archive must fail")
@@ -4920,6 +5146,7 @@ async fn streaming_download_integrity_mismatch_retries_and_fails() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect_err("an integrity mismatch must exhaust the retry budget");
@@ -4960,6 +5187,7 @@ async fn streaming_download_corrupt_archive_retries_and_fails() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect_err("a corrupt archive must exhaust the retry budget");
@@ -5001,6 +5229,7 @@ async fn streaming_download_tampered_and_corrupt_body_reports_integrity() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect_err("a tampered body must exhaust the retry budget");

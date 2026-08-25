@@ -9,7 +9,7 @@ fn registry_context(registries: HashMap<String, String>) -> pnpm_lockfile::Regis
 use pnpm_lockfile::{
     BundledDependencies, ComVer, GitResolution, ImporterDepVersion, Lockfile, LockfileResolution,
     LockfileVersion, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot,
-    RegistryResolution, ResolvedDependencySpec, StringOrList, TarballResolution,
+    RegistryResolution, ResolvedDependencySpec, StringOrList, TarballResolution, TarballRevision,
 };
 
 use super::{reusable_importer_dep, synthesize_reused_result};
@@ -59,6 +59,7 @@ fn registry_metadata() -> PackageMetadata {
             integrity: "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
                 .parse()
                 .expect("parse integrity"),
+            revision: None,
         }),
         version: None,
         engines: None,
@@ -227,6 +228,7 @@ fn does_not_reuse_directory_resolutions() {
     metadata.resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://example.test/pkg.tgz".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -323,12 +325,45 @@ fn current_pkg_routes_a_scoped_package_to_its_scope_registry() {
 }
 
 #[test]
+fn current_pkg_materializes_a_revision_from_the_registry_prefix_declaration() {
+    let key: PkgNameVerPeer = "pkg@work:1.0.0".parse().expect("parse key");
+    let mut metadata = registry_metadata();
+    let LockfileResolution::Registry(registry_resolution) = &mut metadata.resolution else {
+        unreachable!("registry_metadata returns a registry resolution");
+    };
+    registry_resolution.integrity =
+        "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+            .parse()
+            .expect("parse integrity");
+    registry_resolution.revision = Some(TarballRevision::try_from(7).unwrap());
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+    let mut context = registry_context(default_registry());
+    context
+        .registries_by_prefix
+        .insert("work".to_string(), "https://registry.example.test/work/npm/".to_string());
+
+    let current_pkg = super::current_pkg_from_lockfile(&lockfile, &key, &context)
+        .expect("declared prefix makes the revision reusable");
+
+    let LockfileResolution::Tarball(tarball) = current_pkg.resolution else {
+        panic!("registry resolution must materialize as a tarball");
+    };
+    assert_eq!(
+        tarball.tarball,
+        format!("https://registry.example.test/work/npm/-/tarballs/sha512/{}", "A".repeat(86)),
+    );
+    assert_eq!(tarball.revision, Some(TarballRevision::try_from(7).unwrap()));
+}
+
+#[test]
 fn current_pkg_passes_a_recorded_tarball_resolution_through() {
     let key: PkgNameVerPeer = "pkg@1.0.0".parse().expect("parse key");
     let mut metadata = registry_metadata();
     metadata.resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://example.test/pkg-1.0.0.tgz".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: None,
         path: None,
     });

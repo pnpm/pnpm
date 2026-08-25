@@ -4570,6 +4570,7 @@ version = "0.0.1"
 dependencies = [
  "base64 0.23.1",
  "sha2",
+ "ssri",
  "tempfile",
 ]
 
@@ -5060,6 +5061,7 @@ dependencies = [
  "derive_more",
  "indexmap 2.14.0",
  "libc",
+ "miette 7.6.0",
  "node-semver",
  "pipe-trait",
  "pnpm-catalogs-types",
@@ -5077,6 +5079,7 @@ dependencies = [
  "ssri",
  "tempfile",
  "text-block-macros",
+ "url",
 ]
 
 [[package]]
@@ -5957,6 +5960,7 @@ dependencies = [
  "pnpm-catalogs-types",
  "pnpm-config",
  "pnpm-config-dir",
+ "pnpm-crypto-hash",
  "pnpm-env-replace",
  "pnpm-lockfile",
  "pnpm-lockfile-verification",

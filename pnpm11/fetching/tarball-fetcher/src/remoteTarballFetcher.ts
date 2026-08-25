@@ -4,7 +4,7 @@ import util from 'node:util'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError, redactUrlForDisplay } from '@pnpm/error'
 import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
-import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
+import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
 import type { Cafs } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
@@ -27,6 +27,8 @@ export type DownloadOptions = {
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
   integrity?: string
+  redirect?: RequestRedirect
+  retry?: Pick<RetryTimeoutOptions, 'retries'>
   storeIndex: StoreIndex
   pkg?: FetchOptions['pkg']
 } & Pick<FetchOptions, 'appendManifest' | 'readManifest' | 'filesIndexFile' | 'ignoreFilePattern'>
@@ -67,7 +69,8 @@ export function createDownloader (
   return async function download (url: string, opts: DownloadOptions): Promise<FetchResult> {
     const authHeaderValue = opts.getAuthHeaderByURI(url, { pkgName: opts.pkg?.name })
 
-    const op = retry.operation(retryOpts)
+    const downloadRetryOpts = { ...retryOpts, ...opts.retry }
+    const op = retry.operation(downloadRetryOpts)
 
     return new Promise<FetchResult>((resolve, reject) => {
       op.attempt(async (attempt) => {
@@ -75,6 +78,7 @@ export function createDownloader (
           resolve(await fetch(attempt))
         } catch (error: any) { // eslint-disable-line
           if (
+            (opts.redirect === 'manual' && error.response?.status >= 300 && error.response.status < 400) ||
             error.response?.status === 401 ||
             error.response?.status === 403 ||
             error.response?.status === 404 ||
@@ -107,7 +111,7 @@ export function createDownloader (
           requestRetryLogger.debug({
             attempt,
             error: errorInfo,
-            maxRetries: retryOpts.retries,
+            maxRetries: downloadRetryOpts.retries,
             method: 'GET',
             timeout,
             url,
@@ -131,6 +135,7 @@ export function createDownloader (
           // Hence, we tell fetch to not retry,
           // and we perform the retries from this function instead.
           retry: { retries: 0 },
+          redirect: opts.redirect,
           timeout: gotOpts.timeout,
         })
 

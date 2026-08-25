@@ -8908,6 +8908,9 @@ importers:
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../resolver-base
+      '@pnpm/resolving.tarball-url':
+        specifier: workspace:*
+        version: link:../tarball-url
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -9085,6 +9088,9 @@ importers:
 
   pnpm11/resolving/tarball-url:
     dependencies:
+      '@pnpm/crypto.integrity':
+        specifier: workspace:*
+        version: link:../../crypto/integrity
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types

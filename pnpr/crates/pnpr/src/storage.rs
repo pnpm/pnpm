@@ -7,6 +7,7 @@ use crate::{
 };
 use axum::body::Body;
 use object_store::UpdateVersion;
+use pnpm_crypto_hash::integrity_addressed_tarball_integrity;
 use std::{
     io::{ErrorKind, SeekFrom},
     path::{Path, PathBuf},
@@ -635,6 +636,24 @@ impl Storage {
         self.cached.namespaced(namespace).open_tarball(name, filename).await
     }
 
+    pub async fn open_upstream_revision_tarball_tmp(
+        &self,
+        namespace: &str,
+        digest: &str,
+    ) -> Result<TarballWrite> {
+        validate_revision_digest(digest)?;
+        self.cached.namespaced(namespace).open_revision_tarball_tmp(digest).await
+    }
+
+    pub async fn open_upstream_revision_tarball(
+        &self,
+        namespace: &str,
+        digest: &str,
+    ) -> Result<Option<(fs::File, u64)>> {
+        validate_revision_digest(digest)?;
+        self.cached.namespaced(namespace).open_revision_tarball(digest).await
+    }
+
     /// Promote a tmp tarball written by the publish flow to its final
     /// home: a rename on the fs backend, an upload on the S3 backend.
     pub async fn finalize_tarball_slot(&self, slot: TarballSlot) -> Result<TarballFinalize> {
@@ -699,6 +718,14 @@ impl Storage {
     /// sorts by staging time).
     pub async fn list_staged_ids(&self) -> Result<Vec<String>> {
         self.hosted.list_staged_ids().await
+    }
+}
+
+fn validate_revision_digest(digest: &str) -> Result<()> {
+    if integrity_addressed_tarball_integrity(digest).is_some() {
+        Ok(())
+    } else {
+        Err(RegistryError::BadRequest { reason: "invalid sha512 revision digest".to_string() })
     }
 }
 
@@ -819,6 +846,24 @@ impl Store {
 
     async fn open_tarball_tmp(&self, name: &PackageName, filename: &str) -> Result<TarballWrite> {
         let final_path = self.tarball_path(name, filename);
+        self.open_tarball_tmp_at(final_path).await
+    }
+
+    async fn open_revision_tarball(&self, digest: &str) -> Result<Option<(fs::File, u64)>> {
+        let file = match fs::File::open(self.revision_tarball_path(digest)).await {
+            Ok(file) => file,
+            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
+            Err(err) => return Err(err.into()),
+        };
+        let len = file.metadata().await?.len();
+        Ok(Some((file, len)))
+    }
+
+    async fn open_revision_tarball_tmp(&self, digest: &str) -> Result<TarballWrite> {
+        self.open_tarball_tmp_at(self.revision_tarball_path(digest)).await
+    }
+
+    async fn open_tarball_tmp_at(&self, final_path: PathBuf) -> Result<TarballWrite> {
         if let Some(parent) = final_path.parent() {
             fs::create_dir_all(parent).await?;
         }
@@ -929,6 +974,10 @@ impl Store {
 
     fn tarball_path(&self, name: &PackageName, filename: &str) -> PathBuf {
         self.package_dir(name).join(filename)
+    }
+
+    fn revision_tarball_path(&self, digest: &str) -> PathBuf {
+        self.root.join(".revisions").join("sha512").join(digest)
     }
 
     async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>> {

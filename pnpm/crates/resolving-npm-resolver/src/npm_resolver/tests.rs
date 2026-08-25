@@ -6,7 +6,7 @@ use std::{
 
 use chrono::TimeZone;
 use pnpm_config::{TrustPolicy, version_policy::create_package_version_policy};
-use pnpm_lockfile::LockfileResolution;
+use pnpm_lockfile::{LockfileResolution, TarballRevision};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_resolving_resolver_base::{
     LatestQuery, PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
@@ -18,7 +18,7 @@ use serde_json::json;
 use tempfile::TempDir;
 
 use crate::{
-    errors::InvalidTarballIntegrityError,
+    errors::{InvalidTarballIntegrityError, InvalidTarballRevisionMetadataError},
     npm_resolver::NpmResolver,
     pick_package::{
         InMemoryPackageMetaCache, shared_packument_fetch_locker, shared_picked_manifest_cache,
@@ -1890,6 +1890,104 @@ fn shasum_only_package_body(shasum: &str) -> String {
         },
     })
     .to_string()
+}
+
+fn revision_package_body(tarball: &str, revision: &serde_json::Value) -> String {
+    json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "modified": "2025-01-15T12:00:00.000Z",
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "tarball": tarball,
+                    "revision": revision,
+                },
+            },
+        },
+    })
+    .to_string()
+}
+
+#[tokio::test]
+async fn revision_metadata_is_validated_and_preserved() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let tarball = format!("{}-/tarballs/sha512/{}", registry, "A".repeat(86));
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(revision_package_body(&tarball, &json!(2)))
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+
+    mock.assert_async().await;
+    let LockfileResolution::Tarball(resolution) = result.resolution else {
+        panic!("expected a tarball resolution");
+    };
+    assert_eq!(resolution.tarball, tarball);
+    assert_eq!(resolution.revision.map(TarballRevision::get), Some(2));
+}
+
+#[tokio::test]
+async fn malformed_revision_metadata_has_the_malformed_metadata_error() {
+    for revision in
+        [json!(0), json!(-1), json!(1.5), json!(9_007_199_254_740_992_u64), json!("1"), json!("01")]
+    {
+        let mut server = mockito::Server::new_async().await;
+        let registry = format!("{}/", server.url());
+        let tarball = format!("{}-/tarballs/sha512/{}", registry, "A".repeat(86));
+        server
+            .mock("GET", "/acme")
+            .with_status(200)
+            .with_body(revision_package_body(&tarball, &revision))
+            .create_async()
+            .await;
+        let (resolver, _tempdir) = build_resolver(&registry);
+
+        let wanted =
+            WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+        let error = match resolver.resolve(&wanted, &ResolveOptions::default()).await {
+            Ok(result) => panic!("revision {revision} must fail the resolve; got {result:?}"),
+            Err(error) => error,
+        };
+
+        let error = error
+            .downcast_ref::<InvalidTarballRevisionMetadataError>()
+            .expect("revision metadata error");
+        assert_eq!(error.tarball, tarball);
+    }
+}
+
+#[tokio::test]
+async fn revision_metadata_rejects_a_tarball_from_another_registry() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let tarball = format!("https://attacker.example/-/tarballs/sha512/{}", "A".repeat(86));
+    server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(revision_package_body(&tarball, &json!(1)))
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+    let error = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .expect_err("a revision URL from another registry must fail the resolve");
+
+    assert!(error.downcast_ref::<InvalidTarballRevisionMetadataError>().is_some());
 }
 
 #[tokio::test]

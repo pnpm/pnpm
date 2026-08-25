@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 base64 = { workspace = true }
 sha2   = { workspace = true }
+ssri   = { workspace = true }
 
 # Match pnpm-store-dir's MSVC-aware feature gate so this crate
 # inherits the `asm` backend on every target where it compiles.

@@ -31,13 +31,14 @@ fn fake_integrity() -> Integrity {
 }
 
 fn registry_resolution() -> LockfileResolution {
-    LockfileResolution::Registry(RegistryResolution { integrity: fake_integrity() })
+    LockfileResolution::Registry(RegistryResolution { integrity: fake_integrity(), revision: None })
 }
 
 fn tarball_resolution(tarball: &str, integrity: Option<Integrity>) -> LockfileResolution {
     LockfileResolution::Tarball(TarballResolution {
         tarball: tarball.to_string(),
         integrity,
+        revision: None,
         git_hosted: None,
         path: None,
     })
@@ -229,6 +230,7 @@ async fn verifies_tarball_url_when_no_policy_active() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://attacker.example/aged-pkg-1.0.0.tgz".to_string(),
         integrity: Some(fake_integrity()),
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -300,6 +302,7 @@ async fn private_scope_verifier_ignores_public_mirror_and_writes_private_mirror(
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: public_tarball.clone(),
         integrity: Some(fake_integrity()),
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -439,7 +442,7 @@ async fn empty_integrity_counts_as_missing() {
     let name: PkgName = "foo".parse().expect("parse");
     for resolution in [
         tarball_resolution("https://registry.example/foo/-/foo-1.0.0.tgz", Some(empty.clone())),
-        LockfileResolution::Registry(RegistryResolution { integrity: empty }),
+        LockfileResolution::Registry(RegistryResolution { integrity: empty, revision: None }),
     ] {
         let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
         let ResolutionVerification::Err { code, .. } = result else {
@@ -505,6 +508,7 @@ async fn integrity_is_required_despite_a_git_hosted_claim() {
     let forged = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://attacker.example/evil-1.0.0.tgz".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: Some(true),
         path: None,
     });
@@ -559,6 +563,7 @@ async fn verify_flags_tarball_url_mismatch() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://attacker.example/aged-pkg-1.0.0.tgz".to_string(),
         integrity: Some(fake_integrity()),
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -616,6 +621,7 @@ async fn tarball_url_default_port_and_scheme_difference_is_a_match() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://cdn.example.test/aged-pkg/-/aged-pkg-1.0.0.tgz".to_string(),
         integrity: Some(fake_integrity()),
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -1101,6 +1107,7 @@ async fn verify_routes_via_named_registry_prefix() {
     let tarball = LockfileResolution::Tarball(TarballResolution {
         tarball: format!("{server_url}/acme/-/acme-1.0.0.tgz"),
         integrity: Some(fake_integrity()),
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -1584,6 +1591,7 @@ async fn binding_check_records_dist_stats_into_the_sink() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: tarball_url.clone(),
         integrity: Some(fake_integrity()),
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -1620,6 +1628,7 @@ async fn propagates_metadata_fetch_failure_instead_of_a_tampering_mismatch() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: format!("{server_url}/private-pkg/-/private-pkg-1.0.0.tgz"),
         integrity: Some(fake_integrity()),
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -1669,6 +1678,7 @@ async fn version_absent_from_fetched_metadata_stays_tarball_url_mismatch() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: format!("{server_url}/present-pkg/-/present-pkg-2.0.0.tgz"),
         integrity: Some(fake_integrity()),
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -1735,6 +1745,7 @@ async fn registry_supports_time_field_reads_version_time_from_abbreviated_meta()
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: format!("{server_url}/aged-pkg/-/aged-pkg-1.0.0.tgz"),
         integrity: Some(fake_integrity()),
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -1795,6 +1806,7 @@ async fn without_registry_supports_time_field_abbreviated_time_is_not_consulted(
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: format!("{server_url}/aged-pkg/-/aged-pkg-1.0.0.tgz"),
         integrity: Some(fake_integrity()),
+        revision: None,
         git_hosted: None,
         path: None,
     });

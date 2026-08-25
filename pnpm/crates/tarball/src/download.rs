@@ -616,6 +616,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     store_dir: &'static StoreDir,
     auth_headers: &AuthHeaders,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    revision_addressed: bool,
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let network_error =
         |error| TarballError::FetchTarball(NetworkError { url: package_url.to_string(), error });
@@ -663,7 +664,13 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
             url: pnpm_network::redact_url_credentials(package_url),
         });
     }
-    let client = http_client.acquire_for_url_with_priority(package_url, download_priority).await;
+    let client = if revision_addressed {
+        http_client
+            .acquire_for_url_without_redirects_with_priority(package_url, download_priority)
+            .await
+    } else {
+        http_client.acquire_for_url_with_priority(package_url, download_priority).await
+    };
     let mut request = client.get(package_url);
     // Resolve the per-URL auth header and attach it. Tarball hosts that
     // differ from the metadata host still pick up the header keyed at
@@ -945,13 +952,14 @@ pub fn download_priority(unpacked_size: Option<usize>, file_count: Option<usize>
 /// part-way through extraction stay on disk. That's safe: the CAFS is
 /// content-addressed, so re-extracting the same bytes produces
 /// identical paths and `write_cas_file` is idempotent.
-// 12 arguments — over the default clippy threshold but each is
+// 13 arguments — over the default clippy threshold but each is
 // distinct: client + URL + integrity describe the request, ID +
 // requester are the reporter dimensions, progress_key dedups the
 // package-status emit, unpacked-size is allocation hinting,
 // download_priority is queue ordering, store_dir + retry_opts +
 // auth_headers are install-scoped, and ignore_file_pattern is the
-// per-fetch archive filter. Bundling into a struct would just push
+// per-fetch archive filter, and revision_addressed selects the immutable
+// request policy. Bundling into a struct would just push
 // the same fields into a wrapper.
 #[expect(
     clippy::too_many_arguments,
@@ -970,7 +978,9 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     auth_headers: &AuthHeaders,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     progress_key: Option<(&SharedReportedProgressKeys, &str)>,
+    revision_addressed: bool,
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    let max_retries = if revision_addressed { 0 } else { retry_opts.retries };
     let mut attempt: u32 = 0;
     loop {
         let result = fetch_and_extract_once::<Reporter>(
@@ -984,6 +994,7 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
             store_dir,
             auth_headers,
             ignore_file_pattern.clone(),
+            revision_addressed,
         )
         .await;
         match result {
@@ -995,7 +1006,7 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
                 return Ok(value);
             }
             Err(err) if !is_transient_error(&err) => return Err(err),
-            Err(err) if attempt >= retry_opts.retries => {
+            Err(err) if attempt >= max_retries => {
                 tracing::warn!(
                     target: "pacquet::download",
                     ?package_url,
@@ -1011,7 +1022,7 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
                     target: "pacquet::download",
                     ?package_url,
                     attempt = attempt + 1,
-                    max_attempts = retry_opts.retries + 1,
+                    max_attempts = max_retries + 1,
                     ?delay,
                     ?err,
                     "Tarball fetch failed; retrying after backoff",
@@ -1027,7 +1038,7 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
                     level: LogLevel::Debug,
                     attempt: attempt + 1,
                     error: tarball_error_to_request_retry(&err),
-                    max_retries: retry_opts.retries,
+                    max_retries,
                     method: "GET".to_string(),
                     timeout: u64::try_from(delay.as_millis()).unwrap_or(u64::MAX),
                     url: package_url.to_string(),

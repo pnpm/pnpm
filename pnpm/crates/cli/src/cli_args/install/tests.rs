@@ -282,6 +282,7 @@ fn registry_rewrite_updates_explicit_tarball_resolution_urls() {
     let mut resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "http://server-registry.test/foo/-/foo-1.0.0.tgz".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: None,
         path: None,
     });

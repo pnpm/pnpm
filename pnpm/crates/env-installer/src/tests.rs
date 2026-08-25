@@ -213,12 +213,14 @@ impl Resolver for FixtureResolver {
                             "https://mirror-pool-7.example.com/registry/{name}/-/{name}-{version}.tgz",
                         ),
                         integrity: Some(ssri::Integrity::from(id.as_bytes())),
+                        revision: None,
                         git_hosted: None,
                         path: None,
                     })
                 } else {
                     LockfileResolution::Registry(RegistryResolution {
                         integrity: ssri::Integrity::from(id.as_bytes()),
+                        revision: None,
                     })
                 },
                 resolved_via: "npm-registry".to_string(),
@@ -1451,6 +1453,7 @@ fn prune_drops_orphan_packages_and_snapshots() {
         PackageMetadata {
             resolution: LockfileResolution::Registry(RegistryResolution {
                 integrity: ssri::Integrity::from(b"x"),
+                revision: None,
             }),
             version: None,
             engines: None,

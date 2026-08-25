@@ -39,6 +39,8 @@ const registriesByScope = {
 const fetch = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
+const REVISION_INTEGRITY = 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ=='
+const REVISION_DIGEST = Buffer.from(REVISION_INTEGRITY.slice('sha512-'.length), 'base64').toString('base64url')
 
 afterEach(async () => {
   await teardownMockAgent()
@@ -79,6 +81,109 @@ test('resolveFromNpm()', async () => {
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
+})
+
+test('resolveFromNpm() validates and preserves a registry tarball revision', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      versions: {
+        ...isPositiveMeta.versions,
+        '1.0.0': {
+          ...isPositiveMeta.versions['1.0.0'],
+          dist: {
+            ...isPositiveMeta.versions['1.0.0'].dist,
+            integrity: REVISION_INTEGRITY,
+            revision: 1,
+            tarball: `${registriesByScope.default}-/tarballs/sha512/${REVISION_DIGEST}`,
+          },
+        },
+      },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  const result = await resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    {}
+  )
+
+  expect(result!.resolution).toStrictEqual({
+    integrity: REVISION_INTEGRITY,
+    revision: 1,
+    tarball: `${registriesByScope.default}-/tarballs/sha512/${REVISION_DIGEST}`,
+  })
+})
+
+test.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '1', '01'])('resolveFromNpm() rejects malformed registry revision %s', async (revision) => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      versions: {
+        ...isPositiveMeta.versions,
+        '1.0.0': {
+          ...isPositiveMeta.versions['1.0.0'],
+          dist: {
+            ...isPositiveMeta.versions['1.0.0'].dist,
+            integrity: REVISION_INTEGRITY,
+            revision,
+            tarball: `${registriesByScope.default}-/tarballs/sha512/${REVISION_DIGEST}`,
+          },
+        },
+      },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  await expect(resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    {}
+  )).rejects.toMatchObject({
+    code: 'ERR_PNPM_MALFORMED_METADATA',
+  })
+})
+
+test('resolveFromNpm() rejects a revision whose tarball URL does not match its integrity', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      versions: {
+        ...isPositiveMeta.versions,
+        '1.0.0': {
+          ...isPositiveMeta.versions['1.0.0'],
+          dist: {
+            ...isPositiveMeta.versions['1.0.0'].dist,
+            integrity: REVISION_INTEGRITY,
+            revision: 1,
+            tarball: `${registriesByScope.default}-/tarballs/sha512/${'A'.repeat(86)}`,
+          },
+        },
+      },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  await expect(resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    {}
+  )).rejects.toMatchObject({
+    code: 'ERR_PNPM_MALFORMED_METADATA',
+  })
 })
 
 test('resolveFromNpm() strips port 80 from http tarball URLs', async () => {

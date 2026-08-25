@@ -116,8 +116,9 @@ async fn should_surface_a_non_404_web_login_http_error_as_web_login_failed() {
 
 /// A web-login probe that never reaches the registry surfaces as a transport
 /// error (`LoginError::Request`), exercising the `Transport` arm of
-/// `From<WebLoginFlowError>`. Binding then dropping an ephemeral loopback
-/// socket yields a port that refuses the connection.
+/// `From<WebLoginFlowError>`. A loopback listener that never accepts keeps the
+/// endpoint deterministic while a short-lived client turns the stalled
+/// request into a transport timeout.
 #[tokio::test]
 async fn should_surface_a_web_login_transport_failure_as_a_request_error() {
     web_auth_fake!(FakeHost, RecordingReporter);
@@ -125,14 +126,23 @@ async fn should_surface_a_web_login_transport_failure_as_a_request_error() {
     reset();
     reset_login();
 
-    let addr = {
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind an ephemeral port");
-        listener.local_addr().expect("read the assigned port")
-    };
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind an ephemeral port");
+    let addr = listener.local_addr().expect("read the assigned port");
     let registry = format!("http://{addr}/");
     let config_dir = Path::new("/mock/config");
+    let build_client = |redirect| {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_millis(25))
+            .redirect(redirect)
+            .build()
+            .expect("build short-lived client")
+    };
+    let http_client = pnpm_network::ThrottledClient::from_clients(
+        build_client(reqwest::redirect::Policy::limited(10)),
+        build_client(reqwest::redirect::Policy::none()),
+    );
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+    let err = login::<FakeHost, RecordingReporter>(&http_client, opts(&registry, config_dir))
         .await
         .unwrap_err();
 

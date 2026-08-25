@@ -205,6 +205,24 @@ pub struct InvalidTarballIntegrityError {
     pub shasum: String,
 }
 
+/// Raised when a registry marks a tarball as a replacement revision but its
+/// revision number or integrity-addressed URL violates the metadata contract.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Tarball \"{tarball}\" has invalid revision metadata: {reason}")]
+#[diagnostic(code(ERR_PNPM_MALFORMED_METADATA))]
+pub struct InvalidTarballRevisionMetadataError {
+    #[error(not(source))]
+    pub tarball: String,
+    pub reason: String,
+}
+
+impl InvalidTarballRevisionMetadataError {
+    #[must_use]
+    pub fn new(tarball: &str, reason: impl Into<String>) -> Self {
+        Self { tarball: redact_and_sanitize(tarball), reason: reason.into() }
+    }
+}
+
 impl InvalidTarballIntegrityError {
     #[must_use]
     pub fn new(tarball: &str, shasum: &str) -> Self {

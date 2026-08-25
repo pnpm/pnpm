@@ -11,6 +11,7 @@ fn pkg_metadata(integrity_source: &[u8]) -> PackageMetadata {
     PackageMetadata {
         resolution: LockfileResolution::Registry(RegistryResolution {
             integrity: ssri::Integrity::from(integrity_source),
+            revision: None,
         }),
         version: None,
         engines: None,

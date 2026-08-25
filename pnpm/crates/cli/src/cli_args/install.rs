@@ -1211,6 +1211,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
                         &pkg.integrity,
                         pkg.unpacked_size,
                         pkg.file_count,
+                        pkg.revision.is_some(),
                     );
                 })
                 .await

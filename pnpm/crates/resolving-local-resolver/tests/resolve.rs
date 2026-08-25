@@ -425,6 +425,7 @@ async fn resolve_file_with_different_integrity_force_fetch() {
                     .parse()
                     .expect("parse"),
             ),
+            revision: None,
             git_hosted: None,
             path: None,
         }),

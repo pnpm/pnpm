@@ -29,7 +29,10 @@ fn integrity() -> Integrity {
 
 fn registry_metadata() -> PackageMetadata {
     PackageMetadata {
-        resolution: LockfileResolution::Registry(RegistryResolution { integrity: integrity() }),
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: integrity(),
+            revision: None,
+        }),
         version: None,
         engines: None,
         cpu: None,
