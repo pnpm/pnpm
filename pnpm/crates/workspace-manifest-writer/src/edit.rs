@@ -1173,24 +1173,46 @@ fn blanks_belong_to_kept_scalar(text: &str, line_start: usize) -> bool {
 
 /// Whether `content` declares a block scalar that keeps its trailing line
 /// breaks. Only the value position counts — a `|+` inside an ordinary
-/// scalar, or inside the header's own comment, is text. A quoted key may
-/// itself hold `: `, so which colon delimits the value is not decidable
-/// from one line; every candidate is tried, and any of them opening a kept
-/// scalar counts. That errs towards leaving a separator in place, which is
-/// the harmless direction.
+/// scalar, inside a comment, or inside a quoted key is text.
 fn is_kept_chomping_header(content: &str) -> bool {
     let mut line = content.trim_start();
     while let Some(item) = line.strip_prefix("- ") {
         line = item.trim_start();
     }
-    opens_kept_chomping_scalar(line)
-        || line
-            .match_indices(':')
-            .filter(|(index, _)| {
-                let rest = &line[index + 1..];
-                rest.is_empty() || rest.starts_with([' ', '\t'])
-            })
-            .any(|(index, _)| opens_kept_chomping_scalar(line[index + 1..].trim_start()))
+    opens_kept_chomping_scalar(line) || line_value(line).is_some_and(opens_kept_chomping_scalar)
+}
+
+/// The value of a `key: value` line, or `None` when the line declares none.
+/// The delimiter is the first `:` that ends the line or is followed by
+/// whitespace *outside* a quoted scalar and before any comment, so neither a
+/// quoted key holding `: ` nor a comment holding one is mistaken for it.
+fn line_value(line: &str) -> Option<&str> {
+    let mut quote = None;
+    let mut escaped = false;
+    for (index, char) in line.char_indices() {
+        if escaped {
+            escaped = false;
+        } else if let Some(open) = quote {
+            match char {
+                '\\' if open == '"' => escaped = true,
+                _ if char == open => quote = None,
+                _ => {}
+            }
+        } else {
+            match char {
+                '\'' | '"' => quote = Some(char),
+                '#' if index == 0 || line[..index].ends_with([' ', '\t']) => return None,
+                ':' => {
+                    let value = &line[index + 1..];
+                    if value.is_empty() || value.starts_with([' ', '\t']) {
+                        return Some(value.trim_start());
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    None
 }
 
 /// Whether `value` is a block scalar header carrying a `+`, in either order

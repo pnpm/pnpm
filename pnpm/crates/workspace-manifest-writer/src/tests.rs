@@ -1295,6 +1295,16 @@ fn delete_last_field_keeps_the_blank_of_a_scalar_under_a_quoted_key() {
 }
 
 #[test]
+fn delete_last_field_drops_a_separator_below_a_header_written_in_a_comment() {
+    for line in ["notes: text # detail: |+", "notes: text\n# detail: |+"] {
+        let original = format!("{line}\n\nvirtualStoreDir: .pnpm\n");
+        let out = run_update_field(Some(&original), "virtualStoreDir", &serde_json::Value::Null)
+            .expect("file kept");
+        assert_eq!(out, format!("{line}\n"), "line {line}");
+    }
+}
+
+#[test]
 fn delete_last_field_drops_a_separator_below_a_quoted_scalar_holding_a_header() {
     let out = run_update_field(
         Some("notes: \"foo |+ #\"\n\nvirtualStoreDir: .pnpm\n"),
