@@ -46,8 +46,9 @@ storage: ./storage
 # accelerator has its own toggle. Something must be served: registries, or the
 # resolver. (`/-/ping` and the login/token account endpoints are always
 # served.)
-#resolver:          # install accelerator: /-/pnpr, /-/pnpr/v0/resolve,
-#  enabled: true    # and /-/pnpr/v0/verify-lockfile
+#resolver:           # install accelerator: /-/pnpr, /-/pnpr/v0/resolve,
+#  enabled: true     # and /-/pnpr/v0/verify-lockfile
+#  artifacts: false  # organization-scoped shared-artifact PoC endpoints
 secret: pnpm-registry-mock-secret-key-32
 
 auth:

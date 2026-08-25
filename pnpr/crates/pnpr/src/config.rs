@@ -209,11 +209,14 @@ pub struct ResolverFeature {
     /// `/-/pnpr/v0/verify-lockfile`). When `false`, none of those routes are
     /// mounted.
     pub enabled: bool,
+    /// Organization-scoped signed artifact endpoints. Off by default while
+    /// the protocol is a proof of concept.
+    pub artifacts: bool,
 }
 
 impl Default for ResolverFeature {
     fn default() -> Self {
-        Self { enabled: true }
+        Self { enabled: true, artifacts: false }
     }
 }
 
@@ -1357,11 +1360,13 @@ struct OsvFile {
 struct FeatureFile {
     #[serde(default = "default_true")]
     enabled: bool,
+    #[serde(default)]
+    artifacts: bool,
 }
 
 impl Default for FeatureFile {
     fn default() -> Self {
-        Self { enabled: true }
+        Self { enabled: true, artifacts: false }
     }
 }
 
@@ -1778,8 +1783,10 @@ impl Config {
         // credential resolution) key off effective enablement.
         let registry =
             RegistryFeature { enabled: !file.registries.is_empty() && !overrides.disable_registry };
+        let resolver_file = file.resolver.unwrap_or_default();
         let resolver = ResolverFeature {
-            enabled: file.resolver.unwrap_or_default().enabled && !overrides.disable_resolver,
+            enabled: resolver_file.enabled && !overrides.disable_resolver,
+            artifacts: resolver_file.artifacts && !overrides.disable_resolver,
         };
         // Upstream registries (and the credentials some carry) are resolved by
         // `build_registries` below into this map. Resolving an upstream registry's

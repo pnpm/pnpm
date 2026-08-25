@@ -1324,7 +1324,7 @@ pub(crate) fn staged_id_of_meta_object(object: &str) -> Option<&str> {
     object.strip_suffix(STAGED_META_SUFFIX)
 }
 
-async fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
+pub(crate) async fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).await?;
     }

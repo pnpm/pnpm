@@ -1,7 +1,8 @@
 use super::{
     CalcDepStateOptions, DepsGraphNode, calc_dep_graph_hash, calc_dep_state,
-    transitively_requires_build, warm_deps_state_cache,
+    calc_dep_state_input_key, transitively_requires_build, warm_deps_state_cache,
 };
+use crate::hash_object;
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 use std::collections::{HashMap, HashSet};
@@ -177,6 +178,23 @@ fn dep_graph_and_patch_concatenate_in_upstream_order() {
     let deps_pos = result.find(";deps=").expect("deps section present");
     let patch_pos = result.find(";patch=").expect("patch section present");
     assert!(deps_pos < patch_pos, "deps must come before patch in {result:?}");
+}
+
+#[test]
+fn shared_input_key_excludes_engine_and_includes_patch() {
+    let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
+    graph.insert(
+        "x@1.0.0".to_string(),
+        DepsGraphNode { full_pkg_id: "x@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
+    );
+    let mut cache = HashMap::new();
+    let key =
+        calc_dep_state_input_key(&graph, &mut cache, &"x@1.0.0".to_string(), Some("patchhex"));
+    let deps_hash = hash_object(&serde_json::json!({
+        "id": "x@1.0.0:sha512-x",
+        "deps": {},
+    }));
+    assert_eq!(key, format!("dependency-side-effects:v1:deps={deps_hash};patch=patchhex"));
 }
 
 #[test]

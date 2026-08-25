@@ -5438,21 +5438,25 @@ dependencies = [
 name = "pnpm-pnpr-client"
 version = "0.0.1"
 dependencies = [
+ "base64 0.23.1",
  "derive_more",
  "futures-util",
  "indexmap 2.14.0",
  "mockito",
+ "p256",
  "pnpm-catalogs-types",
  "pnpm-config",
  "pnpm-graph-hasher",
  "pnpm-lockfile",
  "pnpm-lockfile-verification",
  "pnpm-network",
+ "pnpm-shared-artifact-protocol",
  "pnpm-testing-utils",
  "pnpr",
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "tokio",
  "tracing",
@@ -5749,6 +5753,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-shared-artifact-protocol"
+version = "0.0.1"
+dependencies = [
+ "base64 0.23.1",
+ "derive_more",
+ "p256",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "pnpm-store-dir"
 version = "0.0.1"
 dependencies = [
@@ -5982,6 +5998,7 @@ dependencies = [
  "pnpm-reporter",
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-resolver-base",
+ "pnpm-shared-artifact-protocol",
  "pnpm-store-dir",
  "pnpm-tarball",
  "reqwest",

@@ -11,11 +11,12 @@
 //! then fetches the rest in parallel like a normal install
 //! ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
 //!
-//! The resolver itself is stateless — it materializes no store and the
+//! The resolver itself is stateless: it materializes no store and the
 //! `/resolve` endpoint persists no tarballs. Resolved tarballs are fetched
 //! from upstream public URLs or, for a private proxied route, an upstream's
-//! `/~<name>/` registry endpoint (which may cache them server-side under
-//! its own private namespace).
+//! `/~<name>/` registry endpoint, which may cache them server-side under
+//! its own private namespace. The opt-in shared-artifact `PoC` is a separate
+//! stateful protocol surface.
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -28,6 +29,17 @@ use pnpm_graph_hasher::hash_object_nullable_with_prefix;
 use pnpm_lockfile::{Lockfile, TarballRevision};
 use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
 use reqwest::Client;
+
+pub use pnpm_shared_artifact_protocol::{
+    ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
+    ArtifactManifest, ArtifactPayload, BuilderProfile, CompatibilityConstraints, INPUT_KEY_PREFIX,
+    OwnerScope, PublishArtifactRequest, ResolveArtifactsRequest, SIGNATURE_ALGORITHM,
+    SignedArtifactEnvelope,
+};
+use pnpm_shared_artifact_protocol::{
+    MAX_CANDIDATES, MAX_FILE_SIZE, MAX_VARIANTS_PER_CANDIDATE, ResolveArtifactsResponse,
+    compatibility_rank, verify_blob,
+};
 
 /// The `registries` a request declares, keyed by registry URL.
 pub type RegistryDeclarations = BTreeMap<String, RegistryDeclaration>;
@@ -303,6 +315,24 @@ pub struct ResolvedPackage {
     pub revision: Option<TarballRevision>,
 }
 
+/// Inputs to the signed shared-artifact lookup `PoC`.
+pub struct ResolveArtifactsOptions {
+    pub candidates: Vec<ArtifactCandidate>,
+    /// Most preferred compatibility tag first.
+    pub supported_tags: Vec<String>,
+    /// P-256 `SubjectPublicKeyInfo` DER bytes keyed by the envelope's key id.
+    pub trusted_keys: BTreeMap<String, Vec<u8>>,
+    pub authorization: Option<String>,
+}
+
+/// A variant whose signature, owner, input key, source integrity, manifest,
+/// and compatibility constraints have all passed client-side validation.
+pub struct VerifiedArtifact {
+    pub payload: ArtifactPayload,
+    pub envelope: SignedArtifactEnvelope,
+    pub envelope_digest: String,
+}
+
 #[derive(Debug, Display, Error, From)]
 pub enum PnprClientError {
     #[display("pnpr request failed: {_0}")]
@@ -341,6 +371,8 @@ struct HandshakeResponse {
 struct HandshakeCapability {
     #[serde(default)]
     versions: Vec<u32>,
+    #[serde(default)]
+    artifacts: Vec<u32>,
 }
 
 impl PnprClient {
@@ -372,6 +404,174 @@ impl PnprClient {
             )));
         }
         Ok(())
+    }
+
+    /// Confirm that the server enabled the v0 signed-artifact `PoC`.
+    pub async fn handshake_artifacts(&self) -> Result<(), PnprClientError> {
+        let response = self.http.get(format!("{}-/pnpr", self.base_url)).send().await?;
+        if !response.status().is_success() {
+            return Err(PnprClientError::Server(format!(
+                "{} is not a pnpr server (GET /-/pnpr returned {})",
+                self.base_url,
+                response.status(),
+            )));
+        }
+        let body: HandshakeResponse = response.json().await?;
+        if !body.pnpr.artifacts.contains(&PROTOCOL_VERSION) {
+            return Err(PnprClientError::Server(format!(
+                "pnpr server does not advertise shared artifact protocol v{PROTOCOL_VERSION}",
+            )));
+        }
+        Ok(())
+    }
+
+    /// Upload one already-signed organization artifact and all blobs that are
+    /// not yet present in the owner's namespace.
+    pub async fn publish_artifact(
+        &self,
+        request: &PublishArtifactRequest,
+        authorization: Option<&str>,
+    ) -> Result<(), PnprClientError> {
+        let mut put = self.http.put(format!("{}-/pnpr/v0/artifacts", self.base_url)).json(request);
+        if let Some(authorization) = authorization {
+            put = put.header("authorization", authorization);
+        }
+        let response = put.send().await?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response_body_bounded(response, 64 * 1024).await?;
+            return Err(PnprClientError::Server(format!(
+                "/-/pnpr/v0/artifacts returned {status}: {}",
+                String::from_utf8_lossy(&body),
+            )));
+        }
+        Ok(())
+    }
+
+    /// Resolve a batch and keep only variants signed by a configured key and
+    /// compatible with this consumer. A malformed or untrusted variant is a
+    /// cache miss; a malformed response envelope is a protocol error.
+    pub async fn resolve_artifacts(
+        &self,
+        opts: ResolveArtifactsOptions,
+    ) -> Result<BTreeMap<String, VerifiedArtifact>, PnprClientError> {
+        if opts.candidates.len() > MAX_CANDIDATES {
+            return Err(PnprClientError::Protocol(format!(
+                "shared artifact lookup exceeds the {MAX_CANDIDATES}-candidate limit",
+            )));
+        }
+        let mut candidates = BTreeMap::new();
+        for candidate in &opts.candidates {
+            candidate.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+            if candidates.insert(candidate.key.as_str(), candidate).is_some() {
+                return Err(PnprClientError::Protocol(format!(
+                    "duplicate shared artifact candidate {:?}",
+                    candidate.key,
+                )));
+            }
+        }
+        let request = ResolveArtifactsRequest { candidates: opts.candidates.clone() };
+        let mut post =
+            self.http.post(format!("{}-/pnpr/v0/artifacts/resolve", self.base_url)).json(&request);
+        if let Some(authorization) = opts.authorization.as_deref() {
+            post = post.header("authorization", authorization);
+        }
+        let response = post.send().await?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response_body_bounded(response, 64 * 1024).await?;
+            return Err(PnprClientError::Server(format!(
+                "/-/pnpr/v0/artifacts/resolve returned {status}: {}",
+                String::from_utf8_lossy(&body),
+            )));
+        }
+        let body = response_body_bounded(response, 16 * 1024 * 1024).await?;
+        let response: ResolveArtifactsResponse = serde_json::from_slice(&body)
+            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        if response.artifacts.len() > candidates.len() {
+            return Err(PnprClientError::Protocol(
+                "shared artifact response contains more entries than requested".to_string(),
+            ));
+        }
+
+        let mut selected = BTreeMap::new();
+        let mut response_keys = HashSet::new();
+        for artifact in response.artifacts {
+            if !response_keys.insert(artifact.key.clone()) {
+                return Err(PnprClientError::Protocol(format!(
+                    "shared artifact response repeats key {:?}",
+                    artifact.key,
+                )));
+            }
+            let Some(candidate) = candidates.get(artifact.key.as_str()) else {
+                return Err(PnprClientError::Protocol(format!(
+                    "shared artifact response returned a key that was not requested: {:?}",
+                    artifact.key,
+                )));
+            };
+            if artifact.variants.len() > MAX_VARIANTS_PER_CANDIDATE {
+                return Err(PnprClientError::Protocol(format!(
+                    "shared artifact response exceeds the per-key variant limit for {:?}",
+                    artifact.key,
+                )));
+            }
+            let mut best: Option<(usize, VerifiedArtifact)> = None;
+            for variant in artifact.variants {
+                let Some(public_key) = opts.trusted_keys.get(&variant.envelope.key_id) else {
+                    continue;
+                };
+                let Ok(payload) = variant.envelope.verify(public_key) else { continue };
+                if !artifact_matches_candidate(&payload, candidate) {
+                    continue;
+                }
+                let Some(rank) = compatibility_rank(&payload.compatibility, &opts.supported_tags)
+                else {
+                    continue;
+                };
+                let envelope_digest = variant
+                    .envelope
+                    .digest()
+                    .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+                if best.as_ref().is_none_or(|(best_rank, _)| rank < *best_rank) {
+                    best = Some((
+                        rank,
+                        VerifiedArtifact { payload, envelope: variant.envelope, envelope_digest },
+                    ));
+                }
+            }
+            if let Some((_, artifact)) = best {
+                selected.insert(candidate.key.clone(), artifact);
+            }
+        }
+        Ok(selected)
+    }
+
+    /// Download and recompute a selected manifest blob's SHA-512 before
+    /// returning any bytes to the caller.
+    pub async fn download_artifact_blob(
+        &self,
+        request: &ArtifactBlobRequest,
+        authorization: Option<&str>,
+    ) -> Result<Vec<u8>, PnprClientError> {
+        request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        let mut post =
+            self.http.post(format!("{}-/pnpr/v0/artifacts/blob", self.base_url)).json(request);
+        if let Some(authorization) = authorization {
+            post = post.header("authorization", authorization);
+        }
+        let response = post.send().await?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response_body_bounded(response, 64 * 1024).await?;
+            return Err(PnprClientError::Server(format!(
+                "/-/pnpr/v0/artifacts/blob returned {status}: {}",
+                String::from_utf8_lossy(&body),
+            )));
+        }
+        let bytes = response_body_bounded(response, MAX_FILE_SIZE as usize).await?;
+        verify_blob(&request.integrity, &bytes)
+            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        Ok(bytes)
     }
 
     /// Resolve a single project against the server and return the
@@ -658,8 +858,38 @@ fn parse_frame(line: &[u8]) -> Result<Frame, PnprClientError> {
     serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
 }
 
+fn artifact_matches_candidate(payload: &ArtifactPayload, candidate: &ArtifactCandidate) -> bool {
+    let ArtifactCandidate { key: input_key, source_integrity, owner } = candidate;
+    payload.input_key == *input_key
+        && payload.source_integrity == *source_integrity
+        && payload.owner == *owner
+}
+
 fn parse_verify_frame(line: &[u8]) -> Result<VerifyFrame, PnprClientError> {
     serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
+}
+
+async fn response_body_bounded(
+    response: reqwest::Response,
+    limit: usize,
+) -> Result<Vec<u8>, PnprClientError> {
+    if response.content_length().is_some_and(|length| length > limit as u64) {
+        return Err(PnprClientError::Protocol(format!(
+            "pnpr response exceeds the {limit}-byte limit",
+        )));
+    }
+    let mut body = Vec::new();
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        if body.len().saturating_add(chunk.len()) > limit {
+            return Err(PnprClientError::Protocol(format!(
+                "pnpr response exceeds the {limit}-byte limit",
+            )));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
 }
 
 /// One NDJSON frame from `/-/pnpr/v0/resolve`. `package` frames stream as the

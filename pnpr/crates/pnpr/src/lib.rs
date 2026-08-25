@@ -20,6 +20,7 @@ mod route;
 mod s3;
 mod search;
 mod server;
+mod shared_artifacts;
 mod storage;
 mod streaming;
 mod upstream;

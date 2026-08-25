@@ -93,6 +93,30 @@ export interface DepsStateCache {
   [depPath: string]: string
 }
 
+export const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX = 'dependency-side-effects:v1:'
+
+/**
+ * Compute the machine-independent lookup key for a remotely shareable
+ * dependency build. Platform identity is advertised by the artifact's signed
+ * compatibility constraints instead of being folded into this exact key.
+ */
+export function calcDepStateInputKey<T extends string> (
+  depsGraph: DepsGraph<T>,
+  cache: DepsStateCache,
+  depPath: string,
+  opts: {
+    patchFileHash?: string
+    supportedArchitectures?: SupportedArchitectures
+  } = {}
+): string {
+  const depGraphHash = calcDepGraphHash(depsGraph, cache, new Set(), depPath as T, opts.supportedArchitectures)
+  let result = `${DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX}deps=${depGraphHash}`
+  if (opts.patchFileHash) {
+    result += `;patch=${opts.patchFileHash}`
+  }
+  return result
+}
+
 export function calcDepState<T extends string> (
   depsGraph: DepsGraph<T>,
   cache: DepsStateCache,

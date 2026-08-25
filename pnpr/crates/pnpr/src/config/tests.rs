@@ -300,6 +300,18 @@ resolver:
 }
 
 #[test]
+fn shared_artifacts_are_an_explicit_resolver_opt_in() {
+    let default = Config::from_yaml_str("", Path::new("/x"), listen(), None).unwrap();
+    assert!(!default.resolver.artifacts);
+
+    let enabled =
+        Config::from_yaml_str("resolver:\n  artifacts: true\n", Path::new("/x"), listen(), None)
+            .unwrap();
+    assert!(enabled.resolver.enabled);
+    assert!(enabled.resolver.artifacts);
+}
+
+#[test]
 fn nothing_to_serve_is_a_config_error() {
     // No registries (⇒ no registry surface) and the resolver disabled leaves
     // only `/-/ping` and the account endpoints — a misconfiguration.

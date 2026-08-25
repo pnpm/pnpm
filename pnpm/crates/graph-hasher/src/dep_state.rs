@@ -3,6 +3,8 @@ use indexmap::IndexMap;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
+pub const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX: &str = "dependency-side-effects:v1:";
+
 /// Per-node identifier carrying everything [`calc_dep_state`] needs to
 /// hash a snapshot.
 ///
@@ -77,6 +79,30 @@ where
         result.push_str(&deps_hash);
     }
     if let Some(patch) = opts.patch_file_hash {
+        result.push_str(";patch=");
+        result.push_str(patch);
+    }
+    result
+}
+
+/// Compute the machine-independent lookup key for a remotely shareable
+/// dependency build.
+///
+/// Unlike [`calc_dep_state`], this key deliberately excludes the engine name.
+/// The signed artifact advertises platform compatibility separately, allowing
+/// one compatible artifact to serve more than one exact host identity.
+pub fn calc_dep_state_input_key<Key>(
+    graph: &HashMap<Key, DepsGraphNode<Key>>,
+    cache: &mut DepsStateCache<Key>,
+    dep_path: &Key,
+    patch_file_hash: Option<&str>,
+) -> String
+where
+    Key: Clone + Eq + std::hash::Hash,
+{
+    let deps_hash = calc_dep_graph_hash(graph, cache, &mut HashSet::new(), dep_path);
+    let mut result = format!("{DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX}deps={deps_hash}");
+    if let Some(patch) = patch_file_hash {
         result.push_str(";patch=");
         result.push_str(patch);
     }

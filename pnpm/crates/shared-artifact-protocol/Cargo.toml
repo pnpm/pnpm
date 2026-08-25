@@ -1,0 +1,22 @@
+[package]
+name                 = "pnpm-shared-artifact-protocol"
+version              = "0.0.1"
+publish              = false
+authors.workspace    = true
+description          = "Wire contract for signed pnpm shared artifacts"
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license.workspace    = true
+repository.workspace = true
+
+[dependencies]
+base64      = { workspace = true }
+derive_more = { workspace = true }
+p256        = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+sha2        = { workspace = true }
+
+[lints]
+workspace = true
