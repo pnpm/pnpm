@@ -164,7 +164,7 @@ export function help (): string {
 export type { PublishTimesFetcher } from './publishTimes.js'
 
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
-  fix?: boolean | 'override' | 'update'
+  fix?: boolean | 'override' | 'update' | 'true'
   ignoreRegistryErrors?: boolean
   interactive?: boolean
   json?: boolean
@@ -264,12 +264,16 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
   // is requested at most once.
   const getPublishTimes = createPublishTimesFetcher(opts)
   await correctInferredPatchedVersions(auditReport.advisories, getPublishTimes)
+  const { fix: fixOption } = opts
   let fixMethod: 'update' | 'override' | undefined
-  if (opts.fix === 'update' || opts.fix === 'override') {
-    fixMethod = opts.fix
-  } else if (opts.fix === true || (opts.interactive && !opts.fix)) {
+  if (fixOption === 'update' || fixOption === 'override') {
+    fixMethod = fixOption
+  } else if (fixOption === true || fixOption === 'true' || (opts.interactive && !fixOption)) {
+    // A bare `--fix` arrives as the string 'true': with the [String, Boolean]
+    // rc-option spec, nopt's String validation runs first and coerces the
+    // flag's implicit value.
     fixMethod = DEFAULT_FIX_METHOD
-  } else if (!opts.fix) {
+  } else if (!fixOption) {
     fixMethod = undefined
   } else {
     throw new PnpmError('INVALID_FIX_OPTION', `Invalid value for --fix: ${opts.fix as string}. Should be one of "override" or "update"`)

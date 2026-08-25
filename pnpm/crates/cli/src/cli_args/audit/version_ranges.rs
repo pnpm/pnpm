@@ -1,6 +1,6 @@
 //! Semver questions the audit asks of advisory ranges.
 
-use super::{Range, Version};
+use super::{Range, RangeSpecStyle, Version};
 
 pub(crate) fn satisfies_safe(version: &str, range: &str) -> bool {
     let Ok(version) = version.parse::<Version>() else { return false };
@@ -73,14 +73,19 @@ pub(crate) fn last_upper_bound(input: &str) -> Option<(&str, &str)> {
     matches!(operator, "<" | "<=").then_some((operator, last))
 }
 
-/// The minimum patched version with a caret, mirroring pnpm's
-/// `caretRangeForPatched`: `^X.Y.Z` keeps the resolver within the same major
-/// the user pinned to, where a bare `>=X.Y.Z` could silently promote a dep to
-/// a later breaking major. `patched` is always pacquet's inferred `>=V` form,
-/// so its minimum is the version after `>=`.
-pub(crate) fn caret_range_for_patched(patched: &str) -> String {
+/// The minimum patched version saved with the operator of `style`, mirroring
+/// pnpm's `patchedRangeForStyle`: `^X.Y.Z` (the default) keeps the resolver
+/// within the same major the user pinned to, where a bare `>=X.Y.Z` could
+/// silently promote a dep to a later breaking major. `patched` is always
+/// pacquet's inferred `>=V` form, so its minimum is the version after `>=`.
+pub(crate) fn patched_range_for_style(patched: &str, style: RangeSpecStyle) -> String {
     patched
         .strip_prefix(">=")
         .and_then(|version| version.trim().parse::<Version>().ok())
-        .map_or_else(|| patched.to_string(), |version| format!("^{version}"))
+        .map_or_else(|| patched.to_string(), |version| format!("{}{version}", style.range_prefix()))
+}
+
+/// [`patched_range_for_style`] at pnpm's default caret style.
+pub(crate) fn caret_range_for_patched(patched: &str) -> String {
+    patched_range_for_style(patched, RangeSpecStyle::Major)
 }

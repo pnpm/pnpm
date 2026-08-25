@@ -17,6 +17,7 @@ use pnpm_lockfile::{
 use pnpm_network::{RetryOpts, encode_package_name, send_with_retry};
 use pnpm_package_manager::{ResolutionObserver, ResolvedPackageHint, Update};
 use pnpm_package_manifest::DependencyGroup;
+use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::{
     PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
@@ -58,7 +59,8 @@ pub(crate) use request::{
     lockfile_to_audit_request, root_included,
 };
 pub(crate) use version_ranges::{
-    caret_range_for_patched, infer_patched_versions, satisfies_including_prerelease, satisfies_safe,
+    caret_range_for_patched, infer_patched_versions, patched_range_for_style,
+    satisfies_including_prerelease, satisfies_safe,
 };
 
 mod signatures;
