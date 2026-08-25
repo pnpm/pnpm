@@ -21,6 +21,7 @@ fn make_package(name: &str, version: &str) -> PackageVersion {
             shasum: None,
             tarball: format!("https://registry.npmjs.org/{name}/-/{name}-{version}.tgz"),
             revision: None,
+            revisions: None,
             file_count: None,
             unpacked_size: None,
             attestations: None,

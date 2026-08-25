@@ -75,6 +75,7 @@ fn spec(name: &str, fetch_spec: &str, spec_type: RegistryPackageSpecType) -> Reg
         name: name.to_string(),
         fetch_spec: fetch_spec.to_string(),
         spec_type,
+        revision: None,
         normalized_bare_specifier: None,
     }
 }

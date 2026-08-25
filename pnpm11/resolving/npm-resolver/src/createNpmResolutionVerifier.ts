@@ -12,6 +12,10 @@ import {
   type Resolution,
   type ResolutionVerifier,
 } from '@pnpm/resolving.resolver-base'
+import {
+  isIntegrityAddressedRegistryTarballUrl,
+  isValidTarballRevision,
+} from '@pnpm/resolving.tarball-url'
 import type { PackageVersionPolicy, RegistriesByScope, TrustPolicy } from '@pnpm/types'
 import semver from 'semver'
 
@@ -30,6 +34,7 @@ import {
   MINIMUM_RELEASE_AGE_VIOLATION_CODE,
   MISSING_NAMED_REGISTRY_VIOLATION_CODE,
   MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
+  TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
   TARBALL_URL_MISMATCH_VIOLATION_CODE,
   TRUST_DOWNGRADE_VIOLATION_CODE,
 } from './violationCodes.js'
@@ -237,13 +242,22 @@ export function createNpmResolutionVerifier (
     // narrowed by their exclude lists, since it guards integrity rather
     // than maturity/trust. Registry entries with no tarball URL reconstruct
     // it from name+version+registry, so they're inherently bound.
-    if (typeof tarballUrl === 'string') {
-      const urlViolation = await runTarballUrlCheck(lookupContext, registry, name, version, tarballUrl)
-      if (urlViolation) return urlViolation
-    }
-
+    const rawRevision = (resolution as { revision?: unknown }).revision
     const ageApplies = ageCheckActive && !isExcluded(excludePolicy, name, version)
     const trustApplies = trustCheckActive && !isExcluded(trustExcludePolicy, name, version)
+    if (tarballUrl != null || (rawRevision != null && (ageApplies || trustApplies))) {
+      const artifactViolation = await runRegistryArtifactCheck(
+        lookupContext,
+        registry,
+        name,
+        version,
+        integrity,
+        rawRevision,
+        tarballUrl
+      )
+      if (artifactViolation) return artifactViolation
+    }
+
     if (!ageApplies && !trustApplies) return { ok: true }
 
     if (ageApplies) {
@@ -288,6 +302,7 @@ export function createNpmResolutionVerifier (
       // applies the binding — otherwise an upgrade could keep trusting a
       // lockfile that was only ever age/trust-checked.
       tarballUrlBinding: true,
+      revisionHistoryBinding: true,
       // Same cache identity rule for the missing-integrity structural check.
       integrityRequired: true,
       namedRegistriesRouting,
@@ -302,6 +317,7 @@ export function createNpmResolutionVerifier (
       // The tarball-URL binding is unconditional today; a cached run that
       // didn't record it can't be trusted to have enforced it.
       if (cached.tarballUrlBinding !== true) return false
+      if (cached.revisionHistoryBinding !== true) return false
 
       // The missing-integrity check is also unconditional; older cache records
       // without the flag cannot prove they rejected unverifiable tarballs.
@@ -426,12 +442,14 @@ async function runAgeCheck (
  * a tampered lockfile could smuggle a malicious URL past the check by
  * pointing it at a `name@version` the registry can't vouch for.
  */
-async function runTarballUrlCheck (
+async function runRegistryArtifactCheck (
   context: PublishedAtLookupContext,
   registry: string,
   name: string,
   version: string,
-  lockfileTarball: string
+  lockfileIntegrity: string,
+  rawRevision: unknown,
+  lockfileTarball: string | undefined
 ): Promise<{ ok: false, code: string, reason: string } | undefined> {
   const { meta, error } = await fetchAbbreviatedMeta(context, registry, name)
   if (error != null) {
@@ -442,17 +460,115 @@ async function runTarballUrlCheck (
     // error — still fail-closed, the entry never reaches the filesystem.
     throw error
   }
-  const registryTarball = meta?.versionTarballs?.get(version)
-  if (registryTarball != null && sameTarballUrl(lockfileTarball, registryTarball)) {
-    return undefined
+  const artifact = meta?.versionArtifacts?.get(version)
+  if (artifact == null) {
+    if (lockfileTarball == null && rawRevision == null) return undefined
+    return {
+      ok: false,
+      code: lockfileTarball == null
+        ? TARBALL_REVISION_MISMATCH_VIOLATION_CODE
+        : TARBALL_URL_MISMATCH_VIOLATION_CODE,
+      reason: "could not be verified against the registry's published metadata",
+    }
   }
-  return {
-    ok: false,
-    code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
-    reason: registryTarball == null
-      ? "could not be verified against the registry's published metadata"
-      : `has a tarball URL (${lockfileTarball}) that does not match the registry's published metadata (${registryTarball})`,
+  const metadataRevision = artifact.current.revision
+  const revisionAware = rawRevision != null || metadataRevision !== undefined || artifact.revisions.length > 0
+  if (!revisionAware) {
+    if (lockfileTarball == null) return undefined
+    if (typeof artifact.current.tarball === 'string' && sameTarballUrl(lockfileTarball, artifact.current.tarball)) {
+      return undefined
+    }
+    return {
+      ok: false,
+      code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+      reason: typeof artifact.current.tarball !== 'string'
+        ? "could not be verified against the registry's published metadata"
+        : `has a tarball URL (${lockfileTarball}) that does not match the registry's published metadata (${artifact.current.tarball})`,
+    }
   }
+  if (rawRevision != null && !isValidTarballRevision(rawRevision)) {
+    return {
+      ok: false,
+      code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+      reason: `has an invalid revision (${String(rawRevision)})`,
+    }
+  }
+  let currentRevision = 0
+  if (metadataRevision !== undefined) {
+    if (!isValidTarballRevision(metadataRevision)) {
+      return {
+        ok: false,
+        code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+        reason: `registry metadata has an invalid current revision (${String(metadataRevision)})`,
+      }
+    }
+    currentRevision = metadataRevision
+    const currentHistory = artifact.revisions.filter(candidate => candidate.revision === currentRevision)
+    if (
+      currentHistory.length !== 1 ||
+      currentHistory[0].integrity !== artifact.current.integrity ||
+      typeof currentHistory[0].tarball !== 'string' ||
+      typeof artifact.current.tarball !== 'string' ||
+      typeof artifact.current.integrity !== 'string' ||
+      !isIntegrityAddressedRegistryTarballUrl(
+        normalizeRegistryUrl(artifact.current.tarball),
+        artifact.current.integrity,
+        registry
+      ) ||
+      !sameTarballUrl(currentHistory[0].tarball, artifact.current.tarball)
+    ) {
+      return {
+        ok: false,
+        code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+        reason: `registry metadata revision ${currentRevision} does not have exactly one matching history entry`,
+      }
+    }
+  }
+  const revision = typeof rawRevision === 'number' ? rawRevision : 0
+  const currentMatches = currentRevision === revision
+  const historicalCandidates = artifact.revisions.filter(candidate => candidate.revision === revision)
+  if (historicalCandidates.length > 1) {
+    return {
+      ok: false,
+      code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+      reason: `revision ${revision} is advertised more than once in the registry's history`,
+    }
+  }
+  const historical = historicalCandidates[0]
+  const selected = currentMatches ? artifact.current : historical
+  if (
+    selected == null ||
+    selected.integrity !== lockfileIntegrity ||
+    (currentMatches && historical != null && historical.integrity !== lockfileIntegrity)
+  ) {
+    return {
+      ok: false,
+      code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+      reason: `has revision ${revision} with an integrity that does not match the registry's current or historical metadata`,
+    }
+  }
+  if (revision > 0 || !currentMatches) {
+    if (
+      typeof selected.tarball !== 'string' ||
+      !isIntegrityAddressedRegistryTarballUrl(normalizeRegistryUrl(selected.tarball), lockfileIntegrity, registry)
+    ) {
+      return {
+        ok: false,
+        code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+        reason: `has revision ${revision} that is not addressed by its complete sha512 integrity`,
+      }
+    }
+  }
+  if (lockfileTarball != null && (typeof selected.tarball !== 'string' || !sameTarballUrl(lockfileTarball, selected.tarball))) {
+    return {
+      ok: false,
+      code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+      reason: typeof selected.tarball !== 'string'
+        ? "could not be verified against the registry's published metadata"
+        : `has a tarball URL (${lockfileTarball}) that does not match the registry's published metadata (${selected.tarball})`,
+    }
+  }
+  return undefined
 }
 
 function sameTarballUrl (a: string, b: string): boolean {
@@ -774,7 +890,7 @@ async function tryAbbreviatedModifiedShortcut (
   // publish time — but only for versions the registry currently lists.
   // An unpublished or never-published pin would otherwise pass the gate
   // on a stale package-level timestamp.
-  if (!meta?.versionTarballs?.has(version)) return undefined
+  if (!meta?.versionArtifacts?.has(version)) return undefined
   return modified
 }
 
@@ -877,23 +993,47 @@ function validateSharedMeta (meta: PackageMeta | undefined, name: string): Packa
 // lockfile (see #11860). The full document is GC-able as soon as this
 // closure returns; only the short tarball-URL strings are retained.
 function projectAbbreviatedMeta (meta: PackageMeta): AbbreviatedMetaProjection {
-  let versionTarballs: Map<string, string | undefined> | undefined
+  let versionArtifacts: Map<string, RegistryArtifactHistory> | undefined
   if (meta.versions) {
-    versionTarballs = new Map()
+    versionArtifacts = new Map()
     for (const [version, manifest] of Object.entries(meta.versions)) {
-      versionTarballs.set(version, manifest.dist?.tarball)
+      versionArtifacts.set(version, {
+        current: {
+          revision: manifest.dist?.revision,
+          integrity: manifest.dist?.integrity,
+          tarball: manifest.dist?.tarball,
+        },
+        revisions: Array.isArray(manifest.dist?.revisions)
+          ? manifest.dist.revisions.map(revision => ({
+            revision: revision.revision,
+            integrity: revision.integrity,
+            tarball: revision.tarball,
+          }))
+          : [],
+      })
     }
   }
   return {
     modified: meta.modified,
-    versionTarballs,
+    versionArtifacts,
   }
+}
+
+interface RegistryArtifact {
+  revision: unknown
+  integrity: unknown
+  tarball: unknown
+}
+
+interface RegistryArtifactHistory {
+  current: RegistryArtifact
+  revisions: RegistryArtifact[]
 }
 
 interface AbbreviatedMetaProjection {
   modified?: string
-  /** version → `dist.tarball`; key presence means the version is published. */
-  versionTarballs?: Map<string, string | undefined>
+  /** version → current and historical registry artifacts. */
+  versionArtifacts?: Map<string, RegistryArtifactHistory>
 }
 
 /**

@@ -534,6 +534,30 @@ fn update_latest_preserves_workspace_local_path_specifier() {
     drop((root, anchor));
 }
 
+#[test]
+fn update_patches_preserves_an_implicit_workspace_dependency() {
+    let (root, workspace, anchor) = setup();
+
+    add_workspace_package(&workspace, "workspace-only", "1.0.0");
+    append_workspace_yaml_key(&workspace, "linkWorkspacePackages", true);
+    write_manifest(&workspace, r#"{ "workspace-only": "^1.0.0" }"#);
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--patches"]).assert().success();
+
+    let dependency = workspace.join("node_modules/workspace-only");
+    assert!(dependency.exists(), "workspace dependency should remain linked");
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        lockfile.contains(
+            "workspace-only:\n        specifier: ^1.0.0\n        version: link:workspace-only"
+        ),
+        "{lockfile}",
+    );
+
+    drop((root, anchor));
+}
+
 /// A package selector only updates the matched dependency; others keep
 /// their manifest ranges.
 #[test]

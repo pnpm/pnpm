@@ -150,6 +150,7 @@ const COMPOSABLE_CHANGED_FIELDS = new Set<ChangedField>([
 
 interface InstallMutationOptions {
   update?: boolean
+  updatePatches?: boolean
   updateToLatest?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest?: boolean
@@ -210,7 +211,7 @@ export async function install (
 
   // When a pnpr server is configured, use server-side resolution
   // instead of the normal resolution flow.
-  if (opts.pnprServer) {
+  if (opts.pnprServer && !opts.updatePatches) {
     return installViaPnprServer(manifest, rootDir, opts)
   }
 
@@ -221,6 +222,7 @@ export async function install (
         pruneDirectDependencies: opts.pruneDirectDependencies,
         rootDir,
         update: opts.update,
+        updatePatches: opts.updatePatches,
         updateMatching: opts.updateMatching,
         updateToLatest: opts.updateToLatest,
         updatePackageManifest: opts.updatePackageManifest,
@@ -282,6 +284,7 @@ export async function mutateModulesInSingleProject (
       {
         ...project,
         update: maybeOpts.update,
+        updatePatches: maybeOpts.updatePatches,
         updateToLatest: maybeOpts.updateToLatest,
         updateMatching: maybeOpts.updateMatching,
         updatePackageManifest: maybeOpts.updatePackageManifest,
@@ -1124,6 +1127,7 @@ export async function mutateModules (
     | 'dependencySelectors'
     | 'targetDependenciesField'
     | 'update'
+    | 'updatePatches'
     | 'updateToLatest'
     >
 
@@ -1745,6 +1749,7 @@ export async function addDependenciesToPackage (
         rootDir,
         targetDependenciesField: opts.targetDependenciesField,
         update: opts.update,
+        updatePatches: opts.updatePatches,
         updateMatching: opts.updateMatching,
         updatePackageManifest: opts.updatePackageManifest,
         updateToLatest: opts.updateToLatest,
@@ -2793,7 +2798,7 @@ function canUsePnprForMutations (projects: MutatedProject[]): boolean {
     if (p.mutation === 'uninstallSome') return true
     if (p.mutation !== 'install' && p.mutation !== 'installSome') return false
     const m = p as InstallDepsMutation | InstallSomeDepsMutation
-    return !m.update && !m.updateToLatest && m.updateMatching == null
+    return !m.update && !m.updatePatches && !m.updateToLatest && m.updateMatching == null
   })
 }
 

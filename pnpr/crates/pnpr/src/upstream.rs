@@ -5,7 +5,7 @@ use crate::{
 };
 use chrono::{DateTime, Timelike, Utc};
 use pnpm_lockfile::{
-    TarballRevision, integrity_addressed_registry_tarball_url,
+    MAX_TARBALL_REVISION, TarballRevision, integrity_addressed_registry_tarball_url,
     is_integrity_addressed_registry_tarball_url,
 };
 use pnpm_network::{ThrottledClient, read_limited_body};
@@ -449,6 +449,9 @@ fn rewrite_dist_tarball(
     let Some(dist) = value.get_mut("dist").and_then(Value::as_object_mut) else {
         return;
     };
+    if let Some(source_registry) = source_registry {
+        rewrite_upstream_revision_tarball_urls(dist, source_registry, public_url);
+    }
     let revision_url = source_registry.and_then(|source_registry| {
         let revision = dist.get("revision")?.as_u64()?;
         TarballRevision::try_from(revision).ok()?;
@@ -457,7 +460,22 @@ fn rewrite_dist_tarball(
         if !is_integrity_addressed_registry_tarball_url(tarball, &integrity, source_registry) {
             return None;
         }
-        integrity_addressed_registry_tarball_url(&integrity, public_url)
+        let revision_url = integrity_addressed_registry_tarball_url(&integrity, public_url)?;
+        let matches = dist
+            .get("revisions")?
+            .as_array()?
+            .iter()
+            .filter(|entry| {
+                entry.get("revision").and_then(Value::as_u64) == Some(revision)
+                    && entry
+                        .get("integrity")
+                        .and_then(Value::as_str)
+                        .and_then(|integrity| integrity.parse::<Integrity>().ok())
+                        .is_some_and(|candidate| candidate == integrity)
+                    && entry.get("tarball").and_then(Value::as_str) == Some(revision_url.as_str())
+            })
+            .count();
+        (matches == 1).then_some(revision_url)
     });
     if let Some(revision_url) = revision_url {
         let Some(tarball_value) = dist.get_mut("tarball") else { return };
@@ -476,6 +494,46 @@ fn rewrite_dist_tarball(
         .or(fallback)
         .unwrap_or_default();
     *tarball_value = Value::String(format!("{public_url}/{}/-/{filename}", pkg.as_str()));
+}
+
+fn rewrite_upstream_revision_tarball_urls(
+    dist: &mut serde_json::Map<String, Value>,
+    source_registry: &str,
+    public_url: &str,
+) {
+    let Some(revisions) = dist.get_mut("revisions").and_then(Value::as_array_mut) else {
+        return;
+    };
+    revisions.retain_mut(|revision| {
+        let Some(revision) = revision.as_object_mut() else {
+            return false;
+        };
+        let Some(number) = revision.get("revision").and_then(Value::as_u64) else {
+            return false;
+        };
+        if number > MAX_TARBALL_REVISION || !revision.get("manifest").is_some_and(Value::is_object)
+        {
+            return false;
+        }
+        let Some(integrity) = revision
+            .get("integrity")
+            .and_then(Value::as_str)
+            .and_then(|integrity| integrity.parse::<Integrity>().ok())
+        else {
+            return false;
+        };
+        let Some(tarball) = revision.get("tarball").and_then(Value::as_str) else {
+            return false;
+        };
+        if !is_integrity_addressed_registry_tarball_url(tarball, &integrity, source_registry) {
+            return false;
+        }
+        let Some(tarball) = integrity_addressed_registry_tarball_url(&integrity, public_url) else {
+            return false;
+        };
+        revision.insert("tarball".to_string(), Value::String(tarball));
+        true
+    });
 }
 
 /// The tarball filename a `dist.tarball` URL points at: the final path

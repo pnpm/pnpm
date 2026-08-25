@@ -155,12 +155,16 @@ fn point_npmrc_registry_at(npmrc_path: &Path, registry_url: &str) {
 }
 
 fn revision_fixture_tarball() -> Vec<u8> {
+    revision_fixture_tarball_with_value("revision")
+}
+
+fn revision_fixture_tarball_with_value(value: &str) -> Vec<u8> {
     let manifest = br#"{"name":"revision-pkg","version":"1.0.0","main":"index.js"}"#;
+    let source = format!("module.exports = '{value}'\n");
     let mut tar = tar::Builder::new(Vec::new());
-    for (path, body) in [
-        ("package/package.json", manifest.as_slice()),
-        ("package/index.js", b"module.exports = 'revision'\n".as_slice()),
-    ] {
+    for (path, body) in
+        [("package/package.json", manifest.as_slice()), ("package/index.js", source.as_bytes())]
+    {
         let mut header = tar::Header::new_gnu();
         header.set_size(body.len() as u64);
         header.set_mode(0o644);
@@ -173,13 +177,33 @@ fn revision_fixture_tarball() -> Vec<u8> {
     gzip.finish().expect("finish package tarball")
 }
 
-#[test]
-fn revision_install_and_frozen_reinstall_work_through_pnpr() {
-    let mut upstream = mockito::Server::new();
-    let tarball = revision_fixture_tarball();
+fn revision_packument(
+    upstream: &mockito::Server,
+    tarball: &[u8],
+    revision: u64,
+    history: &[(&ssri::Integrity, u64)],
+) -> (ssri::Integrity, serde_json::Value) {
     let integrity =
-        ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512).chain(&tarball).result();
+        ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512).chain(tarball).result();
     let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
+    let revisions = history
+        .iter()
+        .map(|(integrity, revision)| {
+            let path = integrity_addressed_tarball_path(integrity).unwrap();
+            serde_json::json!({
+                "revision": revision,
+                "integrity": integrity.to_string(),
+                "tarball": format!("{}/{}", upstream.url(), path),
+                "manifest": {},
+            })
+        })
+        .chain(std::iter::once(serde_json::json!({
+            "revision": revision,
+            "integrity": integrity.to_string(),
+            "tarball": format!("{}/{}", upstream.url(), revision_path),
+            "manifest": {},
+        })))
+        .collect::<Vec<_>>();
     let packument = serde_json::json!({
         "name": "revision-pkg",
         "dist-tags": { "latest": "1.0.0" },
@@ -189,10 +213,20 @@ fn revision_install_and_frozen_reinstall_work_through_pnpr() {
             "dist": {
                 "tarball": format!("{}/{}", upstream.url(), revision_path),
                 "integrity": integrity.to_string(),
-                "revision": 2,
+                "revision": revision,
+                "revisions": revisions,
             },
         } },
     });
+    (integrity, packument)
+}
+
+#[test]
+fn revision_install_and_frozen_reinstall_work_through_pnpr() {
+    let mut upstream = mockito::Server::new();
+    let tarball = revision_fixture_tarball();
+    let (integrity, packument) = revision_packument(&upstream, &tarball, 2, &[]);
+    let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
     let packument_mock =
         upstream.mock("GET", "/revision-pkg").with_body(packument.to_string()).expect(1).create();
     let tarball_mock = upstream
@@ -225,6 +259,67 @@ fn revision_install_and_frozen_reinstall_work_through_pnpr() {
 
     packument_mock.assert();
     tarball_mock.assert();
+    drop((root, mock_instance));
+}
+
+#[test]
+fn update_patches_refreshes_a_pnpr_revision_without_changing_the_version() {
+    let first_tarball = revision_fixture_tarball_with_value("revision one");
+    let second_tarball = revision_fixture_tarball_with_value("revision two");
+
+    let mut first_upstream = mockito::Server::new();
+    let (first_integrity, first_packument) =
+        revision_packument(&first_upstream, &first_tarball, 1, &[]);
+    let first_path = integrity_addressed_tarball_path(&first_integrity).unwrap();
+    first_upstream.mock("GET", "/revision-pkg").with_body(first_packument.to_string()).create();
+    first_upstream
+        .mock("GET", format!("/{first_path}").as_str())
+        .with_body(&first_tarball)
+        .expect(1)
+        .create();
+    let first_registry = start_pnpr_registry(&first_upstream.url());
+
+    let mut second_upstream = mockito::Server::new();
+    let (second_integrity, second_packument) =
+        revision_packument(&second_upstream, &second_tarball, 2, &[(&first_integrity, 1)]);
+    let second_path = integrity_addressed_tarball_path(&second_integrity).unwrap();
+    second_upstream.mock("GET", "/revision-pkg").with_body(second_packument.to_string()).create();
+    second_upstream
+        .mock("GET", format!("/{second_path}").as_str())
+        .with_body(&second_tarball)
+        .expect(1)
+        .create();
+    let second_registry = start_pnpr_registry(&second_upstream.url());
+
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    point_npmrc_registry_at(&npmrc_path, &first_registry);
+    let manifest = serde_json::json!({ "dependencies": { "revision-pkg": "^1.0.0" } });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+    let initial = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(initial.contains("revision: 1"), "{initial}");
+
+    point_npmrc_registry_at(&npmrc_path, &second_registry);
+    pacquet_at(&workspace).with_args(["update", "--patches"]).assert().success();
+
+    let refreshed = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(refreshed.contains("revision: 2"), "{refreshed}");
+    assert!(!refreshed.contains("revision: 1"), "{refreshed}");
+    assert!(refreshed.contains("revision-pkg@1.0.0"), "{refreshed}");
+    let saved_manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(workspace.join("package.json")).expect("read package.json"),
+    )
+    .expect("parse package.json");
+    assert_eq!(saved_manifest, manifest);
+    assert_eq!(
+        fs::read_to_string(workspace.join("node_modules/revision-pkg/index.js"))
+            .expect("read installed source"),
+        "module.exports = 'revision two'\n",
+    );
+
     drop((root, mock_instance));
 }
 

@@ -129,3 +129,24 @@ fn ignore_pnpmfile_flag_applies_to_config() {
     update_args(&["--ignore-pnpmfile"]).apply_cli_config(&mut config);
     assert!(config.ignore_pnpmfile, "flag present → config set");
 }
+
+#[test]
+fn patches_is_a_selectorless_update_mode() {
+    let patches = update_args(&["--patches"]);
+    assert!(patches.patches);
+    patches.check_patches_options().expect("standalone --patches");
+
+    for args in [
+        &["--patches", "foo"][..],
+        &["--patches", "--latest"][..],
+        &["--patches", "--interactive"][..],
+        &["--patches", "--global"][..],
+    ] {
+        let error =
+            update_args(args).check_patches_options().expect_err("--patches combination must fail");
+        assert_eq!(
+            error.to_string(),
+            "--patches cannot be combined with package selectors, --latest, --interactive, or --global",
+        );
+    }
+}

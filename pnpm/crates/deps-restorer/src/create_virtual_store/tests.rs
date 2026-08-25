@@ -811,6 +811,7 @@ fn slot_link<'a>(
         cas_paths,
         warm_cache_key: None,
         source_is_mutable: true,
+        force_import: false,
         needs_build_marker_source: None,
         removed_aliases,
     }

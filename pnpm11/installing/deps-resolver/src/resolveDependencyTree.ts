@@ -90,6 +90,7 @@ export interface Importer<WantedDepExtraProps> {
 export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<WantedDepExtraProps> {
   updatePackageManifest: boolean
   updateMatching?: (pkgName: string, version?: string) => boolean
+  updatePatches?: boolean
   updateToLatest?: boolean
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
@@ -258,6 +259,7 @@ export async function resolveDependencyTree<T> (
       },
       updateDepth: -1,
       updateMatching: importer.updateMatching,
+      updatePatches: importer.updatePatches,
       updateToLatest: importer.updateToLatest,
       prefix: importer.rootDir,
       supportedArchitectures: opts.supportedArchitectures,

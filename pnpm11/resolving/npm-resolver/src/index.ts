@@ -10,7 +10,7 @@ import type {
 } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
 import { calcVersionRange, inferRangeSpecStyle, rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
-import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
+import type { PackageInRegistry, PackageMeta, PackageRevision } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
   LatestInfo,
@@ -524,6 +524,7 @@ export type ResolveFromNpmOptions = {
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
   update?: false | 'compatible' | 'latest'
+  updatePatches?: boolean
   updateRequested?: boolean
   updateChecksums?: boolean
   injectWorkspacePackages?: boolean
@@ -545,7 +546,7 @@ async function resolveNpm (
       id: PkgResolutionId
       name?: string
       version?: string
-      resolution: TarballResolution
+      resolution: Resolution
       publishedAt?: string
     }
   }
@@ -572,11 +573,14 @@ async function resolveNpm (
       return resolvedFromWorkspace
     }
   }
-  const workspacePackages = opts.alwaysTryWorkspacePackages !== false ? opts.workspacePackages : undefined
+  const canKeepWorkspaceResolution = opts.currentPkg == null || opts.currentPkg.resolution.type === 'directory'
   const spec = wantedDependency.bareSpecifier
     ? parseBareSpecifier(wantedDependency.bareSpecifier, wantedDependency.alias, defaultTag, registry)
     : defaultTagForAlias(wantedDependency.alias!, defaultTag)
   if (spec == null) return null
+  const workspacePackages = spec.revision == null && (!opts.updatePatches || canKeepWorkspaceResolution) && opts.alwaysTryWorkspacePackages !== false
+    ? opts.workspacePackages
+    : undefined
 
   // Fast path: if we have a current resolution with integrity, try to peek the manifest from the store.
   // This avoids the expensive metadata fetch from the registry.
@@ -588,11 +592,13 @@ async function resolveNpm (
     ctx.peekManifestFromStore &&
     opts.currentPkg?.resolution &&
     !opts.update &&
+    !opts.updatePatches &&
+    spec.revision == null &&
     (opts.publishedBy == null || opts.currentPkg.publishedAt != null)
   ) {
     const currentResolution = opts.currentPkg.resolution
     // Only use this optimization for tarball resolutions with integrity (npm packages)
-    if ('tarball' in currentResolution && currentResolution.integrity) {
+    if ('tarball' in currentResolution && typeof currentResolution.integrity === 'string') {
       const manifest = await ctx.peekManifestFromStore({
         id: opts.currentPkg.id,
         integrity: currentResolution.integrity,
@@ -643,7 +649,7 @@ async function resolveNpm (
     opts.injectWorkspacePackages !== true &&
     !wantedDependency.injected
   ) {
-    const workspacePkgsMatchingName = workspacePackages.get(spec.name)
+    const workspacePkgsMatchingName = spec.revision == null ? workspacePackages.get(spec.name) : undefined
     if (workspacePkgsMatchingName?.size === 1) {
       const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
       if (localVersion != null) {
@@ -672,7 +678,7 @@ async function resolveNpm (
       preferredVersionSelectors: preferredVersionSelectorsFor(opts, spec.name),
       registry,
       includeLatestTag: opts.update === 'latest',
-      updateChecksums: opts.updateChecksums,
+      updateChecksums: opts.updateChecksums || opts.updatePatches,
       optional: wantedDependency.optional,
       trustPolicy: opts.trustPolicy,
     })
@@ -735,7 +741,7 @@ async function resolveNpm (
   }
 
   const latest = latestAllowedByPolicy(meta, opts)
-  const workspacePkgsMatchingName = workspacePackages?.get(pickedPackage.name)
+  const workspacePkgsMatchingName = spec.revision == null ? workspacePackages?.get(pickedPackage.name) : undefined
   if (workspacePkgsMatchingName && opts.projectDir) {
     const matchedPkg = workspacePkgsMatchingName.get(pickedPackage.version)
     if (matchedPkg) {
@@ -770,8 +776,9 @@ async function resolveNpm (
   }
 
   warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
+  const selectedPackage = selectPackageRevision(pickedPackage, spec, registry)
   const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
-  const resolution = createRegistryTarballResolution(pickedPackage.dist, registry)
+  const resolution = createRegistryTarballResolution(selectedPackage.dist, registry)
   let normalizedBareSpecifier: string | undefined
   if (opts.calcSpecifier) {
     normalizedBareSpecifier = spec.normalizedBareSpecifier ?? calcSpecifier({
@@ -785,7 +792,7 @@ async function resolveNpm (
   return {
     id,
     latest,
-    manifest: pickedPackage,
+    manifest: selectedPackage,
     resolution,
     resolvedVia: 'npm-registry',
     publishedAt,
@@ -815,7 +822,14 @@ async function resolveJsr (
   return {
     ...picked,
     normalizedBareSpecifier: opts.calcSpecifier
-      ? calcPrefixedSpecifier('jsr:', spec.jsrPkgName, wantedDependency, picked.manifest.version, opts.rangeSpecStyle)
+      ? calcPrefixedSpecifier({
+        prefix: 'jsr:',
+        pkgName: spec.jsrPkgName,
+        wantedDependency,
+        version: picked.manifest.version,
+        revision: spec.revision,
+        defaultRangeSpecStyle: opts.rangeSpecStyle,
+      })
       : undefined,
     resolvedVia: 'jsr-registry',
     alias: spec.jsrPkgName,
@@ -898,7 +912,14 @@ async function resolveFromNamedRegistry (
     // decides the tarball both consumers get.
     id: `${picked.manifest.name}@${spec.registryName}:${picked.manifest.version}` as PkgResolutionId,
     normalizedBareSpecifier: opts.calcSpecifier
-      ? calcPrefixedSpecifier(`${spec.registryName}:`, spec.name, wantedDependency, picked.manifest.version, opts.rangeSpecStyle)
+      ? calcPrefixedSpecifier({
+        prefix: `${spec.registryName}:`,
+        pkgName: spec.name,
+        wantedDependency,
+        version: picked.manifest.version,
+        revision: spec.revision,
+        defaultRangeSpecStyle: opts.rangeSpecStyle,
+      })
       : undefined,
     resolvedVia: 'named-registry',
     registryName: spec.registryName,
@@ -936,7 +957,7 @@ async function pickFromSimpleRegistry (
     preferredVersionSelectors: preferredVersionSelectorsFor(opts, spec.name),
     registry,
     includeLatestTag: opts.update === 'latest',
-    updateChecksums: opts.updateChecksums,
+    updateChecksums: opts.updateChecksums || opts.updatePatches,
     optional: wantedDependency.optional,
     trustPolicy: opts.trustPolicy,
   })
@@ -944,12 +965,13 @@ async function pickFromSimpleRegistry (
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   }
   warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
-  const resolution = createRegistryTarballResolution(pickedPackage.dist, registry)
+  const selectedPackage = selectPackageRevision(pickedPackage, spec, registry)
+  const resolution = createRegistryTarballResolution(selectedPackage.dist, registry)
   const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
     latest: latestAllowedByPolicy(meta, opts),
-    manifest: pickedPackage,
+    manifest: selectedPackage,
     resolution,
     publishedAt,
     policyViolation: detectMinReleaseAgeViolation({
@@ -967,16 +989,22 @@ async function pickFromSimpleRegistry (
 // when the dependency alias matches the package name). Shared between the
 // jsr and named-registry resolvers since they only differ in `prefix` and
 // which spec field holds the package name.
-function calcPrefixedSpecifier (
-  prefix: string,
-  pkgName: string,
-  wantedDependency: WantedDependency,
-  version: string,
+function calcPrefixedSpecifier (opts: {
+  prefix: string
+  pkgName: string
+  wantedDependency: WantedDependency
+  version: string
+  revision?: number
   defaultRangeSpecStyle?: RangeSpecStyle
-): string {
-  const range = calcRange(version, wantedDependency, defaultRangeSpecStyle)
-  if (!wantedDependency.alias || pkgName === wantedDependency.alias) return `${prefix}${range}`
-  return `${prefix}${pkgName}@${range}`
+}): string {
+  if (opts.revision != null) {
+    const target = `${opts.version}+r${opts.revision}`
+    if (!opts.wantedDependency.alias || opts.pkgName === opts.wantedDependency.alias) return `${opts.prefix}${target}`
+    return `${opts.prefix}${opts.pkgName}@${target}`
+  }
+  const range = calcRange(opts.version, opts.wantedDependency, opts.defaultRangeSpecStyle)
+  if (!opts.wantedDependency.alias || opts.pkgName === opts.wantedDependency.alias) return `${opts.prefix}${range}`
+  return `${opts.prefix}${opts.pkgName}@${range}`
 }
 
 function calcSpecifier ({
@@ -990,6 +1018,11 @@ function calcSpecifier ({
   version: string
   defaultRangeSpecStyle?: RangeSpecStyle
 }): string {
+  if (spec.revision != null) {
+    const target = `${version}+r${spec.revision}`
+    if (!wantedDependency.alias || spec.name === wantedDependency.alias) return target
+    return `npm:${spec.name}@${target}`
+  }
   if (wantedDependency.prevSpecifier === wantedDependency.bareSpecifier && wantedDependency.prevSpecifier && versionSelectorType(wantedDependency.prevSpecifier)?.type === 'tag') {
     return wantedDependency.prevSpecifier
   }
@@ -1318,6 +1351,125 @@ function createRegistryTarballResolution (
     revision: dist.revision,
     tarball,
   }
+}
+
+const REVISION_MANIFEST_FIELDS = [
+  'bin',
+  'bundleDependencies',
+  'bundledDependencies',
+  'cpu',
+  'dependencies',
+  'engines',
+  'hasInstallScript',
+  'libc',
+  'optionalDependencies',
+  'os',
+  'peerDependencies',
+  'peerDependenciesMeta',
+] as const
+
+function selectPackageRevision (
+  pickedPackage: PackageInRegistry,
+  spec: RegistryPackageSpec,
+  registry: string
+): PackageInRegistry {
+  validateCurrentPackageRevision(pickedPackage, registry)
+  if (spec.revision == null) return pickedPackage
+  const revisions = pickedPackage.dist.revisions
+  if (revisions == null) {
+    if (spec.revision === 0 && pickedPackage.dist.revision == null) return pickedPackage
+    throw new PnpmError('NO_MATCHING_REVISION',
+      `No revision ${spec.revision} is advertised for ${pickedPackage.name}@${pickedPackage.version}`)
+  }
+  if (!Array.isArray(revisions)) {
+    throw malformedRevisionHistory(pickedPackage, 'the revisions field is not an array')
+  }
+  const matches = revisions.filter((entry) => isRevisionNumber(entry?.revision) && entry.revision === spec.revision)
+  if (matches.length === 0) {
+    throw new PnpmError('NO_MATCHING_REVISION',
+      `No revision ${spec.revision} is advertised for ${pickedPackage.name}@${pickedPackage.version}`)
+  }
+  if (matches.length !== 1) {
+    throw malformedRevisionHistory(pickedPackage, `revision ${spec.revision} is advertised more than once`)
+  }
+  const selectedRevision = matches[0]
+  validatePackageRevision(pickedPackage, selectedRevision, registry)
+
+  const selectedPackage = { ...pickedPackage } as PackageInRegistry
+  for (const field of REVISION_MANIFEST_FIELDS) {
+    delete selectedPackage[field]
+    const value = selectedRevision.manifest[field]
+    if (value !== undefined) {
+      selectedPackage[field] = value as never
+    }
+  }
+  selectedPackage.dist = {
+    ...pickedPackage.dist,
+    integrity: selectedRevision.integrity,
+    tarball: selectedRevision.tarball,
+  }
+  if (spec.revision === 0) {
+    delete selectedPackage.dist.revision
+  } else {
+    selectedPackage.dist.revision = spec.revision
+  }
+  return selectedPackage
+}
+
+function validateCurrentPackageRevision (
+  pickedPackage: PackageInRegistry,
+  registry: string
+): void {
+  const revision = pickedPackage.dist.revision
+  if (revision == null) return
+  if (!isValidTarballRevision(revision)) {
+    throw malformedRevisionHistory(pickedPackage, `current revision ${String(revision)} is not a canonical positive safe integer`)
+  }
+  const revisions = pickedPackage.dist.revisions
+  if (!Array.isArray(revisions)) {
+    throw malformedRevisionHistory(pickedPackage, 'the current revision has no revision history')
+  }
+  const matches = revisions.filter(entry => entry?.revision === revision)
+  if (matches.length !== 1) {
+    throw malformedRevisionHistory(pickedPackage, `current revision ${revision} does not have exactly one history entry`)
+  }
+  const current = matches[0]
+  validatePackageRevision(pickedPackage, current, registry)
+  if (
+    pickedPackage.dist.integrity !== current.integrity ||
+    normalizeRegistryUrl(pickedPackage.dist.tarball) !== normalizeRegistryUrl(current.tarball)
+  ) {
+    throw malformedRevisionHistory(pickedPackage, `revision ${revision} does not match the current artifact`)
+  }
+}
+
+function validatePackageRevision (
+  pickedPackage: PackageInRegistry,
+  revision: PackageRevision,
+  registry: string
+): void {
+  if (!isRevisionNumber(revision.revision)) {
+    throw malformedRevisionHistory(pickedPackage, `revision ${String(revision.revision)} is not a canonical safe integer`)
+  }
+  if (
+    typeof revision.integrity !== 'string' ||
+    typeof revision.tarball !== 'string' ||
+    !isIntegrityAddressedRegistryTarballUrl(normalizeRegistryUrl(revision.tarball), revision.integrity, registry)
+  ) {
+    throw malformedRevisionHistory(pickedPackage, `revision ${revision.revision} is not addressed by its complete sha512 integrity`)
+  }
+  if (revision.manifest == null || typeof revision.manifest !== 'object' || Array.isArray(revision.manifest)) {
+    throw malformedRevisionHistory(pickedPackage, `revision ${revision.revision} has an invalid manifest`)
+  }
+}
+
+function isRevisionNumber (revision: unknown): revision is number {
+  return revision === 0 || isValidTarballRevision(revision)
+}
+
+function malformedRevisionHistory (pickedPackage: PackageInRegistry, reason: string): PnpmError {
+  return new PnpmError('MALFORMED_METADATA',
+    `The revision history for ${pickedPackage.name}@${pickedPackage.version} is invalid: ${reason}.`)
 }
 
 /**

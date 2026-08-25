@@ -51,6 +51,7 @@ export interface PackageInRegistry extends PackageManifest {
   dist: {
     integrity?: string
     revision?: number
+    revisions?: PackageRevision[]
     shasum: string
     tarball: string
     unpackedSize?: number
@@ -60,4 +61,27 @@ export interface PackageInRegistry extends PackageManifest {
       }
     }
   }
+}
+
+export interface PackageRevision {
+  revision: number
+  integrity: string
+  tarball: string
+  manifest: PackageRevisionManifest
+}
+
+export type PackageRevisionManifest = Pick<PackageManifest,
+| 'bin'
+| 'bundleDependencies'
+| 'bundledDependencies'
+| 'cpu'
+| 'dependencies'
+| 'engines'
+| 'libc'
+| 'optionalDependencies'
+| 'os'
+| 'peerDependencies'
+| 'peerDependenciesMeta'
+> & {
+  hasInstallScript?: boolean
 }
