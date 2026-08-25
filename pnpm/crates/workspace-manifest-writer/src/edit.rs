@@ -1125,9 +1125,32 @@ fn remove_top_level_block(text: &str, key: &str) -> String {
     let Some(span) = top_level_span(text, key) else {
         return text.to_string();
     };
+    // The span runs up to the next top-level key, so it carries the blank
+    // line that separates this block from that one. The last block in a
+    // document has no such successor: its separator is the blank line
+    // *before* it, which has to go too, or the file is left ending in a
+    // blank line that the next insert would then separate from again.
+    let start = if span.block_end == text.len() {
+        blank_run_start(text, span.key_line_start)
+    } else {
+        span.key_line_start
+    };
     let mut out = text.to_string();
-    out.replace_range(span.key_line_start..span.block_end, "");
+    out.replace_range(start..span.block_end, "");
     out
+}
+
+/// Start of the run of blank lines immediately preceding `line_start`, or
+/// `line_start` itself when the preceding line is not blank.
+fn blank_run_start(text: &str, line_start: usize) -> usize {
+    let mut start = line_start;
+    for line in lines(&text[..line_start]).iter().rev() {
+        if !line.content.trim().is_empty() {
+            break;
+        }
+        start = line.start;
+    }
+    start
 }
 
 /// Write a new named catalog (`<name>:` + its first entry) into an existing
@@ -1170,7 +1193,7 @@ fn insert_top_level_block(manifest: &Manifest, new_key: &str, block_text: &str) 
     let order = render::target_order(&manifest.top_level_keys, &[new_key.to_string()]);
     let position =
         order.iter().position(|key| key == new_key).expect("new key is in the merged order");
-    let blank_style = uses_blank_line_style(text, &manifest.top_level_keys);
+    let blank_style = manifest.blank_line_style;
 
     if position == 0 {
         // New key sorts to the front: prepend the block. Under blank-line
@@ -1194,7 +1217,7 @@ fn insert_top_level_block(manifest: &Manifest, new_key: &str, block_text: &str) 
         if !out.is_empty() && !out.ends_with('\n') {
             out.push('\n');
         }
-        if blank_style && !out.is_empty() {
+        if blank_style && !out.is_empty() && !out.ends_with("\n\n") {
             out.push('\n');
         }
         out.push_str(block_text);
@@ -1509,7 +1532,9 @@ fn is_comment_line(content: &str) -> bool {
 }
 
 /// Whether every original non-first top-level key has a blank line before it.
-fn uses_blank_line_style(text: &str, top_level_keys: &[String]) -> bool {
+/// Judged once, on the document as parsed: an edit that drops a key must not
+/// change how the surviving blocks are separated.
+pub(crate) fn uses_blank_line_style(text: &str, top_level_keys: &[String]) -> bool {
     if top_level_keys.len() < 2 {
         return false;
     }

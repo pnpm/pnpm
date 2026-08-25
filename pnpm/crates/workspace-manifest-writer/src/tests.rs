@@ -589,7 +589,7 @@ fn patched_dependency_removes_empty_last_block() {
     let original = "packages:\n  - '*'\n\npatchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n";
     let out = run_patched_deps(Some(original), &[]);
 
-    assert_eq!(out, "packages:\n  - '*'\n\n");
+    assert_eq!(out, "packages:\n  - '*'\n");
 }
 
 #[test]
@@ -1249,6 +1249,54 @@ fn delete_last_field_removes_file() {
         &serde_json::Value::Null,
     );
     assert_eq!(out, None);
+}
+
+#[test]
+fn delete_last_field_leaves_no_trailing_blank_line() {
+    let out = run_update_field(
+        Some("cacheDir: ~/cache\n\nvirtualStoreDir: .pnpm\n"),
+        "virtualStoreDir",
+        &serde_json::Value::Null,
+    )
+    .expect("file kept");
+    assert_eq!(out, "cacheDir: ~/cache\n");
+}
+
+#[test]
+fn setting_a_field_after_deleting_the_last_one_keeps_a_single_blank_line() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    let original = "cacheDir: ~/cache\n\nstoreDir: ~/store\n";
+    fs::write(&path, original).expect("seed manifest");
+    let with_field = format!("{original}\nvirtualStoreDir: .pnpm\n");
+
+    for value in [serde_json::json!(".pnpm"), serde_json::Value::Null, serde_json::json!(".pnpm")] {
+        crate::update_manifest_field(&path, "virtualStoreDir", &value).expect("update succeeds");
+    }
+
+    assert_eq!(fs::read_to_string(&path).expect("file kept"), with_field);
+}
+
+#[test]
+fn changing_the_value_of_the_last_field_keeps_its_single_blank_line() {
+    let out = run_update_field(
+        Some("cacheDir: ~/cache\n\nstoreDir: ~/store\n"),
+        "storeDir",
+        &serde_json::json!("~/other"),
+    )
+    .expect("file written");
+    assert_eq!(out, "cacheDir: ~/cache\n\nstoreDir: ~/other\n");
+}
+
+#[test]
+fn a_manifest_already_ending_in_a_blank_line_gains_no_second_one() {
+    let out = run_update_field(
+        Some("cacheDir: ~/cache\n\nstoreDir: ~/store\n\n"),
+        "virtualStoreDir",
+        &serde_json::json!(".pnpm"),
+    )
+    .expect("file written");
+    assert_eq!(out, "cacheDir: ~/cache\n\nstoreDir: ~/store\n\nvirtualStoreDir: .pnpm\n");
 }
 
 #[test]

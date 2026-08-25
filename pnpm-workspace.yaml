@@ -567,5 +567,4 @@ update:
     - validate-npm-package-name
     - write-file-atomic
 
-
 virtualStoreType: global
