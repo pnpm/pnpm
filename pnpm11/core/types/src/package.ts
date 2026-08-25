@@ -189,7 +189,6 @@ export type AuditLevel = 'info' | 'low' | 'moderate' | 'high' | 'critical'
  */
 export interface AuditConfig {
   ignoreGhsas?: string[]
-  cleanupUnusedIgnoredGhsas?: boolean
 }
 
 export interface AuditSettings {
@@ -203,6 +202,13 @@ export interface AuditSettings {
    * `auditConfig.ignoreGhsas`.
    */
   ignore?: string[]
+  /**
+   * When `true`, `pnpm audit --fix` removes entries from the ignore list that
+   * no longer appear in the audit report, so a re-introduced vulnerability
+   * under the same GHSA ID gets re-evaluated instead of staying silently
+   * suppressed.
+   */
+  ignorePrune?: boolean
 }
 
 export interface UpdateSettings {

@@ -36,9 +36,9 @@ mod request;
 mod version_ranges;
 
 pub(crate) use fix::{
-    AuditFixObserver, PackumentPublishInfo, VulnerabilityGuard, cleanup_ignored_ghsas,
-    fetch_publish_times, filter_advisories_for_fix, fix_override, fix_with_update,
-    format_fix_with_update_output, ignore_vulnerabilities, interactive_select,
+    AuditFixObserver, PackumentPublishInfo, VulnerabilityGuard, fetch_publish_times,
+    filter_advisories_for_fix, fix_override, fix_with_update, format_fix_with_update_output,
+    ignore_vulnerabilities, interactive_select, prune_ignored_ghsas,
 };
 pub(crate) use paths::{AuditPathIndex, PathInfo, build_audit_path_index, package_version};
 pub(crate) use render::{
@@ -261,28 +261,29 @@ impl AuditArgs {
 
         if let Some(fix_method) = fix_method {
             // Remove ignored GHSAs that no longer appear in the report before
-            // filtering. Mirrors pnpm's `cleanupUnusedIgnoredGhsas` handling
-            // in the `audit` command handler.
-            if state.config.audit_config.cleanup_unused_ignored_ghsas
+            // filtering. Mirrors pnpm's `audit.ignorePrune` handling in the
+            // `audit` command handler.
+            if state.config.audit_ignore_prune.unwrap_or(false)
                 && !state.config.audit_config.ignore_ghsas.is_empty()
             {
                 let configured_ghsas = &state.config.audit_config.ignore_ghsas;
-                let cleanup = cleanup_ignored_ghsas(configured_ghsas, &report);
-                if !cleanup.cleaned.is_empty() {
+                let prune = prune_ignored_ghsas(configured_ghsas, &report);
+                if !prune.pruned.is_empty() {
                     println!(
-                        "Removed {} unused ignored GHSA(s): {}",
-                        cleanup.cleaned.len(),
-                        cleanup.cleaned.join(", "),
+                        "Removed {} unused ignored GHSA{}: {}",
+                        prune.pruned.len(),
+                        if prune.pruned.len() == 1 { "" } else { "s" },
+                        prune.pruned.join(", "),
                     );
                 }
                 // Persist even when nothing was removed: `retained` may
                 // still differ from the configured list (deduplicated or
                 // case-normalized), and the file should always reflect the
                 // canonical form.
-                if &cleanup.retained != configured_ghsas {
+                if &prune.retained != configured_ghsas {
                     pnpm_workspace_manifest_writer::set_audit_ignore_ghsas(
                         &settings_dir,
-                        &cleanup.retained,
+                        &prune.retained,
                     )
                     .map_err(|err| {
                         miette::Report::new(err)

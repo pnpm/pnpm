@@ -42,19 +42,19 @@ pub(crate) fn filter_advisories_for_fix(
 
 /// `auditConfig.ignoreGhsas` entries split by whether their GHSA id still
 /// appears in the audit report.
-pub(crate) struct CleanupIgnoredGhsasResult {
-    pub(crate) cleaned: Vec<String>,
+pub(crate) struct PruneIgnoredGhsasResult {
+    pub(crate) pruned: Vec<String>,
     pub(crate) retained: Vec<String>,
 }
 
 /// Split `ignored_ghsas` into those still present in `report` — normalized
 /// to their canonical spelling and deduplicated (`retained`) — and those
-/// that aren't, in their original spelling (`cleaned`). Mirrors pnpm's
-/// `cleanupIgnoredGhsas`.
-pub(crate) fn cleanup_ignored_ghsas(
+/// that aren't, in their original spelling (`pruned`). Mirrors pnpm's
+/// `pruneIgnoredGhsas`.
+pub(crate) fn prune_ignored_ghsas(
     ignored_ghsas: &[String],
     report: &AuditReport,
-) -> CleanupIgnoredGhsasResult {
+) -> PruneIgnoredGhsasResult {
     let advisory_ghsa_ids = report
         .advisories
         .values()
@@ -64,7 +64,7 @@ pub(crate) fn cleanup_ignored_ghsas(
 
     let mut retained_seen = HashSet::new();
     let mut retained = Vec::new();
-    let mut cleaned = Vec::new();
+    let mut pruned = Vec::new();
     for ghsa in ignored_ghsas {
         let normalized = normalize_ghsa_id(ghsa);
         if advisory_ghsa_ids.contains(&normalized) {
@@ -72,10 +72,10 @@ pub(crate) fn cleanup_ignored_ghsas(
                 retained.push(normalized);
             }
         } else {
-            cleaned.push(ghsa.clone());
+            pruned.push(ghsa.clone());
         }
     }
-    CleanupIgnoredGhsasResult { cleaned, retained }
+    PruneIgnoredGhsasResult { pruned, retained }
 }
 
 /// Build the `name@vulnerable_versions → ^patched` override map from the

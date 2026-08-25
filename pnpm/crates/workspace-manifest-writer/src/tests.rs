@@ -864,20 +864,14 @@ fn ignore_ghsas_empty_with_sibling_only_is_a_noop() {
 fn ignore_ghsas_edits_an_inline_flow_audit_config() {
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
-    fs::write(
-        &path,
-        "auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [GHSA-aaaa-bbbb-cccc] }\n",
-    )
-    .expect("seed");
+    fs::write(&path, "auditConfig: { other: keep, ignoreGhsas: [GHSA-aaaa-bbbb-cccc] }\n")
+        .expect("seed");
 
     crate::set_audit_ignore_ghsas(dir.path(), &["GHSA-dddd-eeee-ffff".to_string()])
         .expect("set_audit_ignore_ghsas succeeds");
 
     let after = fs::read_to_string(&path).expect("read manifest");
-    assert_eq!(
-        after,
-        "auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [ GHSA-dddd-eeee-ffff ] }\n",
-    );
+    assert_eq!(after, "auditConfig: { other: keep, ignoreGhsas: [ GHSA-dddd-eeee-ffff ] }\n");
 }
 
 #[test]

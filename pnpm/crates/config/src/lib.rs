@@ -551,12 +551,6 @@ pub struct AuditConfig {
     /// GHSA identifiers that `pnpm audit` should suppress in the rendered
     /// report.
     pub ignore_ghsas: Vec<String>,
-
-    /// When `true`, `pnpm audit --fix` removes entries from
-    /// [`Self::ignore_ghsas`] that no longer appear in the audit report,
-    /// so a re-introduced vulnerability under the same GHSA id gets
-    /// re-evaluated instead of staying silently suppressed.
-    pub cleanup_unused_ignored_ghsas: bool,
 }
 
 /// Tri-state mirror of `pnpm_executor::ScriptsPrependNodePath`
@@ -2255,6 +2249,10 @@ pub struct Config {
     /// `auditConfig` config for `pnpm audit`.
     pub audit_config: AuditConfig,
 
+    /// `audit.ignorePrune` from `pnpm-workspace.yaml`. See
+    /// [`AuditSettings::ignore_prune`].
+    pub audit_ignore_prune: Option<bool>,
+
     /// `versioning` from `pnpm-workspace.yaml`: native workspace release
     /// management, consumed by `pnpm change` and the bare `pnpm version -r`.
     pub versioning: pnpm_versioning::VersioningSettings,
@@ -2527,6 +2525,7 @@ impl Config {
             level: self.audit_level,
             ignore: (!self.audit_config.ignore_ghsas.is_empty())
                 .then(|| self.audit_config.ignore_ghsas.clone()),
+            ignore_prune: self.audit_ignore_prune,
         };
         (audit != AuditSettings::default()).then_some(audit)
     }

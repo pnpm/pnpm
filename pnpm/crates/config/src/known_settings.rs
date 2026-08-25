@@ -56,6 +56,7 @@ const TYPED_WORKSPACE_MANIFEST_KEYS: &[&str] = &[
 /// fields.
 const CONFIG_ONLY_SETTING_KEYS: &[&str] = &[
     "allowNew",
+    "auditIgnorePrune",
     "authConfig",
     "autoConfirmAllPrompts",
     "bin",

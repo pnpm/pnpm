@@ -14,11 +14,11 @@ import { pick, pickBy } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { createAuditNetworkOptions, loadAuditContext } from './auditContext.js'
-import { cleanupIgnoredGhsas } from './cleanupIgnoredGhsas.js'
 import { fix } from './fix.js'
 import { fixWithUpdate, type FixWithUpdateResult } from './fixWithUpdate.js'
 import { getAuditFixChoices } from './getAuditFixChoices.js'
 import { ignore } from './ignore.js'
+import { pruneIgnoredGhsas } from './pruneIgnoredGhsas.js'
 import { correctInferredPatchedVersions, createPublishTimesFetcher, type PublishTimesFetcher } from './publishTimes.js'
 import { auditSignatures } from './signatures.js'
 
@@ -179,6 +179,7 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
    */
   getPublishTimes?: PublishTimesFetcher
 } & Pick<Config, 'auditConfig'
+| 'auditIgnorePrune'
 | 'auditLevel'
 | 'minimumReleaseAge'
 | 'ca'
@@ -273,12 +274,11 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
     throw new PnpmError('INVALID_FIX_OPTION', `Invalid value for --fix: ${opts.fix as string}. Should be one of "override" or "update"`)
   }
   if (fixMethod != null) {
-    // Cleanup unused ignored GHSAs if enabled
-    if (opts.auditConfig?.cleanupUnusedIgnoredGhsas && opts.auditConfig?.ignoreGhsas?.length) {
+    if (opts.auditIgnorePrune && opts.auditConfig?.ignoreGhsas?.length) {
       const configuredGhsas = opts.auditConfig.ignoreGhsas
-      const { cleaned, retained } = cleanupIgnoredGhsas(configuredGhsas, auditReport)
-      if (cleaned.length > 0) {
-        globalInfo(`Removed ${cleaned.length} unused ignored GHSA(s): ${cleaned.join(', ')}`)
+      const { pruned, retained } = pruneIgnoredGhsas(configuredGhsas, auditReport)
+      if (pruned.length > 0) {
+        globalInfo(`Removed ${pruned.length} unused ignored GHSA${pruned.length === 1 ? '' : 's'}: ${pruned.join(', ')}`)
       }
       // Persist even when nothing was removed: `retained` may still differ
       // from the configured list (deduplicated or case-normalized), and the

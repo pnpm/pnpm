@@ -1,17 +1,17 @@
 import type { AuditReport } from '@pnpm/deps.compliance.audit'
 import { normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 
-export interface CleanupIgnoredGhsasResult {
-  cleaned: string[]
+export interface PruneIgnoredGhsasResult {
+  pruned: string[]
   retained: string[]
 }
 
-export function cleanupIgnoredGhsas (
+export function pruneIgnoredGhsas (
   ignoredGhsas: string[],
   auditReport: AuditReport
-): CleanupIgnoredGhsasResult {
+): PruneIgnoredGhsasResult {
   if (!ignoredGhsas?.length) {
-    return { cleaned: [], retained: [] }
+    return { pruned: [], retained: [] }
   }
 
   const advisoryGhsaIds = new Set<string>(
@@ -21,15 +21,15 @@ export function cleanupIgnoredGhsas (
   )
 
   const retainedGhsas = new Set<string>()
-  const cleaned: string[] = []
+  const pruned: string[] = []
   for (const ghsa of ignoredGhsas) {
     const normalized = normalizeGhsaId(ghsa)
     if (advisoryGhsaIds.has(normalized)) {
       retainedGhsas.add(normalized)
     } else {
-      cleaned.push(ghsa)
+      pruned.push(ghsa)
     }
   }
 
-  return { cleaned, retained: Array.from(retainedGhsas) }
+  return { pruned, retained: Array.from(retainedGhsas) }
 }
