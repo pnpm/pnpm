@@ -227,7 +227,8 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             .current_pkg
             .as_ref()
             .is_none_or(|current| matches!(current.resolution, LockfileResolution::Directory(_)));
-        let workspace_packages_active = (opts.always_try_workspace_packages
+        let workspace_packages_active = (spec.revision.is_none()
+            && opts.always_try_workspace_packages
             && (opts.update != UpdateBehavior::Patches || can_keep_workspace_resolution))
             .then_some(opts.workspace_packages.as_ref())
             .flatten();

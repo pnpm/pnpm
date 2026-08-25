@@ -574,13 +574,13 @@ async function resolveNpm (
     }
   }
   const canKeepWorkspaceResolution = opts.currentPkg == null || opts.currentPkg.resolution.type === 'directory'
-  const workspacePackages = (!opts.updatePatches || canKeepWorkspaceResolution) && opts.alwaysTryWorkspacePackages !== false
-    ? opts.workspacePackages
-    : undefined
   const spec = wantedDependency.bareSpecifier
     ? parseBareSpecifier(wantedDependency.bareSpecifier, wantedDependency.alias, defaultTag, registry)
     : defaultTagForAlias(wantedDependency.alias!, defaultTag)
   if (spec == null) return null
+  const workspacePackages = spec.revision == null && (!opts.updatePatches || canKeepWorkspaceResolution) && opts.alwaysTryWorkspacePackages !== false
+    ? opts.workspacePackages
+    : undefined
 
   // Fast path: if we have a current resolution with integrity, try to peek the manifest from the store.
   // This avoids the expensive metadata fetch from the registry.

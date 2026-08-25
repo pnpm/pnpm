@@ -22,7 +22,7 @@ use crate::{
         InvalidRevisionSpecifierError, InvalidTarballIntegrityError, MalformedRevisionHistoryError,
         NoMatchingRevisionError,
     },
-    npm_resolver::NpmResolver,
+    npm_resolver::{NpmResolver, is_not_found_error},
     pick_package::{
         InMemoryPackageMetaCache, shared_packument_fetch_locker, shared_picked_manifest_cache,
     },
@@ -982,6 +982,28 @@ async fn falls_back_to_workspace_when_registry_returns_404() {
         LockfileResolution::Directory(dir) => assert_eq!(dir.directory, "../acme"),
         other => panic!("expected directory resolution, got {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn revision_qualified_selector_does_not_fall_back_to_workspace() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let opts = workspace_resolve_options(packages);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.0.0+r1".to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .expect_err("a registry revision cannot resolve to an unversioned workspace artifact");
+    assert!(is_not_found_error(err.as_ref()), "expected registry 404, got: {err}");
 }
 
 #[tokio::test]

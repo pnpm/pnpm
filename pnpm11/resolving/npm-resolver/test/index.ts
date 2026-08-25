@@ -3035,6 +3035,35 @@ test('throws an error with the available workspace versions when workspace packa
   expect(err.message).toBe(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@2.0.0 inside the workspace. Available versions: 1.0.0`)
 })
 
+test('does not fall back to a workspace package for a revision-qualified selector', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(404, {})
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+
+  await expect(resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0+r1' }, {
+    projectDir: '/home/istvan/src',
+    update: 'compatible',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: {
+            name: 'is-positive',
+            version: '1.0.0',
+          },
+        }],
+      ])],
+    ]),
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_FETCH_404' })
+})
+
 test('throws an error with the available workspace versions when workspace package version does not match and registry has no matching version', async () => {
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
