@@ -910,7 +910,9 @@ fn enforce_cached_git_prepare_policy(
     allow_build_policy: &crate::AllowBuildPolicy,
     ignore_scripts: bool,
 ) -> Result<(), CreateVirtualStoreError> {
-    if ignore_scripts {
+    if ignore_scripts
+        || !packages.values().any(|metadata| is_git_hosted_resolution(&metadata.resolution))
+    {
         return Ok(());
     }
     for (snapshot_key, _snapshot, cache_key) in snapshots {
@@ -923,12 +925,7 @@ fn enforce_cached_git_prepare_policy(
                 metadata_key: metadata_key.to_string(),
             }
         })?;
-        let is_git_hosted = match &metadata.resolution {
-            LockfileResolution::Git(_) => true,
-            LockfileResolution::Tarball(tarball) => tarball.is_git_hosted(),
-            _ => false,
-        };
-        if !is_git_hosted {
+        if !is_git_hosted_resolution(&metadata.resolution) {
             continue;
         }
         if prefetch.requires_prepare.get(key) == Some(&false) {
@@ -969,6 +966,14 @@ fn enforce_cached_git_prepare_policy(
         })?;
     }
     Ok(())
+}
+
+fn is_git_hosted_resolution(resolution: &LockfileResolution) -> bool {
+    match resolution {
+        LockfileResolution::Git(_) => true,
+        LockfileResolution::Tarball(tarball) => tarball.is_git_hosted(),
+        _ => false,
+    }
 }
 
 fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
