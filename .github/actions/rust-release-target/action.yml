@@ -37,6 +37,9 @@ runs:
         # so PowerShell returns before the install starts and $LASTEXITCODE
         # would still describe the launch. The poll below is what confirms
         # the components landed.
+        # Snapshot first: an installer already running for some other reason
+        # would otherwise pass for the one launched below.
+        $installerPidsBefore = @(Get-Process -Name 'vs_installer', 'vs_setup', 'setup' -ErrorAction SilentlyContinue).Id
         & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe" modify --installPath "$installPath" --add Microsoft.VisualStudio.Component.VC.Llvm.Clang --add Microsoft.VisualStudio.Component.VC.Llvm.ClangToolset --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --quiet --norestart
         $llvmDir = Join-Path $installPath 'VC\Tools\Llvm'
         $deadline = (Get-Date).AddMinutes(5)
@@ -47,8 +50,9 @@ runs:
         # processes it does not always account for, so poll for a quiet
         # installer and a real clang-cl before trusting the toolchain.
         do {
-          $installerRunning = @(Get-Process -Name 'vs_installer', 'vs_setup', 'setup' -ErrorAction SilentlyContinue).Count -gt 0
-          $installerSeen = $installerSeen -or $installerRunning
+          $installerPids = @(Get-Process -Name 'vs_installer', 'vs_setup', 'setup' -ErrorAction SilentlyContinue).Id
+          $installerRunning = $installerPids.Count -gt 0
+          $installerSeen = $installerSeen -or @($installerPids | Where-Object { $installerPidsBefore -notcontains $_ }).Count -gt 0
           $clangCl = Join-Path $llvmDir 'x64\bin\clang-cl.exe'
           if (-not (Test-Path -LiteralPath $clangCl)) { $clangCl = $null }
           if ($installerRunning -or $null -eq $clangCl) { Start-Sleep -Seconds 5 }
