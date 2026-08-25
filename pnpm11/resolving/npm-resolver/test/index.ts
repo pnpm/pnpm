@@ -84,7 +84,7 @@ test('resolveFromNpm()', async () => {
 })
 
 test('resolveFromNpm() validates and preserves a registry tarball revision', async () => {
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -96,7 +96,7 @@ test('resolveFromNpm() validates and preserves a registry tarball revision', asy
             ...isPositiveMeta.versions['1.0.0'].dist,
             integrity: REVISION_INTEGRITY,
             revision: 1,
-            tarball: `${registries.default}-/tarballs/sha512/${REVISION_DIGEST}`,
+            tarball: `${registriesByScope.default}-/tarballs/sha512/${REVISION_DIGEST}`,
           },
         },
       },
@@ -105,7 +105,7 @@ test('resolveFromNpm() validates and preserves a registry tarball revision', asy
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
+    registriesByScope,
   })
 
   const result = await resolveFromNpm(
@@ -116,12 +116,12 @@ test('resolveFromNpm() validates and preserves a registry tarball revision', asy
   expect(result!.resolution).toStrictEqual({
     integrity: REVISION_INTEGRITY,
     revision: 1,
-    tarball: `${registries.default}-/tarballs/sha512/${REVISION_DIGEST}`,
+    tarball: `${registriesByScope.default}-/tarballs/sha512/${REVISION_DIGEST}`,
   })
 })
 
-test.each([0, -1, 1.5, '1'])('resolveFromNpm() rejects malformed registry revision %s', async (revision) => {
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+test.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '1', '01'])('resolveFromNpm() rejects malformed registry revision %s', async (revision) => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -133,7 +133,7 @@ test.each([0, -1, 1.5, '1'])('resolveFromNpm() rejects malformed registry revisi
             ...isPositiveMeta.versions['1.0.0'].dist,
             integrity: REVISION_INTEGRITY,
             revision,
-            tarball: `${registries.default}-/tarballs/sha512/${REVISION_DIGEST}`,
+            tarball: `${registriesByScope.default}-/tarballs/sha512/${REVISION_DIGEST}`,
           },
         },
       },
@@ -142,7 +142,7 @@ test.each([0, -1, 1.5, '1'])('resolveFromNpm() rejects malformed registry revisi
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
+    registriesByScope,
   })
 
   await expect(resolveFromNpm(
@@ -154,7 +154,7 @@ test.each([0, -1, 1.5, '1'])('resolveFromNpm() rejects malformed registry revisi
 })
 
 test('resolveFromNpm() rejects a revision whose tarball URL does not match its integrity', async () => {
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -166,7 +166,7 @@ test('resolveFromNpm() rejects a revision whose tarball URL does not match its i
             ...isPositiveMeta.versions['1.0.0'].dist,
             integrity: REVISION_INTEGRITY,
             revision: 1,
-            tarball: `${registries.default}-/tarballs/sha512/${'A'.repeat(86)}`,
+            tarball: `${registriesByScope.default}-/tarballs/sha512/${'A'.repeat(86)}`,
           },
         },
       },
@@ -175,7 +175,7 @@ test('resolveFromNpm() rejects a revision whose tarball URL does not match its i
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
+    registriesByScope,
   })
 
   await expect(resolveFromNpm(

@@ -193,7 +193,7 @@ test('pkgSnapshotToResolution() hydrates an integrity-only resolution from the c
   })
 })
 
-test.each([0, -1, 1.5, '1'])(
+test.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '1', '01'])(
   'pkgSnapshotToResolution() rejects malformed revision %s',
   (revision) => {
     expect(() => pkgSnapshotToResolution('foo@1.0.0', {

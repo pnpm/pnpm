@@ -41,49 +41,45 @@ test('drops a validated integrity-addressed registry tarball URL', () => {
   expect(toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
     { integrity: REVISION_INTEGRITY, revision: 1, tarball: REVISION_TARBALL },
-    REGISTRY
+    { registry: REGISTRY }
   )).toEqual({
     integrity: REVISION_INTEGRITY,
     revision: 1,
   })
 })
 
-test('keeps an integrity-addressed URL whose registry or digest does not match', () => {
-  expect(toLockfileResolution(
+test('rejects a revision whose URL registry or digest does not match', () => {
+  expect(() => toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
     { integrity: REVISION_INTEGRITY, revision: 1, tarball: `https://attacker.example/-/tarballs/sha512/${'A'.repeat(86)}` },
-    REGISTRY
-  )).toEqual({
-    integrity: REVISION_INTEGRITY,
-    revision: 1,
-    tarball: `https://attacker.example/-/tarballs/sha512/${'A'.repeat(86)}`,
-  })
-  expect(toLockfileResolution(
+    { registry: REGISTRY }
+  )).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_TARBALL_REVISION',
+  }))
+  expect(() => toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
     { integrity: REVISION_INTEGRITY, revision: 1, tarball: `https://registry.npmjs.org/-/tarballs/sha512/${'B'.repeat(86)}` },
-    REGISTRY
-  )).toEqual({
-    integrity: REVISION_INTEGRITY,
-    revision: 1,
-    tarball: `https://registry.npmjs.org/-/tarballs/sha512/${'B'.repeat(86)}`,
-  })
+    { registry: REGISTRY }
+  )).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_TARBALL_REVISION',
+  }))
 })
 
 test('normalizes an original served from the digest route to integrity only', () => {
   expect(toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
     { integrity: REVISION_INTEGRITY, tarball: REVISION_TARBALL },
-    REGISTRY
+    { registry: REGISTRY }
   )).toEqual({
     integrity: REVISION_INTEGRITY,
   })
 })
 
-test.each([0, -1, 1.5])('rejects malformed revision %s', (revision) => {
+test.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '1', '01'])('rejects malformed revision %s', (revision) => {
   expect(() => toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
-    { integrity: REVISION_INTEGRITY, revision, tarball: REVISION_TARBALL },
-    REGISTRY
+    { integrity: REVISION_INTEGRITY, revision, tarball: REVISION_TARBALL } as never,
+    { registry: REGISTRY }
   )).toThrow(expect.objectContaining({
     code: 'ERR_PNPM_INVALID_TARBALL_REVISION',
   }))

@@ -265,6 +265,42 @@ test('verifies a registry replacement tarball from its digest URL', async () => 
   expect(result.filesMap).toBeTruthy()
 })
 
+test('does not follow redirects for a registry replacement tarball', async () => {
+  const tarballContent = fs.readFileSync(tarballPath)
+  const integrity = ssri.fromData(tarballContent, { algorithms: ['sha512'] }).toString()
+  const digest = ssri.parse(integrity)['sha512'][0].digest
+  const tarballPathname = `/-/tarballs/sha512/${Buffer.from(digest, 'base64').toString('base64url')}`
+  const mockPool = mockAgent.get(registry)
+  mockPool.intercept({
+    path: tarballPathname,
+    method: 'GET',
+  }).reply(302, '', {
+    headers: { location: '/redirected.tgz' },
+  })
+  mockPool.intercept({
+    path: '/redirected.tgz',
+    method: 'GET',
+  }).reply(200, tarballContent, {
+    headers: { 'Content-Length': tarballSize.toString() },
+  })
+
+  process.chdir(temporaryDirectory())
+
+  await expect(fetch.remoteTarball(cafs, {
+    integrity,
+    revision: 1,
+    tarball: `${registry}${tarballPathname}`,
+  }, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg,
+  })).rejects.toMatchObject({
+    attempts: 1,
+    code: 'ERR_PNPM_FETCH_302',
+  })
+  expect(mockAgent.pendingInterceptors()).toHaveLength(1)
+})
+
 test('fail when integrity check fails two times in a row', async () => {
   const wrongTarball = f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const wrongTarballContent = fs.readFileSync(wrongTarball)

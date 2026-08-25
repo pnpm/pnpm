@@ -27,6 +27,7 @@ export type DownloadOptions = {
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
   integrity?: string
+  redirect?: RequestRedirect
   storeIndex: StoreIndex
   pkg?: FetchOptions['pkg']
 } & Pick<FetchOptions, 'appendManifest' | 'readManifest' | 'filesIndexFile' | 'ignoreFilePattern'>
@@ -75,6 +76,7 @@ export function createDownloader (
           resolve(await fetch(attempt))
         } catch (error: any) { // eslint-disable-line
           if (
+            (opts.redirect === 'manual' && error.response?.status >= 300 && error.response.status < 400) ||
             error.response?.status === 401 ||
             error.response?.status === 403 ||
             error.response?.status === 404 ||
@@ -131,6 +133,7 @@ export function createDownloader (
           // Hence, we tell fetch to not retry,
           // and we perform the retries from this function instead.
           retry: { retries: 0 },
+          redirect: opts.redirect,
           timeout: gotOpts.timeout,
         })
 

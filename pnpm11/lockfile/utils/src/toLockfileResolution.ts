@@ -35,6 +35,7 @@ export function toLockfileResolution (
     if (resolution.type === 'git' && 'integrity' in resolution) {
       const { integrity: _integrity, ...rest } = resolution as GitResolution & { integrity?: string }
       return rest
+    }
     return resolution as LockfileResolution
   }
   const revision = (resolution as TarballResolution).revision
@@ -59,6 +60,12 @@ export function toLockfileResolution (
       ...(revision == null ? {} : { revision }),
     }
   }
+  const integrityAddressed = tarball.includes('/-/tarballs/sha512/') &&
+    isIntegrityAddressedRegistryTarballUrl(tarball, resolution['integrity'], registry)
+  if (revision != null && !integrityAddressed) {
+    throw new PnpmError('INVALID_TARBALL_REVISION',
+      `Cannot serialize tarball revision ${revision}: its URL does not match its integrity and registry.`)
+  }
   // Honor the resolver-supplied flag, with a URL fallback for resolutions
   // that didn't go through the git resolver (e.g. config-dep migrations or
   // legacy lockfiles read by callers that don't enrich the field).
@@ -77,7 +84,7 @@ export function toLockfileResolution (
     !tarball.startsWith('file:') &&
     (
       isCanonicalRegistryTarballUrl(tarball, pkg, { registry, serverType }) ||
-      isIntegrityAddressedRegistryTarballUrl(tarball, resolution['integrity'], registry)
+      integrityAddressed
     )
   ) {
     return {
