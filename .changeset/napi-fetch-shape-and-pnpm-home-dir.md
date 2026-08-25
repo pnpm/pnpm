@@ -1,6 +1,5 @@
 ---
 "@pnpm/napi": minor
-"pacquet": minor
 ---
 
 `@pnpm/napi`'s `install` now honors the last two install options it accepted without acting on them:

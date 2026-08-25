@@ -357,6 +357,50 @@ fn ignore_package_manifest_populates_the_virtual_store_without_linking() {
     assert!(!modules_dir.join(".bin").exists(), "a fetch-shaped install links no top-level bins");
 }
 
+/// A fetch-shaped install reads the lockfile by definition, so an ambient
+/// `lockfile: false` must not disable it — that would leave the mode with
+/// nothing to materialize from and fail with `ERR_PNPM_NO_LOCKFILE`.
+#[test]
+fn ignore_package_manifest_survives_an_ambient_lockfile_false() {
+    let registry = TestRegistry::start();
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let project_dir = temp_dir.path().join("project");
+    std::fs::create_dir_all(&project_dir).expect("create project dir");
+    std::fs::write(project_dir.join("package.json"), "{}\n").expect("write package.json");
+
+    let project_dir_string = project_dir.to_string_lossy().into_owned();
+    let mut options = install_options();
+    options.dir = project_dir_string.clone();
+    options.projects = vec![NodeApiProject {
+        root_dir: project_dir_string,
+        manifest: serde_json::json!({
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" }
+        }),
+        dependency_manifest: None,
+    }];
+    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+
+    options.lockfile_only = Some(true);
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("seed the lockfile");
+    options.lockfile_only = None;
+
+    std::fs::write(project_dir.join("pnpm-workspace.yaml"), "lockfile: false\n")
+        .expect("write workspace yaml");
+
+    options.ignore_package_manifest = Some(true);
+    run_install_inner(&options, None, EngineMode::Install(None))
+        .expect("a fetch-shaped install must read the lockfile despite `lockfile: false`");
+
+    let fetched: Vec<String> = std::fs::read_dir(project_dir.join("node_modules/.pnpm"))
+        .expect("read the virtual store")
+        .map(|entry| entry.expect("virtual store entry").file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with("@pnpm.e2e+hello-world-js-bin"))
+        .collect();
+    dbg!(&fetched);
+    assert_eq!(fetched.len(), 1, "the recorded dependency must still be imported");
+}
+
 /// The fetch shape covers every importer the lockfile records, not just the
 /// ones the caller named — pnpm's `initialImporterIds` under
 /// `ignorePackageManifest`. Here the caller passes only the workspace root

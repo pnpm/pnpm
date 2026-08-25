@@ -691,12 +691,15 @@ fn build_overlay(options: &InstallOptions, fetch_shaped: bool) -> napi::Result<C
         inject_workspace_packages: options.inject_workspace_packages,
         prefer_offline: options.prefer_offline,
         offline: options.offline,
+        // Both of these installs are defined in terms of the lockfile, so an
+        // ambient `lockfile: false` must not disable it underneath them.
         // `enableModulesDir: false` writes the lockfile while skipping
         // `node_modules`, so it runs through the lockfile-only path — which
-        // requires the lockfile to be enabled. Force it on for that case so an
-        // ambient `lockfile: false` can't turn the install into an opaque
-        // `ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE`.
-        lockfile: (options.enable_modules_dir == Some(false)).then_some(true),
+        // requires the lockfile to be enabled, or the install fails with an
+        // opaque `ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE`. A
+        // fetch-shaped install reads the lockfile as its only input, and
+        // would fail with `ERR_PNPM_NO_LOCKFILE`.
+        lockfile: (fetch_shaped || options.enable_modules_dir == Some(false)).then_some(true),
         prefer_frozen_lockfile: options.prefer_frozen_lockfile,
         dedupe_peer_dependents: options.dedupe_peer_dependents,
         dedupe_peers: options.dedupe_peers,
