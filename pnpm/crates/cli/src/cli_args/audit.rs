@@ -1,4 +1,7 @@
-use crate::{State, cli_args::install::resolve_bool_override};
+use crate::{
+    State,
+    cli_args::{install::resolve_bool_override, sanitize::sanitize_inline},
+};
 use chrono::{DateTime, Utc};
 use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
@@ -269,11 +272,19 @@ impl AuditArgs {
                 let configured_ghsas = &state.config.audit_config.ignore_ghsas;
                 let prune = prune_ignored_ghsas(configured_ghsas, &report);
                 if !prune.pruned.is_empty() {
+                    // The pruned ids keep their original spelling from the
+                    // repository-controlled workspace manifest, so strip
+                    // control characters before they reach the terminal.
                     println!(
                         "Removed {} unused ignored GHSA{}: {}",
                         prune.pruned.len(),
                         if prune.pruned.len() == 1 { "" } else { "s" },
-                        prune.pruned.join(", "),
+                        prune
+                            .pruned
+                            .iter()
+                            .map(|ghsa| sanitize_inline(ghsa))
+                            .collect::<Vec<_>>()
+                            .join(", "),
                     );
                 }
                 // Persist even when nothing was removed: `retained` may

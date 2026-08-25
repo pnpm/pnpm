@@ -1146,6 +1146,66 @@ fn audit_fix_ignore_prune_edits_an_inline_audit_config_in_place() {
 }
 
 #[test]
+fn audit_fix_ignore_prune_updates_the_canonical_audit_ignore_list() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "audit:\n  ignorePrune: true\n  ignore:\n    - GHSA-test-1111-2222\n    - GHSA-test-9999-9999\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    let actual_manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    // The retained list must land back on the canonical `audit.ignore` that
+    // supplied it — writing the deprecated `auditConfig.ignoreGhsas` instead
+    // would let the unchanged canonical list shadow the prune on the next
+    // read and restore the stale id.
+    let expected_manifest =
+        "fetchRetries: 0\naudit:\n  ignorePrune: true\n  ignore:\n    - GHSA-test-1111-2222\n";
+    eprintln!("actual manifest:\n{actual_manifest}\nexpected manifest:\n{expected_manifest}");
+    assert_eq!(actual_manifest, expected_manifest);
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_ignore_prune_sanitizes_the_removed_ids_in_output() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    // The stale entry carries an ANSI escape from the repository-controlled
+    // manifest; the removal message must strip it before the terminal.
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "audit:\n  ignorePrune: true\nauditConfig:\n  ignoreGhsas:\n    - GHSA-test-1111-2222\n    - \"GHSA-test-9999-9999\\e[31mred\"\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    let out = stdout(&output);
+    assert!(
+        out.contains("Removed 1 unused ignored GHSA: GHSA-test-9999-9999[31mred"),
+        "stdout should report the removed GHSA with its control characters stripped:\n{out}",
+    );
+    assert!(!out.contains('\u{1b}'), "stdout must not carry the escape character:\n{out}");
+    mock.assert();
+}
+
+#[test]
 fn audit_fix_rejects_invalid_method() {
     let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();

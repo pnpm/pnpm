@@ -461,6 +461,74 @@ test('audit.ignorePrune edits an inline (flow-style) auditConfig in place', asyn
   expect(manifest.auditConfig?.ignoreGhsas).toEqual(['GHSA-42xw-2xvc-qx8m'])
 })
 
+test('audit.ignorePrune updates the canonical audit.ignore list', async () => {
+  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  fs.writeFileSync(
+    path.join(tmp, 'pnpm-workspace.yaml'),
+    'packages:\n  - \'.\'\nsharedWorkspaceLockfile: false\naudit:\n  ignorePrune: true\n  ignore:\n    - GHSA-42xw-2xvc-qx8m\n    - GHSA-xxxx-xxxx-xxxx\n'
+  )
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  // `auditConfig`/`auditIgnorePrune` are the internal fields the config
+  // reader derives from the manifest's `audit` section.
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    auditConfig: {
+      ignoreGhsas: [
+        'GHSA-42xw-2xvc-qx8m',
+        'GHSA-xxxx-xxxx-xxxx',
+      ],
+    },
+    auditIgnorePrune: true,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  // The retained list must land back on the canonical `audit.ignore` that
+  // supplied it — writing the deprecated `auditConfig.ignoreGhsas` instead
+  // would let the unchanged canonical list shadow the prune on the next
+  // read and restore the stale id.
+  const manifest = readYamlFileSync<{ audit?: { ignorePrune?: boolean, ignore?: string[] }, auditConfig?: unknown }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.audit).toStrictEqual({ ignorePrune: true, ignore: ['GHSA-42xw-2xvc-qx8m'] })
+  expect(manifest.auditConfig).toBeUndefined()
+})
+
+test('audit.ignorePrune sanitizes the removed ids in the log message', async () => {
+  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  // The stale entry carries an ANSI escape from the repository-controlled
+  // manifest; the removal message must strip it before the terminal.
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    auditConfig: {
+      ignoreGhsas: [
+        'GHSA-42xw-2xvc-qx8m',
+        'GHSA-xxxx-xxxx-xxxx\u001b[31mred',
+      ],
+    },
+    auditIgnorePrune: true,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+  expect(collectedInfos).toContain('Removed 1 unused ignored GHSA: GHSA-xxxx-xxxx-xxxx[31mred')
+  expect(collectedInfos.every((message) => !message.includes('\u001b'))).toBe(true)
+})
+
 function advisory (moduleName: string, vulnerableVersions: string, patchedVersions?: string): AuditAdvisory {
   return {
     findings: [],

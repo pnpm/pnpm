@@ -552,12 +552,15 @@ where
     write_or_remove_manifest(&path, manifest)
 }
 
-/// Set `dir`'s `pnpm-workspace.yaml` `auditConfig.ignoreGhsas:` to `ghsas`
-/// (the complete desired list), creating the file/block if absent and
-/// removing the `auditConfig:` block when `ghsas` is empty. Preserves the
-/// rest of the document's formatting and writes the file back only when
-/// something actually changed. Used by `pnpm audit --ignore` /
-/// `--ignore-unfixable` to persist suppressed advisories.
+/// Set `dir`'s `pnpm-workspace.yaml` audit ignore list to `ghsas` (the
+/// complete desired list), targeting whichever spelling the manifest uses —
+/// the canonical `audit.ignore` wins over the deprecated
+/// `auditConfig.ignoreGhsas` (see [`edit::set_audit_ignore_ghsas`]) — and
+/// creating the file plus an `auditConfig:` block when neither is present.
+/// Preserves the rest of the document's formatting and writes the file back
+/// only when something actually changed. Used by `pnpm audit --ignore` /
+/// `--ignore-unfixable` and the `audit.ignorePrune` cleanup to persist
+/// suppressed advisories.
 pub fn set_audit_ignore_ghsas(
     dir: &Path,
     ghsas: &[String],
@@ -582,7 +585,7 @@ pub fn set_audit_ignore_ghsas(
 
     if let Some(key) = unsupported_inline_key(
         manifest.text(),
-        &[&["auditConfig"], &["auditConfig", "ignoreGhsas"]],
+        &[&["auditConfig"], &["auditConfig", "ignoreGhsas"], &["audit"], &["audit", "ignore"]],
     ) {
         return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }

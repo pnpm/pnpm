@@ -48,6 +48,12 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   updatedFields?: Partial<WorkspaceManifest>
   updatedCatalogs?: Catalogs
   updatedOverrides?: Record<string, string>
+  /**
+   * The complete desired audit ignore list, written to whichever spelling
+   * the manifest uses — see {@link setAuditIgnoreGhsas}. An empty array
+   * removes the list.
+   */
+  updatedAuditIgnoreGhsas?: string[]
   addedMinimumReleaseAgeExcludes?: string[]
   deletedLegacyKeys?: string[]
   fileName?: FileName
@@ -112,6 +118,9 @@ export async function updateWorkspaceManifest (dir: string, opts: {
         manifest.overrides[key] = value
       }
     }
+  }
+  if (opts.updatedAuditIgnoreGhsas != null) {
+    shouldBeUpdated = setAuditIgnoreGhsas(manifest, opts.updatedAuditIgnoreGhsas) || shouldBeUpdated
   }
   if (opts.resolvedPackageVersions != null) {
     if (opts.minimumReleaseAgeExcludePrune) {
@@ -291,6 +300,55 @@ function addPackageReference (packageReferences: Record<string, Set<string>>, pk
 // patterns always stay — they are forward-looking and can't be proven stale.
 // Entries that fail to parse stay untouched so cleanup never breaks an
 // install.
+/**
+ * Set the audit ignore list to `ghsas` (the complete desired list) in
+ * whichever spelling the manifest uses — the canonical `audit.ignore` wins
+ * over the deprecated `auditConfig.ignoreGhsas`, matching the reader's
+ * precedence, so a stale canonical list can't shadow the update on the next
+ * read. When both spellings are present, the shadowed deprecated list is
+ * removed as part of the write. `auditConfig.ignoreGhsas` is created when
+ * neither is present. An empty `ghsas` removes the list, dropping its parent
+ * block when nothing else remains in it. Returns whether anything changed.
+ */
+function setAuditIgnoreGhsas (manifest: Partial<WorkspaceManifest>, ghsas: string[]): boolean {
+  let changed = false
+  if (manifest.audit?.ignore != null) {
+    if (ghsas.length === 0) {
+      delete manifest.audit.ignore
+      if (Object.keys(manifest.audit).length === 0) {
+        delete manifest.audit
+      }
+      changed = true
+    } else if (!equals(manifest.audit.ignore, ghsas)) {
+      manifest.audit.ignore = ghsas
+      changed = true
+    }
+    if (manifest.auditConfig?.ignoreGhsas != null) {
+      changed = removeAuditConfigIgnoreGhsas(manifest) || changed
+    }
+    return changed
+  }
+  if (ghsas.length === 0) {
+    return removeAuditConfigIgnoreGhsas(manifest)
+  }
+  if (equals(manifest.auditConfig?.ignoreGhsas, ghsas)) {
+    return false
+  }
+  manifest.auditConfig = { ...manifest.auditConfig, ignoreGhsas: ghsas }
+  return true
+}
+
+function removeAuditConfigIgnoreGhsas (manifest: Partial<WorkspaceManifest>): boolean {
+  if (manifest.auditConfig?.ignoreGhsas == null) {
+    return false
+  }
+  delete manifest.auditConfig.ignoreGhsas
+  if (Object.keys(manifest.auditConfig).length === 0) {
+    delete manifest.auditConfig
+  }
+  return true
+}
+
 function pruneMinimumReleaseAgeExcludes (
   manifest: Partial<WorkspaceManifest> & { minimumReleaseAgeExclude?: string[] },
   resolvedPackageVersions: ReadonlyMap<string, ReadonlySet<string>>
