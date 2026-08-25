@@ -3,8 +3,7 @@ use std::{
     fs::{File, OpenOptions, TryLockError},
     io::ErrorKind,
     path::{Component, Path, PathBuf},
-    thread::sleep,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use pnpm_shared_artifact_protocol::{
@@ -14,7 +13,7 @@ use pnpm_shared_artifact_protocol::{
     ResolveArtifactsResponse, ResolvedArtifact, SignedArtifactEnvelope, blob_id, verify_blob,
 };
 use sha2::{Digest as _, Sha256};
-use tokio::fs;
+use tokio::{fs, time::sleep};
 
 use crate::{
     error::{RegistryError, Result},
@@ -22,7 +21,6 @@ use crate::{
 };
 
 const ARTIFACT_CACHE_DIR: &str = "shared-artifacts/v0";
-const ARTIFACT_LOCK_WAIT: Duration = Duration::from_secs(30);
 const ARTIFACT_LOCK_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const ARTIFACT_USAGE_FILE: &str = "usage.json";
 const MAX_OWNER_ARTIFACT_BYTES: u64 = 1024 * 1024 * 1024;
@@ -32,11 +30,12 @@ const MAX_GLOBAL_ARTIFACT_BYTES: u64 = 10 * MAX_OWNER_ARTIFACT_BYTES;
 struct ArtifactUsage {
     global_bytes: u64,
     owner_bytes: BTreeMap<String, u64>,
-    pending: Option<PendingUsage>,
+    #[serde(default, deserialize_with = "deserialize_pending_usage")]
+    pending: BTreeMap<String, Vec<PendingUsageFile>>,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct PendingUsage {
+#[derive(Debug, serde::Deserialize)]
+struct LegacyPendingUsage {
     owner: String,
     files: Vec<PendingUsageFile>,
 }
@@ -62,10 +61,10 @@ pub(crate) async fn publish(
     let mut uploads = validated.blobs;
     let artifact_root = cache_storage.join(ARTIFACT_CACHE_DIR);
     let owner_dir = owner_dir(cache_storage, username, &payload.owner)?;
+    let owner = owner_usage_key(&owner_dir)?;
     let entry_digest = entry_digest(&request.key, &payload.package, &payload.source_integrity);
     let key_dir = owner_dir.join("entries").join(&entry_digest);
-    let _publication_lock =
-        acquire_publication_lock(artifact_root.join(".locks").join("publication.lock")).await?;
+    let _owner_lock = acquire_artifact_lock(owner_lock_path(&artifact_root, &owner)).await?;
     let envelope_digest = request.envelope.digest().map_err(|err| protocol_error(&err))?;
     let variant_path = key_dir.join(format!("{envelope_digest}.json"));
     let already_present = fs::try_exists(&variant_path).await?;
@@ -129,26 +128,25 @@ pub(crate) async fn publish(
             envelope_bytes.len() as u64,
         )?);
     }
-    let mut usage = reserve_storage_quota(&artifact_root, &owner_dir, pending_files).await?;
+    reserve_storage_quota(&artifact_root, &owner, pending_files).await?;
     for (path, bytes) in new_blobs {
         write_atomic(&path, &bytes).await?;
     }
     if !already_present {
         write_atomic(&variant_path, &envelope_bytes).await?;
     }
-    usage.pending = None;
-    write_artifact_usage(&artifact_root, &usage).await?;
+    clear_storage_reservation(&artifact_root, &owner).await?;
     Ok(!already_present)
 }
 
 async fn reserve_storage_quota(
     artifact_root: &Path,
-    owner_dir: &Path,
+    owner: &str,
     files: Vec<PendingUsageFile>,
-) -> Result<ArtifactUsage> {
+) -> Result<()> {
     reserve_storage_quota_with_limits(
         artifact_root,
-        owner_dir,
+        owner,
         files,
         MAX_OWNER_ARTIFACT_BYTES,
         MAX_GLOBAL_ARTIFACT_BYTES,
@@ -158,20 +156,20 @@ async fn reserve_storage_quota(
 
 async fn reserve_storage_quota_with_limits(
     artifact_root: &Path,
-    owner_dir: &Path,
+    owner: &str,
     files: Vec<PendingUsageFile>,
     owner_limit: u64,
     global_limit: u64,
-) -> Result<ArtifactUsage> {
+) -> Result<()> {
+    let _usage_lock = acquire_artifact_lock(usage_lock_path(artifact_root)).await?;
     let mut usage = load_artifact_usage(artifact_root).await?;
-    if reconcile_pending_usage(artifact_root, &mut usage).await? {
+    if reconcile_pending_usage(artifact_root, &mut usage, owner).await? {
         write_artifact_usage(artifact_root, &usage).await?;
     }
     let added_bytes = files.iter().try_fold(0_u64, |total, file| {
         total.checked_add(file.size).ok_or_else(storage_quota_error)
     })?;
-    let owner = owner_usage_key(owner_dir)?;
-    let owner_bytes = usage.owner_bytes.get(&owner).copied().unwrap_or(0);
+    let owner_bytes = usage.owner_bytes.get(owner).copied().unwrap_or(0);
     let next_owner_bytes = owner_bytes.checked_add(added_bytes).ok_or_else(storage_quota_error)?;
     let next_global_bytes =
         usage.global_bytes.checked_add(added_bytes).ok_or_else(storage_quota_error)?;
@@ -182,10 +180,25 @@ async fn reserve_storage_quota_with_limits(
         return Err(storage_quota_error());
     }
     usage.global_bytes = next_global_bytes;
-    usage.owner_bytes.insert(owner.clone(), next_owner_bytes);
-    usage.pending = Some(PendingUsage { owner, files });
+    usage.owner_bytes.insert(owner.to_string(), next_owner_bytes);
+    if usage.pending.insert(owner.to_string(), files).is_some() {
+        return Err(RegistryError::Internal {
+            reason: "shared artifact owner already has a pending storage reservation".to_string(),
+        });
+    }
     write_artifact_usage(artifact_root, &usage).await?;
-    Ok(usage)
+    Ok(())
+}
+
+async fn clear_storage_reservation(artifact_root: &Path, owner: &str) -> Result<()> {
+    let _usage_lock = acquire_artifact_lock(usage_lock_path(artifact_root)).await?;
+    let mut usage = load_artifact_usage(artifact_root).await?;
+    if usage.pending.remove(owner).is_none() {
+        return Err(RegistryError::Internal {
+            reason: "shared artifact storage reservation is missing after publication".to_string(),
+        });
+    }
+    write_artifact_usage(artifact_root, &usage).await
 }
 
 async fn load_artifact_usage(artifact_root: &Path) -> Result<ArtifactUsage> {
@@ -217,44 +230,67 @@ async fn scan_artifact_usage(artifact_root: &Path) -> Result<ArtifactUsage> {
         })?;
         owner_bytes.insert(owner, stored_bytes(&entry.path(), None).await?);
     }
-    Ok(ArtifactUsage { global_bytes, owner_bytes, pending: None })
+    Ok(ArtifactUsage { global_bytes, owner_bytes, pending: BTreeMap::new() })
 }
 
-async fn reconcile_pending_usage(artifact_root: &Path, usage: &mut ArtifactUsage) -> Result<bool> {
-    let Some(pending) = usage.pending.take() else { return Ok(false) };
-    for file in pending.files {
-        let relative_path = Path::new(&file.path);
-        if relative_path.as_os_str().is_empty()
-            || !relative_path
-                .components()
-                .all(|component| matches!(component, Component::Normal(_)))
-        {
-            return Err(RegistryError::Internal {
-                reason: "shared artifact usage state contains an invalid pending path".to_string(),
-            });
-        }
-        let present = match fs::metadata(artifact_root.join(relative_path)).await {
-            Ok(metadata) => metadata.is_file() && metadata.len() == file.size,
-            Err(error) if error.kind() == ErrorKind::NotFound => false,
-            Err(error) => return Err(error.into()),
+async fn reconcile_pending_usage(
+    artifact_root: &Path,
+    usage: &mut ArtifactUsage,
+    locked_owner: &str,
+) -> Result<bool> {
+    let owners: Vec<String> = usage.pending.keys().cloned().collect();
+    let mut reconciled = false;
+    for owner in owners {
+        let _owner_lock = if owner == locked_owner {
+            None
+        } else {
+            let Some(owner_lock) =
+                try_acquire_artifact_lock(owner_lock_path(artifact_root, &owner)).await?
+            else {
+                continue;
+            };
+            Some(owner_lock)
         };
-        if present {
-            continue;
+        let files = usage.pending.remove(&owner).ok_or_else(|| RegistryError::Internal {
+            reason: "shared artifact pending storage reservation disappeared".to_string(),
+        })?;
+        reconciled = true;
+        for file in files {
+            let relative_path = Path::new(&file.path);
+            if relative_path.as_os_str().is_empty()
+                || !relative_path
+                    .components()
+                    .all(|component| matches!(component, Component::Normal(_)))
+            {
+                return Err(RegistryError::Internal {
+                    reason: "shared artifact usage state contains an invalid pending path"
+                        .to_string(),
+                });
+            }
+            let present = match fs::metadata(artifact_root.join(relative_path)).await {
+                Ok(metadata) => metadata.is_file() && metadata.len() == file.size,
+                Err(error) if error.kind() == ErrorKind::NotFound => false,
+                Err(error) => return Err(error.into()),
+            };
+            if present {
+                continue;
+            }
+            usage.global_bytes = usage.global_bytes.checked_sub(file.size).ok_or_else(|| {
+                RegistryError::Internal {
+                    reason: "shared artifact global usage counter underflow".to_string(),
+                }
+            })?;
+            let owner_bytes =
+                usage.owner_bytes.get_mut(&owner).ok_or_else(|| RegistryError::Internal {
+                    reason: "shared artifact usage state is missing the pending owner".to_string(),
+                })?;
+            *owner_bytes =
+                owner_bytes.checked_sub(file.size).ok_or_else(|| RegistryError::Internal {
+                    reason: "shared artifact owner usage counter underflow".to_string(),
+                })?;
         }
-        usage.global_bytes =
-            usage.global_bytes.checked_sub(file.size).ok_or_else(|| RegistryError::Internal {
-                reason: "shared artifact global usage counter underflow".to_string(),
-            })?;
-        let owner_bytes =
-            usage.owner_bytes.get_mut(&pending.owner).ok_or_else(|| RegistryError::Internal {
-                reason: "shared artifact usage state is missing the pending owner".to_string(),
-            })?;
-        *owner_bytes =
-            owner_bytes.checked_sub(file.size).ok_or_else(|| RegistryError::Internal {
-                reason: "shared artifact owner usage counter underflow".to_string(),
-            })?;
     }
-    Ok(true)
+    Ok(reconciled)
 }
 
 async fn write_artifact_usage(artifact_root: &Path, usage: &ArtifactUsage) -> Result<()> {
@@ -263,6 +299,39 @@ async fn write_artifact_usage(artifact_root: &Path, usage: &ArtifactUsage) -> Re
 
 fn artifact_usage_path(artifact_root: &Path) -> PathBuf {
     artifact_root.join(".locks").join(ARTIFACT_USAGE_FILE)
+}
+
+fn usage_lock_path(artifact_root: &Path) -> PathBuf {
+    artifact_root.join(".locks").join("usage.lock")
+}
+
+fn owner_lock_path(artifact_root: &Path, owner: &str) -> PathBuf {
+    artifact_root
+        .join(".locks")
+        .join("owners")
+        .join(format!("{}.lock", digest_segment(owner.as_bytes())))
+}
+
+fn deserialize_pending_usage<'de, Deserializer>(
+    deserializer: Deserializer,
+) -> std::result::Result<BTreeMap<String, Vec<PendingUsageFile>>, Deserializer::Error>
+where
+    Deserializer: serde::Deserializer<'de>,
+{
+    #[derive(serde::Deserialize)]
+    #[serde(untagged)]
+    enum PendingUsageState {
+        Current(BTreeMap<String, Vec<PendingUsageFile>>),
+        Legacy(Option<LegacyPendingUsage>),
+    }
+
+    Ok(match <PendingUsageState as serde::Deserialize>::deserialize(deserializer)? {
+        PendingUsageState::Current(pending) => pending,
+        PendingUsageState::Legacy(Some(pending)) => {
+            BTreeMap::from([(pending.owner, pending.files)])
+        }
+        PendingUsageState::Legacy(None) => BTreeMap::new(),
+    })
 }
 
 fn pending_usage_file(artifact_root: &Path, path: &Path, size: u64) -> Result<PendingUsageFile> {
@@ -466,30 +535,31 @@ fn owner_dir(cache_storage: &Path, username: &str, owner: &OwnerScope) -> Result
     }
 }
 
-async fn acquire_publication_lock(path: PathBuf) -> Result<File> {
-    tokio::task::spawn_blocking(move || acquire_file_lock(&path, ARTIFACT_LOCK_WAIT))
-        .await??
-        .ok_or_else(|| RegistryError::Internal {
-            reason: "timed out acquiring shared artifact publication lock".to_string(),
-        })
+async fn acquire_artifact_lock(path: PathBuf) -> Result<File> {
+    let file = tokio::task::spawn_blocking(move || open_lock_file(&path)).await??;
+    loop {
+        match file.try_lock() {
+            Ok(()) => return Ok(file),
+            Err(TryLockError::WouldBlock) => sleep(ARTIFACT_LOCK_POLL_INTERVAL).await,
+            Err(TryLockError::Error(error)) => return Err(error.into()),
+        }
+    }
 }
 
-fn acquire_file_lock(path: &Path, wait: Duration) -> std::io::Result<Option<File>> {
+async fn try_acquire_artifact_lock(path: PathBuf) -> Result<Option<File>> {
+    let file = tokio::task::spawn_blocking(move || open_lock_file(&path)).await??;
+    match file.try_lock() {
+        Ok(()) => Ok(Some(file)),
+        Err(TryLockError::WouldBlock) => Ok(None),
+        Err(TryLockError::Error(error)) => Err(error.into()),
+    }
+}
+
+fn open_lock_file(path: &Path) -> std::io::Result<File> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let file = OpenOptions::new().read(true).write(true).create(true).truncate(false).open(path)?;
-    let deadline = Instant::now() + wait;
-    loop {
-        match file.try_lock() {
-            Ok(()) => return Ok(Some(file)),
-            Err(TryLockError::WouldBlock) if Instant::now() < deadline => {
-                sleep(ARTIFACT_LOCK_POLL_INTERVAL);
-            }
-            Err(TryLockError::WouldBlock) => return Ok(None),
-            Err(TryLockError::Error(error)) => return Err(error),
-        }
-    }
+    OpenOptions::new().read(true).write(true).create(true).truncate(false).open(path)
 }
 
 async fn count_variants(key_dir: &Path) -> Result<usize> {

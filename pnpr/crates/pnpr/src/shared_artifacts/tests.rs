@@ -8,11 +8,12 @@ use pnpm_shared_artifact_protocol::{
     SIGNATURE_ALGORITHM, SignedArtifactEnvelope,
 };
 use tempfile::TempDir;
-use tokio::{fs, sync::Barrier};
+use tokio::{fs, sync::Barrier, time::timeout};
 
 use super::{
-    ResolveBudget, acquire_publication_lock, artifact_usage_path, is_variant_file,
-    pending_usage_file, publish, reserve_storage_quota_with_limits,
+    ResolveBudget, acquire_artifact_lock, artifact_usage_path, is_variant_file,
+    load_artifact_usage, owner_dir, owner_lock_path, owner_usage_key, pending_usage_file, publish,
+    reserve_storage_quota_with_limits,
 };
 
 #[test]
@@ -63,24 +64,55 @@ async fn publication_storage_is_bounded_per_owner_and_globally() {
     fs::write(other_owner.join("entry"), b"123").await.unwrap();
     fs::write(root.join(".locks/lock-state"), vec![0; 100]).await.unwrap();
 
+    let owner_key = owner_usage_key(&owner).unwrap();
     let pending = pending_usage_file(&root, &owner.join("new-entry"), 4).unwrap();
-    let usage =
-        reserve_storage_quota_with_limits(&root, &owner, vec![pending], 10, 13).await.unwrap();
-    assert_eq!(usage.global_bytes, 13);
-    assert_eq!(usage.owner_bytes.values().copied().sum::<u64>(), 13);
+    reserve_storage_quota_with_limits(&root, &owner_key, vec![pending], 10, 13).await.unwrap();
 
     let too_large_for_owner = pending_usage_file(&root, &owner.join("owner-overflow"), 5).unwrap();
     assert!(
-        reserve_storage_quota_with_limits(&root, &owner, vec![too_large_for_owner], 10, 20)
+        reserve_storage_quota_with_limits(&root, &owner_key, vec![too_large_for_owner], 10, 20)
             .await
             .is_err(),
     );
     let too_large_globally = pending_usage_file(&root, &owner.join("global-overflow"), 4).unwrap();
     assert!(
-        reserve_storage_quota_with_limits(&root, &owner, vec![too_large_globally], 20, 12)
+        reserve_storage_quota_with_limits(&root, &owner_key, vec![too_large_globally], 20, 12)
             .await
             .is_err(),
     );
+}
+
+#[tokio::test]
+async fn legacy_pending_usage_is_reconciled() {
+    let storage = TempDir::new().unwrap();
+    let root = storage.path().join("shared-artifacts/v0");
+    fs::create_dir_all(root.join(".locks")).await.unwrap();
+    fs::write(
+        artifact_usage_path(&root),
+        br#"{"global_bytes":4,"owner_bytes":{"owner":4},"pending":{"owner":"owner","files":[{"path":"owner/missing","size":4}]}}"#,
+    )
+    .await
+    .unwrap();
+
+    reserve_storage_quota_with_limits(&root, "owner", Vec::new(), 10, 10).await.unwrap();
+    let usage = load_artifact_usage(&root).await.unwrap();
+    assert_eq!(usage.global_bytes, 0);
+    assert_eq!(usage.owner_bytes.get("owner"), Some(&0));
+}
+
+#[tokio::test]
+async fn active_owner_reservations_are_not_reconciled() {
+    let storage = TempDir::new().unwrap();
+    let root = storage.path().join("shared-artifacts/v0");
+    let owner = "active-owner";
+    let _owner_lock = acquire_artifact_lock(owner_lock_path(&root, owner)).await.unwrap();
+    let pending = pending_usage_file(&root, &root.join(owner).join("pending"), 4).unwrap();
+    reserve_storage_quota_with_limits(&root, owner, vec![pending], 10, 10).await.unwrap();
+
+    reserve_storage_quota_with_limits(&root, "other-owner", Vec::new(), 10, 10).await.unwrap();
+    let usage = load_artifact_usage(&root).await.unwrap();
+    assert_eq!(usage.global_bytes, 4);
+    assert!(usage.pending.contains_key(owner));
 }
 
 #[tokio::test]
@@ -89,11 +121,29 @@ async fn an_unlocked_publication_lock_file_is_reused() {
     let path = storage.path().join("publication.lock");
     fs::write(&path, b"residue").await.unwrap();
 
-    let lock = acquire_publication_lock(path.clone()).await.unwrap();
+    let lock = acquire_artifact_lock(path.clone()).await.unwrap();
     assert!(path.is_file());
     drop(lock);
 
-    acquire_publication_lock(path).await.unwrap();
+    acquire_artifact_lock(path).await.unwrap();
+}
+
+#[tokio::test]
+async fn an_owner_lock_does_not_block_another_owner() {
+    let storage = TempDir::new().unwrap();
+    let root = storage.path().join("shared-artifacts/v0");
+    let acme_dir = owner_dir(storage.path(), "acme", &OwnerScope::organization("acme")).unwrap();
+    let acme_owner = owner_usage_key(&acme_dir).unwrap();
+    let _acme_lock = acquire_artifact_lock(owner_lock_path(&root, &acme_owner)).await.unwrap();
+
+    let published = timeout(
+        std::time::Duration::from_secs(5),
+        publish(storage.path(), "other", publication_for("other", "ci/other-owner")),
+    )
+    .await
+    .expect("an unrelated owner must not wait for the held owner lock")
+    .unwrap();
+    assert!(published);
 }
 
 #[tokio::test]
@@ -143,12 +193,16 @@ async fn concurrent_publishers_sharing_a_cache_respect_the_variant_limit() {
 }
 
 fn publication(builder_id: &str) -> PublishArtifactRequest {
+    publication_for("acme", builder_id)
+}
+
+fn publication_for(owner: &str, builder_id: &str) -> PublishArtifactRequest {
     let payload = ArtifactPayload {
         kind: ARTIFACT_KIND.to_string(),
         package: PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
         source_integrity: "sha512-source".to_string(),
         input_key: "dependency-side-effects:v1:deps=abc".to_string(),
-        owner: OwnerScope::organization("acme"),
+        owner: OwnerScope::organization(owner),
         builder_id: builder_id.to_string(),
         builder_profile: BuilderProfile {
             image_digest: Some("sha256:image".to_string()),
