@@ -7,7 +7,7 @@ use pnpm_reporter::Reporter;
 
 #[derive(Debug, Args)]
 pub struct FetchArgs {
-    #[clap(short = 'P', long)]
+    #[clap(short = 'P', long, visible_alias = "production")]
     prod: bool,
     #[clap(short = 'D', long)]
     dev: bool,

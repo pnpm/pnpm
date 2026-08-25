@@ -3,7 +3,7 @@ use super::{
     check_optimistic_repeat_install_ignoring,
     conflict_markers::MAX_LOCKFILE_CONFLICT_SCAN_BYTES,
     current_pnpmfiles,
-    deps_status::{RunDepsStatus, check_deps_status_before_run},
+    deps_status::{RunDepsStatus, check_deps_status_before_run, install_args_from_state},
     manifest_agreement::{LinkedPackagesContext, linked_packages_are_up_to_date},
     settings::{current_settings, current_settings_with_catalogs},
     timestamps::{FileMtime, lockfile_modified_since, modified_at_or_after},
@@ -2936,4 +2936,27 @@ fn lockfile_check_does_not_self_flag_its_own_baseline() {
     assert!(lockfile_modified_since(coarse, ms));
     // A whole second entirely before the baseline is not flagged.
     assert!(!lockfile_modified_since(coarse, ms + 1_000));
+}
+
+/// The reproduction command spells the dependency-group flags the way
+/// the CLI accepts them — `pnpm install --production` was rejected by
+/// the Rust CLI's argument parser
+/// ([pnpm/pnpm#14147](https://github.com/pnpm/pnpm/issues/14147)). The
+/// table mirrors pnpm's `createInstallArgs` test.
+#[test]
+fn install_args_reproduce_the_recorded_dependency_groups() {
+    let args = |dev: Option<bool>, optional: Option<bool>, production: Option<bool>| {
+        let state = WorkspaceState {
+            settings: WorkspaceStateSettings { dev, optional, production, ..Default::default() },
+            ..Default::default()
+        };
+        install_args_from_state(&state)
+    };
+
+    assert_eq!(args(None, Some(true), Some(true)), ["--prod"]);
+    assert_eq!(args(None, Some(false), Some(true)), ["--prod", "--no-optional"]);
+    assert_eq!(args(Some(true), Some(true), None), ["--dev"]);
+    assert_eq!(args(Some(true), Some(false), None), ["--dev", "--no-optional"]);
+    assert_eq!(args(Some(true), Some(true), Some(true)), [] as [&str; 0]);
+    assert_eq!(args(Some(true), Some(false), Some(true)), ["--no-optional"]);
 }

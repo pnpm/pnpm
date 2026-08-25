@@ -24,7 +24,7 @@ pub enum RunDepsStatus {
         /// `warn` and `error` actions.
         issue: String,
         /// `pnpm install` arguments reproducing the dependency groups
-        /// the workspace state recorded (`--production` / `--dev` /
+        /// the workspace state recorded (`--prod` / `--dev` /
         /// `--no-optional`), for the `install` and `prompt` actions.
         install_args: Vec<String>,
     },
@@ -226,7 +226,7 @@ pub(crate) fn install_args_from_state(state: &WorkspaceState) -> Vec<String> {
     let dev = settings.dev.unwrap_or(false);
     let production = settings.production.unwrap_or(false);
     if production && !dev {
-        args.push("--production".to_string());
+        args.push("--prod".to_string());
     } else if dev && !production {
         args.push("--dev".to_string());
     }

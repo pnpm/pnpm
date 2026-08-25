@@ -1100,6 +1100,38 @@ fn store_status_and_add_are_subcommands_of_store() {
     assert_eq!(add.packages, ["express@4", "typescript@2.1.0"]);
 }
 
+/// `--production` is the setting name behind `--prod`, and pnpm accepts
+/// it wherever `--prod` selects dependency groups. Rejecting it broke
+/// every command line carried over from pnpm 11, including the install
+/// the verify-deps-before-run gate reproduces
+/// ([pnpm/pnpm#14147](https://github.com/pnpm/pnpm/issues/14147)).
+#[test]
+fn production_is_an_alias_of_prod() {
+    for argv in [
+        ["pacquet", "install", "--production"].as_slice(),
+        ["pacquet", "fetch", "--production"].as_slice(),
+        ["pacquet", "prune", "--production"].as_slice(),
+        ["pacquet", "update", "--production"].as_slice(),
+        ["pacquet", "sbom", "--sbom-format", "spdx", "--production"].as_slice(),
+        ["pacquet", "list", "--production"].as_slice(),
+        ["pacquet", "why", "--production", "foo"].as_slice(),
+        ["pacquet", "audit", "--production"].as_slice(),
+        ["pacquet", "licenses", "list", "--production"].as_slice(),
+        ["pacquet", "outdated", "--production"].as_slice(),
+    ] {
+        CliArgs::try_parse_from(argv)
+            .unwrap_or_else(|error| panic!("`{}` must parse: {error}", argv.join(" ")));
+    }
+
+    let groups = |argv: &[&str]| {
+        install_args(argv).dependency_options.dependency_groups(true).collect::<Vec<_>>()
+    };
+    assert_eq!(
+        groups(&["pacquet", "install", "--production"]),
+        groups(&["pacquet", "install", "--prod"]),
+    );
+}
+
 fn command(argv: &[&str]) -> CliCommand {
     CliArgs::try_parse_from(argv).expect("parses").command
 }

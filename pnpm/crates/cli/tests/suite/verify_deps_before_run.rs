@@ -44,6 +44,63 @@ fn default_install_action_installs_before_running_the_script() {
     drop(root);
 }
 
+/// The spawned install reproduces the dependency groups the last
+/// install recorded, spelled the way the CLI accepts them: a `--prod`
+/// install used to be reproduced as `pnpm install --production`, which
+/// aborted every `pnpm run`
+/// ([pnpm/pnpm#14147](https://github.com/pnpm/pnpm/issues/14147)).
+#[cfg(unix)]
+#[test]
+fn install_action_reruns_a_production_only_install() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let marker = workspace.join("marker.txt");
+    let write_manifest = |foo_version: &str| {
+        fs::write(
+            workspace.join("package.json"),
+            json!({
+                "name": "verify-deps-project",
+                "version": "0.0.0",
+                "dependencies": {
+                    "@pnpm.e2e/foo": foo_version,
+                },
+                "devDependencies": {
+                    "@pnpm.e2e/bar": "100.0.0",
+                },
+                "scripts": {
+                    "hello": format!(r#"touch "{}""#, marker.display()),
+                },
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
+    };
+
+    write_manifest("100.0.0");
+    pacquet.with_args(["install", "--prod"]).assert().success();
+    assert!(
+        !workspace.join("node_modules/@pnpm.e2e/bar").exists(),
+        "a production-only install must skip devDependencies",
+    );
+
+    write_manifest("100.1.0");
+    bump_mtime(&workspace.join("package.json"));
+
+    pacquet_in(&workspace).with_args(["run", "hello"]).assert().success();
+    assert!(marker.exists(), "the script must run after the spawned install");
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/foo/package.json").exists(),
+        "the spawned install must install the updated production dependency",
+    );
+    assert!(
+        !workspace.join("node_modules/@pnpm.e2e/bar").exists(),
+        "the spawned install must keep the recorded production-only groups",
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
