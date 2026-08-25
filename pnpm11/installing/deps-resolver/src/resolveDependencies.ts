@@ -24,7 +24,7 @@ import {
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
-import type { ExtendedPatchInfo, PatchInfo } from '@pnpm/patching.types'
+import type { PatchInfo } from '@pnpm/patching.types'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
 import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
@@ -314,7 +314,7 @@ export interface ResolvedPackage {
   optionalDependencies: Set<string>
   hasBin: boolean
   hasBundledDependencies: boolean
-  patch?: PatchInfo & { key?: string }
+  patch?: PatchInfo
   prepare: boolean
   pkgIdWithPatchHash: PkgIdWithPatchHash
   requiresBuild?: boolean
@@ -2376,7 +2376,7 @@ function getResolvedPackage (
     force: boolean
     hasBin: boolean
     parentImporterId: string
-    patch?: ExtendedPatchInfo
+    patch?: PatchInfo
     pkg: PackageManifest
     pkgResponse: PackageResponse
     prepare: boolean

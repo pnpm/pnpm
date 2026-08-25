@@ -6,14 +6,15 @@ import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
 import { findRuntimeNodeVersion, iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
-import { isRuntimeDepPath } from '@pnpm/deps.path'
+import { isRuntimeDepPath, parse as parseDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type {
   LockfileObject,
   ProjectSnapshot,
 } from '@pnpm/lockfile.types'
-import { verifyPatches } from '@pnpm/patching.config'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { getPatchInfo, type PatchGroupRecord, verifyPatches } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import {
   getAllDependenciesFromManifest,
@@ -291,17 +292,6 @@ export async function resolveDependencies (
     })
     : initiallyResolvedPeers
 
-  if (
-    opts.patchedDependencies &&
-    Object.keys(opts.wantedLockfile.importers).length === importers.length
-  ) {
-    verifyPatches({
-      patchedDependencies: opts.patchedDependencies,
-      appliedPatches: getAppliedPatchKeys(dependenciesGraph),
-      allowUnusedPatches: opts.allowUnusedPatches,
-    })
-  }
-
   const preserveDedupedWorkspaceLinks = Boolean(opts.dedupeInjectedDeps)
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
   await Promise.all(projectsToResolve.map(async (project, index) => {
@@ -460,6 +450,17 @@ export async function resolveDependencies (
     Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies),
     updatedCatalogs)
 
+  if (
+    opts.patchedDependencies &&
+    Object.keys(opts.wantedLockfile.importers).length === importers.length
+  ) {
+    verifyPatches({
+      patchedDependencies: opts.patchedDependencies,
+      appliedPatches: getAppliedPatchKeys(newLockfile, opts.patchedDependencies),
+      allowUnusedPatches: opts.allowUnusedPatches,
+    })
+  }
+
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
     await Promise.all(Object.values(resolvedPkgsById).map(async ({ fetching }) => {
@@ -490,10 +491,19 @@ function treeHasLockedPeerContexts (dependenciesTree: DependenciesTree<ResolvedP
   return false
 }
 
-function getAppliedPatchKeys (dependenciesGraph: DependenciesGraph): Set<string> {
+function getAppliedPatchKeys (
+  lockfile: LockfileObject,
+  patchedDependencies: PatchGroupRecord
+): Set<string> {
   const appliedPatchKeys = new Set<string>()
-  for (const pkg of Object.values(dependenciesGraph)) {
-    if (pkg.patch?.key != null) appliedPatchKeys.add(pkg.patch.key)
+  for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages ?? {})) {
+    if (!depPath.includes('(patch_hash=')) continue
+    const { patchHash } = parseDepPath(depPath)
+    if (patchHash == null) continue
+    const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+    if (version == null) continue
+    const patch = getPatchInfo(patchedDependencies, name, version)
+    if (patch != null && patchHash === `(patch_hash=${patch.hash})`) appliedPatchKeys.add(patch.key)
   }
   return appliedPatchKeys
 }
