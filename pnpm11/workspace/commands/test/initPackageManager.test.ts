@@ -84,6 +84,10 @@ test('pins the running pnpm when "latest" violates the release policy', async ()
       name: 'pnpm',
       version: NEWER_VERSION,
       reason: 'is too new',
+      resolution: {
+        integrity: 'sha512-',
+        tarball: `https://registry.npmjs.org/pnpm/-/pnpm-${NEWER_VERSION}.tgz`,
+      },
     },
   })
 
