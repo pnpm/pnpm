@@ -1130,8 +1130,9 @@ fn remove_top_level_block(text: &str, key: &str) -> String {
     // document has no such successor: its separator is the blank line
     // *before* it, which has to go too, or the file is left ending in a
     // blank line that the next insert would then separate from again.
-    let preceding = &text[..span.key_line_start];
-    let start = if span.block_end == text.len() && !has_kept_chomping_scalar(preceding) {
+    let start = if span.block_end == text.len()
+        && !blanks_belong_to_kept_scalar(text, span.key_line_start)
+    {
         blank_run_start(text, span.key_line_start)
     } else {
         span.key_line_start
@@ -1141,20 +1142,48 @@ fn remove_top_level_block(text: &str, key: &str) -> String {
     out
 }
 
-/// Whether `text` opens a block scalar with keep chomping (`|+`, `>+`, and
-/// their explicit-indent spellings). Such a scalar's value ends *with* the
-/// blank lines that follow it, so a blank line after one is content rather
-/// than a separator and must survive a neighbouring block's removal. The
-/// test is deliberately loose — a false positive only forgoes tidying a
-/// separator away.
-fn has_kept_chomping_scalar(text: &str) -> bool {
-    text.lines().any(|line| {
-        let header = line.trim_end();
-        header.ends_with('+')
-            && header
-                .trim_end_matches(|char: char| char == '+' || char.is_ascii_digit())
-                .ends_with(['|', '>'])
-    })
+/// Whether the blank lines that end at `line_start` are the tail of a
+/// keep-chomped block scalar rather than a separator. Such a scalar keeps
+/// the blank lines that follow it *as its value*, so dropping them would
+/// rewrite a setting the caller never asked to touch.
+///
+/// The blanks belong to the scalar when the last content line above them
+/// sits inside one: either it is the header itself (an otherwise empty
+/// scalar) or the nearest less-indented line above it is.
+fn blanks_belong_to_kept_scalar(text: &str, line_start: usize) -> bool {
+    let all = lines(&text[..line_start]);
+    let Some(last) = all.iter().rposition(|line| !line.content.trim().is_empty()) else {
+        return false;
+    };
+    if is_kept_chomping_header(all[last].content) {
+        return true;
+    }
+    let body_indent = indent_width(all[last].content);
+    all[..last]
+        .iter()
+        .rev()
+        .filter(|line| !line.content.trim().is_empty())
+        .find(|line| indent_width(line.content) < body_indent)
+        .is_some_and(|line| is_kept_chomping_header(line.content))
+}
+
+/// Whether `content` opens a block scalar that keeps its trailing line
+/// breaks: a `|` or `>` header carrying a `+`, in either order relative to
+/// an explicit indentation digit (`|+`, `>+2`, `|2+`), with or without a
+/// trailing comment.
+fn is_kept_chomping_header(content: &str) -> bool {
+    let Some((_, indicators)) = content.rsplit_once(['|', '>']) else {
+        return false;
+    };
+    let indicators = indicators.split('#').next().unwrap_or_default().trim();
+    indicators.contains('+') && indicators.chars().all(|char| char == '+' || char.is_ascii_digit())
+}
+
+/// Leading-space count of `content`, whatever the line holds — unlike
+/// [`structural_indent`], which reads a comment or a blank as unindented.
+/// Block scalar bodies can hold both.
+fn indent_width(content: &str) -> usize {
+    content.len() - content.trim_start().len()
 }
 
 /// Start of the run of blank lines immediately preceding `line_start`, or

@@ -1264,13 +1264,23 @@ fn delete_last_field_leaves_no_trailing_blank_line() {
 
 #[test]
 fn delete_last_field_keeps_a_kept_chomped_block_scalars_trailing_blank() {
+    for header in ["|+", ">+", "|+2", "|2+", "|2+ # keep the breaks"] {
+        let original = format!("notes: {header}\n  foo\n\nvirtualStoreDir: .pnpm\n");
+        let out = run_update_field(Some(&original), "virtualStoreDir", &serde_json::Value::Null)
+            .expect("file kept");
+        assert_eq!(out, format!("notes: {header}\n  foo\n\n"), "header {header}");
+    }
+}
+
+#[test]
+fn delete_last_field_drops_a_separator_below_an_unrelated_kept_chomped_scalar() {
     let out = run_update_field(
-        Some("notes: |+\n  foo\n\nvirtualStoreDir: .pnpm\n"),
+        Some("notes: |+\n  foo\n\nstoreDir: ~/store\n\nvirtualStoreDir: .pnpm\n"),
         "virtualStoreDir",
         &serde_json::Value::Null,
     )
     .expect("file kept");
-    assert_eq!(out, "notes: |+\n  foo\n\n");
+    assert_eq!(out, "notes: |+\n  foo\n\nstoreDir: ~/store\n");
 }
 
 #[test]
