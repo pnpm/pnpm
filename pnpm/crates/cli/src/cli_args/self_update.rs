@@ -602,7 +602,7 @@ fn coerce_major(version: &str) -> Option<u64> {
     node_semver::Version::parse(version).ok().map(|version| version.major)
 }
 
-fn version_lt(left: &str, right: &str) -> bool {
+pub(super) fn version_lt(left: &str, right: &str) -> bool {
     match (node_semver::Version::parse(left), node_semver::Version::parse(right)) {
         (Ok(left), Ok(right)) => left < right,
         _ => false,

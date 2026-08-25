@@ -2194,10 +2194,14 @@ pub struct Config {
     pub trust_policy: TrustPolicy,
 
     /// `init-package-manager` / `initPackageManager` config: whether
-    /// `pnpm init` pins the running pnpm in the manifest it scaffolds,
+    /// `pnpm init` pins a pnpm version in the manifest it scaffolds,
     /// through both `devEngines.packageManager` and the legacy
     /// `packageManager` field. Only the workspace root is pinned — a
-    /// member of an existing workspace inherits the root's pin.
+    /// member of an existing workspace inherits the root's pin. The version
+    /// pinned is the registry's `latest`, resolved by `pnpm-cli`'s
+    /// `cli_args::init::version_to_pin`, which falls back to the running
+    /// version whenever `latest` is unavailable, unusable, or older — see
+    /// there for the cases.
     ///
     /// Defaults to `true`.
     #[default = true]
