@@ -2939,8 +2939,7 @@ fn lockfile_check_does_not_self_flag_its_own_baseline() {
 }
 
 /// The reproduction command spells the dependency-group flags the way
-/// the CLI accepts them — `pnpm install --production` was rejected by
-/// the Rust CLI's argument parser
+/// the CLI accepts them
 /// ([pnpm/pnpm#14147](https://github.com/pnpm/pnpm/issues/14147)). The
 /// table mirrors pnpm's `createInstallArgs` test.
 #[test]

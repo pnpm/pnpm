@@ -45,9 +45,8 @@ fn default_install_action_installs_before_running_the_script() {
 }
 
 /// The spawned install reproduces the dependency groups the last
-/// install recorded, spelled the way the CLI accepts them: a `--prod`
-/// install used to be reproduced as `pnpm install --production`, which
-/// aborted every `pnpm run`
+/// install recorded, spelled the way the CLI accepts them, so a
+/// production-only install leaves `pnpm run` working
 /// ([pnpm/pnpm#14147](https://github.com/pnpm/pnpm/issues/14147)).
 #[cfg(unix)]
 #[test]

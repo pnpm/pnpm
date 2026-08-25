@@ -1101,9 +1101,9 @@ fn store_status_and_add_are_subcommands_of_store() {
 }
 
 /// `--production` is the setting name behind `--prod`, and pnpm accepts
-/// it wherever `--prod` selects dependency groups. Rejecting it broke
-/// every command line carried over from pnpm 11, including the install
-/// the verify-deps-before-run gate reproduces
+/// it wherever `--prod` selects dependency groups — in a command line
+/// typed by hand as much as in the install the verify-deps-before-run
+/// gate reproduces
 /// ([pnpm/pnpm#14147](https://github.com/pnpm/pnpm/issues/14147)).
 #[test]
 fn production_is_an_alias_of_prod() {
