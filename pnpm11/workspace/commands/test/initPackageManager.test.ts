@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { beforeEach, expect, jest, test } from '@jest/globals'
 import { packageManager } from '@pnpm/cli.meta'
+import type { PnpmVersionLookup } from '@pnpm/engine.pm.commands'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
@@ -10,13 +11,14 @@ import semver from 'semver'
 
 jest.unstable_mockModule('@pnpm/engine.pm.commands', () => ({
   isReleaseInstallable: jest.fn(),
-  resolvePnpmVersion: jest.fn(),
+  prepareResolvePnpmVersion: jest.fn(),
 }))
-const { isReleaseInstallable, resolvePnpmVersion } = await import('@pnpm/engine.pm.commands')
+const { isReleaseInstallable, prepareResolvePnpmVersion } = await import('@pnpm/engine.pm.commands')
 const { init } = await import('@pnpm/workspace.commands')
 
-const mockResolvePnpmVersion = jest.mocked(resolvePnpmVersion)
+const mockPrepareLookup = jest.mocked(prepareResolvePnpmVersion)
 const mockIsReleaseInstallable = jest.mocked(isReleaseInstallable)
+const mockLookup = jest.fn<PnpmVersionLookup>()
 
 const NEWER_VERSION = semver.inc(packageManager.version, 'major')!
 // A prerelease of the running version is lower than it whatever version this
@@ -24,7 +26,8 @@ const NEWER_VERSION = semver.inc(packageManager.version, 'major')!
 const OLDER_VERSION = `${packageManager.version}-0`
 
 beforeEach(() => {
-  mockResolvePnpmVersion.mockReset()
+  mockLookup.mockReset()
+  mockPrepareLookup.mockReset().mockReturnValue(mockLookup)
   mockIsReleaseInstallable.mockReset().mockReturnValue(true)
 })
 
@@ -39,11 +42,11 @@ async function initPinned (): Promise<ProjectManifest> {
 
 test('pins the version the "latest" tag resolves to', async () => {
   prepareEmpty()
-  mockResolvePnpmVersion.mockResolvedValue({ version: NEWER_VERSION })
+  mockLookup.mockResolvedValue({ version: NEWER_VERSION })
 
   const manifest = await initPinned()
 
-  expect(mockResolvePnpmVersion).toHaveBeenCalledWith(expect.anything(), 'latest')
+  expect(mockLookup).toHaveBeenCalledWith('latest')
   expect(manifest.packageManager).toBe(`pnpm@${NEWER_VERSION}`)
   expect(manifest.devEngines?.packageManager).toEqual({
     name: 'pnpm',
@@ -54,7 +57,7 @@ test('pins the version the "latest" tag resolves to', async () => {
 
 test('does not pin a "latest" that is older than the running pnpm', async () => {
   prepareEmpty()
-  mockResolvePnpmVersion.mockResolvedValue({ version: OLDER_VERSION })
+  mockLookup.mockResolvedValue({ version: OLDER_VERSION })
 
   const manifest = await initPinned()
 
@@ -63,7 +66,7 @@ test('does not pin a "latest" that is older than the running pnpm', async () => 
 
 test('pins the running pnpm when the lookup fails', async () => {
   prepareEmpty()
-  mockResolvePnpmVersion.mockRejectedValue(new Error('getaddrinfo ENOTFOUND registry.npmjs.org'))
+  mockLookup.mockRejectedValue(new Error('getaddrinfo ENOTFOUND registry.npmjs.org'))
 
   const manifest = await initPinned()
 
@@ -72,7 +75,7 @@ test('pins the running pnpm when the lookup fails', async () => {
 
 test('pins the running pnpm when "latest" resolves to nothing', async () => {
   prepareEmpty()
-  mockResolvePnpmVersion.mockResolvedValue(undefined)
+  mockLookup.mockResolvedValue(undefined)
 
   const manifest = await initPinned()
 
@@ -81,7 +84,7 @@ test('pins the running pnpm when "latest" resolves to nothing', async () => {
 
 test('pins the running pnpm when "latest" violates the release policy', async () => {
   prepareEmpty()
-  mockResolvePnpmVersion.mockResolvedValue({
+  mockLookup.mockResolvedValue({
     version: NEWER_VERSION,
     policyViolation: {
       code: 'MINIMUM_RELEASE_AGE_VIOLATION',
@@ -106,7 +109,7 @@ test('pins the running pnpm when "latest" violates the release policy', async ()
 // happens to survive would still break every teammate on the other wrapper.
 test('pins the running pnpm when "latest" is not an installable release', async () => {
   prepareEmpty()
-  mockResolvePnpmVersion.mockResolvedValue({ version: NEWER_VERSION })
+  mockLookup.mockResolvedValue({ version: NEWER_VERSION })
   mockIsReleaseInstallable.mockReturnValue(false)
 
   const manifest = await initPinned()
@@ -119,7 +122,7 @@ test('does not overwrite a package.json created while the pin was being resolved
   prepareEmpty()
   const manifestPath = path.resolve('package.json')
   const writtenMeanwhile = { name: 'written-by-someone-else' }
-  mockResolvePnpmVersion.mockImplementation(async () => {
+  mockLookup.mockImplementation(async () => {
     fs.writeFileSync(manifestPath, JSON.stringify(writtenMeanwhile))
     return { version: NEWER_VERSION }
   })
@@ -139,6 +142,6 @@ test('does not reach the registry when offline', async () => {
   })
   const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
 
-  expect(mockResolvePnpmVersion).not.toHaveBeenCalled()
+  expect(mockPrepareLookup).not.toHaveBeenCalled()
   expect(manifest.packageManager).toBe(`pnpm@${packageManager.version}`)
 })

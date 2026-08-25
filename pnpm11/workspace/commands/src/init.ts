@@ -4,7 +4,7 @@ import path from 'node:path'
 import { packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
-import { isReleaseInstallable, resolvePnpmVersion, type ResolvePnpmVersionOptions } from '@pnpm/engine.pm.commands'
+import { isReleaseInstallable, prepareResolvePnpmVersion, type ResolvePnpmVersionOptions } from '@pnpm/engine.pm.commands'
 import { PnpmError } from '@pnpm/error'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 import type { ProjectManifest } from '@pnpm/types'
@@ -182,13 +182,17 @@ async function resolveVersionToPin (opts: InitOptions & Pick<Config, 'dir'>): Pr
   if (cacheDir == null || opts.offline === true || opts.preferOffline === true) {
     return packageManager.version
   }
+  // Outside the `try`: this reads the settings, so a misconfigured
+  // `trustPolicyExclude` fails `pnpm init` the way it fails every other
+  // command, rather than being mistaken for an unreachable registry.
+  const lookUpLatest = prepareResolvePnpmVersion({
+    ...opts,
+    cacheDir,
+    retry: { retries: 0 },
+    timeout: LATEST_LOOKUP_TIMEOUT,
+  })
   try {
-    const resolved = await resolvePnpmVersion({
-      ...opts,
-      cacheDir,
-      retry: { retries: 0 },
-      timeout: LATEST_LOOKUP_TIMEOUT,
-    }, 'latest')
+    const resolved = await lookUpLatest('latest')
     // A `latest` that the maturity or trust policy rejects is not something
     // to pin a new project to, and `pnpm init` has nobody to prompt for
     // approval. A broken release is refused for the reason the pin exists at

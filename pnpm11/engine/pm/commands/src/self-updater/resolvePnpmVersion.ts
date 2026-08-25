@@ -45,6 +45,22 @@ export async function resolvePnpmVersion (
   opts: ResolvePnpmVersionOptions,
   bareSpecifier: string
 ): Promise<ResolvedPnpmVersion | undefined> {
+  return prepareResolvePnpmVersion(opts)(bareSpecifier)
+}
+
+/** Looks a `pnpm@<bareSpecifier>` up. See {@link prepareResolvePnpmVersion}. */
+export type PnpmVersionLookup = (bareSpecifier: string) => Promise<ResolvedPnpmVersion | undefined>
+
+/**
+ * The two-phase form of {@link resolvePnpmVersion}: settings are read and
+ * validated here, and only the returned function talks to a registry.
+ *
+ * The split exists for callers that treat an unreachable registry as
+ * survivable. They can guard the lookup alone, so a misconfigured
+ * `trustPolicyExclude` — or any other bad setting — still surfaces as the
+ * error it is instead of being mistaken for a failed lookup.
+ */
+export function prepareResolvePnpmVersion (opts: ResolvePnpmVersionOptions): PnpmVersionLookup {
   // `minimumReleaseAge` is not part of `shouldFetchFullMetadata` because the
   // resolver upgrades abbreviated metadata to full on demand for the
   // maturity check, so it isn't requested up front here.
@@ -66,25 +82,28 @@ export async function resolvePnpmVersion (
       `${packageManager.name}@${packageManager.version}`,
     ],
   })
-  const resolution = await resolve({ alias: packageManager.name, bareSpecifier }, {
-    lockfileDir: opts.lockfileDir ?? opts.dir,
-    preferredVersions: {},
-    projectDir: opts.dir,
-    publishedBy,
-    publishedByExclude,
-    // Unlike `dlx` (whose real install re-resolves through the store
-    // controller), this `resolve` is the only version selection the callers
-    // make, so the trust policy has to be passed here for the no-downgrade
-    // check to run.
-    trustPolicy: opts.trustPolicy,
-    trustPolicyExclude: opts.trustPolicyExclude
-      ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
-      : undefined,
-    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
-  })
-  if (!resolution?.manifest) return undefined
-  return {
-    version: resolution.manifest.version,
-    policyViolation: resolution.policyViolation,
+  const trustPolicyExclude = opts.trustPolicyExclude
+    ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
+    : undefined
+  return async (bareSpecifier) => {
+    const resolution = await resolve({ alias: packageManager.name, bareSpecifier }, {
+      lockfileDir: opts.lockfileDir ?? opts.dir,
+      preferredVersions: {},
+      projectDir: opts.dir,
+      publishedBy,
+      publishedByExclude,
+      // Unlike `dlx` (whose real install re-resolves through the store
+      // controller), this `resolve` is the only version selection the callers
+      // make, so the trust policy has to be passed here for the no-downgrade
+      // check to run.
+      trustPolicy: opts.trustPolicy,
+      trustPolicyExclude,
+      trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+    })
+    if (!resolution?.manifest) return undefined
+    return {
+      version: resolution.manifest.version,
+      policyViolation: resolution.policyViolation,
+    }
   }
 }

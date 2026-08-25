@@ -2200,7 +2200,8 @@ pub struct Config {
     /// member of an existing workspace inherits the root's pin. The version
     /// pinned is the registry's `latest`, resolved by `pnpm-cli`'s
     /// `cli_args::init::version_to_pin`, which falls back to the running
-    /// version when the lookup cannot answer.
+    /// version whenever `latest` is unavailable, unusable, or older — see
+    /// there for the cases.
     ///
     /// Defaults to `true`.
     #[default = true]
