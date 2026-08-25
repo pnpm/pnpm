@@ -8,9 +8,10 @@ use p256::{
 use sha2::{Digest as _, Sha512};
 
 use crate::{
-    ARTIFACT_KIND, ArtifactFile, ArtifactManifest, ArtifactPayload, BuilderProfile,
-    CompatibilityConstraints, OwnerScope, SIGNATURE_ALGORITHM, SignedArtifactEnvelope, blob_id,
-    compatibility_rank, validate_manifest_path, verify_blob,
+    ARTIFACT_KIND, ArtifactBlobUpload, ArtifactFile, ArtifactManifest, ArtifactPayload,
+    BuilderProfile, CompatibilityConstraints, OwnerScope, PublishArtifactRequest,
+    SIGNATURE_ALGORITHM, SignedArtifactEnvelope, blob_id, compatibility_rank,
+    validate_manifest_path, verify_blob,
 };
 
 fn integrity(bytes: &[u8]) -> String {
@@ -84,6 +85,10 @@ fn rejects_paths_before_the_importer_can_see_them() {
         "dir/trailing-dot.",
         "dir/trailing-space ",
         "dir/addon.node:payload",
+        "CON",
+        "dir/NUL.txt",
+        "dir/com1.js",
+        "dir/LpT9",
         "nul\0byte",
     ] {
         assert!(validate_manifest_path(unsafe_path).is_err(), "accepted {unsafe_path:?}");
@@ -97,6 +102,48 @@ fn rejects_duplicate_and_case_colliding_paths() {
     let mut artifact = payload(file_integrity);
     artifact.manifest.deleted.push("BUILD/addon.node".to_string());
     assert!(artifact.validate().is_err());
+}
+
+#[test]
+fn rejects_inconsistent_sizes_for_one_blob() {
+    let file_integrity = integrity(b"addon");
+    let mut artifact = payload(file_integrity.clone());
+    artifact.manifest.added.push(ArtifactFile {
+        path: "build/addon-copy.node".to_string(),
+        integrity: file_integrity,
+        mode: 0o755,
+        size: 6,
+    });
+    assert!(artifact.validate().is_err());
+}
+
+#[test]
+fn validates_publication_blobs_before_transport() {
+    let file_integrity = integrity(b"addon");
+    let artifact = payload(file_integrity.clone());
+    let request = PublishArtifactRequest {
+        key: artifact.input_key.clone(),
+        envelope: SignedArtifactEnvelope {
+            algorithm: SIGNATURE_ALGORITHM.to_string(),
+            key_id: "acme-2026".to_string(),
+            payload: BASE64.encode(serde_json::to_vec(&artifact).unwrap()),
+            signature: "eA==".to_string(),
+        },
+        blobs: vec![ArtifactBlobUpload {
+            integrity: file_integrity.clone(),
+            data: BASE64.encode(b"addon"),
+        }],
+    };
+    let validated = request.validate().unwrap();
+    assert_eq!(validated.blobs[&file_integrity], b"addon");
+
+    let mut duplicate = request.clone();
+    duplicate.blobs.push(duplicate.blobs[0].clone());
+    assert!(duplicate.validate().is_err());
+
+    let mut unreferenced = request;
+    unreferenced.blobs[0].integrity = integrity(b"other");
+    assert!(unreferenced.validate().is_err());
 }
 
 #[test]

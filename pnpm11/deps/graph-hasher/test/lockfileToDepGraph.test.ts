@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
-import { calcGraphNodeHash, lockfileToDepGraph, type PkgMeta } from '@pnpm/deps.graph-hasher'
+import { calcDepStateInputKey, calcGraphNodeHash, lockfileToDepGraph, type PkgMeta } from '@pnpm/deps.graph-hasher'
 import type { BinaryResolution } from '@pnpm/resolving.resolver-base'
 import type { DepPath } from '@pnpm/types'
 
@@ -66,6 +66,7 @@ test('lockfileToDepGraph', () => {
       children: {
         qar: 'qar@1.0.0',
       },
+      pkgIdWithPatchHash: 'bar@1.0.0',
       resolution: { integrity: '1' },
       fullPkgId: 'bar@1.0.0:1',
     },
@@ -74,11 +75,13 @@ test('lockfileToDepGraph', () => {
         bar: 'bar@1.0.0',
         qar: 'qar@1.0.0',
       },
+      pkgIdWithPatchHash: 'foo@1.0.0',
       resolution: { integrity: '0' },
       fullPkgId: 'foo@1.0.0:0',
     },
     'qar@1.0.0': {
       children: {},
+      pkgIdWithPatchHash: 'qar@1.0.0',
       resolution: { integrity: '2' },
       fullPkgId: 'qar@1.0.0:2',
     },
@@ -108,11 +111,13 @@ test('lockfileToDepGraph includes resolved link targets when a lockfile director
   }, undefined, lockfileDir)).toStrictEqual({
     'parent@1.0.0': {
       children: { child: 'child@1.0.0' },
+      pkgIdWithPatchHash: 'parent@1.0.0',
       resolution: { integrity: '0' },
       fullPkgId: 'parent@1.0.0:0',
     },
     'child@1.0.0': {
       children: { linked: linkTarget },
+      pkgIdWithPatchHash: 'child@1.0.0',
       resolution: { integrity: '1' },
       fullPkgId: 'child@1.0.0:1',
     },
@@ -304,6 +309,31 @@ describe('lockfileToDepGraph with variations resolution', () => {
     const glibc = graphFor(linuxGlibcSelector)['node@runtime:22.0.0' as DepPath].fullPkgId
     const musl = graphFor(linuxMuslSelector)['node@runtime:22.0.0' as DepPath].fullPkgId
     const darwin = graphFor(darwinSelector)['node@runtime:22.0.0' as DepPath].fullPkgId
+    expect(new Set([glibc, musl, darwin]).size).toBe(3)
+  })
+
+  test('input keys remain isolated when one graph and cache serve different platform selectors', () => {
+    const graph = graphFor(linuxGlibcSelector)
+    const cache = {}
+    const depPath = 'node@runtime:22.0.0' as DepPath
+    const glibc = calcDepStateInputKey({
+      depsGraph: graph,
+      cache,
+      depPath,
+      supportedArchitectures: linuxGlibcSelector,
+    })
+    const musl = calcDepStateInputKey({
+      depsGraph: graph,
+      cache,
+      depPath,
+      supportedArchitectures: linuxMuslSelector,
+    })
+    const darwin = calcDepStateInputKey({
+      depsGraph: graph,
+      cache,
+      depPath,
+      supportedArchitectures: darwinSelector,
+    })
     expect(new Set([glibc, musl, darwin]).size).toBe(3)
   })
 })

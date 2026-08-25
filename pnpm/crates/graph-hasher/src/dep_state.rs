@@ -12,9 +12,9 @@ pub const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX: &str = "dependency-side-effe
 /// recursive hash — `<pkgIdWithPatchHash>:<integrity>` for packages with
 /// an integrity (`registry` resolution), or
 /// `<pkgIdWithPatchHash>:<hashObject(resolution)>` for resolutions
-/// without one (e.g. git refs). Pacquet's caller composes this
-/// before passing it in; the hasher itself is opaque to how it was
-/// computed.
+/// without one (e.g. git refs). A variations resolution uses the integrity of
+/// the selected platform variant. Pacquet's caller composes this before
+/// passing it in; the hasher itself is opaque to how it was computed.
 ///
 /// `children` maps alias → dep-graph key for the snapshot's
 /// children. Pacquet's natural input shape is the lockfile's

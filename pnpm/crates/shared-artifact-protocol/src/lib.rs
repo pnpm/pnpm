@@ -23,7 +23,9 @@ pub const MAX_VARIANTS_PER_CANDIDATE: usize = 8;
 pub const MAX_MANIFEST_FILES: usize = 10_000;
 pub const MAX_FILE_SIZE: u64 = 64 * 1024 * 1024;
 pub const MAX_ARTIFACT_SIZE: u64 = 64 * 1024 * 1024;
+pub const MAX_ENCODED_FILE_SIZE: usize = (MAX_FILE_SIZE as usize).div_ceil(3) * 4;
 pub const MAX_SIGNED_PAYLOAD_SIZE: usize = 2 * 1024 * 1024;
+pub const MAX_RESOLVE_RESPONSE_SIZE: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Display, Error)]
 pub enum ArtifactProtocolError {
@@ -160,6 +162,11 @@ pub struct PublishArtifactRequest {
     pub blobs: Vec<ArtifactBlobUpload>,
 }
 
+pub struct ValidatedArtifactPublication {
+    pub payload: ArtifactPayload,
+    pub blobs: BTreeMap<String, Vec<u8>>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArtifactBlobRequest {
@@ -230,6 +237,78 @@ impl SignedArtifactEnvelope {
     }
 }
 
+impl PublishArtifactRequest {
+    pub fn validate(&self) -> Result<ValidatedArtifactPublication, ArtifactProtocolError> {
+        let (payload, _) = self.envelope.decode_payload()?;
+        if payload.input_key != self.key {
+            return Err(ArtifactProtocolError::InvalidEnvelope(
+                "signed input key does not match the publication key".to_string(),
+            ));
+        }
+        let required: BTreeMap<&str, u64> = payload
+            .manifest
+            .added
+            .iter()
+            .map(|file| (file.integrity.as_str(), file.size))
+            .collect();
+        let mut blobs = BTreeMap::new();
+        let mut uploaded_size = 0_u64;
+        for blob in &self.blobs {
+            blob_id(&blob.integrity)?;
+            if blobs.contains_key(&blob.integrity) {
+                return Err(ArtifactProtocolError::InvalidEnvelope(format!(
+                    "duplicate blob upload for {:?}",
+                    blob.integrity,
+                )));
+            }
+            let Some(&expected_size) = required.get(blob.integrity.as_str()) else {
+                return Err(ArtifactProtocolError::InvalidEnvelope(format!(
+                    "blob upload {:?} is not referenced by the signed manifest",
+                    blob.integrity,
+                )));
+            };
+            if blob.data.len() > MAX_ENCODED_FILE_SIZE {
+                return Err(ArtifactProtocolError::InvalidBlobIntegrity(format!(
+                    "blob {:?} exceeds the encoded size limit",
+                    blob.integrity,
+                )));
+            }
+            let bytes = BASE64.decode(&blob.data).map_err(|_| {
+                ArtifactProtocolError::InvalidBlobIntegrity(format!(
+                    "blob {:?} is not valid base64",
+                    blob.integrity,
+                ))
+            })?;
+            if BASE64.encode(&bytes) != blob.data {
+                return Err(ArtifactProtocolError::InvalidBlobIntegrity(format!(
+                    "blob {:?} is not canonical base64",
+                    blob.integrity,
+                )));
+            }
+            if bytes.len() as u64 != expected_size {
+                return Err(ArtifactProtocolError::InvalidBlobIntegrity(format!(
+                    "blob {:?} has {} bytes but the signed manifest declares {expected_size}",
+                    blob.integrity,
+                    bytes.len(),
+                )));
+            }
+            verify_blob(&blob.integrity, &bytes)?;
+            uploaded_size = uploaded_size.checked_add(bytes.len() as u64).ok_or_else(|| {
+                ArtifactProtocolError::InvalidBlobIntegrity(
+                    "uploaded blob size overflow".to_string(),
+                )
+            })?;
+            if uploaded_size > MAX_ARTIFACT_SIZE {
+                return Err(ArtifactProtocolError::InvalidBlobIntegrity(format!(
+                    "uploaded blobs exceed the {MAX_ARTIFACT_SIZE}-byte artifact limit",
+                )));
+            }
+            blobs.insert(blob.integrity.clone(), bytes);
+        }
+        Ok(ValidatedArtifactPublication { payload, blobs })
+    }
+}
+
 impl ArtifactPayload {
     pub fn validate(&self) -> Result<(), ArtifactProtocolError> {
         if self.kind != ARTIFACT_KIND {
@@ -284,6 +363,7 @@ impl ArtifactManifest {
         }
         let mut exact_paths = HashSet::with_capacity(file_count);
         let mut folded_paths = HashSet::with_capacity(file_count);
+        let mut integrity_sizes = BTreeMap::new();
         let mut total_size = 0_u64;
         for file in &self.added {
             validate_manifest_path(&file.path)?;
@@ -309,6 +389,14 @@ impl ArtifactManifest {
                 )));
             }
             blob_id(&file.integrity)?;
+            if let Some(previous_size) = integrity_sizes.insert(&file.integrity, file.size)
+                && previous_size != file.size
+            {
+                return Err(ArtifactProtocolError::InvalidManifest(format!(
+                    "blob integrity {:?} is declared with inconsistent sizes",
+                    file.integrity,
+                )));
+            }
         }
         for path in &self.deleted {
             validate_manifest_path(path)?;
@@ -339,6 +427,7 @@ pub fn validate_manifest_path(path: &str) -> Result<(), ArtifactProtocolError> {
             || segment == "."
             || segment == ".."
             || segment.contains(':')
+            || is_windows_reserved_name(segment)
             || segment.ends_with('.')
             || segment.ends_with(' ')
     }) {
@@ -348,6 +437,16 @@ pub fn validate_manifest_path(path: &str) -> Result<(), ArtifactProtocolError> {
         ));
     }
     Ok(())
+}
+
+fn is_windows_reserved_name(segment: &str) -> bool {
+    let basename = segment.split('.').next().unwrap_or(segment).to_ascii_lowercase();
+    matches!(basename.as_str(), "con" | "prn" | "aux" | "nul")
+        || ["com", "lpt"].iter().any(|prefix| {
+            basename.strip_prefix(prefix).is_some_and(|suffix| {
+                matches!(suffix, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
+            })
+        })
 }
 
 pub fn blob_id(integrity: &str) -> Result<String, ArtifactProtocolError> {

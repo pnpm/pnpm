@@ -4,12 +4,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use pnpm_shared_artifact_protocol::{
     ArtifactBlobRequest, ArtifactCandidate, ArtifactPayload, ArtifactProtocolError,
-    ArtifactVariant, MAX_CANDIDATES, MAX_VARIANTS_PER_CANDIDATE, OwnerScope,
-    PublishArtifactRequest, ResolveArtifactsRequest, ResolveArtifactsResponse, ResolvedArtifact,
-    SignedArtifactEnvelope, blob_id, verify_blob,
+    ArtifactVariant, MAX_CANDIDATES, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
+    OwnerScope, PublishArtifactRequest, ResolveArtifactsRequest, ResolveArtifactsResponse,
+    ResolvedArtifact, SignedArtifactEnvelope, blob_id, verify_blob,
 };
 use sha2::{Digest as _, Sha256};
 use tokio::fs;
@@ -31,11 +30,10 @@ pub(crate) async fn publish(
     username: &str,
     request: PublishArtifactRequest,
 ) -> Result<bool> {
-    let (payload, _) = request.envelope.decode_payload().map_err(|err| protocol_error(&err))?;
+    let validated = request.validate().map_err(|err| protocol_error(&err))?;
+    let payload = validated.payload;
+    let mut uploads = validated.blobs;
     let owner_dir = owner_dir(cache_storage, username, &payload.owner)?;
-    if payload.input_key != request.key {
-        return Err(bad_request("signed input key does not match the request key".to_string()));
-    }
     let key_dir = owner_dir.join("entries").join(digest_segment(request.key.as_bytes()));
     let envelope_digest = request.envelope.digest().map_err(|err| protocol_error(&err))?;
     let variant_path = key_dir.join(format!("{envelope_digest}.json"));
@@ -46,47 +44,39 @@ pub(crate) async fn publish(
         )));
     }
 
-    let mut uploads = BTreeMap::new();
-    for blob in request.blobs {
-        if uploads.insert(blob.integrity.clone(), blob.data).is_some() {
-            return Err(bad_request(format!("duplicate blob upload for {:?}", blob.integrity)));
-        }
-    }
-    let required: HashSet<&str> =
-        payload.manifest.added.iter().map(|file| file.integrity.as_str()).collect();
-    if uploads.keys().any(|integrity| !required.contains(integrity.as_str())) {
-        return Err(bad_request(
-            "request includes a blob that is not referenced by the signed manifest".to_string(),
-        ));
-    }
+    let required: BTreeMap<&str, u64> =
+        payload.manifest.added.iter().map(|file| (file.integrity.as_str(), file.size)).collect();
 
     let blobs_dir = owner_dir.join("blobs");
-    for file in &payload.manifest.added {
-        let id = blob_id(&file.integrity).map_err(|err| protocol_error(&err))?;
+    for (integrity, size) in required {
+        let id = blob_id(integrity).map_err(|err| protocol_error(&err))?;
         let path = blobs_dir.join(&id);
-        let bytes = match uploads.remove(&file.integrity) {
-            Some(encoded) => BASE64
-                .decode(encoded)
-                .map_err(|_| bad_request(format!("blob {id} is not valid base64")))?,
-            None => match fs::read(&path).await {
-                Ok(bytes) => bytes,
-                Err(err) if err.kind() == ErrorKind::NotFound => {
-                    return Err(bad_request(format!(
-                        "signed manifest references blob {id} without uploading it",
-                    )));
-                }
-                Err(err) => return Err(err.into()),
-            },
+        let (bytes, uploaded) = match uploads.remove(integrity) {
+            Some(bytes) => (bytes, true),
+            None => (
+                match fs::read(&path).await {
+                    Ok(bytes) => bytes,
+                    Err(err) if err.kind() == ErrorKind::NotFound => {
+                        return Err(bad_request(format!(
+                            "signed manifest references blob {id} without uploading it",
+                        )));
+                    }
+                    Err(err) => return Err(err.into()),
+                },
+                false,
+            ),
         };
-        if bytes.len() as u64 != file.size {
+        if bytes.len() as u64 != size {
             return Err(bad_request(format!(
                 "blob {id} has {} bytes but the signed manifest declares {}",
                 bytes.len(),
-                file.size,
+                size,
             )));
         }
-        verify_blob(&file.integrity, &bytes).map_err(|err| protocol_error(&err))?;
-        write_atomic(&path, &bytes).await?;
+        verify_blob(integrity, &bytes).map_err(|err| protocol_error(&err))?;
+        if uploaded && !fs::try_exists(&path).await? {
+            write_atomic(&path, &bytes).await?;
+        }
     }
 
     if !already_present {
@@ -111,14 +101,22 @@ pub(crate) async fn resolve(
     }
     let mut seen = HashSet::with_capacity(request.candidates.len());
     let mut artifacts = Vec::new();
+    let mut budget = ResolveBudget {
+        scanned_bytes: 0,
+        response_bytes: serde_json::to_vec(&ResolveArtifactsResponse { artifacts: Vec::new() })?
+            .len(),
+    };
     for candidate in request.candidates {
         candidate.validate().map_err(|err| protocol_error(&err))?;
         if !seen.insert(candidate.key.clone()) {
             return Err(bad_request("lookup contains a duplicate candidate".to_string()));
         }
-        let Some(resolved) = resolve_candidate(cache_storage, username, &candidate).await? else {
+        let Some(resolved) =
+            resolve_candidate(cache_storage, username, &candidate, &mut budget).await?
+        else {
             continue;
         };
+        budget.add_response(&resolved, !artifacts.is_empty())?;
         artifacts.push(resolved);
     }
     Ok(ResolveArtifactsResponse { artifacts })
@@ -154,6 +152,7 @@ async fn resolve_candidate(
     cache_storage: &Path,
     username: &str,
     candidate: &ArtifactCandidate,
+    budget: &mut ResolveBudget,
 ) -> Result<Option<ResolvedArtifact>> {
     let owner_dir = match owner_dir(cache_storage, username, &candidate.owner) {
         Ok(path) => path,
@@ -175,19 +174,53 @@ async fn resolve_candidate(
     paths.sort();
     let mut variants = Vec::new();
     for path in paths.into_iter().take(MAX_VARIANTS_PER_CANDIDATE) {
+        budget.add_scan(fs::metadata(&path).await?.len())?;
         let bytes = fs::read(&path).await?;
-        let envelope: SignedArtifactEnvelope =
-            serde_json::from_slice(&bytes).map_err(|err| RegistryError::Internal {
-                reason: format!("stored shared artifact envelope {path:?} is invalid: {err}"),
-            })?;
-        let (payload, _) = envelope.decode_payload().map_err(|err| RegistryError::Internal {
-            reason: format!("stored shared artifact envelope {path:?} is invalid: {err}"),
-        })?;
+        let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
+            continue;
+        };
+        let Ok((payload, _)) = envelope.decode_payload() else {
+            continue;
+        };
         if artifact_matches_candidate(&payload, candidate) {
             variants.push(ArtifactVariant { envelope });
         }
     }
     Ok((!variants.is_empty()).then(|| ResolvedArtifact { key: candidate.key.clone(), variants }))
+}
+
+struct ResolveBudget {
+    scanned_bytes: usize,
+    response_bytes: usize,
+}
+
+impl ResolveBudget {
+    fn add_scan(&mut self, bytes: u64) -> Result<()> {
+        self.scanned_bytes = self
+            .scanned_bytes
+            .checked_add(usize::try_from(bytes).unwrap_or(usize::MAX))
+            .ok_or_else(resolve_limit_error)?;
+        if self.scanned_bytes > MAX_RESOLVE_RESPONSE_SIZE {
+            return Err(resolve_limit_error());
+        }
+        Ok(())
+    }
+
+    fn add_response(&mut self, artifact: &ResolvedArtifact, needs_comma: bool) -> Result<()> {
+        let serialized_size = serde_json::to_vec(artifact)?.len() + usize::from(needs_comma);
+        self.response_bytes =
+            self.response_bytes.checked_add(serialized_size).ok_or_else(resolve_limit_error)?;
+        if self.response_bytes > MAX_RESOLVE_RESPONSE_SIZE {
+            return Err(resolve_limit_error());
+        }
+        Ok(())
+    }
+}
+
+fn resolve_limit_error() -> RegistryError {
+    bad_request(format!(
+        "shared artifact lookup exceeds the {MAX_RESOLVE_RESPONSE_SIZE}-byte response budget",
+    ))
 }
 
 fn owner_dir(cache_storage: &Path, username: &str, owner: &OwnerScope) -> Result<PathBuf> {
@@ -242,3 +275,6 @@ fn protocol_error(error: &ArtifactProtocolError) -> RegistryError {
 fn bad_request(reason: String) -> RegistryError {
     RegistryError::BadRequest { reason }
 }
+
+#[cfg(test)]
+mod tests;

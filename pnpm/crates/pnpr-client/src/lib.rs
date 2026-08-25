@@ -37,8 +37,8 @@ pub use pnpm_shared_artifact_protocol::{
     SignedArtifactEnvelope,
 };
 use pnpm_shared_artifact_protocol::{
-    MAX_CANDIDATES, MAX_FILE_SIZE, MAX_VARIANTS_PER_CANDIDATE, ResolveArtifactsResponse,
-    compatibility_rank, verify_blob,
+    MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
+    ResolveArtifactsResponse, compatibility_rank, verify_blob,
 };
 
 /// The `registries` a request declares, keyed by registry URL.
@@ -429,6 +429,7 @@ impl PnprClient {
         request: &PublishArtifactRequest,
         authorization: Option<&str>,
     ) -> Result<(), PnprClientError> {
+        request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
         let mut put = self.http.put(format!("{}-/pnpr/v0/artifacts", self.base_url)).json(request);
         if let Some(authorization) = authorization {
             put = put.header("authorization", authorization);
@@ -482,7 +483,7 @@ impl PnprClient {
                 String::from_utf8_lossy(&body),
             )));
         }
-        let body = response_body_bounded(response, 16 * 1024 * 1024).await?;
+        let body = response_body_bounded(response, MAX_RESOLVE_RESPONSE_SIZE).await?;
         let response: ResolveArtifactsResponse = serde_json::from_slice(&body)
             .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
         if response.artifacts.len() > candidates.len() {

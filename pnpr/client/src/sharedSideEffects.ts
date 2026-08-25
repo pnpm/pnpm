@@ -14,6 +14,8 @@ const MAX_FILE_SIZE = 64 * 1024 * 1024
 const MAX_ARTIFACT_SIZE = 64 * 1024 * 1024
 const MAX_SIGNED_PAYLOAD_SIZE = 2 * 1024 * 1024
 const MAX_LOOKUP_RESPONSE_SIZE = 16 * 1024 * 1024
+const MAX_PUBLISH_REQUEST_SIZE = 100 * 1024 * 1024
+const MAX_BASE64_BLOB_LENGTH = Math.ceil(MAX_FILE_SIZE / 3) * 4
 const REQUEST_TIMEOUT = 600_000
 
 export type OwnerScope =
@@ -139,25 +141,6 @@ export function createSignedArtifactEnvelope (
   }
 }
 
-export function verifySignedArtifactEnvelope (
-  envelope: SignedArtifactEnvelope,
-  publicKeySpki: string
-): ArtifactPayload {
-  const { payload, payloadBytes, signatureBytes } = decodeEnvelope(envelope)
-  const publicKey = createPublicKey({
-    key: Buffer.from(publicKeySpki, 'base64'),
-    format: 'der',
-    type: 'spki',
-  })
-  if (publicKey.asymmetricKeyType !== 'ec' || publicKey.asymmetricKeyDetails?.namedCurve !== 'prime256v1') {
-    throw new Error('Shared artifact verification key must be a P-256 EC public key')
-  }
-  if (!cryptoVerify('sha256', payloadBytes, publicKey, signatureBytes)) {
-    throw new Error('Shared artifact signature verification failed')
-  }
-  return payload
-}
-
 export async function publishSharedSideEffects (
   opts: PublishSharedSideEffectsOptions
 ): Promise<void> {
@@ -166,11 +149,7 @@ export async function publishSharedSideEffects (
     path: '-/pnpr/v0/artifacts',
     method: 'PUT',
     authorization: opts.authorization,
-    body: Buffer.from(JSON.stringify({
-      key: opts.key,
-      envelope: opts.envelope,
-      blobs: opts.blobs,
-    })),
+    body: serializePublishRequest(opts),
     maxResponseSize: 64 * 1024,
   })
   assertSuccess(response, '/-/pnpr/v0/artifacts')
@@ -250,6 +229,25 @@ export async function resolveSharedSideEffects (
   return selected
 }
 
+export function verifySignedArtifactEnvelope (
+  envelope: SignedArtifactEnvelope,
+  publicKeySpki: string
+): ArtifactPayload {
+  const { payload, payloadBytes, signatureBytes } = decodeEnvelope(envelope)
+  const publicKey = createPublicKey({
+    key: Buffer.from(publicKeySpki, 'base64'),
+    format: 'der',
+    type: 'spki',
+  })
+  if (publicKey.asymmetricKeyType !== 'ec' || publicKey.asymmetricKeyDetails?.namedCurve !== 'prime256v1') {
+    throw new Error('Shared artifact verification key must be a P-256 EC public key')
+  }
+  if (!cryptoVerify('sha256', payloadBytes, publicKey, signatureBytes)) {
+    throw new Error('Shared artifact signature verification failed')
+  }
+  return payload
+}
+
 export async function downloadSharedArtifactBlob (
   opts: {
     registryUrl: string
@@ -270,6 +268,60 @@ export async function downloadSharedArtifactBlob (
   assertSuccess(response, '/-/pnpr/v0/artifacts/blob')
   verifyBlob(opts.request.integrity, response.body)
   return response.body
+}
+
+function serializePublishRequest (opts: PublishSharedSideEffectsOptions): Buffer {
+  if (typeof opts.key !== 'string' || !opts.key.startsWith(INPUT_KEY_PREFIX)) {
+    throw new Error(`Shared artifact input key must start with ${JSON.stringify(INPUT_KEY_PREFIX)}`)
+  }
+  validateScalar('input key', opts.key, 4_096)
+  const { payload } = decodeEnvelope(opts.envelope)
+  if (payload.inputKey !== opts.key) {
+    throw new Error('Signed shared artifact input key does not match the publication key')
+  }
+  if (!Array.isArray(opts.blobs)) throw new Error('Shared artifact blob uploads are malformed')
+
+  const required = new Map(payload.manifest.added.map(file => [file.integrity, file.size]))
+  const uploads = new Set<string>()
+  let uploadedSize = 0
+  let encodedSize = Buffer.byteLength(opts.key) +
+    Buffer.byteLength(opts.envelope.keyId) +
+    Buffer.byteLength(opts.envelope.payload) +
+    Buffer.byteLength(opts.envelope.signature)
+  for (const blob of opts.blobs) {
+    if (blob == null || typeof blob !== 'object') throw new Error('Shared artifact blob upload is malformed')
+    blobId(blob.integrity)
+    if (uploads.has(blob.integrity)) {
+      throw new Error(`Duplicate shared artifact blob upload ${JSON.stringify(blob.integrity)}`)
+    }
+    uploads.add(blob.integrity)
+    const expectedSize = required.get(blob.integrity)
+    if (expectedSize == null) {
+      throw new Error(`Shared artifact blob upload ${JSON.stringify(blob.integrity)} is not referenced by the signed manifest`)
+    }
+    if (typeof blob.data !== 'string' || blob.data.length > MAX_BASE64_BLOB_LENGTH) {
+      throw new Error(`Shared artifact blob ${JSON.stringify(blob.integrity)} exceeds the encoded size limit`)
+    }
+    const bytes = decodeBase64('blob data', blob.data, true)
+    if (bytes.byteLength !== expectedSize) {
+      throw new Error(`Shared artifact blob has ${bytes.byteLength} bytes but the signed manifest declares ${expectedSize}`)
+    }
+    verifyBlob(blob.integrity, bytes)
+    uploadedSize += bytes.byteLength
+    encodedSize += Buffer.byteLength(blob.integrity) + Buffer.byteLength(blob.data)
+  }
+  if (uploadedSize > MAX_ARTIFACT_SIZE || encodedSize > MAX_PUBLISH_REQUEST_SIZE) {
+    throw new Error('Shared artifact publication exceeds the request size limit')
+  }
+  const body = Buffer.from(JSON.stringify({
+    key: opts.key,
+    envelope: opts.envelope,
+    blobs: opts.blobs,
+  }))
+  if (body.byteLength > MAX_PUBLISH_REQUEST_SIZE) {
+    throw new Error('Shared artifact publication exceeds the request size limit')
+  }
+  return body
 }
 
 function decodeEnvelope (envelope: SignedArtifactEnvelope): {
@@ -377,6 +429,7 @@ function validateManifest (manifest: ArtifactManifest): void {
   }
   const exactPaths = new Set<string>()
   const foldedPaths = new Set<string>()
+  const integritySizes = new Map<string, number>()
   let totalSize = 0
   for (const file of manifest.added) {
     if (file == null || typeof file !== 'object') throw new Error('Shared artifact file entry is malformed')
@@ -391,6 +444,11 @@ function validateManifest (manifest: ArtifactManifest): void {
     totalSize += file.size
     if (totalSize > MAX_ARTIFACT_SIZE) throw new Error(`Shared artifact exceeds ${MAX_ARTIFACT_SIZE} bytes`)
     blobId(file.integrity)
+    const previousSize = integritySizes.get(file.integrity)
+    if (previousSize != null && previousSize !== file.size) {
+      throw new Error(`Shared artifact blob integrity ${JSON.stringify(file.integrity)} is declared with inconsistent sizes`)
+    }
+    integritySizes.set(file.integrity, file.size)
   }
   for (const path of manifest.deleted) {
     validateManifestPath(path)
@@ -414,11 +472,21 @@ function validateManifestPath (path: string): void {
     segment === '.' ||
     segment === '..' ||
     segment.includes(':') ||
+    isWindowsReservedName(segment) ||
     segment.endsWith('.') ||
     segment.endsWith(' ')
   )) {
     throw new Error(`Shared artifact path ${JSON.stringify(path)} has an empty, dot, parent, or Windows-normalized segment`)
   }
+}
+
+function isWindowsReservedName (segment: string): boolean {
+  const basename = segment.split('.')[0].toLowerCase()
+  if (['con', 'prn', 'aux', 'nul'].includes(basename)) return true
+  return ['com', 'lpt'].some(prefix => {
+    const suffix = basename.startsWith(prefix) ? basename.slice(prefix.length) : ''
+    return suffix.length === 1 && suffix >= '1' && suffix <= '9'
+  })
 }
 
 function insertUniquePath (path: string, exact: Set<string>, folded: Set<string>): void {
@@ -477,8 +545,8 @@ function isControl (character: string): boolean {
   return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f)
 }
 
-function decodeBase64 (label: string, encoded: string): Buffer {
-  if (typeof encoded !== 'string' || encoded.length === 0 || /\s/.test(encoded)) {
+function decodeBase64 (label: string, encoded: string, allowEmpty = false): Buffer {
+  if (typeof encoded !== 'string' || (!allowEmpty && encoded.length === 0) || /\s/.test(encoded)) {
     throw new Error(`Shared artifact ${label} is not valid base64`)
   }
   const decoded = Buffer.from(encoded, 'base64')
@@ -490,7 +558,9 @@ function decodeBase64 (label: string, encoded: string): Buffer {
 
 function parseResolveResponse (body: Buffer): ResolveArtifactsResponse {
   const parsed = JSON.parse(body.toString('utf8')) as Partial<ResolveArtifactsResponse>
-  if (!Array.isArray(parsed.artifacts)) throw new Error('Shared artifact response has no artifacts array')
+  if (parsed == null || typeof parsed !== 'object' || !Array.isArray(parsed.artifacts)) {
+    throw new Error('Shared artifact response has no artifacts array')
+  }
   for (const artifact of parsed.artifacts) {
     if (artifact == null || typeof artifact.key !== 'string' || !Array.isArray(artifact.variants)) {
       throw new Error('Shared artifact response contains a malformed entry')
@@ -563,6 +633,7 @@ async function request (opts: RequestOptions): Promise<BufferedResponse> {
 
 function assertSuccess (response: BufferedResponse, endpoint: string): void {
   if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw new Error(`pnpr server ${endpoint} responded with ${response.statusCode}: ${response.body.toString('utf8')}`)
+    const body = response.body.toString('utf8').slice(0, 1_024)
+    throw new Error(`pnpr server ${endpoint} responded with ${response.statusCode}: ${body}`)
   }
 }

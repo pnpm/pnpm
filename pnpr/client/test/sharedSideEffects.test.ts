@@ -88,6 +88,10 @@ describe('signed shared artifacts', () => {
     'dir/trailing-dot.',
     'dir/trailing-space ',
     'dir/addon.node:payload',
+    'CON',
+    'dir/NUL.txt',
+    'dir/com1.js',
+    'dir/LpT9',
     'nul\0byte',
   ])('rejects unsafe manifest path %p before signing', (path) => {
     const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
@@ -97,6 +101,51 @@ describe('signed shared artifacts', () => {
       keyId: 'acme-2026',
       privateKey: privateKey.export({ format: 'pem', type: 'pkcs8' }),
     })).toThrow()
+  })
+
+  test('rejects inconsistent sizes for one content-addressed blob', () => {
+    const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+    const invalid = payload()
+    invalid.manifest.added.push({
+      path: 'build/addon-copy.node',
+      integrity,
+      mode: 0o755,
+      size: contents.byteLength + 1,
+    })
+    expect(() => createSignedArtifactEnvelope(invalid, {
+      keyId: 'acme-2026',
+      privateKey: privateKey.export({ format: 'pem', type: 'pkcs8' }),
+    })).toThrow('inconsistent sizes')
+  })
+
+  test('validates publication inputs before opening a connection', async () => {
+    const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+    const envelope = createSignedArtifactEnvelope(payload(), {
+      keyId: 'acme-2026',
+      privateKey: privateKey.export({ format: 'pem', type: 'pkcs8' }),
+    })
+    const base = {
+      registryUrl: 'file:///must-not-be-opened',
+      key: payload().inputKey,
+      envelope,
+    }
+    await expect(publishSharedSideEffects({
+      ...base,
+      key: `${payload().inputKey}-other`,
+      blobs: [],
+    })).rejects.toThrow('does not match')
+    await expect(publishSharedSideEffects({
+      ...base,
+      blobs: [
+        { integrity, data: contents.toString('base64') },
+        { integrity, data: contents.toString('base64') },
+      ],
+    })).rejects.toThrow('Duplicate')
+    const unrelated = createHash('sha512').update('unrelated').digest('base64')
+    await expect(publishSharedSideEffects({
+      ...base,
+      blobs: [{ integrity: `sha512-${unrelated}`, data: Buffer.from('unrelated').toString('base64') }],
+    })).rejects.toThrow('not referenced')
   })
 
   test('publishes, selects, and downloads through the v0 HTTP protocol', async () => {
