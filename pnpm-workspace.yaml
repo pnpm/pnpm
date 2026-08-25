@@ -391,8 +391,6 @@ catalogMode: strict
 
 catalogPrune: true
 
-enableGlobalVirtualStore: true
-
 enablePrePostScripts: false
 
 engineStrict: false
@@ -568,3 +566,5 @@ update:
     - undici
     - validate-npm-package-name
     - write-file-atomic
+
+virtualStoreType: global
