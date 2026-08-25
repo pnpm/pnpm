@@ -422,6 +422,45 @@ test('cleanupUnusedIgnoredGhsas cleans up all when none are relevant', async () 
   expect(manifest.auditConfig?.ignoreGhsas).toBeUndefined()
 })
 
+test('cleanupUnusedIgnoredGhsas edits an inline (flow-style) auditConfig in place', async () => {
+  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  fs.writeFileSync(
+    path.join(tmp, 'pnpm-workspace.yaml'),
+    'packages:\n  - \'.\'\nsharedWorkspaceLockfile: false\nauditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [GHSA-42xw-2xvc-qx8m, GHSA-xxxx-xxxx-xxxx] }\n'
+  )
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    auditConfig: {
+      ignoreGhsas: [
+        'GHSA-42xw-2xvc-qx8m',
+        'GHSA-xxxx-xxxx-xxxx',
+      ],
+      cleanupUnusedIgnoredGhsas: true,
+    },
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  // The retained GHSA is edited in place inside the flow-style block, rather
+  // than the whole auditConfig being reformatted into block style.
+  const rawContent = fs.readFileSync(path.join(tmp, 'pnpm-workspace.yaml'), 'utf8')
+  expect(rawContent).toContain(
+    'auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [ GHSA-42xw-2xvc-qx8m ] }'
+  )
+
+  const manifest = readYamlFileSync<{ auditConfig?: { ignoreGhsas?: string[] } }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.auditConfig?.ignoreGhsas).toEqual(['GHSA-42xw-2xvc-qx8m'])
+})
+
 function advisory (moduleName: string, vulnerableVersions: string, patchedVersions?: string): AuditAdvisory {
   return {
     findings: [],

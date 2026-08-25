@@ -1120,7 +1120,7 @@ fn audit_fix_cleanup_removes_all_when_none_are_relevant() {
 }
 
 #[test]
-fn audit_fix_cleanup_reports_the_write_error_for_an_inline_audit_config() {
+fn audit_fix_cleanup_edits_an_inline_audit_config_in_place() {
     let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let mock = audit_mock(
@@ -1128,23 +1128,18 @@ fn audit_fix_cleanup_reports_the_write_error_for_an_inline_audit_config() {
         &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
     )
     .create();
-    // A flow-style auditConfig can't be edited entry by entry; the writer
-    // refuses rather than risk corrupting it.
-    let flow_style_config = "auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [GHSA-test-1111-2222, GHSA-test-9999-9999] }\n";
-    write_audit_workspace(&workspace, &registry.url(), flow_style_config);
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [GHSA-test-1111-2222, GHSA-test-9999-9999] }\n",
+    );
 
     let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
 
-    assert_failure(&output);
-    assert!(
-        stderr(&output).contains("inline (flow) YAML value"),
-        "stderr should report the write failure:\n{}",
-        stderr(&output),
-    );
-    // The failed write must not have touched the manifest.
+    assert_success(&output);
     let actual_manifest =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
-    let expected_manifest = format!("fetchRetries: 0\n{flow_style_config}");
+    let expected_manifest = "fetchRetries: 0\nauditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [ GHSA-test-1111-2222 ] }\n";
     eprintln!("actual manifest:\n{actual_manifest}\nexpected manifest:\n{expected_manifest}");
     assert_eq!(actual_manifest, expected_manifest);
     mock.assert();
