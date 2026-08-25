@@ -33,15 +33,6 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
   // included node and id order chunks the way includedNodes orders them.
   const indexOf = new Map<T, number>()
   const nodes: T[] = []
-  function intern (node: T): number {
-    let id = indexOf.get(node)
-    if (id === undefined) {
-      id = nodes.length
-      indexOf.set(node, id)
-      nodes.push(node)
-    }
-    return id
-  }
   for (const node of includedNodes) {
     intern(node)
   }
@@ -152,6 +143,16 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
     safe,
     chunks: chunks.map((chunk) => chunk.map((id) => nodes[id])),
     cycles: cycles.map((cycle) => cycle.map((id) => nodes[id])),
+  }
+
+  function intern (node: T): number {
+    let id = indexOf.get(node)
+    if (id === undefined) {
+      id = nodes.length
+      indexOf.set(node, id)
+      nodes.push(node)
+    }
+    return id
   }
 
   // The longest of the shortest cycles running from startId back to itself
