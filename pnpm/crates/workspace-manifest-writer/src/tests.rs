@@ -1305,13 +1305,12 @@ fn delete_last_field_keeps_the_blank_of_a_scalar_under_a_quoted_key() {
 
 #[test]
 fn delete_last_field_keeps_the_blank_of_a_scalar_under_an_apostrophe_key() {
-    let out = run_update_field(
-        Some("it's: |+\n  foo\n\nvirtualStoreDir: .pnpm\n"),
-        "virtualStoreDir",
-        &serde_json::Value::Null,
-    )
-    .expect("file kept");
-    assert_eq!(out, "it's: |+\n  foo\n\n");
+    for key in ["it's", "'it''s: title'"] {
+        let original = format!("{key}: |+\n  foo\n\nvirtualStoreDir: .pnpm\n");
+        let out = run_update_field(Some(&original), "virtualStoreDir", &serde_json::Value::Null)
+            .expect("file kept");
+        assert_eq!(out, format!("{key}: |+\n  foo\n\n"), "key {key}");
+    }
 }
 
 #[test]

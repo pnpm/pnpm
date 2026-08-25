@@ -1195,6 +1195,9 @@ fn line_value(line: &str) -> Option<&str> {
         } else if let Some(open) = quote {
             match char {
                 '\\' if open == '"' => escaped = true,
+                // A doubled quote inside a single-quoted scalar is one
+                // escaped quote, not the end of the scalar.
+                '\'' if open == '\'' && line[index + 1..].starts_with('\'') => escaped = true,
                 _ if char == open => quote = None,
                 _ => {}
             }
