@@ -4,7 +4,7 @@ import { createServer } from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 
-import { describe, expect, test } from '@jest/globals'
+import { afterEach, describe, expect, test } from '@jest/globals'
 import type { DepsGraph } from '@pnpm/deps.graph-hasher'
 import type { LockfileResolution } from '@pnpm/lockfile.types'
 import {
@@ -27,6 +27,12 @@ const depPath = graphKey as DepPath
 const sourceIntegrity = `sha512-${createHash('sha512').update('source').digest('base64')}`
 const builtFile = Buffer.from('compiled native addon')
 const builtFileIntegrity = `sha512-${createHash('sha512').update(builtFile).digest('base64')}`
+const originalTrustedKeys = process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS
+
+afterEach(() => {
+  if (originalTrustedKeys == null) delete process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS
+  else process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS = originalTrustedKeys
+})
 
 describe('install shared side-effects', () => {
   test('hydrates the store and selects a verified remote build', async () => {
@@ -34,6 +40,9 @@ describe('install shared side-effects', () => {
     if (platform == null) return
 
     const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+    process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS = JSON.stringify({
+      'acme-2026': publicKey.export({ format: 'der', type: 'spki' }).toString('base64'),
+    })
     const requestedPaths: string[] = []
     const server = createServer((request, response) => {
       const chunks: Buffer[] = []
@@ -146,9 +155,6 @@ describe('install shared side-effects', () => {
         settings: {
           organization: 'acme',
           packages: [packageName],
-          trustedKeys: {
-            'acme-2026': publicKey.export({ format: 'der', type: 'spki' }).toString('base64'),
-          },
         },
         sideEffectsCacheRead: false,
         storeController,
@@ -175,6 +181,7 @@ describe('install shared side-effects', () => {
   })
 
   test('does not contact pnpr when build policy denies the package', async () => {
+    process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS = JSON.stringify({ unused: 'AA==' })
     const files: PackageFilesResponse = {
       filesMap: new Map(),
       requiresBuild: true,
@@ -200,7 +207,6 @@ describe('install shared side-effects', () => {
       settings: {
         organization: 'acme',
         packages: [packageName],
-        trustedKeys: {},
       },
       sideEffectsCacheRead: false,
       storeController: { addFileToStore: () => {
@@ -257,7 +263,6 @@ describe('install shared side-effects', () => {
         settings: {
           organization: 'acme',
           packages: [packageName],
-          trustedKeys: {},
         },
         upload: {
           filesMap: new Map([['build/addon.node', builtFilePath]]),

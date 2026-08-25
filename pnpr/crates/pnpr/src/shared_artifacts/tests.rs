@@ -11,8 +11,8 @@ use tempfile::TempDir;
 use tokio::{fs, sync::Barrier};
 
 use super::{
-    ResolveBudget, acquire_publication_lock, enforce_storage_quota_with_limits, is_variant_file,
-    publish,
+    ResolveBudget, acquire_publication_lock, artifact_usage_path, is_variant_file,
+    pending_usage_file, publish, reserve_storage_quota_with_limits,
 };
 
 #[test]
@@ -63,9 +63,24 @@ async fn publication_storage_is_bounded_per_owner_and_globally() {
     fs::write(other_owner.join("entry"), b"123").await.unwrap();
     fs::write(root.join(".locks/lock-state"), vec![0; 100]).await.unwrap();
 
-    enforce_storage_quota_with_limits(&root, &owner, 4, 10, 13).await.unwrap();
-    assert!(enforce_storage_quota_with_limits(&root, &owner, 5, 10, 20).await.is_err());
-    assert!(enforce_storage_quota_with_limits(&root, &owner, 4, 20, 12).await.is_err());
+    let pending = pending_usage_file(&root, &owner.join("new-entry"), 4).unwrap();
+    let usage =
+        reserve_storage_quota_with_limits(&root, &owner, vec![pending], 10, 13).await.unwrap();
+    assert_eq!(usage.global_bytes, 13);
+    assert_eq!(usage.owner_bytes.values().copied().sum::<u64>(), 13);
+
+    let too_large_for_owner = pending_usage_file(&root, &owner.join("owner-overflow"), 5).unwrap();
+    assert!(
+        reserve_storage_quota_with_limits(&root, &owner, vec![too_large_for_owner], 10, 20)
+            .await
+            .is_err(),
+    );
+    let too_large_globally = pending_usage_file(&root, &owner.join("global-overflow"), 4).unwrap();
+    assert!(
+        reserve_storage_quota_with_limits(&root, &owner, vec![too_large_globally], 20, 12)
+            .await
+            .is_err(),
+    );
 }
 
 #[tokio::test]
@@ -79,6 +94,19 @@ async fn an_unlocked_publication_lock_file_is_reused() {
     drop(lock);
 
     acquire_publication_lock(path).await.unwrap();
+}
+
+#[tokio::test]
+async fn duplicate_publication_does_not_rewrite_usage() {
+    let storage = TempDir::new().unwrap();
+    let request = publication("ci/duplicate");
+
+    assert!(publish(storage.path(), "acme", request.clone()).await.unwrap());
+    let usage_path = artifact_usage_path(&storage.path().join("shared-artifacts/v0"));
+    let before = fs::read(&usage_path).await.unwrap();
+
+    assert!(!publish(storage.path(), "acme", request).await.unwrap());
+    assert_eq!(fs::read(usage_path).await.unwrap(), before);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 16)]

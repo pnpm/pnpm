@@ -142,11 +142,10 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 }
 
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct SharedSideEffectsCacheSettings {
     pub organization: String,
     pub packages: Vec<String>,
-    pub trusted_keys: BTreeMap<String, String>,
 }
 
 /// Settings readable from `pnpm-workspace.yaml`.

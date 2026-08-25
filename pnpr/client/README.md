@@ -61,12 +61,14 @@ sharedSideEffectsCache:
   organization: acme
   packages:
     - native-addon
-  trustedKeys:
-    acme-2026: <base64 P-256 public key in DER encoding>
 ```
 
 `packages` is an independent eligibility allowlist. A package must also have
 `requiresBuild: true`, pass `allowBuilds`, and have a verified source integrity.
+Signing keys are deliberately not accepted from `pnpm-workspace.yaml`, because
+the repository being installed is not a trust root. Set the user-controlled
+`PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS` environment variable to a JSON
+object mapping key IDs to base64 P-256 public keys in DER encoding.
 `--ignore-scripts` disables remote reuse. An unavailable server, invalid
 signature, incompatible platform, or bad blob falls back to the ordinary local
 build. The PoC supports Linux glibc on x64 and arm64.
@@ -119,14 +121,20 @@ node pnpm11/pnpm/dist/pnpm.mjs login --registry=http://127.0.0.1:7677
 
 Use the login name as `sharedSideEffectsCache.organization`. The login writes
 the bearer token that pnpm reuses for artifact publication, lookup, and blob
-downloads. Generate a P-256 key pair with Node.js and copy the printed public
-key into `trustedKeys`:
+downloads. Generate a P-256 key pair with Node.js:
 
 <!-- cspell:disable -->
 ```sh
 node -e "const {generateKeyPairSync}=require('node:crypto');const {privateKey,publicKey}=generateKeyPairSync('ec',{namedCurve:'prime256v1'});console.log('private='+privateKey.export({format:'der',type:'pkcs8'}).toString('base64'));console.log('public='+publicKey.export({format:'der',type:'spki'}).toString('base64'))"
 ```
 <!-- cspell:enable -->
+
+Keep the printed private key in the trusted builder environment. Put the public
+key in the user environment that runs installs:
+
+```sh
+export PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS='{"acme-2026":"<printed public key>"}'
+```
 
 Run the first install with the publication variables set. Then unset
 `PNPM_SHARED_SIDE_EFFECTS_CACHE_PUBLISH`, remove the project's `node_modules`,

@@ -302,14 +302,10 @@ export interface PnpmSettings {
   enableGlobalVirtualStore?: boolean
 }
 
-/**
- * Organization-owned dependency build artifacts accepted by this workspace.
- * The public keys are base64-encoded P-256 SubjectPublicKeyInfo DER values.
- */
+/** Organization-owned dependency build artifacts eligible for this workspace. */
 export interface SharedSideEffectsCacheSettings {
   organization: string
   packages: string[]
-  trustedKeys: Record<string, string>
 }
 
 export type VirtualStoreType = 'global' | 'project'

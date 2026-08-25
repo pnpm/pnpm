@@ -65,7 +65,8 @@ export function canApplySharedSideEffectsToInstall (
     opts.settings.packages.length > 0 &&
     !opts.ignoreScripts &&
     currentLinuxGlibcPlatform(opts.nodeVersion) != null &&
-    opts.storeController.addFileToStore != null
+    opts.storeController.addFileToStore != null &&
+    process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS != null
 }
 
 export async function applySharedSideEffectsToInstall<T extends string> (
@@ -75,6 +76,14 @@ export async function applySharedSideEffectsToInstall<T extends string> (
   const platform = currentLinuxGlibcPlatform(opts.nodeVersion)
   const { pnprServer, settings } = opts
   if (platform == null || pnprServer == null || settings == null) return new Map()
+  let trustedKeys: Record<string, string>
+  try {
+    trustedKeys = trustedKeysFromEnvironment()
+  } catch (err: unknown) {
+    opts.warn?.(`Shared side-effects trusted keys are invalid: ${errorMessage(err)}`)
+    return new Map()
+  }
+  if (Object.keys(trustedKeys).length === 0) return new Map()
 
   const eligiblePackages = new Set(settings.packages)
   const allowedBuilds = new Set<string>()
@@ -155,7 +164,7 @@ export async function applySharedSideEffectsToInstall<T extends string> (
         eligiblePackages,
         allowedBuilds,
       },
-      trustedKeys: settings.trustedKeys,
+      trustedKeys,
     })
   } catch (err: unknown) {
     opts.warn?.(`Shared side-effects cache lookup failed: ${errorMessage(err)}`)
@@ -163,42 +172,37 @@ export async function applySharedSideEffectsToInstall<T extends string> (
   }
 
   const hits = new Map<T, string>()
+  const artifactLimit = pLimit(4)
   const downloadLimit = pLimit(16)
-  const blobs = new Map<string, Promise<Buffer>>()
-  const storedBlobs = new Map<string, string>()
-  await Promise.all(Array.from(resolved, async ([inputKey, artifact]) => {
+  const storedBlobs = new Map<string, Promise<string>>()
+  await Promise.all(Array.from(resolved, ([inputKey, artifact]) => artifactLimit(async () => {
     const group = grouped.get(inputKey)
     if (group == null) return
     try {
-      const downloaded = await Promise.all(Array.from(
-        new Set(artifact.payload.manifest.added.map(file => file.integrity)),
-        async (integrity) => {
-          let blob = blobs.get(integrity)
-          if (blob == null) {
-            blob = downloadLimit(async () => downloadSharedArtifactBlob({
-              registryUrl: opts.pnprServer!,
+      const added = new Map(await Promise.all(artifact.payload.manifest.added.map(async (file) => {
+        const storedKey = `${file.integrity}\0${file.mode}`
+        let stored = storedBlobs.get(storedKey)
+        if (stored == null) {
+          stored = (async () => {
+            const bytes = await downloadLimit(async () => downloadSharedArtifactBlob({
+              registryUrl: pnprServer,
               authorization,
               request: {
                 owner: artifact.payload.owner,
-                integrity,
+                integrity: file.integrity,
               },
             }))
-            blobs.set(integrity, blob)
-          }
-          return [integrity, await blob] as const
+            return opts.storeController.addFileToStore!(bytes, file.mode).filePath
+          })()
+          storedBlobs.set(storedKey, stored)
         }
-      ))
-      const artifactBlobs = new Map(downloaded)
-      const added = new Map<string, string>()
-      for (const file of artifact.payload.manifest.added) {
-        const storedKey = `${file.integrity}\0${file.mode}`
-        let storedPath = storedBlobs.get(storedKey)
-        if (storedPath == null) {
-          storedPath = opts.storeController.addFileToStore!(artifactBlobs.get(file.integrity)!, file.mode).filePath
-          storedBlobs.set(storedKey, storedPath)
+        try {
+          return [file.path, await stored] as const
+        } catch (err: unknown) {
+          if (storedBlobs.get(storedKey) === stored) storedBlobs.delete(storedKey)
+          throw err
         }
-        added.set(file.path, storedPath)
-      }
+      })))
       for (const node of group.nodes) {
         node.files.sideEffectsMaps ??= new Map()
         node.files.sideEffectsMaps.set(group.localCacheKey, {
@@ -210,7 +214,7 @@ export async function applySharedSideEffectsToInstall<T extends string> (
     } catch (err: unknown) {
       opts.warn?.(`Shared side-effects artifact for ${group.candidate.package.name}@${group.candidate.package.version} was rejected: ${errorMessage(err)}`)
     }
-  }))
+  })))
   return hits
 }
 
@@ -353,6 +357,19 @@ function parseBuilderEnvironment (value: string | undefined): Record<string, str
   }
   if (!Object.values(parsed).every(item => typeof item === 'string')) {
     throw new Error('PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILD_ENV values must be strings')
+  }
+  return parsed as Record<string, string>
+}
+
+function trustedKeysFromEnvironment (): Record<string, string> {
+  const value = process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS
+  if (value == null) return {}
+  const parsed: unknown = JSON.parse(value)
+  if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS must be a JSON object')
+  }
+  if (!Object.values(parsed).every(key => typeof key === 'string')) {
+    throw new Error('PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS values must be strings')
   }
   return parsed as Record<string, string>
 }

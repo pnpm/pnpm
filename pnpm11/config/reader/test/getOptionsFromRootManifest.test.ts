@@ -1,7 +1,7 @@
 import util from 'node:util'
 
 import { afterEach, expect, test } from '@jest/globals'
-import type { PackageExtension } from '@pnpm/types'
+import type { PackageExtension, PnpmSettings } from '@pnpm/types'
 
 import { getOptionsFromPnpmSettings } from '../lib/getOptionsFromRootManifest.js'
 
@@ -102,14 +102,22 @@ test('getOptionsFromPnpmSettings() reads shared side-effects cache settings', ()
   const sharedSideEffectsCache = {
     organization: 'acme',
     packages: ['native-addon'],
-    trustedKeys: {
-      // cspell:disable-next-line
-      'acme-2026': 'cHVibGljLWtleQ==',
-    },
   }
   expect(getOptionsFromPnpmSettings(process.cwd(), {
     sharedSideEffectsCache,
   })).toStrictEqual({ sharedSideEffectsCache })
+})
+
+test('getOptionsFromPnpmSettings() rejects workspace-controlled shared side-effects keys', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    sharedSideEffectsCache: {
+      organization: 'acme',
+      packages: ['native-addon'],
+      trustedKeys: { 'acme-2026': 'repository-controlled-key' },
+    },
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_WORKSPACE_SHARED_SIDE_EFFECTS_TRUST',
+  }))
 })
 
 test('getOptionsFromPnpmSettings() rejects non-string overrides values', () => {

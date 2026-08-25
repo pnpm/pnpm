@@ -2,7 +2,7 @@ use std::{
     collections::{BTreeMap, HashSet},
     fs::{File, OpenOptions, TryLockError},
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     thread::sleep,
     time::{Duration, Instant},
 };
@@ -24,8 +24,28 @@ use crate::{
 const ARTIFACT_CACHE_DIR: &str = "shared-artifacts/v0";
 const ARTIFACT_LOCK_WAIT: Duration = Duration::from_secs(30);
 const ARTIFACT_LOCK_POLL_INTERVAL: Duration = Duration::from_millis(50);
+const ARTIFACT_USAGE_FILE: &str = "usage.json";
 const MAX_OWNER_ARTIFACT_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_GLOBAL_ARTIFACT_BYTES: u64 = 10 * MAX_OWNER_ARTIFACT_BYTES;
+
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+struct ArtifactUsage {
+    global_bytes: u64,
+    owner_bytes: BTreeMap<String, u64>,
+    pending: Option<PendingUsage>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct PendingUsage {
+    owner: String,
+    files: Vec<PendingUsageFile>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct PendingUsageFile {
+    path: String,
+    size: u64,
+}
 
 pub(crate) fn parse_publish(body: &[u8]) -> Result<PublishArtifactRequest> {
     serde_json::from_slice(body)
@@ -95,48 +115,172 @@ pub(crate) async fn publish(
         }
     }
 
-    enforce_storage_quota(&artifact_root, &owner_dir, added_bytes).await?;
+    if added_bytes == 0 {
+        return Ok(false);
+    }
+    let mut pending_files = Vec::with_capacity(new_blobs.len() + usize::from(!already_present));
+    for (path, bytes) in &new_blobs {
+        pending_files.push(pending_usage_file(&artifact_root, path, bytes.len() as u64)?);
+    }
+    if !already_present {
+        pending_files.push(pending_usage_file(
+            &artifact_root,
+            &variant_path,
+            envelope_bytes.len() as u64,
+        )?);
+    }
+    let mut usage = reserve_storage_quota(&artifact_root, &owner_dir, pending_files).await?;
     for (path, bytes) in new_blobs {
         write_atomic(&path, &bytes).await?;
     }
     if !already_present {
         write_atomic(&variant_path, &envelope_bytes).await?;
     }
+    usage.pending = None;
+    write_artifact_usage(&artifact_root, &usage).await?;
     Ok(!already_present)
 }
 
-async fn enforce_storage_quota(
+async fn reserve_storage_quota(
     artifact_root: &Path,
     owner_dir: &Path,
-    added_bytes: u64,
-) -> Result<()> {
-    enforce_storage_quota_with_limits(
+    files: Vec<PendingUsageFile>,
+) -> Result<ArtifactUsage> {
+    reserve_storage_quota_with_limits(
         artifact_root,
         owner_dir,
-        added_bytes,
+        files,
         MAX_OWNER_ARTIFACT_BYTES,
         MAX_GLOBAL_ARTIFACT_BYTES,
     )
     .await
 }
 
-async fn enforce_storage_quota_with_limits(
+async fn reserve_storage_quota_with_limits(
     artifact_root: &Path,
     owner_dir: &Path,
-    added_bytes: u64,
+    files: Vec<PendingUsageFile>,
     owner_limit: u64,
     global_limit: u64,
-) -> Result<()> {
-    let owner_bytes = stored_bytes(owner_dir, None);
-    let global_bytes = stored_bytes(artifact_root, Some(".locks"));
-    let (owner_bytes, global_bytes) = tokio::try_join!(owner_bytes, global_bytes)?;
-    if owner_bytes.checked_add(added_bytes).is_none_or(|total| total > owner_limit) {
+) -> Result<ArtifactUsage> {
+    let mut usage = load_artifact_usage(artifact_root).await?;
+    if reconcile_pending_usage(artifact_root, &mut usage).await? {
+        write_artifact_usage(artifact_root, &usage).await?;
+    }
+    let added_bytes = files.iter().try_fold(0_u64, |total, file| {
+        total.checked_add(file.size).ok_or_else(storage_quota_error)
+    })?;
+    let owner = owner_usage_key(owner_dir)?;
+    let owner_bytes = usage.owner_bytes.get(&owner).copied().unwrap_or(0);
+    let next_owner_bytes = owner_bytes.checked_add(added_bytes).ok_or_else(storage_quota_error)?;
+    let next_global_bytes =
+        usage.global_bytes.checked_add(added_bytes).ok_or_else(storage_quota_error)?;
+    if next_owner_bytes > owner_limit {
         return Err(storage_quota_error());
     }
-    if global_bytes.checked_add(added_bytes).is_none_or(|total| total > global_limit) {
+    if next_global_bytes > global_limit {
         return Err(storage_quota_error());
     }
-    Ok(())
+    usage.global_bytes = next_global_bytes;
+    usage.owner_bytes.insert(owner.clone(), next_owner_bytes);
+    usage.pending = Some(PendingUsage { owner, files });
+    write_artifact_usage(artifact_root, &usage).await?;
+    Ok(usage)
+}
+
+async fn load_artifact_usage(artifact_root: &Path) -> Result<ArtifactUsage> {
+    match fs::read(artifact_usage_path(artifact_root)).await {
+        Ok(bytes) => serde_json::from_slice(&bytes).map_err(Into::into),
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            scan_artifact_usage(artifact_root).await
+        }
+        Err(error) => Err(error.into()),
+    }
+}
+
+async fn scan_artifact_usage(artifact_root: &Path) -> Result<ArtifactUsage> {
+    let global_bytes = stored_bytes(artifact_root, Some(".locks")).await?;
+    let mut owner_bytes = BTreeMap::new();
+    let mut entries = match fs::read_dir(artifact_root).await {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            return Ok(ArtifactUsage::default());
+        }
+        Err(error) => return Err(error.into()),
+    };
+    while let Some(entry) = entries.next_entry().await? {
+        if entry.file_name() == ".locks" || !entry.file_type().await?.is_dir() {
+            continue;
+        }
+        let owner = entry.file_name().into_string().map_err(|_| RegistryError::Internal {
+            reason: "shared artifact owner directory is not valid UTF-8".to_string(),
+        })?;
+        owner_bytes.insert(owner, stored_bytes(&entry.path(), None).await?);
+    }
+    Ok(ArtifactUsage { global_bytes, owner_bytes, pending: None })
+}
+
+async fn reconcile_pending_usage(artifact_root: &Path, usage: &mut ArtifactUsage) -> Result<bool> {
+    let Some(pending) = usage.pending.take() else { return Ok(false) };
+    for file in pending.files {
+        let relative_path = Path::new(&file.path);
+        if relative_path.as_os_str().is_empty()
+            || !relative_path
+                .components()
+                .all(|component| matches!(component, Component::Normal(_)))
+        {
+            return Err(RegistryError::Internal {
+                reason: "shared artifact usage state contains an invalid pending path".to_string(),
+            });
+        }
+        let present = match fs::metadata(artifact_root.join(relative_path)).await {
+            Ok(metadata) => metadata.is_file() && metadata.len() == file.size,
+            Err(error) if error.kind() == ErrorKind::NotFound => false,
+            Err(error) => return Err(error.into()),
+        };
+        if present {
+            continue;
+        }
+        usage.global_bytes =
+            usage.global_bytes.checked_sub(file.size).ok_or_else(|| RegistryError::Internal {
+                reason: "shared artifact global usage counter underflow".to_string(),
+            })?;
+        let owner_bytes =
+            usage.owner_bytes.get_mut(&pending.owner).ok_or_else(|| RegistryError::Internal {
+                reason: "shared artifact usage state is missing the pending owner".to_string(),
+            })?;
+        *owner_bytes =
+            owner_bytes.checked_sub(file.size).ok_or_else(|| RegistryError::Internal {
+                reason: "shared artifact owner usage counter underflow".to_string(),
+            })?;
+    }
+    Ok(true)
+}
+
+async fn write_artifact_usage(artifact_root: &Path, usage: &ArtifactUsage) -> Result<()> {
+    write_atomic(&artifact_usage_path(artifact_root), &serde_json::to_vec(usage)?).await
+}
+
+fn artifact_usage_path(artifact_root: &Path) -> PathBuf {
+    artifact_root.join(".locks").join(ARTIFACT_USAGE_FILE)
+}
+
+fn pending_usage_file(artifact_root: &Path, path: &Path, size: u64) -> Result<PendingUsageFile> {
+    let relative_path = path.strip_prefix(artifact_root).map_err(|_| RegistryError::Internal {
+        reason: "shared artifact usage path escaped the artifact root".to_string(),
+    })?;
+    let path = relative_path.to_str().ok_or_else(|| RegistryError::Internal {
+        reason: "shared artifact usage path is not valid UTF-8".to_string(),
+    })?;
+    Ok(PendingUsageFile { path: path.to_string(), size })
+}
+
+fn owner_usage_key(owner_dir: &Path) -> Result<String> {
+    owner_dir.file_name().and_then(|name| name.to_str()).map(ToOwned::to_owned).ok_or_else(|| {
+        RegistryError::Internal {
+            reason: "shared artifact owner directory has no valid name".to_string(),
+        }
+    })
 }
 
 async fn stored_bytes(root: &Path, ignored_root_entry: Option<&str>) -> Result<u64> {

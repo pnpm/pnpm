@@ -62,25 +62,7 @@ pub(crate) async fn apply_shared_side_effects(
             return;
         }
     };
-    let trusted_keys: BTreeMap<String, Vec<u8>> = settings
-        .trusted_keys
-        .iter()
-        .filter_map(|(key_id, encoded)| match BASE64.decode(encoded) {
-            Ok(key) => Some((key_id.clone(), key)),
-            Err(error) => {
-                tracing::warn!(
-                    target: "pacquet::install",
-                    key_id,
-                    %error,
-                    "shared side-effects public key is not valid base64",
-                );
-                None
-            }
-        })
-        .collect();
-    if trusted_keys.is_empty() {
-        return;
-    }
+    let Some(trusted_keys) = trusted_keys_from_environment() else { return };
 
     let eligible_packages: HashSet<String> = settings.packages.iter().cloned().collect();
     let roots: Vec<PackageKey> = in_lockfile_order(snapshots)
@@ -271,6 +253,39 @@ pub(crate) async fn apply_shared_side_effects(
             side_effects_maps_by_snapshot.insert(snapshot_key.clone(), Arc::new(maps));
         }
     }
+}
+
+fn trusted_keys_from_environment() -> Option<BTreeMap<String, Vec<u8>>> {
+    let value = std::env::var("PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS").ok()?;
+    let encoded = match serde_json::from_str::<BTreeMap<String, String>>(&value) {
+        Ok(keys) if !keys.is_empty() => keys,
+        Ok(_) => return None,
+        Err(error) => {
+            tracing::warn!(
+                target: "pacquet::install",
+                %error,
+                "PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS is not a string-valued JSON object",
+            );
+            return None;
+        }
+    };
+    let mut trusted_keys = BTreeMap::new();
+    for (key_id, public_key) in encoded {
+        let public_key = match BASE64.decode(public_key) {
+            Ok(public_key) => public_key,
+            Err(error) => {
+                tracing::warn!(
+                    target: "pacquet::install",
+                    key_id,
+                    %error,
+                    "shared side-effects public key is not valid base64",
+                );
+                return None;
+            }
+        };
+        trusted_keys.insert(key_id, public_key);
+    }
+    Some(trusted_keys)
 }
 
 pub(crate) fn shared_side_effects_publisher(

@@ -58,6 +58,7 @@ export function getOptionsFromPnpmSettings (
   pnpmSettings: PnpmSettings,
   manifestOrOpts?: ProjectManifest | GetOptionsFromPnpmSettingsOptions
 ): OptionsFromRootManifest {
+  assertWorkspaceDoesNotSetSharedSideEffectsTrust(pnpmSettings.sharedSideEffectsCache)
   const opts = isGetOptionsFromPnpmSettingsOptions(manifestOrOpts)
     ? manifestOrOpts
     : manifestOrOpts == null ? {} : { manifest: manifestOrOpts }
@@ -91,6 +92,17 @@ export function getOptionsFromPnpmSettings (
   translateVirtualStoreType(pnpmSettings, settings)
 
   return settings
+}
+
+function assertWorkspaceDoesNotSetSharedSideEffectsTrust (
+  settings: PnpmSettings['sharedSideEffectsCache']
+): void {
+  if (settings != null && Object.prototype.hasOwnProperty.call(settings, 'trustedKeys')) {
+    throw new PnpmError(
+      'WORKSPACE_SHARED_SIDE_EFFECTS_TRUST',
+      'sharedSideEffectsCache.trustedKeys cannot be set by a workspace; set PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS in the user environment'
+    )
+  }
 }
 
 const REGISTRY_SERVER_TYPES = new Set(['npm', 'artifactory'])

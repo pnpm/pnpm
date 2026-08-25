@@ -976,8 +976,6 @@ sharedSideEffectsCache:
   organization: acme
   packages:
     - native-addon
-  trustedKeys:
-    acme-2026: cHVibGljLWtleQ==
 ",
     )
     .unwrap();
@@ -987,7 +985,22 @@ sharedSideEffectsCache:
     let shared = config.shared_side_effects_cache.expect("shared cache config");
     assert_eq!(shared.organization, "acme");
     assert_eq!(shared.packages, ["native-addon"]);
-    assert_eq!(shared.trusted_keys.get("acme-2026").map(String::as_str), Some("cHVibGljLWtleQ=="));
+}
+
+#[test]
+fn rejects_workspace_controlled_shared_side_effects_keys() {
+    let error = serde_saphyr::from_str::<WorkspaceSettings>(
+        r"
+sharedSideEffectsCache:
+  organization: acme
+  packages:
+    - native-addon
+  trustedKeys:
+    acme-2026: repository-controlled-key
+",
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("trustedKeys"));
 }
 
 /// pnpm scaffolds `allowBuilds` entries with a placeholder string for the
