@@ -1,6 +1,7 @@
 use super::{
-    AllowBuildPolicy, AtomicU8, BuildPhaseInputs, Config, DependencyGroup, HashMap, PackageKey,
-    ProjectSnapshot, SkippedSnapshots, StoreIndexWriter, VirtualStoreLayout, run_build_phase,
+    AllowBuildPolicy, AtomicU8, BuildPhaseInputs, Config, DependencyGroup, HashMap, Lockfile,
+    PackageKey, ProjectSnapshot, SkippedSnapshots, StoreIndexWriter, VirtualStoreLayout,
+    needs_top_level_bin_link, run_build_phase,
 };
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_reporter::SilentReporter;
@@ -59,4 +60,14 @@ async fn ignored_scripts_fast_path_defers_only_materialized_snapshots() {
     assert_eq!(output.deferred_builds, [materialized.to_string()]);
     drop(store_index_writer);
     writer_task.await.expect("join writer task").expect("drain writer task");
+}
+
+#[test]
+fn top_level_bin_link_only_runs_when_post_materialization_work_can_change_bins() {
+    let public_hoisted = ["public-cli".to_string()];
+
+    assert!(!needs_top_level_bin_link(Lockfile::ROOT_IMPORTER_KEY, false, &[]));
+    assert!(needs_top_level_bin_link(Lockfile::ROOT_IMPORTER_KEY, false, &public_hoisted));
+    assert!(!needs_top_level_bin_link("packages/app", false, &public_hoisted));
+    assert!(needs_top_level_bin_link("packages/app", true, &[]));
 }
