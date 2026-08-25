@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { beforeEach, expect, jest, test } from '@jest/globals'
@@ -8,12 +9,14 @@ import { loadJsonFileSync } from 'load-json-file'
 import semver from 'semver'
 
 jest.unstable_mockModule('@pnpm/engine.pm.commands', () => ({
+  isReleaseInstallable: jest.fn(),
   resolvePnpmVersion: jest.fn(),
 }))
-const { resolvePnpmVersion } = await import('@pnpm/engine.pm.commands')
+const { isReleaseInstallable, resolvePnpmVersion } = await import('@pnpm/engine.pm.commands')
 const { init } = await import('@pnpm/workspace.commands')
 
 const mockResolvePnpmVersion = jest.mocked(resolvePnpmVersion)
+const mockIsReleaseInstallable = jest.mocked(isReleaseInstallable)
 
 const NEWER_VERSION = semver.inc(packageManager.version, 'major')!
 // A prerelease of the running version is lower than it whatever version this
@@ -22,6 +25,7 @@ const OLDER_VERSION = `${packageManager.version}-0`
 
 beforeEach(() => {
   mockResolvePnpmVersion.mockReset()
+  mockIsReleaseInstallable.mockReset().mockReturnValue(true)
 })
 
 async function initPinned (): Promise<ProjectManifest> {
@@ -94,6 +98,35 @@ test('pins the running pnpm when "latest" violates the release policy', async ()
   const manifest = await initPinned()
 
   expect(manifest.packageManager).toBe(`pnpm@${packageManager.version}`)
+})
+
+// Which releases are broken is `@pnpm/engine.pm.commands`' business and is
+// tested there; what matters here is that init refuses to pin one. The pin is
+// shared but the wrapper is not, so pinning a release the running wrapper
+// happens to survive would still break every teammate on the other wrapper.
+test('pins the running pnpm when "latest" is not an installable release', async () => {
+  prepareEmpty()
+  mockResolvePnpmVersion.mockResolvedValue({ version: NEWER_VERSION })
+  mockIsReleaseInstallable.mockReturnValue(false)
+
+  const manifest = await initPinned()
+
+  expect(mockIsReleaseInstallable).toHaveBeenCalledWith(NEWER_VERSION)
+  expect(manifest.packageManager).toBe(`pnpm@${packageManager.version}`)
+})
+
+test('does not overwrite a package.json created while the pin was being resolved', async () => {
+  prepareEmpty()
+  const manifestPath = path.resolve('package.json')
+  const writtenMeanwhile = { name: 'written-by-someone-else' }
+  mockResolvePnpmVersion.mockImplementation(async () => {
+    fs.writeFileSync(manifestPath, JSON.stringify(writtenMeanwhile))
+    return { version: NEWER_VERSION }
+  })
+
+  await expect(initPinned()).rejects.toThrow('package.json already exists')
+
+  expect(loadJsonFileSync(manifestPath)).toStrictEqual(writtenMeanwhile)
 })
 
 test('does not reach the registry when offline', async () => {

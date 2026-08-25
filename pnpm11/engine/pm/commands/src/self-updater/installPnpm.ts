@@ -45,9 +45,18 @@ const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true, 'pnpm': 
  */
 const BROKEN_RELEASES: ReadonlySet<string> = new Set(['11.12.0', '11.13.0'])
 
+/**
+ * Whether `version` can be installed at all — false for the
+ * {@link BROKEN_RELEASES}. For callers that pick a version rather than being
+ * handed one, and so can choose another instead of failing.
+ */
+export function isReleaseInstallable (version: string): boolean {
+  return !BROKEN_RELEASES.has(version)
+}
+
 /** Throws when `version` is one of the {@link BROKEN_RELEASES}. */
 export function assertReleaseIsInstallable (version: string): void {
-  if (!BROKEN_RELEASES.has(version)) return
+  if (isReleaseInstallable(version)) return
   throw new PnpmError(
     'BROKEN_PNPM_RELEASE',
     `pnpm v${version} is a broken release and cannot be installed`,

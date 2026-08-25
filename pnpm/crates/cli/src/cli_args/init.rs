@@ -1,4 +1,4 @@
-use super::self_update::version_lt;
+use super::self_update::{install_pnpm::is_release_installable, version_lt};
 use crate::config_deps;
 use clap::{Args, ValueEnum};
 use pnpm_config::{Config, InitType, PNPM_VERSION};
@@ -81,8 +81,14 @@ pub(crate) async fn version_to_pin(config: &Config) -> String {
         return PNPM_VERSION.to_string();
     };
     // A `latest` the maturity or trust policy rejects is not something to pin
-    // a new project to, and `pnpm init` has nobody to prompt for approval.
-    if resolved.policy_violation.is_some() || version_lt(&resolved.version, PNPM_VERSION) {
+    // a new project to, and `pnpm init` has nobody to prompt for approval. A
+    // broken release is refused for the reason the pin exists at all: it is
+    // shared, so pinning one the running wrapper happens to survive would
+    // still break every teammate on the other wrapper.
+    if resolved.policy_violation.is_some()
+        || !is_release_installable(&resolved.version)
+        || version_lt(&resolved.version, PNPM_VERSION)
+    {
         return PNPM_VERSION.to_string();
     }
     resolved.version

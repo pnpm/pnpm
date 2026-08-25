@@ -4,7 +4,7 @@ import path from 'node:path'
 import { packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
-import { resolvePnpmVersion, type ResolvePnpmVersionOptions } from '@pnpm/engine.pm.commands'
+import { isReleaseInstallable, resolvePnpmVersion, type ResolvePnpmVersionOptions } from '@pnpm/engine.pm.commands'
 import { PnpmError } from '@pnpm/error'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 import type { ProjectManifest } from '@pnpm/types'
@@ -140,6 +140,12 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
     'packageManager',
   ].map((key, index) => [key, index]))
   const sortedPackageJson = sortKeysByPriority({ priority }, packageJson)
+  // Checked again right before the write, not only on entry: the pin lookup
+  // above waits on a registry, and a manifest that appeared during that wait
+  // must not be overwritten.
+  if (fs.existsSync(manifestPath)) {
+    throw new PnpmError('PACKAGE_JSON_EXISTS', 'package.json already exists')
+  }
   await writeProjectManifest(manifestPath, sortedPackageJson, {
     indent: 2,
   })
@@ -149,10 +155,10 @@ ${JSON.stringify(sortedPackageJson, null, 2)}`
 }
 
 /**
- * How long the `latest` lookup may take before `pnpm init` gives up on it.
- * Much shorter than the resolver's usual timeout: the version is a nicety,
- * and a scaffold command that appears to hang is worse than one that pins
- * the running version.
+ * How long each registry request in the `latest` lookup may take. Much
+ * shorter than the resolver's usual timeout: the version is a nicety, and a
+ * scaffold command that appears to hang is worse than one that pins the
+ * running version.
  */
 const LATEST_LOOKUP_TIMEOUT = 10000
 
@@ -185,8 +191,16 @@ async function resolveVersionToPin (opts: InitOptions & Pick<Config, 'dir'>): Pr
     }, 'latest')
     // A `latest` that the maturity or trust policy rejects is not something
     // to pin a new project to, and `pnpm init` has nobody to prompt for
-    // approval.
-    if (resolved == null || resolved.policyViolation != null) return packageManager.version
+    // approval. A broken release is refused for the reason the pin exists at
+    // all: it is shared, so pinning one the running wrapper happens to
+    // survive would still break every teammate on the other wrapper.
+    if (
+      resolved == null ||
+      resolved.policyViolation != null ||
+      !isReleaseInstallable(resolved.version)
+    ) {
+      return packageManager.version
+    }
     return semver.gt(resolved.version, packageManager.version)
       ? resolved.version
       : packageManager.version
