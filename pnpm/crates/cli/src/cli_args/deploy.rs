@@ -1059,6 +1059,7 @@ fn convert_package_metadata(
             LockfileResolution::Tarball(TarballResolution {
                 tarball: format!("file:{}", relative_path(ctx.deploy_dir, &resolved)),
                 integrity: resolution.integrity.clone(),
+                revision: None,
                 git_hosted: resolution.git_hosted,
                 path: resolution.path.as_ref().map(|_| relative_path(ctx.deploy_dir, &resolved)),
             })

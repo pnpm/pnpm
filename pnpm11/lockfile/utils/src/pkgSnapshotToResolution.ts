@@ -34,6 +34,17 @@ export function pkgSnapshotToResolution (
       `Cannot install package "${depPath}": its lockfile entry has an invalid "revision" field.`)
   }
   if (
+    resolution.revision != null &&
+    (
+      Boolean(resolution.type) ||
+      resolution.tarball?.startsWith('file:') ||
+      resolution.gitHosted === true
+    )
+  ) {
+    throw new PnpmError('INVALID_TARBALL_REVISION',
+      `Cannot install package "${depPath}": its lockfile entry with a revision does not identify a registry tarball.`)
+  }
+  if (
     Boolean(resolution.type) ||
     resolution.tarball?.startsWith('file:') ||
     resolution.gitHosted === true
@@ -55,8 +66,8 @@ export function pkgSnapshotToResolution (
     registry = normalizeRegistriesByPrefix(opts.registriesByPrefix)[registryName]
     if (!registry) {
       throw new PnpmError('MISSING_NAMED_REGISTRY',
-        `Cannot install package "${depPath}": it was resolved from the named registry '${registryName}:', which is not present in the registriesByPrefix setting.`,
-        { hint: `Add '${registryName}' to the registriesByPrefix setting in pnpm-workspace.yaml.` })
+        `Cannot install package "${depPath}": its registry prefix '${registryName}:' is not declared by the registries setting.`,
+        { hint: `Add a registries entry with "prefix: ${registryName}" to pnpm-workspace.yaml.` })
     }
   } else if (name != null && name[0] === '@') {
     registry = opts.registriesByScope[name.split('/')[0]]

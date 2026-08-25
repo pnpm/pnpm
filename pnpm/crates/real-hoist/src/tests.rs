@@ -523,6 +523,7 @@ fn pkg_metadata_with_peer(peer_name: &str) -> pnpm_lockfile::PackageMetadata {
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: format!("https://example.invalid/{peer_name}-host.tgz"),
             integrity: None,
+            revision: None,
             git_hosted: None,
             path: None,
         }),

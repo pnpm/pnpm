@@ -48,6 +48,27 @@ test('drops a validated integrity-addressed registry tarball URL', () => {
   })
 })
 
+test('drops a revision URL even when lockfileIncludeTarballUrl is true', () => {
+  expect(toLockfileResolution(
+    { name: 'foo', version: '1.0.0' },
+    { integrity: REVISION_INTEGRITY, revision: 1, tarball: REVISION_TARBALL },
+    { registry: REGISTRY, lockfileIncludeTarballUrl: true }
+  )).toEqual({
+    integrity: REVISION_INTEGRITY,
+    revision: 1,
+  })
+})
+
+test('rejects a revision without an integrity-addressed URL', () => {
+  expect(() => toLockfileResolution(
+    { name: 'foo', version: '1.0.0' },
+    { integrity: REVISION_INTEGRITY, revision: 1 } as never,
+    { registry: REGISTRY }
+  )).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_TARBALL_REVISION',
+  }))
+})
+
 test('rejects a revision whose URL registry or digest does not match', () => {
   expect(() => toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
@@ -69,7 +90,7 @@ test('normalizes an original served from the digest route to integrity only', ()
   expect(toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
     { integrity: REVISION_INTEGRITY, tarball: REVISION_TARBALL },
-    { registry: REGISTRY }
+    { registry: REGISTRY, lockfileIncludeTarballUrl: true }
   )).toEqual({
     integrity: REVISION_INTEGRITY,
   })

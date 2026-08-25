@@ -450,7 +450,7 @@ impl NpmResolutionVerifier {
                     return ResolutionVerification::Err {
                         code: MISSING_NAMED_REGISTRY_VIOLATION_CODE,
                         reason: format!(
-                            "was resolved from the named registry '{registry_name}:', which is not present in the namedRegistries setting",
+                            "has registry prefix '{registry_name}:', which is not declared by the registries setting",
                         ),
                     };
                 }
@@ -1327,6 +1327,7 @@ fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
             integrity: None,
             shasum: None,
             tarball: String::new(),
+            revision: None,
             file_count: None,
             unpacked_size: None,
             attestations,

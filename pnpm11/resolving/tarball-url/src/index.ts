@@ -36,6 +36,7 @@ export function parseIntegrityAddress (integrity: string): IntegrityAddress | un
   if (algorithm !== 'sha512') return undefined
 
   const encodedDigest = integrity.slice(algorithmSeparator + 1)
+  if (encodedDigest.length !== 88) return undefined
   const digest = Buffer.from(encodedDigest, 'base64')
   if (digest.byteLength !== 64 || digest.toString('base64') !== encodedDigest) return undefined
 

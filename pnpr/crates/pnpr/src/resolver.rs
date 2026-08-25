@@ -73,7 +73,7 @@ use axum::{
 use indexmap::IndexMap;
 use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, TarballResolution, is_git_hosted_tarball_url,
+    Lockfile, LockfileResolution, TarballResolution, TarballRevision, is_git_hosted_tarball_url,
     pick_registry_for_package,
 };
 use pnpm_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
@@ -914,6 +914,7 @@ impl TarballRouter {
             metadata.resolution = LockfileResolution::Tarball(TarballResolution {
                 tarball: routed_url,
                 integrity: Some(integrity.clone()),
+                revision: None,
                 git_hosted: None,
                 path: None,
             });
@@ -1058,6 +1059,11 @@ fn package_frame(router: &TarballRouter, hint: &ResolvedPackageHint<'_>) -> serd
     if let Some(count) = hint.file_count {
         frame["fileCount"] = serde_json::Value::from(count);
     }
+    if tarball_url == hint.tarball_url
+        && let Some(revision) = hint.revision
+    {
+        frame["revision"] = serde_json::Value::from(revision);
+    }
     frame
 }
 
@@ -1101,12 +1107,24 @@ fn frozen_package_frames(
         };
         let name = package_key.name.to_string();
         let version = package_key.suffix.version().to_string();
-        let tarball_url = router.route_url(&name, &version, &tarball_url);
+        let upstream_tarball_url = tarball_url;
+        let tarball_url = router.route_url(&name, &version, &upstream_tarball_url);
         if !seen_urls.insert(tarball_url.clone()) {
             continue;
         }
         let id = format!("{name}@{version}");
         let integrity = integrity.to_string();
+        let revision = if tarball_url == upstream_tarball_url {
+            match &snapshot.resolution {
+                LockfileResolution::Tarball(tarball) => tarball.revision.map(TarballRevision::get),
+                LockfileResolution::Registry(registry) => {
+                    registry.revision.map(TarballRevision::get)
+                }
+                _ => None,
+            }
+        } else {
+            None
+        };
         let stats = dist_stats.get(&(name.clone(), version.clone())).map(|entry| *entry.value());
         let frame = package_frame(
             router,
@@ -1118,6 +1136,7 @@ fn frozen_package_frames(
                 tarball_url: &tarball_url,
                 unpacked_size: stats.and_then(|stats| stats.unpacked_size),
                 file_count: stats.and_then(|stats| stats.file_count),
+                revision,
                 // The URL is already routed (canonical → endpoint above), so
                 // re-routing by registry would be redundant; route_url is a
                 // no-op on an already-routed URL.

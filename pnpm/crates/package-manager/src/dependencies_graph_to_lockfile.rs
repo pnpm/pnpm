@@ -10,10 +10,11 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
+use miette::Diagnostic;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{
-    BundledDependencies, CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile,
+    BundledDependencies, CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile, LockfileFormError,
     LockfileFormOptions, LockfileResolution, LockfileSettings, LockfileVersion, PackageKey,
     PackageMetadata, ParseImporterDepVersionError, ParsePkgNameSuffixError, ParsePkgVerPeerError,
     PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryOptions,
@@ -153,9 +154,12 @@ pub struct GraphToLockfileOptions<'a> {
 }
 
 /// Error returned while converting a resolver graph into a lockfile.
-#[derive(Debug, Display, Error)]
+#[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum DependenciesGraphToLockfileError {
+    #[diagnostic(transparent)]
+    LockfileForm(#[error(source)] LockfileFormError),
+
     #[display(
         "Failed to serialize importer dependency {alias:?} from dependency path {dep_path:?}: {source}"
     )]
@@ -717,7 +721,8 @@ fn build_packages_and_snapshots(
         let snapshot = build_snapshot_entry(node, graph, optional_overrides);
         snapshots.insert(snapshot_key, snapshot);
 
-        packages.entry(metadata_key).or_insert_with_key(|key| {
+        if let std::collections::hash_map::Entry::Vacant(entry) = packages.entry(metadata_key) {
+            let key = entry.key();
             // A registry-qualified key names its registry; that registry —
             // not the scope-routed default — decides whether the tarball
             // URL is canonical and can be dropped from the entry.
@@ -744,7 +749,8 @@ fn build_packages_and_snapshots(
                     server_type: registry_server_type(sources.registry_options_by_url, registry),
                     include_tarball_url,
                 },
-            );
+            )
+            .map_err(DependenciesGraphToLockfileError::LockfileForm)?;
             // `deprecated` is the only registry-mutable field of a
             // published version; an unchanged resolution must not lose
             // a recorded deprecation to a registry serving it
@@ -755,8 +761,8 @@ fn build_packages_and_snapshots(
             {
                 metadata.deprecated.clone_from(&previous.deprecated);
             }
-            metadata
-        });
+            entry.insert(metadata);
+        }
     }
 
     Ok((packages, snapshots))
@@ -774,7 +780,7 @@ fn build_package_metadata(
     node: &DependenciesGraphNode,
     metadata_key: &PackageKey,
     lockfile_form: LockfileFormOptions<'_>,
-) -> PackageMetadata {
+) -> Result<PackageMetadata, LockfileFormError> {
     let manifest = node.resolve_result.manifest.as_deref();
 
     let engines = manifest
@@ -829,7 +835,7 @@ fn build_package_metadata(
         &metadata_key.name.to_string(),
         &resolution_version,
         lockfile_form,
-    );
+    )?;
 
     // Record `version` only for non-registry packages (depPath carries
     // a `:`), and only when the manifest declares one and the resolution
@@ -846,7 +852,7 @@ fn build_package_metadata(
     })
     .flatten();
 
-    PackageMetadata {
+    Ok(PackageMetadata {
         resolution,
         version,
         engines,
@@ -859,7 +865,7 @@ fn build_package_metadata(
         bundled_dependencies,
         peer_dependencies,
         peer_dependencies_meta,
-    }
+    })
 }
 
 /// Read a JSON array field off the resolver's manifest fragment and flatten it

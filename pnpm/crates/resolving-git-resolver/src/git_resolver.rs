@@ -316,6 +316,7 @@ async fn pick_resolution<Probe: GitProbe + ?Sized>(
             return LockfileResolution::Tarball(TarballResolution {
                 tarball,
                 integrity: None,
+                revision: None,
                 git_hosted: Some(true),
                 path: spec.path.clone(),
             });

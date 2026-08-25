@@ -7,8 +7,8 @@ use node_semver::{Range, Version};
 use pnpm_lockfile::{
     BundledDependencies, Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer,
     ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotEntry, StringOrList,
-    TarballResolution, TarballUrlOptions, npm_tarball_url, pick_registry_for_package,
-    registry_server_type,
+    TarballResolution, TarballUrlOptions, integrity_addressed_registry_tarball_url,
+    npm_tarball_url, pick_registry_for_package, registry_server_type,
 };
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
 use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
@@ -49,8 +49,12 @@ pub(crate) fn current_pkg_from_lockfile(
             if registry.is_empty() {
                 return None;
             }
-            LockfileResolution::Tarball(TarballResolution {
-                tarball: npm_tarball_url(
+            let tarball = match registry_resolution.revision {
+                Some(_) => integrity_addressed_registry_tarball_url(
+                    &registry_resolution.integrity,
+                    &registry,
+                )?,
+                None => npm_tarball_url(
                     &name,
                     &tarball_version,
                     TarballUrlOptions {
@@ -61,7 +65,11 @@ pub(crate) fn current_pkg_from_lockfile(
                         ),
                     },
                 ),
+            };
+            LockfileResolution::Tarball(TarballResolution {
+                tarball,
                 integrity: Some(registry_resolution.integrity.clone()),
+                revision: registry_resolution.revision,
                 git_hosted: None,
                 path: None,
             })

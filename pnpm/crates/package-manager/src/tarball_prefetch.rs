@@ -38,6 +38,7 @@ struct PendingPrefetch {
     package_id: String,
     package_url: String,
     integrity: String,
+    revision_addressed: bool,
 }
 
 /// Drop every pending entry whose `(integrity, package_id)` row already
@@ -82,6 +83,7 @@ pub(crate) struct TarballDownload {
     pub integrity: Integrity,
     pub package_unpacked_size: Option<usize>,
     pub package_file_count: Option<usize>,
+    pub revision_addressed: bool,
 }
 
 /// [`tokio::spawn`] a single tarball download into the shared mem cache
@@ -111,10 +113,11 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
         integrity,
         package_unpacked_size,
         package_file_count,
+        revision_addressed,
     } = download;
 
     tokio::spawn(async move {
-        let _ = DownloadTarballToStore {
+        let download = DownloadTarballToStore {
             http_client: &http_client,
             store_dir,
             store_index,
@@ -139,9 +142,12 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
             // progress as it consumes each tarball from the mem cache.
             progress_reported: None,
             append_manifest: None,
-        }
-        .run_with_mem_cache::<SilentReporter>(&mem_cache)
-        .await;
+        };
+        let _ = if revision_addressed {
+            download.run_revision_addressed_with_mem_cache::<SilentReporter>(&mem_cache).await
+        } else {
+            download.run_with_mem_cache::<SilentReporter>(&mem_cache).await
+        };
     });
 }
 
@@ -243,6 +249,7 @@ impl TarballPrefetcher {
         integrity: &str,
         unpacked_size: Option<usize>,
         file_count: Option<usize>,
+        revision_addressed: bool,
     ) {
         let integrity = match integrity.parse::<Integrity>() {
             Ok(integrity) => integrity,
@@ -277,6 +284,7 @@ impl TarballPrefetcher {
             integrity,
             package_unpacked_size: unpacked_size,
             package_file_count: file_count,
+            revision_addressed,
         });
     }
 
@@ -310,18 +318,24 @@ impl TarballPrefetcher {
             let package_id = package_key.pkg_id();
             let integrity =
                 integrity.expect("registry resolutions always carry an integrity").to_string();
+            let revision_addressed = matches!(
+                &metadata.resolution,
+                LockfileResolution::Registry(registry) if registry.revision.is_some(),
+            );
             pending.push(PendingPrefetch {
                 store_key: store_index_key(&integrity, &package_id),
                 package_id,
                 package_url: tarball_url.into_owned(),
                 integrity,
+                revision_addressed,
             });
         }
         for entry in without_store_hits(self.store_index.clone(), pending).await {
-            let PendingPrefetch { package_id, package_url, integrity, .. } = entry;
+            let PendingPrefetch { package_id, package_url, integrity, revision_addressed, .. } =
+                entry;
             // The lockfile records no dist size hints, so the downloads
             // queue without a work estimate.
-            self.prefetch(package_id, package_url, &integrity, None, None);
+            self.prefetch(package_id, package_url, &integrity, None, None, revision_addressed);
         }
     }
 

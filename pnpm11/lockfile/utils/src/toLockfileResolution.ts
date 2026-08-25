@@ -27,7 +27,16 @@ export function toLockfileResolution (
   opts: ToLockfileResolutionOptions
 ): LockfileResolution {
   const { registry, serverType, lockfileIncludeTarballUrl } = opts
+  const revision = (resolution as TarballResolution).revision
+  if (revision != null && !isValidTarballRevision(revision)) {
+    throw new PnpmError('INVALID_TARBALL_REVISION',
+      `Cannot serialize invalid tarball revision "${String(revision)}".`)
+  }
   if (resolution.type !== undefined) {
+    if (revision != null) {
+      throw new PnpmError('INVALID_TARBALL_REVISION',
+        'Cannot serialize a tarball revision for a non-registry resolution.')
+    }
     // Nothing checks a git checkout against a hash — the commit pins the
     // content — so an `integrity` some other tool recorded on a git
     // resolution is dropped rather than written back, instead of standing
@@ -37,11 +46,6 @@ export function toLockfileResolution (
       return rest
     }
     return resolution as LockfileResolution
-  }
-  const revision = (resolution as TarballResolution).revision
-  if (revision != null && !isValidTarballRevision(revision)) {
-    throw new PnpmError('INVALID_TARBALL_REVISION',
-      `Cannot serialize invalid tarball revision "${String(revision)}".`)
   }
   if (!resolution['integrity']) {
     if (revision != null) {
@@ -55,9 +59,12 @@ export function toLockfileResolution (
   // from external state) so we don't blow up on a missing field.
   const tarball = resolution['tarball'] as string | undefined
   if (tarball == null) {
+    if (revision != null) {
+      throw new PnpmError('INVALID_TARBALL_REVISION',
+        `Cannot serialize tarball revision ${revision} without its integrity-addressed URL.`)
+    }
     return {
       integrity: resolution['integrity'],
-      ...(revision == null ? {} : { revision }),
     }
   }
   const integrityAddressed = tarball.includes('/-/tarballs/sha512/') &&
@@ -65,6 +72,12 @@ export function toLockfileResolution (
   if (revision != null && !integrityAddressed) {
     throw new PnpmError('INVALID_TARBALL_REVISION',
       `Cannot serialize tarball revision ${revision}: its URL does not match its integrity and registry.`)
+  }
+  if (integrityAddressed) {
+    return {
+      integrity: resolution['integrity'],
+      ...(revision == null ? {} : { revision }),
+    }
   }
   // Honor the resolver-supplied flag, with a URL fallback for resolutions
   // that didn't go through the git resolver (e.g. config-dep migrations or
@@ -82,14 +95,10 @@ export function toLockfileResolution (
     !lockfileIncludeTarballUrl &&
     !gitHosted &&
     !tarball.startsWith('file:') &&
-    (
-      isCanonicalRegistryTarballUrl(tarball, pkg, { registry, serverType }) ||
-      integrityAddressed
-    )
+    isCanonicalRegistryTarballUrl(tarball, pkg, { registry, serverType })
   ) {
     return {
       integrity: resolution['integrity'],
-      ...(revision == null ? {} : { revision }),
     }
   }
   // The kept-URL form carries the `gitHosted` marker and the subdirectory `path`
@@ -100,7 +109,6 @@ export function toLockfileResolution (
   return {
     integrity: resolution['integrity'],
     tarball,
-    ...(revision == null ? {} : { revision }),
     ...(gitHosted ? { gitHosted: true } : {}),
     ...(path == null ? {} : { path }),
   }

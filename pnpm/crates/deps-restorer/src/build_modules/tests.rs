@@ -93,6 +93,7 @@ fn side_effects_key_for_git_hosted_tarball_matches_warm_lookup() {
     let resolution = pnpm_lockfile::LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
         tarball: pkg_id.to_string(),
         integrity: Some(integrity.parse().expect("parse integrity")),
+        revision: None,
         git_hosted: Some(true),
         path: None,
     });
@@ -916,6 +917,7 @@ fn using_side_effects_cache_skips_rebuild() {
                         integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                             .parse()
                             .expect("parse integrity"),
+                        revision: None,
                     },
                 ),
                 version: None,
@@ -1059,6 +1061,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
                         integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                             .parse()
                             .expect("parse integrity"),
+                        revision: None,
                     },
                 ),
                 version: None,
@@ -1175,6 +1178,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
                         integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                             .parse()
                             .expect("parse integrity"),
+                        revision: None,
                     },
                 ),
                 version: None,
@@ -1708,6 +1712,7 @@ async fn write_path_populates_side_effects_row() {
                 resolution: pnpm_lockfile::LockfileResolution::Registry(
                     pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),
+                        revision: None,
                     },
                 ),
                 version: None,
@@ -1869,6 +1874,7 @@ async fn write_path_disabled_skips_upload() {
                 resolution: pnpm_lockfile::LockfileResolution::Registry(
                     pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),
+                        revision: None,
                     },
                 ),
                 version: None,
@@ -1976,6 +1982,7 @@ async fn frozen_store_skips_side_effects_upload() {
                 resolution: pnpm_lockfile::LockfileResolution::Registry(
                     pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),
+                        revision: None,
                     },
                 ),
                 version: None,
@@ -2105,6 +2112,7 @@ async fn upload_error_does_not_interrupt_install() {
                 resolution: pnpm_lockfile::LockfileResolution::Registry(
                     pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),
+                        revision: None,
                     },
                 ),
                 version: None,
@@ -2310,6 +2318,7 @@ async fn write_path_cache_key_includes_patch_hash() {
                 resolution: pnpm_lockfile::LockfileResolution::Registry(
                     pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),
+                        revision: None,
                     },
                 ),
                 version: None,

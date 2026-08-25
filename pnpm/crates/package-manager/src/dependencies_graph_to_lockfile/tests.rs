@@ -99,6 +99,7 @@ const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 fn make_registry_resolution() -> LockfileResolution {
     LockfileResolution::Registry(RegistryResolution {
         integrity: Integrity::from_str(FAKE_INTEGRITY).expect("parse fake integrity"),
+        revision: None,
     })
 }
 
@@ -868,6 +869,7 @@ fn git_hosted_node(alias: &str) -> (DepPath, DependenciesGraphNode) {
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: GIT_TARBALL_URL.to_string(),
             integrity: None,
+            revision: None,
             git_hosted: Some(true),
             path: None,
         }),
@@ -2712,6 +2714,7 @@ fn make_named_registry_node(
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: tarball_url.to_string(),
             integrity: Some(Integrity::from_str(FAKE_INTEGRITY).expect("parse fake integrity")),
+            revision: None,
             git_hosted: None,
             path: None,
         }),
@@ -2906,6 +2909,7 @@ fn unchanged_resolutions_keep_their_previous_package_metadata() {
             "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
         )
         .expect("parse fake integrity"),
+        revision: None,
     });
     let previous = std::collections::HashMap::from([(
         "react@17.0.2".parse::<PackageKey>().unwrap(),

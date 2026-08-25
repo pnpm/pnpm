@@ -58,6 +58,7 @@ fn package_metadata(name: &str) -> PackageMetadata {
         resolution: LockfileResolution::Tarball(TarballResolution {
             integrity: None,
             tarball: format!("https://example.test/{name}.tgz"),
+            revision: None,
             git_hosted: None,
             path: None,
         }),

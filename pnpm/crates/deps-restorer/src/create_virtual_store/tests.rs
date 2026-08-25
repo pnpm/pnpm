@@ -22,6 +22,7 @@ fn metadata_with_integrity(integrity: &str) -> PackageMetadata {
     PackageMetadata {
         resolution: LockfileResolution::Registry(RegistryResolution {
             integrity: integrity.parse().expect("parse integrity"),
+            revision: None,
         }),
         version: None,
         engines: None,
@@ -662,6 +663,7 @@ fn git_hosted_tarball_metadata() -> PackageMetadata {
             tarball: "https://codeload.github.com/foo/bar/tar.gz/f43f6a1cefff47fb361c88cf4b943fdbcaafe540"
                 .to_string(),
             integrity: None,
+            revision: None,
             git_hosted: Some(true),
             path: None,
         }),
@@ -733,6 +735,7 @@ fn tarball_metadata_without_integrity() -> PackageMetadata {
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz".to_string(),
             integrity: None,
+            revision: None,
             git_hosted: None,
             path: None,
         }),

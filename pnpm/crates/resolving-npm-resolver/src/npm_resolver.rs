@@ -30,7 +30,10 @@ use node_semver::Version;
 use pnpm_config::{
     DEFAULT_JSR_REGISTRY, NeedsFullMetadataFor, TrustPolicy, version_policy::PackageVersionPolicy,
 };
-use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+use pnpm_lockfile::{
+    LockfileResolution, PkgName, PkgNameVer, TarballResolution, TarballRevision,
+    is_integrity_addressed_registry_tarball_url,
+};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
 use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
 use pnpm_resolving_resolver_base::{
@@ -42,7 +45,10 @@ use pnpm_resolving_resolver_base::{
 use ssri::{Algorithm, Integrity};
 
 use crate::{
-    errors::{AllVersionsBlockedError, GuardRepickLimitError, InvalidTarballIntegrityError},
+    errors::{
+        AllVersionsBlockedError, GuardRepickLimitError, InvalidTarballIntegrityError,
+        InvalidTarballRevisionMetadataError,
+    },
     named_registry::pick_registry_for_package,
     parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
     pick_package::{
@@ -854,9 +860,38 @@ pub(crate) fn build_resolve_result(
     // mixing the two shapes would force a Registry → URL
     // reconstruction with no payoff: at resolve time we already have
     // the URL the install path needs.
+    let integrity = dist_integrity(&picked.dist)?;
+    let revision = picked
+        .dist
+        .revision
+        .as_ref()
+        .map(|revision| {
+            revision
+                .as_u64()
+                .ok_or_else(|| "the revision is not a positive safe integer".to_string())
+                .and_then(|revision| {
+                    TarballRevision::try_from(revision).map_err(|error| error.to_string())
+                })
+        })
+        .transpose()
+        .map_err(|reason| {
+            Box::new(InvalidTarballRevisionMetadataError::new(&picked.dist.tarball, reason))
+                as ResolveError
+        })?;
+    if revision.is_some()
+        && !integrity.as_ref().is_some_and(|integrity| {
+            is_integrity_addressed_registry_tarball_url(&picked.dist.tarball, integrity, registry)
+        })
+    {
+        return Err(Box::new(InvalidTarballRevisionMetadataError::new(
+            &picked.dist.tarball,
+            "the URL does not match its complete sha512 integrity and registry",
+        )));
+    }
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: picked.dist.tarball.clone(),
-        integrity: dist_integrity(&picked.dist)?,
+        integrity,
+        revision,
         git_hosted: None,
         path: None,
     });

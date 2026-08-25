@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { isWellFormedRegistryName, RESERVED_VERSION_PREFIXES } from '@pnpm/deps.path'
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactUrlForDisplay } from '@pnpm/error'
 import type {
   FetchFromRegistry,
   GetAuthHeader,
@@ -840,7 +840,7 @@ function mergeNamedRegistries (userDefined?: Record<string, string>): Record<str
         RESERVED_VERSION_PREFIXES.has(alias)
           ? `'${alias}' cannot be used as a named registry alias: it is a reserved dependency specifier prefix.`
           : `'${alias}' cannot be used as a named registry alias: aliases must start with a letter and contain only letters, digits, ".", "_", and "-".`,
-        { hint: 'Rename the entry in the registriesByPrefix setting.' }
+        { hint: 'Change the prefix on the corresponding registries entry.' }
       )
     }
     if (typeof url !== 'string' || !isValidHttpUrl(url)) {
@@ -1304,14 +1304,14 @@ function createRegistryTarballResolution (
   }
   if (!isValidTarballRevision(dist.revision)) {
     throw new PnpmError('MALFORMED_METADATA',
-      `Tarball "${dist.tarball}" has an invalid revision in its metadata: ${String(dist.revision)}`)
+      `Tarball "${redactUrlForDisplay(dist.tarball)}" has an invalid revision in its metadata: ${String(dist.revision)}`)
   }
   if (
     integrity == null ||
     !isIntegrityAddressedRegistryTarballUrl(tarball, integrity, registry)
   ) {
     throw new PnpmError('MALFORMED_METADATA',
-      `Tarball "${dist.tarball}" has revision ${dist.revision} but is not addressed by its complete integrity.`)
+      `Tarball "${redactUrlForDisplay(dist.tarball)}" has revision ${dist.revision} but is not addressed by its complete integrity.`)
   }
   return {
     integrity,

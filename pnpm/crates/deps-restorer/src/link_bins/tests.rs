@@ -643,6 +643,7 @@ fn build_has_bin_set_includes_runtime_resolutions_even_when_has_bin_is_absent() 
         metadata_with_resolution(
             LockfileResolution::Registry(RegistryResolution {
                 integrity: "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==".parse().expect("parse integrity"),
+                revision: None,
             }),
             Some(true),
         ),
@@ -652,6 +653,7 @@ fn build_has_bin_set_includes_runtime_resolutions_even_when_has_bin_is_absent() 
         metadata_with_resolution(
             LockfileResolution::Registry(RegistryResolution {
                 integrity: "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==".parse().expect("parse integrity"),
+                revision: None,
             }),
             None,
         ),

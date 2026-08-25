@@ -4,7 +4,7 @@ import util from 'node:util'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError, redactUrlForDisplay } from '@pnpm/error'
 import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
-import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
+import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
 import type { Cafs } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
@@ -28,6 +28,7 @@ export type DownloadOptions = {
   onProgress?: (downloaded: number) => void
   integrity?: string
   redirect?: RequestRedirect
+  retry?: Pick<RetryTimeoutOptions, 'retries'>
   storeIndex: StoreIndex
   pkg?: FetchOptions['pkg']
 } & Pick<FetchOptions, 'appendManifest' | 'readManifest' | 'filesIndexFile' | 'ignoreFilePattern'>
@@ -68,7 +69,8 @@ export function createDownloader (
   return async function download (url: string, opts: DownloadOptions): Promise<FetchResult> {
     const authHeaderValue = opts.getAuthHeaderByURI(url, { pkgName: opts.pkg?.name })
 
-    const op = retry.operation(retryOpts)
+    const downloadRetryOpts = { ...retryOpts, ...opts.retry }
+    const op = retry.operation(downloadRetryOpts)
 
     return new Promise<FetchResult>((resolve, reject) => {
       op.attempt(async (attempt) => {
@@ -109,7 +111,7 @@ export function createDownloader (
           requestRetryLogger.debug({
             attempt,
             error: errorInfo,
-            maxRetries: retryOpts.retries,
+            maxRetries: downloadRetryOpts.retries,
             method: 'GET',
             timeout,
             url,

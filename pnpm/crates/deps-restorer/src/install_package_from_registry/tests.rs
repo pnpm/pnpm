@@ -592,6 +592,7 @@ async fn install_returns_unsupported_resolution_when_name_ver_missing() {
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: "https://example.com/foo.tar.gz".to_string(),
             integrity: None,
+            revision: None,
             git_hosted: Some(true),
             path: None,
         }),
@@ -672,6 +673,7 @@ async fn install_rejects_traversal_manifest_name() {
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: "https://example.com/foo.tar.gz".to_string(),
             integrity: None,
+            revision: None,
             git_hosted: Some(true),
             path: None,
         }),

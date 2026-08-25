@@ -198,6 +198,23 @@ impl<'a> DownloadTarballToStore<'a> {
         self,
         mem_cache: &'a MemCache,
     ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
+        self.run_with_mem_cache_inner::<Reporter>(mem_cache, false).await
+    }
+
+    /// Execute a registry revision fetch with the shared in-memory cache.
+    /// The network path performs exactly one GET and rejects redirects.
+    pub async fn run_revision_addressed_with_mem_cache<Reporter: self::Reporter>(
+        self,
+        mem_cache: &'a MemCache,
+    ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
+        self.run_with_mem_cache_inner::<Reporter>(mem_cache, true).await
+    }
+
+    async fn run_with_mem_cache_inner<Reporter: self::Reporter>(
+        self,
+        mem_cache: &'a MemCache,
+        revision_addressed: bool,
+    ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
         let &DownloadTarballToStore {
             package_url,
             package_id,
@@ -234,64 +251,45 @@ impl<'a> DownloadTarballToStore<'a> {
         // QUESTION: I see no copying from existing store_dir, is there such mechanism?
         // TODO: If it's not implemented yet, implement it
 
-        // `DashMap::get` returns a `Ref` that holds a shard read guard for
-        // its entire lifetime. Holding it across `.await` deadlocks: while
-        // this task is parked, another task on the same worker can call
-        // `mem_cache.insert` for a key that hashes to the same shard,
-        // block on the write side, and starve every worker. Clone the
-        // inner `Arc` out and drop the `Ref` immediately.
-        let existing = mem_cache.get(package_url).map(|entry| Arc::clone(entry.value()));
-        if let Some(cache_lock) = existing {
-            // `pnpm:progress` fires exactly once per URL — only the
-            // first writer's `run_without_mem_cache` call emits.
-            // Later waiters on the same cache slot do not re-trigger
-            // the emit.
-            //
-            // Read-lock the state read: the variant inspection below
-            // doesn't mutate anything, and a `write().await` would
-            // serialize every late visitor for a popular tarball
-            // (e.g. dozens of peer-suffix variants of the same
-            // package) behind a single exclusive guard, even though
-            // they're all just observing the in-progress / available
-            // flag. The owner branch below is the only writer; the
-            // RwLock's reader-writer fairness guarantees the owner
-            // still makes progress.
-            let notify = match &*cache_lock.read().await {
-                CacheValue::Available(cas_paths) => {
-                    // The first owner already reported its package
-                    // status. If the caller supplied a shared
-                    // progress set, this emit is skipped for keys the
-                    // owner reported; otherwise preserve the legacy
-                    // per-caller cache-hit progress.
-                    emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
-                    return Ok(Arc::clone(cas_paths));
-                }
-                CacheValue::InProgress(notify) => Arc::clone(notify),
-                CacheValue::Failed => {
-                    // The owner already finished and failed; surface
-                    // immediately rather than parking on the Notify.
-                    return Err(TarballError::SiblingFetchFailed { url: package_url.to_string() });
-                }
-            };
-
-            tracing::info!(target: "pacquet::download", ?package_url, "Wait for cache");
-            loop {
-                // Register with the `Notify` *before* re-checking the
-                // slot. `notify_waiters` stores no permit — it wakes
-                // only `Notified` futures already registered at that
-                // instant — and the read guard from the `InProgress`
-                // observation above is released before this point, so
-                // the owner's flip-and-notify can land in between.
-                // Checking first and registering after loses that
-                // wakeup and parks this task forever (nothing ever
-                // notifies the slot again once it is terminal).
-                let notified = notify.notified();
-                let mut notified = std::pin::pin!(notified);
-                notified.as_mut().enable();
-                match &*cache_lock.read().await {
+        // Claim ownership atomically so concurrent callers cannot both start
+        // the one network fetch for this URL. The entry guard is dropped when
+        // this match returns, before either branch awaits the cache lock.
+        let (cache_lock, owner_notify) = match mem_cache.entry(package_url.to_string()) {
+            dashmap::mapref::entry::Entry::Occupied(entry) => (Arc::clone(entry.get()), None),
+            dashmap::mapref::entry::Entry::Vacant(entry) => {
+                let notify = Arc::new(Notify::new());
+                let cache_lock = notify
+                    .pipe_ref(Arc::clone)
+                    .pipe(CacheValue::InProgress)
+                    .pipe(RwLock::new)
+                    .pipe(Arc::new);
+                entry.insert(Arc::clone(&cache_lock));
+                (cache_lock, Some(notify))
+            }
+        };
+        match owner_notify {
+            None => {
+                // `pnpm:progress` fires exactly once per URL — only the
+                // first writer's `run_without_mem_cache` call emits.
+                // Later waiters on the same cache slot do not re-trigger
+                // the emit.
+                //
+                // Read-lock the state read: the variant inspection below
+                // doesn't mutate anything, and a `write().await` would
+                // serialize every late visitor for a popular tarball
+                // (e.g. dozens of peer-suffix variants of the same
+                // package) behind a single exclusive guard, even though
+                // they're all just observing the in-progress / available
+                // flag. The owner branch below is the only writer; the
+                // RwLock's reader-writer fairness guarantees the owner
+                // still makes progress.
+                let notify = match &*cache_lock.read().await {
                     CacheValue::Available(cas_paths) => {
-                        // Same rationale as the pre-wait `Available`
-                        // branch above.
+                        // The first owner already reported its package
+                        // status. If the caller supplied a shared
+                        // progress set, this emit is skipped for keys the
+                        // owner reported; otherwise preserve the legacy
+                        // per-caller cache-hit progress.
                         emit_progress_found_in_store::<Reporter>(
                             package_id,
                             requester,
@@ -299,57 +297,85 @@ impl<'a> DownloadTarballToStore<'a> {
                         );
                         return Ok(Arc::clone(cas_paths));
                     }
+                    CacheValue::InProgress(notify) => Arc::clone(notify),
                     CacheValue::Failed => {
+                        // The owner already finished and failed; surface
+                        // immediately rather than parking on the Notify.
                         return Err(TarballError::SiblingFetchFailed {
                             url: package_url.to_string(),
                         });
                     }
-                    // The owner notifies only after flipping the slot
-                    // to `Available` or `Failed`, so a wake with the
-                    // slot still `InProgress` cannot happen — but a
-                    // stale registration completing early is harmless
-                    // either way: re-register and park again.
-                    CacheValue::InProgress(_) => {}
-                }
-                notified.await;
-            }
-        } else {
-            let notify = Arc::new(Notify::new());
-            let cache_lock = notify
-                .pipe_ref(Arc::clone)
-                .pipe(CacheValue::InProgress)
-                .pipe(RwLock::new)
-                .pipe(Arc::new);
-            if mem_cache.insert(package_url.to_string(), Arc::clone(&cache_lock)).is_some() {
-                tracing::warn!(target: "pacquet::download", ?package_url, "Race condition detected when writing to cache");
-            }
+                };
 
-            // Run the actual fetch and cleanup in either branch. On
-            // error the cache slot must transition to `Failed` and
-            // we must `notify_waiters` so concurrent requesters
-            // wake up and surface a sibling-fetch error instead of
-            // parking on the Notify forever (the original deadlock).
-            // Removing the `mem_cache` entry afterwards lets a
-            // freshly-started fetch (e.g., via `pacquet add` after
-            // a transient network failure) retry without inheriting
-            // the failed slot.
-            let result = self.run_without_mem_cache::<Reporter>().await;
-            match result {
-                Ok(cas_paths) => {
-                    let cas_paths = Arc::new(cas_paths);
-                    let mut cache_write = cache_lock.write().await;
-                    *cache_write = CacheValue::Available(Arc::clone(&cas_paths));
-                    drop(cache_write);
-                    notify.notify_waiters();
-                    Ok(cas_paths)
+                tracing::info!(target: "pacquet::download", ?package_url, "Wait for cache");
+                loop {
+                    // Register with the `Notify` *before* re-checking the
+                    // slot. `notify_waiters` stores no permit — it wakes
+                    // only `Notified` futures already registered at that
+                    // instant — and the read guard from the `InProgress`
+                    // observation above is released before this point, so
+                    // the owner's flip-and-notify can land in between.
+                    // Checking first and registering after loses that
+                    // wakeup and parks this task forever (nothing ever
+                    // notifies the slot again once it is terminal).
+                    let notified = notify.notified();
+                    let mut notified = std::pin::pin!(notified);
+                    notified.as_mut().enable();
+                    match &*cache_lock.read().await {
+                        CacheValue::Available(cas_paths) => {
+                            // Same rationale as the pre-wait `Available`
+                            // branch above.
+                            emit_progress_found_in_store::<Reporter>(
+                                package_id,
+                                requester,
+                                progress_key,
+                            );
+                            return Ok(Arc::clone(cas_paths));
+                        }
+                        CacheValue::Failed => {
+                            return Err(TarballError::SiblingFetchFailed {
+                                url: package_url.to_string(),
+                            });
+                        }
+                        // The owner notifies only after flipping the slot
+                        // to `Available` or `Failed`, so a wake with the
+                        // slot still `InProgress` cannot happen — but a
+                        // stale registration completing early is harmless
+                        // either way: re-register and park again.
+                        CacheValue::InProgress(_) => {}
+                    }
+                    notified.await;
                 }
-                Err(err) => {
-                    let mut cache_write = cache_lock.write().await;
-                    *cache_write = CacheValue::Failed;
-                    drop(cache_write);
-                    mem_cache.remove(package_url);
-                    notify.notify_waiters();
-                    Err(err)
+            }
+            Some(notify) => {
+                // Run the actual fetch and cleanup in either branch. On
+                // error the cache slot must transition to `Failed` and
+                // we must `notify_waiters` so concurrent requesters
+                // wake up and surface a sibling-fetch error instead of
+                // parking on the Notify forever (the original deadlock).
+                // Ordinary fetches remove the failed slot so a later caller
+                // can retry. A revision-addressed fetch keeps it terminal for
+                // this install, preserving the protocol's one-GET contract.
+                let result = self.run_without_mem_cache_inner::<Reporter>(revision_addressed).await;
+                match result {
+                    Ok(cas_paths) => {
+                        let cas_paths = Arc::new(cas_paths);
+                        let mut cache_write = cache_lock.write().await;
+                        *cache_write = CacheValue::Available(Arc::clone(&cas_paths));
+                        drop(cache_write);
+                        notify.notify_waiters();
+                        Ok(cas_paths)
+                    }
+                    Err(err) => {
+                        let mut cache_write = cache_lock.write().await;
+                        *cache_write = CacheValue::Failed;
+                        drop(cache_write);
+                        if !revision_addressed {
+                            mem_cache.remove(package_url);
+                        }
+                        notify.notify_waiters();
+                        Err(err)
+                    }
                 }
             }
         }
@@ -358,6 +384,21 @@ impl<'a> DownloadTarballToStore<'a> {
     /// Execute the subroutine without an in-memory cache.
     pub async fn run_without_mem_cache<Reporter: self::Reporter>(
         &self,
+    ) -> Result<HashMap<String, PathBuf>, TarballError> {
+        self.run_without_mem_cache_inner::<Reporter>(false).await
+    }
+
+    /// Execute a registry revision fetch without the in-memory cache.
+    /// The network path performs exactly one GET and rejects redirects.
+    pub async fn run_revision_addressed_without_mem_cache<Reporter: self::Reporter>(
+        &self,
+    ) -> Result<HashMap<String, PathBuf>, TarballError> {
+        self.run_without_mem_cache_inner::<Reporter>(true).await
+    }
+
+    async fn run_without_mem_cache_inner<Reporter: self::Reporter>(
+        &self,
+        revision_addressed: bool,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
         let &DownloadTarballToStore {
             store_dir,
@@ -418,7 +459,9 @@ impl<'a> DownloadTarballToStore<'a> {
                 return Ok(cas_paths);
             }
         }
-        self.fetch_and_extract_inner::<Reporter>(false).await.map(|result| result.files_map)
+        self.fetch_and_extract_inner::<Reporter>(false, revision_addressed)
+            .await
+            .map(|result| result.files_map)
     }
 
     /// Fetch the requested archive, verify any expected integrity, and return its CAFS files.
@@ -427,12 +470,13 @@ impl<'a> DownloadTarballToStore<'a> {
     pub async fn fetch_and_extract<Reporter: self::Reporter>(
         &self,
     ) -> Result<FetchedTarball, TarballError> {
-        self.fetch_and_extract_inner::<Reporter>(true).await
+        self.fetch_and_extract_inner::<Reporter>(true, false).await
     }
 
     async fn fetch_and_extract_inner<Reporter: self::Reporter>(
         &self,
         record_computed_integrity: bool,
+        revision_addressed: bool,
     ) -> Result<FetchedTarball, TarballError> {
         let &DownloadTarballToStore {
             http_client,
@@ -502,6 +546,7 @@ impl<'a> DownloadTarballToStore<'a> {
                 auth_headers,
                 ignore_file_pattern,
                 progress_key,
+                revision_addressed,
             )
             .await?;
 
@@ -638,6 +683,7 @@ impl FetchTarballForResolution<'_> {
                 auth_headers,
                 None,
                 None,
+                false,
             )
             .await?;
         apply_placeholder_manifest(store_dir, &mut cas_paths, &mut pkg_files_idx)?;

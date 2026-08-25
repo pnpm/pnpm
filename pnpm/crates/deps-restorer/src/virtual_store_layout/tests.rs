@@ -73,6 +73,7 @@ fn slot_dir_uses_gvs_layout_when_gvs_on() {
                 integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                     .parse()
                     .expect("parse integrity"),
+                revision: None,
             }),
             version: None,
             engines: None,
@@ -127,6 +128,7 @@ fn slot_dir_prefixes_unscoped_with_at_slash_under_gvs() {
                 integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                     .parse()
                     .expect("parse integrity"),
+                revision: None,
             }),
             version: None,
             engines: None,
@@ -173,6 +175,7 @@ fn slot_dir_engine_agnostic_with_empty_allow_build_policy() {
                 integrity: "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
                     .parse()
                     .expect("parse integrity"),
+                revision: None,
             }),
             version: None,
             engines: None,
@@ -230,6 +233,7 @@ fn slot_dir_engine_specific_when_snapshot_is_built() {
                 integrity: "sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
                     .parse()
                     .expect("parse integrity"),
+                revision: None,
             }),
             version: None,
             engines: None,
@@ -350,6 +354,7 @@ fn cross_pinning_siblings_get_distinct_slots() {
             PackageMetadata {
                 resolution: LockfileResolution::Registry(RegistryResolution {
                     integrity: integrity_str.parse().expect("parse integrity"),
+                    revision: None,
                 }),
                 version: None,
                 engines: None,
@@ -425,6 +430,7 @@ fn full_pkg_id_keeps_patch_hash_when_present() {
                 integrity: "sha512-PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP"
                     .parse()
                     .expect("parse integrity"),
+                revision: None,
             }),
             version: None,
             engines: None,
@@ -473,6 +479,7 @@ fn gvs_version_segment_anchors_directory_deps() {
         LockfileResolution::Tarball(TarballResolution {
             tarball: "file:vendor/dep.tgz".to_string(),
             integrity: None,
+            revision: None,
             git_hosted: None,
             path: None,
         }),
@@ -502,6 +509,7 @@ fn a_file_snapshot_without_metadata_is_still_scoped() {
         LockfileResolution::Tarball(TarballResolution {
             tarball: "file:packages/b".to_string(),
             integrity: None,
+            revision: None,
             git_hosted: None,
             path: None,
         }),
@@ -612,6 +620,7 @@ fn link_hash_matches_the_shared_typescript_fixture() {
         package_metadata(
             LockfileResolution::Registry(RegistryResolution {
                 integrity: fixture.package.integrity.parse().expect("parse fixture integrity"),
+                revision: None,
             }),
             Some(&fixture.package.version),
         ),
@@ -678,6 +687,7 @@ fn snapshots_with_link_deps_get_a_slot_per_link_target() {
             LockfileResolution::Tarball(TarballResolution {
                 tarball: "https://registry.npmjs.org/react-dom/-/react-dom-18.3.1.tgz".to_string(),
                 integrity: None,
+                revision: None,
                 git_hosted: None,
                 path: None,
             }),
@@ -795,6 +805,7 @@ fn link_deps_resolving_to_one_directory_share_a_slot_across_projects() {
             LockfileResolution::Tarball(TarballResolution {
                 tarball: "https://registry.npmjs.org/react-dom/-/react-dom-18.3.1.tgz".to_string(),
                 integrity: None,
+                revision: None,
                 git_hosted: None,
                 path: None,
             }),
@@ -836,6 +847,7 @@ fn snapshots_without_link_deps_keep_their_slot() {
             LockfileResolution::Tarball(TarballResolution {
                 tarball: "https://registry.npmjs.org/react-dom/-/react-dom-18.3.1.tgz".to_string(),
                 integrity: None,
+                revision: None,
                 git_hosted: None,
                 path: None,
             }),
@@ -1104,6 +1116,7 @@ fn registry_metadata(lead: &str) -> PackageMetadata {
     PackageMetadata {
         resolution: LockfileResolution::Registry(RegistryResolution {
             integrity: integrity.parse().expect("parse integrity"),
+            revision: None,
         }),
         version: None,
         engines: None,

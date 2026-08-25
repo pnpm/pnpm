@@ -166,6 +166,7 @@ describe('integrity-addressed tarball URLs', () => {
   test.each([
     `sha512-${SHA512_BASE64}?r1`,
     'sha512-AAAA',
+    `sha512-${'A'.repeat(1024 * 1024)}`,
     `sha256-${SHA512_BASE64}`,
     `${SHA512_BASE64}`,
   ])('does not recognize %s', (integrity) => {

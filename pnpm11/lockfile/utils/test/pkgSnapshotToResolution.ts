@@ -208,3 +208,20 @@ test.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '1', '01'])(
     }))
   }
 )
+
+test.each([
+  { tarball: 'file:../foo.tgz' },
+  { tarball: 'https://codeload.github.com/foo/bar/tar.gz/abc', gitHosted: true },
+])('pkgSnapshotToResolution() rejects a revision on a non-registry tarball', (resolution) => {
+  expect(() => pkgSnapshotToResolution('foo@1.0.0', {
+    resolution: {
+      ...resolution,
+      integrity: REVISION_INTEGRITY,
+      revision: 1,
+    },
+  }, {
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_TARBALL_REVISION',
+  }))
+})

@@ -301,6 +301,32 @@ test('does not follow redirects for a registry replacement tarball', async () =>
   expect(mockAgent.pendingInterceptors()).toHaveLength(1)
 })
 
+test('does not retry a failed registry replacement tarball request', async () => {
+  const integrity = `sha512-${'A'.repeat(86)}==`
+  const tarballPathname = `/-/tarballs/sha512/${'A'.repeat(86)}`
+  const mockPool = mockAgent.get(registry)
+  mockPool.intercept({
+    path: tarballPathname,
+    method: 'GET',
+  }).reply(503, '')
+
+  process.chdir(temporaryDirectory())
+
+  await expect(fetch.remoteTarball(cafs, {
+    integrity,
+    revision: 1,
+    tarball: `${registry}${tarballPathname}`,
+  }, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg,
+  })).rejects.toMatchObject({
+    attempts: 1,
+    code: 'ERR_PNPM_FETCH_503',
+  })
+  expect(mockAgent.pendingInterceptors()).toHaveLength(0)
+})
+
 test('fail when integrity check fails two times in a row', async () => {
   const wrongTarball = f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const wrongTarballContent = fs.readFileSync(wrongTarball)

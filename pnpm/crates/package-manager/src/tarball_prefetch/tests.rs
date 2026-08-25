@@ -29,6 +29,7 @@ fn pending(package_id: &str, integrity: &str) -> PendingPrefetch {
         package_id: package_id.to_string(),
         package_url: format!("https://registry.example.com/{package_id}.tgz"),
         integrity: integrity.to_string(),
+        revision_addressed: false,
     }
 }
 
