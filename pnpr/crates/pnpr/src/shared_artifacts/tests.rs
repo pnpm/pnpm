@@ -10,7 +10,10 @@ use pnpm_shared_artifact_protocol::{
 use tempfile::TempDir;
 use tokio::{fs, sync::Barrier};
 
-use super::{ResolveBudget, enforce_storage_quota_with_limits, is_variant_file, publish};
+use super::{
+    ResolveBudget, acquire_publication_lock, enforce_storage_quota_with_limits, is_variant_file,
+    publish,
+};
 
 #[test]
 fn resolve_budget_bounds_combined_scanned_and_serialized_bytes() {
@@ -63,6 +66,19 @@ async fn publication_storage_is_bounded_per_owner_and_globally() {
     enforce_storage_quota_with_limits(&root, &owner, 4, 10, 13).await.unwrap();
     assert!(enforce_storage_quota_with_limits(&root, &owner, 5, 10, 20).await.is_err());
     assert!(enforce_storage_quota_with_limits(&root, &owner, 4, 20, 12).await.is_err());
+}
+
+#[tokio::test]
+async fn an_unlocked_publication_lock_file_is_reused() {
+    let storage = TempDir::new().unwrap();
+    let path = storage.path().join("publication.lock");
+    fs::write(&path, b"residue").await.unwrap();
+
+    let lock = acquire_publication_lock(path.clone()).await.unwrap();
+    assert!(path.is_file());
+    drop(lock);
+
+    acquire_publication_lock(path).await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 16)]

@@ -1,11 +1,12 @@
 use std::{
     collections::{BTreeMap, HashSet},
+    fs::{File, OpenOptions, TryLockError},
     io::ErrorKind,
     path::{Path, PathBuf},
-    time::Duration,
+    thread::sleep,
+    time::{Duration, Instant},
 };
 
-use pnpm_fs::DirLock;
 use pnpm_shared_artifact_protocol::{
     ArtifactBlobRequest, ArtifactCandidate, ArtifactPayload, ArtifactProtocolError,
     ArtifactVariant, MAX_CANDIDATES, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
@@ -22,7 +23,7 @@ use crate::{
 
 const ARTIFACT_CACHE_DIR: &str = "shared-artifacts/v0";
 const ARTIFACT_LOCK_WAIT: Duration = Duration::from_secs(30);
-const ARTIFACT_LOCK_ABANDONED_AFTER: Duration = Duration::from_hours(1);
+const ARTIFACT_LOCK_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const MAX_OWNER_ARTIFACT_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_GLOBAL_ARTIFACT_BYTES: u64 = 10 * MAX_OWNER_ARTIFACT_BYTES;
 
@@ -321,14 +322,30 @@ fn owner_dir(cache_storage: &Path, username: &str, owner: &OwnerScope) -> Result
     }
 }
 
-async fn acquire_publication_lock(path: PathBuf) -> Result<DirLock> {
-    tokio::task::spawn_blocking(move || {
-        DirLock::acquire(path, ARTIFACT_LOCK_WAIT, ARTIFACT_LOCK_ABANDONED_AFTER)
-    })
-    .await??
-    .ok_or_else(|| RegistryError::Internal {
-        reason: "timed out acquiring shared artifact publication lock".to_string(),
-    })
+async fn acquire_publication_lock(path: PathBuf) -> Result<File> {
+    tokio::task::spawn_blocking(move || acquire_file_lock(&path, ARTIFACT_LOCK_WAIT))
+        .await??
+        .ok_or_else(|| RegistryError::Internal {
+            reason: "timed out acquiring shared artifact publication lock".to_string(),
+        })
+}
+
+fn acquire_file_lock(path: &Path, wait: Duration) -> std::io::Result<Option<File>> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let file = OpenOptions::new().read(true).write(true).create(true).truncate(false).open(path)?;
+    let deadline = Instant::now() + wait;
+    loop {
+        match file.try_lock() {
+            Ok(()) => return Ok(Some(file)),
+            Err(TryLockError::WouldBlock) if Instant::now() < deadline => {
+                sleep(ARTIFACT_LOCK_POLL_INTERVAL);
+            }
+            Err(TryLockError::WouldBlock) => return Ok(None),
+            Err(TryLockError::Error(error)) => return Err(error),
+        }
+    }
 }
 
 async fn count_variants(key_dir: &Path) -> Result<usize> {

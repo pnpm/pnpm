@@ -5993,7 +5993,6 @@ dependencies = [
  "pnpm-config-dir",
  "pnpm-crypto-hash",
  "pnpm-env-replace",
- "pnpm-fs",
  "pnpm-lockfile",
  "pnpm-lockfile-verification",
  "pnpm-network",
