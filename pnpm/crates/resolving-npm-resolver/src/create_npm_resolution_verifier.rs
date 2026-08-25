@@ -599,7 +599,11 @@ impl NpmResolutionVerifier {
             });
         };
         let revision_aware = lockfile_revision(resolution).is_some()
-            || artifact.current.revision.is_some()
+            || artifact
+                .current
+                .revision
+                .as_ref()
+                .is_some_and(|revision| revision.as_u64() != Some(0))
             || !artifact.revisions.is_empty();
         if !revision_aware {
             return match (lockfile_tarball, artifact.current.tarball) {
@@ -620,6 +624,7 @@ impl NpmResolutionVerifier {
         }
         let current_revision = match artifact.current.revision.as_ref() {
             None => 0,
+            Some(raw_revision) if raw_revision.as_u64() == Some(0) => 0,
             Some(raw_revision) => match raw_revision
                 .as_u64()
                 .and_then(|revision| TarballRevision::try_from(revision).ok())

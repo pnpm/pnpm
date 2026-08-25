@@ -268,6 +268,80 @@ fn does_not_verify_a_revision_without_an_active_policy() {
 }
 
 #[tokio::test]
+async fn treats_an_explicit_zero_current_revision_as_ordinary_metadata() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let packument = serde_json::json!({
+        "name": "revision-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "revision-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": revision_integrity(REVISION_ONE_DIGEST).to_string(),
+                    "tarball": format!("{registry}revision-pkg/-/revision-pkg-1.0.0.tgz"),
+                    "revision": 0,
+                }
+            }
+        },
+        "time": { "1.0.0": "2020-01-01T00:00:00.000Z" }
+    });
+    server
+        .mock("GET", "/revision-pkg")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(1);
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = registry_resolution();
+    let name = "revision-pkg".parse::<PkgName>().unwrap();
+    assert_eq!(verifier.verify(&resolution, ctx(&name, "1.0.0")).await, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
+async fn accepts_zero_as_the_current_revision_when_history_is_present() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let packument = serde_json::json!({
+        "name": "revision-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "revision-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "tarball": format!("{registry}revision-pkg/-/revision-pkg-1.0.0.tgz"),
+                    "revision": 0,
+                    "revisions": [{
+                        "revision": 0,
+                        "integrity": FAKE_INTEGRITY,
+                        "tarball": format!("{registry}revision-pkg/-/revision-pkg-1.0.0.tgz"),
+                        "manifest": {},
+                    }],
+                }
+            }
+        },
+        "time": { "1.0.0": "2020-01-01T00:00:00.000Z" }
+    });
+    server
+        .mock("GET", "/revision-pkg")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(1);
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = registry_resolution();
+    let name = "revision-pkg".parse::<PkgName>().unwrap();
+    assert_eq!(verifier.verify(&resolution, ctx(&name, "1.0.0")).await, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
 async fn accepts_an_advertised_historical_revision() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
