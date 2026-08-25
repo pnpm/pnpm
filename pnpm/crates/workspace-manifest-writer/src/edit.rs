@@ -1171,19 +1171,32 @@ fn blanks_belong_to_kept_scalar(text: &str, line_start: usize) -> bool {
     false
 }
 
-/// Whether `content` opens a block scalar that keeps its trailing line
-/// breaks: a `|` or `>` header carrying a `+`, in either order relative to
-/// an explicit indentation digit (`|+`, `>+2`, `|2+`), with or without a
-/// trailing comment. Only the value position counts — a `|+` inside an
-/// ordinary scalar, or inside the header's own comment, is text.
+/// Whether `content` declares a block scalar that keeps its trailing line
+/// breaks. Only the value position counts — a `|+` inside an ordinary
+/// scalar, or inside the header's own comment, is text. A quoted key may
+/// itself hold `: `, so which colon delimits the value is not decidable
+/// from one line; every candidate is tried, and any of them opening a kept
+/// scalar counts. That errs towards leaving a separator in place, which is
+/// the harmless direction.
 fn is_kept_chomping_header(content: &str) -> bool {
-    let mut value = content.trim_start();
-    while let Some(item) = value.strip_prefix("- ") {
-        value = item.trim_start();
+    let mut line = content.trim_start();
+    while let Some(item) = line.strip_prefix("- ") {
+        line = item.trim_start();
     }
-    if let Some(delimiter) = structural_colon_index(value) {
-        value = value[delimiter + 1..].trim_start();
-    }
+    opens_kept_chomping_scalar(line)
+        || line
+            .match_indices(':')
+            .filter(|(index, _)| {
+                let rest = &line[index + 1..];
+                rest.is_empty() || rest.starts_with([' ', '\t'])
+            })
+            .any(|(index, _)| opens_kept_chomping_scalar(line[index + 1..].trim_start()))
+}
+
+/// Whether `value` is a block scalar header carrying a `+`, in either order
+/// relative to an explicit indentation digit (`|+`, `>+2`, `|2+`), with or
+/// without a trailing comment.
+fn opens_kept_chomping_scalar(value: &str) -> bool {
     let Some(indicators) = value.strip_prefix(['|', '>']) else {
         return false;
     };
