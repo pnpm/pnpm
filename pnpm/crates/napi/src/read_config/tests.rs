@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use pacquet_config::Config;
-use pacquet_network::{AuthHeaders, AuthHeadersByScope, NoProxySetting};
+use pnpm_config::Config;
+use pnpm_network::{AuthHeaders, AuthHeadersByScope, NoProxySetting};
 use pretty_assertions::assert_eq;
 
 use super::{import_method_name, project_config};
@@ -9,7 +9,7 @@ use super::{import_method_name, project_config};
 fn config_with_auth(by_scope: AuthHeadersByScope) -> Config {
     Config {
         registry: "https://reg.example/npm/".to_string(),
-        registries: BTreeMap::from([(
+        registries_by_scope: BTreeMap::from([(
             "@scope".to_string(),
             "https://reg.example/scoped/".to_string(),
         )]),
@@ -114,7 +114,7 @@ fn empty_ca_projects_as_absent() {
 /// into `install` without silently losing the configured behavior.
 #[test]
 fn import_method_names_round_trip_through_the_install_parser() {
-    use pacquet_config::PackageImportMethod;
+    use pnpm_config::PackageImportMethod;
     for (method, name) in [
         (PackageImportMethod::Auto, "auto"),
         (PackageImportMethod::Hardlink, "hardlink"),
@@ -177,14 +177,21 @@ fn read_config_resolves_the_project_npmrc_cascade() {
 #[test]
 fn read_config_reports_explicitly_set_workspace_settings() {
     let dir = tempfile::tempdir().expect("tempdir");
-    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "fetchRetries: 7\n")
-        .expect("write pnpm-workspace.yaml");
+    std::fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        "fetchRetries: 7\nfetchWarnTimeoutMs: 2345\nfetchMinSpeedKiBps: 12\n",
+    )
+    .expect("write pnpm-workspace.yaml");
 
     let resolved =
         super::read_config(super::ReadConfigOptions { dir: dir.path().display().to_string() })
             .expect("read config");
 
     assert_eq!(resolved.fetch_retries, 7);
+    assert_eq!(resolved.fetch_warn_timeout_ms, 2_345);
+    assert_eq!(resolved.fetch_min_speed_ki_bps, 12);
     assert!(resolved.explicit_settings.contains(&"fetchRetries".to_string()));
+    assert!(resolved.explicit_settings.contains(&"fetchWarnTimeoutMs".to_string()));
+    assert!(resolved.explicit_settings.contains(&"fetchMinSpeedKiBps".to_string()));
     assert!(!resolved.explicit_settings.contains(&"fetchTimeout".to_string()));
 }

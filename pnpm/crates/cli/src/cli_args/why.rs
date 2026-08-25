@@ -3,7 +3,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use clap::Args;
-use pacquet_modules_yaml::IncludedDependencies;
+use pnpm_modules_yaml::IncludedDependencies;
 
 use crate::{
     State,
@@ -11,20 +11,18 @@ use crate::{
         deps_tree::{
             build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
             dependents::{BuildDependentsOptions, ImporterInfo, build_dependents_tree},
-            finders::{evaluate_finders, finder_candidates, resolve_finders},
+            dependents_render::{
+                RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
+                render_dependents_tree,
+            },
             graph::{BuildGraphOptions, build_dependency_graph},
             search::Searcher,
         },
+        deps_tree_finders::{evaluate_finders, finder_candidates, resolve_finders},
+        install::resolve_bool_override,
         list::print_output,
         recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
     },
-};
-
-mod render;
-
-use render::{
-    RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
-    render_dependents_tree,
 };
 
 #[derive(Debug, Args)]
@@ -57,8 +55,12 @@ pub struct WhyArgs {
     pub dev: bool,
 
     /// Don't display packages from `optionalDependencies`.
-    #[clap(long)]
+    #[clap(long, overrides_with = "optional")]
     pub no_optional: bool,
+
+    /// Include packages from `optionalDependencies`.
+    #[clap(long, overrides_with = "no_optional")]
+    pub optional: bool,
 
     /// Exclude peer dependencies.
     ///
@@ -91,7 +93,7 @@ impl WhyArgs {
 
         let project_dirs: Vec<PathBuf> = if state.config.recursive {
             let workspace_root = state.config.workspace_dir.as_deref().unwrap_or(&lockfile_dir);
-            let (projects, _) = discover_workspace_projects(workspace_root)?;
+            let (projects, _) = discover_workspace_projects(workspace_root, state.config)?;
             select_recursive_projects(
                 &projects,
                 state.config,
@@ -108,9 +110,12 @@ impl WhyArgs {
 
         let loaded =
             LoadedState::load(&lockfile_dir, Some(state.config.modules_dir.as_path()), false)?;
-        let Some(env) =
-            loaded.env(&lockfile_dir, state.config.virtual_store_dir_max_length as usize)
-        else {
+        let Some(env) = loaded.env(
+            &lockfile_dir,
+            state.config.virtual_store_dir_max_length as usize,
+            &state.config.resolved_registries(),
+            state.config.registry_options_by_url.clone(),
+        ) else {
             return Ok(());
         };
         let lockfile = env.current_lockfile;
@@ -141,7 +146,11 @@ impl WhyArgs {
             IncludedDependencies {
                 dependencies: has_both || self.production,
                 dev_dependencies: has_both || self.dev,
-                optional_dependencies: !self.no_optional,
+                optional_dependencies: resolve_bool_override(
+                    self.optional,
+                    self.no_optional,
+                    state.config.optional,
+                ),
             }
         };
 
@@ -164,6 +173,7 @@ impl WhyArgs {
             graph: &graph,
             search: &searcher,
             importer_info: &importer_info,
+            manifest_fields: &[],
         });
 
         let render_opts = RenderDependentsOptions { long: self.long, depth: self.depth };
@@ -178,6 +188,3 @@ impl WhyArgs {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -2,12 +2,17 @@ mod boolean_negations;
 mod cli_args;
 mod config_deps;
 mod config_overrides;
+mod engine_pm;
+mod executable_link;
 mod flag_relocation;
 mod github_actions;
+mod install_as_add;
 mod job_control;
 mod leading_separator;
 mod parse_boundary;
+mod path_env;
 mod renamed_options;
+mod shim_dispatch;
 mod shorthands;
 mod state;
 mod with_current;
@@ -18,7 +23,7 @@ use cli_args::CliArgs;
 use config_overrides::ConfigOverrides;
 use flag_relocation::relocate_pre_subcommand_flags;
 use miette::set_panic_hook;
-use pacquet_diagnostics::{enable_tracing_by_env, install_report_handler};
+use pnpm_diagnostics::{enable_tracing_by_env, install_report_handler};
 use state::State;
 use std::{ffi::OsString, future::Future, path::Path, process::ExitCode};
 
@@ -45,7 +50,14 @@ pub fn main() -> ExitCode {
 }
 
 fn is_reported_error(error: &miette::Report) -> bool {
-    error.code().is_some_and(|code| code.to_string() == "ERR_PNPM_DEDUPE_CHECK_ISSUES")
+    error.code().is_some_and(|code| {
+        matches!(
+            code.to_string().as_str(),
+            "ERR_PNPM_DEDUPE_CHECK_ISSUES"
+                | "ERR_PNPM_PEER_DEP_ISSUES"
+                | cli_args::recursive::NO_MATCHING_PROJECTS_CODE,
+        )
+    })
 }
 
 /// Build the CLI, parse argv, take any early-return fast path, then execute
@@ -58,6 +70,16 @@ fn run_cli() -> miette::Result<()> {
     // would otherwise error out as "unexpected argument". Each extracted
     // token is layered onto `Config` after `.npmrc` / yaml run.
     let argv_with_alias = argv_with_alias_subcommand();
+    // Context-aware global shims invoke the versioned dispatcher with
+    // `--shim <name> <shim> <target> -- <args>` on every bare invocation,
+    // so this runs before any argv rewriting or clap machinery below.
+    if let Some(exit_code) = shim_dispatch::try_dispatch(&argv_with_alias) {
+        #[expect(
+            clippy::exit,
+            reason = "the shim dispatcher propagates the dispatched command's exit status"
+        )]
+        std::process::exit(exit_code);
+    }
     let child_argv = argv_with_alias.iter().skip(1).cloned().collect::<Vec<_>>();
     let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
     // `pnpm with current <cmd>` is sugar for running `<cmd>` in-process with
@@ -67,7 +89,7 @@ fn run_cli() -> miette::Result<()> {
     let argv = with_current::rewrite(argv)?;
     // The default reporter's `Done in ... using pacquet v<version>` footer needs
     // the version before the first event (including the fast path's).
-    pacquet_default_reporter::set_package_version(pacquet_config::PNPM_VERSION);
+    pnpm_default_reporter::set_package_version(pnpm_config::PNPM_VERSION);
     // Parse through a command augmented with a `--no-<flag>` negation for
     // every boolean flag, so pnpm's forwarded negations (`--no-frozen-lockfile`,
     // etc.) parse the same way nopt accepts them upstream. See `boolean_negations`.
@@ -84,6 +106,10 @@ fn run_cli() -> miette::Result<()> {
     // options written before the subcommand to after it so clap agrees.
     // See `flag_relocation`.
     let argv = relocate_pre_subcommand_flags(&command, argv);
+    // `pnpm install <pkg>` is pnpm's spelling of `pnpm add <pkg>`; clap's
+    // `install` takes no package name, so rename the subcommand token.
+    // See `install_as_add`.
+    let argv = install_as_add::rewrite(&command, argv);
     // A command whose arguments begin at a `--` would otherwise lose it to
     // clap's escape handling. See `leading_separator`.
     let argv = leading_separator::preserve_leading_separator(argv);
@@ -103,7 +129,7 @@ fn run_cli() -> miette::Result<()> {
             {
                 return Ok(());
             }
-            println!("{}", pacquet_config::PNPM_VERSION);
+            println!("{}", pnpm_config::PNPM_VERSION);
             return Ok(());
         }
         Err(err) => err.exit(),
@@ -116,6 +142,7 @@ fn run_cli() -> miette::Result<()> {
     args.apply_workspace_root()?;
     args.promote_recursive_by_default();
     args.configure_reporter();
+    cli_args::sudo_guard::check_sudo(&args.command)?;
     if let Some(plan) = cli_args::pre_command::pre_command_plan(&args, &config_overrides)?
         && block_on_runtime(
             "pacquet-pre-command",

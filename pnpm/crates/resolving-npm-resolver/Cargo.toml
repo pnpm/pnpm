@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-resolving-npm-resolver"
+name                  = "pnpm-resolving-npm-resolver"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,22 +11,23 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-config                            = { workspace = true }
-pacquet-deps-path                         = { workspace = true }
-pacquet-lockfile                          = { workspace = true }
-pacquet-network                           = { workspace = true }
-pacquet-registry                          = { workspace = true }
-pacquet-resolving-jsr-specifier-parser    = { workspace = true }
-pacquet-resolving-parse-wanted-dependency = { workspace = true }
-pacquet-resolving-resolver-base           = { workspace = true }
-pacquet-workspace-range-resolver          = { workspace = true }
-pacquet-workspace-spec                    = { workspace = true }
+pnpm-config                            = { workspace = true }
+pnpm-deps-path                         = { workspace = true }
+pnpm-lockfile                          = { workspace = true }
+pnpm-network                           = { workspace = true }
+pnpm-registry                          = { workspace = true }
+pnpm-resolving-jsr-specifier-parser    = { workspace = true }
+pnpm-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-resolving-resolver-base           = { workspace = true }
+pnpm-workspace-range-resolver          = { workspace = true }
+pnpm-workspace-spec                    = { workspace = true }
 
 chrono      = { workspace = true }
 dashmap     = { workspace = true }
 derive_more = { workspace = true }
 httpdate    = { workspace = true }
 indexmap    = { workspace = true }
+libc        = { workspace = true }
 miette      = { workspace = true }
 node-semver = { workspace = true }
 pipe-trait  = { workspace = true }
@@ -39,8 +40,8 @@ tokio       = { workspace = true }
 tracing     = { workspace = true }
 
 [dev-dependencies]
-pacquet-resolving-default-resolver = { workspace = true }
-pacquet-resolving-local-resolver   = { workspace = true }
+pnpm-resolving-default-resolver = { workspace = true }
+pnpm-resolving-local-resolver   = { workspace = true }
 
 futures-util      = { workspace = true }
 mockito           = { workspace = true }

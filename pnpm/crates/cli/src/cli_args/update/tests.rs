@@ -1,7 +1,7 @@
 use super::{UpdateArgs, UpdateDependencyOptions};
 use clap::Parser;
-use pacquet_config::Config;
-use pacquet_package_manifest::DependencyGroup;
+use pnpm_config::Config;
+use pnpm_package_manifest::DependencyGroup;
 
 #[derive(Debug, Parser)]
 struct UpdateArgsHarness {
@@ -15,13 +15,13 @@ fn update_args(args: &[&str]) -> UpdateArgs {
         .args
 }
 
-fn options(prod: bool, dev: bool, no_optional: bool) -> UpdateDependencyOptions {
-    UpdateDependencyOptions { prod, dev, no_optional }
+fn options(prod: bool, dev: bool, optional: bool, no_optional: bool) -> UpdateDependencyOptions {
+    UpdateDependencyOptions { prod, dev, optional, no_optional }
 }
 
 #[test]
 fn no_flags_includes_all_groups() {
-    let groups = options(false, false, false).include_direct();
+    let groups = options(false, false, false, false).include_direct();
     assert_eq!(
         groups,
         vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
@@ -30,19 +30,19 @@ fn no_flags_includes_all_groups() {
 
 #[test]
 fn prod_includes_only_dependencies() {
-    let groups = options(true, false, false).include_direct();
+    let groups = options(true, false, false, false).include_direct();
     assert_eq!(groups, vec![DependencyGroup::Prod]);
 }
 
 #[test]
 fn dev_includes_only_dev_dependencies() {
-    let groups = options(false, true, false).include_direct();
+    let groups = options(false, true, false, false).include_direct();
     assert_eq!(groups, vec![DependencyGroup::Dev]);
 }
 
 #[test]
 fn no_optional_alone_does_not_drop_optional() {
-    let groups = options(false, false, true).include_direct();
+    let groups = options(false, false, false, true).include_direct();
     assert_eq!(
         groups,
         vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
@@ -51,8 +51,14 @@ fn no_optional_alone_does_not_drop_optional() {
 
 #[test]
 fn prod_with_no_optional_drops_optional() {
-    let groups = options(true, false, true).include_direct();
+    let groups = options(true, false, false, true).include_direct();
     assert_eq!(groups, vec![DependencyGroup::Prod]);
+}
+
+#[test]
+fn optional_includes_only_optional_dependencies() {
+    let groups = options(false, false, true, false).include_direct();
+    assert_eq!(groups, vec![DependencyGroup::Optional]);
 }
 
 #[test]
@@ -112,4 +118,14 @@ fn workspace_option_is_checked_before_anything_is_read() {
         .check_workspace_option(Some(workspace_root))
         .expect_err("--workspace with --latest");
     assert_eq!(with_latest.to_string(), "Cannot use --latest with --workspace simultaneously");
+}
+
+#[test]
+fn ignore_pnpmfile_flag_applies_to_config() {
+    let mut config = Config::default();
+    update_args(&[]).apply_cli_config(&mut config);
+    assert!(!config.ignore_pnpmfile, "flag absent → config unchanged");
+
+    update_args(&["--ignore-pnpmfile"]).apply_cli_config(&mut config);
+    assert!(config.ignore_pnpmfile, "flag present → config set");
 }

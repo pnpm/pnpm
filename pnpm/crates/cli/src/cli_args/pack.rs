@@ -1,29 +1,30 @@
 //! `pacquet pack` — create a tarball from a package.
 //!
-//! The single-project work lives in [`pacquet_pack::api`]; this module
+//! The single-project work lives in [`pnpm_pack::api`]; this module
 //! maps the resolved [`Config`] and CLI flags onto
-//! [`pacquet_pack::PackOptions`], and drives the recursive (`-r`) sweep
+//! [`pnpm_pack::PackOptions`], and drives the recursive (`-r`) sweep
 //! over the workspace the same way the other recursive commands do.
 //!
 //! `--workspace-concurrency` is accepted but the recursive sweep runs
-//! sequentially (matching pacquet's other recursive commands), and the
-//! `embedReadme` / `extraEnv` config keys are not surfaced by `Config`
-//! yet, so they take their `false` / empty defaults.
+//! sequentially (matching pacquet's other recursive commands).
 
-use crate::cli_args::recursive::{
-    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects, sort_filtered_projects,
+use crate::cli_args::{
+    catalogs::configured_catalogs,
+    install::resolve_bool_override,
+    recursive::{
+        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
+        sort_filtered_projects,
+    },
 };
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
-use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::Config;
-use pacquet_hooks::PnpmfileHooks;
-use pacquet_pack::{
+use miette::Context;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::Config;
+use pnpm_hooks::PnpmfileHooks;
+use pnpm_pack::{
     Host, PackError, PackOptions, PackResultJson, api, format_pack_output, to_pack_result_json,
 };
-use pacquet_reporter::Reporter;
-use pacquet_workspace::read_workspace_manifest;
+use pnpm_reporter::Reporter;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -34,26 +35,6 @@ use std::{
 /// underlying pack diagnostic instead of this wrapper, so the two sites must
 /// share one definition.
 pub(crate) const PACK_ERROR_CONTEXT: &str = "pack the package";
-
-/// The catalogs `catalog:` specifiers resolve against when packing a
-/// package for `pack` / `publish`: the hook-injected set when an
-/// `updateConfig` pnpmfile provided one ([`Config::catalogs`] is `Some`),
-/// otherwise the `catalog:` / `catalogs:` tables of the workspace
-/// manifest — the same fallback the install performs.
-pub(crate) fn pack_catalogs(config: &Config) -> miette::Result<Catalogs> {
-    if let Some(catalogs) = &config.catalogs {
-        return Ok(catalogs.clone());
-    }
-    let Some(workspace_dir) = config.workspace_dir.as_deref() else {
-        return Ok(Catalogs::default());
-    };
-    let workspace_manifest = read_workspace_manifest(workspace_dir)
-        .into_diagnostic()
-        .wrap_err("read the workspace manifest for catalogs")?;
-    get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
-        .into_diagnostic()
-        .wrap_err("read the workspace catalogs")
-}
 
 /// Create a tarball from a package.
 #[derive(Debug, Args)]
@@ -82,8 +63,15 @@ pub struct PackArgs {
 
     /// Keep the original `packageManager` field and publish-lifecycle
     /// scripts in the packed manifest instead of stripping them.
-    #[clap(long = "skip-manifest-obfuscation")]
+    #[clap(long = "skip-manifest-obfuscation", overrides_with = "no_skip_manifest_obfuscation")]
     pub skip_manifest_obfuscation: bool,
+    /// Apply pnpm's normal packed-manifest filtering.
+    #[clap(
+        long = "no-skip-manifest-obfuscation",
+        hide = true,
+        overrides_with = "skip_manifest_obfuscation"
+    )]
+    pub no_skip_manifest_obfuscation: bool,
 
     /// Maximum number of projects to pack at once in recursive mode.
     /// Currently has no effect; packing runs one project at a time.
@@ -107,10 +95,12 @@ impl PackArgs {
             let mut options = self.pack_options(
                 dir.to_path_buf(),
                 config,
-                pack_catalogs(config)?,
+                configured_catalogs(config)?,
                 self.out.clone(),
                 self.pack_destination.clone(),
-                crate::config_deps::load_before_packing_hooks(config, pnpmfile_root),
+                crate::config_deps::load_before_packing_hooks(config, pnpmfile_root).map_err(
+                    |error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"),
+                )?,
             );
             set_injected_changelog(&mut options, config, dir).await?;
             let result = api::<Reporter, Host>(&options)
@@ -139,7 +129,7 @@ impl PackArgs {
         // `pack` is not in pnpm's root-auto-exclusion command set, so the
         // workspace root stays in the selection (its own name/version
         // eligibility check still applies below).
-        let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
+        let (projects, _patterns) = discover_workspace_projects(workspace_root, config)?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let graph = &selection.selected;
@@ -155,12 +145,14 @@ impl PackArgs {
         // to the CLI dir), so every tarball lands in one place regardless
         // of each project's own root.
         let (out, pack_destination) = self.resolve_recursive_destination(dir);
-        let catalogs = pack_catalogs(config)?;
+        let catalogs = configured_catalogs(config)?;
         // Load the pnpmfiles once for the whole workspace (they live at the
         // workspace root); cloning the Arcs into each project shares one
         // worker per pnpmfile instead of re-spawning it per packed project.
         let before_packing_hooks =
-            crate::config_deps::load_before_packing_hooks(config, workspace_root);
+            crate::config_deps::load_before_packing_hooks(config, workspace_root).map_err(
+                |error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"),
+            )?;
 
         let mut packed: Vec<PackResultJson> = Vec::new();
         for chunk in &chunks {
@@ -237,10 +229,14 @@ impl PackArgs {
             catalogs,
             ignore_scripts: config.ignore_scripts,
             unsafe_perm: config.unsafe_perm,
-            embed_readme: false,
+            embed_readme: config.embed_readme,
             pack_gzip_level: self.pack_gzip_level,
             node_linker: config.node_linker,
-            skip_manifest_obfuscation: self.skip_manifest_obfuscation,
+            skip_manifest_obfuscation: resolve_bool_override(
+                self.skip_manifest_obfuscation,
+                self.no_skip_manifest_obfuscation,
+                config.skip_manifest_obfuscation,
+            ),
             user_agent: config.user_agent.clone(),
             extra_bin_paths: config.extra_bin_paths.clone(),
             extra_env: config.extra_env.clone(),

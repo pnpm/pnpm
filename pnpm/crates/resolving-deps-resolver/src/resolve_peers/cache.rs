@@ -7,13 +7,13 @@ use crate::{
     dependencies_graph::MissingPeer,
     node_id::NodeId,
     resolve_peers::{
-        context::{ParentPkgInfo, ParentRef, ParentRefs, SharedChain, pkg_name_version},
+        context::{ParentPkgInfo, ParentRef, ParentRefs, SharedChain},
         walker::{MissingPeerInfo, NodeOutput, SubtreeMissingByPkg, Walker},
     },
     resolved_tree::{AncestorIds, ChildEdge, DependenciesTreeNode, TreeChildren},
 };
-use pacquet_deps_path::DepPath;
-use pacquet_resolving_resolver_base::get_peer_version_range;
+use pnpm_deps_path::DepPath;
+use pnpm_resolving_resolver_base::get_peer_version_range;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -78,7 +78,7 @@ pub(super) struct CachedNodeOutput {
 enum DeferredChildResolution {
     Pure(DepPath),
     Cached(CachedNodeOutput),
-    Materialize(String),
+    Materialize(Arc<str>),
 }
 
 pub(super) struct CacheHitContext<'a> {
@@ -209,7 +209,7 @@ impl Walker<'_> {
             }
             if !(peer_deps_not_shadowed
                 || current_info.depth == max_depth
-                || self.pure_pkgs.contains_key(cached_pkg_id))
+                || self.pure_pkgs.contains_key(&**cached_pkg_id))
             {
                 return false;
             }
@@ -240,7 +240,7 @@ impl Walker<'_> {
         if parent_pkg_id != &cached_tree_node.resolved_package_id {
             return false;
         }
-        self.pure_pkgs.contains_key(parent_pkg_id)
+        self.pure_pkgs.contains_key(&**parent_pkg_id)
             || self.parent_packages_match(cached_node_id, current_node_id)
     }
 
@@ -250,22 +250,21 @@ impl Walker<'_> {
         parent_refs: &ParentRefs,
         pkg_id: &str,
     ) -> Option<&PeersCacheItem> {
-        let TreeChildren::Lazy { parent_ids } = &self.tree.dependencies_tree.get(node_id)?.children
-        else {
+        let TreeChildren::Lazy { .. } = &self.tree.dependencies_tree.get(node_id)?.children else {
             return None;
         };
-        self.find_fast_hit_for_lazy(parent_ids, parent_refs, pkg_id)
+        self.find_fast_hit_for_lazy(parent_refs, pkg_id)
     }
 
     fn find_fast_hit_for_lazy(
         &self,
-        parent_ids: &AncestorIds,
         parent_refs: &ParentRefs,
         pkg_id: &str,
     ) -> Option<&PeersCacheItem> {
+        let canonical_scc = self.canonical_scc();
         self.peers_cache.get(pkg_id)?.iter().find(|item| {
             matches!(
-                self.fast_cache_item_matches(parent_ids, parent_refs, pkg_id, item),
+                self.fast_cache_item_matches(&canonical_scc, parent_refs, pkg_id, item),
                 FastCacheMatch::Match,
             )
         })
@@ -273,14 +272,14 @@ impl Walker<'_> {
 
     fn fast_cache_item_matches(
         &self,
-        parent_ids: &AncestorIds,
+        canonical_scc: &HashMap<Arc<str>, usize>,
         parent_refs: &ParentRefs,
         pkg_id: &str,
         item: &PeersCacheItem,
     ) -> FastCacheMatch {
         let mut ambiguous = false;
         for (name, cached_node_id) in item.resolved_peers.iter() {
-            match self.fast_provider_for_name(parent_ids, parent_refs, pkg_id, name) {
+            match self.fast_provider_for_name(canonical_scc, parent_refs, pkg_id, name) {
                 FastProvider::Missing => return FastCacheMatch::NoMatch,
                 FastProvider::Inherited(current_ref) => {
                     if !self.parent_ref_matches_cached(current_ref, cached_node_id) {
@@ -292,7 +291,7 @@ impl Walker<'_> {
                     else {
                         return FastCacheMatch::NoMatch;
                     };
-                    if cached_tree_node.resolved_package_id != child_pkg_id {
+                    if &*cached_tree_node.resolved_package_id != child_pkg_id {
                         return FastCacheMatch::NoMatch;
                     }
                     let child_is_stable = self.pure_pkgs.contains_key(child_pkg_id)
@@ -308,7 +307,7 @@ impl Walker<'_> {
             }
         }
         for name in item.missing_peers.keys() {
-            match self.fast_provider_for_name(parent_ids, parent_refs, pkg_id, name) {
+            match self.fast_provider_for_name(canonical_scc, parent_refs, pkg_id, name) {
                 FastProvider::Missing => {}
                 FastProvider::Inherited(_) | FastProvider::Child(_) => {
                     return FastCacheMatch::NoMatch;
@@ -321,7 +320,7 @@ impl Walker<'_> {
 
     fn fast_provider_for_name<'a>(
         &'a self,
-        parent_ids: &AncestorIds,
+        canonical_scc: &HashMap<Arc<str>, usize>,
         parent_refs: &'a ParentRefs,
         pkg_id: &str,
         name: &str,
@@ -341,13 +340,13 @@ impl Walker<'_> {
         let mut child_pkg_id = None;
         for &edge_index in edge_indices {
             let edge = &children[edge_index];
-            if parent_ids.forms_cycle(pkg_id, &edge.pkg_id) {
+            if Self::cuts_cycle_edge(canonical_scc, pkg_id, &edge.pkg_id) {
                 continue;
             }
             if child_pkg_id.is_some() {
                 return FastProvider::Ambiguous;
             }
-            child_pkg_id = Some(edge.pkg_id.as_str());
+            child_pkg_id = Some(&*edge.pkg_id);
         }
 
         match (inherited, child_pkg_id) {
@@ -374,9 +373,10 @@ impl Walker<'_> {
         self.undo_realize(node_id, preview_undo, None);
 
         if !output.missing_peers.is_empty() {
-            let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.clone();
-            let chain_with_self = parent_pkg_ids_chain.pushed(pkg_id.clone());
-            let pkg_name = pkg_name_version(&self.tree.packages[&pkg_id].result).0;
+            let pkg_id = std::sync::Arc::<str>::clone(
+                &self.tree.dependencies_tree[node_id].resolved_package_id,
+            );
+            let chain_with_self = parent_pkg_ids_chain.pushed(pkg_id.to_string());
             for (peer_name, info) in output.missing_peers.iter() {
                 if self.missing_issue_suppressed(&chain_with_self, peer_name) {
                     continue;
@@ -387,7 +387,7 @@ impl Walker<'_> {
                         wanted_range: get_peer_version_range(&info.range),
                         raw_range: info.range.clone(),
                         optional: info.optional,
-                        parents: self.issue_parents(parent_chain_names, &pkg_name),
+                        parents: self.issue_parents(parent_chain_names),
                     },
                     &chain_with_self,
                 );
@@ -412,23 +412,22 @@ impl Walker<'_> {
 
     fn deferred_child_resolution(
         &self,
-        parent_ids: &AncestorIds,
         parent_refs: &ParentRefs,
-        pkg_id: &str,
+        pkg_id: &Arc<str>,
     ) -> DeferredChildResolution {
-        if let Some(dep_path) = self.pure_pkgs.get(pkg_id)
-            && self.tree.packages[pkg_id].peer_dependencies.is_empty()
+        if let Some(dep_path) = self.pure_pkgs.get(&**pkg_id)
+            && self.tree.packages[&**pkg_id].peer_dependencies.is_empty()
         {
             return DeferredChildResolution::Pure(dep_path.clone());
         }
         if let Some(cached) = self
-            .find_fast_hit_for_lazy(parent_ids, parent_refs, pkg_id)
+            .find_fast_hit_for_lazy(parent_refs, pkg_id)
             .map(PeersCacheItem::to_cached_node_output)
             && cached.output.missing_peers.is_empty()
         {
             return DeferredChildResolution::Cached(cached);
         }
-        DeferredChildResolution::Materialize(pkg_id.to_string())
+        DeferredChildResolution::Materialize(Arc::<str>::clone(pkg_id))
     }
 
     pub(super) fn resolve_deferred_child(
@@ -446,7 +445,7 @@ impl Walker<'_> {
             parent_pkg_ids,
             depth,
         } = context;
-        match self.deferred_child_resolution(parent_ids, parent_refs, &edge.pkg_id) {
+        match self.deferred_child_resolution(parent_refs, &edge.pkg_id) {
             DeferredChildResolution::Pure(dep_path) => NodeOutput {
                 dep_path,
                 external_resolved_peers: Arc::clone(&self.empty_resolved_peers),
@@ -504,10 +503,10 @@ impl Walker<'_> {
                 .tree
                 .dependencies_tree
                 .get(parent_node_id)
-                .is_some_and(|node| node.resolved_package_id == current_pkg_id);
+                .is_some_and(|node| &*node.resolved_package_id == current_pkg_id);
             if same_pkg {
-                for (alias, child_node_id) in self.realize_children(parent_node_id).0 {
-                    children.entry(alias).or_insert(child_node_id);
+                for (alias, child_node_id) in self.realize_children(parent_node_id).0.iter() {
+                    children.entry(alias.clone()).or_insert_with(|| child_node_id.clone());
                 }
             }
         }
@@ -552,23 +551,26 @@ impl Walker<'_> {
                         .collect();
                     return (providers, None);
                 }
-                TreeChildren::Lazy { parent_ids } => {
-                    (parent_ids.clone(), node.resolved_package_id.clone(), node.depth)
-                }
+                TreeChildren::Lazy { parent_ids } => (
+                    parent_ids.clone(),
+                    std::sync::Arc::<str>::clone(&node.resolved_package_id),
+                    node.depth,
+                ),
             }
         };
         let children = self.tree.children_by_id.get(&pkg_id).cloned().unwrap_or_default();
         let provider_edge_indices = self
             .peer_provider_children_by_pkg_id
-            .get(&pkg_id)
+            .get(&*pkg_id)
             .map_or(&[][..], |providers| providers.relevant_edge_indices.as_slice());
-        let full_chain = parent_ids.pushed(pkg_id.clone());
+        let canonical_scc = self.canonical_scc();
+        let full_chain = parent_ids.pushed(pkg_id.to_string());
         let mut providers = BTreeMap::new();
         let mut newly_inserted = Vec::new();
         for &edge_index in provider_edge_indices {
             let edge = &children[edge_index];
             let Some(pkg) = self.tree.packages.get(&edge.pkg_id) else { continue };
-            if pkg_id == edge.pkg_id || full_chain.forms_cycle(&pkg_id, &edge.pkg_id) {
+            if Self::cuts_cycle_edge(&canonical_scc, &pkg_id, &edge.pkg_id) {
                 continue;
             }
             let child_node_id =
@@ -577,7 +579,7 @@ impl Walker<'_> {
                 self.tree.dependencies_tree.insert(
                     child_node_id.clone(),
                     DependenciesTreeNode::new(
-                        edge.pkg_id.clone(),
+                        std::sync::Arc::<str>::clone(&edge.pkg_id),
                         TreeChildren::Lazy { parent_ids: full_chain.clone() },
                         depth + 1,
                         true,
@@ -610,7 +612,7 @@ impl Walker<'_> {
     fn realize_children(
         &mut self,
         node_id: &NodeId,
-    ) -> (BTreeMap<String, NodeId>, Option<UndoRealize>) {
+    ) -> (Arc<BTreeMap<String, NodeId>>, Option<UndoRealize>) {
         self.realize_children_with(node_id, None)
     }
 
@@ -618,16 +620,21 @@ impl Walker<'_> {
         &mut self,
         node_id: &NodeId,
         previewed: Option<&BTreeMap<String, NodeId>>,
-    ) -> (BTreeMap<String, NodeId>, Option<UndoRealize>) {
+    ) -> (Arc<BTreeMap<String, NodeId>>, Option<UndoRealize>) {
         // Snapshot the bits we need; we'll mutate `self.tree` below
         // and can't hold a borrow on the entry across the mutation.
         let (parent_ids, pkg_id, depth) = {
             let node = &self.tree.dependencies_tree[node_id];
             match &node.children {
-                TreeChildren::Realized(map) => return (map.clone(), None),
-                TreeChildren::Lazy { parent_ids } => {
-                    (parent_ids.clone(), node.resolved_package_id.clone(), node.depth)
+                // Cheap: the realized map is shared, not copied per revisit.
+                TreeChildren::Realized(map) => {
+                    return (Arc::clone(map), None);
                 }
+                TreeChildren::Lazy { parent_ids } => (
+                    parent_ids.clone(),
+                    std::sync::Arc::<str>::clone(&node.resolved_package_id),
+                    node.depth,
+                ),
             }
         };
         let children_spec = match self.tree.children_by_id.get(&pkg_id) {
@@ -639,11 +646,17 @@ impl Walker<'_> {
         let child_depth = depth + 1;
         let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
         let mut newly_inserted: Vec<NodeId> = Vec::new();
-        let full_chain = parent_ids.pushed(pkg_id.clone());
+        let canonical_scc = self.canonical_scc();
+        let full_chain = parent_ids.pushed(pkg_id.to_string());
         for edge in children_spec.iter() {
-            // Same cycle gate as the eager walk: keep the first
-            // re-entry, drop a direct self-edge or a second lap.
-            if full_chain.forms_cycle(&pkg_id, &edge.pkg_id) {
+            if Self::cuts_cycle_edge(&canonical_scc, &pkg_id, &edge.pkg_id) {
+                // A canonical back-edge is still a real dependency edge:
+                // record it against the target's shared canonical
+                // occurrence without giving the walk a path through it.
+                if pkg_id != edge.pkg_id {
+                    let node_id = self.canonical_backedge_node(&edge.pkg_id, child_depth);
+                    realized.insert(edge.alias.clone(), node_id);
+                }
                 continue;
             }
             // Reuse the first walk's classification (persisted on
@@ -668,7 +681,7 @@ impl Walker<'_> {
                 self.tree.dependencies_tree.insert(
                     child_node_id.clone(),
                     DependenciesTreeNode::new(
-                        edge.pkg_id.clone(),
+                        std::sync::Arc::<str>::clone(&edge.pkg_id),
                         TreeChildren::Lazy { parent_ids: child_parent_ids },
                         child_depth,
                         true,
@@ -678,10 +691,11 @@ impl Walker<'_> {
             }
             realized.insert(edge.alias.clone(), child_node_id);
         }
+        let realized = Arc::new(realized);
         // Replace this node's `Lazy` with `Realized` so future
         // visitors reuse the work.
         if let Some(node) = self.tree.dependencies_tree.get_mut(node_id) {
-            node.children = TreeChildren::Realized(realized.clone());
+            node.children = TreeChildren::Realized(Arc::clone(&realized));
         }
         (realized, Some(UndoRealize { newly_inserted, prev_parent_ids: parent_ids }))
     }

@@ -20,6 +20,7 @@ export async function getConfig (
     workspaceDir: string | undefined
     onlyInheritDlxSettingsFromLocal?: boolean
     forSelfUpdate?: boolean
+    printWarnings?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
   const { config, context, warnings } = await _getConfig({
@@ -37,11 +38,22 @@ export async function getConfig (
     delete config.reporter // This is a silly workaround because @pnpm/installing.deps-installer expects a function as opts.reporter
   }
 
-  if (warnings.length > 0) {
+  if (opts.printWarnings !== false && warnings.length > 0) {
     console.warn(warnings.map((warning) => formatWarn(warning)).join('\n'))
   }
 
   return { config, context }
+}
+
+/**
+ * Whether the invocation prints one setting's value (`pnpm config get <key>`
+ * or `pnpm get <key>`). Such reads are consumed by scripts, so config-load
+ * warnings stay off them; the keyless list forms keep the warnings, being how
+ * a user inspects the config.
+ */
+export function isSingleSettingRead (cmd: string | null, cliParams: string[]): boolean {
+  if (cmd === 'config') return cliParams[0] === 'get' && cliParams.length > 1
+  return cmd === 'get' && cliParams.length > 0
 }
 
 export async function installConfigDepsAndLoadHooks (

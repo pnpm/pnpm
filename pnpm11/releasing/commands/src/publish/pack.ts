@@ -118,7 +118,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
 // registry to read the previous version's tarball from, plus the network
 // config `createFetchFromRegistry` needs.
 | 'versioning'
-| 'registries'
+| 'registriesByScope'
 | 'configByUri'
 | 'fetchRetries'
 | 'fetchRetryFactor'
@@ -307,7 +307,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   })
   const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   // cspell:disable-next-line
-  if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(?:\..+)?/i.test(file))) {
+  if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /^LICEN[CS]E(?:\..+)?$/i.test(path.basename(file)))) {
     const { workspaceDir } = opts
     const licenses = await glob([LICENSE_GLOB], { cwd: workspaceDir, expandDirectories: false })
     await Promise.all(licenses.map(async (license) => {
@@ -439,7 +439,7 @@ async function composeRegistryChangelog (opts: PackOptions, pkgName: string, pub
   if (changelogStorage(opts.versioning) !== 'registry' || opts.workspaceDir == null) return undefined
   const section = await readPendingChangelog(opts.workspaceDir, pkgName, version)
   if (section == null) return undefined
-  const previous = opts.registries != null
+  const previous = opts.registriesByScope != null
     ? await fetchPreviousChangelog(opts as PreviousChangelogOptions, publishedName, version)
     : undefined
   return renderChangelog(previous ?? null, publishedName, section)

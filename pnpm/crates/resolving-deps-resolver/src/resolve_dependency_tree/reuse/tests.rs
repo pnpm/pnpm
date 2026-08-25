@@ -59,52 +59,33 @@ mod higher_direct_dep_version {
 }
 
 mod real_package_name_of {
-    use pacquet_resolving_resolver_base::WantedDependency;
-
     use super::super::real_package_name_of;
-
-    fn wanted(alias: Option<&str>, bare_specifier: Option<&str>) -> WantedDependency {
-        WantedDependency {
-            alias: alias.map(str::to_string),
-            bare_specifier: bare_specifier.map(str::to_string),
-            ..WantedDependency::default()
-        }
-    }
 
     #[test]
     fn returns_none_when_bare_specifier_is_missing() {
-        assert_eq!(real_package_name_of(&wanted(Some("foo"), None)).as_deref(), None);
+        assert_eq!(real_package_name_of(Some("foo"), None).as_deref(), None);
     }
 
     #[test]
     fn falls_back_to_alias_for_plain_dep() {
-        assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("^1.0.0"))).as_deref(),
-            Some("foo"),
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("^1.0.0")).as_deref(), Some("foo"));
     }
 
     #[test]
     fn falls_back_to_none_when_alias_is_missing_for_plain_dep() {
-        assert_eq!(real_package_name_of(&wanted(None, Some("^1.0.0"))).as_deref(), None);
+        assert_eq!(real_package_name_of(None, Some("^1.0.0")).as_deref(), None);
     }
 
     #[test]
     fn parses_real_name_from_npm_alias_with_version_range() {
         // Update targeting is keyed by the real name (matches the depPath
         // recorded in the lockfile, not the install alias).
-        assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("npm:bar@^4"))).as_deref(),
-            Some("bar"),
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("npm:bar@^4")).as_deref(), Some("bar"));
     }
 
     #[test]
     fn parses_real_name_from_npm_alias_without_version() {
-        assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("npm:bar"))).as_deref(),
-            Some("bar"),
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("npm:bar")).as_deref(), Some("bar"));
     }
 
     #[test]
@@ -113,7 +94,7 @@ mod real_package_name_of {
         // guard skips it and the search finds the `@` separating name
         // from version.
         assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("npm:@scope/pkg@^4"))).as_deref(),
+            real_package_name_of(Some("foo"), Some("npm:@scope/pkg@^4")).as_deref(),
             Some("@scope/pkg"),
         );
     }
@@ -123,7 +104,7 @@ mod real_package_name_of {
         // Only one `@` (the scope marker) at index 0, which the
         // `idx >= 1` guard skips — the whole `rest` is the name.
         assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("npm:@scope/pkg"))).as_deref(),
+            real_package_name_of(Some("foo"), Some("npm:@scope/pkg")).as_deref(),
             Some("@scope/pkg"),
         );
     }
@@ -132,7 +113,7 @@ mod real_package_name_of {
     fn returns_none_for_empty_npm_alias_target() {
         // Defensive: filtered out so the caller treats this as "not a
         // targeted update."
-        assert_eq!(real_package_name_of(&wanted(Some("foo"), Some("npm:"))).as_deref(), None);
+        assert_eq!(real_package_name_of(Some("foo"), Some("npm:")).as_deref(), None);
     }
 
     #[test]
@@ -141,10 +122,7 @@ mod real_package_name_of {
         // not a name. The install alias `foo` is the real package
         // name — without this branch, the range string itself would
         // be returned as the name and update targeting would miss.
-        assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("npm:^1.0.0"))).as_deref(),
-            Some("foo"),
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("npm:^1.0.0")).as_deref(), Some("foo"));
     }
 
     #[test]
@@ -152,7 +130,7 @@ mod real_package_name_of {
         // The `npm:<range>` form supports any valid semver range in
         // the body — `>=1.0.0 <2.0.0`, `~1.2.3`, `1.x`, etc.
         assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("npm:>=1.0.0 <2.0.0"))).as_deref(),
+            real_package_name_of(Some("foo"), Some("npm:>=1.0.0 <2.0.0")).as_deref(),
             Some("foo"),
         );
     }
@@ -165,7 +143,7 @@ mod real_package_name_of {
         // folded name, not the original jsr name, or jsr deps would
         // never count as update targets.
         assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("jsr:@foo/bar@^1"))).as_deref(),
+            real_package_name_of(Some("foo"), Some("jsr:@foo/bar@^1")).as_deref(),
             Some("@jsr/foo__bar"),
         );
     }
@@ -174,7 +152,7 @@ mod real_package_name_of {
     fn folds_jsr_specifier_to_npm_registry_name_without_version() {
         // Default-tag form `jsr:@foo/bar`: still folds to `@jsr/foo__bar`.
         assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("jsr:@foo/bar"))).as_deref(),
+            real_package_name_of(Some("foo"), Some("jsr:@foo/bar")).as_deref(),
             Some("@jsr/foo__bar"),
         );
     }
@@ -185,17 +163,14 @@ mod real_package_name_of {
         // must not fall back to the install alias — otherwise a broken
         // jsr dep could match an update target by alias and wrongly be
         // treated as one.
-        assert_eq!(
-            real_package_name_of(&wanted(Some("foo"), Some("jsr:foo@^1.0.0"))).as_deref(),
-            None,
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("jsr:foo@^1.0.0")).as_deref(), None);
     }
 }
 
 mod is_update_target {
-    use rustc_hash::FxHashSet as HashSet;
+    use pnpm_resolving_resolver_base::WantedDependency;
 
-    use pacquet_resolving_resolver_base::WantedDependency;
+    use crate::{UpdateTargets, VersionLine};
 
     use super::super::{UpdateDepth, UpdateReuseScope, UpdateScope, is_update_target};
 
@@ -208,7 +183,21 @@ mod is_update_target {
     }
 
     fn except(names: &[&str]) -> UpdateReuseScope {
-        UpdateReuseScope::Except(names.iter().map(|s| (*s).to_string()).collect::<HashSet<_>>())
+        UpdateReuseScope::Except(
+            names.iter().map(|name| ((*name).to_string(), None)).collect::<UpdateTargets>(),
+        )
+    }
+
+    /// A selector that pinned an exact version, so the target is scoped to
+    /// that version's line.
+    fn except_line(name: &str, version: &str) -> UpdateReuseScope {
+        UpdateReuseScope::Except(
+            std::iter::once((name.to_string(), VersionLine::parse(version))).collect(),
+        )
+    }
+
+    fn version(version: &str) -> node_semver::Version {
+        version.parse().expect("parse version")
     }
 
     /// The scope of a `--depth Infinity` update — the default, under
@@ -223,6 +212,7 @@ mod is_update_target {
         assert!(!is_update_target(
             unlimited(&UpdateReuseScope::All),
             &wanted_with(Some("foo"), Some("^1.0.0")),
+            None,
             0,
         ));
     }
@@ -233,6 +223,7 @@ mod is_update_target {
         assert!(!is_update_target(
             unlimited(&UpdateReuseScope::None),
             &wanted_with(Some("foo"), Some("^1.0.0")),
+            None,
             0,
         ));
     }
@@ -244,6 +235,7 @@ mod is_update_target {
         assert!(is_update_target(
             unlimited(&except(&["foo"])),
             &wanted_with(Some("foo"), Some("^1.0.0")),
+            None,
             0,
         ));
     }
@@ -254,6 +246,7 @@ mod is_update_target {
         assert!(!is_update_target(
             unlimited(&except(&["bar"])),
             &wanted_with(Some("foo"), Some("^1.0.0")),
+            None,
             0,
         ));
     }
@@ -266,6 +259,55 @@ mod is_update_target {
         assert!(is_update_target(
             unlimited(&except(&["bar"])),
             &wanted_with(Some("foo"), Some("npm:bar@^4")),
+            None,
+            0,
+        ));
+    }
+
+    #[test]
+    fn a_pinned_selector_targets_only_its_version_line() {
+        let reuse = except_line("foo", "1.2.3");
+
+        assert!(is_update_target(
+            unlimited(&reuse),
+            &wanted_with(Some("foo"), Some("^1.0.0")),
+            Some(&version("1.0.0")),
+            0,
+        ));
+        assert!(!is_update_target(
+            unlimited(&reuse),
+            &wanted_with(Some("foo"), Some("^2.0.0")),
+            Some(&version("2.5.0")),
+            0,
+        ));
+    }
+
+    #[test]
+    fn a_pinned_zero_x_selector_targets_only_its_minor_line() {
+        let reuse = except_line("foo", "0.2.5");
+
+        assert!(is_update_target(
+            unlimited(&reuse),
+            &wanted_with(Some("foo"), Some("^0.2.0")),
+            Some(&version("0.2.1")),
+            0,
+        ));
+        assert!(!is_update_target(
+            unlimited(&reuse),
+            &wanted_with(Some("foo"), Some("^0.3.0")),
+            Some(&version("0.3.0")),
+            0,
+        ));
+    }
+
+    #[test]
+    fn a_pinned_selector_matches_an_edge_with_no_locked_version() {
+        // Nothing to judge the line against yet, so the name decides —
+        // as it does in pnpm's version-less `updateMatching` calls.
+        assert!(is_update_target(
+            unlimited(&except_line("foo", "1.2.3")),
+            &wanted_with(Some("foo"), Some("^2.0.0")),
+            None,
             0,
         ));
     }
@@ -274,7 +316,7 @@ mod is_update_target {
     fn returns_false_when_real_name_is_unrecoverable() {
         // Alias missing AND no bare_specifier pattern that yields a name.
         // Defensive: "not a targeted update" since we can't match.
-        assert!(!is_update_target(unlimited(&except(&["foo"])), &wanted_with(None, None), 0));
+        assert!(!is_update_target(unlimited(&except(&["foo"])), &wanted_with(None, None), None, 0));
     }
 
     #[test]
@@ -283,8 +325,8 @@ mod is_update_target {
         let scope = UpdateScope { reuse: &reuse, max_depth: UpdateDepth::new(0) };
         let wanted = wanted_with(Some("foo"), Some("^1.0.0"));
 
-        assert!(is_update_target(scope, &wanted, 0));
-        assert!(!is_update_target(scope, &wanted, 1));
+        assert!(is_update_target(scope, &wanted, None, 0));
+        assert!(!is_update_target(scope, &wanted, None, 1));
     }
 
     #[test]
@@ -293,8 +335,8 @@ mod is_update_target {
         let scope = UpdateScope { reuse: &reuse, max_depth: UpdateDepth::new(2) };
         let wanted = wanted_with(Some("foo"), Some("^1.0.0"));
 
-        assert!(is_update_target(scope, &wanted, 2));
-        assert!(!is_update_target(scope, &wanted, 3));
+        assert!(is_update_target(scope, &wanted, None, 2));
+        assert!(!is_update_target(scope, &wanted, None, 3));
     }
 
     #[test]
@@ -302,6 +344,6 @@ mod is_update_target {
         let reuse = except(&["foo"]);
         let scope = UpdateScope { reuse: &reuse, max_depth: UpdateDepth::new(usize::MAX) };
 
-        assert!(is_update_target(scope, &wanted_with(Some("foo"), Some("^1.0.0")), i32::MAX));
+        assert!(is_update_target(scope, &wanted_with(Some("foo"), Some("^1.0.0")), None, i32::MAX));
     }
 }

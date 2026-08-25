@@ -8,7 +8,7 @@ use super::{
     cat_index::CatIndexArgs,
     change::ChangeArgs,
     clean::CleanArgs,
-    config::ConfigArgs,
+    config::{ConfigArgs, ConfigGetArgs, ConfigSetArgs, ConfigSubcommand},
     deprecate::DeprecateArgs,
     dispatch::{CommandFuture, RunCtx},
     dist_tag::DistTagArgs,
@@ -21,6 +21,7 @@ use super::{
     list::ListArgs,
     login::LoginArgs,
     logout::LogoutArgs,
+    not_implemented::NotImplementedError,
     outdated::{OutdatedArgs, OutdatedOutcome},
     owner::OwnerArgs,
     pack::PackArgs,
@@ -36,6 +37,7 @@ use super::{
     search::SearchArgs,
     self_update::SelfUpdateArgs,
     setup::SetupArgs,
+    shim::ShimArgs,
     stage::StageArgs,
     star::StarArgs,
     stars::StarsArgs,
@@ -50,9 +52,9 @@ use super::{
     with::WithArgs,
 };
 use clap::CommandFactory;
-use pacquet_config::Config;
-use pacquet_default_reporter::DefaultReporter;
-use pacquet_reporter::{NdjsonReporter, SilentReporter};
+use pnpm_config::Config;
+use pnpm_default_reporter::DefaultReporter;
+use pnpm_reporter::{NdjsonReporter, SilentReporter};
 
 pub(super) fn recursive<'a>(_ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     Ok(Box::pin(async move {
@@ -475,7 +477,7 @@ pub(super) fn stage<'a>(
     let dir = ctx.dir;
     let recursive = ctx.recursive;
     args.flags.report_summary |= ctx.recursive_report_summary;
-    async fn print_output<Reporter: pacquet_reporter::Reporter>(
+    async fn print_output<Reporter: pnpm_reporter::Reporter>(
         args: StageArgs,
         dir: &std::path::Path,
         config: &Config,
@@ -517,18 +519,50 @@ pub(super) fn clean<'a>(
 }
 
 pub(super) fn root<'a>(ctx: &RunCtx<'a>, args: RootArgs) -> miette::Result<CommandFuture<'a>> {
-    args.run(ctx.dir)?;
+    args.run(ctx.dir, (ctx.config)()?)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
 pub(super) fn prefix<'a>(ctx: &RunCtx<'a>, args: PrefixArgs) -> miette::Result<CommandFuture<'a>> {
-    args.run(ctx.dir)?;
+    args.run(ctx.dir, (ctx.config)()?)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(super) fn shim<'a>(ctx: &RunCtx<'a>, args: ShimArgs) -> miette::Result<CommandFuture<'a>> {
+    // Writes the global bin directory and the global `config.yaml`, so it
+    // reads the configuration anchored at the pnpm home — a project the
+    // command happens to run in does not get to steer either.
+    let config = (ctx.global_config)()?;
+    Ok(Box::pin(async move {
+        print!("{}", args.run(config).await?);
+        Ok(())
+    }))
 }
 
 pub(super) fn config<'a>(ctx: &RunCtx<'a>, args: ConfigArgs) -> miette::Result<CommandFuture<'a>> {
     args.run((ctx.config)()?, ctx.dir)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+// `pnpm get` / `pnpm set` are the top-level spellings of the two most-used
+// `pnpm config` subcommands, and run the same code so the two spellings
+// cannot drift.
+pub(super) fn config_get<'a>(
+    ctx: &RunCtx<'a>,
+    args: ConfigGetArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    config(ctx, ConfigArgs { command: ConfigSubcommand::Get(args) })
+}
+
+pub(super) fn config_set<'a>(
+    ctx: &RunCtx<'a>,
+    args: ConfigSetArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    config(ctx, ConfigArgs { command: ConfigSubcommand::Set(args) })
+}
+
+pub(super) fn not_implemented<'a>(command: &'static str) -> miette::Result<CommandFuture<'a>> {
+    Err(NotImplementedError { command }.into())
 }
 
 // `pack-app` reads `pnpm.app` from package.json, resolves a Node.js version
@@ -660,8 +694,15 @@ pub(super) fn store<'a>(
     ctx: &RunCtx<'a>,
     command: StoreCommand,
 ) -> miette::Result<CommandFuture<'a>> {
-    command.run(|| (ctx.config)().map(|m| &*m))?;
-    Ok(Box::pin(std::future::ready(Ok(()))))
+    let config: &Config = (ctx.config)()?;
+    let dir = ctx.dir;
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(command.run::<DefaultReporter>(config, dir))
+        }
+        ReporterType::Ndjson => Box::pin(command.run::<NdjsonReporter>(config, dir)),
+        ReporterType::Silent => Box::pin(command.run::<SilentReporter>(config, dir)),
+    })
 }
 
 pub(super) fn cache<'a>(
@@ -704,7 +745,7 @@ pub(super) fn ignored_builds<'a>(
 pub(super) fn bugs<'a>(ctx: &RunCtx<'a>, args: BugsArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.config)()?;
     let dir = ctx.dir;
-    Ok(Box::pin(async move { args.run::<pacquet_network_web_auth::Host>(cfg, dir).await }))
+    Ok(Box::pin(async move { args.run::<pnpm_network_web_auth::Host>(cfg, dir).await }))
 }
 
 pub(super) fn find_hash<'a>(

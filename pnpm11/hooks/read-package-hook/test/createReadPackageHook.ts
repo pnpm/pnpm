@@ -50,6 +50,26 @@ test('createReadPackageHook() runs the custom hook before the version overrider'
   })
 })
 
+test('getEffectivePackageExtensions() includes the pnpm-specific compatibility entries', () => {
+  const extensions = getEffectivePackageExtensions({})
+  expect(extensions?.['@angular/build@*']).toStrictEqual({
+    dependencies: {
+      tslib: '^2.3.0',
+    },
+  })
+  expect(extensions?.['@nuxt/vite-builder@>=4.0.0 <4.5.0']).toStrictEqual({
+    dependencies: {
+      unplugin: '^2.3.5',
+    },
+  })
+  expect(extensions?.['@nuxt/vite-builder@>=4.5.0']).toStrictEqual({
+    dependencies: {
+      unplugin: '^3.3.0',
+    },
+  })
+  expect(getEffectivePackageExtensions({ ignoreCompatibilityDb: true })).toBeUndefined()
+})
+
 test('getEffectivePackageExtensions() merges duplicate compatibility selectors', () => {
   expect(getEffectivePackageExtensions({})?.['gatsby-core-utils@<2.14.0-next.1']).toStrictEqual({
     dependencies: {

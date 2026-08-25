@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
@@ -22,14 +23,7 @@ import type {
   PkgRequestFetchResult,
   StoreController,
 } from '@pnpm/store.controller-types'
-import type {
-  AllowBuild,
-  DepPath,
-  PkgIdWithPatchHash,
-  ProjectId,
-  Registries,
-  SupportedArchitectures,
-} from '@pnpm/types'
+import type { AllowBuild, DepPath, PkgIdWithPatchHash, ProjectId, RegistriesByScope, RegistryContext, SupportedArchitectures } from '@pnpm/types'
 import { pathExists } from 'path-exists'
 import { equals, isEmpty } from 'ramda'
 
@@ -63,7 +57,7 @@ export interface DependenciesGraph {
   [depPath: string]: DependenciesGraphNode
 }
 
-export interface LockfileToDepGraphOptions {
+export interface LockfileToDepGraphOptions extends RegistryContext {
   allowBuild?: AllowBuild
   autoInstallPeers: boolean
   enableGlobalVirtualStore?: boolean
@@ -83,8 +77,6 @@ export interface LockfileToDepGraphOptions {
   nodeVersion: string
   pnpmVersion: string
   patchedDependencies?: PatchGroupRecord
-  registries: Registries
-  namedRegistries?: Record<string, string>
   /**
    * The dep paths a non-optional edge reaches, as classified by
    * `filterLockfileByImportersAndEngine`. Installability is evaluated as
@@ -143,7 +135,7 @@ export async function lockfileToDepGraph (
     force: opts.force,
     graph,
     lockfileDir: opts.lockfileDir,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
     sideEffectsCacheRead: opts.sideEffectsCacheRead,
     skipped: opts.skipped,
     storeController: opts.storeController,
@@ -295,7 +287,7 @@ async function buildGraphFromPackages (
       }
 
       if (!fetchResponse) {
-        const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries })
+        const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, pickRegistryContext(opts))
         progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })
 
         try {
@@ -340,7 +332,7 @@ async function buildGraphFromPackages (
 interface GetChildrenPathsContext {
   graph: DependenciesGraph
   force: boolean
-  registries: Registries
+  registriesByScope: RegistriesByScope
   virtualStoreDir: string
   storeDir: string
   skipped: Set<DepPath>

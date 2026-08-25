@@ -8,10 +8,8 @@
 use crate::{
     ConfigDepError, manifest_lockfile::package_metadata, options::ConfigDepsInstallOptions,
 };
-use pacquet_lockfile::{
-    EnvLockfile, PackageKey, PkgName, PkgVerPeer, SnapshotDepRef, SnapshotEntry,
-};
-use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_lockfile::{EnvLockfile, PackageKey, PkgName, PkgVerPeer, SnapshotDepRef, SnapshotEntry};
+use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use std::collections::HashMap;
 
 /// Resolve `parent_manifest.optionalDependencies` and record each into
@@ -115,8 +113,8 @@ pub async fn resolve_optional_subdeps(
     Ok((!resolved.is_empty()).then_some(resolved))
 }
 
-pub(crate) fn resolution_has_integrity(resolution: &pacquet_lockfile::LockfileResolution) -> bool {
-    use pacquet_lockfile::LockfileResolution;
+pub(crate) fn resolution_has_integrity(resolution: &pnpm_lockfile::LockfileResolution) -> bool {
+    use pnpm_lockfile::LockfileResolution;
     match resolution {
         LockfileResolution::Registry(_) => true,
         LockfileResolution::Tarball(tarball) => tarball.integrity.is_some(),

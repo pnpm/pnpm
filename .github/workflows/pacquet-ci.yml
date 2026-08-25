@@ -45,7 +45,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
         id: filter
         with:
@@ -128,7 +128,7 @@ jobs:
           save-cache: ${{ github.ref_name == 'main' }}
 
       - name: Install pnpm (for compatibility check)
-        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           install: false
 
@@ -149,7 +149,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
+        uses: taiki-e/install-action@6cd13508893c0e7eab5f273c2575d3859bd7229a # v2.86.6
         with:
           tool: just
 
@@ -157,7 +157,7 @@ jobs:
         run: just install
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
+        uses: taiki-e/install-action@6cd13508893c0e7eab5f273c2575d3859bd7229a # v2.86.6
         with:
           tool: cargo-nextest
 
@@ -273,6 +273,63 @@ jobs:
           RUSTDOCFLAGS: '-D warnings'
         run: cargo doc --no-deps --workspace --document-private-items
 
+  npm-wrapper:
+    name: Rust CI / npm Wrapper / ${{ matrix.os_label }}
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Both, because the wrapper places and spawns a native executable and
+          # those are where Windows differs. The tests that need to spawn one
+          # skip themselves there; the download half runs everywhere.
+          - os: blacksmith-4vcpu-ubuntu-2404
+            os_label: ubuntu
+          - os: blacksmith-8vcpu-windows-2025
+            os_label: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        with:
+          install: false
+
+      # Only the wrapper's own dependencies: get-pnpm, which the published
+      # package carries in its dist/ payload and the tests stand in for.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter pacquet
+
+      # bash on both platforms: the shell has to expand the glob, because
+      # `--test` only takes patterns itself on Node.js >=22.
+      - name: Test
+        shell: bash
+        working-directory: pnpm/npm/pnpm/test
+        run: node --test *.test.mjs
+
+      # The oldest Node.js line the package claims in `engines`, at its latest
+      # release rather than its first — the line is what a user can still be on,
+      # and an exact floor would pin a long-superseded patch nobody runs.
+      # Corepack ships with newer Node.js than this, but the entry point pulls in
+      # get-pnpm, whose own engines floor is higher, so what the wrapper promises
+      # has to be a version it is actually run on.
+      - name: Test on the oldest supported Node.js line
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          # Installed into a scratch project, so the repo's own manifests are
+          # not rewritten by asking for a runtime.
+          mkdir -p "$RUNNER_TEMP/oldest-node"
+          cd "$RUNNER_TEMP/oldest-node"
+          echo '{"name":"oldest-node","version":"0.0.0"}' > package.json
+          pnpm runtime set node 18
+          ./node_modules/.bin/node --version
+          ./node_modules/.bin/node --test "$GITHUB_WORKSPACE"/pnpm/npm/pnpm/test/*.test.mjs
+
   typos:
     name: Rust CI / Spell Check
     needs: changes
@@ -283,7 +340,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: crate-ci/typos@bee27e3a4fd1ea2111cf90ab89cd076c870fce14 # v1.48.0
+      - uses: crate-ci/typos@8a48f81b6c64dcfea44b3633223084c4be58ac5f # v1.49.0
         with:
           files: pnpm pnpr
 
@@ -297,7 +354,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name != 'merge_group'
         id: filter
         with:
@@ -308,7 +365,7 @@ jobs:
 
       - name: Install cargo-deny
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
+        uses: taiki-e/install-action@6cd13508893c0e7eab5f273c2575d3859bd7229a # v2.86.6
         with:
           tool: cargo-deny
 
@@ -446,6 +503,7 @@ jobs:
     needs:
       - changes
       - test
+      - npm-wrapper
       - clippy
       - doc
       - typos

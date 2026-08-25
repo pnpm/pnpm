@@ -8,6 +8,7 @@ import {
   type FetchErrorResponse,
   PnpmError,
   redactUrlCredentials,
+  redactUrlForDisplay,
 } from '@pnpm/error'
 import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
@@ -16,6 +17,7 @@ import * as retry from '@zkochan/retry'
 import semver from 'semver'
 
 import { clearMeta } from './clearMeta.js'
+import { dropIncompletePublishTimes } from './publishTimes.js'
 
 /**
  * Content type of an abbreviated (install-oriented) package metadata document.
@@ -214,10 +216,11 @@ export async function fetchMetadataFromFromRegistry (
       try {
         const jsonText = await response.text()
         const meta = JSON.parse(jsonText) as PackageMeta
+        dropIncompletePublishTimes(meta)
         // Check if request took longer than expected
         const elapsedMs = Date.now() - startTime
         if (elapsedMs > fetchOpts.fetchWarnTimeoutMs) {
-          globalWarn(`Request took ${elapsedMs}ms: ${uri}`)
+          globalWarn(`Request took ${elapsedMs}ms: ${redactUrlForDisplay(uri)}`)
         }
         resolve({
           ...normalizeAbbreviatedResponse({ fullMetadata, meta, jsonText, response }),
@@ -273,7 +276,7 @@ export function notModifiedWithoutCacheError (pkgName: string): PnpmError {
  * carry the megabytes of install-irrelevant data (scripts, exports, readme,
  * custom fields) that a full document contains.
  *
- * Registries that honor the header (e.g. the npm registry) echo the abbreviated
+ * RegistriesByScope that honor the header (e.g. the npm registry) echo the abbreviated
  * `Content-Type`, so this is a no-op for them: no re-serialization, no field
  * stripping — the happy path pays nothing.
  */

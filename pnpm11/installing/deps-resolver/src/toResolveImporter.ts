@@ -107,7 +107,6 @@ async function partitionLinkedPackages (
   }
 ): Promise<WantedDependency[]> {
   const nonLinkedDependencies: WantedDependency[] = []
-  const linkedAliases = new Set<string>()
   await Promise.all(dependencies.map(async (dependency) => {
     if (
       !dependency.alias ||
@@ -134,7 +133,6 @@ async function partitionLinkedPackages (
         prefix: opts.projectDir,
       })
     }
-    linkedAliases.add(dependency.alias)
   }))
   return nonLinkedDependencies
 }

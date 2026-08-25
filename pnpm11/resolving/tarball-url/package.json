@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.tarball-url",
-  "version": "1100.0.1",
+  "version": "1101.0.0",
   "description": "Build and recognize the canonical tarball URL of an npm package",
   "keywords": [
     "pnpm",
@@ -31,6 +31,9 @@
     "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",

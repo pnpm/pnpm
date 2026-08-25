@@ -1,9 +1,12 @@
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
-use pacquet_store_dir::StoreDir;
-use std::{env, path::PathBuf};
+use pnpm_store_dir::StoreDir;
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 #[cfg(windows)]
-use std::path::{Component, Path};
+use std::path::Component;
 
 pub fn default_hoist_pattern() -> Vec<String> {
     vec!["*".to_string()]
@@ -145,7 +148,7 @@ pub fn default_modules_dir() -> PathBuf {
 
 /// Resolve the directory pnpm reads `config.yaml` (the global config
 /// file) from. Threads this crate's [`EnvVar`] / [`GetHomeDir`] seam
-/// into [`pacquet_config_dir::config_dir`] — the shared resolver, also
+/// into [`pnpm_config_dir::config_dir`] — the shared resolver, also
 /// used by the registry server — under the `pnpm` leaf.
 pub fn default_config_dir<Sys>() -> Option<PathBuf>
 where
@@ -153,7 +156,7 @@ where
 {
     let xdg_config_home = Sys::var("XDG_CONFIG_HOME");
     let local_app_data = Sys::var("LOCALAPPDATA");
-    pacquet_config_dir::config_dir(
+    pnpm_config_dir::config_dir(
         "pnpm",
         env::consts::OS,
         xdg_config_home.as_deref(),
@@ -162,13 +165,63 @@ where
     )
 }
 
+/// Resolve pnpm's machine-local state directory (`XDG_STATE_HOME`
+/// convention). Same seam shape as [`default_config_dir`]; the layout
+/// itself lives in [`pnpm_config_dir::state_dir`], shared with the
+/// TypeScript CLI's `getStateDir`.
+pub fn default_state_dir<Sys>() -> Option<PathBuf>
+where
+    Sys: EnvVar + GetHomeDir,
+{
+    let xdg_state_home = Sys::var("XDG_STATE_HOME");
+    let local_app_data = Sys::var("LOCALAPPDATA");
+    pnpm_config_dir::state_dir(
+        "pnpm",
+        env::consts::OS,
+        xdg_state_home.as_deref(),
+        local_app_data.as_deref(),
+        Sys::home_dir,
+    )
+}
+
+/// Resolve a configured `stateDir` without making its meaning depend on the
+/// current project. Relative values replace the default directory's `pnpm`
+/// leaf under the machine state root. Existing symlinks are resolved before
+/// containment is checked and the resolved path is returned. Values that
+/// escape that root, or cannot be resolved from a stable absolute root,
+/// produce an empty path so trust and runtime consumers fail closed.
+#[must_use]
+pub fn resolve_configured_state_dir(default_state_dir: &Path, configured: &str) -> PathBuf {
+    let configured = Path::new(configured);
+    if configured.is_absolute() {
+        return configured.to_path_buf();
+    }
+    let Some(state_root) = default_state_dir.parent().filter(|state_root| state_root.is_absolute())
+    else {
+        return PathBuf::new();
+    };
+    let state_root = pnpm_fs::lexical_normalize(state_root);
+    let resolved = pnpm_fs::lexical_normalize(&state_root.join(configured));
+    if !resolved.starts_with(&state_root) {
+        return PathBuf::new();
+    }
+    let Ok(state_root) = pnpm_fs::realpath_missing(&state_root) else {
+        return PathBuf::new();
+    };
+    let Ok(resolved) = pnpm_fs::realpath_missing(&resolved) else {
+        return PathBuf::new();
+    };
+    if resolved.starts_with(&state_root) { resolved } else { PathBuf::new() }
+}
+
 /// Resolve the default packument-cache directory.
 ///
 /// Generic over [`EnvVar`] and [`GetHomeDir`] for the same reason
-/// as [`default_store_dir`]: unit tests drive every branch without
+/// as `default_store_dir`: unit tests drive every branch without
 /// mutating the process environment. Production callers pass
 /// [`crate::Host`] for `Sys`, which threads `home::home_dir` through
 /// the [`GetHomeDir`] impl.
+#[must_use]
 pub fn default_cache_dir<Sys>() -> PathBuf
 where
     Sys: EnvVar + GetHomeDir,
@@ -192,12 +245,13 @@ pub fn default_virtual_store_dir() -> PathBuf {
     env::current_dir().expect("current directory is unavailable").join("node_modules/.pnpm")
 }
 
-/// Default for `enableGlobalVirtualStore`: `false` for regular installs.
+/// Default for `enableGlobalVirtualStore`: `false` — every project keeps
+/// its own virtual store at `<project>/node_modules/.pnpm`.
 ///
-/// It is only enabled by default on the `pnpm install --global` path.
-/// Pacquet doesn't have a `--global` CLI flag at all (only
-/// `install --frozen-lockfile`), so the only applicable default is the
-/// `false` one.
+/// The TypeScript CLI defaults it off too, so the shared store stays an
+/// opt-in on both stacks. The flows that always want it — the engine's
+/// own package-manager installs and the runtime shims — turn it on
+/// explicitly rather than relying on the default.
 pub fn default_enable_global_virtual_store() -> bool {
     false
 }
@@ -206,6 +260,27 @@ pub fn default_enable_global_virtual_store() -> bool {
 pub fn default_registry() -> String {
     "https://registry.npmjs.org/".to_string()
 }
+
+/// The registry the built-in `@jsr` scope routes to when the user has not
+/// pointed it elsewhere.
+pub const DEFAULT_JSR_REGISTRY: &str = "https://npm.jsr.io/";
+
+/// Built-in named-registry aliases the resolver recognizes
+/// out of the box.
+///
+/// `npmjs` is here so a dependency can be pinned to the public
+/// registry even when `registry` points somewhere else, such as an
+/// internal proxy. The `npm` prefix cannot serve that purpose: it is
+/// reserved for the alias protocol (`npm:<name>@<range>`), which
+/// resolves through the default registry.
+///
+/// These URLs are also the prefixes the npm verifier's
+/// `named_registry_tarball_prefixes` matches a recorded tarball URL
+/// against, so an org that proxies
+/// npmjs should point `npmjs` at their proxy to keep verification
+/// going there rather than to the public host.
+pub const BUILTIN_REGISTRIES_BY_PREFIX: &[(&str, &str)] =
+    &[("gh", "https://npm.pkg.github.com/"), ("npmjs", "https://registry.npmjs.org/")];
 
 pub fn default_modules_cache_max_age() -> u64 {
     10080
@@ -222,8 +297,8 @@ pub fn default_virtual_store_dir_max_length() -> u64 {
 /// peer-dependency graph hash.
 ///
 /// Kept as a free function (not a re-export of
-/// `pacquet_lockfile::DEFAULT_PEERS_SUFFIX_MAX_LENGTH`) so
-/// `pacquet-config` doesn't pull in the lockfile crate just for one
+/// `pnpm_lockfile::DEFAULT_PEERS_SUFFIX_MAX_LENGTH`) so
+/// `pnpm-config` doesn't pull in the lockfile crate just for one
 /// integer. Both copies must agree.
 #[must_use]
 pub fn default_peers_suffix_max_length() -> u64 {
@@ -252,10 +327,44 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
 /// can't drift apart. `pnpm bump` keeps this constant in sync with the
 /// version of the npm wrapper package (`pnpm/npm/pnpm/package.json`);
 /// the release workflow verifies the two match before building.
-pub const PNPM_VERSION: &str = "12.0.0-beta.4";
+pub const PNPM_VERSION: &str = "12.0.0-rc.11";
+
+/// The command that installs pnpm with the standalone script, as documented
+/// at <https://pnpm.io/installation>: the PowerShell form on Windows, the
+/// `curl`-into-`sh` form everywhere else. Both the update notification and
+/// `self-update` name it, so it is defined once here.
+#[must_use]
+pub fn standalone_install_command() -> &'static str {
+    install_command_for(cfg!(windows))
+}
+
+/// [`standalone_install_command`] with the host check as an argument, so both
+/// commands are reachable from a test on either platform.
+#[must_use]
+pub fn install_command_for(windows: bool) -> &'static str {
+    if windows {
+        "Invoke-WebRequest https://get.pnpm.io/install.ps1 -UseBasicParsing | Invoke-Expression"
+    } else {
+        "curl -fsSL https://get.pnpm.io/install.sh | sh -"
+    }
+}
 
 pub fn default_fetch_timeout() -> u64 {
-    pacquet_network::DEFAULT_FETCH_TIMEOUT_MS
+    pnpm_network::DEFAULT_FETCH_TIMEOUT_MS
+}
+
+/// Returns the shared `fetchWarnTimeoutMs` default in milliseconds.
+///
+/// See [`pnpm_network::DEFAULT_FETCH_WARN_TIMEOUT_MS`].
+pub fn default_fetch_warn_timeout_ms() -> u64 {
+    pnpm_network::DEFAULT_FETCH_WARN_TIMEOUT_MS
+}
+
+/// Returns the shared `fetchMinSpeedKiBps` default in KiB/s.
+///
+/// See [`pnpm_network::DEFAULT_FETCH_MIN_SPEED_KI_BPS`].
+pub fn default_fetch_min_speed_ki_bps() -> u64 {
+    pnpm_network::DEFAULT_FETCH_MIN_SPEED_KI_BPS
 }
 
 /// Default `User-Agent`, in the format
@@ -263,12 +372,12 @@ pub fn default_fetch_timeout() -> u64 {
 /// The `name/version` segment is `pnpm/<version>`. There is no embedded
 /// Node runtime, so the `node/` segment is the same `?` placeholder used
 /// for `npm/`. Platform and arch use Node's naming via
-/// [`pacquet_detect_libc::host_platform`] / [`pacquet_detect_libc::host_arch`].
+/// [`pnpm_detect_libc::host_platform`] / [`pnpm_detect_libc::host_arch`].
 pub fn default_user_agent() -> String {
     format!(
         "pnpm/{PNPM_VERSION} npm/? node/? {} {}",
-        pacquet_detect_libc::host_platform(),
-        pacquet_detect_libc::host_arch(),
+        pnpm_detect_libc::host_platform(),
+        pnpm_detect_libc::host_arch(),
     )
 }
 
@@ -332,7 +441,7 @@ pub fn resolve_child_concurrency_with_parallelism(option: Option<i32>, paralleli
 ///
 /// Pacquet's executor doesn't currently consume `unsafe_perm` to
 /// actually drop uid/gid, but the TMPDIR-isolation side of the flag is
-/// honored — see `pacquet_executor::make_env`.
+/// honored — see `pnpm_executor::make_env`.
 ///
 /// Cygwin needs explicit handling because Rust's
 /// [`x86_64-pc-cygwin` target](https://doc.rust-lang.org/rustc/platform-support/x86_64-pc-cygwin.html)

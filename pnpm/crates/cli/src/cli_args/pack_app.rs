@@ -22,18 +22,17 @@ use std::{
     fs,
     path::{Component, Path, PathBuf},
     process::Command,
-    time::Duration,
 };
 
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::{Config, Host};
-use pacquet_engine_runtime_node_resolver::{
+use pnpm_config::{Config, Host};
+use pnpm_engine_runtime_node_resolver::{
     get_node_mirror, parse_node_specifier, resolve_node_version,
 };
-use pacquet_network::{NetworkSettings, ThrottledClient};
-use pacquet_package_manifest::parse_manifest;
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::parse_manifest;
 use serde_json::Value;
 
 /// Minimum Node.js version that supports `node --build-sea`.
@@ -502,8 +501,8 @@ fn resolve_builder_binary(build_root: &Path, target_version: &str) -> miette::Re
         &pacquet_bin,
         build_root,
         target_version,
-        pacquet_detect_libc::host_platform(),
-        pacquet_detect_libc::host_arch(),
+        pnpm_detect_libc::host_platform(),
+        pnpm_detect_libc::host_arch(),
         // Pin libc to the host's. Otherwise a caller that set
         // supportedArchitectures.libc=musl in their config would cause the
         // glibc host to download a musl Node that it cannot execute.
@@ -512,10 +511,10 @@ fn resolve_builder_binary(build_root: &Path, target_version: &str) -> miette::Re
 }
 
 fn host_linux_libc() -> Option<&'static str> {
-    if pacquet_detect_libc::host_platform() != "linux" {
+    if pnpm_detect_libc::host_platform() != "linux" {
         return None;
     }
-    Some(pacquet_detect_libc::detect().map_or("glibc", |impl_| impl_.as_str()))
+    Some(pnpm_detect_libc::detect().map_or("glibc", |impl_| impl_.as_str()))
 }
 
 fn builder_version_can_build_sea(version: &str) -> bool {
@@ -627,11 +626,7 @@ fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
         &config.proxy,
         &config.tls,
         &config.tls_by_uri,
-        &NetworkSettings {
-            network_concurrency: config.network_concurrency,
-            fetch_timeout: Duration::from_millis(config.fetch_timeout),
-            user_agent: config.user_agent.clone(),
-        },
+        &config.network_settings(),
     )
     .into_diagnostic()
     .wrap_err("create the network client for pack-app")
@@ -878,7 +873,7 @@ fn derive_output_name_from_package(
 
 /// pnpm home directory, the base of pack-app's per-target runtime cache.
 fn pnpm_home_dir() -> miette::Result<PathBuf> {
-    pacquet_config::default_pnpm_home_dir::<Host>()
+    pnpm_config::default_pnpm_home_dir::<Host>()
         .ok_or_else(|| miette::miette!("could not determine the pnpm home directory"))
 }
 
@@ -894,7 +889,7 @@ fn ad_hoc_sign_mac_binary(
     if target.platform != "darwin" {
         return Ok(());
     }
-    match pacquet_detect_libc::host_platform() {
+    match pnpm_detect_libc::host_platform() {
         // `codesign` is a macOS system tool; spawn it by absolute path so a
         // repo-controlled `node_modules/.bin/codesign` on PATH can't be run
         // in its place.

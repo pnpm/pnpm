@@ -4,9 +4,9 @@ use std::path::{Path, PathBuf};
 
 use clap::Args;
 use miette::IntoDiagnostic;
-use pacquet_config::Config;
-use pacquet_global::{ListReportAs, find_global_install_dirs, list_global_packages};
-use pacquet_modules_yaml::IncludedDependencies;
+use pnpm_config::Config;
+use pnpm_global::{ListReportAs, find_global_install_dirs, list_global_packages};
+use pnpm_modules_yaml::IncludedDependencies;
 
 use crate::cli_args::{
     deps_tree::{
@@ -14,11 +14,12 @@ use crate::cli_args::{
             BuildTreeOptions, DependenciesHierarchy, LoadedState, build_dependencies_tree,
             importer_root_ids,
         },
-        finders::{evaluate_finders, finder_candidates, resolve_finders},
         get_tree::MaxDepth,
         graph::{BuildGraphOptions, build_dependency_graph},
         search::Searcher,
     },
+    deps_tree_finders::{evaluate_finders, finder_candidates, resolve_finders},
+    install::resolve_bool_override,
     recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
 };
 
@@ -91,8 +92,12 @@ pub struct ListArgs {
     pub dev: bool,
 
     /// Don't display packages from `optionalDependencies`.
-    #[clap(long)]
+    #[clap(long, overrides_with = "optional")]
     pub no_optional: bool,
+
+    /// Include packages from `optionalDependencies`.
+    #[clap(long, overrides_with = "no_optional")]
+    pub optional: bool,
 
     /// Exclude peer dependencies.
     #[clap(long)]
@@ -200,20 +205,20 @@ impl ListArgs {
 
     async fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<String> {
         let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-        let (projects, _) = discover_workspace_projects(&workspace_root)?;
+        let (projects, _) = discover_workspace_projects(&workspace_root, config)?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let project_dirs: Vec<PathBuf> = selection.selected.keys().cloned().collect();
 
         let always_print_root_package = self.depth == RecursionLimit::ProjectsOnly;
 
-        if config.shared_workspace_lockfile {
+        if config.shares_one_lockfile() {
             return self
                 .render_projects(
                     config,
                     &project_dirs,
                     &self.packages,
-                    &workspace_root,
+                    config.lockfile_dir_for(&workspace_root),
                     always_print_root_package,
                 )
                 .await;
@@ -250,12 +255,16 @@ impl ListArgs {
         }
     }
 
-    fn include(&self) -> IncludedDependencies {
+    fn include(&self, include_optional: bool) -> IncludedDependencies {
         let has_both = self.production == self.dev;
         IncludedDependencies {
             dependencies: has_both || self.production,
             dev_dependencies: has_both || self.dev,
-            optional_dependencies: !self.no_optional,
+            optional_dependencies: resolve_bool_override(
+                self.optional,
+                self.no_optional,
+                include_optional,
+            ),
         }
     }
 
@@ -267,7 +276,7 @@ impl ListArgs {
         lockfile_dir: &Path,
         always_print_root_package: bool,
     ) -> miette::Result<String> {
-        let include = self.include();
+        let include = self.include(config.optional);
         let searching = !params.is_empty() || !self.find_by.is_empty();
 
         let state = LoadedState::load(
@@ -275,7 +284,12 @@ impl ListArgs {
             Some(config.modules_dir.as_path()),
             self.lockfile_only,
         )?;
-        let env = state.env(lockfile_dir, config.virtual_store_dir_max_length as usize);
+        let env = state.env(
+            lockfile_dir,
+            config.virtual_store_dir_max_length as usize,
+            &config.resolved_registries(),
+            config.registry_options_by_url.clone(),
+        );
 
         let mut hierarchies: Vec<(PathBuf, DependenciesHierarchy)> = Vec::new();
         if self.depth == RecursionLimit::ProjectsOnly || env.is_none() {
@@ -374,15 +388,9 @@ fn global_report_as(report_as: ReportAs) -> ListReportAs {
     }
 }
 
-/// The directory the lockfile is read from for a non-recursive `list`:
-/// the workspace root under a shared workspace lockfile, the project
-/// itself otherwise.
+/// The directory the lockfile is read from for a non-recursive `list`.
 pub(crate) fn local_lockfile_dir(config: &Config, dir: &Path) -> PathBuf {
-    if config.shared_workspace_lockfile {
-        config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf())
-    } else {
-        dir.to_path_buf()
-    }
+    config.lockfile_dir_for(dir).to_path_buf()
 }
 
 /// Print command output the way the TypeScript CLI does: nothing for an

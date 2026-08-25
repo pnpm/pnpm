@@ -27,11 +27,13 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use node_semver::Version;
-use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
-use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
-use pacquet_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
-use pacquet_resolving_resolver_base::{
+use pnpm_config::{
+    DEFAULT_JSR_REGISTRY, NeedsFullMetadataFor, TrustPolicy, version_policy::PackageVersionPolicy,
+};
+use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
+use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, NoMatchingVersionError, PackageVersionGuardDecision, PkgResolutionId,
     RegistryResponseError, RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError,
     ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior,
@@ -57,12 +59,6 @@ use crate::{
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
 
-/// Default `@jsr` registry URL. The `registries` map always populates
-/// `@jsr`, so the dispatcher can read it unconditionally; this constant
-/// is the fallback for pacquet callers that haven't routed the `@jsr`
-/// entry through their `registries` map yet.
-const DEFAULT_JSR_REGISTRY: &str = "https://npm.jsr.io/";
-
 /// Provenance tag for [`ResolveResult::resolved_via`] when the picker
 /// drove a JSR-prefixed specifier through the `@jsr` registry.
 const JSR_REGISTRY_RESOLVED_VIA: &str = "jsr-registry";
@@ -86,11 +82,11 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     pub registries: HashMap<String, String>,
     /// User-supplied named-registry aliases (e.g. `gh:` →
     /// `https://npm.pkg.github.com/`). Merged with
-    /// [`crate::BUILTIN_NAMED_REGISTRIES`] at construction. Today
+    /// [`crate::BUILTIN_REGISTRIES_BY_PREFIX`] at construction. Today
     /// only consulted by the named-registry resolver (out of scope
     /// for this port); kept here so the install layer can build one
     /// resolver instance with the full registry view.
-    pub named_registries: HashMap<String, String>,
+    pub registries_by_prefix: HashMap<String, String>,
     pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
     pub meta_cache: Arc<Cache>,
@@ -116,6 +112,11 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     /// Install-wide bias toward full metadata. Threaded through to
     /// [`PickPackageContext::full_metadata`].
     pub full_metadata: bool,
+    /// Per-registry answer to the same question, threaded through to
+    /// [`PickPackageContext::needs_full_metadata_for`]. Set from
+    /// `Config::requires_full_metadata_for_registry` so a registry that
+    /// declares `supportsTimeField` is not charged for full metadata.
+    pub needs_full_metadata_for: Option<NeedsFullMetadataFor>,
     /// When full metadata is forced, read and write pnpm's filtered
     /// full-metadata mirror.
     pub filter_metadata: bool,
@@ -217,6 +218,30 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             .then_some(opts.workspace_packages.as_ref())
             .flatten();
 
+        // A store-manifest peek, once pacquet grows one, has to run before
+        // this fast path — the TypeScript counterpart
+        // (`pnpm11/resolving/npm-resolver/src/index.ts`) documents why.
+        if opts.prefer_workspace_packages
+            && opts.trust_policy != Some(TrustPolicy::NoDowngrade)
+            && !opts.update_checksums
+            && !opts.inject_workspace_packages
+            && !wanted_dependency.injected.unwrap_or(false)
+            && let Some(workspace_packages) = workspace_packages_active
+            && let Some(matching_name) = workspace_packages.get(spec.name.as_str())
+            && matching_name.len() == 1
+            && let Some(local_version) = pick_matching_local_version_or_null(matching_name, &spec)
+            && let Some(local_package) = matching_name.get(&local_version)
+        {
+            return Ok(Some(resolve_from_local_package(
+                local_package,
+                wanted_dependency,
+                false,
+                opts.project_dir.as_path(),
+                opts.lockfile_dir.as_path(),
+                saved_specifier_options(opts),
+            )));
+        }
+
         let pick_result = self.pick_from_registry(&registry, &spec, opts, optional).await;
         let picked = match pick_result {
             Ok(RegistryPick::Picked(picked)) => picked,
@@ -256,7 +281,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             }
         };
 
-        fail_if_trust_downgraded_for_pick(opts, &picked)?;
+        fail_if_trust_downgraded_for_pick(opts, &picked, self.ignore_missing_time_field)?;
 
         if let Some(workspace_packages) = workspace_packages_active
             && let Some(mut result) = try_workspace_shadow(
@@ -392,6 +417,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             prefer_offline: self.prefer_offline,
             ignore_missing_time_field: self.ignore_missing_time_field,
             full_metadata: self.full_metadata,
+            needs_full_metadata_for: self.needs_full_metadata_for.as_deref(),
             filter_metadata: self.filter_metadata,
             retry_opts: self.retry_opts,
         };
@@ -409,6 +435,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 dry_run: opts.dry_run,
                 optional,
                 update_checksums: opts.update_checksums,
+                trust_policy: opts.trust_policy,
                 package_version_guard: opts.package_version_guard.as_ref(),
             },
         )
@@ -609,7 +636,7 @@ pub(crate) enum RegistryPick {
 pub(crate) struct PickFromRegistryOptions<'a> {
     pub registry: &'a str,
     pub spec: &'a RegistryPackageSpec,
-    pub preferred_version_selectors: Option<&'a pacquet_resolving_resolver_base::VersionSelectors>,
+    pub preferred_version_selectors: Option<&'a pnpm_resolving_resolver_base::VersionSelectors>,
     pub published_by: Option<DateTime<Utc>>,
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     pub pick_lowest_version: bool,
@@ -617,8 +644,9 @@ pub(crate) struct PickFromRegistryOptions<'a> {
     pub dry_run: bool,
     pub optional: bool,
     pub update_checksums: bool,
+    pub trust_policy: Option<TrustPolicy>,
     pub package_version_guard:
-        Option<&'a Arc<dyn pacquet_resolving_resolver_base::PackageVersionGuard>>,
+        Option<&'a Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
 }
 
 /// Upper bound on guard rejections for one package before the resolver
@@ -643,6 +671,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             dry_run: opts.dry_run,
             optional: opts.optional,
             update_checksums: opts.update_checksums,
+            trust_policy: opts.trust_policy,
             blocked_versions: (!blocked_versions.is_empty()).then_some(&blocked_versions),
         };
         let pick_result = pick_package(ctx, opts.spec, &pick_opts)
@@ -676,7 +705,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             }
             PackageVersionGuardDecision::Reject { reason } => {
                 tracing::debug!(
-                    target: "pacquet_resolving_npm_resolver",
+                    target: "pnpm_resolving_npm_resolver",
                     name = %opts.spec.name,
                     version = %version_str,
                     reason = %reason,
@@ -919,6 +948,7 @@ pub(crate) fn calc_specifier_from<'a>(
 fn fail_if_trust_downgraded_for_pick(
     opts: &ResolveOptions,
     picked: &PickedFromRegistry,
+    ignore_missing_time_field: bool,
 ) -> Result<(), ResolveError> {
     if opts.trust_policy != Some(TrustPolicy::NoDowngrade) {
         return Ok(());
@@ -927,6 +957,7 @@ fn fail_if_trust_downgraded_for_pick(
         trust_policy_exclude: opts.trust_policy_exclude.as_ref(),
         trust_policy_ignore_after_minutes: opts.trust_policy_ignore_after,
         now: None,
+        ignore_missing_time_field,
     };
     fail_if_trust_downgraded(&picked.meta, &picked.version.version.to_string(), &trust_opts)
         .map_err(|err| Box::new(err) as ResolveError)
@@ -949,7 +980,7 @@ fn latest_allowed_by_policy<'a>(
     let latest = meta.dist_tag("latest")?;
     let Some(cutoff) = published_by else { return Some(latest) };
     if let Some(policy) = published_by_exclude {
-        use pacquet_config::version_policy::PolicyMatch;
+        use pnpm_config::version_policy::PolicyMatch;
         match policy.matches(&meta.name) {
             PolicyMatch::AnyVersion => return Some(latest),
             PolicyMatch::ExactVersions(versions)
@@ -980,7 +1011,7 @@ fn detect_min_release_age_violation(
     let cutoff = published_by?;
     let timestamp = published_at?;
     if let Some(policy) = published_by_exclude {
-        use pacquet_config::version_policy::PolicyMatch;
+        use pnpm_config::version_policy::PolicyMatch;
         match policy.matches(&name.to_string()) {
             PolicyMatch::AnyVersion => return None,
             PolicyMatch::ExactVersions(versions)

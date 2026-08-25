@@ -20,6 +20,10 @@ import * as fs from 'node:fs'
 const ARTIFACT_BASE = 'pnpm-napi'
 // The `.node` file name inside each native package (also the package `main`).
 const NATIVE_ADDON_FILE = 'pnpm-napi.node'
+// Ships with every package that carries the addon, wrapper or not: the BSD
+// 2-Clause code the engine is derived from asks for its notice in the
+// materials accompanying a binary distribution.
+const NOTICES_FILE = 'THIRD-PARTY-NOTICES.md'
 
 const WRAPPER_ROOT = resolve(fileURLToPath(import.meta.url), '../..')
 const PACKAGES_ROOT = resolve(WRAPPER_ROOT, '..')
@@ -67,7 +71,7 @@ function generateNativePackage(target) {
     os: [target.platform],
     cpu: [target.arch],
     main: NATIVE_ADDON_FILE,
-    files: [NATIVE_ADDON_FILE],
+    files: [NATIVE_ADDON_FILE, NOTICES_FILE],
     repository: { type: 'git', url: 'https://github.com/pnpm/pnpm' },
   }
   if (target.libc) {
@@ -75,6 +79,7 @@ function generateNativePackage(target) {
   }
   fs.writeFileSync(resolve(packageRoot, 'package.json'), `${JSON.stringify(manifestData, null, 2)}\n`)
   fs.copyFileSync(source, resolve(packageRoot, NATIVE_ADDON_FILE))
+  fs.copyFileSync(resolve(WRAPPER_ROOT, NOTICES_FILE), resolve(packageRoot, NOTICES_FILE))
   console.log(`Generated ${packageName}`)
   return true
 }

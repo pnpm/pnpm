@@ -1,3 +1,4 @@
+export { allPatchKeys } from './allPatchKeys.js'
 export { getPatchInfo } from './getPatchInfo.js'
 export { groupPatchedDependencies } from './groupPatchedDependencies.js'
 export { verifyPatches, type VerifyPatchesOptions } from './verifyPatches.js'

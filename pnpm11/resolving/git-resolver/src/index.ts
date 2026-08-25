@@ -1,4 +1,7 @@
-import { PnpmError } from '@pnpm/error'
+import assert from 'node:assert'
+import util from 'node:util'
+
+import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import type { DispatcherOptions } from '@pnpm/network.fetch'
 import type { GitResolution, LatestInfo, LatestQuery, PkgResolutionId, ResolveOptions, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 import semver from 'semver'
@@ -55,7 +58,13 @@ export function createGitResolver (
     const bareSpecifier = parsedSpec.gitCommittish == null || parsedSpec.gitCommittish === ''
       ? 'HEAD'
       : parsedSpec.gitCommittish
-    const commit = await resolveRef(parsedSpec.fetchSpec, bareSpecifier, parsedSpec.gitRange)
+    let commit: string
+    try {
+      commit = await resolveRef(parsedSpec.fetchSpec, bareSpecifier, parsedSpec.gitRange)
+    } catch (err: unknown) {
+      assert(util.types.isNativeError(err))
+      throw gitResolveError(err, wantedDependency.bareSpecifier, parsedSpec.fetchSpec)
+    }
     let resolution: GitResolution | TarballResolution | undefined
 
     if ((parsedSpec.hosted != null) && !isSsh(parsedSpec.fetchSpec)) {
@@ -127,7 +136,6 @@ export async function getRepoRefs (repo: string, ref: string | null): Promise<Re
     // This is needed because annotated tags have their own SHA, and we need the commit SHA they point to
     gitArgs.push(`${ref}^{}`)
   }
-  // graceful-git by default retries 10 times, reduce to single retry
   const result = await lsRemote(gitArgs, { retries: 1 })
   const refs: Record<string, string> = {}
   for (const line of result.stdout.split('\n')) {
@@ -166,7 +174,7 @@ function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref:
       if (commits.length === 1) {
         commitId = commits[0]
       } else {
-        throw new Error(`Could not resolve ${ref} to a commit of ${repo}.`)
+        throw new Error(`Could not resolve ${ref} to a commit of ${redactAndSanitize(repo)}.`)
       }
     }
 
@@ -189,11 +197,53 @@ function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref:
         refs[`refs/tags/${refVTag}`])
 
     if (!commitId) {
-      throw new Error(`Could not resolve ${range} to a commit of ${repo}. Available versions are: ${vTags.join(', ')}`)
+      throw new Error(`Could not resolve ${range} to a commit of ${redactAndSanitize(repo)}. Available versions are: ${vTags.join(', ')}`)
     }
 
     return commitId
   }
+}
+
+/**
+ * Restate a failed `git ls-remote` as `ERR_PNPM_GIT_RESOLVE_FAILED`, naming the
+ * dependency it was resolving. Errors that describe the refs the remote did
+ * return (an unknown ref, an ambiguous commit-ish) already say which repository
+ * they came from and are left alone.
+ */
+function gitResolveError (err: Error, bareSpecifier: string, repo: string): Error {
+  if ((err as { code?: string }).code !== 'ERR_PNPM_GIT_LS_REMOTE_FAILED') return err
+  return new PnpmError(
+    'GIT_RESOLVE_FAILED',
+    `Failed to resolve git dependency "${redactAndSanitize(bareSpecifier)}": ${err.message}`,
+    { hint: httpsTransportHint(repo) }
+  )
+}
+
+/**
+ * Guidance for a specifier that resolved over HTTPS on a machine whose git
+ * cannot use that transport, or `undefined` when the resolution already went
+ * over SSH — there, the transport that failed is the one the specifier asked
+ * for.
+ *
+ * Substituting the transport is git's job rather than pnpm's: the URL pnpm
+ * records has to work for every machine that installs the lockfile, while
+ * `insteadOf` rewrites it for this one only.
+ */
+function httpsTransportHint (repo: string): string | undefined {
+  let url: URL
+  try {
+    url = new URL(repo)
+  } catch {
+    return undefined
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined
+  const host = redactAndSanitize(url.host)
+  const hostname = redactAndSanitize(url.hostname)
+  return `pnpm resolves this specifier over HTTPS because it does not ask for SSH, and the URL it records has to work on every machine that installs the lockfile.
+
+If git can only reach ${hostname} over SSH here, substitute the transport locally, leaving the recorded URL alone:
+
+    git config --global url."git@${hostname}:".insteadOf "${url.protocol}//${host}/"`
 }
 
 function isSsh (gitSpec: string): boolean {

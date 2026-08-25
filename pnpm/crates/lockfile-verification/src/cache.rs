@@ -19,10 +19,10 @@
 //! `read` / `stat` calls don't overlap with any other in-flight
 //! install work.
 //!
-//! [`ResolutionVerifier::can_trust_past_check`]: pacquet_resolving_resolver_base::ResolutionVerifier::can_trust_past_check
+//! [`ResolutionVerifier::can_trust_past_check`]: pnpm_resolving_resolver_base::ResolutionVerifier::can_trust_past_check
 
 use chrono::{SecondsFormat, Utc};
-use pacquet_resolving_resolver_base::ResolutionVerifier;
+use pnpm_resolving_resolver_base::ResolutionVerifier;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::{

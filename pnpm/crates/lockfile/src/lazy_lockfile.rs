@@ -1,5 +1,7 @@
-use crate::{LoadLockfileError, Lockfile};
-use std::{path::PathBuf, sync::OnceLock};
+use crate::{
+    LoadLockfileError, LoadedWantedLockfile, Lockfile, ProjectSnapshot, WantedLockfileSelection,
+};
+use std::{collections::HashMap, path::PathBuf, sync::OnceLock};
 
 /// Wanted lockfile (`pnpm-lock.yaml`) whose read + parse are deferred
 /// until a consumer actually needs the contents.
@@ -12,17 +14,16 @@ use std::{path::PathBuf, sync::OnceLock};
 /// [`LazyLockfile::get`] immediately and behave as if it were loaded
 /// eagerly.
 pub struct LazyLockfile {
-    dir: Option<PathBuf>,
-    cell: OnceLock<Option<Lockfile>>,
+    source: Option<(PathBuf, WantedLockfileSelection)>,
+    cell: OnceLock<LoadedWantedLockfile>,
 }
 
 impl LazyLockfile {
-    /// A lockfile that will be loaded from `<dir>/pnpm-lock.yaml` (the
-    /// same source as [`Lockfile::load_wanted_from_dir`]) on first
-    /// [`Self::get`].
+    /// A lockfile that will be loaded from `dir` (the same source as
+    /// [`Lockfile::load_wanted`]) on first [`Self::get`].
     #[must_use]
-    pub fn deferred(dir: PathBuf) -> Self {
-        LazyLockfile { dir: Some(dir), cell: OnceLock::new() }
+    pub fn deferred(dir: PathBuf, selection: WantedLockfileSelection) -> Self {
+        LazyLockfile { source: Some((dir, selection)), cell: OnceLock::new() }
     }
 
     /// A lockfile that is never loaded — [`Self::get`] yields `None`
@@ -30,7 +31,7 @@ impl LazyLockfile {
     /// config.
     #[must_use]
     pub fn disabled() -> Self {
-        LazyLockfile { dir: None, cell: OnceLock::new() }
+        LazyLockfile { source: None, cell: OnceLock::new() }
     }
 
     /// A lockfile that is already in memory; [`Self::get`] returns it
@@ -38,8 +39,9 @@ impl LazyLockfile {
     #[must_use]
     pub fn preloaded(lockfile: Option<Lockfile>) -> Self {
         let cell = OnceLock::new();
-        cell.set(lockfile).expect("a fresh OnceLock accepts the first set");
-        LazyLockfile { dir: None, cell }
+        cell.set(LoadedWantedLockfile { lockfile, pre_merge_importers: None })
+            .expect("a fresh OnceLock accepts the first set");
+        LazyLockfile { source: None, cell }
     }
 
     /// The parsed wanted lockfile, loading it on first call. `None`
@@ -47,28 +49,43 @@ impl LazyLockfile {
     /// error is returned without being cached, so a subsequent call
     /// retries — callers abort on the first error in practice.
     pub fn get(&self) -> Result<Option<&Lockfile>, LoadLockfileError> {
-        if let Some(lockfile) = self.cell.get() {
-            return Ok(lockfile.as_ref());
+        Ok(self.load()?.lockfile.as_ref())
+    }
+
+    /// The importers the branch-lockfile fold started from, loading the
+    /// lockfile on first call. `None` when no fold was attempted. See
+    /// [`LoadedWantedLockfile`] for why the caller needs them.
+    pub fn pre_merge_importers(
+        &self,
+    ) -> Result<Option<&HashMap<String, ProjectSnapshot>>, LoadLockfileError> {
+        Ok(self.load()?.pre_merge_importers.as_ref())
+    }
+
+    fn load(&self) -> Result<&LoadedWantedLockfile, LoadLockfileError> {
+        if let Some(loaded) = self.cell.get() {
+            return Ok(loaded);
         }
-        let loaded = match self.dir.as_deref() {
-            Some(dir) => Lockfile::load_wanted_from_dir(dir)?,
-            None => None,
+        let loaded = match self.source.as_ref() {
+            Some((dir, selection)) => Lockfile::load_wanted_detailed(dir, selection)?,
+            None => LoadedWantedLockfile::default(),
         };
-        Ok(self.cell.get_or_init(|| loaded).as_ref())
+        Ok(self.cell.get_or_init(|| loaded))
     }
 
     /// Whether a wanted lockfile is known to be available: the parsed
     /// document when already loaded, otherwise
-    /// [`Lockfile::wanted_exists_in_dir`]'s semantic-presence probe —
+    /// [`Lockfile::wanted_exists`]'s semantic-presence probe —
     /// the same absence rules as the loader (an empty or env-only
     /// file counts as absent), without paying for the YAML parse on
     /// the repeat-install fast path.
     #[must_use]
     pub fn is_loaded_or_on_disk(&self) -> bool {
-        if let Some(lockfile) = self.cell.get() {
-            return lockfile.is_some();
+        if let Some(loaded) = self.cell.get() {
+            return loaded.lockfile.is_some();
         }
-        self.dir.as_deref().is_some_and(Lockfile::wanted_exists_in_dir)
+        self.source
+            .as_ref()
+            .is_some_and(|(dir, selection)| Lockfile::wanted_exists(dir, &selection.file_name))
     }
 }
 
@@ -99,6 +116,18 @@ impl<'a> MaybeLazyLockfile<'a> {
         match self {
             MaybeLazyLockfile::Loaded(lockfile) => lockfile.is_some(),
             MaybeLazyLockfile::Lazy(lazy) => lazy.is_loaded_or_on_disk(),
+        }
+    }
+
+    /// See [`LazyLockfile::pre_merge_importers`]. An already-parsed
+    /// lockfile reached the caller through a path that does no folding,
+    /// so it never has them.
+    pub fn pre_merge_importers(
+        self,
+    ) -> Result<Option<&'a HashMap<String, ProjectSnapshot>>, LoadLockfileError> {
+        match self {
+            MaybeLazyLockfile::Loaded(_) => Ok(None),
+            MaybeLazyLockfile::Lazy(lazy) => lazy.pre_merge_importers(),
         }
     }
 }

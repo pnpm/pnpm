@@ -1,9 +1,9 @@
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::Config;
-use pacquet_versioning::VersioningSettings;
-use pacquet_workspace_manifest_writer::update_manifest_field;
+use pnpm_config::Config;
+use pnpm_versioning::VersioningSettings;
+use pnpm_workspace_manifest_writer::update_manifest_field;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::cli_args::{
@@ -77,9 +77,9 @@ impl LaneArgs {
         if config.filter.is_empty() {
             return Err(LaneError::FilterRequired.into());
         }
-        let (projects, _) = discover_workspace_projects(&workspace_dir)?;
+        let (projects, _) = discover_workspace_projects(&workspace_dir, config)?;
         let engine_projects = to_engine_projects(&projects);
-        let refs = pacquet_versioning::index_project_refs(&engine_projects, &workspace_dir);
+        let refs = pnpm_versioning::index_project_refs(&engine_projects, &workspace_dir);
         let releasable_dirs: HashSet<String> =
             releasable_projects(&engine_projects, &workspace_dir, &config.versioning)
                 .into_iter()

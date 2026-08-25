@@ -1,8 +1,8 @@
 use super::{FastOverrideOptions, try_fast_update_overrides};
 use indexmap::IndexMap;
-use pacquet_config_parse_overrides::{PackageSelector, VersionOverride};
-use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName, SnapshotEntry, TarballResolution};
-use pacquet_resolving_resolver_base::{
+use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};
+use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName, SnapshotEntry, TarballResolution};
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };
@@ -130,14 +130,17 @@ async fn try_update(
     let registries =
         HashMap::from([("default".to_string(), "https://registry.npmjs.org/".to_string())]);
     try_fast_update_overrides(FastOverrideOptions {
-        lockfile,
+        context: super::RewriteContext {
+            lockfile,
+            resolver,
+            resolve_options: &resolve_options,
+            manifest_hook: None,
+            registries: &registries,
+            registry_options_by_url: &std::collections::BTreeMap::new(),
+            lockfile_include_tarball_url: false,
+        },
         parsed_overrides,
         resolved_overrides,
-        resolver,
-        resolve_options: &resolve_options,
-        manifest_hook: None,
-        registries: &registries,
-        lockfile_include_tarball_url: false,
     })
     .await
 }
@@ -493,4 +496,212 @@ async fn applies_exact_replacements_and_dependency_removals_together() {
             .as_ref()
             .is_some_and(|snapshots| !snapshots.contains_key(&"obsolete@1.0.0".parse().unwrap())),
     );
+}
+
+/// The same graph plus a second, higher version of `target` that another
+/// importer holds. The registry has 2.0.0 too, which nothing locks.
+fn lockfile_with_two_target_versions() -> Lockfile {
+    let mut lockfile = lockfile();
+    // No override recorded yet: one at 1.0.0 could not coexist with an
+    // importer holding 1.5.0, since it would have moved that edge too.
+    lockfile.overrides = None;
+    lockfile.importers.insert(
+        "pkg-a".to_string(),
+        serde_json::from_value(json!({
+            "dependencies": { "target": { "specifier": "1.5.0", "version": "1.5.0" } }
+        }))
+        .expect("importer"),
+    );
+    lockfile.packages.as_mut().expect("packages").insert(
+        "target@1.5.0".parse().expect("package key"),
+        serde_json::from_value(json!({ "resolution": { "integrity": "sha512-target-2" } }))
+            .expect("package"),
+    );
+    lockfile.snapshots.as_mut().expect("snapshots").insert(
+        "target@1.5.0".parse().expect("snapshot key"),
+        serde_json::from_value(json!({})).expect("snapshot"),
+    );
+    lockfile
+}
+
+fn range_override(value: &str) -> Vec<VersionOverride> {
+    vec![VersionOverride {
+        selector: "target".to_string(),
+        parent_pkg: None,
+        target_pkg: PackageSelector { name: "target".to_string(), bare_specifier: None },
+        new_bare_specifier: value.to_string(),
+        converge: false,
+    }]
+}
+
+/// Records the version each resolution asks for. The rewrite that follows
+/// is the pre-existing machinery; what this pins is the version the range
+/// maps to.
+struct RecordingResolver {
+    requested: std::sync::Mutex<Vec<String>>,
+}
+
+impl Resolver for RecordingResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted_dependency: &'a WantedDependency,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        self.requested
+            .lock()
+            .expect("record the requested version")
+            .push(wanted_dependency.bare_specifier.clone().expect("version"));
+        Box::pin(async { Ok(None) })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
+}
+
+#[tokio::test]
+async fn a_range_override_moves_to_the_version_the_graph_already_holds() {
+    let lockfile = lockfile_with_two_target_versions();
+    let overrides = IndexMap::from([("target".to_string(), "^1.2.0".to_string())]);
+    let resolver = RecordingResolver { requested: std::sync::Mutex::new(Vec::new()) };
+
+    // The rewrite itself stops at the stub's empty resolution; the version
+    // it asked for is the decision under test.
+    let _ = try_update(&lockfile, &range_override("^1.2.0"), &overrides, &resolver).await;
+
+    assert_eq!(
+        *resolver.requested.lock().expect("requested versions"),
+        vec!["1.5.0".to_string()],
+        "resolution prefers the locked 1.5.0 over the registry's higher versions",
+    );
+}
+
+#[tokio::test]
+async fn a_range_override_no_locked_version_satisfies_falls_back() {
+    let lockfile = lockfile_with_two_target_versions();
+    let overrides = IndexMap::from([("target".to_string(), "^3.0.0".to_string())]);
+    let resolver = StubResolver { calls: AtomicUsize::new(0), manifest: json!({}) };
+
+    assert!(
+        try_update(&lockfile, &range_override("^3.0.0"), &overrides, &resolver).await.is_none(),
+        "only the resolver can fetch a version the lockfile does not hold",
+    );
+    assert_eq!(resolver.calls.load(Ordering::Relaxed), 0, "and it bails before resolving");
+}
+
+/// `parent` and `other` both depend on `target@1.0.0`, so a selector
+/// naming only `parent` has to leave `other` where it is.
+fn lockfile_with_two_dependents() -> Lockfile {
+    let mut lockfile = lockfile();
+    lockfile.overrides = None;
+    lockfile.packages.as_mut().expect("packages").insert(
+        "other@1.0.0".parse().expect("package key"),
+        serde_json::from_value(json!({ "resolution": { "integrity": "sha512-other" } }))
+            .expect("package"),
+    );
+    lockfile.snapshots.as_mut().expect("snapshots").insert(
+        "other@1.0.0".parse().expect("snapshot key"),
+        serde_json::from_value(json!({ "dependencies": { "target": "1.0.0" } })).expect("snapshot"),
+    );
+    lockfile
+        .importers
+        .get_mut(".")
+        .expect("importer")
+        .dependencies
+        .as_mut()
+        .expect("dependencies")
+        .insert(
+            "other".parse().expect("alias"),
+            serde_json::from_value(json!({ "specifier": "1.0.0", "version": "1.0.0" }))
+                .expect("dependency"),
+        );
+    lockfile
+}
+
+fn parent_scoped_override() -> Vec<VersionOverride> {
+    vec![VersionOverride {
+        selector: "parent>target".to_string(),
+        parent_pkg: Some(PackageSelector { name: "parent".to_string(), bare_specifier: None }),
+        target_pkg: PackageSelector { name: "target".to_string(), bare_specifier: None },
+        new_bare_specifier: "2.0.0".to_string(),
+        converge: false,
+    }]
+}
+
+#[tokio::test]
+async fn a_parent_scoped_override_moves_only_that_parents_edge() {
+    let lockfile = lockfile_with_two_dependents();
+    let overrides = IndexMap::from([("parent>target".to_string(), "2.0.0".to_string())]);
+    let resolver = StubResolver {
+        calls: AtomicUsize::new(0),
+        manifest: json!({ "name": "target", "version": "2.0.0", "dependencies": { "child": "^1.0.0" } }),
+    };
+
+    let updated = try_update(&lockfile, &parent_scoped_override(), &overrides, &resolver)
+        .await
+        .expect("moving one parent's edge needs no resolution");
+
+    let target: PkgName = "target".parse().expect("package name");
+    let edge_of = |owner: &str| {
+        updated
+            .snapshots
+            .as_ref()
+            .and_then(|snapshots| snapshots.get(&owner.parse().expect("snapshot key")))
+            .and_then(|snapshot| snapshot.dependencies.as_ref())
+            .and_then(|dependencies| dependencies.get(&target))
+            .map(ToString::to_string)
+    };
+    assert_eq!(edge_of("parent@1.0.0").as_deref(), Some("2.0.0"), "the named parent moves");
+    assert_eq!(edge_of("other@1.0.0").as_deref(), Some("1.0.0"), "the other dependent does not");
+    let mut keys: Vec<_> = updated
+        .snapshots
+        .as_ref()
+        .expect("snapshots")
+        .keys()
+        .map(ToString::to_string)
+        .filter(|key| key.starts_with("target@"))
+        .collect();
+    keys.sort();
+    assert_eq!(
+        keys,
+        vec!["target@1.0.0".to_string(), "target@2.0.0".to_string()],
+        "both versions survive, one per dependent",
+    );
+}
+
+#[tokio::test]
+async fn a_parent_scoped_override_prunes_the_old_version_when_nothing_else_holds_it() {
+    let mut lockfile = lockfile_with_two_dependents();
+    // `other` no longer reaches `target`, so the named parent is its last
+    // dependent and the version it leaves becomes unreachable.
+    lockfile
+        .snapshots
+        .as_mut()
+        .expect("snapshots")
+        .get_mut(&"other@1.0.0".parse().expect("snapshot key"))
+        .expect("other snapshot")
+        .dependencies = None;
+    let overrides = IndexMap::from([("parent>target".to_string(), "2.0.0".to_string())]);
+    let resolver = StubResolver {
+        calls: AtomicUsize::new(0),
+        manifest: json!({ "name": "target", "version": "2.0.0", "dependencies": { "child": "^1.0.0" } }),
+    };
+
+    let updated = try_update(&lockfile, &parent_scoped_override(), &overrides, &resolver)
+        .await
+        .expect("moving one parent's edge needs no resolution");
+
+    let keys: Vec<_> = updated
+        .snapshots
+        .as_ref()
+        .expect("snapshots")
+        .keys()
+        .map(ToString::to_string)
+        .filter(|key| key.starts_with("target@"))
+        .collect();
+    assert_eq!(keys, vec!["target@2.0.0".to_string()], "the version it left is unreachable");
 }

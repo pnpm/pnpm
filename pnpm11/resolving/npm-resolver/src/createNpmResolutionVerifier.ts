@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import { namedRegistryTarballPrefixes, pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { FULL_META_DIR } from '@pnpm/constants'
@@ -12,7 +12,7 @@ import {
   type Resolution,
   type ResolutionVerifier,
 } from '@pnpm/resolving.resolver-base'
-import type { PackageVersionPolicy, Registries, TrustPolicy } from '@pnpm/types'
+import type { PackageVersionPolicy, RegistriesByScope, TrustPolicy } from '@pnpm/types'
 import semver from 'semver'
 
 import type { FetchMetadataFromFromRegistryOptions } from './fetch.js'
@@ -53,12 +53,15 @@ export interface CreateNpmResolutionVerifierOptions {
   /**
    * When the registry's metadata lacks the per-version `time` field
    * (some self-hosted registries strip it), the verifier can't apply
-   * the maturity cutoff. Set this to `true` to mirror the resolver's
-   * `pickMatchingVersionFinal` warn-and-skip behavior — the verifier
-   * passes the entry with a one-time `globalWarn`, instead of failing
-   * closed. Defaults to `false` so the verifier stays stricter than
-   * the resolver only when the user has explicitly opted in to the
-   * skip on the resolver side.
+   * the maturity cutoff, and the trust check has no publish order to
+   * walk. Set this to `true` to mirror the resolver's warn-and-skip
+   * behavior for both — the verifier passes the entry with a one-time
+   * `globalWarn`, instead of failing closed. Defaults to `false` so
+   * the verifier stays stricter than the resolver only when the user
+   * has explicitly opted in to the skip on the resolver side. Scoped
+   * to a packument with no usable `time` map: one that dates every
+   * version it lists is saying it never published this pin, which
+   * fails closed either way.
    */
   ignoreMissingTimeField?: boolean
   /**
@@ -72,14 +75,14 @@ export interface CreateNpmResolutionVerifierOptions {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
-  registries: Registries
+  registriesByScope: RegistriesByScope
   /**
-   * Registries reached via the named-registry resolver chain (e.g. `gh:` →
+   * RegistriesByScope reached via the named-registry resolver chain (e.g. `gh:` →
    * GitHub Packages). When a lockfile entry's tarball URL falls under one of
    * these registry base URLs, route the manifest fetch there instead of the
    * scope-derived default.
    */
-  namedRegistries?: Record<string, string>
+  registriesByPrefix?: Record<string, string>
   /**
    * Cache-aware full-metadata fetcher. Decoupled from the resolver pipeline
    * so abbreviated metadata and `peekManifestFromStore` fast paths cannot
@@ -88,6 +91,11 @@ export interface CreateNpmResolutionVerifierOptions {
   fetchOpts: FetchMetadataFromFromRegistryOptions
   getAuthHeaderValueByURI: GetAuthHeader
   cacheDir?: FetchFullMetadataCachedOptions['cacheDir']
+  /**
+   * When true, verifier metadata lookups must use the local mirror
+   * only and never reach the registry or attestation endpoint.
+   */
+  offline?: boolean
   /**
    * Per-install LRU shared with the npm resolver's `pickPackage`
    * (`{ get, set }` over `PackageMeta`). When provided, the verifier
@@ -133,8 +141,8 @@ export function createNpmResolutionVerifier (
     ? createExcludePolicy(opts.trustPolicyExclude, 'trustPolicyExclude')
     : undefined
 
-  const mergedNamedRegistries = normalizeNamedRegistries(opts.namedRegistries)
-  const namedRegistryPrefixes = namedRegistryTarballPrefixes(mergedNamedRegistries)
+  const mergedRegistriesByPrefix = normalizeRegistriesByPrefix(opts.registriesByPrefix)
+  const namedRegistryPrefixes = namedRegistryTarballPrefixes(mergedRegistriesByPrefix)
 
   // Per-install dedup of every network/disk fetch the verifier issues.
   // The maturity check uses the layered `fetchPublishedAt` lookup; the
@@ -148,6 +156,7 @@ export function createNpmResolutionVerifier (
     fetchOpts: opts.fetchOpts,
     getAuthHeaderValueByURI: opts.getAuthHeaderValueByURI,
     cacheDir: opts.cacheDir,
+    offline: opts.offline === true,
     cutoffMs: cutoff,
     sharedMetaCache: opts.metaCache,
     abbreviatedMetaCache: new Map(),
@@ -160,6 +169,7 @@ export function createNpmResolutionVerifier (
   const minimumReleaseAge = opts.minimumReleaseAge ?? 0
   const trustPolicy = opts.trustPolicy
   const trustPolicyIgnoreAfter = opts.trustPolicyIgnoreAfter
+  const ignoreMissingTimeField = opts.ignoreMissingTimeField === true
 
 
   const verify: ResolutionVerifier['verify'] = async (resolution, { name, version, nonSemverVersion, registryName }) => {
@@ -204,19 +214,19 @@ export function createNpmResolutionVerifier (
       // Registry-qualified entries name their registry in the dep path, so
       // routing does not depend on a recorded tarball URL (canonical URLs
       // are omitted from the lockfile in the 12.0 format).
-      const namedRegistry = mergedNamedRegistries[registryName]
+      const namedRegistry = mergedRegistriesByPrefix[registryName]
       if (!namedRegistry) {
         // Fail closed: without the registry URL, none of the metadata-backed
         // checks below can vouch for this entry.
         return {
           ok: false,
           code: MISSING_NAMED_REGISTRY_VIOLATION_CODE,
-          reason: `was resolved from the named registry '${registryName}:', which is not present in the namedRegistries setting`,
+          reason: `was resolved from the named registry '${registryName}:', which is not present in the registriesByPrefix setting`,
         }
       }
       registry = namedRegistry
     } else {
-      registry = pickRegistryForVersion(opts.registries, namedRegistryPrefixes, name, tarballUrl)
+      registry = pickRegistryForVersion(opts.registriesByScope, namedRegistryPrefixes, name, tarballUrl)
     }
 
     // A registry entry that pins an explicit tarball URL must point at the
@@ -237,7 +247,7 @@ export function createNpmResolutionVerifier (
     if (!ageApplies && !trustApplies) return { ok: true }
 
     if (ageApplies) {
-      const ageViolation = await runAgeCheck(lookupContext, registry, name, version, cutoff, opts.ignoreMissingTimeField === true)
+      const ageViolation = await runAgeCheck(lookupContext, registry, name, version, cutoff, ignoreMissingTimeField)
       if (ageViolation) return ageViolation
     }
 
@@ -245,6 +255,7 @@ export function createNpmResolutionVerifier (
       const trustViolation = await runTrustCheck(lookupContext, registry, name, version, {
         trustPolicyExclude: trustExcludePolicy,
         trustPolicyIgnoreAfter,
+        ignoreMissingTimeField,
       })
       if (trustViolation) return trustViolation
     }
@@ -262,11 +273,11 @@ export function createNpmResolutionVerifier (
   // stays trusted after its exclude entry has been pulled.
   const sortedMinAgeExcludes = [...new Set(opts.minimumReleaseAgeExclude ?? [])].sort()
   const sortedTrustExcludes = [...new Set(opts.trustPolicyExclude ?? [])].sort()
-  const sortedNamedRegistries = Object.fromEntries(
-    Object.entries(mergedNamedRegistries).sort(([aliasA], [aliasB]) => aliasA.localeCompare(aliasB))
+  const sortedRegistriesByPrefix = Object.fromEntries(
+    Object.entries(mergedRegistriesByPrefix).sort(([aliasA], [aliasB]) => aliasA.localeCompare(aliasB))
   )
   const namedRegistriesRouting = createHash('sha256')
-    .update(JSON.stringify(sortedNamedRegistries))
+    .update(JSON.stringify(sortedRegistriesByPrefix))
     .digest('hex')
   return {
     verify,
@@ -285,6 +296,7 @@ export function createNpmResolutionVerifier (
       trustPolicy: trustPolicy ?? null,
       trustPolicyExclude: sortedTrustExcludes,
       trustPolicyIgnoreAfter: trustPolicyIgnoreAfter ?? null,
+      minimumReleaseAgeIgnoreMissingTime: ignoreMissingTimeField,
     },
     canTrustPastCheck: (cached) => {
       // The tarball-URL binding is unconditional today; a cached run that
@@ -332,6 +344,14 @@ export function createNpmResolutionVerifier (
       const todayIgnoreAfter = trustPolicyIgnoreAfter ?? null
       if (pastIgnoreAfter !== todayIgnoreAfter) return false
 
+      // Missing-time tolerance: a cached run that failed closed on an
+      // absent `time` field accepted a subset of what today's tolerant
+      // policy accepts, so it stays trustworthy. Turning the tolerance
+      // off invalidates it — entries the past run waved through are the
+      // ones today's policy exists to reject. Older records (no field)
+      // read as intolerant, which is the safe direction.
+      if (cached.minimumReleaseAgeIgnoreMissingTime === true && !ignoreMissingTimeField) return false
+
       return true
     },
   }
@@ -352,15 +372,23 @@ async function runAgeCheck (
   const published = await fetchPublishedAt(context, registry, name, version)
   if (!published) {
     // No source — attestation, local mirror, or full metadata —
-    // surfaced a publish timestamp for this version. The resolver's
-    // pickMatchingVersionFinal honors `minimumReleaseAgeIgnoreMissingTime`
-    // for the same shape (some self-hosted registries strip per-version
-    // `time`); the verifier mirrors that so it can't be stricter than
-    // fresh resolution. Without the flag we still fail closed — better
-    // a false reject than silent bypass when the user hasn't opted in.
+    // surfaced a publish timestamp for this version. What
+    // `minimumReleaseAgeIgnoreMissingTime` opts out of is a registry that
+    // cannot date its releases, so the skip is granted only when the
+    // packument carries no usable `time` map at all — the same shape the
+    // resolver's `pickMatchingVersionFinal` warns and skips on, so the
+    // verifier can't be stricter than fresh resolution. A packument that
+    // does date every version it lists is instead telling us this pin is
+    // not one of them (`dropIncompletePublishTimes` leaves no partial maps
+    // for that to be ambiguous), and an unpublished or never-published pin
+    // must fail closed however the flag is set.
     if (ignoreMissingTimeField) {
-      warnMissingTimeFieldOnce(name)
-      return undefined
+      // Already awaited by the lookup above, so this is a cache hit.
+      const timeMap = await fetchFullMetaTime(context, registry, name)
+      if (timeMap == null) {
+        warnMissingTimeFieldOnce(name, 'minimumReleaseAge')
+        return undefined
+      }
     }
     return {
       ok: false,
@@ -431,10 +459,9 @@ function sameTarballUrl (a: string, b: string): boolean {
   return canonicalTarballUrl(a) === canonicalTarballUrl(b)
 }
 
-// Mirror the tolerance toLockfileResolution applies when it decides whether
-// a tarball URL is "the expected one": ignore the protocol and `%2f` scope
-// encoding so a benign http/https or encoding difference isn't read as
-// tampering. The `%2f` match is case-insensitive because `normalizeRegistryUrl`
+// Both URLs come from the registry, so ignore the protocol and `%2f` scope
+// encoding: a benign http/https or encoding difference isn't tampering. The
+// `%2f` match is case-insensitive because `normalizeRegistryUrl`
 // (`new URL().toString()`) can upper-case percent-escapes to `%2F`.
 function canonicalTarballUrl (url: string): string {
   const normalized = normalizeRegistryUrl(url).replace(/%2f/gi, '/')
@@ -465,6 +492,7 @@ async function runTrustCheck (
   opts: {
     trustPolicyExclude?: PackageVersionPolicy
     trustPolicyIgnoreAfter?: number
+    ignoreMissingTimeField?: boolean
   }
 ): Promise<{ ok: false, code: string, reason: string } | undefined> {
   // A transport failure (auth/network/5xx) propagates the registry's own fetch
@@ -522,6 +550,7 @@ function fetchFullMetaForTrust (
         registry,
         authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
         cacheDir: context.cacheDir,
+        offline: context.offline,
       }).then(projectTrustMeta)
     }
     context.fullMetaForTrustCache.set(cacheKey, cachedPromise)
@@ -588,6 +617,7 @@ interface PublishedAtLookupContext {
   fetchOpts: FetchMetadataFromFromRegistryOptions
   getAuthHeaderValueByURI: GetAuthHeader
   cacheDir?: string
+  offline: boolean
   /**
    * The `minimumReleaseAge` cutoff converted to a unix-ms epoch. A
    * version with a publish time strictly less than this passes the
@@ -697,11 +727,13 @@ async function resolvePublishedAt (
   const localTime = await readLocalMetaTime(context, registry, name)
   if (localTime?.[version]) return localTime[version]
 
-  const attestationTime = await fetchAttestationPublishedAt(context.fetchOpts, name, version, {
-    registry,
-    authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
-  })
-  if (attestationTime != null) return attestationTime
+  if (!context.offline) {
+    const attestationTime = await fetchAttestationPublishedAt(context.fetchOpts, name, version, {
+      registry,
+      authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
+    })
+    if (attestationTime != null) return attestationTime
+  }
 
   const fullMetaTime = await fetchFullMetaTime(context, registry, name)
   return fullMetaTime?.[version]
@@ -773,6 +805,7 @@ function fetchAbbreviatedMeta (
         registry,
         authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
         cacheDir: context.cacheDir,
+        offline: context.offline,
       }).then(
         (meta) => ({ meta: projectAbbreviatedMeta(meta) }),
         (error: unknown) => ({ error })
@@ -915,6 +948,7 @@ function fetchFullMetaTime (
       registry,
       authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
       cacheDir: context.cacheDir,
+      offline: context.offline,
     }).then((meta) => meta.time)
     context.fullMetaCache.set(cacheKey, cachedPromise)
   }
@@ -922,7 +956,7 @@ function fetchFullMetaTime (
 }
 
 function pickRegistryForVersion (
-  registries: Registries,
+  registriesByScope: RegistriesByScope,
   namedRegistryPrefixes: readonly string[],
   name: string,
   tarballUrl: string | undefined
@@ -942,7 +976,7 @@ function pickRegistryForVersion (
       if (normalized.startsWith(canonicalTarballUrl(prefix))) return prefix
     }
   }
-  return pickRegistryForPackage(registries, name)
+  return pickRegistryForPackage(registriesByScope, name)
 }
 
 function tryParseUrl (url: string): URL | null {

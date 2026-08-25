@@ -1,21 +1,23 @@
 use crate::{
     State,
     cli_args::{
-        pipelines::InstallFamilySelection, recursive,
+        lockfile_dir::LockfileDirArg,
+        pipelines::InstallFamilySelection,
+        recursive,
         supported_architectures::SupportedArchitecturesArgs,
-        update_interactive::InteractiveUpdateOptions,
+        update_interactive::{InteractiveUpdateOptions, UpdatePrompt},
     },
     github_actions,
 };
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
-use pacquet_config::Config;
-use pacquet_package_manager::{Update, build_workspace_packages_map};
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::Reporter;
-use std::path::Path;
+use pnpm_config::Config;
+use pnpm_package_manager::{Update, build_workspace_packages_map};
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::Reporter;
+use std::{collections::HashSet, path::Path};
 
 /// The `--prod`, `--dev`, and `--no-optional` flags that select which
 /// dependency groups to update.
@@ -27,8 +29,11 @@ pub struct UpdateDependencyOptions {
     /// Update packages only in "devDependencies".
     #[clap(short = 'D', long)]
     dev: bool,
+    /// Update packages only in "optionalDependencies".
+    #[clap(long, overrides_with = "no_optional")]
+    optional: bool,
     /// Don't update packages in "optionalDependencies".
-    #[clap(long)]
+    #[clap(long, overrides_with = "optional")]
     no_optional: bool,
 }
 
@@ -36,14 +41,17 @@ impl UpdateDependencyOptions {
     /// The dependency groups whose direct dependencies the update may
     /// match. Returns the groups for which the corresponding inclusion bit
     /// is set.
+    ///
+    /// This narrows what the update *matches*, not what the install that
+    /// follows it materializes: pnpm leaves the `included` set recorded in
+    /// `.modules.yaml` untouched for an update, so these flags never reach
+    /// [`Config::optional`] and friends.
     fn include_direct(&self) -> Vec<DependencyGroup> {
         // `Some(true)` only when the flag was explicitly passed: the raw
         // CLI flags are read rather than the merged config.
         let production = self.prod.then_some(true);
         let dev = self.dev.then_some(true);
-        // There is no positive `--optional` flag for update; `--no-optional`
-        // sets it to `false`, otherwise it stays unset.
-        let optional = self.no_optional.then_some(false);
+        let optional = self.optional.then_some(true).or_else(|| self.no_optional.then_some(false));
 
         let ne_true = |flag: Option<bool>| flag != Some(true);
         let dependencies = production == Some(true) || (ne_true(dev) && ne_true(optional));
@@ -101,6 +109,9 @@ pub struct UpdateArgs {
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
 
+    #[clap(flatten)]
+    pub lockfile_dir: LockfileDirArg,
+
     /// Show outdated dependencies and select which ones to update.
     #[clap(short = 'i', long)]
     pub interactive: bool,
@@ -127,6 +138,14 @@ pub struct UpdateArgs {
     /// changeset generation by default.
     #[clap(long = "no-changeset", overrides_with = "changeset")]
     pub no_changeset: bool,
+
+    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
+    /// pnpmfiles of config dependencies.
+    #[clap(long = "ignore-pnpmfile")]
+    pub ignore_pnpmfile: bool,
+
+    #[clap(skip)]
+    pub(crate) prompt: UpdatePrompt,
 }
 
 /// The option combinations `--workspace` rejects, checked before any
@@ -144,14 +163,19 @@ enum WorkspaceUpdateError {
 }
 
 impl UpdateArgs {
+    pub(crate) fn apply_cli_config(&self, config: &mut Config) {
+        config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
+    }
+
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
         mut state: State,
     ) -> miette::Result<()> {
+        state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let workspace_packages = self
             .check_workspace_option(state.config.workspace_dir.as_deref())?
             .map(|workspace_root| {
-                recursive::discover_workspace_projects(workspace_root)
+                recursive::discover_workspace_projects(workspace_root, state.config)
                     .map(|(projects, _)| build_workspace_packages_map(Some(&projects)))
             })
             .transpose()?
@@ -199,6 +223,7 @@ impl UpdateArgs {
                     latest: self.latest,
                     include_direct: &include_direct,
                     include_github_actions: update_actions,
+                    prompt: self.prompt,
                 },
             )
             .await?
@@ -263,6 +288,7 @@ impl UpdateArgs {
         mut state: State,
         selection: InstallFamilySelection,
     ) -> miette::Result<()> {
+        state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let workspace_packages = self
             .check_workspace_option(state.config.workspace_dir.as_deref())?
             .and_then(|_| build_workspace_packages_map(Some(&selection.projects)));
@@ -304,6 +330,7 @@ impl UpdateArgs {
                     latest: self.latest,
                     include_direct: &include_direct,
                     include_github_actions: update_actions,
+                    prompt: self.prompt,
                 },
             )
             .await?
@@ -381,11 +408,21 @@ impl UpdateArgs {
         config: &'static Config,
     ) -> miette::Result<()> {
         self.check_workspace_option(None)?;
-        if self.interactive {
-            return Err(miette::miette!(
-                "`pnpm update --global --interactive` is not supported yet."
-            ));
-        }
+        let selected_hashes: Option<HashSet<String>> = if self.interactive {
+            match crate::cli_args::update_interactive::select_global_package_groups(
+                config,
+                &self.packages,
+                self.latest,
+                self.prompt,
+            )
+            .await?
+            {
+                Some(selected) => Some(selected),
+                None => return Ok(()),
+            }
+        } else {
+            None
+        };
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
         let range_spec_style = RangeSpecStyle::from_save_options(
@@ -395,6 +432,7 @@ impl UpdateArgs {
         Box::pin(crate::cli_args::global::handle_global_update::<Reporter>(
             config,
             &self.packages,
+            selected_hashes.as_ref(),
             self.latest,
             range_spec_style,
             supported_architectures,
@@ -432,7 +470,7 @@ impl UpdateArgs {
     }
 }
 
-fn manifest_root(manifest: &pacquet_package_manifest::PackageManifest) -> std::path::PathBuf {
+fn manifest_root(manifest: &pnpm_package_manifest::PackageManifest) -> std::path::PathBuf {
     manifest.path().parent().expect("manifest path always has a parent directory").to_path_buf()
 }
 

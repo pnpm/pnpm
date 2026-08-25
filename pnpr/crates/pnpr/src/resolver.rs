@@ -50,7 +50,7 @@ mod verdict_cache;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Arc, LazyLock, Mutex, OnceLock},
     time::{Duration, Instant},
 };
 
@@ -71,21 +71,21 @@ use axum::{
     response::Response,
 };
 use indexmap::IndexMap;
-use pacquet_config::Config as PacquetConfig;
-use pacquet_lockfile::{
+use pnpm_config::Config as PacquetConfig;
+use pnpm_lockfile::{
     Lockfile, LockfileResolution, TarballResolution, is_git_hosted_tarball_url,
     pick_registry_for_package,
 };
-use pacquet_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
-use pacquet_network::{AuthHeaders, ThrottledClient, UpstreamRouteHook};
-use pacquet_package_manager::{
+use pnpm_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
+use pnpm_network::{AuthHeaders, ThrottledClient, UpstreamRouteHook};
+use pnpm_package_manager::{
     ResolvedPackageHint, build_resolution_verifiers, tarball_url_and_integrity,
 };
-use pacquet_resolving_npm_resolver::{
+use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, ObservedDistStats, PackageMetaCache, observed_dist_stats_sink,
 };
-use pacquet_resolving_resolver_base::{PackageVersionGuard, ResolutionVerifier};
-use pacquet_store_dir::StoreDir;
+use pnpm_resolving_resolver_base::{PackageVersionGuard, ResolutionVerifier};
+use pnpm_store_dir::StoreDir;
 use sha2::{Digest, Sha256};
 
 pub(crate) use self::osv::{OsvIndex, format_advisory_ids, load_osv_index};
@@ -208,7 +208,7 @@ impl Resolver {
 
     /// Resolve (or build + intern) the `&'static Config` for a request's
     /// registry configuration. Pacquet's install path resolves against
-    /// `config.registry` / `named_registries` / `overrides`, so a request
+    /// `config.registry` / `registries_by_prefix` / `overrides`, so a request
     /// from a client with a different registry setup gets its own Config.
     ///
     /// `None` once [`MAX_INTERNED_CONFIGS`] distinct configurations have
@@ -248,27 +248,50 @@ const TOO_MANY_CONFIGS_MESSAGE: &str = "too many distinct registry configuration
 /// `128 KiB` is far above any real registry/overrides configuration.
 const MAX_CONFIG_KEY_BYTES: usize = 128 * 1024;
 
-/// The slice of an input lockfile's `settings` block that
-/// [`intern_config`] adopts, and the only part of it the interning key
-/// carries. Keying on the whole block would let a caller mint an
-/// unbounded number of distinct configs out of the fields the config
-/// never reads (`peersSuffixMaxLength` alone is a `u64`) and exhaust
-/// [`MAX_INTERNED_CONFIGS`], after which no caller gets a config at all.
+/// The settings a request resolves under, and the only part of an input
+/// lockfile's `settings` block the interning key carries. Keying on the whole
+/// block would let a caller mint an unbounded number of distinct configs out
+/// of the fields the config never reads (`peersSuffixMaxLength` alone is a
+/// `u64`) and exhaust [`MAX_INTERNED_CONFIGS`], after which no caller gets a
+/// config at all.
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-struct AdoptedLockfileSettings {
+struct EffectiveResolverSettings {
     auto_install_peers: bool,
     dedupe_peers: bool,
     exclude_links_from_lockfile: bool,
 }
 
-impl From<&pacquet_lockfile::LockfileSettings> for AdoptedLockfileSettings {
-    fn from(settings: &pacquet_lockfile::LockfileSettings) -> Self {
-        AdoptedLockfileSettings {
-            auto_install_peers: settings.auto_install_peers,
-            // Written only while the setting is on, so an absent key is `false`.
-            dedupe_peers: settings.dedupe_peers.unwrap_or(false),
-            exclude_links_from_lockfile: settings.exclude_links_from_lockfile,
+impl EffectiveResolverSettings {
+    /// The client's own values whenever it sends them. A client that sends
+    /// none (one older than
+    /// [pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)) falls
+    /// back to the input lockfile on a frozen request — nothing is
+    /// re-resolved there, the freshness gate compares these three against the
+    /// config, and the server's defaults would call a lockfile that is valid
+    /// for its owner stale. On an update-capable request it falls back to the
+    /// server's defaults instead: the lockfile records what the *last* install
+    /// used, which is stale exactly when the client has just changed one of
+    /// these.
+    fn for_request(request: &ResolveRequest) -> Self {
+        static DEFAULTS: LazyLock<PacquetConfig> = LazyLock::new(PacquetConfig::new);
+
+        let lockfile_settings =
+            request.frozen_lockfile.then(|| request.lockfile.as_ref()?.settings.as_ref()).flatten();
+
+        EffectiveResolverSettings {
+            auto_install_peers: request
+                .auto_install_peers
+                .or_else(|| lockfile_settings.map(|settings| settings.auto_install_peers))
+                .unwrap_or(DEFAULTS.auto_install_peers),
+            dedupe_peers: request
+                .dedupe_peers
+                .or_else(|| lockfile_settings.and_then(|settings| settings.dedupe_peers))
+                .unwrap_or(DEFAULTS.dedupe_peers),
+            exclude_links_from_lockfile: request
+                .exclude_links_from_lockfile
+                .or_else(|| lockfile_settings.map(|settings| settings.exclude_links_from_lockfile))
+                .unwrap_or(DEFAULTS.exclude_links_from_lockfile),
         }
     }
 }
@@ -308,30 +331,14 @@ fn intern_config(
         .as_ref()
         .map(|overrides| overrides.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect());
 
-    // The protocol carries no `autoInstallPeers` / `dedupePeers` /
-    // `excludeLinksFromLockfile`, so the server's own defaults would
-    // otherwise decide them. On a frozen request the input lockfile is the
-    // contract — nothing is re-resolved, and the freshness gate compares
-    // these three against the config — so its recorded values are the ones
-    // to honor; the server's defaults would reject a lockfile that is
-    // valid for its owner.
-    //
-    // A request that may update resolutions keeps the server defaults: the
-    // lockfile records what the *last* install used, which is stale exactly
-    // when the client has just changed one of these. Neither value is the
-    // client's current setting, and only the protocol can carry that
-    // ([pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)).
-    let lockfile_settings = request
-        .frozen_lockfile
-        .then(|| request.lockfile.as_ref()?.settings.as_ref())
-        .flatten()
-        .map(AdoptedLockfileSettings::from);
+    let resolver_settings = EffectiveResolverSettings::for_request(request);
 
     let key = serde_json::json!({
         "registry": registry,
-        "lockfileSettings": lockfile_settings,
-        "namedRegistries": request.named_registries,
+        "resolverSettings": resolver_settings,
+        "registries": &request.registries,
         "overrides": overrides_key,
+        "resolutionMode": request.resolution_mode,
         "minimumReleaseAge": request.minimum_release_age,
         "minimumReleaseAgeExclude": request.minimum_release_age_exclude,
         "minimumReleaseAgeIgnoreMissingTime": request.minimum_release_age_ignore_missing_time,
@@ -356,15 +363,28 @@ fn intern_config(
     config.store_dir = store_dir.clone();
     config.cache_dir = cache_dir.to_path_buf();
     config.registry = registry;
-    config.named_registries = request.named_registries.clone();
+    // The client's declarations go through the same inversion the config
+    // reader runs on the `registries` setting, so the server routes scopes
+    // and prefixes exactly as the client would.
+    let lookups = pnpm_config::registries::declarations_into_lookups(request.registries.clone());
+    if request.registry.is_none()
+        && let Some(default_registry) = lookups.default_registry
+    {
+        config.registry = default_registry;
+    }
+    config.registries_by_scope = lookups.registries_by_scope;
+    config.registries_by_prefix = lookups.registries_by_prefix;
+    config.registry_options_by_url = lookups.registry_options_by_url;
     config.overrides = overrides;
     config.modules_dir = PathBuf::from("node_modules");
     config.lockfile = true;
     config.verify_store_integrity = true;
-    // The client's verification policy drives both the input-lockfile
-    // verifier and the resolver's pick-time `minimumReleaseAge` /
-    // `trustPolicy` checks, so newly-resolved entries are held to the
-    // same policy as the reused ones.
+    // The client's resolution and verification policies drive both the
+    // input-lockfile verifier and the resolver's pick-time
+    // `minimumReleaseAge` / `trustPolicy` checks, so a newly-resolved
+    // entry is picked the way the client would have picked it and held
+    // to the same policy as the reused ones.
+    config.resolution_mode = request.resolution_mode;
     config.minimum_release_age = request.minimum_release_age;
     config.minimum_release_age_exclude.clone_from(&request.minimum_release_age_exclude);
     if let Some(ignore_missing_time) = request.minimum_release_age_ignore_missing_time {
@@ -373,11 +393,9 @@ fn intern_config(
     config.trust_policy = request.trust_policy;
     config.trust_policy_exclude.clone_from(&request.trust_policy_exclude);
     config.trust_policy_ignore_after = request.trust_policy_ignore_after;
-    if let Some(settings) = lockfile_settings {
-        config.auto_install_peers = settings.auto_install_peers;
-        config.dedupe_peers = settings.dedupe_peers;
-        config.exclude_links_from_lockfile = settings.exclude_links_from_lockfile;
-    }
+    config.auto_install_peers = resolver_settings.auto_install_peers;
+    config.dedupe_peers = resolver_settings.dedupe_peers;
+    config.exclude_links_from_lockfile = resolver_settings.exclude_links_from_lockfile;
     let config: &'static PacquetConfig = config.leak();
     configs.insert(key, config);
     Some(config)
@@ -407,6 +425,9 @@ pub(crate) async fn handle_resolve(
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
 
+    if let Some(response) = reject_invalid_registries(&request) {
+        return response;
+    }
     if let Some(response) = reject_inline_url_auth(&request) {
         return response;
     }
@@ -504,7 +525,7 @@ pub(crate) async fn handle_resolve(
     // observer, then a terminal `done` / `error` frame. The response
     // body drains the channel as frames arrive.
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
-    let observer: Arc<dyn pacquet_package_manager::ResolutionObserver> = Arc::new(StreamObserver {
+    let observer: Arc<dyn pnpm_package_manager::ResolutionObserver> = Arc::new(StreamObserver {
         tx: tx.clone(),
         package_version_guard: package_version_guard.clone(),
         tarball_router: tarball_router.clone(),
@@ -572,6 +593,9 @@ pub(crate) async fn handle_verify_lockfile(
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
 
+    if let Some(response) = reject_invalid_registries(&request) {
+        return response;
+    }
     if let Some(response) = reject_inline_url_auth(&request) {
         return response;
     }
@@ -781,14 +805,19 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
         .collect();
     let input = serde_json::json!({
         "registry": &config.registry,
-        "namedRegistries": &request.named_registries,
+        "registries": &request.registries,
         "overrides": &request.overrides,
+        "catalogs": &request.catalogs,
+        "autoInstallPeers": config.auto_install_peers,
+        "dedupePeers": config.dedupe_peers,
+        "excludeLinksFromLockfile": config.exclude_links_from_lockfile,
         "projects": projects,
         "inputLockfileHash": request.lockfile.as_ref().map(hash_lockfile),
         "frozenLockfile": request.frozen_lockfile,
         "preferFrozenLockfile": request.prefer_frozen_lockfile,
         "ignoreManifestCheck": request.ignore_manifest_check,
         "trustLockfile": request.trust_lockfile,
+        "resolutionMode": request.resolution_mode,
         "minimumReleaseAge": request.minimum_release_age,
         "minimumReleaseAgeExclude": &request.minimum_release_age_exclude,
         "minimumReleaseAgeIgnoreMissingTime": request.minimum_release_age_ignore_missing_time,
@@ -979,7 +1008,7 @@ fn upstream_endpoint_tarball_url(
 /// the client incrementally rather than being buffered by the encoder.
 const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson";
 
-/// [`ResolutionObserver`](pacquet_package_manager::ResolutionObserver)
+/// [`ResolutionObserver`](pnpm_package_manager::ResolutionObserver)
 /// that turns each resolved tarball into a `package` NDJSON frame and
 /// pushes it down the response channel. `on_resolved` is best-effort: a
 /// closed channel (client hung up) or a serialization failure drops the
@@ -990,8 +1019,8 @@ struct StreamObserver {
     tarball_router: TarballRouter,
 }
 
-impl pacquet_package_manager::ResolutionObserver for StreamObserver {
-    fn on_resolved(&self, hint: pacquet_package_manager::ResolvedPackageHint<'_>) {
+impl pnpm_package_manager::ResolutionObserver for StreamObserver {
+    fn on_resolved(&self, hint: pnpm_package_manager::ResolvedPackageHint<'_>) {
         if let Ok(line) = ndjson_line(&package_frame(&self.tarball_router, &hint)) {
             let _ = self.tx.send(line);
         }
@@ -1338,6 +1367,7 @@ async fn verify_input_lockfile(
         Some(meta_cache as Arc<dyn PackageMetaCache>),
         Some(Arc::clone(auth_headers)),
         Some(Arc::clone(&dist_stats)),
+        None,
     )
     .map_err(|err| {
         VerifyFailure::Internal(json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))
@@ -1420,18 +1450,22 @@ fn merge_policies(
 /// cloud instance metadata, an internal service, or any other off-allowlist
 /// host. Beyond the default/named registries this also covers every fetch a
 /// *direct-URL dependency* would trigger: an `http(s)`/`git` dependency spec,
-/// an override URL leaf, or an input lockfile's tarball URL. A semver range or
-/// `npm:`/`workspace:`/`file:` alias never hits the network, so it is ignored.
+/// a catalog entry, an override URL leaf, or an input lockfile's tarball URL. A
+/// semver range or `npm:`/`workspace:`/`file:` alias never hits the network, so
+/// it is ignored.
 fn reject_off_allowlist_fetches(
     request: &ResolveRequest,
     context: &RouteContext,
 ) -> Option<Response> {
-    // Registries are fetch targets whatever their scheme.
+    // Registries are fetch targets whatever their scheme. The registries the
+    // request *declares* are deliberately not checked here: a client describes
+    // its whole configuration, including scopes this resolve never reaches, and
+    // one of those is refused at the fetch instead (`RouteHook::allows_fetch`)
+    // so configuring a registry pnpr does not serve is not itself an error.
     let mut registries: Vec<&str> = Vec::new();
     if let Some(registry) = request.registry.as_deref() {
         registries.push(registry);
     }
-    registries.extend(request.named_registries.values().map(String::as_str));
     if let Some(off) = registries.into_iter().find(|registry| !context.allows_registry(registry)) {
         return Some(forbidden_off_allowlist(off));
     }
@@ -1446,6 +1480,10 @@ fn reject_off_allowlist_fetches(
         {
             url_specs.extend(map.values().map(String::as_str));
         }
+    }
+    if let Some(catalogs) = request.catalogs.as_ref() {
+        url_specs
+            .extend(catalogs.values().flat_map(|catalog| catalog.values()).map(String::as_str));
     }
     if let Some(packages) =
         request.lockfile.as_ref().and_then(|lockfile| lockfile.packages.as_ref())
@@ -1541,18 +1579,30 @@ fn forbidden_off_allowlist(target: &str) -> Response {
     )
 }
 
+/// Reject a `registries` map the client could not have loaded itself.
+///
+/// The same validation the config reader runs on the setting, so a request
+/// cannot route one scope to two registries, or reach the resolver with a
+/// declaration pnpm would have refused on disk. The message is the reader's,
+/// with its registry URLs already redacted.
+fn reject_invalid_registries(request: &ResolveRequest) -> Option<Response> {
+    pnpm_config::registries::validate_declarations(request.registries.iter())
+        .err()
+        .map(|error| json_error(StatusCode::BAD_REQUEST, &error.to_string()))
+}
+
 /// Reject a request whose client-supplied URLs carry inline
 /// `user:pass@host` credentials, before any fetch or cache write. Covers
-/// the default and named registries, every dependency spec, override
-/// values, and the tarball URLs of an input lockfile — every surface a
-/// tarball/registry URL can reach the resolver (or be echoed back) through.
+/// the default and named registries, every dependency spec, catalog value,
+/// override values, and the tarball URLs of an input lockfile — every surface
+/// a tarball/registry URL can reach the resolver (or be echoed back) through.
 /// Returns a `400` response when one is found.
 fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Response> {
     let mut specs: Vec<&str> = Vec::new();
     if let Some(registry) = request.registry.as_deref() {
         specs.push(registry);
     }
-    specs.extend(request.named_registries.values().map(String::as_str));
+    specs.extend(request.registries.keys().map(String::as_str));
     let projects = request.projects_normalized();
     for project in &projects {
         for map in
@@ -1560,6 +1610,9 @@ fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Response> {
         {
             specs.extend(map.values().map(String::as_str));
         }
+    }
+    if let Some(catalogs) = request.catalogs.as_ref() {
+        specs.extend(catalogs.values().flat_map(|catalog| catalog.values()).map(String::as_str));
     }
     // A supplied lockfile can carry `resolution.tarball` URLs that reach the
     // verify/frozen paths and would otherwise be routed or echoed back.

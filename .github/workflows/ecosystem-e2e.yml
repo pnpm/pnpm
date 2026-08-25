@@ -36,7 +36,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm
-        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/rustup
@@ -81,6 +81,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Install Node
+        # The runner image's system Node is older than the bundle's floor
+        # (`node:sqlite` needs >= 22.13). Installs the `devEngines.runtime`
+        # pin, which the harness passes to every subprocess through PATH.
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        with:
+          install: false
 
       - name: Download build outputs
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1

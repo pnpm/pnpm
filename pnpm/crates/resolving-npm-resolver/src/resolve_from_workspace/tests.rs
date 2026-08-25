@@ -5,8 +5,8 @@
 
 use std::{collections::BTreeMap, path::Path};
 
-use pacquet_lockfile::LockfileResolution;
-use pacquet_resolving_resolver_base::{
+use pnpm_lockfile::LockfileResolution;
+use pnpm_resolving_resolver_base::{
     WantedDependency, WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion,
 };
 use serde_json::json;

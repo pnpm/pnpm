@@ -1,6 +1,6 @@
 use super::{InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest};
-use pacquet_catalogs_types::{Catalog, Catalogs};
-use pacquet_workspace::WorkspaceManifest;
+use pnpm_catalogs_types::{Catalog, Catalogs};
+use pnpm_workspace::WorkspaceManifest;
 
 fn catalog_from(entries: &[(&str, &str)]) -> Catalog {
     entries.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect()

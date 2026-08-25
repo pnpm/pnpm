@@ -11,7 +11,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 const VIEW_OPTIONS = {
-  registries: { default: REGISTRY_URL },
+  registriesByScope: { default: REGISTRY_URL },
 }
 
 test('view: command should be available', () => {

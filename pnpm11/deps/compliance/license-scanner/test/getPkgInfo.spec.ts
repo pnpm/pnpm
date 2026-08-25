@@ -8,7 +8,7 @@ import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.i
 
 import { getPkgInfo } from '../lib/getPkgInfo.js'
 
-export const DEFAULT_REGISTRIES = {
+export const DEFAULT_REGISTRIES_BY_SCOPE = {
   default: 'https://registry.npmjs.org/',
   '@jsr': 'https://npm.jsr.io/',
 }
@@ -55,7 +55,7 @@ describe('getPkgInfo', () => {
               integrity: 'integrity-sha',
             },
           },
-          registries: DEFAULT_REGISTRIES,
+          registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
         },
         defaultGetOpts()
       )
@@ -78,7 +78,7 @@ describe('getPkgInfo', () => {
               commit: '2fca6157',
             },
           },
-          registries: DEFAULT_REGISTRIES,
+          registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
         },
         defaultGetOpts()
       )
@@ -116,7 +116,7 @@ describe('getPkgInfo', () => {
         snapshot: {
           resolution: { integrity },
         },
-        registries: DEFAULT_REGISTRIES,
+        registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
       },
       defaultGetOpts()
     )
@@ -163,7 +163,7 @@ describe('getPkgInfo', () => {
             commit: '2fca6157fcca165438e0f9495cf0e5a4e6f71349',
           },
         },
-        registries: DEFAULT_REGISTRIES,
+        registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
       },
       defaultGetOpts()
     )

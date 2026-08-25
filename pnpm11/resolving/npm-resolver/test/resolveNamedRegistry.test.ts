@@ -1,15 +1,19 @@
 import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
-import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
-import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
+import {
+  createNpmResolver,
+} from '@pnpm/resolving.npm-resolver'
+import { EXISTING_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
 import { fixtures } from '@pnpm/test-fixtures'
-import type { Registries } from '@pnpm/types'
+import type { RegistriesByScope } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
+import { getPkgMirrorPath, prepareJsonForDisk, saveMeta } from '../src/pickPackage.js'
 import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -23,10 +27,10 @@ const ENTERPRISE_REGISTRY = 'https://npm.enterprise.example.com/'
 // The `@github` scope is no longer defaulted to GitHub Packages — so public
 // `@github/*` npm installs are not hijacked. The `gh:` prefix resolves via
 // the built-in `gh` named-registry alias instead.
-const registries = {
+const registriesByScope = {
   default: 'https://registry.npmjs.org/',
   '@jsr': 'https://npm.jsr.io/',
-} satisfies Registries
+} satisfies RegistriesByScope
 
 const fetch = createFetchFromRegistry({})
 
@@ -51,7 +55,7 @@ test('resolveFromNamedRegistry() resolves a scoped package published to GitHub P
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir,
-    registries,
+    registriesByScope,
   })
 
   const resolveResult = await resolveFromNamedRegistry(
@@ -97,10 +101,10 @@ test('resolveFromNamedRegistry() reaches the public registry through the built-i
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries: {
+    registriesByScope: {
       default: ENTERPRISE_REGISTRY,
       '@jsr': 'https://npm.jsr.io/',
-    } satisfies Registries,
+    } satisfies RegistriesByScope,
   })
 
   const resolveResult = await resolveFromNamedRegistry(
@@ -115,16 +119,49 @@ test('resolveFromNamedRegistry() reaches the public registry through the built-i
   })
 })
 
+test('resolveFromNamedRegistry() revalidates cached ranges under trust downgrade protection', async () => {
+  interceptGhAcmePrivate()
+  const cacheDir = temporaryDirectory()
+  await saveMeta(
+    getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, GH_REGISTRY, '@acme/private'),
+    prepareJsonForDisk(ghAcmePrivateMeta, undefined)
+  )
+  const fetchedUrls: string[] = []
+  const countingFetch: typeof fetch = async (url, opts) => {
+    fetchedUrls.push(url.toString())
+    return fetch(url, opts)
+  }
+  const { resolveFromNamedRegistry } = createNpmResolver(countingFetch, () => undefined, {
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+
+  await resolveFromNamedRegistry(
+    { alias: '@acme/private', bareSpecifier: 'gh:^2.0.0' },
+    {
+      preferredVersions: {
+        '@acme/private': {
+          '2.1.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+        },
+      },
+      trustPolicy: 'no-downgrade',
+    }
+  )
+
+  expect(fetchedUrls).toEqual(['https://npm.pkg.github.com/@acme%2Fprivate'])
+})
+
 test('resolveFromNamedRegistry() lets a proxying org override the built-in npmjs alias', async () => {
   interceptGhAcmePrivate(ENTERPRISE_REGISTRY)
 
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
+    registriesByScope,
     // Same escape hatch GHES users have for `gh`: an org that mirrors npmjs
     // points `npmjs` at the mirror so nothing reaches the public host.
-    namedRegistries: normalizeNamedRegistries({
+    registriesByPrefix: normalizeRegistriesByPrefix({
       npmjs: ENTERPRISE_REGISTRY,
     }),
   })
@@ -147,7 +184,7 @@ test('resolveFromNamedRegistry() preserves the scoped package name when the alia
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
+    registriesByScope,
   })
 
   const resolveResult = await resolveFromNamedRegistry(
@@ -183,7 +220,7 @@ test('resolveFromNamedRegistry() looks up the auth header by the named registry 
     {
       storeDir: temporaryDirectory(),
       cacheDir: temporaryDirectory(),
-      registries,
+      registriesByScope,
     }
   )
 
@@ -209,14 +246,14 @@ test('resolveFromNamedRegistry() honours a user-defined named registry from conf
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
-    namedRegistries: normalizeNamedRegistries({
+    registriesByScope,
+    registriesByPrefix: normalizeRegistriesByPrefix({
       work: ENTERPRISE_REGISTRY,
     }),
   })
 
   // `work:` is a user-defined alias — parsing and the URL lookup come from
-  // the resolver's merged named-registries map, not the scope registries.
+  // the resolver's merged named-registriesByScope map, not the scope registriesByScope.
   const resolveResult = await resolveFromNamedRegistry(
     { alias: '@acme/private', bareSpecifier: 'work:^2.0.0' },
     { calcSpecifier: true }
@@ -236,9 +273,9 @@ test('resolveFromNamedRegistry() allows user config to override the built-in gh 
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
+    registriesByScope,
     // A GHES user points `gh` at their enterprise host; the built-in default is shadowed.
-    namedRegistries: normalizeNamedRegistries({
+    registriesByPrefix: normalizeRegistriesByPrefix({
       gh: ENTERPRISE_REGISTRY,
     }),
   })
@@ -260,15 +297,15 @@ test('creating the resolver throws when a user-defined registry URL is malformed
   expect(() => createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
-    namedRegistries: normalizeNamedRegistries({ work: 'npm.work.example.com' }),
+    registriesByScope,
+    registriesByPrefix: normalizeRegistriesByPrefix({ work: 'npm.work.example.com' }),
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_NAMED_REGISTRY_URL' }))
 
   expect(() => createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
-    namedRegistries: normalizeNamedRegistries({ work: 'ftp://npm.work.example.com/' }),
+    registriesByScope,
+    registriesByPrefix: normalizeRegistriesByPrefix({ work: 'ftp://npm.work.example.com/' }),
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_NAMED_REGISTRY_URL' }))
 })
 
@@ -276,7 +313,7 @@ test('resolveFromNamedRegistry() returns null for specifiers whose prefix is not
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
+    registriesByScope,
   })
 
   // No fetch mock is registered — the test would fail if the resolver tried to hit the network.
@@ -291,7 +328,7 @@ test('resolveFromNamedRegistry() does not claim the github: git shortcut scheme'
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
+    registriesByScope,
   })
 
   // `github:` belongs to the git resolver (npm-package-arg spec); GitHub Packages uses the `gh:` alias.
@@ -304,7 +341,7 @@ test('resolveFromNamedRegistry() returns null when no alias is provided for a ba
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
+    registriesByScope,
   })
 
   // Without any package alias, `gh:<version>` cannot map to a package name.
@@ -315,7 +352,7 @@ test('resolveFromNamedRegistry() throws when the specifier names an invalid scop
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
+    registriesByScope,
   })
 
   // Scope without a package name is always a bug — refuse with a specific error code.
@@ -327,8 +364,8 @@ test('resolveFromNamedRegistry() throws when the specifier names an invalid scop
   })
 })
 
-test('the same package name served by two registries does not collide in the in-memory metadata cache', async () => {
-  // Both registries serve `@acme/private`, but point at different tarballs.
+test('the same package name served by two registriesByScope does not collide in the in-memory metadata cache', async () => {
+  // Both registriesByScope serve `@acme/private`, but point at different tarballs.
   interceptGhAcmePrivate(GH_REGISTRY)
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const enterpriseMeta = JSON.parse(JSON.stringify(ghAcmePrivateMeta))
@@ -344,8 +381,8 @@ test('the same package name served by two registries does not collide in the in-
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
-    namedRegistries: normalizeNamedRegistries({ work: ENTERPRISE_REGISTRY }),
+    registriesByScope,
+    registriesByPrefix: normalizeRegistriesByPrefix({ work: ENTERPRISE_REGISTRY }),
   })
 
   // Resolving from the gh registry first populates the shared in-memory cache.
@@ -371,7 +408,7 @@ test('the same package name served by two registries does not collide in the in-
 })
 
 test('resolveFromNamedRegistry() preserves vulnerability-avoidance range selectors even when updateRequested is true', async () => {
-  // Security regression: the simple-registry picker (jsr + named registries)
+  // Security regression: the simple-registry picker (jsr + named registriesByScope)
   // must use the same `stripLockfileVersionPins` helper as the npm picker,
   // so a targeted update drops only the target's lockfile pins and keeps
   // range penalties (e.g. `pnpm audit --fix` vulnerability avoidance).
@@ -382,7 +419,7 @@ test('resolveFromNamedRegistry() preserves vulnerability-avoidance range selecto
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
+    registriesByScope,
   })
 
   const resolveResult = await resolveFromNamedRegistry(
@@ -418,7 +455,7 @@ test('resolveFromNamedRegistry() suppresses latest when publishedBy holds back t
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
-    registries,
+    registriesByScope,
   })
 
   const resolveResult = await resolveFromNamedRegistry(
@@ -439,7 +476,7 @@ test('resolveFromNamedRegistry() qualifies the id with the registry alias', asyn
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
+    registriesByScope,
   })
 
   const resolveResult = await resolveFromNamedRegistry(
@@ -462,8 +499,8 @@ test('creating the resolver throws when a named registry alias is a reserved spe
   expect(() => createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
-    namedRegistries: normalizeNamedRegistries({
+    registriesByScope,
+    registriesByPrefix: normalizeRegistriesByPrefix({
       file: ENTERPRISE_REGISTRY,
     }),
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME' }))
@@ -473,8 +510,8 @@ test('creating the resolver throws when a named registry alias is malformed', ()
   expect(() => createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
-    registries,
-    namedRegistries: normalizeNamedRegistries({
+    registriesByScope,
+    registriesByPrefix: normalizeRegistriesByPrefix({
       'bad alias!': ENTERPRISE_REGISTRY,
     }),
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME' }))

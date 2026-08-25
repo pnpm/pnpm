@@ -4,10 +4,10 @@
 //! resolved against its declaring manifest's directory.
 
 use chrono::{DateTime, Utc};
-use pacquet_catalogs_types::Catalogs;
-use pacquet_hooks::PnpmfileHooks;
-use pacquet_patching::PatchGroupRecord;
-use pacquet_resolving_resolver_base::{ResolveOptions, WantedDependency};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_hooks::PnpmfileHooks;
+use pnpm_patching::PatchGroupRecord;
+use pnpm_resolving_resolver_base::{ResolveOptions, WantedDependency};
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},
@@ -51,9 +51,9 @@ pub(super) fn project_relative_cache_scope(
 /// importer, so the walk never descends into one.
 pub(super) fn declaring_manifest_dir(
     ctx: &TreeCtx,
-    result: &pacquet_resolving_resolver_base::ResolveResult,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> Option<Arc<Path>> {
-    let pacquet_lockfile::LockfileResolution::Directory(resolution) = &result.resolution else {
+    let pnpm_lockfile::LockfileResolution::Directory(resolution) = &result.resolution else {
         return None;
     };
     if !result.id.as_str().starts_with("file:") {
@@ -61,9 +61,9 @@ pub(super) fn declaring_manifest_dir(
     }
     let directory = Path::new(&resolution.directory);
     let absolute = if directory.is_absolute() {
-        pacquet_fs::lexical_normalize(directory)
+        pnpm_fs::lexical_normalize(directory)
     } else {
-        pacquet_fs::lexical_normalize(&ctx.lockfile_dir.join(directory))
+        pnpm_fs::lexical_normalize(&ctx.lockfile_dir.join(directory))
     };
     Some(Arc::from(absolute))
 }
@@ -148,11 +148,11 @@ impl TreeCtx {
             direct_opts: base_opts.clone(),
             subdep_opts: base_opts.clone(),
             base_opts,
-            lockfile_dir: pacquet_fs::lexical_normalize(&lockfile_dir),
+            lockfile_dir: pnpm_fs::lexical_normalize(&lockfile_dir),
             catalogs: Catalogs::new(),
             workspace: Arc::new(WorkspaceTreeCtx::default()),
             patched_dependencies: None,
-            importer_id: pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY.to_string(),
+            importer_id: pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY.to_string(),
             importer_order: 0,
         }
     }
@@ -171,18 +171,18 @@ impl TreeCtx {
             direct_opts: base_opts.clone(),
             subdep_opts: base_opts.clone(),
             base_opts,
-            lockfile_dir: pacquet_fs::lexical_normalize(&lockfile_dir),
+            lockfile_dir: pnpm_fs::lexical_normalize(&lockfile_dir),
             catalogs: Catalogs::new(),
             workspace,
             patched_dependencies: None,
-            importer_id: pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY.to_string(),
+            importer_id: pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY.to_string(),
             importer_order: 0,
         }
     }
 
     #[must_use]
     pub(crate) fn with_lockfile_dir(mut self, lockfile_dir: &Path) -> Self {
-        self.lockfile_dir = pacquet_fs::lexical_normalize(lockfile_dir);
+        self.lockfile_dir = pnpm_fs::lexical_normalize(lockfile_dir);
         self
     }
 
@@ -215,6 +215,22 @@ impl TreeCtx {
     pub fn with_catalogs(mut self, catalogs: Catalogs) -> Self {
         self.catalogs = catalogs;
         self
+    }
+
+    /// Resolve the depth-0 walks that follow with the subdep options.
+    ///
+    /// The importer orchestrator calls this once the manifest-declared
+    /// direct deps have seeded: every later [`extend_tree`] on this ctx
+    /// installs hoisted peers, which pnpm resolves like transitive deps
+    /// (highest satisfying version, under the subdep publish-date
+    /// cutoff) even though they land at the importer level — a hoisted
+    /// peer is not a dependency the user declared, so the direct-dep
+    /// pick of `resolutionMode: lowest-direct` / `time-based` must not
+    /// apply to it.
+    ///
+    /// [`extend_tree`]: super::extend_tree
+    pub fn resolve_new_direct_deps_as_subdeps(&mut self) {
+        self.direct_opts = self.subdep_opts.clone();
     }
 
     /// The [`ResolveOptions`] to hand the resolver for a node at the
@@ -267,7 +283,7 @@ impl TreeCtx {
     /// [`get_patch_info`] and appends `(patch_hash=<hash>)` to the
     /// `pkgIdWithPatchHash` on a match.
     ///
-    /// [`get_patch_info`]: pacquet_patching::get_patch_info
+    /// [`get_patch_info`]: pnpm_patching::get_patch_info
     #[must_use]
     pub fn with_patched_dependencies(
         mut self,
@@ -317,7 +333,7 @@ impl TreeCtx {
     /// this targets the underlying [`WorkspaceTreeCtx`] and panics if it
     /// has already been shared via `Arc::clone`.
     #[must_use]
-    pub fn with_read_package_log(mut self, read_package_log: Option<pacquet_hooks::LogFn>) -> Self {
+    pub fn with_read_package_log(mut self, read_package_log: Option<pnpm_hooks::LogFn>) -> Self {
         Arc::get_mut(&mut self.workspace)
             .expect(
                 "with_read_package_log called after the workspace ctx was shared via Arc::clone",
@@ -382,11 +398,11 @@ impl TreeCtx {
     /// of the whole run history.
     pub(crate) fn preferred_versions_for_names<'name>(
         &self,
-        seed: &pacquet_resolving_resolver_base::PreferredVersions,
+        seed: &pnpm_resolving_resolver_base::PreferredVersions,
         names: impl Iterator<Item = &'name str>,
-    ) -> pacquet_resolving_resolver_base::PreferredVersions {
+    ) -> pnpm_resolving_resolver_base::PreferredVersions {
         let run = self.workspace.run_preferred_versions();
-        let mut out = pacquet_resolving_resolver_base::PreferredVersions::new();
+        let mut out = pnpm_resolving_resolver_base::PreferredVersions::new();
         for name in names {
             let mut bucket = seed.get(name).cloned().unwrap_or_default();
             if let Some(run_bucket) = run.versions.get(name) {

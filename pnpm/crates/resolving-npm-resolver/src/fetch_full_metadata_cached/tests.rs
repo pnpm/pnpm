@@ -1,5 +1,5 @@
 use mockito::Matcher;
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use tempfile::TempDir;
 
 use super::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
@@ -81,6 +81,8 @@ async fn cold_cache_writes_mirror_on_200() {
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -93,6 +95,63 @@ async fn cold_cache_writes_mirror_on_200() {
     assert!(mirror_path.exists(), "mirror file written");
     let headers = load_meta_headers(&mirror_path).expect("headers readable");
     assert_eq!(headers.etag.as_deref(), Some(r#"W/"fresh""#));
+}
+
+#[tokio::test]
+async fn offline_with_mirror_reads_cache_without_registry() {
+    let mut server = mockito::Server::new_async().await;
+    let no_network = server.mock("GET", "/acme").with_status(500).expect(0).create_async().await;
+
+    let cache = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    write_stale_mirror(cache.path(), FULL_META_DIR, &registry);
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataCachedOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        cache_dir: Some(cache.path()),
+        full_metadata: true,
+        filter_metadata: false,
+        offline: true,
+        priority: pnpm_network::UNPRIORITIZED,
+        retry_opts: no_retry_opts(),
+    };
+
+    let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("offline cache hit");
+    assert_eq!(pkg.name, "acme");
+    no_network.assert_async().await;
+}
+
+#[tokio::test]
+async fn offline_without_mirror_errors_without_registry() {
+    let mut server = mockito::Server::new_async().await;
+    let no_network = server.mock("GET", "/acme").with_status(500).expect(0).create_async().await;
+
+    let cache = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataCachedOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        cache_dir: Some(cache.path()),
+        full_metadata: true,
+        filter_metadata: false,
+        offline: true,
+        priority: pnpm_network::UNPRIORITIZED,
+        retry_opts: no_retry_opts(),
+    };
+
+    let error = fetch_full_metadata_cached("acme", &opts).await.expect_err("offline miss");
+    assert!(matches!(
+        error,
+        FetchMetadataError::NoOfflineMeta { ref pkg_name, .. } if pkg_name == "acme"
+    ));
+    no_network.assert_async().await;
 }
 
 #[tokio::test]
@@ -129,6 +188,8 @@ async fn unsolicited_304_retries_without_cache() {
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -167,6 +228,8 @@ async fn repeated_unsolicited_304_reports_missing_cache() {
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -227,6 +290,8 @@ async fn cache_loss_after_304_stops_after_one_fallback() {
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -289,6 +354,8 @@ async fn cache_loss_after_304_body_retry_remains_bypassed() {
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: fast_retry_opts(),
     };
 
@@ -340,6 +407,8 @@ async fn cache_loss_after_304_registry_error_propagates() {
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -400,6 +469,8 @@ async fn assert_cache_loss_after_304_recovers(
         cache_dir: Some(cache.path()),
         full_metadata,
         filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -473,6 +544,8 @@ async fn filtered_full_cache_writes_filtered_mirror_on_200() {
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: true,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -529,6 +602,8 @@ async fn a_full_doc_served_for_an_abbreviated_request_is_normalized_before_cachi
         cache_dir: Some(cache.path()),
         full_metadata: false,
         filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -581,6 +656,8 @@ async fn a_doc_served_with_the_abbreviated_content_type_is_cached_verbatim() {
         cache_dir: Some(cache.path()),
         full_metadata: false,
         filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -626,6 +703,8 @@ async fn warm_cache_serves_from_mirror_on_304() {
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -669,6 +748,8 @@ async fn a_304_renews_the_mirror_mtime() {
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -728,6 +809,8 @@ async fn stale_cache_refreshes_mirror_on_200() {
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -764,6 +847,8 @@ async fn no_cache_dir_skips_mirror_io() {
         cache_dir: None,
         full_metadata: true,
         filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -800,6 +885,8 @@ async fn read_only_cache_dir_does_not_fail_the_call() {
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: no_retry_opts(),
     };
 
@@ -835,6 +922,8 @@ async fn body_read_failure_retries_and_writes_mirror() {
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
         retry_opts: fast_retry_opts(),
     };
 

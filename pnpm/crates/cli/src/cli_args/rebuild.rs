@@ -1,13 +1,13 @@
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_lockfile::MaybeLazyLockfile;
-use pacquet_modules_yaml::{Host, read_modules_layout, read_modules_manifest};
-use pacquet_package_manager::{
+use pnpm_config::Config;
+use pnpm_lockfile::MaybeLazyLockfile;
+use pnpm_modules_yaml::{Host, read_modules_layout, read_modules_manifest};
+use pnpm_package_manager::{
     Install, ProjectMutation, RebuildOptions, UpdateSeedPolicy, allow_build_key_from_ignored_build,
 };
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::Reporter;
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::Reporter;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -15,9 +15,7 @@ use std::{
 
 use crate::{
     State,
-    cli_args::pipelines::{
-        InstallFamilySelection, anchor_dedicated_project_config, select_workspace_projects,
-    },
+    cli_args::pipelines::{InstallFamilySelection, select_workspace_projects},
 };
 
 /// `pacquet rebuild` — re-run the lifecycle scripts of installed
@@ -30,8 +28,12 @@ pub struct RebuildArgs {
 
     /// Rebuild packages that were not built during installation, such as
     /// under `--ignore-scripts`.
-    #[clap(long)]
+    #[clap(long, overrides_with = "no_pending")]
     pub pending: bool,
+
+    /// Rebuild all matching packages, including those without pending builds.
+    #[clap(long = "no-pending", hide = true, overrides_with = "pending")]
+    pub no_pending: bool,
 }
 
 impl RebuildArgs {
@@ -58,7 +60,7 @@ impl RebuildArgs {
         {
             return Ok(());
         }
-        if !cfg.shared_workspace_lockfile
+        if !cfg.shares_one_lockfile()
             && let Some(workspace_selection) = workspace_selection
         {
             let base_config = cfg.clone();
@@ -70,7 +72,7 @@ impl RebuildArgs {
                     let rebuilds = batch.iter().cloned().map(|project_dir| {
                         let args = self.clone();
                         let mut project_config = base_config.clone();
-                        anchor_dedicated_project_config(&mut project_config, &project_dir);
+                        project_config.anchor_lockfile_paths(&project_dir);
                         async move {
                             let project_config = Config::leak(project_config);
                             let state =
@@ -214,7 +216,9 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
         node_linker: config.node_linker,
         lockfile_only: false,
         dry_run: false,
+        persist_policy_excludes: false,
         update_seed_policy: UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
@@ -228,7 +232,7 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
         Some(selection) => {
             install
                 .run_selected_rebuild::<Reporter>(
-                    pacquet_package_manager::WorkspaceInstallSelection {
+                    pnpm_package_manager::WorkspaceInstallSelection {
                         all_projects: &selection.projects,
                         ordered_groups: &selection.ordered_groups,
                         ordered_dirs: &selection.ordered_dirs,

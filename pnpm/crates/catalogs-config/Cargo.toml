@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-catalogs-config"
+name                  = "pnpm-catalogs-config"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,8 +11,8 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-catalogs-types = { workspace = true }
-pacquet-workspace      = { workspace = true }
+pnpm-catalogs-types = { workspace = true }
+pnpm-workspace      = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }

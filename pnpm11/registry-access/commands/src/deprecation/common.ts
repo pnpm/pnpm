@@ -4,7 +4,7 @@ import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
-import type { Registries, RegistryConfig } from '@pnpm/types'
+import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import semver from 'semver'
 
 import { parsePackageSpec, rcOptionsTypes } from '../common.js'
@@ -23,7 +23,7 @@ export interface DeprecateOptions extends CreateFetchFromRegistryOptions {
     otp?: string
   }
   configByUri?: Record<string, RegistryConfig>
-  registries?: Registries
+  registriesByScope?: RegistriesByScope
 }
 
 interface UpdateDeprecationOptions {
@@ -36,7 +36,7 @@ export async function updateDeprecation (
   opts: DeprecateOptions,
   { deprecated, packageName, versionRange }: UpdateDeprecationOptions
 ): Promise<string> {
-  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
+  const registryUrl = pickRegistryForPackage(opts.registriesByScope ?? { default: 'https://registry.npmjs.org/' }, packageName)
 
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
 

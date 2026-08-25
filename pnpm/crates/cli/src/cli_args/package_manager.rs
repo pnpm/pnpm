@@ -1,6 +1,13 @@
 use miette::IntoDiagnostic;
-use pacquet_config::PmOnFail;
-use pacquet_package_manifest::parse_manifest;
+use pnpm_config::PmOnFail;
+use pnpm_env_installer::is_package_manager_resolved;
+use pnpm_lockfile::EnvLockfile;
+use pnpm_package_manifest::{
+    package_manager_spec::{
+        dev_engines_package_managers, is_version_request, split_spec, version_without_build,
+    },
+    parse_manifest,
+};
 use serde_json::Value;
 use std::{fs, io::ErrorKind, path::Path};
 
@@ -54,6 +61,45 @@ pub(crate) fn package_manager_to_sync(
         .map(|version| PackageManagerToSync { specifier: wanted_version.to_string(), version })
 }
 
+/// Whether the pnpm version the manifest at `root_dir` pins still has to be
+/// recorded in the env lockfile there. The install family records it from
+/// its own pipeline, so an install that short-circuits before the pipeline
+/// has to give up its fast path — a plain install would otherwise keep
+/// reporting success while leaving every `--frozen-lockfile` run failing on
+/// the unwritten entry.
+///
+/// `root_manifest` is that manifest when the caller already holds it, so a
+/// fast path does not read the same file twice.
+///
+/// A manifest that cannot be read answers `false`: the full install path
+/// reports that, and a fast path is not where it should surface.
+pub(crate) fn package_manager_needs_recording(
+    root_dir: &Path,
+    on_fail: Option<PmOnFail>,
+    root_manifest: Option<&Value>,
+) -> bool {
+    let read;
+    let manifest = if let Some(manifest) = root_manifest {
+        manifest
+    } else {
+        let Ok(Some(manifest)) = read_manifest_json(&root_dir.join("package.json")) else {
+            return false;
+        };
+        read = manifest;
+        &read
+    };
+    let Some(package_manager) = package_manager_to_sync(manifest, root_dir, on_fail) else {
+        return false;
+    };
+    !EnvLockfile::read(root_dir).ok().flatten().is_some_and(|env_lockfile| {
+        is_package_manager_resolved(
+            &env_lockfile,
+            &package_manager.specifier,
+            &package_manager.version,
+        )
+    })
+}
+
 pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
     let content = match fs::read_to_string(path) {
         Ok(content) => content,
@@ -78,27 +124,25 @@ pub(crate) fn wanted_package_manager(manifest: &Value) -> Option<WantedPackageMa
 }
 
 fn parse_dev_engines_package_manager(manifest: &Value) -> Option<WantedPackageManager> {
-    let value = manifest.get("devEngines")?.get("packageManager")?;
-    if let Some(items) = value.as_array() {
-        if items.is_empty() {
-            return None;
-        }
-        let index = items
+    let entries: Vec<&Value> = dev_engines_package_managers(manifest).collect();
+    let declared_as_list = manifest.get("devEngines")?.get("packageManager")?.is_array();
+    let (index, entry) = if declared_as_list {
+        // pnpm's own entry is the one that governs this CLI; without one,
+        // the first entry does.
+        let index = entries
             .iter()
-            .position(|item| item.get("name").and_then(Value::as_str) == Some("pnpm"))
+            .position(|entry| entry.get("name").and_then(Value::as_str) == Some("pnpm"))
             .unwrap_or(0);
-        let item = &items[index];
-        let on_fail =
-            item.get("onFail").and_then(Value::as_str).map(ToString::to_string).or_else(|| {
-                Some(if index == items.len() - 1 { "error" } else { "ignore" }.to_string())
-            });
-        return package_manager_from_engine(item, true, on_fail);
-    }
-    package_manager_from_engine(
-        value,
-        true,
-        value.get("onFail").and_then(Value::as_str).map(ToString::to_string),
-    )
+        (Some(index), *entries.get(index)?)
+    } else {
+        (None, *entries.first()?)
+    };
+    let on_fail =
+        entry.get("onFail").and_then(Value::as_str).map(ToString::to_string).or_else(|| {
+            let index = index?;
+            Some(if index == entries.len() - 1 { "error" } else { "ignore" }.to_string())
+        });
+    package_manager_from_engine(entry, true, on_fail)
 }
 
 fn package_manager_from_engine(
@@ -115,28 +159,11 @@ fn package_manager_from_engine(
 }
 
 pub(crate) fn parse_package_manager(package_manager: &str) -> (String, Option<String>) {
-    // Split on the `@` that separates the name from the reference. A leading
-    // `@` belongs to a scoped name (e.g. `@scope/pm@1.2.3`), so skip it;
-    // otherwise the first `@` is the separator. The *first* `@` (not the last)
-    // is used so a reference that is a URL containing `@` (e.g. credentials)
-    // stays intact.
-    let separator_index = if let Some(rest) = package_manager.strip_prefix('@') {
-        rest.find('@').map(|index| index + 1)
-    } else {
-        package_manager.find('@')
-    };
-    let Some(separator_index) = separator_index else {
-        return (package_manager.to_string(), None);
-    };
-    let name = &package_manager[..separator_index];
-    let reference = &package_manager[separator_index + 1..];
-    if reference.contains(':') {
-        return (name.to_string(), None);
-    }
-    (
-        name.to_string(),
-        Some(reference.split_once('+').map_or(reference, |(version, _)| version).to_string()),
-    )
+    let (name, reference) = split_spec(package_manager);
+    let version = reference
+        .filter(|reference| is_version_request(reference))
+        .map(|reference| version_without_build(reference).to_string());
+    (name.to_string(), version)
 }
 
 pub(crate) fn should_persist_package_manager_lockfile(pm: &WantedPackageManager) -> bool {
@@ -163,9 +190,16 @@ fn pnpm_version_from(root_dir: &Path) -> Option<String> {
     value.get("version").and_then(Value::as_str).map(ToString::to_string)
 }
 
+/// The one version `version` pins, or `None` when it pins a range, a
+/// dist-tag, or nothing at all.
+///
+/// The `+<algorithm>.<hash>` build corepack records the artifact it
+/// downloaded with is dropped: it names corepack's download, not a pnpm
+/// release, so the registry resolves the version without it and a lockfile
+/// entry that kept it would never match the version recorded beside it.
 pub(crate) fn exact_version(version: &str) -> Option<String> {
     let parsed = node_semver::Version::parse(version).ok()?;
-    (parsed.to_string() == version).then(|| version.to_string())
+    (parsed.to_string() == version).then(|| version_without_build(version).to_string())
 }
 
 pub(crate) fn version_satisfies(version: &str, wanted_range: &str) -> bool {
@@ -190,3 +224,6 @@ pub(crate) fn version_satisfies(version: &str, wanted_range: &str) -> bool {
     };
     base.satisfies(&range)
 }
+
+#[cfg(test)]
+mod tests;

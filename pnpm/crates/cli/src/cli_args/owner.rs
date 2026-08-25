@@ -1,12 +1,12 @@
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
-use pacquet_config::Config;
-use pacquet_network::{
-    NetworkSettings, RedirectGuard, RetryOpts, ThrottledClient, encode_package_name,
-    encode_uri_component, read_limited_body, redact_url_credentials, send_with_retry,
+use pnpm_config::Config;
+use pnpm_network::{
+    RedirectGuard, RetryOpts, ThrottledClient, encode_package_name, encode_uri_component,
+    read_limited_body, redact_url_credentials, send_with_retry,
 };
-use pacquet_resolving_npm_resolver::pick_registry_for_package;
+use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use reqwest::Response;
 use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc, time::Duration};
@@ -287,11 +287,7 @@ fn build_http_client(
         &config.proxy,
         &config.tls,
         &config.tls_by_uri,
-        &NetworkSettings {
-            network_concurrency: config.network_concurrency,
-            fetch_timeout: Duration::from_millis(config.fetch_timeout),
-            user_agent: config.user_agent.clone(),
-        },
+        &config.network_settings(),
         redirect_guard,
     )
     .into_diagnostic()

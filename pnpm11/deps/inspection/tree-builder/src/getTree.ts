@@ -4,7 +4,7 @@ import type { DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.fs'
 import type { StoreIndex } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type { Finder, Registries } from '@pnpm/types'
+import type { Finder, RegistriesByScope } from '@pnpm/types'
 
 import type { DependencyGraph } from './buildDependencyGraph.js'
 import type { DependencyNode } from './DependencyNode.js'
@@ -23,8 +23,8 @@ export interface BaseTreeOpts {
   onlyProjects?: boolean
   search?: Finder
   skipped: Set<string>
-  registries: Registries
-  namedRegistries?: Record<string, string>
+  registriesByScope: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
   depTypes: DepTypes
   storeDir?: string
   storeIndex?: StoreIndex

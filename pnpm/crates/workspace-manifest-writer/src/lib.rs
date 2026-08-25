@@ -19,11 +19,14 @@ use std::{
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config_parse_overrides::parse_pkg_and_parent_selector;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config_parse_overrides::parse_pkg_and_parent_selector;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+
+pub use pnpm_config::version_policy::ResolvedPackageVersions;
 
 mod edit;
+mod flow;
 mod model;
 mod render;
 
@@ -86,7 +89,7 @@ pub enum UpdateWorkspaceManifestError {
     OverrideConflict { path: std::path::PathBuf, key: String },
 
     #[display(
-        "Cannot edit {key:?} in {path:?}: it uses an inline (flow) YAML value. Reformat it to block style and try again."
+        "Cannot edit {key:?} in {path:?}: it uses an inline YAML value that cannot be edited in place (a multi-line flow collection, an alias, or a scalar). Reformat it to block style and try again."
     )]
     #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_UNSUPPORTED_INLINE_BLOCK))]
     UnsupportedInlineBlock { path: std::path::PathBuf, key: String },
@@ -116,23 +119,43 @@ fn has_control_char(value: &str) -> bool {
         .any(|character| character.is_control() || matches!(character, '\u{2028}' | '\u{2029}'))
 }
 
+/// The first of `paths` whose value is written as an inline shape none of
+/// the writers can edit, named for the error message. A single-line flow
+/// collection is editable and never reported here; a multi-line one, an
+/// alias, or a scalar standing where a collection belongs is.
+fn unsupported_inline_key(text: &str, paths: &[&[&str]]) -> Option<String> {
+    paths
+        .iter()
+        .find(|path| edit::has_unsupported_inline_value(text, path))
+        .map(|path| path.join("."))
+}
+
 /// Inputs of [`update_workspace_manifest`].
 #[derive(Default)]
 pub struct UpdateWorkspaceManifestOptions<'a> {
     /// Catalog entries to merge into the `catalog:` / `catalogs:` blocks.
     pub updated_catalogs: Option<&'a Catalogs>,
-    /// Run the `cleanupUnusedCatalogs` pass after the merge: drop catalog
+    /// Run the `catalogPrune` pass after the merge: drop catalog
     /// entries no manifest in [`Self::all_projects`] references.
-    pub cleanup_unused_catalogs: bool,
+    pub catalog_prune: bool,
     /// Every workspace project manifest (with in-memory dependency edits
     /// applied), consulted by the cleanup pass to decide which catalog
     /// entries are still referenced. An empty list disables the cleanup
     /// pass, mirroring upstream's `allProjects ?? []` guard.
     pub all_projects: &'a [&'a PackageManifest],
+    /// Package name → the versions the freshly resolved lockfile
+    /// records. Present only under `minimumReleaseAgeExcludePrune`, and
+    /// only when the lockfile covers every project
+    /// `minimumReleaseAgeExclude` governs; `None` disables that pass,
+    /// mirroring the [`Self::all_projects`] guard of
+    /// `catalogPrune`.
+    pub resolved_package_versions: Option<&'a ResolvedPackageVersions>,
+    pub prune_minimum_release_age_excludes: bool,
+    pub prune_allow_builds: bool,
 }
 
 /// Merge `opts.updated_catalogs` into `dir`'s `pnpm-workspace.yaml` and run
-/// the `cleanupUnusedCatalogs` pass when requested, writing the file back
+/// the `catalogPrune` pass when requested, writing the file back
 /// only when something actually changed (and removing it when the edits
 /// empty the document).
 pub fn update_workspace_manifest(
@@ -150,6 +173,19 @@ pub fn update_workspace_manifest(
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
+    if let Some(updated_catalogs) = opts
+        .updated_catalogs
+        .filter(|catalogs| catalogs.values().any(|entries| !entries.is_empty()))
+    {
+        let named: Vec<Vec<&str>> =
+            updated_catalogs.keys().map(|name| vec!["catalogs", name.as_str()]).collect();
+        let mut paths: Vec<&[&str]> = vec![&["catalog"], &["catalogs"]];
+        paths.extend(named.iter().map(Vec::as_slice));
+        if let Some(key) = unsupported_inline_key(manifest.text(), &paths) {
+            return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+        }
+    }
+
     let mut changed = match opts.updated_catalogs {
         Some(updated_catalogs) => {
             if let Some(bad) = first_control_char_value(updated_catalogs) {
@@ -164,9 +200,17 @@ pub fn update_workspace_manifest(
         }
         None => false,
     };
-    if opts.cleanup_unused_catalogs && !opts.all_projects.is_empty() {
+    if opts.catalog_prune && !opts.all_projects.is_empty() {
         let references = collect_catalog_references(opts.all_projects, &manifest);
         changed |= edit::remove_unused_catalogs(&mut manifest, &references);
+    }
+    if let Some(resolved) = opts.resolved_package_versions {
+        if opts.prune_minimum_release_age_excludes {
+            changed |= edit::prune_minimum_release_age_excludes(&mut manifest, resolved);
+        }
+        if opts.prune_allow_builds {
+            changed |= edit::prune_allow_builds(&mut manifest, resolved);
+        }
     }
     if !changed {
         return Ok(());
@@ -244,6 +288,13 @@ pub fn set_config_dependencies<'a>(
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
+    let entries: Vec<(&str, &str)> = entries.into_iter().collect();
+    if !entries.is_empty()
+        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["configDependencies"]])
+    {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+    }
+
     let mut changed = false;
     for (name, specifier) in entries {
         changed |= edit::add_config_dependency(&mut manifest, name, specifier)
@@ -271,6 +322,40 @@ pub fn set_allow_builds<'a, Entries>(
 where
     Entries: IntoIterator<Item = (&'a str, bool)>,
 {
+    update_allow_builds(dir, entries, false)
+}
+
+/// Top-level `pnpm-workspace.yaml` settings that `allowBuilds:` replaced in
+/// pnpm v11.
+pub const LEGACY_BUILD_SETTINGS: &[&str] = &[
+    "onlyBuiltDependencies",
+    "onlyBuiltDependenciesFile",
+    "neverBuiltDependencies",
+    "ignoredBuiltDependencies",
+];
+
+/// Same as [`set_allow_builds`], but also deletes the
+/// [`LEGACY_BUILD_SETTINGS`] in the same write. Used by `pnpm
+/// approve-builds` so a workspace migrated from pnpm v10 is not left with
+/// dead build settings next to the `allowBuilds:` it writes.
+pub fn set_allow_builds_clearing_legacy<'a, Entries>(
+    dir: &Path,
+    entries: Entries,
+) -> Result<(), UpdateWorkspaceManifestError>
+where
+    Entries: IntoIterator<Item = (&'a str, bool)>,
+{
+    update_allow_builds(dir, entries, true)
+}
+
+fn update_allow_builds<'a, Entries>(
+    dir: &Path,
+    entries: Entries,
+    clear_legacy_settings: bool,
+) -> Result<(), UpdateWorkspaceManifestError>
+where
+    Entries: IntoIterator<Item = (&'a str, bool)>,
+{
     let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
 
     let original = match fs::read_to_string(&path) {
@@ -281,6 +366,13 @@ where
 
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    let entries: Vec<(&str, bool)> = entries.into_iter().collect();
+    if !entries.is_empty()
+        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["allowBuilds"]])
+    {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+    }
 
     let mut changed = false;
     for (name, value) in entries {
@@ -294,6 +386,11 @@ where
             });
         }
         changed |= edit::add_allow_build(&mut manifest, name, value);
+    }
+    if clear_legacy_settings {
+        for key in LEGACY_BUILD_SETTINGS {
+            changed |= edit::remove_top_level_field(&mut manifest, key);
+        }
     }
     if !changed {
         return Ok(());
@@ -333,6 +430,13 @@ where
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
+    let names: Vec<&str> = names.into_iter().collect();
+    if !names.is_empty()
+        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["allowBuilds"]])
+    {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+    }
+
     let mut changed = false;
     for name in names {
         // Same guard as `set_allow_builds`: the block-style splice writes
@@ -371,6 +475,12 @@ pub fn set_patched_dependencies(
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
+    if !patched_dependencies.is_empty()
+        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["patchedDependencies"]])
+    {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+    }
+
     let changed = edit::add_patched_dependencies(&mut manifest, patched_dependencies)
         .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
     if !changed {
@@ -408,13 +518,11 @@ where
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
-    // The block-style splice can't safely edit an inline (flow) `overrides:`
-    // mapping; refuse rather than corrupt it.
-    if edit::top_level_has_inline_value(manifest.text(), "overrides") {
-        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
-            path,
-            key: "overrides".to_string(),
-        });
+    let entries: Vec<(&str, &str)> = entries.into_iter().collect();
+    if !entries.is_empty()
+        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["overrides"]])
+    {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }
 
     let mut changed = false;
@@ -472,13 +580,11 @@ pub fn set_audit_ignore_ghsas(
         });
     }
 
-    // The block-style splice can't safely edit an inline (flow) `auditConfig:`
-    // mapping; refuse rather than corrupt it.
-    if edit::top_level_has_inline_value(manifest.text(), "auditConfig") {
-        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
-            path,
-            key: "auditConfig".to_string(),
-        });
+    if let Some(key) = unsupported_inline_key(
+        manifest.text(),
+        &[&["auditConfig"], &["auditConfig", "ignoreGhsas"]],
+    ) {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }
 
     let changed = edit::set_audit_ignore_ghsas(&mut manifest, ghsas)
@@ -493,7 +599,7 @@ pub fn set_audit_ignore_ghsas(
 /// Set `dir`'s `pnpm-workspace.yaml` top-level `minimumReleaseAgeExclude:` to
 /// `excludes` (the complete desired list), creating the file/block if absent
 /// and removing the block when `excludes` is empty. The caller merges with any
-/// existing entries (via `pacquet_config::version_policy::merge_package_version_specs`)
+/// existing entries (via `pnpm_config::version_policy::merge_package_version_specs`)
 /// before calling. Used by `pnpm audit --fix` to let patched versions through
 /// the `minimumReleaseAge` maturity cutoff.
 pub fn set_minimum_release_age_excludes(
@@ -517,6 +623,10 @@ pub fn set_minimum_release_age_excludes(
 
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    if let Some(key) = unsupported_inline_key(manifest.text(), &[&["minimumReleaseAgeExclude"]]) {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+    }
 
     if !edit::set_minimum_release_age_excludes(&mut manifest, excludes) {
         return Ok(());
@@ -575,6 +685,13 @@ pub fn update_manifest_field(
     let mut manifest = Manifest::parse(original.as_deref()).map_err(|source| {
         UpdateWorkspaceManifestError::Parse { path: path.to_path_buf(), source }
     })?;
+
+    if edit::document_root_is_inline(manifest.text()) {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path: path.to_path_buf(),
+            key: key.to_string(),
+        });
+    }
 
     let changed = if value.is_null() {
         edit::remove_top_level_field(&mut manifest, key)

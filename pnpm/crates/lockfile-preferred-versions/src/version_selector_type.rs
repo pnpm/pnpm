@@ -4,13 +4,16 @@
 //! tie-break table the preferred-versions map feeds.
 
 use node_semver::{Range, Version};
-use pacquet_resolving_resolver_base::VersionSelectorType;
+use pnpm_resolving_resolver_base::{VersionSelectorType, is_any_version_range};
 
 /// Classify a manifest spec as `Version`, `Range`, or `Tag`, using the
 /// loose precedence that tries an exact version first, then a range,
 /// then a dist-tag.
 #[must_use]
 pub fn get_version_selector_type(spec: &str) -> Option<VersionSelectorType> {
+    if is_any_version_range(spec) {
+        return Some(VersionSelectorType::Range);
+    }
     if spec.parse::<Version>().is_ok() {
         return Some(VersionSelectorType::Version);
     }

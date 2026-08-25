@@ -1,19 +1,19 @@
 //! The request half of `pnpm publish`: assemble the publish document, send the
 //! registry `PUT`, drive any OTP challenge through
-//! [`pacquet_network_web_auth`], and turn the registry's response into a
+//! [`pnpm_network_web_auth`], and turn the registry's response into a
 //! [`PublishSummary`].
 
 use std::collections::BTreeMap;
 
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_network::{AuthHeaders, ThrottledClient, redact_url_credentials};
-use pacquet_network_web_auth::{
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_network::{AuthHeaders, ThrottledClient, redact_url_credentials};
+use pnpm_network_web_auth::{
     Clock as WebAuthClock, EnterKeyListener, Host as WebAuthHost, OpenUrl, OtpChallenge, OtpError,
     OtpErrorBody, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchOptions,
     WebAuthRetryOptions, WithOtpError, with_otp_handling,
 };
-use pacquet_reporter::Reporter;
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_reporter::Reporter;
+use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use serde_json::{Map, Value};
 
 use crate::{
@@ -65,7 +65,7 @@ pub struct PublishNetwork<'a> {
 ///
 /// `Sys` carries the OIDC capabilities used while resolving credentials; the
 /// OTP / web-authentication flow always runs against
-/// [`pacquet_network_web_auth::Host`].
+/// [`pnpm_network_web_auth::Host`].
 pub async fn publish_packed_pkg<Sys, Reporter>(
     pkg: &PackedPkg<'_>,
     opts: &PublishPackedPkgOptions,
@@ -185,11 +185,11 @@ where
 
 /// One completed publish response.
 #[derive(Debug)]
-struct PublishResponse {
-    ok: bool,
-    status: u16,
-    status_text: String,
-    body: String,
+pub(crate) struct PublishResponse {
+    pub(crate) ok: bool,
+    pub(crate) status: u16,
+    pub(crate) status_text: String,
+    pub(crate) body: String,
     stage_id: Option<String>,
 }
 
@@ -224,14 +224,14 @@ impl OtpError for PublishHttpError {
 /// The operation returns `Ok` for every completed HTTP response (the caller
 /// inspects `ok`) and `Err` only for an OTP challenge or a transport failure.
 ///
-/// `Sys` is the web-auth [host](pacquet_network_web_auth::Host): production
+/// `Sys` is the web-auth [host](pnpm_network_web_auth::Host): production
 /// passes the real one, tests pass a fake so the poll / clock / prompt are
 /// scripted while the PUT still goes through a mocked registry.
 #[expect(
     clippy::too_many_arguments,
     reason = "a single registry request legitimately needs the URL, auth, command, body, OTP, stage flag and retry options"
 )]
-async fn publish_with_otp_handling<Sys, Reporter>(
+pub(crate) async fn publish_with_otp_handling<Sys, Reporter>(
     client: &ThrottledClient,
     put_url: &str,
     authorization: Option<&str>,
@@ -364,7 +364,7 @@ fn stage_id_from_body(body: &str) -> Option<String> {
         .and_then(|json| json.get("stageId")?.as_str().map(str::to_owned))
 }
 
-fn web_auth_fetch_options(http: &OidcHttpOptions) -> WebAuthFetchOptions {
+pub(crate) fn web_auth_fetch_options(http: &OidcHttpOptions) -> WebAuthFetchOptions {
     WebAuthFetchOptions {
         timeout: http.fetch_timeout,
         retry: Some(WebAuthRetryOptions {
@@ -379,16 +379,16 @@ fn web_auth_fetch_options(http: &OidcHttpOptions) -> WebAuthFetchOptions {
 
 /// The tarball digests written into the document's `dist`, already computed by
 /// [`create_publish_summary`] so the tarball is not hashed twice.
-struct DistHashes<'a> {
+pub(crate) struct DistHashes<'a> {
     /// SRI SHA-512 (`sha512-...`).
-    integrity: &'a str,
+    pub(crate) integrity: &'a str,
     /// Lowercase hex SHA-1.
-    shasum: &'a str,
+    pub(crate) shasum: &'a str,
 }
 
 /// Build the npm publish document — the JSON body sent as the whole
 /// `PUT /:pkg` request.
-fn build_publish_document(
+pub(crate) fn build_publish_document(
     manifest: &Value,
     tarball_data: &[u8],
     registry: &NormalizedRegistryUrl,
@@ -462,7 +462,7 @@ fn build_publish_document(
 }
 
 /// Resolve `path` against the registry the way `new URL(path, registry)` does.
-fn join_registry(
+pub(crate) fn join_registry(
     registry: &NormalizedRegistryUrl,
     path: &str,
 ) -> Result<String, PublishPackedPkgError> {
@@ -477,7 +477,7 @@ fn join_registry(
 /// A typed entry point over [`redact_url_credentials`] for the
 /// `NormalizedRegistryUrl` log site; the unsanitized URL is still used for the
 /// request and auth-header lookup.
-fn registry_for_display(registry: &NormalizedRegistryUrl) -> String {
+pub(crate) fn registry_for_display(registry: &NormalizedRegistryUrl) -> String {
     redact_url_credentials(registry.as_str())
 }
 

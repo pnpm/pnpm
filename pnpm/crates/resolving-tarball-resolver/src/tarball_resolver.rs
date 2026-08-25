@@ -3,17 +3,17 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use pacquet_lockfile::{LockfileResolution, TarballResolution};
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_reporter::SilentReporter;
-use pacquet_resolving_resolver_base::{
+use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_reporter::SilentReporter;
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture,
     ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
-use pacquet_store_dir::{
+use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndexWriter,
 };
-use pacquet_tarball::{
+use pnpm_tarball::{
     FetchTarballForResolution, MemCache, PrefetchResult, RetryOpts, prefetch_cas_paths,
 };
 use ssri::Integrity;

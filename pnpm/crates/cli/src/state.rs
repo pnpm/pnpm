@@ -1,12 +1,12 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::Config;
-use pacquet_lockfile::LazyLockfile;
-use pacquet_network::{ForInstallsError, NetworkSettings, ThrottledClient};
-use pacquet_package_manager::ResolvedPackages;
-use pacquet_package_manifest::{PackageManifest, PackageManifestError};
-use pacquet_tarball::MemCache;
 use pipe_trait::Pipe;
+use pnpm_config::Config;
+use pnpm_lockfile::LazyLockfile;
+use pnpm_network::{ForInstallsError, ThrottledClient};
+use pnpm_package_manager::ResolvedPackages;
+use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_tarball::MemCache;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -16,7 +16,7 @@ use std::{
 pub struct State {
     /// Shared cache that stores downloaded tarballs. Held behind
     /// [`Arc`] so the resolve-time prefetch
-    /// ([`pacquet_package_manager::PrefetchingResolver`]) can capture
+    /// ([`pnpm_package_manager::PrefetchingResolver`]) can capture
     /// an owned clone into the `tokio::spawn`ed background download
     /// while every install sub-pipeline still takes a borrowed
     /// `&MemCache` via deref.
@@ -31,7 +31,7 @@ pub struct State {
     pub config: &'static Config,
     /// Data from the `package.json` file.
     pub manifest: PackageManifest,
-    /// The `pnpm-lock.yaml` file, read + parsed on first access so the
+    /// The wanted lockfile, read + parsed on first access so the
     /// repeat-install fast path (which never needs its contents) skips
     /// the YAML parse.
     pub lockfile: LazyLockfile,
@@ -47,7 +47,7 @@ pub enum InitStateError {
     Manifest(#[error(source)] PackageManifestError),
 
     #[diagnostic(transparent)]
-    ManifestRead(#[error(source)] pacquet_workspace::ReadProjectManifestOnlyError),
+    ManifestRead(#[error(source)] pnpm_workspace::ReadProjectManifestOnlyError),
 
     #[diagnostic(transparent)]
     Network(#[error(source)] ForInstallsError),
@@ -69,14 +69,12 @@ impl State {
     ) -> Result<Self, InitStateError> {
         let should_load = config.lockfile || require_lockfile;
         let lockfile = if should_load {
-            let manifest_dir =
-                manifest_path.parent().expect("manifest path always has a parent dir");
-            if config.shared_workspace_lockfile {
-                config.workspace_dir.clone().unwrap_or_else(|| manifest_dir.to_path_buf())
-            } else {
-                manifest_dir.to_path_buf()
-            }
-            .pipe(LazyLockfile::deferred)
+            manifest_path
+                .parent()
+                .expect("manifest path always has a parent dir")
+                .pipe(|manifest_dir| config.lockfile_dir_for(manifest_dir))
+                .to_path_buf()
+                .pipe(|dir| LazyLockfile::deferred(dir, config.wanted_lockfile_selection()))
         } else {
             LazyLockfile::disabled()
         };
@@ -89,11 +87,7 @@ impl State {
                     &config.proxy,
                     &config.tls,
                     &config.tls_by_uri,
-                    &NetworkSettings {
-                        network_concurrency: config.network_concurrency,
-                        fetch_timeout: std::time::Duration::from_millis(config.fetch_timeout),
-                        user_agent: config.user_agent.clone(),
-                    },
+                    &config.network_settings(),
                 )
                 .map_err(InitStateError::Network)?
                 .with_max_sockets_per_host(config.max_sockets),
@@ -103,24 +97,22 @@ impl State {
         })
     }
 
+    /// The directory of the project the command runs in — where its
+    /// `package.json` lives.
+    pub fn project_dir(&self) -> &Path {
+        self.manifest.path().parent().expect("manifest path always has a parent dir")
+    }
+
     pub fn lockfile_dir(&self) -> &Path {
-        let manifest_dir =
-            self.manifest.path().parent().expect("manifest path always has a parent dir");
-        if self.config.shared_workspace_lockfile {
-            self.config.workspace_dir.as_deref().unwrap_or(manifest_dir)
-        } else {
-            manifest_dir
-        }
+        self.config.lockfile_dir_for(self.project_dir())
     }
 
     pub fn lockfile_path(&self) -> PathBuf {
-        self.lockfile_dir().join(pacquet_lockfile::Lockfile::FILE_NAME)
+        self.lockfile_dir().join(self.config.wanted_lockfile_name())
     }
 
     pub fn active_importer_id(&self) -> String {
-        let project_dir =
-            self.manifest.path().parent().expect("manifest path always has a parent dir");
-        pacquet_workspace::importer_id_from_root_dir(self.lockfile_dir(), project_dir)
+        pnpm_workspace::importer_id_from_root_dir(self.lockfile_dir(), self.project_dir())
     }
 }
 
@@ -128,7 +120,7 @@ impl State {
 /// absent an existing alternate manifest base name (`package.yaml`)
 /// must be loaded rather than shadowed by a scaffolded `package.json`
 /// — pnpm reads every manifest base name. Alternate manifests stay
-/// read-only (see `pacquet_workspace::project_manifest`); commands
+/// read-only (see `pnpm_workspace::project_manifest`); commands
 /// that write the manifest back still require `package.json`.
 ///
 /// Inside a workspace, a missing root manifest is tolerated rather
@@ -142,7 +134,7 @@ fn load_or_create_manifest(
 ) -> Result<PackageManifest, InitStateError> {
     if !manifest_path.exists() {
         let project_dir = manifest_path.parent().expect("manifest path always has a parent dir");
-        if let Some((_, manifest)) = pacquet_workspace::try_read_project_manifest(project_dir)
+        if let Some((_, manifest)) = pnpm_workspace::try_read_project_manifest(project_dir)
             .map_err(InitStateError::ManifestRead)?
         {
             return Ok(apply_runtime_on_fail(manifest, config));
@@ -162,7 +154,7 @@ fn load_or_create_manifest(
 
 fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> PackageManifest {
     if let Some(runtime_on_fail) = config.runtime_on_fail {
-        pacquet_package_manifest::apply_runtime_on_fail_override(
+        pnpm_package_manifest::apply_runtime_on_fail_override(
             manifest.value_mut(),
             runtime_on_fail.as_str(),
         );

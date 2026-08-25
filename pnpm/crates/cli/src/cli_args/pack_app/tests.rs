@@ -6,7 +6,7 @@
 
 use std::fs;
 
-use pacquet_config::Config;
+use pnpm_config::Config;
 use tempfile::TempDir;
 
 use super::{

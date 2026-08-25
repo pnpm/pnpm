@@ -45,13 +45,13 @@ use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
-use pacquet_catalogs_types::Catalogs;
-use pacquet_lockfile::PkgName;
-use pacquet_package_manifest::{
+use pnpm_catalogs_types::Catalogs;
+use pnpm_lockfile::PkgName;
+use pnpm_package_manifest::{
     DependencyGroup, PackageManifest, PackageManifestError, safe_read_package_json_from_dir,
 };
-use pacquet_patching::PatchGroupRecord;
-use pacquet_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
+use pnpm_patching::PatchGroupRecord;
+use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -174,7 +174,7 @@ pub struct ResolveImporterOptions {
 
     /// `pnpmfileHook` applied to every resolved manifest. Wraps
     /// `readPackage` from `.pnpmfile.cjs` / `pnpmfile.cjs`.
-    pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 }
 
 impl std::fmt::Debug for ResolveImporterOptions {
@@ -267,7 +267,7 @@ where
     );
     resolve_importer_with_workspace(
         resolver,
-        pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+        pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY,
         0,
         manifest,
         dependency_groups,
@@ -460,7 +460,7 @@ impl ImporterHoistState {
         )?;
         let project_dir = base_opts.project_dir.clone();
         let tree_lockfile_dir = lockfile_dir.clone().unwrap_or_else(|| project_dir.clone());
-        let ctx = TreeCtx::with_workspace(workspace, base_opts)
+        let mut ctx = TreeCtx::with_workspace(workspace, base_opts)
             .with_lockfile_dir(&tree_lockfile_dir)
             .with_importer_id(importer_id)
             .with_importer_order(importer_order)
@@ -502,6 +502,7 @@ impl ImporterHoistState {
         .await?;
         ctx.workspace().set_direct_locked_peer_names(&direct, &locked_peer_names_by_alias);
         parent_pkg_aliases.extend(direct.iter().map(|dep| dep.alias.clone()));
+        ctx.resolve_new_direct_deps_as_subdeps();
         Ok(ImporterHoistState {
             importer_id: importer_id.to_string(),
             ctx,
@@ -913,7 +914,7 @@ struct ImporterLockedPeerContext {
 }
 
 fn importer_locked_peer_context(
-    wanted_lockfile: Option<&pacquet_lockfile::Lockfile>,
+    wanted_lockfile: Option<&pnpm_lockfile::Lockfile>,
     importer_id: &str,
 ) -> ImporterLockedPeerContext {
     let Some(lockfile) = wanted_lockfile else {
@@ -954,8 +955,8 @@ fn importer_locked_peer_context(
 }
 
 fn locked_peer_versions_for_key(
-    lockfile: &pacquet_lockfile::Lockfile,
-    key: &pacquet_lockfile::PkgNameVerPeer,
+    lockfile: &pnpm_lockfile::Lockfile,
+    key: &pnpm_lockfile::PkgNameVerPeer,
 ) -> Vec<(String, String)> {
     let explicit = peer_suffix_versions(key.suffix.peer()).collect::<Vec<_>>();
     if !explicit.is_empty() || !is_hashed_peer_suffix(key.suffix.peer()) {
@@ -1062,15 +1063,20 @@ fn partition_missing_peers(
 /// their semver intersection, and an empty intersection falls back to a
 /// `||`-join under `auto_install_peers_from_highest_match` — or `None`,
 /// dropping the peer on an unresolvable conflict.
+///
+/// Only the unique ranges reach [`intersect_ranges`]: folding a range in
+/// a second time cannot narrow the result, and every pass costs another
+/// Cartesian product over the alternatives.
 fn merge_ranges(ranges: &[&str], auto_install_peers_from_highest_match: bool) -> Option<String> {
     if ranges.len() == 1 {
         return Some(ranges[0].to_string());
     }
-    let unique: BTreeSet<&&str> = ranges.iter().collect();
+    let mut seen: HashSet<&str> = HashSet::default();
+    let unique: Vec<&str> = ranges.iter().copied().filter(|&range| seen.insert(range)).collect();
     if unique.len() == 1 {
         return Some(ranges[0].to_string());
     }
-    if let Some(intersection) = intersect_ranges(ranges) {
+    if let Some(intersection) = intersect_ranges(&unique) {
         return Some(intersection);
     }
     if auto_install_peers_from_highest_match {
@@ -1088,9 +1094,48 @@ fn intersect_ranges(ranges: &[&str]) -> Option<String> {
     let mut iter = ranges.iter();
     let first = Range::parse(iter.next()?).ok()?;
     iter.try_fold(first, |acc, range| {
-        Range::parse(range).ok().and_then(|range| acc.intersect(&range))
+        Range::parse(range)
+            .ok()
+            .and_then(|range| acc.intersect(&range))
+            .map(|intersection| collapse_covered_alternatives(&intersection))
     })
     .map(|range| range.to_string())
+}
+
+/// Drop the alternatives of a union that another alternative already
+/// covers, leaving the same set of versions behind.
+///
+/// [`Range::intersect`] pairs every alternative of one union with every
+/// alternative of the other, so an alternative two consumers agree on
+/// survives once per pair and the next intersection multiplies that
+/// count again. `semver-range-intersect` collapses the union upstream,
+/// which is why the growth is pacquet's alone.
+fn collapse_covered_alternatives(range: &Range) -> Range {
+    let rendered = range.to_string();
+    let alternatives: Vec<&str> = rendered.split("||").collect();
+    if alternatives.len() < 2 {
+        return range.clone();
+    }
+    let Some(parsed) = alternatives
+        .iter()
+        .map(|alternative| Range::parse(alternative).ok())
+        .collect::<Option<Vec<Range>>>()
+    else {
+        return range.clone();
+    };
+    let mut kept: Vec<&str> = Vec::with_capacity(alternatives.len());
+    for (index, alternative) in parsed.iter().enumerate() {
+        // Of two alternatives that cover each other, only the first is kept.
+        let covered = parsed.iter().enumerate().any(|(other_index, other)| {
+            other_index != index
+                && other.allows_all(alternative)
+                && (other_index < index || !alternative.allows_all(other))
+        });
+        if !covered {
+            kept.push(alternatives[index]);
+        }
+    }
+    Range::parse(kept.join("||")).unwrap_or_else(|_| range.clone())
 }
 
 /// `link:` / `file:` and the path form of `workspace:` name a directory
@@ -1163,7 +1208,7 @@ fn read_manifest_of_local_target(
 /// those arrive named too. `None` when no manifest name is available: a
 /// repository with no `package.json`, or the resolve-only chain that
 /// wires no fetch context — and hoists no peers.
-fn resolved_pkg_name(result: &pacquet_resolving_resolver_base::ResolveResult) -> Option<String> {
+fn resolved_pkg_name(result: &pnpm_resolving_resolver_base::ResolveResult) -> Option<String> {
     if let Some(name_ver) = result.name_ver.as_ref() {
         return Some(name_ver.name.to_string());
     }
@@ -1182,7 +1227,7 @@ fn build_workspace_root_deps(
     let mut out = Vec::with_capacity(direct.len());
     let mut named = HashSet::default();
     for dep in direct {
-        let Some(pkg) = snapshot.packages.get(&dep.id) else { continue };
+        let Some(pkg) = snapshot.packages.get(dep.id.as_str()) else { continue };
         let Some(pkg_name) = resolved_pkg_name(&pkg.result) else { continue };
         named.insert(dep.alias.as_str());
         out.push(WorkspaceRootDep {

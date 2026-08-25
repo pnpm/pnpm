@@ -1,13 +1,18 @@
-use super::{AllowBuild, LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings};
-use crate::{
-    AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker,
-    NodePackageMapType, ResolutionMode, ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
+use super::{
+    AllowBuild, LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
+    registries::{RegistryDeclaration, RegistryEntry},
 };
-use pacquet_store_dir::StoreDir;
-use pacquet_workspace_state::{ConfigDependency, ConfigDependencyDetail};
+use crate::{
+    AuditLevel, CatalogMode, ColorMode, Config, GlobalShims, GlobalShimsSetting, HoistingLimits,
+    LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode, ScriptsPrependNodePath,
+    ShimPolicy, TrustPolicy, api::EnvVar,
+};
 use pipe_trait::Pipe;
+use pnpm_lockfile::{RegistryOptions, RegistryServerType};
+use pnpm_store_dir::StoreDir;
+use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{collections::BTreeMap, fs, path::Path};
 
 #[test]
 fn parses_common_settings_from_yaml() {
@@ -34,6 +39,148 @@ packages:
     assert!(matches!(settings.node_linker, Some(NodeLinker::Hoisted)));
     assert_eq!(settings.node_experimental_package_map, Some(true));
     assert_eq!(settings.node_package_map_type, Some(NodePackageMapType::Loose));
+}
+
+#[test]
+fn parity_settings_parse_and_apply() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+bail: false
+color: never
+embedReadme: true
+ignoreWorkspaceRootCheck: true
+optional: false
+packageLock: false
+pending: true
+recursiveInstall: false
+reverse: true
+shellEmulator: true
+skipManifestObfuscation: true
+sort: false
+useBetaCli: true
+",
+    )
+    .unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.bail);
+    assert_eq!(config.color, ColorMode::Never);
+    assert!(config.embed_readme);
+    assert!(config.ignore_workspace_root_check);
+    assert!(!config.optional);
+    assert!(!config.package_lock);
+    assert!(config.pending);
+    assert!(!config.recursive_install);
+    assert!(config.reverse);
+    assert!(config.shell_emulator);
+    assert!(config.skip_manifest_obfuscation);
+    assert!(!config.sort);
+    assert!(config.use_beta_cli);
+}
+
+#[test]
+fn color_accepts_boolean_compatibility_values() {
+    let always: WorkspaceSettings = serde_saphyr::from_str("color: true\n").unwrap();
+    let never: WorkspaceSettings = serde_saphyr::from_str("color: false\n").unwrap();
+    assert_eq!(always.color, Some(ColorMode::Always));
+    assert_eq!(never.color, Some(ColorMode::Never));
+}
+
+#[test]
+fn parity_settings_follow_global_config_key_routing() {
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+bail: false
+color: never
+embedReadme: true
+ignoreWorkspaceRootCheck: true
+optional: false
+packageLock: false
+pending: true
+recursiveInstall: false
+reverse: true
+shellEmulator: true
+skipManifestObfuscation: true
+sort: false
+useBetaCli: true
+",
+    )
+    .unwrap();
+    settings.clear_workspace_only_fields();
+
+    assert_eq!(settings.bail, Some(false));
+    assert_eq!(settings.color, Some(ColorMode::Never));
+    assert_eq!(settings.optional, Some(false));
+    assert_eq!(settings.package_lock, Some(false));
+    assert_eq!(settings.shell_emulator, Some(true));
+    assert_eq!(settings.use_beta_cli, Some(true));
+    assert_eq!(settings.embed_readme, None);
+    assert_eq!(settings.ignore_workspace_root_check, None);
+    assert_eq!(settings.pending, None);
+    assert_eq!(settings.recursive_install, None);
+    assert_eq!(settings.reverse, None);
+    assert_eq!(settings.skip_manifest_obfuscation, None);
+    assert_eq!(settings.sort, None);
+}
+
+#[test]
+fn global_shims_defaults_enable_the_managed_runtimes() {
+    let shims = Config::default().global_shims;
+    for name in ["node", "deno", "bun"] {
+        assert!(shims.is_enabled(name), "{name} should be enabled by default");
+    }
+    assert!(!shims.is_enabled("typescript"));
+    assert!(!shims.dispatches_nothing());
+}
+
+#[test]
+fn global_shims_record_merges_over_the_defaults() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("globalShims: {bun: false, typescript: true}\n").unwrap();
+    assert!(matches!(settings.global_shims, Some(GlobalShimsSetting::Entries(_))));
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.global_shims.is_enabled("node"), "untouched defaults must survive");
+    assert!(!config.global_shims.is_enabled("bun"), "one default can be switched off");
+    assert!(config.global_shims.is_enabled("typescript"));
+}
+
+#[test]
+fn global_shims_scalar_shorthands_reset_the_record() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str("globalShims: false\n").unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.global_shims.dispatches_nothing());
+
+    let settings: WorkspaceSettings = serde_saphyr::from_str("globalShims: true\n").unwrap();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.global_shims, GlobalShims::default());
+}
+
+#[test]
+fn global_shims_named_policies_parse() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("globalShims: {node: prompt, deno: always, bun: auto}\n").unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    let shims = config.global_shims;
+    assert_eq!(shims.policy("node"), ShimPolicy::Prompt);
+    assert_eq!(shims.policy("deno"), ShimPolicy::Always);
+    assert_eq!(shims.policy("bun"), ShimPolicy::Auto, "explicit auto equals the true shorthand");
+    assert_eq!(shims.policy("typescript"), ShimPolicy::Off);
+    assert!(shims.is_enabled("node"), "prompt still counts as enabled");
+}
+
+#[test]
+fn global_shims_later_layers_win_per_key() {
+    let mut shims = GlobalShims::default();
+    shims.apply(&serde_saphyr::from_str::<GlobalShimsSetting>("{node: false}").unwrap());
+    shims
+        .apply(&serde_saphyr::from_str::<GlobalShimsSetting>("{node: true, deno: false}").unwrap());
+    assert!(shims.is_enabled("node"));
+    assert!(!shims.is_enabled("deno"));
+    assert!(shims.is_enabled("bun"));
 }
 
 #[test]
@@ -64,6 +211,48 @@ packages:
     // serde reject those unknown keys during deserialization — i.e.
     // someone adding `deny_unknown_fields` to the struct.
     let _settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+}
+
+#[test]
+fn load_at_buckets_the_problem_keys() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        concat!(
+            "$schema: https://json.schemastore.org/pnpm-workspace.json\n",
+            "configDir: /elsewhere\n",
+            "minimumReleaseAg: 100\n",
+            "store-dir: /some-store\n",
+            "nodeLinker: hoisted\n",
+            "globalShims:\n  node: true\n",
+            "packages:\n  - apps/*\n",
+        ),
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.key_issues.refused, ["configDir"]);
+    assert_eq!(settings.key_issues.unrecognized, ["minimumReleaseAg"]);
+    assert_eq!(settings.key_issues.non_camel_case, ["store-dir"]);
+}
+
+#[test]
+fn load_at_collects_no_issues_from_a_clean_file() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "nodeLinker: hoisted\npackages:\n  - apps/*\ncatalog:\n  react: ^18\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
 }
 
 #[test]
@@ -108,6 +297,45 @@ fn scope_survives_workspace_only_field_clearing() {
     assert_eq!(settings.scope.as_deref(), Some("@from-global"));
 }
 
+/// The workspace-structural keys are parsed so `pnpm config get` / `list`
+/// can show them, but only from the workspace yaml: the global `config.yaml`
+/// refuses them.
+#[test]
+fn structural_keys_are_parsed_and_are_workspace_only() {
+    let yaml = "
+packages: ['.']
+catalog:
+  react: ^19.0.0
+catalogs:
+  react17:
+    react: ^17.0.0
+onlyBuiltDependencies: [esbuild]
+neverBuiltDependencies: [fsevents]
+ignoredBuiltDependencies: [core-js]
+";
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.packages.as_deref(), Some(&[".".to_owned()][..]));
+    assert_eq!(
+        settings.catalog.as_ref().and_then(|c| c.get("react")).map(String::as_str),
+        Some("^19.0.0"),
+    );
+    assert_eq!(
+        settings
+            .catalogs
+            .as_ref()
+            .and_then(|c| c.get("react17"))
+            .and_then(|c| c.get("react"))
+            .map(String::as_str),
+        Some("^17.0.0"),
+    );
+    assert_eq!(settings.only_built_dependencies.as_deref(), Some(&["esbuild".to_owned()][..]));
+    assert_eq!(settings.never_built_dependencies.as_deref(), Some(&["fsevents".to_owned()][..]));
+    assert_eq!(settings.ignored_built_dependencies.as_deref(), Some(&["core-js".to_owned()][..]));
+
+    settings.clear_workspace_only_fields();
+    assert_eq!(settings, WorkspaceSettings::default());
+}
+
 #[test]
 fn apply_scope_overrides_an_earlier_layer() {
     // The workspace yaml is applied over the global `config.yaml`, so the
@@ -121,7 +349,7 @@ fn apply_scope_overrides_an_earlier_layer() {
 
 #[test]
 fn apply_resolves_relative_paths_against_base_dir() {
-    let yaml = "storeDir: ../shared-store\n";
+    let yaml = "storeDir: ../shared-store\npnpmfile: hooks/../custom.cjs\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::new();
     let base = Path::new("/workspace/root");
@@ -132,6 +360,12 @@ fn apply_resolves_relative_paths_against_base_dir() {
     // under test uses so the component separator matches on every
     // platform (Windows uses `\` between joined components).
     assert_eq!(config.store_dir, StoreDir::from(base.join("../shared-store")));
+    assert_eq!(config.pnpmfile, Some(vec![base.join("custom.cjs")]));
+
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("pnpmfile: [hooks/../custom.cjs, custom.cjs]\n").unwrap();
+    settings.apply_to(&mut config, base);
+    assert_eq!(config.pnpmfile, Some(vec![base.join("custom.cjs"), base.join("custom.cjs")]));
 }
 
 /// pnpm reads `fetchRetries` / `fetchRetryFactor` /
@@ -192,32 +426,34 @@ fn parses_git_checks_from_yaml_and_applies() {
     assert!(!config.git_checks);
 }
 
-/// `networkConcurrency` / `fetchTimeout` / `userAgent` parse from
-/// `pnpm-workspace.yaml` as camelCase keys and `apply_to` pushes them
-/// onto the `Config`, matching pnpm.
 #[test]
 fn parses_network_settings_from_yaml_and_applies() {
     let yaml = r"
 networkConcurrency: 8
 fetchTimeout: 120000
+fetchWarnTimeoutMs: 20000
+fetchMinSpeedKiBps: 100
 userAgent: my-agent/2.0
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(settings.network_concurrency, Some(8));
     assert_eq!(settings.fetch_timeout, Some(120_000));
+    assert_eq!(settings.fetch_warn_timeout_ms, Some(20_000));
+    assert_eq!(settings.fetch_min_speed_ki_bps, Some(100));
     assert_eq!(settings.user_agent.as_deref(), Some("my-agent/2.0"));
 
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.network_concurrency, 8);
     assert_eq!(config.fetch_timeout, 120_000);
+    assert_eq!(config.fetch_warn_timeout_ms, 20_000);
+    assert_eq!(config.fetch_min_speed_ki_bps, 100);
     assert_eq!(config.user_agent, "my-agent/2.0");
 }
 
-/// `namedRegistries` is the per-alias registry-URL map from
-/// `pnpm-workspace.yaml`. The deserializer reads the camelCase key
-/// and `apply_to` writes the map onto [`Config::named_registries`]
-/// verbatim.
+/// `namedRegistries` is the deprecated spelling of a registry's `prefix`. The
+/// deserializer reads the camelCase key it still carries, and `apply_to`
+/// writes the map onto [`Config::registries_by_prefix`] verbatim.
 #[test]
 fn parses_named_registries_from_yaml_and_applies() {
     let yaml = r"
@@ -226,18 +462,18 @@ namedRegistries:
   work: https://npm.work.example.com/
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    let named = settings.named_registries.as_ref().expect("named_registries present");
+    let named = settings.named_registries.as_ref().expect("namedRegistries present");
     assert_eq!(named.get("gh").map(String::as_str), Some("https://npm.pkg.ghes.example.com/"));
     assert_eq!(named.get("work").map(String::as_str), Some("https://npm.work.example.com/"));
 
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(
-        config.named_registries.get("gh").map(String::as_str),
+        config.registries_by_prefix.get("gh").map(String::as_str),
         Some("https://npm.pkg.ghes.example.com/"),
     );
     assert_eq!(
-        config.named_registries.get("work").map(String::as_str),
+        config.registries_by_prefix.get("work").map(String::as_str),
         Some("https://npm.work.example.com/"),
     );
 }
@@ -252,19 +488,19 @@ registries:
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let registries = settings.registries.as_ref().expect("registries present");
     assert_eq!(
-        registries.get("default").map(String::as_str),
-        Some("https://default.example.com/npm"),
+        registries.get("default"),
+        Some(&RegistryEntry::ScopeRoute("https://default.example.com/npm".to_owned())),
     );
     assert_eq!(
-        registries.get("@private").map(String::as_str),
-        Some("https://private.example.com/npm"),
+        registries.get("@private"),
+        Some(&RegistryEntry::ScopeRoute("https://private.example.com/npm".to_owned())),
     );
 
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.registry, "https://default.example.com/npm/");
     assert_eq!(
-        config.registries.get("@private").map(String::as_str),
+        config.registries_by_scope.get("@private").map(String::as_str),
         Some("https://private.example.com/npm/"),
     );
 }
@@ -303,21 +539,21 @@ namedRegistries:
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.pnpr_server, None);
     assert_eq!(config.registry, "https://registry.npmjs.org/");
-    assert_eq!(config.proxy, pacquet_network::ProxyConfig::default());
+    assert_eq!(config.proxy, pnpm_network::ProxyConfig::default());
     assert_eq!(
-        config.registries.get("@safe").map(String::as_str),
+        config.registries_by_scope.get("@safe").map(String::as_str),
         Some("https://safe.example.com/npm/"),
     );
-    assert_eq!(config.registries.get("@work"), None);
+    assert_eq!(config.registries_by_scope.get("@work"), None);
     assert_eq!(
-        config.named_registries.get("stable").map(String::as_str),
+        config.registries_by_prefix.get("stable").map(String::as_str),
         Some("https://registry.example.com/npm/"),
     );
     assert_eq!(
-        config.named_registries.get("literal").map(String::as_str),
+        config.registries_by_prefix.get("literal").map(String::as_str),
         Some("https://registry.example.com/${/npm/"),
     );
-    assert_eq!(config.named_registries.get("work"), None);
+    assert_eq!(config.registries_by_prefix.get("work"), None);
 }
 
 #[test]
@@ -386,14 +622,14 @@ namedRegistries:
     assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://internal.example.com:8081/"));
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec!["internal.example.com".to_string()])),
+        Some(pnpm_network::NoProxySetting::List(vec!["internal.example.com".to_string()])),
     );
     assert_eq!(
-        config.named_registries.get("stable").map(String::as_str),
+        config.registries_by_prefix.get("stable").map(String::as_str),
         Some("https://registry.example.com/npm/"),
     );
     assert_eq!(
-        config.named_registries.get("work").map(String::as_str),
+        config.registries_by_prefix.get("work").map(String::as_str),
         Some("https://internal.example.com/work/"),
     );
 }
@@ -415,6 +651,54 @@ fn parses_verify_store_integrity_from_yaml_and_applies() {
     assert!(config.verify_store_integrity, "the default is `true` to match pnpm");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert!(!config.verify_store_integrity, "yaml override wins");
+}
+
+/// `strictStorePkgContentCheck` decides whether a store row that holds
+/// another package fails the install. Same camelCase rename +
+/// `apply_to` wiring as `verifyStoreIntegrity`, and the same
+/// default-true polarity.
+#[test]
+fn parses_strict_store_pkg_content_check_from_yaml_and_applies() {
+    let yaml = "strictStorePkgContentCheck: false\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.strict_store_pkg_content_check, Some(false));
+
+    let mut config = Config::new();
+    assert!(config.strict_store_pkg_content_check, "the default is `true` to match pnpm");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(!config.strict_store_pkg_content_check, "yaml override wins");
+}
+
+/// `includeWorkspaceRoot` keeps the workspace root in a recursive
+/// selection. Default `false`, so the yaml has to flip it on.
+#[test]
+fn parses_include_workspace_root_from_yaml_and_applies() {
+    let yaml = "includeWorkspaceRoot: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.include_workspace_root, Some(true));
+
+    let mut config = Config::new();
+    assert!(!config.include_workspace_root, "the default is `false` to match pnpm");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.include_workspace_root, "yaml override wins");
+}
+
+/// The two workspace-cycle knobs are independent keys — one silences the
+/// report, the other promotes it to an error — so a file setting both is
+/// applied to both fields.
+#[test]
+fn parses_the_workspace_cycle_settings_from_yaml_and_applies() {
+    let yaml = "ignoreWorkspaceCycles: true\ndisallowWorkspaceCycles: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.ignore_workspace_cycles, Some(true));
+    assert_eq!(settings.disallow_workspace_cycles, Some(true));
+
+    let mut config = Config::new();
+    assert!(!config.ignore_workspace_cycles, "the default is `false` to match pnpm");
+    assert!(!config.disallow_workspace_cycles, "the default is `false` to match pnpm");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.ignore_workspace_cycles, "yaml override wins");
+    assert!(config.disallow_workspace_cycles, "yaml override wins");
 }
 
 /// `sideEffectsCache` is the side-effects cache READ-path knob from
@@ -484,7 +768,7 @@ fn side_effects_cache_gates_truth_table() {
 /// patch-file paths. pacquet captures it raw on `WorkspaceSettings`;
 /// path resolution + hashing + grouping happen at install time via
 /// `Config::resolved_patched_dependencies` (which delegates to
-/// `pacquet_patching::resolve_and_group`). This test guards the
+/// `pnpm_patching::resolve_and_group`). This test guards the
 /// deserialization shape only — the camelCase rename, optionality,
 /// and value-as-string-path.
 #[test]
@@ -1034,7 +1318,7 @@ gitShallowHosts:
 
 /// `supportedArchitectures` from `pnpm-workspace.yaml`. Optional
 /// `os` / `cpu` / `libc` lists; absent fields stay `None`. Threaded
-/// into [`pacquet_package_is_installable::check_platform`] via
+/// into [`pnpm_package_is_installable::check_platform`] via
 /// [`Config::supported_architectures`] at install time.
 #[test]
 fn parses_supported_architectures_from_yaml_and_applies() {
@@ -1333,7 +1617,7 @@ fn empty_package_extensions_map_collapses_to_none() {
 /// `hoistingLimits` deserializes as one of the `none` / `workspaces`
 /// / `dependencies` modes; the install pipeline translates the mode
 /// into the per-locator border map via
-/// `pacquet_package_manager::get_hoisting_limits`. Yaml-empty /
+/// `pnpm_package_manager::get_hoisting_limits`. Yaml-empty /
 /// missing keeps the `Config` field at its [`HoistingLimits::None`]
 /// default.
 #[test]
@@ -1808,4 +2092,636 @@ fn parses_save_settings_from_yaml_and_applies() {
     assert_eq!(global.save_prefix.as_deref(), Some("~"));
     assert_eq!(global.save_peer, None);
     assert_eq!(global.save_catalog_name, None);
+}
+
+/// `apply_to` keys the per-registry options by registry URL with a trailing
+/// slash so a lookup by the registry a package resolved from matches.
+#[test]
+fn parses_registry_declarations_from_yaml_and_normalizes_the_keys() {
+    let yaml = r"
+registries:
+  https://artifactory.example/artifactory/api/npm/npm-virtual: {serverType: artifactory}
+  https://npm.example.com/: {serverType: npm}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config
+            .registry_options_by_url
+            .get("https://artifactory.example/artifactory/api/npm/npm-virtual/")
+            .map(|options| options.server_type),
+        Some(Some(RegistryServerType::Artifactory)),
+    );
+    assert_eq!(
+        config
+            .registry_options_by_url
+            .get("https://npm.example.com/")
+            .map(|options| options.server_type),
+        Some(Some(RegistryServerType::Npm)),
+    );
+}
+
+/// Credentials belong in `.npmrc`, which is not committed. Refused after
+/// parsing, not by `deny_unknown_fields`: a parse error renders the offending
+/// source line verbatim, which would print the very token being refused.
+#[test]
+fn rejects_credentials_in_a_registry_declaration() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://npm.example.com/: {_authToken: hunter2}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("credentials in a declaration must not load")
+        .to_string();
+    assert!(error.contains("_authToken"), "the field is named: {error}");
+    assert!(!error.contains("hunter2"), "the token must not be echoed: {error}");
+}
+
+/// A misspelled field would otherwise sit there doing nothing.
+#[test]
+fn rejects_an_unknown_registry_declaration_field() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://npm.example.com/: {scope: '@acme'}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("an unknown declaration field must not load")
+        .to_string();
+    assert!(error.contains("scope"), "the field is named: {error}");
+}
+
+#[test]
+fn rejects_an_unknown_registry_server_type() {
+    let yaml = r"
+registries:
+  https://npm.example.com/: {serverType: nexus}
+";
+    let received = serde_saphyr::from_str::<WorkspaceSettings>(yaml);
+    assert!(received.is_err(), "an unknown serverType must not parse");
+}
+
+/// The registry URL is the key here, so the untrusted-environment gate has to
+/// drop the entry rather than expanding a placeholder into a request URL. The
+/// variable resolves, so a dropped entry is distinguishable from one expanded
+/// to an empty string — expanding it is how a token would reach an
+/// attacker-chosen host from a committed pnpm-workspace.yaml.
+#[test]
+fn drops_a_registry_declaration_whose_url_has_an_env_placeholder() {
+    struct EnvWithToken;
+    impl EnvVar for EnvWithToken {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_TEST_REGISTRY_TOKEN").then(|| "super-secret-token".to_owned())
+        }
+    }
+
+    let yaml = r"
+registries:
+  https://evil.example.com/${PNPM_TEST_REGISTRY_TOKEN}/: {serverType: artifactory}
+  https://npm.example.com/: {serverType: artifactory}
+";
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.substitute_env_untrusted::<EnvWithToken>();
+    let entries = settings.registries.as_ref().expect("registries present");
+    assert_eq!(entries.len(), 1);
+    assert!(entries.contains_key("https://npm.example.com/"));
+    assert!(
+        !entries.keys().any(|registry| registry.contains("super-secret-token")),
+        "the token must never be expanded into a registry URL: {entries:?}",
+    );
+}
+
+/// A declared `serverType` is workspace-only: it decides which tarball URLs
+/// are omitted from the lockfile, so a user's global `config.yaml` must not
+/// shape a lockfile their collaborators read back with a different layout. The
+/// routes the same entry declares are a legitimate global preference and stay.
+#[test]
+fn registry_server_type_cleared_as_workspace_only_field() {
+    let yaml = r"
+registries:
+  https://artifactory.example/artifactory/api/npm/npm-virtual/:
+    serverType: artifactory
+    scopes: ['@acme']
+";
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.clear_workspace_only_fields();
+    let entries = settings.registries.as_ref().expect("registries present");
+    let RegistryEntry::Declaration(declaration) = entries.values().next().expect("one declaration")
+    else {
+        panic!("expected a declaration: {entries:?}")
+    };
+    assert_eq!(declaration.server_type, None);
+    assert_eq!(declaration.scopes.as_deref(), Some(["@acme".to_owned()].as_slice()));
+}
+
+/// A credential in the key is the same secret in the same committed file as a
+/// credential in a field, so both are refused. The check runs after parsing so
+/// the error carries a redacted URL instead of serde's verbatim source line.
+#[test]
+fn rejects_a_registry_key_that_embeds_credentials() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://ci-user-6e42:hunter2@npm.example.com/: {serverType: artifactory}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("a key with credentials must not load")
+        .to_string();
+    assert!(!error.contains("hunter2"), "the password must not be echoed: {error}");
+    assert!(!error.contains("ci-user-6e42"), "the username must not be echoed: {error}");
+    assert!(error.contains("npm.example.com"), "the host is still named: {error}");
+}
+
+/// `.npmrc` scopes settings with a scheme-less `//host/`, and this setting's
+/// own error points users at that syntax, so it is the form they are most
+/// likely to write — and it must not slip past the check.
+#[test]
+fn rejects_a_scheme_less_registry_key_that_embeds_credentials() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  //ci-user-6e42:hunter2@npm.example.com/: {serverType: artifactory}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("a scheme-less key with credentials must not load")
+        .to_string();
+    assert!(!error.contains("hunter2"), "the password must not be echoed: {error}");
+    assert!(!error.contains("ci-user-6e42"), "the username must not be echoed: {error}");
+}
+
+/// A later `@` in the path is not userinfo.
+#[test]
+fn accepts_a_registry_key_with_an_at_sign_in_the_path() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://npm.example.com/scope@1/: {serverType: artifactory}\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path()).unwrap().expect("settings");
+    assert!(settings.registries.is_some());
+}
+
+/// Searching for the first `://` would find the one in the path and parse the
+/// authority from there, leaving the real credentials unexamined.
+#[test]
+fn rejects_a_scheme_less_key_whose_path_contains_a_scheme_separator() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  '//ci-user-6e42:hunter2@npm.example.com/a://b': {serverType: artifactory}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("credentials must not slip past a path scheme separator")
+        .to_string();
+    assert!(!error.contains("hunter2"), "the password must not be echoed: {error}");
+    assert!(!error.contains("ci-user-6e42"), "the username must not be echoed: {error}");
+}
+
+/// A scope resolves to one registry while a registry serves many, so the
+/// declaration reads the way it is written and the lookup is its inverse. A
+/// bare `@` is the scope-less default registry.
+#[test]
+fn routes_the_scopes_a_registry_declares() {
+    let yaml = r"
+registries:
+  https://npm.corp.example:
+    serverType: npm
+    scopes: ['@', '@foo', '@bar']
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.registry, "https://npm.corp.example/");
+    assert_eq!(
+        config.registries_by_scope.get("@foo").map(String::as_str),
+        Some("https://npm.corp.example/"),
+    );
+    assert_eq!(
+        config.registries_by_scope.get("@bar").map(String::as_str),
+        Some("https://npm.corp.example/"),
+    );
+}
+
+#[test]
+fn rejects_a_scope_declared_without_its_at_sign() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://npm.corp.example/: {scopes: [foo]}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("a scope without its @ must not load")
+        .to_string();
+    assert!(error.contains(r#""foo""#), "the scope is named: {error}");
+}
+
+#[test]
+fn rejects_one_scope_routed_to_two_registries() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://npm.corp.example/: {scopes: ['@foo']}\n  https://artifactory.example/: {scopes: ['@foo']}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("a scope routed twice must not load")
+        .to_string();
+    assert!(error.contains("routed to two registries"), "{error}");
+}
+
+/// Keyed by the URL as written: a named registry's URL is what a lockfile's
+/// recorded tarball URLs are matched against, so normalizing it here would
+/// change what an existing lockfile verifies against.
+#[test]
+fn reads_a_declared_prefix_as_a_named_registry() {
+    let yaml = r"
+registries:
+  https://npm.corp.example: {prefix: work, serverType: artifactory}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config.registries_by_prefix.get("work").map(String::as_str),
+        Some("https://npm.corp.example"),
+    );
+    assert_eq!(
+        config
+            .registry_options_by_url
+            .get("https://npm.corp.example/")
+            .map(|options| options.server_type),
+        Some(Some(RegistryServerType::Artifactory)),
+    );
+}
+
+#[test]
+fn rejects_one_prefix_declared_by_two_registries() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://npm.corp.example/: {prefix: work}\n  https://artifactory.example/: {prefix: work}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("a prefix declared twice must not load")
+        .to_string();
+    assert!(error.contains("declared by two registries"), "{error}");
+}
+
+/// The deprecated spelling of the same thing, so a declared prefix wins.
+#[test]
+fn a_declared_prefix_wins_over_named_registries() {
+    let yaml = r"
+namedRegistries:
+  work: https://stale.example/
+  other: https://other.example/
+registries:
+  https://npm.corp.example/: {prefix: work}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config.registries_by_prefix.get("work").map(String::as_str),
+        Some("https://npm.corp.example/"),
+    );
+    assert_eq!(
+        config.registries_by_prefix.get("other").map(String::as_str),
+        Some("https://other.example/"),
+    );
+}
+
+#[test]
+fn rejects_a_registries_map_that_mixes_both_shapes() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  '@acme': https://npm.example.com/\n  https://artifactory.example/: {serverType: artifactory}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("a mixed registries map must not load")
+        .to_string();
+    assert!(error.contains("mixes registry declarations"), "{error}");
+    assert!(error.contains(r#""@acme""#), "the scope-routed entry is named: {error}");
+}
+
+/// A scope routes to a registry, so a URL in that position routes nothing and
+/// would sit there inert. It is the declaration shape, half-written.
+#[test]
+fn rejects_a_url_keyed_registries_entry_written_as_a_string() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "registries:\n  https://npm.example.com/: artifactory\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("a URL-keyed string entry must not load")
+        .to_string();
+    assert!(error.contains("is a string"), "{error}");
+}
+
+/// The inverse of the split a `registries` setting goes through, for the
+/// request a pnpr server reads. Every route to one registry lands in its entry.
+#[test]
+fn rebuilds_the_declarations_from_the_lookups() {
+    let mut config = Config::new();
+    config.registries_by_scope = BTreeMap::from([
+        ("default".to_owned(), "https://registry.npmjs.org/".to_owned()),
+        ("@acme".to_owned(), "https://npm.corp.example/".to_owned()),
+        ("@acme-internal".to_owned(), "https://npm.corp.example/".to_owned()),
+        ("@other".to_owned(), "https://npm.other.example/".to_owned()),
+    ]);
+    config.registries_by_prefix =
+        BTreeMap::from([("work".to_owned(), "https://npm.corp.example/".to_owned())]);
+    config.registry_options_by_url = BTreeMap::from([(
+        "https://npm.corp.example/".to_owned(),
+        RegistryOptions {
+            server_type: Some(RegistryServerType::Artifactory),
+            supports_time_field: None,
+        },
+    )]);
+
+    let declarations = config.registry_declarations();
+    assert_eq!(
+        declarations.get("https://npm.corp.example/"),
+        Some(&RegistryDeclaration {
+            scopes: Some(vec!["@acme".to_owned(), "@acme-internal".to_owned()]),
+            prefix: Some("work".to_owned()),
+            server_type: Some(RegistryServerType::Artifactory),
+            supports_time_field: None,
+            unknown: BTreeMap::new(),
+        }),
+    );
+    assert_eq!(
+        declarations.get("https://npm.other.example/"),
+        Some(&RegistryDeclaration {
+            scopes: Some(vec!["@other".to_owned()]),
+            ..RegistryDeclaration::default()
+        }),
+    );
+    // The default registry travels as the request's own `registry` field.
+    assert!(!declarations.contains_key("https://registry.npmjs.org/"), "{declarations:?}");
+}
+
+/// The resolved view declares every route: the default registry appears as
+/// the bare `@` scope — first in the scope list it shares with real scopes —
+/// and the built-in `@jsr` scope and `gh` / `npmjs` prefixes are declared
+/// unless the user pointed them elsewhere.
+#[test]
+fn resolved_declarations_declare_every_route() {
+    let mut config = Config::new();
+    config.registry = "https://npm.corp.example/".to_owned();
+    config.registries_by_scope =
+        BTreeMap::from([("@acme".to_owned(), "https://npm.corp.example/".to_owned())]);
+    config.registries_by_prefix =
+        BTreeMap::from([("gh".to_owned(), "https://github.corp.example/".to_owned())]);
+
+    let declarations = config.resolved_registry_declarations();
+    assert_eq!(
+        declarations.get("https://npm.corp.example/"),
+        Some(&RegistryDeclaration {
+            scopes: Some(vec!["@".to_owned(), "@acme".to_owned()]),
+            ..RegistryDeclaration::default()
+        }),
+    );
+    assert_eq!(
+        declarations.get("https://npm.jsr.io/"),
+        Some(&RegistryDeclaration {
+            scopes: Some(vec!["@jsr".to_owned()]),
+            ..RegistryDeclaration::default()
+        }),
+    );
+    // The user's `gh` route wins over the built-in of the same name.
+    assert_eq!(
+        declarations.get("https://github.corp.example/"),
+        Some(&RegistryDeclaration {
+            prefix: Some("gh".to_owned()),
+            ..RegistryDeclaration::default()
+        }),
+    );
+    assert_eq!(declarations.get("https://npm.pkg.github.com/"), None);
+    assert_eq!(
+        declarations.get("https://registry.npmjs.org/"),
+        Some(&RegistryDeclaration {
+            prefix: Some("npmjs".to_owned()),
+            ..RegistryDeclaration::default()
+        }),
+    );
+}
+
+/// A declaration map survives the round trip through the lookups it is split
+/// into, which is what makes it safe to rebuild one for a pnpr request.
+#[test]
+fn declarations_round_trip_through_the_lookups() {
+    let yaml = r"
+registries:
+  https://npm.corp.example/:
+    serverType: artifactory
+    scopes: ['@acme']
+    prefix: work
+  https://npm.other.example/:
+    scopes: ['@other']
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let entries = settings.registries.clone().expect("registries present");
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    let rebuilt = config.registry_declarations();
+    let original: std::collections::BTreeMap<String, RegistryDeclaration> = entries
+        .into_iter()
+        .map(|(registry, entry)| match entry {
+            RegistryEntry::Declaration(declaration) => (registry, declaration),
+            RegistryEntry::ScopeRoute(_) => panic!("declarations only"),
+        })
+        .collect();
+    assert_eq!(rebuilt, original);
+}
+
+/// The public registry omits `time` from its abbreviated metadata, so a
+/// time-based resolution reads the full document from it. A registry that
+/// declares otherwise answers for itself, and paying for the full document at
+/// every registry because one of them needs it is the cost this removes.
+#[test]
+fn a_registry_declaring_the_time_field_needs_no_full_metadata() {
+    let yaml = r"
+resolutionMode: time-based
+registries:
+  https://time.example.com/: {supportsTimeField: true}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert!(!config.requires_full_metadata_for_registry("https://time.example.com/"));
+    assert!(config.requires_full_metadata_for_registry("https://registry.npmjs.org/"));
+    // However either side spelled the trailing slash.
+    assert!(!config.requires_full_metadata_for_registry("https://time.example.com"));
+}
+
+/// A reason that holds whatever the registry serves is not undone by one.
+#[test]
+fn a_declared_time_field_does_not_waive_the_trust_policy() {
+    let yaml = r"
+resolutionMode: time-based
+trustPolicy: no-downgrade
+registries:
+  https://time.example.com/: {supportsTimeField: true}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert!(config.requires_full_metadata_for_registry("https://time.example.com/"));
+}
+
+/// The setting is the answer for every registry that does not describe itself.
+#[test]
+fn the_time_field_setting_answers_for_an_undeclared_registry() {
+    let yaml = r"
+resolutionMode: time-based
+registrySupportsTimeField: true
+registries:
+  https://old.example.com/: {supportsTimeField: false}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert!(!config.requires_full_metadata_for_registry("https://registry.npmjs.org/"));
+    assert!(config.requires_full_metadata_for_registry("https://old.example.com/"));
+}
+
+/// The filtered mirror is chosen once for the whole resolver, so it has to
+/// cover the registry that asks for the most: one the setting exempts but a
+/// declaration does not.
+#[test]
+fn the_filtered_mirror_covers_a_registry_the_setting_exempts() {
+    let yaml = r"
+resolutionMode: time-based
+registrySupportsTimeField: true
+registries:
+  https://old.example.com/: {supportsTimeField: false}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert!(!config.requires_full_metadata_for_resolution());
+    assert!(config.requires_full_metadata_for_registry("https://old.example.com/"));
+    assert!(config.requires_filtered_full_metadata());
+}
+
+/// Nothing is filtered when no registry can need full metadata.
+#[test]
+fn no_filtered_mirror_without_a_reason_for_full_metadata() {
+    let mut config = Config::new();
+    assert!(!config.requires_filtered_full_metadata());
+    config.resolution_mode = ResolutionMode::TimeBased;
+    assert!(config.requires_filtered_full_metadata());
+}
+
+/// The scan that decides whether the file is worth re-reading must never
+/// answer "nothing here" for a key there is something to say about, so a
+/// top-level key written in a shape it cannot classify still gets collected.
+#[test]
+fn load_at_collects_issues_from_a_key_it_cannot_scan() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), "{zzzNotASettingZzz: 1}\n").unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.key_issues.unrecognized, ["zzzNotASettingZzz"]);
+}
+
+/// A `$schema` line is what an editor adds to an otherwise correct file, so
+/// it must not be what makes every command re-read it.
+#[test]
+fn load_at_collects_no_issues_from_a_clean_file_carrying_a_schema_line() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "$schema: https://json.schemastore.org/pnpm-workspace.json\nnodeLinker: hoisted\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
+}
+
+/// A root mapping may itself be indented, and the whole file is then more
+/// indented than column zero without a single key being nested.
+#[test]
+fn load_at_collects_issues_from_an_indented_root_mapping() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "  zzzNotASettingZzz: 1\n  nodeLinker: hoisted\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.key_issues.unrecognized, ["zzzNotASettingZzz"]);
+}
+
+/// Indentation is not measurable where a tab stands in for it, so such a file
+/// is read rather than judged by its shape.
+#[test]
+fn load_at_collects_issues_from_a_tab_indented_file() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), "\tzzzNotASettingZzz: 1\n").unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.key_issues.unrecognized, ["zzzNotASettingZzz"]);
+}
+
+/// A nested key is not a setting of this file, so a catalog naming a package
+/// after nothing pnpm knows is not something to report.
+#[test]
+fn load_at_ignores_keys_nested_under_a_setting() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "catalog:\n  zzzNotASettingZzz: ^1\noverrides:\n  alsoNotASetting: 2\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
 }

@@ -12,16 +12,17 @@ use std::{
 };
 
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_network::{RetryOpts, ThrottledClient};
-use pacquet_publish::{
-    Host, PublishNetwork, PublishSummary, find_registry_info, resolve_otp_from_env,
+use pipe_trait::Pipe;
+use pnpm_config::Config;
+use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_publish::{
+    Host, PublishNetwork, PublishSummary, batch_publish_packed_pkgs, find_registry_info,
+    resolve_otp_from_env, validate_batch_publish_options,
 };
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pacquet_resolving_npm_resolver::{
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
 };
-use pipe_trait::Pipe;
 use serde_json::Value;
 
 use super::PublishArgs;
@@ -44,19 +45,12 @@ impl PublishArgs {
         config: &Config,
         stage: bool,
     ) -> miette::Result<Vec<PublishSummary>> {
-        if self.flags.batch {
-            return Err(miette::miette!(
-                help = "Publish without --batch.",
-                "Batch publishing (--batch) is not yet supported",
-            ));
-        }
-
         let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
         // `publish` is not in pnpm's root-auto-exclusion command set
         // (`run` / `exec` / `add` / `test`), so the workspace root stays in the
         // selection; its own name/version/private eligibility check drops it
         // below.
-        let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
+        let (projects, _patterns) = discover_workspace_projects(workspace_root, config)?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let graph = &selection.selected;
@@ -72,6 +66,9 @@ impl PublishArgs {
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
         let otp = resolve_otp_from_env::<Host>(self.flags.otp.clone());
         let opts = self.publish_options(config, otp, stage);
+        if self.flags.batch {
+            validate_batch_publish_options(&opts)?;
+        }
         let retry_opts = retry_opts_from_config(config);
 
         // Filter the selected graph: keep only packages that have a name and
@@ -121,6 +118,31 @@ impl PublishArgs {
             selection.prod_all.as_ref(),
             &selection.prod_only_selected,
         );
+        if self.flags.batch {
+            let mut packed = Vec::with_capacity(to_publish.len());
+            for root in chunks.iter().flatten() {
+                if to_publish.contains(root) {
+                    packed.push(self.pack_directory::<Reporter>(root, config).await?);
+                }
+            }
+            let packages = packed.iter().map(|package| package.packed_pkg()).collect::<Vec<_>>();
+            let published = batch_publish_packed_pkgs::<Reporter, _, miette::Report>(
+                &packages,
+                &opts,
+                &network,
+                |package_indexes| {
+                    for &package_index in package_indexes {
+                        self.run_post_publish_scripts::<Reporter>(&packed[package_index], config)?;
+                    }
+                    Ok(())
+                },
+            )
+            .await?;
+            if self.flags.report_summary {
+                write_publish_summary(workspace_root, &published)?;
+            }
+            return Ok(published);
+        }
         for chunk in chunks {
             for root in chunk {
                 if !to_publish.contains(&root) {
@@ -169,9 +191,12 @@ async fn is_already_published(
         .get("publishConfig")
         .and_then(|publish_config| publish_config.get("registry"))
         .and_then(Value::as_str);
-    let Ok(registry) =
-        find_registry_info(name, &config.registry, &config.registries, publish_config_registry)
-    else {
+    let Ok(registry) = find_registry_info(
+        name,
+        &config.registry,
+        &config.registries_by_scope,
+        publish_config_registry,
+    ) else {
         return false;
     };
     let outcome = fetch_full_metadata(
@@ -200,7 +225,7 @@ fn write_publish_summary(dir: &Path, published: &[PublishSummary]) -> miette::Re
     // the target sits under the repo-controlled workspace root, and a
     // non-atomic `std::fs::write` would follow a symlink planted there and
     // could leave a truncated file on a mid-write crash.
-    pacquet_fs::write_atomic(&path, json.as_bytes())
+    pnpm_fs::write_atomic(&path, json.as_bytes())
         .into_diagnostic()
         .wrap_err_with(|| format!("write {}", path.display()))
 }

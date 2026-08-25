@@ -5,10 +5,10 @@ use crate::{
     resolve_peers::{ResolvePeersOptions, discovery::PeerDiscoveryCaches, walker::Walker},
     resolved_tree::{DependenciesTreeNode, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren},
 };
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     DirectoryResolution, LockfileResolution, PkgName, PkgNameVer, TarballResolution,
 };
-use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use rustc_hash::FxHashMap as HashMap;
 use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 
@@ -17,7 +17,12 @@ pub(super) fn tree_node(
     children: BTreeMap<String, NodeId>,
     depth: i32,
 ) -> DependenciesTreeNode {
-    DependenciesTreeNode::new(pkg_id.to_string(), TreeChildren::Realized(children), depth, true)
+    DependenciesTreeNode::new(
+        Arc::from(pkg_id.to_string()),
+        TreeChildren::Realized(Arc::new(children)),
+        depth,
+        true,
+    )
 }
 
 pub(super) fn walker_for_tests(tree: &mut ResolvedTree) -> Walker<'_> {
@@ -55,7 +60,7 @@ pub(super) fn package_with_peer_dependencies(
         })
         .collect();
     ResolvedPackage {
-        id: format!("{name}@{version}"),
+        id: format!("{name}@{version}").into(),
         result: Arc::new(resolve_result(name, version)),
         peer_dependencies,
         optional: false,
@@ -65,7 +70,7 @@ pub(super) fn package_with_peer_dependencies(
 
 pub(super) fn linked_package(name: &str, id: &str, directory: &str) -> ResolvedPackage {
     ResolvedPackage {
-        id: id.to_string(),
+        id: Arc::from(id.to_string()),
         result: Arc::new(ResolveResult {
             id: PkgResolutionId::from(id.to_string()),
             name_ver: None,

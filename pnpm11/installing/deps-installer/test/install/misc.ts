@@ -177,7 +177,7 @@ test('does not inject a package map into lifecycle scripts when virtualStoreOnly
     name: 'pkg',
     version: '1.0.0',
     scripts: {
-      install: makeAssertNoPackageMapNodeOptionsScript(marker),
+      install: makeAssertNoNodeOptionsScript('package-map', '--experimental-package-map', marker),
     },
   }), 'utf8')
 
@@ -191,6 +191,36 @@ test('does not inject a package map into lifecycle scripts when virtualStoreOnly
   expect(fs.existsSync(marker)).toBeTruthy()
 })
 
+test('does not write or inject the PnP loader when virtualStoreOnly skips linking', async () => {
+  prepareEmpty()
+  fs.mkdirSync('pkg')
+  const marker = path.resolve('pnp-env-ok')
+  fs.writeFileSync('pkg/package.json', JSON.stringify({
+    name: 'pkg',
+    version: '1.0.0',
+    scripts: {
+      install: makeAssertNoNodeOptionsScript('pnp', '.pnp.cjs', marker),
+    },
+  }), 'utf8')
+
+  await addDependenciesToPackage({}, ['file:./pkg'], testDefaults({
+    allowBuilds: { 'pkg@file:pkg': true },
+    enablePnp: true,
+    virtualStoreOnly: true,
+  }))
+
+  // The dependency really reached the virtual store, so the assertions
+  // below are about a install that did the work, not one that bailed.
+  expect(fs.readdirSync(path.resolve('node_modules/.pnpm')).some((entry) => entry.startsWith('pkg@')))
+    .toBeTruthy()
+  // virtualStoreOnly links no importers, so the loader would describe a
+  // resolution the project cannot perform.
+  expect(fs.existsSync(path.resolve('.pnp.cjs'))).toBeFalsy()
+  // ...and `--require`-ing the absent loader would fail the script
+  // before it could write its marker.
+  expect(fs.existsSync(marker)).toBeTruthy()
+})
+
 test('does not write or inject a package map when modules directory creation is disabled', async () => {
   prepareEmpty()
   const marker = path.resolve('package-map-env-ok')
@@ -198,7 +228,7 @@ test('does not write or inject a package map when modules directory creation is 
     name: 'project',
     version: '1.0.0',
     scripts: {
-      install: makeAssertNoPackageMapNodeOptionsScript(marker),
+      install: makeAssertNoNodeOptionsScript('package-map', '--experimental-package-map', marker),
     },
     dependencies: {
       'is-positive': '1.0.0',
@@ -1510,7 +1540,7 @@ test('two dependencies have the same version and name. The only difference is th
   }, testDefaults({
     fastUnpack: false,
   }, {
-    registries: {
+    registriesByScope: {
       default: 'https://registry.npmjs.org/',
     },
   }))
@@ -1554,13 +1584,17 @@ test('install should not hang on circular peer dependencies', async () => {
   await addDependenciesToPackage({}, ['@medusajs/medusa-js@6.1.7'], testDefaults())
 })
 
-function makeAssertNoPackageMapNodeOptionsScript (marker: string): string {
-  const scriptPath = path.resolve('assert-no-package-map-node-options.cjs')
+/// Build a lifecycle script that fails if `NODE_OPTIONS` carries
+/// `forbidden`, and otherwise writes `marker`. The marker is what proves
+/// the script ran at all, so a clean environment cannot be confused with
+/// a script that never executed.
+function makeAssertNoNodeOptionsScript (name: string, forbidden: string, marker: string): string {
+  const scriptPath = path.resolve(`assert-no-${name}-node-options.cjs`)
   fs.writeFileSync(scriptPath, `
 const fs = require('node:fs')
 
-if ((process.env.NODE_OPTIONS || '').includes('--experimental-package-map')) {
-  throw new Error('unexpected package map NODE_OPTIONS')
+if ((process.env.NODE_OPTIONS || '').includes(${JSON.stringify(forbidden)})) {
+  throw new Error(${JSON.stringify(`unexpected ${name} NODE_OPTIONS`)})
 }
 fs.writeFileSync(process.argv[2], 'ok')
 `, 'utf8')

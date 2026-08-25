@@ -17,7 +17,7 @@ libraries = [
 # do not need to be repeated here.
 ["perfectionist::impure_macro_arguments"]
 ignore = [
-    # `pacquet_testing_utils::allow_known_failure!` binds its argument
+    # `pnpm_testing_utils::allow_known_failure!` binds its argument
     # to a `let` internally before the match, so the expression is
     # evaluated exactly once. The rule cannot peer through the macro
     # body to see that.

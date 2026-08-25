@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { confirm } from '@inquirer/prompts'
 import { linkBins } from '@pnpm/bins.linker'
-import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
+import { isExecutedByCorepack, packageManager, standaloneInstallCommand } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, parsePackageManager, shouldPersistLockfile, types as allTypes } from '@pnpm/config.reader'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
@@ -12,8 +12,8 @@ import { createResolver, policyViolationToError, type ResolutionPolicyViolation 
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import { versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
-import { inferRangeSpecStyle, MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
+import { inferRangeSpecStyle, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
+import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import { createStoreController, type CreateStoreControllerOptions, shouldFetchFullMetadata } from '@pnpm/store.connection-manager'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { isCI } from 'ci-info'
@@ -81,7 +81,9 @@ export async function handler (
   params: string[]
 ): Promise<undefined | string> {
   if (isExecutedByCorepack()) {
-    throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
+    throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'pnpm cannot update itself when it is executed by Corepack', {
+      hint: `Install pnpm with the standalone script instead: ${standaloneInstallCommand()}`,
+    })
   }
   globalInfo('Checking for updates...')
   // Resolve the engine version exactly as a regular install would.
@@ -102,7 +104,16 @@ export async function handler (
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
   })
   const pkgName = 'pnpm'
-  const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
+  // The running version is already on this machine, so hiding it behind the
+  // maturity cutoff protects nothing — it only makes a dist-tag that points
+  // at it fall back to an older release, downgrading the user (pnpm/pnpm#13883).
+  const { publishedBy, publishedByExclude } = getPublishedByPolicy({
+    ...opts,
+    minimumReleaseAgeExclude: [
+      ...opts.minimumReleaseAgeExclude ?? [],
+      `${pkgName}@${packageManager.version}`,
+    ],
+  })
   // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we
   // refuse to downgrade in that case — `latest` on the registry can lag the
   // installed version when a new major has shipped without being tagged.
@@ -206,7 +217,7 @@ export async function handler (
         if (shouldPersistLockfile({ ...opts.wantedPackageManager, fromDevEngines: true })) {
           const store = await createStoreController({ ...opts, ...bootstrapConfig })
           await resolvePackageManagerIntegrities(resolution.manifest.version, {
-            registries: bootstrapConfig.registries,
+            registriesByScope: bootstrapConfig.registriesByScope,
             rootDir: opts.rootProjectManifestDir,
             storeController: store.ctrl,
             storeDir: store.dir,
@@ -240,7 +251,7 @@ export async function handler (
 
   // Resolve integrities and write env lockfile to pnpm-lock.yaml
   const envLockfile = await resolvePackageManagerIntegrities(resolution.manifest.version, {
-    registries: bootstrapConfig.registries,
+    registriesByScope: bootstrapConfig.registriesByScope,
     rootDir: opts.pnpmHomeDir,
     storeController: store.ctrl,
     storeDir: store.dir,
@@ -357,24 +368,21 @@ function readShimTarget (shimPath: string): string | undefined {
 
 /**
  * Returns the updated version constraint for devEngines.packageManager.
- * - Exact versions and simple ranges (^, ~) are updated to the new version,
- *   preserving the range operator.
- * - Ranges that still satisfy the new version are returned unchanged
- *   (the exact version will be pinned in the lockfile instead).
- * - Complex ranges (>=x <y, etc.) that no longer satisfy the new version
- *   fall back to a caret range with the new version (`^${newVersion}`).
+ * - Exact versions and simple ranges (^, ~) are rewritten to the new version,
+ *   preserving the range operator — matching `pnpm update` and `pnpm runtime set`.
+ * - Complex ranges (>=x <y, etc.) that still satisfy the new version are left
+ *   unchanged (the exact version is pinned in the lockfile instead).
+ * - Complex ranges that no longer satisfy the new version fall back to a caret
+ *   range with the new version (`^${newVersion}`).
  */
 function updateVersionConstraint (current: string | undefined, newVersion: string): string | undefined {
   if (current == null) return newVersion
-  // Range that still satisfies the new version — leave it as-is (lockfile handles pinning)
-  if (semver.satisfies(newVersion, current, { includePrerelease: true })) return current
-  // Determine the pinning style of the current specifier
   const rangeSpecStyle = inferRangeSpecStyle(current)
-  if (rangeSpecStyle == null) {
-    // Complex range that can't be updated while preserving its structure — fall back to ^version
-    return `^${newVersion}`
+  if (rangeSpecStyle != null) {
+    return versionWithRangeSpecStyle(newVersion, rangeSpecStyle)
   }
-  return versionWithRangeSpecStyle(newVersion, rangeSpecStyle)
+  if (semver.satisfies(newVersion, current, { includePrerelease: true })) return current
+  return `^${newVersion}`
 }
 
 async function readProjectPinnedPnpmVersion (rootProjectManifestDir: string, spec: string | undefined): Promise<string | undefined> {

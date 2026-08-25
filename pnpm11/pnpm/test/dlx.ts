@@ -13,15 +13,15 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
-let registries: Record<string, string>
+let registriesByScope: Record<string, string>
 
 beforeAll(async () => {
   const { config } = await getConfig({ cliOptions: {}, packageManager: { name: '', version: '' } })
-  registries = config.registries
-  registries.default = `http://localhost:${REGISTRY_MOCK_PORT}/`
+  registriesByScope = config.registriesByScope
+  registriesByScope.default = `http://localhost:${REGISTRY_MOCK_PORT}/`
 })
 
-const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({ packages, registries })
+const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({ packages, registriesByScope })
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 const skipOnWindows = process.platform === 'win32' ? test.skip : test

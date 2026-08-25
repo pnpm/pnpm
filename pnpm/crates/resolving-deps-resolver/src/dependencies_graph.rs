@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
-use pacquet_deps_path::DepPath;
-use pacquet_resolving_resolver_base::ResolveResult;
+use pnpm_deps_path::DepPath;
+use pnpm_resolving_resolver_base::ResolveResult;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
-use crate::resolved_tree::PeerDep;
+use crate::{resolve_peers::SharedChain, resolved_tree::PeerDep};
 
 /// Post-peer-resolution graph keyed by depPath.
 ///
@@ -84,9 +84,9 @@ pub struct MissingPeer {
     /// source.
     pub raw_range: String,
     pub optional: bool,
-    /// Chain of `(name, version)` from the root importer down to the
-    /// parent that declared the peer requirement.
-    pub parents: Vec<ParentPackageRef>,
+    /// Chain from the root importer down to the parent that declared
+    /// the peer requirement.
+    pub parents: ParentChain,
 }
 
 /// One bad-peer entry, keyed by peer name in
@@ -96,11 +96,56 @@ pub struct PeerDependencyIssue {
     pub wanted_range: String,
     pub found_version: String,
     pub optional: bool,
-    pub parents: Vec<ParentPackageRef>,
+    pub parents: ParentChain,
     /// Chain that brought the bad candidate into scope — `parents`
     /// describes who requires the peer; this describes where the bad
     /// version was found.
-    pub resolved_from: Vec<ParentPackageRef>,
+    pub resolved_from: ParentChain,
+}
+
+/// Ancestor chain attached to a peer issue. Cheap to clone and to
+/// record per occurrence; the names are cloned out only when a
+/// consumer materializes the chain via [`Self::to_refs`].
+#[derive(Default, Clone)]
+pub struct ParentChain(pub(crate) SharedChain<String>);
+
+impl ParentChain {
+    /// Build a chain from names given root importer first.
+    #[must_use]
+    pub fn from_names(names: impl IntoIterator<Item = String>) -> Self {
+        let mut chain = SharedChain::default();
+        for name in names {
+            chain = chain.pushed(name);
+        }
+        ParentChain(chain)
+    }
+
+    /// Materialize the chain, root importer first. `version` is empty
+    /// today: the chain pacquet tracks is name-only — populating it
+    /// would need a parallel version chain or a re-lookup against the
+    /// tree, and the issue renderer consumes the names primarily.
+    #[must_use]
+    pub fn to_refs(&self) -> Vec<ParentPackageRef> {
+        self.0
+            .to_root_vec()
+            .into_iter()
+            .map(|name| ParentPackageRef { name, version: String::new() })
+            .collect()
+    }
+}
+
+impl PartialEq for ParentChain {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.iter().eq(other.0.iter())
+    }
+}
+
+impl Eq for ParentChain {}
+
+impl std::fmt::Debug for ParentChain {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.0.to_root_vec()).finish()
+    }
 }
 
 /// One `(name, version)` link in the chain returned with each peer

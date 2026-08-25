@@ -3,8 +3,8 @@
 //! before the lockfile is written.
 
 use crate::ConfigDepError;
-use pacquet_lockfile::{EnvLockfile, PackageKey};
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_lockfile::{EnvLockfile, PackageKey};
+use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use std::path::Path;
 
 /// Persist an env lockfile only after verifying it, so no code path can write
@@ -49,6 +49,17 @@ pub fn verify_env_lockfile(env_lockfile: &EnvLockfile) -> Result<(), ConfigDepEr
         }
     }
     Ok(())
+}
+
+/// The env lockfile is verified before it is written, but a migrated config
+/// dependency is resolved against the registry first, so its name and version
+/// are checked here, before they reach the resolver.
+pub(crate) fn assert_valid_migrated_config_dep(
+    name: &str,
+    version: &str,
+) -> Result<(), ConfigDepError> {
+    assert_valid_name(name, "The configDependencies in pnpm-workspace.yaml")?;
+    assert_valid_version(name, version)
 }
 
 fn assert_valid_name(name: &str, description: &str) -> Result<(), ConfigDepError> {

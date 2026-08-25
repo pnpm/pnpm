@@ -1,72 +1,91 @@
 use crate::Implementation;
+use std::{
+    fs::File,
+    io::{Read, Seek, SeekFrom},
+};
+
+const ELF_HEADER_SIZE: usize = 64;
+const MIN_PROGRAM_HEADER_SIZE: usize = 40;
+const MAX_PROGRAM_HEADERS_SIZE: usize = 1024 * 1024;
+const MAX_INTERPRETER_SIZE: usize = 4096;
 
 /// Detect libc implementation from the ELF interpreter
 /// (`/proc/self/exe` `PT_INTERP`).
 pub fn detect() -> Option<Implementation> {
-    let exe_path = std::fs::read_link("/proc/self/exe").ok()?;
-    let data = std::fs::read(&exe_path).ok()?;
-    let interp = elf_interpreter(&data)?;
-    classify_interpreter(interp)
+    let interpreter = read_elf_interpreter(&mut File::open("/proc/self/exe").ok()?)?;
+    classify_interpreter(&interpreter)
 }
 
-fn classify_interpreter(interp: &str) -> Option<Implementation> {
-    if interp.contains("/ld-musl-") {
+fn read_elf_interpreter(file: &mut (impl Read + Seek)) -> Option<String> {
+    let mut header = [0_u8; ELF_HEADER_SIZE];
+    file.read_exact(&mut header).ok()?;
+    let layout = elf_layout(&header)?;
+    let table_size = layout.phentsize.checked_mul(layout.phnum)?;
+    if table_size > MAX_PROGRAM_HEADERS_SIZE {
+        return None;
+    }
+    file.seek(SeekFrom::Start(layout.phoff)).ok()?;
+    let mut program_headers = vec![0_u8; table_size];
+    file.read_exact(&mut program_headers).ok()?;
+    let (offset, size) = interpreter_location(&program_headers, layout.phentsize)?;
+    if size > MAX_INTERPRETER_SIZE {
+        return None;
+    }
+    file.seek(SeekFrom::Start(offset)).ok()?;
+    let mut interpreter = vec![0_u8; size];
+    file.read_exact(&mut interpreter).ok()?;
+    decode_interpreter(&interpreter).map(str::to_string)
+}
+
+fn classify_interpreter(interpreter: &str) -> Option<Implementation> {
+    if interpreter.contains("/ld-musl-") {
         return Some(Implementation::Musl);
     }
-    if interp.contains("/ld-linux-") {
+    if interpreter.contains("/ld-linux-") {
         return Some(Implementation::Glibc);
     }
     None
 }
 
-fn elf_interpreter(elf: &[u8]) -> Option<&str> {
-    if elf.len() < 64 {
-        return None;
-    }
-    if elf[0..4] != [0x7f, b'E', b'L', b'F'] {
-        return None;
-    }
-    if elf[4] != 2 {
-        return None;
-    }
-    if elf[5] != 1 {
-        return None;
-    }
+struct ElfLayout {
+    phoff: u64,
+    phentsize: usize,
+    phnum: usize,
+}
 
-    let phoff = u64::from_le_bytes(elf[32..40].try_into().ok()?);
-    let phentsize = u16::from_le_bytes(elf[54..56].try_into().ok()?);
-    let phnum = u16::from_le_bytes(elf[56..58].try_into().ok()?);
+fn elf_layout(header: &[u8]) -> Option<ElfLayout> {
+    if header.len() < ELF_HEADER_SIZE
+        || header[0..4] != [0x7f, b'E', b'L', b'F']
+        || header[4] != 2
+        || header[5] != 1
+    {
+        return None;
+    }
+    let phoff = u64::from_le_bytes(header[32..40].try_into().ok()?);
+    let phentsize = usize::from(u16::from_le_bytes(header[54..56].try_into().ok()?));
+    let phnum = usize::from(u16::from_le_bytes(header[56..58].try_into().ok()?));
+    if phnum == 0 || phentsize < MIN_PROGRAM_HEADER_SIZE {
+        return None;
+    }
+    Some(ElfLayout { phoff, phentsize, phnum })
+}
 
-    let phoff: usize = phoff.try_into().ok()?;
-    let phentsize = usize::from(phentsize);
-    let phnum = usize::from(phnum);
-
-    for i in 0..phnum {
-        let phdr_start = phoff.checked_add(i.checked_mul(phentsize)?)?;
-        if phdr_start.checked_add(40).is_none_or(|end| end > elf.len()) {
-            break;
-        }
-        let p_type = u32::from_le_bytes(elf[phdr_start..phdr_start + 4].try_into().ok()?);
+fn interpreter_location(program_headers: &[u8], phentsize: usize) -> Option<(u64, usize)> {
+    for program_header in program_headers.chunks_exact(phentsize) {
+        let p_type = u32::from_le_bytes(program_header[0..4].try_into().ok()?);
         if p_type == 3 {
-            let p_offset =
-                u64::from_le_bytes(elf[phdr_start + 8..phdr_start + 16].try_into().ok()?);
-            let p_filesz =
-                u64::from_le_bytes(elf[phdr_start + 32..phdr_start + 40].try_into().ok()?);
-            let start: usize = p_offset.try_into().ok()?;
-            let p_filesz: usize = p_filesz.try_into().ok()?;
-            let end = start.checked_add(p_filesz)?;
-            if end <= elf.len() {
-                let interp = core::str::from_utf8(&elf[start..end]).ok()?;
-                let trimmed = interp.trim_end_matches('\0');
-                if !trimmed.is_empty() {
-                    return Some(trimmed);
-                }
-            }
-            break;
+            let offset = u64::from_le_bytes(program_header[8..16].try_into().ok()?);
+            let size =
+                u64::from_le_bytes(program_header[32..40].try_into().ok()?).try_into().ok()?;
+            return Some((offset, size));
         }
     }
-
     None
+}
+
+fn decode_interpreter(bytes: &[u8]) -> Option<&str> {
+    let interpreter = core::str::from_utf8(bytes).ok()?.trim_end_matches('\0');
+    (!interpreter.is_empty()).then_some(interpreter)
 }
 
 #[cfg(test)]

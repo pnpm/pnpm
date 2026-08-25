@@ -3,9 +3,15 @@ import type {
   FetchFromRegistry,
 } from '@pnpm/fetching.types'
 
-import { fetchVerifiedNodeShasums } from './verifyNodeShasums.js'
+import { readCachedBytes, readCachedShasums, RUNTIME_SHASUMS_DIR, writeCachedShasums } from './diskCache.js'
+import {
+  type ArmoredKey,
+  fetchVerifiedNodeShasums,
+  fetchVerifiedNodeShasumsWithSignature,
+  nodeShasumsSignatureVerifies,
+} from './verifyNodeShasums.js'
 
-export { fetchVerifiedNodeShasums }
+export { fetchVerifiedNodeShasums, RUNTIME_SHASUMS_DIR }
 
 export interface ShasumsFileItem {
   integrity: string
@@ -30,6 +36,69 @@ export async function fetchVerifiedNodeShasumsFile (
   shasumsUrl: string
 ): Promise<ShasumsFileItem[]> {
   return parseShasumsFile(await fetchVerifiedNodeShasums(fetch, shasumsUrl))
+}
+
+export interface FetchShasumsFileCachedOpts {
+  cacheDir?: string
+}
+
+export interface FetchVerifiedNodeShasumsFileCachedOpts extends FetchShasumsFileCachedOpts {
+  trustedKeys?: readonly ArmoredKey[]
+}
+
+/**
+ * Like {@link fetchVerifiedNodeShasumsFile}, backed by the disk cache when
+ * `opts.cacheDir` is given. The cache stores the body together with its
+ * detached signature, and a cache hit re-verifies that signature against the
+ * embedded release keys: the cache directory is project-configurable, so a
+ * pre-seeded entry must prove it is a genuine release body before it is
+ * served. Any verification failure is a miss and the pair is refetched.
+ * `shasumsUrl` must be version-pinned — a mutable URL must never be handed to
+ * the cache.
+ */
+export async function fetchVerifiedNodeShasumsFileCached (
+  fetch: FetchFromRegistry,
+  shasumsUrl: string,
+  opts?: FetchVerifiedNodeShasumsFileCachedOpts
+): Promise<ShasumsFileItem[]> {
+  const cacheOpts = { cacheDir: opts?.cacheDir, trust: 'verified' as const }
+  const signatureUrl = `${shasumsUrl}.sig`
+  const [cachedBody, cachedSignature] = await Promise.all([
+    readCachedShasums(shasumsUrl, cacheOpts),
+    readCachedBytes(signatureUrl, cacheOpts),
+  ])
+  if (
+    cachedBody != null && cachedSignature != null &&
+    await nodeShasumsSignatureVerifies(Buffer.from(cachedBody, 'utf8'), cachedSignature, opts?.trustedKeys)
+  ) {
+    return parseShasumsFile(cachedBody)
+  }
+  const { body, signature } = await fetchVerifiedNodeShasumsWithSignature(fetch, shasumsUrl, opts?.trustedKeys)
+  await Promise.all([
+    writeCachedShasums(shasumsUrl, body, cacheOpts),
+    writeCachedShasums(signatureUrl, signature, cacheOpts),
+  ])
+  return parseShasumsFile(body)
+}
+
+/**
+ * Like {@link fetchShasumsFile}, backed by the disk cache when `opts.cacheDir`
+ * is given. For mirrors whose SHASUMS files carry no verifiable signature the
+ * cached body is trusted exactly as far as the TLS fetch that produced it.
+ * `shasumsUrl` must be version-pinned — a mutable URL must never be handed to
+ * the cache.
+ */
+export async function fetchShasumsFileCached (
+  fetch: FetchFromRegistry,
+  shasumsUrl: string,
+  opts?: FetchShasumsFileCachedOpts
+): Promise<ShasumsFileItem[]> {
+  const cacheOpts = { cacheDir: opts?.cacheDir, trust: 'unverified' as const }
+  const cached = await readCachedShasums(shasumsUrl, cacheOpts)
+  if (cached != null) return parseShasumsFile(cached)
+  const body = await fetchShasumsFileRaw(fetch, shasumsUrl)
+  await writeCachedShasums(shasumsUrl, body, cacheOpts)
+  return parseShasumsFile(body)
 }
 
 export function parseShasumsFile (shasumsFileContent: string): ShasumsFileItem[] {

@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-detect-libc"
+name                  = "pnpm-detect-libc"
 version               = "0.0.1"
 license               = "Apache-2.0"
 publish               = false

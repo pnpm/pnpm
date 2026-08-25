@@ -1,6 +1,6 @@
 //! pnpm-identical visual reporter for pacquet.
 //!
-//! [`DefaultReporter`] is a [`pacquet_reporter::Reporter`] sink that renders
+//! [`DefaultReporter`] is a [`pnpm_reporter::Reporter`] sink that renders
 //! the same terminal output `@pnpm/cli.default-reporter` produces for
 //! `install` / `add` / `update` / `remove`: a live progress line, a
 //! packages-diff summary, lifecycle script output, and a `Done in ...` footer.
@@ -15,7 +15,7 @@
 //! zooming) and [`set_package_version`] (rendered in the `Done in ...` line).
 
 pub mod colors;
-mod diff;
+pub mod diff;
 pub mod format;
 pub mod state;
 
@@ -25,7 +25,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use pacquet_reporter::{FetchingProgressMessage, LogEvent, PromptAction, Reporter};
+use pnpm_config::ColorMode;
+use pnpm_reporter::{FetchingProgressMessage, LogEvent, PromptAction, Reporter};
 
 use crate::{
     colors::Colors,
@@ -33,12 +34,31 @@ use crate::{
 };
 
 static CWD: OnceLock<String> = OnceLock::new();
+static USE_STDERR: OnceLock<bool> = OnceLock::new();
 static PACKAGE_VERSION: OnceLock<String> = OnceLock::new();
 static FORCE_APPEND_ONLY: OnceLock<bool> = OnceLock::new();
 static SUMMARY_SCOPE: OnceLock<SummaryScope> = OnceLock::new();
 static REPORTS_SCOPE: OnceLock<bool> = OnceLock::new();
 static HIDE_ADDED_PKGS_PROGRESS: OnceLock<bool> = OnceLock::new();
+static STREAM_LIFECYCLE_OUTPUT: OnceLock<bool> = OnceLock::new();
+static AGGREGATE_OUTPUT: OnceLock<bool> = OnceLock::new();
+static HIDE_LIFECYCLE_PREFIX: OnceLock<bool> = OnceLock::new();
 static IS_RECURSIVE: OnceLock<bool> = OnceLock::new();
+static MAX_LOG_LEVEL: OnceLock<MaxLogLevel> = OnceLock::new();
+static COLOR_MODE: OnceLock<ColorMode> = OnceLock::new();
+
+/// Verbosity ceiling for the rendered output, from pnpm's `--loglevel`
+/// setting. Mirrors `LOG_LEVEL_NUMBER` in `@pnpm/cli.default-reporter`
+/// (`error` = 0 ... `debug` = 3): a stream renders when its own tier is at
+/// or below the ceiling, so the derived order makes `Error` the quietest
+/// and `Debug` the loudest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum MaxLogLevel {
+    Error,
+    Warn,
+    Info,
+    Debug,
+}
 
 /// Which prefixes contribute to the packages-diff summary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,6 +91,19 @@ pub fn force_append_only() {
     let _ = FORCE_APPEND_ONLY.set(true);
 }
 
+/// Route all reporter output (warnings, progress, the summary) to stderr
+/// instead of stdout — pnpm's `useStderr`, set for the commands in its
+/// `COMMANDS_WITH_STDERR_REPORTER` whose stdout is a machine-readable
+/// value. TTY detection and terminal width follow the selected stream.
+/// Call once before the first event.
+pub fn use_stderr() {
+    let _ = USE_STDERR.set(true);
+}
+
+fn is_stderr_output() -> bool {
+    USE_STDERR.get().copied().unwrap_or(false)
+}
+
 /// Configure which prefixes contribute to the packages-diff summary.
 pub fn set_summary_scope(scope: SummaryScope) {
     let _ = SUMMARY_SCOPE.set(scope);
@@ -91,6 +124,26 @@ pub fn set_hide_added_pkgs_progress(hide_added_pkgs_progress: bool) {
     let _ = HIDE_ADDED_PKGS_PROGRESS.set(hide_added_pkgs_progress);
 }
 
+/// Stream lifecycle script output line by line instead of collecting it
+/// into a collapsible block — pnpm's `--stream`. Call once before the
+/// first event.
+pub fn stream_lifecycle_output() {
+    let _ = STREAM_LIFECYCLE_OUTPUT.set(true);
+}
+
+/// Hold each script's streamed output until it exits, then print the run
+/// as one block — pnpm's `--aggregate-output`. Call once before the first
+/// event.
+pub fn aggregate_output() {
+    let _ = AGGREGATE_OUTPUT.set(true);
+}
+
+/// Drop the project prefix from streamed script output lines — pnpm's
+/// `--reporter-hide-prefix`. Call once before the first event.
+pub fn hide_lifecycle_prefix() {
+    let _ = HIDE_LIFECYCLE_PREFIX.set(true);
+}
+
 /// Configure whether the running command operates recursively.
 ///
 /// This must be called before the reporter is initialized. Only the first
@@ -99,13 +152,34 @@ pub fn set_is_recursive(is_recursive: bool) {
     let _ = IS_RECURSIVE.set(is_recursive);
 }
 
+/// Configure the verbosity ceiling, backing pnpm's `--loglevel` option.
+/// Call once before the first event; ignored if already set. Defaults to
+/// [`MaxLogLevel::Info`], pnpm's fallback when no `loglevel` is given.
+pub fn set_max_log_level(level: MaxLogLevel) {
+    let _ = MAX_LOG_LEVEL.set(level);
+}
+
+/// Configure ANSI color rendering. Call before the first reporter event.
+pub fn set_color_mode(mode: ColorMode) {
+    let _ = COLOR_MODE.set(mode);
+}
+
+pub fn colors_enabled(is_terminal: bool) -> bool {
+    match COLOR_MODE.get().copied().unwrap_or_default() {
+        ColorMode::Always => true,
+        ColorMode::Auto => is_terminal && std::env::var_os("NO_COLOR").is_none(),
+        ColorMode::Never => false,
+    }
+}
+
 fn cwd() -> String {
     CWD.get().cloned().unwrap_or_else(|| {
         std::env::current_dir().map(|path| path.to_string_lossy().into_owned()).unwrap_or_default()
     })
 }
 
-/// `--reporter=default`: renders pnpm-style visual output to stdout.
+/// `--reporter=default`: renders pnpm-style visual output to stdout, or to
+/// stderr when [`use_stderr`] was configured.
 pub struct DefaultReporter;
 
 impl Reporter for DefaultReporter {
@@ -151,12 +225,16 @@ struct Sink {
 
 impl Sink {
     fn new() -> Self {
-        let is_tty = std::io::stdout().is_terminal();
+        let is_tty = if is_stderr_output() {
+            std::io::stderr().is_terminal()
+        } else {
+            std::io::stdout().is_terminal()
+        };
         let append_only = !is_tty || FORCE_APPEND_ONLY.get().copied().unwrap_or(false);
         let columns = if is_tty { terminal_columns().unwrap_or(80) } else { 80 };
         // pnpm's `outputMaxWidth`: `columns - 2` on a TTY, else 80.
         let width = if is_tty { columns.saturating_sub(2) } else { 80 };
-        let colors = Colors { enabled: is_tty && std::env::var_os("NO_COLOR").is_none() };
+        let colors = Colors { enabled: colors_enabled(is_tty) };
         let state = ReporterState::new_with_options(
             cwd(),
             width,
@@ -167,6 +245,10 @@ impl Sink {
                 reports_scope: REPORTS_SCOPE.get().copied().unwrap_or(false),
                 hide_added_pkgs_progress: HIDE_ADDED_PKGS_PROGRESS.get().copied().unwrap_or(false),
                 is_recursive: IS_RECURSIVE.get().copied().unwrap_or(false),
+                max_log_level: MAX_LOG_LEVEL.get().copied().unwrap_or(MaxLogLevel::Info),
+                stream_lifecycle_output: STREAM_LIFECYCLE_OUTPUT.get().copied().unwrap_or(false),
+                aggregate_output: AGGREGATE_OUTPUT.get().copied().unwrap_or(false),
+                hide_lifecycle_prefix: HIDE_LIFECYCLE_PREFIX.get().copied().unwrap_or(false),
                 ..state::ReporterOptions::default()
             },
         );
@@ -186,8 +268,13 @@ impl Sink {
     }
 
     fn on_prompt(&mut self, action: PromptAction) {
-        let mut out = std::io::stdout().lock();
-        self.on_prompt_to(action, &mut out);
+        if is_stderr_output() {
+            let mut out = std::io::stderr().lock();
+            self.on_prompt_to(action, &mut out);
+        } else {
+            let mut out = std::io::stdout().lock();
+            self.on_prompt_to(action, &mut out);
+        }
     }
 
     fn on_prompt_to(&mut self, action: PromptAction, out: &mut impl Write) {
@@ -217,8 +304,13 @@ impl Sink {
     }
 
     fn write(&mut self, output: Output, coalesceable: bool) {
-        let mut out = std::io::stdout().lock();
-        self.write_to(output, coalesceable, &mut out);
+        if is_stderr_output() {
+            let mut out = std::io::stderr().lock();
+            self.write_to(output, coalesceable, &mut out);
+        } else {
+            let mut out = std::io::stdout().lock();
+            self.write_to(output, coalesceable, &mut out);
+        }
     }
 
     fn write_to(&mut self, output: Output, coalesceable: bool, out: &mut impl Write) {
@@ -279,11 +371,12 @@ impl Sink {
 
 #[cfg(unix)]
 fn terminal_columns() -> Option<usize> {
+    let fd = if is_stderr_output() { libc::STDERR_FILENO } else { libc::STDOUT_FILENO };
     // SAFETY: `winsize` is plain-old-data; `ioctl` only writes into it and we
     // check the return code before reading.
     unsafe {
         let mut ws: libc::winsize = std::mem::zeroed();
-        (libc::ioctl(libc::STDOUT_FILENO, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0)
+        (libc::ioctl(fd, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0)
             .then_some(ws.ws_col as usize)
     }
 }

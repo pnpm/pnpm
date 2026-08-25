@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-git-fetcher"
+name                  = "pnpm-git-fetcher"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,24 +11,28 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-diagnostics      = { workspace = true }
-pacquet-executor         = { workspace = true }
-pacquet-fs               = { workspace = true }
-pacquet-fs-packlist      = { workspace = true }
-pacquet-package-manifest = { workspace = true }
-pacquet-reporter         = { workspace = true }
-pacquet-store-dir        = { workspace = true }
+pnpm-cmd-shim         = { workspace = true }
+pnpm-diagnostics      = { workspace = true }
+pnpm-executor         = { workspace = true }
+pnpm-fs               = { workspace = true }
+pnpm-fs-packlist      = { workspace = true }
+pnpm-network          = { workspace = true }
+pnpm-package-manifest = { workspace = true }
+pnpm-reporter         = { workspace = true }
+pnpm-store-dir        = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }
+node-semver = { workspace = true }
 pipe-trait  = { workspace = true }
 serde_json  = { workspace = true }
 tempfile    = { workspace = true }
 tokio       = { workspace = true }
 tracing     = { workspace = true }
+which       = { workspace = true }
 
 [dev-dependencies]
-pacquet-testing-utils = { workspace = true }
+pnpm-testing-utils = { workspace = true }
 
 pretty_assertions = { workspace = true }
 

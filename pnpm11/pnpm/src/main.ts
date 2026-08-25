@@ -18,16 +18,17 @@ import { globalWarn, logger } from '@pnpm/logger'
 import { type EngineDependency, isRuntimeAlias, type RuntimeName } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
-import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsFromDir, type WorkspaceFilter } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
 import loudRejection from 'loud-rejection'
 import { isEmpty } from 'ramda'
 import semver from 'semver'
 
 import { checkForUpdates } from './checkForUpdates.js'
+import { checkSudo } from './checkSudo.js'
 import { NOT_IMPLEMENTED_COMMAND_SET, overridableByScriptCommands, pnpmCmds, recursiveByDefaultCommands, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
-import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
+import { getConfig, installConfigDepsAndLoadHooks, isSingleSettingRead } from './getConfig.js'
 import type { ParsedCliArgsWithBuiltIn } from './parseCliArgs.js'
 import { parseCliArgs } from './parseCliArgs.js'
 import { initReporter, type ReporterType } from './reporter/index.js'
@@ -41,7 +42,7 @@ export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 // path` is meant to be captured with `STORE=$(pnpm store path)` and `pnpm config
 // list --json` to be piped into `jq`; a warning mixed into stdout would corrupt
 // both.
-const COMMANDS_WITH_STDERR_REPORTER = new Set(['dlx', 'create', 'config', 'set', 'get', 'sbom', 'with', 'store', 'prefix'])
+const COMMANDS_WITH_STDERR_REPORTER = new Set(['dlx', 'create', 'config', 'set', 'get', 'sbom', 'with', 'store', 'prefix', 'root', 'bin'])
 
 loudRejection()
 
@@ -112,6 +113,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       workspaceDir,
       onlyInheritDlxSettingsFromLocal: isDlxOrCreateCommand,
       forSelfUpdate: cmd === 'self-update',
+      printWarnings: !isSingleSettingRead(cmd, cliParams),
     }) as { config: typeof config, context: ConfigContext })
     if (cmd !== 'setup' && !shouldSkipPmHandling(cmd, cliParams)) {
       if (context.wantedPackageManager != null) {
@@ -214,6 +216,8 @@ export async function main (inputArgv: string[]): Promise<void> {
     global[REPORTER_INITIALIZED] = reporterType
   }
 
+  checkSudo({ cmd, cliParams, global: cliOptions.global, location: cliOptions.location, printLogs })
+
   // Commands with scriptOverride: if the current project's package.json has a
   // script with the same name, run the script instead of the built-in command.
   const typedCommandName = argv.remain[0]
@@ -265,13 +269,19 @@ export async function main (inputArgv: string[]): Promise<void> {
     config.filter = config.filter ?? []
     config.filterProd = config.filterProd ?? []
 
-    const filters = [
+    const filters: WorkspaceFilter[] = [
       ...config.filter.map((filter) => ({ filter, followProdDepsOnly: false })),
       ...config.filterProd.map((filter) => ({ filter, followProdDepsOnly: true })),
     ]
     const relativeWSDirPath = () => path.relative(process.cwd(), wsDir) || '.'
+    // Both of the selectors below are pnpm's own; the user did not write
+    // them. Each has to mean "the project whose directory is the workspace
+    // root", which only glob matching says. Left to follow the pass,
+    // `legacyDirFiltering`'s subtree matching would read them as "every
+    // project below the root" — including the root's descendants instead
+    // of the root, and excluding them instead of it.
     if (config.workspaceRoot) {
-      filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
+      filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length), useGlobDirFiltering: true })
     } else if (
       !filters.some(({ filter }) => !filter.startsWith('!')) &&
       workspaceDir &&
@@ -280,7 +290,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       !config.includeWorkspaceRoot &&
       (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')
     ) {
-      filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
+      filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length), useGlobDirFiltering: true })
     }
 
     const filterResults = await filterProjectsFromDir(wsDir, filters, {

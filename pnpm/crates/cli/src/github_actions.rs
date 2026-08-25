@@ -1,12 +1,12 @@
 use futures_util::{StreamExt, stream};
 use node_semver::{Range as SemverRange, Version};
-use pacquet_config::{
+use pnpm_config::{
     Config,
     matcher::{Matcher, create_matcher},
 };
-use pacquet_network::redact_and_sanitize;
-use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use pacquet_resolving_git_resolver::{GitCommandRunner, RealGitRunner, get_repo_refs};
+use pnpm_network::redact_and_sanitize;
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_resolving_git_resolver::{GitCommandRunner, RealGitRunner, get_repo_refs};
 use std::{
     cmp::Reverse,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
@@ -161,7 +161,7 @@ async fn update_with_runner<Reporter: self::Reporter, Runner: GitCommandRunner +
         for (range, new) in replacements {
             text.replace_range(range, &new);
         }
-        tokio::task::spawn_blocking(move || pacquet_fs::write_atomic(&file, text.as_bytes()))
+        tokio::task::spawn_blocking(move || pnpm_fs::write_atomic(&file, text.as_bytes()))
             .await
             .map_err(|error| miette::miette!("Failed to write {file_display}: {error}"))?
             .map_err(|error| miette::miette!("Failed to write {file_display}: {error}"))?;
@@ -384,7 +384,10 @@ struct UsesValue<'a> {
 }
 
 fn uses_values(text: &str) -> Result<Vec<UsesValue<'_>>, QueryError> {
-    let value = yaml_serde::from_str::<Value>(text).map_err(|_| QueryError::InvalidInput)?;
+    let value = yaml_serde::from_str::<Value>(text).map_err(|err| {
+        let (line, column) = err.location().map_or((0, 0), |loc| (loc.line(), loc.column()));
+        QueryError::InvalidInput(line, column)
+    })?;
     let document = Document::new(text)?;
     let mut values = Vec::new();
     for route in uses_routes(&value) {

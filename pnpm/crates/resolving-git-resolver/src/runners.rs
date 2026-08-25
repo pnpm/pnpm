@@ -5,70 +5,69 @@
 //! pair (real network + real `git` binary) or supply their own
 //! ports of the traits in tests.
 
-use std::{
-    future::Future,
-    path::PathBuf,
-    pin::Pin,
-    process::{Command, Stdio},
-    sync::Arc,
-};
+use std::{future::Future, path::PathBuf, pin::Pin, process::Command, sync::Arc, time::Duration};
 
-use pacquet_network::ThrottledClient;
+use pnpm_network::ThrottledClient;
 
 use crate::{
-    parse_bare_specifier::{GitProbe, ProbeFuture},
+    git_resolver::{GitProbe, ProbeFuture},
     resolve_ref::{GitCommandRunner, GitRunError},
 };
 
-/// Production [`GitProbe`].
-///
-/// `https_head_ok` issues an HTTP HEAD via the install-wide
+/// Production [`GitProbe`]: issues the HEAD via the install-wide
 /// [`ThrottledClient`] (so concurrency-throttling, proxy, TLS, and
-/// per-registry config all apply). `ls_remote_exit_code` shells out
-/// to the system `git` binary.
-///
-/// `git_bin` overrides the binary path; production callers leave it
-/// `None` and the runner resolves `git` through `PATH`.
+/// per-registry config all apply).
 pub struct RealGitProbe {
     pub http_client: Arc<ThrottledClient>,
-    pub git_bin: Option<PathBuf>,
+    /// Per-attempt deadline, overriding the client's much larger
+    /// `fetchTimeout`. The probe only gates an optimization — failure
+    /// falls back to a `type: git` resolution that always works — so
+    /// an archive endpoint a firewall blackholes (reachable
+    /// `github.com`, blocked `codeload.github.com`) must cost seconds,
+    /// not attempts × `fetchTimeout`.
+    pub head_timeout: Duration,
 }
 
 impl RealGitProbe {
     #[must_use]
     pub fn new(http_client: Arc<ThrottledClient>) -> Self {
-        Self { http_client, git_bin: None }
+        Self { http_client, head_timeout: Duration::from_secs(10) }
     }
 }
 
 impl GitProbe for RealGitProbe {
-    fn https_head_ok<'a>(&'a self, url: &'a str) -> ProbeFuture<'a> {
+    fn anonymous_head_ok<'a>(&'a self, url: &'a str) -> ProbeFuture<'a> {
         Box::pin(async move {
-            // Match upstream's `replace(/\.git$/, '')` strip before
-            // issuing HEAD — host endpoints serve the human page on
-            // the path without `.git`, but reject HEAD on the `.git`
-            // alias on some configurations.
-            let stripped: &str = url.strip_suffix(".git").unwrap_or(url);
-            let guard = self.http_client.acquire().await;
-            let response = guard.head(stripped).send().await;
-            match response {
-                Ok(resp) => resp.status().is_success(),
-                Err(_) => false,
+            let mut delay = Duration::from_millis(500);
+            for attempt in 0..3 {
+                // Scoped so the throttle permit is released before any
+                // backoff sleep.
+                let status = {
+                    let guard = self.http_client.acquire_for_url(url).await;
+                    guard
+                        .head(url)
+                        .timeout(self.head_timeout)
+                        .send()
+                        .await
+                        .map(|response| response.status())
+                        .ok()
+                };
+                if let Some(status) = status {
+                    if status.is_success() {
+                        return true;
+                    }
+                    let transient = status.is_server_error()
+                        || matches!(status.as_u16(), 408 | 409 | 420 | 429);
+                    if !transient {
+                        return false;
+                    }
+                }
+                if attempt < 2 {
+                    tokio::time::sleep(delay).await;
+                    delay *= 2;
+                }
             }
-        })
-    }
-
-    fn ls_remote_exit_code<'a>(&'a self, repo: &'a str) -> ProbeFuture<'a> {
-        Box::pin(async move {
-            let bin = self.git_bin.as_deref().map(std::path::Path::to_path_buf);
-            let repo_owned = repo.to_string();
-            tokio::task::spawn_blocking(move || {
-                let mut cmd = ls_remote_command(bin.as_ref(), &repo_owned, LsRemoteMode::Probe);
-                cmd.stdout(Stdio::null()).stderr(Stdio::null()).stdin(Stdio::null());
-                cmd.status().is_ok_and(|s| s.success())
-            })
-            .await
-            .unwrap_or(false)
+            false
         })
     }
 }
@@ -126,7 +125,7 @@ fn run_ls_remote_blocking(
     let attempts = 2; // matches upstream `graceful-git` retries: 1
     let mut last_err: Option<String> = None;
     for _ in 0..attempts {
-        let mut cmd = ls_remote_command(bin, repo, LsRemoteMode::Resolve(ref_.map(String::as_str)));
+        let mut cmd = ls_remote_command(bin, repo, ref_.map(String::as_str));
         let output = cmd.output();
         match output {
             Ok(out) if out.status.success() => {
@@ -136,7 +135,7 @@ fn run_ls_remote_blocking(
                 last_err = Some(String::from_utf8_lossy(&out.stderr).into_owned());
             }
             Err(err) => {
-                last_err = Some(err.to_string());
+                last_err = Some(spawn_failure(&err));
             }
         }
     }
@@ -145,31 +144,25 @@ fn run_ls_remote_blocking(
     })
 }
 
-#[derive(Clone, Copy)]
-enum LsRemoteMode<'a> {
-    Probe,
-    Resolve(Option<&'a str>),
+/// pnpm does not bundle git, so a missing binary is a setup problem rather
+/// than a transport one and is worth saying outright.
+fn spawn_failure(err: &std::io::Error) -> String {
+    if err.kind() == std::io::ErrorKind::NotFound {
+        return "`git` executable not found on PATH. Install git to resolve git-hosted packages."
+            .to_string();
+    }
+    err.to_string()
 }
 
-fn ls_remote_command(bin: Option<&PathBuf>, repo: &str, mode: LsRemoteMode<'_>) -> Command {
+fn ls_remote_command(bin: Option<&PathBuf>, repo: &str, ref_: Option<&str>) -> Command {
     let mut cmd = match bin {
         Some(bin) => Command::new(bin),
         None => Command::new("git"),
     };
     cmd.env("GIT_TERMINAL_PROMPT", "0");
-    cmd.arg("ls-remote");
-    if matches!(mode, LsRemoteMode::Probe) {
-        cmd.arg("--exit-code");
-    }
-    cmd.arg("--").arg(repo);
-    match mode {
-        LsRemoteMode::Probe => {
-            cmd.arg("HEAD");
-        }
-        LsRemoteMode::Resolve(Some(ref_)) => {
-            cmd.arg(ref_).arg(format!("{ref_}^{{}}"));
-        }
-        LsRemoteMode::Resolve(None) => {}
+    cmd.arg("ls-remote").arg("--").arg(repo);
+    if let Some(ref_) = ref_ {
+        cmd.arg(ref_).arg(format!("{ref_}^{{}}"));
     }
     cmd
 }

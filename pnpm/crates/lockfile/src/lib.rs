@@ -1,10 +1,13 @@
 mod catalog_snapshots;
 mod comver;
 mod env_lockfile;
+mod filter_by_importers;
 mod freshness;
+mod git_branch_lockfile;
 mod lazy_lockfile;
 mod load_lockfile;
 mod lockfile_version;
+mod merge_lockfile_changes;
 mod package_metadata;
 mod pkg_id_with_patch_hash;
 mod pkg_name;
@@ -13,6 +16,8 @@ mod pkg_name_ver;
 mod pkg_name_ver_peer;
 mod pkg_ver_peer;
 mod project_snapshot;
+mod prune_time;
+mod prune_undeclared_importer_deps;
 mod resolution;
 mod resolved_dependency;
 mod save_lockfile;
@@ -25,10 +30,12 @@ mod yaml_emit;
 pub use catalog_snapshots::*;
 pub use comver::*;
 pub use env_lockfile::*;
+pub use filter_by_importers::*;
 pub use freshness::*;
 pub use lazy_lockfile::*;
 pub use load_lockfile::*;
 pub use lockfile_version::*;
+pub use merge_lockfile_changes::*;
 pub use package_metadata::*;
 pub use pkg_id_with_patch_hash::*;
 pub use pkg_name::*;
@@ -37,6 +44,8 @@ pub use pkg_name_ver::*;
 pub use pkg_name_ver_peer::*;
 pub use pkg_ver_peer::*;
 pub use project_snapshot::*;
+pub use prune_time::*;
+pub use prune_undeclared_importer_deps::*;
 pub use resolution::*;
 pub use resolved_dependency::*;
 pub use save_lockfile::*;
@@ -85,6 +94,10 @@ pub struct LockfileSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub peers_suffix_max_length: Option<u64>,
 }
+
+/// Top-level lockfile keys pnpm itself does not define, in the order they
+/// were read. See [`Lockfile::extra`].
+pub type LockfileExtra = IndexMap<String, serde_json::Value>;
 
 /// A pnpm lockfile using a supported wire format.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -174,6 +187,30 @@ pub struct Lockfile {
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
     pub snapshots: Option<HashMap<PackageKey, SnapshotEntry>>,
+
+    /// `time:` — the publish date of every direct dependency, recorded
+    /// by a `resolutionMode: time-based` install. It is the fallback
+    /// source of a package's publish date when the registry's
+    /// abbreviated metadata carries none, so the cutoff a later
+    /// time-based resolution derives stays the one this lockfile was
+    /// written under. Sorted by key and pruned to the importers' direct
+    /// dependencies on save (see [`crate::prune_time()`]), so it does not
+    /// grow an entry per transitive package.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time: Option<BTreeMap<String, String>>,
+
+    /// Top-level keys pnpm itself does not define, kept so a load/save
+    /// round trip does not delete them.
+    ///
+    /// Tools that drive pnpm programmatically record their own state
+    /// alongside the lockfile — Bit writes a `bit:` block listing the
+    /// dependencies whose build scripts it has approved — and a lockfile
+    /// rewrite that silently dropped it would lose that state on every
+    /// install. Serialized last, after every key pnpm defines, which is
+    /// where such a block already sits in the files pnpm's own consumers
+    /// have written.
+    #[serde(default, flatten, skip_serializing_if = "LockfileExtra::is_empty")]
+    pub extra: LockfileExtra,
 }
 
 impl Lockfile {
@@ -262,9 +299,12 @@ impl Lockfile {
 }
 
 /// Whether `path` ends in a tarball extension (`.tgz`, `.tar.gz`, or
-/// `.tar`, case-insensitively), so the directory-vs-tarball boundary
-/// applied here matches the resolver's at resolve time.
-fn is_local_tarball_path(path: &str) -> bool {
+/// `.tar`, case-insensitively) — the directory-vs-tarball boundary the
+/// resolver applies to a `file:` spec at resolve time. Public so
+/// consumers classifying a `file:` snapshot key (such as the hoister's
+/// identity function) draw the same line.
+#[must_use]
+pub fn is_local_tarball_path(path: &str) -> bool {
     let lower = path.as_bytes();
     let ends_with_ci = |suffix: &str| {
         let bytes = suffix.as_bytes();

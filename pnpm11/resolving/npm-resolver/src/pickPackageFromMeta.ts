@@ -3,7 +3,11 @@ import util from 'node:util'
 import { PnpmError } from '@pnpm/error'
 import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
-import type { VersionSelectors } from '@pnpm/resolving.resolver-base'
+import {
+  EXISTING_VERSION_SELECTOR_WEIGHT,
+  type VersionSelectors,
+  type VersionSelectorType,
+} from '@pnpm/resolving.resolver-base'
 import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 
@@ -35,27 +39,20 @@ export function pickPackageFromMeta (
   spec: RegistryPackageSpec
 ): PackageInRegistry | null {
   if (publishedBy) {
-    const excludeResult = publishedByExclude?.(meta.name) ?? false
-    if (excludeResult !== true) {
-      if (meta.time != null) {
-        // Full metadata with per-version timestamps: filter normally
+    const view = applyPublishedByPolicy(meta, publishedBy, publishedByExclude)
+    meta = view.meta
+    if (view.needsFullMetadata) {
+      const modifiedDate = parseModifiedDate(meta.modified)
+      if (modifiedDate == null || modifiedDate > publishedBy) {
+        // The package was modified after the cutoff (or carries no usable
+        // `modified`), so which of its versions are mature is unknowable
+        // from abbreviated metadata. The error tells the caller to refetch.
         assertMetaHasTime(meta)
-        const trustedVersions = Array.isArray(excludeResult) ? excludeResult : undefined
-        meta = filterPkgMetadataByPublishDate(meta, publishedBy, trustedVersions)
-      } else {
-        const modifiedDate = parseModifiedDate(meta.modified)
-        if (modifiedDate == null || modifiedDate > publishedBy) {
-          // Abbreviated metadata without per-version timestamps, and the package
-          // was recently modified (or has no/invalid modified field). We cannot determine
-          // which individual versions are mature enough — need full metadata.
-          assertMetaHasTime(meta)
-        }
-        // else: meta.modified <= publishedBy — every version was published at or
-        // before the cutoff (modified is an upper bound on per-version time), so
-        // they all pass the per-version `<=` maturity filter and no filtering is
-        // needed. Inclusive at the boundary on purpose so this branch matches the
-        // per-version filter in `filterPkgMetadataByPublishDate`.
       }
+      // else: `modified` is an upper bound on every per-version timestamp, so
+      // `modified <= publishedBy` means they all pass the maturity filter and
+      // nothing would be dropped. Inclusive at the boundary on purpose, to
+      // match the per-version `<=` in `filterPkgMetadataByPublishDate`.
     }
   }
   if ((!meta.versions || Object.keys(meta.versions).length === 0) && !publishedBy) {
@@ -108,6 +105,45 @@ export function pickPackageFromMeta (
       `Received malformed metadata for "${spec.name}"`,
       { hint: 'This might mean that the package was unpublished from the registry', cause: err }
     )
+  }
+}
+
+export interface PublishedByView {
+  /** The metadata the cutoff leaves visible. `meta` itself when nothing is filtered out. */
+  meta: PackageMeta
+  /**
+   * The cutoff could not be applied: the metadata is abbreviated, so there
+   * are no per-version timestamps to filter on. Whether that is fatal is the
+   * caller's call — the pick needs full metadata to honor the cutoff, while a
+   * caller reasoning about a pick that already succeeded knows the versions
+   * cleared the cutoff some other way.
+   */
+  needsFullMetadata: boolean
+}
+
+/**
+ * Narrows `meta` to the versions the `publishedBy` cutoff admits, honoring
+ * `publishedByExclude`: a package the policy excludes wholesale keeps its
+ * unfiltered metadata, and versions the policy names explicitly stay in
+ * regardless of their age.
+ *
+ * Every consumer of the cutoff goes through here so they agree on what the
+ * policy admits — a baseline that filters differently from the pick would
+ * misreport why a version was chosen.
+ */
+export function applyPublishedByPolicy (
+  meta: PackageMeta,
+  publishedBy: Date,
+  publishedByExclude?: PackageVersionPolicy
+): PublishedByView {
+  const excludeResult = publishedByExclude?.(meta.name) ?? false
+  if (excludeResult === true) return { meta, needsFullMetadata: false }
+  if (meta.time == null) return { meta, needsFullMetadata: true }
+  assertMetaHasTime(meta)
+  const trustedVersions = Array.isArray(excludeResult) ? excludeResult : undefined
+  return {
+    meta: filterPkgMetadataByPublishDate(meta, publishedBy, trustedVersions),
+    needsFullMetadata: false,
   }
 }
 
@@ -179,6 +215,95 @@ export function pickVersionByVersionRange ({ meta, versionRange, preferredVersio
   return maxVersion
 }
 
+/**
+ * Returns the cached version only when lockfile preferences prove that no
+ * version missing from the cached packument could tie or outrank it.
+ */
+export function pickStableCachedRangeVersion ({
+  meta,
+  preferredVersionSelectors,
+  versionRange,
+}: PickVersionByVersionRangeOptions): string | null {
+  const dominantLockfileVersion = getDominantLockfileVersion(versionRange, preferredVersionSelectors)
+  if (dominantLockfileVersion == null || meta.versions[dominantLockfileVersion] == null) return null
+  try {
+    const pickedVersion = pickVersionByVersionRange({ meta, preferredVersionSelectors, versionRange })
+    return pickedVersion === dominantLockfileVersion ? dominantLockfileVersion : null
+  } catch {
+    return null
+  }
+}
+
+export function getDominantLockfileVersion (
+  versionRange: string,
+  preferredVersionSelectors?: VersionSelectors
+): string | null {
+  if (preferredVersionSelectors == null) return null
+  let lockfileVersion: string | undefined
+  for (const [selector, value] of Object.entries(preferredVersionSelectors)) {
+    if (selector === versionRange) continue
+    const { selectorType, weight } = preferredSelectorInfo(value)
+    if (!Number.isSafeInteger(weight) || weight <= 0) return null
+    if (
+      selectorType === 'version' &&
+      weight >= EXISTING_VERSION_SELECTOR_WEIGHT &&
+      semverSatisfiesLoose(selector, versionRange)
+    ) {
+      if (lockfileVersion != null) return null
+      lockfileVersion = selector
+    }
+  }
+  if (lockfileVersion == null) return null
+
+  let guaranteedLockfileWeight = 0
+  let maximumOtherVersionWeight = 0
+  for (const [selector, value] of Object.entries(preferredVersionSelectors)) {
+    if (selector === versionRange) continue
+    const { selectorType, weight } = preferredSelectorInfo(value)
+    switch (selectorType) {
+      case 'version':
+        if (selector === lockfileVersion) {
+          guaranteedLockfileWeight += weight
+        } else if (
+          weight < EXISTING_VERSION_SELECTOR_WEIGHT &&
+          semverSatisfiesLoose(selector, versionRange)
+        ) {
+          maximumOtherVersionWeight += weight
+        }
+        break
+      case 'range':
+        if (semverSatisfiesLoose(lockfileVersion, selector)) {
+          guaranteedLockfileWeight += weight
+        }
+        // Conservatively assume an unseen version can satisfy every preferred
+        // range, even when proving range intersection would be more precise.
+        maximumOtherVersionWeight += weight
+        break
+      case 'tag':
+        // A registry can move a tag between requests. Do not count its current
+        // target toward the lockfile version, and assume all tags could move to
+        // the same unseen version.
+        maximumOtherVersionWeight += weight
+        break
+    }
+    if (
+      !Number.isSafeInteger(guaranteedLockfileWeight) ||
+      !Number.isSafeInteger(maximumOtherVersionWeight)
+    ) return null
+  }
+  return guaranteedLockfileWeight > maximumOtherVersionWeight
+    ? lockfileVersion
+    : null
+}
+
+function preferredSelectorInfo (
+  value: VersionSelectors[string]
+): { selectorType: VersionSelectorType, weight: number } {
+  return typeof value === 'string'
+    ? { selectorType: value, weight: 1 }
+    : value
+}
+
 function prioritizePreferredVersions (
   meta: PackageMeta,
   versionRange: string,
@@ -196,9 +321,7 @@ function prioritizePreferredVersions (
 
   // Then apply weights from preferred selectors
   for (const [preferredSelector, preferredSelectorType] of preferredVerSelectorsArr) {
-    const { selectorType, weight } = typeof preferredSelectorType === 'string'
-      ? { selectorType: preferredSelectorType, weight: 1 }
-      : preferredSelectorType
+    const { selectorType, weight } = preferredSelectorInfo(preferredSelectorType)
     if (preferredSelector === versionRange) continue
     switch (selectorType) {
       case 'tag': {

@@ -1,16 +1,20 @@
 mod recursive;
 
+use crate::path_env::{BadPathDir, prepend_dirs_to_path, set_command_path};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::Config;
-use pacquet_executor::{push_script_arg, select_shell};
-use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
-use pacquet_workspace::safe_read_project_manifest_only;
+use pnpm_config::Config;
+use pnpm_executor::{ScriptOutput, StreamedScript, push_script_arg, select_shell};
+use pnpm_package_manager::{
+    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    pnp_path_for_execution,
+};
+use pnpm_reporter::LogEvent;
+use pnpm_workspace::safe_read_project_manifest_only;
 use std::{
-    ffi::{OsStr, OsString},
-    path::{Path, PathBuf},
-    process::{Command, ExitStatus},
+    path::Path,
+    process::{Command, ExitStatus, Stdio},
 };
 
 /// Run a shell command in the context of a project.
@@ -46,6 +50,14 @@ pub struct ExecArgs {
     /// Sort recursive workspace projects topologically before running.
     #[clap(skip = true)]
     pub sort: bool,
+
+    /// Reverse the project order of a recursive exec.
+    #[clap(skip = true)]
+    pub reverse: bool,
+
+    /// Run every selected project concurrently, without a concurrency cap.
+    #[clap(skip = true)]
+    pub parallel: bool,
 }
 
 /// Errors from `pacquet exec`.
@@ -75,6 +87,12 @@ pub enum ExecError {
     },
 }
 
+impl From<BadPathDir> for ExecError {
+    fn from(BadPathDir { dir, delimiter }: BadPathDir) -> Self {
+        ExecError::BadPathDir { dir, delimiter }
+    }
+}
+
 impl ExecArgs {
     /// Execute the subcommand in `dir` (the project / working directory).
     ///
@@ -84,7 +102,7 @@ impl ExecArgs {
     pub fn run(self, dir: &Path, config: &Config) -> miette::Result<()> {
         let command = prepare_command(self.command)?;
         super::verify_deps::verify_deps_before_run(dir, config, false)?;
-        let status = spawn_in_dir(&command, dir, config, self.shell_mode)?;
+        let status = spawn_in_dir(&command, dir, config, self.shell_mode, ScriptOutput::Inherit)?;
         if !status.success() {
             // Propagate the child's exit code. A signal-terminated child
             // has no code; fall back to 1, matching pnpm's `exitCode ?? 1`.
@@ -96,9 +114,14 @@ impl ExecArgs {
     /// Execute the command across the `--filter`-selected workspace
     /// projects, in topological order. The recursive counterpart of
     /// [`Self::run`], selected when the global `-r` / `--recursive` flag is set.
-    pub fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
+    pub async fn run_recursive(
+        &self,
+        config: &Config,
+        dir: &Path,
+        emit: fn(&LogEvent),
+    ) -> miette::Result<()> {
         super::verify_deps::verify_deps_before_run(dir, config, false)?;
-        recursive::exec_recursive(self, config, dir)
+        recursive::exec_recursive(self, config, dir, emit).await
     }
 }
 
@@ -124,12 +147,73 @@ fn prepare_command(mut command: Vec<String>) -> Result<Vec<String>, ExecError> {
 /// the single-project path can `process::exit` while the recursive path
 /// records the per-project status. `command` is assumed non-empty (see
 /// [`prepare_command`]).
+///
+/// `output` decides where the child writes: a recursive `exec` under
+/// `--no-reporter-hide-prefix` streams, so the reporter can label each
+/// line with the project it came from; every other invocation inherits
+/// the terminal.
 pub(super) fn spawn_in_dir(
     command: &[String],
     dir: &Path,
     config: &Config,
     shell_mode: bool,
+    output: ScriptOutput<'_>,
 ) -> Result<ExitStatus, ExecError> {
+    let mut cmd = command_in_dir(command, dir, config, shell_mode)?;
+    let ScriptOutput::Streamed { dep_path, emit } = output else {
+        return cmd
+            .status()
+            .map_err(|source| ExecError::Spawn { command: command[0].clone(), source });
+    };
+    let wd = dir.to_string_lossy();
+    let streamed = StreamedScript { dep_path, stage: EXEC_STAGE, wd: &wd, emit };
+    let mut child = cmd
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
+    let status = streamed
+        .pump(&mut child)
+        .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
+    streamed.finished(status.code().unwrap_or(-1));
+    Ok(status)
+}
+
+pub(super) async fn spawn_async_in_dir(
+    command: &[String],
+    dir: &Path,
+    config: &Config,
+    shell_mode: bool,
+    output: ScriptOutput<'_>,
+) -> Result<ExitStatus, ExecError> {
+    let cmd = command_in_dir(command, dir, config, shell_mode)?;
+    let mut cmd = tokio::process::Command::from(cmd);
+    cmd.kill_on_drop(true);
+    let ScriptOutput::Streamed { dep_path, emit } = output else {
+        return cmd
+            .status()
+            .await
+            .map_err(|source| ExecError::Spawn { command: command[0].clone(), source });
+    };
+    let wd = dir.to_string_lossy();
+    let streamed = StreamedScript { dep_path, stage: EXEC_STAGE, wd: &wd, emit };
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child =
+        cmd.spawn().map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
+    let status = streamed
+        .pump_async(&mut child)
+        .await
+        .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
+    streamed.finished(status.code().unwrap_or(-1));
+    Ok(status)
+}
+
+fn command_in_dir(
+    command: &[String],
+    dir: &Path,
+    config: &Config,
+    shell_mode: bool,
+) -> Result<Command, ExecError> {
     // Prepend `./node_modules/.bin` (resolved against the project
     // directory) and then the `extraBinPaths`.
     let mut prepend = Vec::with_capacity(1 + config.extra_bin_paths.len());
@@ -168,20 +252,17 @@ pub(super) fn spawn_in_dir(
     // TS `makeEnv`, which spreads `...extraEnv` into the base. Empty
     // unless an install-family command populated it.
     cmd.envs(&config.extra_env);
-    // Drop any inherited PATH-like key before re-inserting our own, so
-    // a Windows `Path`/`PATH` pair can't collapse to an unspecified
-    // winner at spawn time (matching the lifecycle spawn in
-    // `pacquet-executor`).
-    cmd.env_remove("PATH");
-    cmd.env_remove("Path");
-    cmd.env("PATH", &path);
+    set_command_path(&mut cmd, &path);
     cmd.env("npm_config_user_agent", &config.user_agent);
     // Same recursion-guard stamp as the lifecycle env builder.
-    cmd.env(pacquet_executor::VERIFY_DEPS_BEFORE_RUN_ENV, "false");
+    cmd.env(pnpm_executor::VERIFY_DEPS_BEFORE_RUN_ENV, "false");
     if let Some(name) = read_package_name(dir) {
         cmd.env("PNPM_PACKAGE_NAME", name);
     }
-    let mut node_options = config.node_options.clone();
+    let mut node_options = configured_node_options(config);
+    if let Some(pnp_path) = pnp_path_for_execution(config, dir) {
+        node_options = Some(make_node_require_option(&pnp_path, node_options.as_deref()));
+    }
     if let Some(package_map_path) = package_map_path_for_execution(config, dir) {
         node_options =
             Some(make_node_package_map_option(&package_map_path, node_options.as_deref()));
@@ -192,48 +273,31 @@ pub(super) fn spawn_in_dir(
         cmd.env("NODE_OPTIONS", node_options);
     }
 
-    cmd.status().map_err(|source| ExecError::Spawn { command: command[0].clone(), source })
+    Ok(cmd)
+}
+
+/// The `stage` pnpm stamps on the lifecycle events of an exec'd command.
+pub(super) const EXEC_STAGE: &str = "(exec)";
+
+fn configured_node_options(config: &Config) -> Option<String> {
+    match config.node_options.as_deref() {
+        Some(node_options) => {
+            Some(pnpm_config::esm_node_path_loader::keep_esm_node_path_loader_option(
+                node_options,
+                config.extra_env.get("NODE_OPTIONS").map(String::as_str),
+            ))
+        }
+        None => config.extra_env.get("NODE_OPTIONS").cloned(),
+    }
 }
 
 /// Read the `name` field of the project's package manifest, if any.
 ///
 /// Used only to stamp `PNPM_PACKAGE_NAME`; a missing or nameless manifest
 /// is not an error for `exec` (it can run a command in any directory).
-fn read_package_name(dir: &Path) -> Option<String> {
+pub(super) fn read_package_name(dir: &Path) -> Option<String> {
     safe_read_project_manifest_only(dir).ok()??.value().get("name")?.as_str().map(str::to_string)
 }
 
-/// Prepend `dirs` to the current process `PATH`.
-///
-/// A directory containing the platform path delimiter cannot be expressed
-/// in `PATH`, so it is rejected with [`ExecError::BadPathDir`] rather than
-/// silently splitting into two entries.
-fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, ExecError> {
-    let delimiter = if cfg!(windows) { ';' } else { ':' };
-    for dir in dirs {
-        if dir.to_string_lossy().contains(delimiter) {
-            return Err(ExecError::BadPathDir {
-                dir: dir.to_string_lossy().into_owned(),
-                delimiter,
-            });
-        }
-    }
-
-    let sep: &OsStr = if cfg!(windows) { OsStr::new(";") } else { OsStr::new(":") };
-    let mut out = OsString::new();
-    for (i, dir) in dirs.iter().enumerate() {
-        if i > 0 {
-            out.push(sep);
-        }
-        out.push(dir);
-    }
-    if let Some(current) = std::env::var_os("PATH")
-        && !current.is_empty()
-    {
-        if !out.is_empty() {
-            out.push(sep);
-        }
-        out.push(current);
-    }
-    Ok(out)
-}
+#[cfg(test)]
+mod tests;

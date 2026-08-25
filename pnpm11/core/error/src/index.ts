@@ -113,13 +113,43 @@ export function redactAndSanitize (text: string): string {
   // userinfo (`user:pass\r@host`) would otherwise split the authority across
   // the redaction scan, and removing it afterwards would rejoin the
   // credentials into the output.
-  let sanitized = ''
-  for (const char of text) {
-    const code = char.codePointAt(0)!
-    if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) continue
-    sanitized += char
+  return redactUrlCredentials(sanitizeControlCharacters(text))
+}
+
+/**
+ * Make a URL safe for user-visible output without exposing credentials,
+ * query parameters, fragments, or terminal control characters. Malformed
+ * URLs are replaced entirely because their authority cannot be redacted
+ * reliably.
+ */
+export function redactUrlForDisplay (url: string): string {
+  let display: URL
+  try {
+    display = new URL(sanitizeControlCharacters(url))
+  } catch {
+    return '[hidden]'
   }
-  return redactUrlCredentials(sanitized)
+  display.username = ''
+  display.password = ''
+  display.search = ''
+  display.hash = ''
+  return display.href
+}
+
+/**
+ * {@link redactAndSanitize} for text whose line breaks are worth keeping, such
+ * as a subprocess's multi-line stderr.
+ *
+ * Line breaks are kept only when doing so redacts exactly as much as
+ * collapsing the text would: a newline can fall inside a `user:pass@`
+ * authority — git echoes such a URL back verbatim, password included — and
+ * redacting each line separately would leave the credentials split but
+ * readable. Whenever the two disagree, the collapsed form wins.
+ */
+export function redactAndSanitizeMultiline (text: string): string {
+  const collapsed = redactAndSanitize(text)
+  const perLine = text.split('\n').map(redactAndSanitize).join('\n')
+  return perLine.replaceAll('\n', '') === collapsed ? perLine : collapsed
 }
 
 function isSchemeTailChar (code: number): boolean {
@@ -128,6 +158,16 @@ function isSchemeTailChar (code: number): boolean {
 
 function isAsciiWhitespace (code: number): boolean {
   return code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0b || code === 0x0c || code === 0x0d
+}
+
+function sanitizeControlCharacters (text: string): string {
+  let sanitized = ''
+  for (const char of text) {
+    const code = char.codePointAt(0)!
+    if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) continue
+    sanitized += char
+  }
+  return sanitized
 }
 
 function hideAuthInformation (authHeaderValue: string): string {

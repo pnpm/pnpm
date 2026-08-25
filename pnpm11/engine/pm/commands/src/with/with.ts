@@ -69,7 +69,7 @@ export async function handler (
     // registry and writes the resolved exact version to the envLockfile.
     const envLockfile = await resolvePackageManagerIntegrities(spec, {
       rootDir: opts.pnpmHomeDir,
-      registries: opts.registries,
+      registriesByScope: opts.registriesByScope,
       storeController: store.ctrl,
       storeDir: store.dir,
     })
@@ -81,7 +81,7 @@ export async function handler (
       envLockfile,
       storeController: store.ctrl,
       storeDir: store.dir,
-      registries: opts.registries,
+      registriesByScope: opts.registriesByScope,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       packageManager: { name: packageManager.name, version: packageManager.version },
       // Network settings so the engine identity check can reach the canonical

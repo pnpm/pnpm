@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-engine-runtime-node-resolver"
+name                  = "pnpm-engine-runtime-node-resolver"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,10 +11,10 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-crypto-shasums-file     = { workspace = true }
-pacquet-lockfile                = { workspace = true }
-pacquet-network                 = { workspace = true }
-pacquet-resolving-resolver-base = { workspace = true }
+pnpm-crypto-shasums-file     = { workspace = true }
+pnpm-lockfile                = { workspace = true }
+pnpm-network                 = { workspace = true }
+pnpm-resolving-resolver-base = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }
@@ -28,6 +28,7 @@ tokio       = { workspace = true }
 [dev-dependencies]
 mockito           = { workspace = true }
 pretty_assertions = { workspace = true }
+tempfile          = { workspace = true }
 tokio             = { workspace = true, features = ["macros", "rt"] }
 
 [lints]

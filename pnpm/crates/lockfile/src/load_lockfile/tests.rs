@@ -2,7 +2,7 @@ use crate::{
     DirectoryResolution, ImporterDepVersion, Lockfile, LockfileResolution, PackageKey, PkgName,
     SnapshotDepRef,
 };
-use pacquet_diagnostics::miette::Diagnostic;
+use pnpm_diagnostics::miette::Diagnostic;
 use pretty_assertions::assert_eq;
 use std::{collections::BTreeMap, fmt::Write, path::Path};
 use tempfile::tempdir;
@@ -87,6 +87,29 @@ fn parses_main_document_from_combined_yaml() {
     assert_eq!(combined_loaded, main_only_loaded);
 }
 
+/// Regression test for <https://github.com/pnpm/pnpm/issues/13606>: a
+/// combined lockfile checked out with CRLF line endings was handed to
+/// serde whole, failing as "multiple YAML documents detected" and
+/// making every install re-resolve from the registry.
+#[test]
+fn parses_main_document_from_crlf_combined_yaml() {
+    let combined = format!("---\n{ENV_DOC}\n---\n{MAIN_DOC}").replace('\n', "\r\n");
+    let tmp = write_lockfile(&combined);
+    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+
+    let crlf_loaded = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+        .expect("load CRLF combined lockfile")
+        .expect("CRLF combined lockfile should be present");
+
+    let tmp_main = write_lockfile(MAIN_DOC);
+    let main_only_dir = tmp_main.path().join("node_modules").join(".pacquet");
+    let main_only_loaded = Lockfile::load_current_from_virtual_store_dir(&main_only_dir)
+        .expect("load main-only lockfile")
+        .expect("main-only lockfile should be present");
+
+    assert_eq!(crlf_loaded, main_only_loaded);
+}
+
 #[test]
 fn env_only_lockfile_loads_as_none() {
     let env_only = format!("---\n{ENV_DOC}\n");
@@ -116,25 +139,22 @@ fn parses_lockfile_larger_than_default_yaml_node_budget() {
 
 #[test]
 fn parses_lockfile_larger_than_default_yaml_scalar_byte_budget() {
-    const IMPORTER_COUNT: usize = 1_000_000;
+    // A single huge scalar to push the document past the parser's 64 MiB default scalar budget,
+    // avoiding the O(N) allocation overhead of creating millions of individual AST nodes.
+    let mut content = String::from("lockfileVersion: '9.0'\n\npnpmfileChecksum: ");
+    let huge_string_len = 65 * 1024 * 1024;
+    content.reserve(huge_string_len + 100);
+    content.push_str(&"a".repeat(huge_string_len));
+    content.push_str("\n\nimporters:\n  .: {}\n");
 
-    // Each importer line contributes ~100 bytes of scalar text, pushing the
-    // document past the parser's 64 MiB default scalar budget.
-    let mut content = String::from("lockfileVersion: '9.0'\n\nimporters:\n");
-    for index in 0..IMPORTER_COUNT {
-        writeln!(
-            content,
-            "  padded-project-directory-name/deeply/nested/workspace-component-{index:07}: {{}}",
-        )
-        .expect("write importer");
-    }
     assert!(content.len() > 64 * 1024 * 1024, "fixture must exceed the default scalar budget");
 
     let lockfile = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
         .expect("parse large lockfile")
         .expect("large lockfile should be present");
 
-    assert_eq!(lockfile.importers.len(), IMPORTER_COUNT);
+    assert!(lockfile.pnpmfile_checksum.is_some());
+    assert_eq!(lockfile.pnpmfile_checksum.unwrap().len(), huge_string_len);
 }
 
 // A regression here makes every subsequent install re-resolve from
@@ -189,7 +209,7 @@ fn parse_error_does_not_include_lockfile_content() {
         std::error::Error::source(&error).is_none(),
         "parse error source could expose lockfile content",
     );
-    let report = format!("{:?}", pacquet_diagnostics::miette::Report::new(error));
+    let report = format!("{:?}", pnpm_diagnostics::miette::Report::new(error));
     assert!(!report.contains(secret), "diagnostic included lockfile content: {report}");
 }
 

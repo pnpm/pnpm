@@ -2,11 +2,11 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use node_semver::{Identifier, Version};
-use pacquet_config::Config;
-use pacquet_executor::{RunPostinstallHooks, run_lifecycle_hook};
-use pacquet_package_manifest::PackageManifest;
-use pacquet_publish::{Host, RunCommand, is_git_repo, is_working_tree_clean};
-use pacquet_versioning::{
+use pnpm_config::Config;
+use pnpm_executor::{RunPostinstallHooks, run_lifecycle_hook};
+use pnpm_package_manifest::PackageManifest;
+use pnpm_publish::{Host, RunCommand, is_git_repo, is_working_tree_clean};
+use pnpm_versioning::{
     AssembleReleasePlanOptions, apply_release_plan, assemble_release_plan, read_change_intents,
     read_ledger,
 };
@@ -33,8 +33,7 @@ pub struct VersionArgs {
     /// apply the pending change intents instead.
     pub params: Vec<String>,
 
-    /// Print the release plan the pending change intents produce without
-    /// applying it.
+    /// Print what the command would do without changing anything.
     #[clap(long = "dry-run")]
     pub dry_run: bool,
 
@@ -130,7 +129,7 @@ enum VersionError {
 }
 
 impl VersionArgs {
-    pub async fn run<Reporter: pacquet_reporter::Reporter>(
+    pub async fn run<Reporter: pnpm_reporter::Reporter>(
         self,
         config: &Config,
         dir: &Path,
@@ -148,7 +147,7 @@ impl VersionArgs {
     /// `recursive`. Mirrors the TypeScript handler: git-tree check, per-
     /// package bump with `preversion`/`version` hooks, a commit and tag for
     /// the single-package form, then `postversion` hooks and the report.
-    fn npm_style_bump<Reporter: pacquet_reporter::Reporter>(
+    fn npm_style_bump<Reporter: pnpm_reporter::Reporter>(
         &self,
         config: &Config,
         dir: &Path,
@@ -161,7 +160,8 @@ impl VersionArgs {
         } else {
             parse_bump(raw)?
         };
-        if config.git_checks
+        if !self.dry_run
+            && config.git_checks
             && !self.no_git_checks
             && is_git_repo::<Host>(&git_cwd)
             && !is_working_tree_clean::<Host>(&git_cwd)
@@ -172,7 +172,7 @@ impl VersionArgs {
         let mut changes: Vec<VersionChange> = Vec::new();
         if recursive {
             let base = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-            let (projects, _) = discover_workspace_projects(&base)?;
+            let (projects, _) = discover_workspace_projects(&base, config)?;
             let selection =
                 select_recursive_projects(&projects, config, &base, AutoExcludeRoot::Disabled)?;
             for pkg_dir in selection.selected.keys() {
@@ -195,12 +195,19 @@ impl VersionArgs {
         // In recursive mode, multiple packages can be bumped to different
         // versions in a single run, and there is no obvious single version to
         // tag the commit with. Skip the git commit and tag entirely then.
-        if !recursive && !self.no_git_tag_version && is_git_repo::<Host>(&git_cwd) {
+        if !self.dry_run && !recursive && !self.no_git_tag_version && is_git_repo::<Host>(&git_cwd)
+        {
             self.commit_and_tag(&changes[0], &git_cwd)?;
         }
 
         for change in &changes {
-            run_version_lifecycle_hook::<Reporter>("postversion", change, config, dir)?;
+            run_version_lifecycle_hook::<Reporter>(
+                "postversion",
+                change,
+                config,
+                dir,
+                self.dry_run,
+            )?;
         }
 
         if self.json {
@@ -220,7 +227,11 @@ impl VersionArgs {
         }
 
         use std::fmt::Write as _;
-        let mut output = String::from("Version bumped successfully:\n");
+        let mut output = String::from(if self.dry_run {
+            "Version bump plan:\n"
+        } else {
+            "Version bumped successfully:\n"
+        });
         for change in &changes {
             writeln!(
                 output,
@@ -234,9 +245,10 @@ impl VersionArgs {
     }
 
     /// Bump one package's manifest, running its `preversion` and `version`
-    /// lifecycle hooks around the write. Returns `None` — bumping nothing —
-    /// when the manifest has no name or no version.
-    fn bump_package_version<Reporter: pacquet_reporter::Reporter>(
+    /// lifecycle hooks around the write. Both the write and the hooks are
+    /// skipped on a dry run. Returns `None` — bumping nothing — when the
+    /// manifest has no name or no version.
+    fn bump_package_version<Reporter: pnpm_reporter::Reporter>(
         &self,
         pkg_dir: &Path,
         bump: &Bump,
@@ -269,7 +281,13 @@ impl VersionArgs {
             path: pkg_dir.to_path_buf(),
             manifest_path: manifest_path.clone(),
         };
-        run_version_lifecycle_hook::<Reporter>("preversion", &pre_change, config, init_cwd)?;
+        run_version_lifecycle_hook::<Reporter>(
+            "preversion",
+            &pre_change,
+            config,
+            init_cwd,
+            self.dry_run,
+        )?;
 
         let new_version = match bump {
             Bump::Explicit(version) => version.clone(),
@@ -292,7 +310,9 @@ impl VersionArgs {
             .as_object_mut()
             .expect("package.json is an object — its version field was just read")
             .insert("version".to_string(), Value::String(new_version.clone()));
-        manifest.save().wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
+        if !self.dry_run {
+            manifest.save().wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
+        }
 
         let change = VersionChange {
             name,
@@ -301,7 +321,7 @@ impl VersionArgs {
             path: pkg_dir.to_path_buf(),
             manifest_path,
         };
-        run_version_lifecycle_hook::<Reporter>("version", &change, config, init_cwd)?;
+        run_version_lifecycle_hook::<Reporter>("version", &change, config, init_cwd, self.dry_run)?;
         Ok(Some(change))
     }
 
@@ -358,7 +378,7 @@ impl VersionArgs {
 
         let intents = read_change_intents(&workspace_dir)?;
         let ledger = read_ledger(&workspace_dir)?;
-        let (projects, _) = discover_workspace_projects(&workspace_dir)?;
+        let (projects, _) = discover_workspace_projects(&workspace_dir, config)?;
         let engine_projects = to_engine_projects(&projects);
         let published_names = changelog::published_names(&projects);
 
@@ -411,7 +431,11 @@ impl VersionArgs {
                     &confirmed,
                 )?;
             }
-            println!(r#"No pending changes. Record one with "pnpm change"."#);
+            if self.json {
+                println!("[]");
+            } else {
+                println!(r#"No pending changes. Record one with "pnpm change"."#);
+            }
             return Ok(());
         }
         if self.dry_run {
@@ -430,6 +454,14 @@ impl VersionArgs {
             &confirmed,
         )?;
 
+        if self.json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&applied).expect("serialize applied releases"),
+            );
+            return Ok(());
+        }
+
         use std::fmt::Write as _;
         let mut output = String::from("Versions applied:\n");
         for release in &applied {
@@ -446,16 +478,17 @@ impl VersionArgs {
 }
 
 /// Run one `preversion` / `version` / `postversion` script of the bumped
-/// package, when the manifest declares it and scripts are not ignored.
-/// The manifest is re-read so the `version` and `postversion` hooks see
-/// the bumped version.
-fn run_version_lifecycle_hook<Reporter: pacquet_reporter::Reporter>(
+/// package, when the manifest declares it, scripts are not ignored and this
+/// is not a dry run. The manifest is re-read so the `version` and
+/// `postversion` hooks see the bumped version.
+fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
     stage: &str,
     change: &VersionChange,
     config: &Config,
     init_cwd: &Path,
+    dry_run: bool,
 ) -> miette::Result<()> {
-    if config.ignore_scripts {
+    if config.ignore_scripts || dry_run {
         return Ok(());
     }
     let manifest = PackageManifest::from_path(change.manifest_path.clone())
@@ -485,11 +518,12 @@ fn run_version_lifecycle_hook<Reporter: pacquet_reporter::Reporter>(
         node_gyp_path: None,
         user_agent: Some(&config.user_agent),
         unsafe_perm: config.unsafe_perm,
-        node_gyp_bin: pacquet_executor::bundled_node_gyp_bin(),
+        node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: super::run::exec_scripts_prepend_node_path(
             config.scripts_prepend_node_path,
         ),
         script_shell: script_shell.as_deref(),
+        shell_emulator: config.shell_emulator,
         optional: false,
     };
     let parent_env: HashMap<String, String> = std::env::vars().collect();
@@ -734,7 +768,7 @@ fn run_git(cwd: &Path, args: &[&str]) -> miette::Result<()> {
 /// The projects the active `--filter` selectors pick, in graph order, as
 /// `(name, workspace-relative dir)` pairs.
 pub(crate) fn selected_projects(
-    projects: &[pacquet_workspace::Project],
+    projects: &[pnpm_workspace::Project],
     config: &Config,
     workspace_dir: &Path,
 ) -> miette::Result<Vec<(Option<String>, String)>> {
@@ -752,7 +786,7 @@ pub(crate) fn selected_projects(
                 .get("name")
                 .and_then(|name| name.as_str())
                 .map(ToString::to_string);
-            (name, pacquet_versioning::to_project_dir(workspace_dir, root_dir))
+            (name, pnpm_versioning::to_project_dir(workspace_dir, root_dir))
         })
         .collect())
 }

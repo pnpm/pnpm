@@ -62,11 +62,14 @@ fn restart_passes_args_to_each_script() {
     let tmp = TempDir::new().expect("tmp dir");
     let dir = tmp.path();
     let log_file = dir.join("log.txt");
+    // The log path travels as a script argument, not inside the JS source:
+    // interpolated there, a Windows path's backslashes would be swallowed as
+    // string escapes. The forwarded restart argument lands after it.
     let append_arg_node = |name: &str| {
         format!(
-            r#"node -e "require('fs').appendFileSync('{}', '{} ' + process.argv[1] + '\n')""#,
-            log_file.display(),
+            r#"node -e "require('fs').appendFileSync(process.argv[1], '{} ' + process.argv[2] + '\n')" "{}""#,
             name,
+            log_file.display(),
         )
     };
     let manifest = json!({
@@ -93,9 +96,9 @@ fn restart_passes_args_to_each_script() {
 /// would spawn `current_exe()` — the test harness binary — as the
 /// installer. pnpm's unit tests equally construct their options
 /// without the setting.
-fn test_config() -> pacquet_config::Config {
-    pacquet_config::Config {
-        verify_deps_before_run: pacquet_config::VerifyDepsBeforeRun::False,
-        ..pacquet_config::Config::default()
+fn test_config() -> pnpm_config::Config {
+    pnpm_config::Config {
+        verify_deps_before_run: pnpm_config::VerifyDepsBeforeRun::False,
+        ..pnpm_config::Config::default()
     }
 }

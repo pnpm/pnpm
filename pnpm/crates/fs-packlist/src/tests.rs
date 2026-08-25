@@ -765,12 +765,7 @@ fn always_excluded_dir_segments_only_match_vcs() {
 }
 
 #[test]
-fn files_field_bare_basename_matches_at_depth() {
-    // npm-packlist treats `files: ["cli"]` as an unanchored gitignore
-    // pattern, so it matches both root-level `cli` and a nested
-    // `bin/cli`. The `Gitignore::matched` call already handles this
-    // because gitignore patterns without a leading slash are
-    // unanchored.
+fn files_field_bare_basename_is_root_only() {
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");
@@ -783,14 +778,10 @@ fn files_field_bare_basename_matches_at_depth() {
         "version": "0.0.0",
         "files": ["cli"],
     });
-    let out = packlist(root, &manifest).unwrap();
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
 
-    assert!(out.contains(&"cli".to_string()), "root-level cli: {out:?}");
-    assert!(out.contains(&"bin/cli".to_string()), "nested cli matches at depth: {out:?}");
-    assert!(
-        out.contains(&"lib/cli/index.js".to_string()),
-        "files entry matching a directory also includes its contents: {out:?}",
-    );
+    assert_eq!(out, vec!["cli".to_string(), "package.json".into()]);
 }
 
 #[test]
@@ -1077,4 +1068,68 @@ fn files_field_overrides_gitignore_with_npmignore_coexisting() {
         !out.contains(&"src/index.ts".to_string()),
         "files not in the `files` allowlist must be excluded: {out:?}",
     );
+}
+
+#[test]
+fn files_field_entries_are_anchored_to_the_package_root() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "src/index.js");
+    touch(root, "android/src/Main.java");
+    touch(root, "example/src/App.tsx");
+    touch(root, "example/android/app/src/main/AndroidManifest.xml");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["src", "android/src"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec!["android/src/Main.java".to_string(), "package.json".into(), "src/index.js".into(),],
+    );
+}
+
+#[test]
+fn files_field_keeps_explicitly_deep_patterns() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "lib/index.js");
+    touch(root, "lib/__tests__/index.test.js");
+    touch(root, "lib/nested/__tests__/deep.test.js");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["lib", "!**/__tests__"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, vec!["lib/index.js".to_string(), "package.json".into()]);
+}
+
+#[test]
+fn files_field_exclusions_are_not_anchored() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "lib/index.js");
+    touch(root, "lib/index.js.map");
+    touch(root, "lib/nested/deep.js.map");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["lib", "!*.map"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, vec!["lib/index.js".to_string(), "package.json".into()]);
 }

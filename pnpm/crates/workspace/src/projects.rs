@@ -17,14 +17,14 @@
 use crate::project_manifest::{ReadProjectManifestError, read_exact_project_manifest};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use std::{
     collections::BTreeSet,
     io::ErrorKind,
     path::{Path, PathBuf},
 };
 use wax::{
-    Glob,
+    Glob, Program,
     walk::{Entry, FileIterator},
 };
 
@@ -32,7 +32,7 @@ use wax::{
 ///
 /// Pacquet keeps this shape narrower than pnpm's project type (which
 /// also carries `rootDirRealPath`, `modulesDir`, etc.). The fields here
-/// are what `pacquet-package-manager` actually needs at install time;
+/// are what `pnpm-package-manager` actually needs at install time;
 /// anything else is read on demand from the manifest. If a caller
 /// needs more, extend here rather than reaching back into the
 /// `package.json` value directly.
@@ -146,16 +146,22 @@ pub fn find_workspace_projects_no_check(
     // `Walk::not` call (both `Glob` and `Any` derive `Clone` in wax),
     // since `IGNORE_PATTERNS` is a constant and reparsing it on every
     // user-supplied pattern is wasted work.
-    let ignore_template = wax::any(
-        IGNORE_PATTERNS
-            .iter()
-            .copied()
-            .chain(user_negation_globs.iter().map(std::string::String::as_str)),
-    )
-    .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-        pattern: "<built-in ignore>".to_string(),
-        message: err.to_string(),
+    let ignore_template = wax::any(IGNORE_PATTERNS.iter().copied()).map_err(|err| {
+        FindWorkspaceProjectsError::InvalidGlob {
+            pattern: "<built-in ignore>".to_string(),
+            message: err.to_string(),
+        }
     })?;
+
+    // User negations are written relative to the workspace root, while a
+    // parent-relative include walks from an ancestor of it, so they are
+    // matched against the path each entry has *from the workspace root*
+    // rather than handed to `Walk::not` alongside the built-in ignores.
+    let user_negations = wax::any(user_negation_globs.iter().map(std::string::String::as_str))
+        .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+            pattern: "<negated pattern>".to_string(),
+            message: err.to_string(),
+        })?;
 
     // `NotFound` is the one error kind this enumeration absorbs, in both
     // the walk below and the manifest read after it: a pattern whose
@@ -167,16 +173,20 @@ pub fn find_workspace_projects_no_check(
     let mut manifest_paths: BTreeSet<PathBuf> = BTreeSet::new();
     for pattern in include_patterns {
         for normalized in normalize_manifest_patterns(pattern) {
-            if is_literal_pattern(&normalized) && !workspace_root.join(&normalized).is_file() {
+            let Some((walk_root, normalized)) = split_parent_prefix(workspace_root, &normalized)
+            else {
+                continue;
+            };
+            if is_literal_pattern(normalized) && !walk_root.join(normalized).is_file() {
                 continue;
             }
             let glob =
-                Glob::new(&normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+                Glob::new(normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
                     pattern: pattern.to_string(),
                     message: err.to_string(),
                 })?;
 
-            let walk = glob.walk(workspace_root).not(ignore_template.clone()).map_err(|err| {
+            let walk = glob.walk(walk_root).not(ignore_template.clone()).map_err(|err| {
                 FindWorkspaceProjectsError::InvalidGlob {
                     pattern: pattern.to_string(),
                     message: err.to_string(),
@@ -195,12 +205,18 @@ pub fn find_workspace_projects_no_check(
                             continue;
                         }
                         return Err(FindWorkspaceProjectsError::Walk {
-                            root: workspace_root.to_path_buf(),
+                            root: walk_root.to_path_buf(),
                             source: err,
                         });
                     }
                 };
-                manifest_paths.insert(entry.path().to_path_buf());
+                let manifest_path = entry.path();
+                if pathdiff::diff_paths(manifest_path, workspace_root)
+                    .is_some_and(|relative| user_negations.is_match(relative.as_path()))
+                {
+                    continue;
+                }
+                manifest_paths.insert(manifest_path.to_path_buf());
             }
         }
     }
@@ -266,6 +282,24 @@ fn normalize_manifest_patterns(pattern: &str) -> Vec<String> {
         return Vec::new();
     }
     PROJECT_MANIFEST_BASENAMES.iter().map(|basename| format!("{trimmed}/{basename}")).collect()
+}
+
+/// Strip the pattern's leading `../` components, walking `workspace_root`
+/// up one directory for each. wax globs cannot express parent traversal,
+/// so a pattern such as `../shared/*` only matches when the walk starts
+/// from the ancestor it names. `None` — the traversal climbs past the
+/// filesystem root — matches nothing.
+fn split_parent_prefix<'root, 'pattern>(
+    workspace_root: &'root Path,
+    pattern: &'pattern str,
+) -> Option<(&'root Path, &'pattern str)> {
+    let mut walk_root = workspace_root;
+    let mut rest = pattern;
+    while let Some(tail) = rest.strip_prefix("../") {
+        walk_root = walk_root.parent()?;
+        rest = tail;
+    }
+    Some((walk_root, rest))
 }
 
 fn is_literal_pattern(pattern: &str) -> bool {

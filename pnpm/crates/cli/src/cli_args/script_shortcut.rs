@@ -27,6 +27,7 @@ impl ScriptShortcutArgs {
             report_summary: false,
             no_bail: false,
             sort: true,
+            reverse: false,
             parallel: false,
             sequential: false,
         }
@@ -37,7 +38,7 @@ impl ScriptShortcutArgs {
         script_name: &str,
         if_present: bool,
         dir: &std::path::Path,
-        config: &pacquet_config::Config,
+        config: &pnpm_config::Config,
         silent: bool,
     ) -> miette::Result<()> {
         self.into_run_args(script_name, if_present).run(dir, config, silent)

@@ -7,10 +7,11 @@ use super::{
     deploy::DeployArgs,
     dispatch::{CommandFuture, RunCtx},
     dlx::DlxArgs,
+    env::{EnvArgs, EnvSubcommand},
     fetch::FetchArgs,
     global,
     import::ImportArgs,
-    install::InstallArgs,
+    install::{InstallArgs, resolve_bool_override},
     install_test,
     link::LinkArgs,
     patch::PatchArgs,
@@ -28,23 +29,33 @@ use super::{
     runtime::RuntimeArgs,
     unlink::UnlinkArgs,
     update::UpdateArgs,
+    update_notifier,
 };
 use miette::Context;
-use pacquet_default_reporter::DefaultReporter;
-use pacquet_reporter::{NdjsonReporter, SilentReporter};
+use pnpm_config::Config;
+use pnpm_default_reporter::DefaultReporter;
+use pnpm_reporter::{NdjsonReporter, SilentReporter};
+use std::path::Path;
 
 pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
     if args.global {
         let config = (ctx.global_config)()?;
+        args.lockfile_dir.apply_to_global(config)?;
         args.apply_cli_config(config);
         let dir = ctx.dir;
-        return Ok(match ctx.reporter {
+        let update_check = update_notifier::spawn(config, reporter_emit(ctx.reporter));
+        let install: CommandFuture<'a> = match ctx.reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(args.run_global::<DefaultReporter>(config, dir))
             }
             ReporterType::Ndjson => Box::pin(args.run_global::<NdjsonReporter>(config, dir)),
             ReporterType::Silent => Box::pin(args.run_global::<SilentReporter>(config, dir)),
-        });
+        };
+        return Ok(Box::pin(async move {
+            let installed = install.await;
+            update_notifier::settle(update_check, &installed).await;
+            installed
+        }));
     }
     // Parsed up front: `AddPipeline::run` scaffolds a `package.json` through
     // `State::init`, and an invalid selector must be rejected before that.
@@ -52,15 +63,24 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
     let dir = ctx.dir;
     let manifest_path = ctx.manifest_path;
     let reporter = ctx.reporter;
-    let recursive_sort = ctx.recursive_sort;
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        let recursive_sort = cfg.sort;
+        if config_dependencies.is_none() {
+            args.check_workspace_root(cfg, dir)?;
+        }
+        args.lockfile_dir.apply_to(cfg, dir);
         args.apply_cli_config(cfg);
         let (config_root, package_manager_to_sync) =
             derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
-        apply_allow_build(cfg, &args.allow_build, &config_root)?;
+        // `allowBuilds` is persisted to `pnpm-workspace.yaml`, which stays
+        // at the workspace root even when `lockfileDir` moved the config
+        // root elsewhere.
+        let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());
+        apply_allow_build(cfg, &args.allow_build, &allow_build_root)?;
+        let update_check = update_notifier::spawn(cfg, reporter_emit(reporter));
         let pipeline = AddPipeline {
             args,
             cfg,
@@ -71,20 +91,23 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
             recursive_sort,
             config_dependencies,
         };
-        match reporter {
+        let added = match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
-                Box::pin(pipeline.run::<DefaultReporter>()).await?;
+                Box::pin(pipeline.run::<DefaultReporter>()).await
             }
-            ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await?,
-            ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await?,
-        }
-        Ok(())
+            ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await,
+            ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await,
+        };
+        update_notifier::settle(update_check, &added).await;
+        added
     }))
 }
 
 pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<CommandFuture<'a>> {
     if args.global {
         let config = (ctx.global_config)()?;
+        args.lockfile_dir.apply_to_global(config)?;
+        args.apply_cli_config(config);
         return Ok(match ctx.reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(args.run_global::<DefaultReporter>(config))
@@ -96,10 +119,12 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
     let dir = ctx.dir;
     let manifest_path = ctx.manifest_path;
     let reporter = ctx.reporter;
-    let recursive_sort = ctx.recursive_sort;
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        let recursive_sort = cfg.sort;
+        args.lockfile_dir.apply_to(cfg, dir);
+        args.apply_cli_config(cfg);
         let (config_root, package_manager_to_sync) =
             derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
@@ -125,16 +150,29 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
 
 pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<CommandFuture<'a>> {
     if args.global {
-        global::handle_global_remove((ctx.global_config)()?, &args.package_names)?;
+        let config = (ctx.global_config)()?;
+        args.lockfile_dir.apply_to_global(config)?;
+        match ctx.reporter {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                global::handle_global_remove::<DefaultReporter>(config, &args.package_names)?;
+            }
+            ReporterType::Ndjson => {
+                global::handle_global_remove::<NdjsonReporter>(config, &args.package_names)?;
+            }
+            ReporterType::Silent => {
+                global::handle_global_remove::<SilentReporter>(config, &args.package_names)?;
+            }
+        }
         return Ok(Box::pin(std::future::ready(Ok(()))));
     }
     let dir = ctx.dir;
     let manifest_path = ctx.manifest_path;
     let reporter = ctx.reporter;
-    let recursive_sort = ctx.recursive_sort;
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        let recursive_sort = cfg.sort;
+        args.lockfile_dir.apply_to(cfg, dir);
         let (config_root, package_manager_to_sync) =
             derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
@@ -158,14 +196,30 @@ pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<C
     }))
 }
 
+/// Whether the command driving the install pipeline is one pnpm checks for
+/// a newer pnpm on. `pnpm ci` and `pnpm install-test` run the same pipeline
+/// but are their own commands, and pnpm only checks on `install` and `add`.
+#[derive(Debug, Clone, Copy)]
+enum UpdateCheckPolicy {
+    Run,
+    Skip,
+}
+
 pub(super) fn install<'a>(
     ctx: &RunCtx<'a>,
     args: InstallArgs,
 ) -> miette::Result<CommandFuture<'a>> {
+    install_with_update_check(ctx, args, UpdateCheckPolicy::Run)
+}
+
+fn install_with_update_check<'a>(
+    ctx: &RunCtx<'a>,
+    args: InstallArgs,
+    update_check_policy: UpdateCheckPolicy,
+) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.dir;
     let manifest_path = ctx.manifest_path;
     let reporter = ctx.reporter;
-    let recursive_sort = ctx.recursive_sort;
     let config = ctx.config;
     Ok(Box::pin(async move {
         // Boxed for `clippy::large_stack_frames`: the three
@@ -182,6 +236,8 @@ pub(super) fn install<'a>(
             // mutable through `Config::leak`'s
             // `&'static mut Config` return.
             let cfg = config()?;
+            let recursive_sort = cfg.sort;
+            args.lockfile_dir.apply_to(cfg, dir);
             apply_install_cli_config(cfg, &args);
             let frozen_lockfile = args.effective_frozen_lockfile(cfg);
             let require_lockfile = frozen_lockfile;
@@ -195,6 +251,10 @@ pub(super) fn install<'a>(
             let (config_root, package_manager_to_sync) =
                 derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                     .wrap_err("derive workspace root and package manager policy")?;
+            let update_check = match update_check_policy {
+                UpdateCheckPolicy::Run => update_notifier::spawn(cfg, reporter_emit(reporter)),
+                UpdateCheckPolicy::Skip => None,
+            };
             // Resolve + install configurational dependencies, then
             // run their `updateConfig` plugin hooks, before the main
             // install. The env lockfile must land at the top of
@@ -214,19 +274,16 @@ pub(super) fn install<'a>(
                 require_lockfile,
                 frozen_lockfile,
             };
-            match reporter {
+            let installed = match reporter {
                 ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(pipeline.run::<DefaultReporter>()).await?;
+                    Box::pin(pipeline.run::<DefaultReporter>()).await
                 }
-                ReporterType::Ndjson => {
-                    Box::pin(pipeline.run::<NdjsonReporter>()).await?;
-                }
-                ReporterType::Silent => {
-                    Box::pin(pipeline.run::<SilentReporter>()).await?;
-                }
-            }
+                ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await,
+                ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await,
+            };
+            update_notifier::settle(update_check, &installed).await;
+            installed
         }
-        Ok(())
     }))
 }
 
@@ -235,18 +292,19 @@ pub(super) fn install_test<'a>(
     args: install_test::InstallTestArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let install_args = args.install_args;
-    let run_args = super::run::RunArgs {
+    let mut run_args = super::run::RunArgs {
         script: super::run::RunArgs::script("test", args.args),
         if_present: ctx.if_present,
         resume_from: ctx.recursive_resume_from.map(str::to_string),
         report_summary: ctx.recursive_report_summary,
-        no_bail: ctx.recursive_no_bail,
-        sort: ctx.recursive_sort,
+        no_bail: false,
+        sort: true,
+        reverse: false,
         parallel: ctx.recursive_parallel,
         sequential: false,
     };
 
-    let install_future = install(ctx, install_args)?;
+    let install_future = install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)?;
 
     let dir = ctx.dir;
     let recursive = ctx.recursive;
@@ -257,6 +315,9 @@ pub(super) fn install_test<'a>(
         install_future.await?;
 
         let cfg = config()?;
+        run_args.no_bail = !cfg.bail;
+        run_args.sort = cfg.sort;
+        run_args.reverse = cfg.reverse;
         if recursive {
             run_args.run_recursive(
                 cfg,
@@ -280,7 +341,7 @@ pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFu
     // Run clean eagerly before the async future so errors surface immediately. Pass the command name so a package.json script can override the built-in.
     clean_args.run(ctx, "clean")?;
 
-    install(ctx, install_args)
+    install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)
 }
 
 pub(super) fn deploy<'a>(ctx: &RunCtx<'a>, args: DeployArgs) -> miette::Result<CommandFuture<'a>> {
@@ -321,6 +382,7 @@ pub(super) fn dedupe<'a>(ctx: &RunCtx<'a>, args: DedupeArgs) -> miette::Result<C
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        args.apply_cli_config(cfg);
         let (config_root, package_manager_to_sync) =
             derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
@@ -414,10 +476,11 @@ pub(super) fn unlink<'a>(ctx: &RunCtx<'a>, args: UnlinkArgs) -> miette::Result<C
     let dir = ctx.dir;
     let manifest_path = ctx.manifest_path;
     let reporter = ctx.reporter;
-    let recursive_sort = ctx.recursive_sort;
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        let recursive_sort = cfg.sort;
+        args.apply_cli_config(cfg);
         // Strip the matching `link:` overrides; stop early when there is
         // nothing to unlink.
         if !args.strip_link_overrides(cfg, manifest_path)? {
@@ -455,19 +518,21 @@ pub(super) fn unlink<'a>(ctx: &RunCtx<'a>, args: UnlinkArgs) -> miette::Result<C
 
 pub(super) fn rebuild<'a>(
     ctx: &RunCtx<'a>,
-    args: RebuildArgs,
+    mut args: RebuildArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.dir;
     let manifest_path = ctx.manifest_path;
     let reporter = ctx.reporter;
-    let recursive_sort = ctx.recursive_sort;
-    let recursive_no_bail = ctx.recursive_no_bail;
     let config = ctx.config;
     Ok(Box::pin(async move {
+        let cfg = config()?;
+        let recursive_sort = cfg.sort;
+        let recursive_no_bail = !cfg.bail;
+        args.pending = resolve_bool_override(args.pending, args.no_pending, cfg.pending);
         match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(args.run_from_cli::<DefaultReporter>(
-                    config()?,
+                    cfg,
                     dir.to_path_buf(),
                     manifest_path.to_path_buf(),
                     recursive_sort,
@@ -477,7 +542,7 @@ pub(super) fn rebuild<'a>(
             }
             ReporterType::Ndjson => {
                 Box::pin(args.run_from_cli::<NdjsonReporter>(
-                    config()?,
+                    cfg,
                     dir.to_path_buf(),
                     manifest_path.to_path_buf(),
                     recursive_sort,
@@ -487,7 +552,7 @@ pub(super) fn rebuild<'a>(
             }
             ReporterType::Silent => {
                 Box::pin(args.run_from_cli::<SilentReporter>(
-                    config()?,
+                    cfg,
                     dir.to_path_buf(),
                     manifest_path.to_path_buf(),
                     recursive_sort,
@@ -522,6 +587,39 @@ pub(super) fn runtime<'a>(
         }
         ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
         ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
+    })
+}
+
+// `pnpm env use` installs a runtime globally, so it takes the same
+// global-config load `runtime set -g` does; `pnpm env list` only queries a
+// mirror and needs no install pipeline at all.
+pub(super) fn env<'a>(ctx: &RunCtx<'a>, args: EnvArgs) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.global_config)()?;
+    let dir = ctx.dir;
+    // The reporter is chosen before the subcommand is classified because
+    // classifying `env use` already emits its deprecation warning.
+    match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            env_with_reporter::<DefaultReporter>(args, config, dir)
+        }
+        ReporterType::Ndjson => env_with_reporter::<NdjsonReporter>(args, config, dir),
+        ReporterType::Silent => env_with_reporter::<SilentReporter>(args, config, dir),
+    }
+}
+
+fn env_with_reporter<'a, Reporter: pnpm_reporter::Reporter + 'static>(
+    args: EnvArgs,
+    config: &'static Config,
+    dir: &'a Path,
+) -> miette::Result<CommandFuture<'a>> {
+    Ok(match args.subcommand::<Reporter>(config)? {
+        EnvSubcommand::Use { package_name } => {
+            Box::pin(EnvArgs::run_use::<Reporter>(package_name, config, dir))
+        }
+        EnvSubcommand::List { version_spec } => Box::pin(async move {
+            println!("{}", EnvArgs::run_list(version_spec, config).await?);
+            Ok(())
+        }),
     })
 }
 
@@ -635,6 +733,20 @@ pub(super) fn approve_builds<'a>(
     ctx: &RunCtx<'a>,
     args: ApproveBuildsArgs,
 ) -> miette::Result<CommandFuture<'a>> {
+    if args.global {
+        let config = (ctx.global_config)()?;
+        return Ok(match ctx.reporter {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                Box::pin(global::approve_global_builds::<DefaultReporter>(config, args))
+            }
+            ReporterType::Ndjson => {
+                Box::pin(global::approve_global_builds::<NdjsonReporter>(config, args))
+            }
+            ReporterType::Silent => {
+                Box::pin(global::approve_global_builds::<SilentReporter>(config, args))
+            }
+        });
+    }
     // The settings/prompt work is synchronous; only the rebuild is async, so
     // the non-`Send` `config` / `state` closures stay out of the awaited
     // future.

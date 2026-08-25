@@ -19,6 +19,8 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['prune']
 
+export const recursiveByDefault = true
+
 export function help (): string {
   return renderHelp({
     description: 'Removes extraneous packages',

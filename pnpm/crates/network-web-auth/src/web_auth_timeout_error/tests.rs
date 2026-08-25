@@ -1,4 +1,4 @@
-use pacquet_diagnostics::miette::Diagnostic;
+use pnpm_diagnostics::miette::Diagnostic;
 use pretty_assertions::assert_eq;
 
 use super::WebAuthTimeoutError;

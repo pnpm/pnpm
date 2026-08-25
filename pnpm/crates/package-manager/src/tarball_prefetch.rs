@@ -18,15 +18,15 @@ use crate::{
     install_package_by_snapshot::tarball_url_and_integrity, retry_config::retry_opts_from_config,
 };
 use dashmap::DashSet;
-use pacquet_config::Config;
-use pacquet_lockfile::{Lockfile, LockfileResolution};
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_reporter::SilentReporter;
-use pacquet_store_dir::{
+use pnpm_config::Config;
+use pnpm_lockfile::{Lockfile, LockfileResolution};
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_reporter::SilentReporter;
+use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexError,
     StoreIndexWriter, store_index_key,
 };
-use pacquet_tarball::{DownloadTarballToStore, MemCache, RetryOpts};
+use pnpm_tarball::{DownloadTarballToStore, MemCache, RetryOpts};
 use ssri::Integrity;
 use std::{collections::HashSet, sync::Arc};
 
@@ -76,6 +76,7 @@ pub(crate) struct TarballDownload {
     pub requester: Arc<str>,
     pub offline: bool,
     pub verify_store_integrity: bool,
+    pub strict_store_pkg_content_check: bool,
     pub package_id: String,
     pub package_url: String,
     pub integrity: Integrity,
@@ -104,6 +105,7 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
         requester,
         offline,
         verify_store_integrity,
+        strict_store_pkg_content_check,
         package_id,
         package_url,
         integrity,
@@ -118,6 +120,7 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
             store_index,
             store_index_writer,
             verify_store_integrity,
+            strict_store_pkg_content_check,
             verified_files_cache,
             package_integrity: Some(&integrity),
             package_unpacked_size,
@@ -168,6 +171,7 @@ pub struct TarballPrefetcher {
     requester: Arc<str>,
     offline: bool,
     verify_store_integrity: bool,
+    strict_store_pkg_content_check: bool,
     /// URLs already spawned, so repeated frames for the same tarball
     /// (the resolver yields one per dependent edge) collapse to a single
     /// download. Mirrors `PrefetchingResolver::spawned_urls`.
@@ -220,6 +224,7 @@ impl TarballPrefetcher {
             requester: Arc::<str>::from(requester),
             offline: config.offline,
             verify_store_integrity: config.verify_store_integrity,
+            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
             spawned_urls: DashSet::new(),
         }
     }
@@ -266,6 +271,7 @@ impl TarballPrefetcher {
             requester: Arc::clone(&self.requester),
             offline: self.offline,
             verify_store_integrity: self.verify_store_integrity,
+            strict_store_pkg_content_check: self.strict_store_pkg_content_check,
             package_id,
             package_url,
             integrity,
@@ -284,7 +290,7 @@ impl TarballPrefetcher {
     /// Entries with an `index.db` row are filtered out with one batched
     /// existence probe rather than spawned: the materialization pass
     /// already covers warm entries with its own batched verified lookup
-    /// ([`pacquet_tarball::prefetch_cas_paths`]), so spawning them here
+    /// ([`pnpm_tarball::prefetch_cas_paths`]), so spawning them here
     /// would only duplicate that work per key — on a fully warm store it
     /// turns the whole prefetch into a no-op. A row whose CAS files have
     /// gone missing is skipped here too; the materialization pass's
@@ -328,19 +334,7 @@ impl TarballPrefetcher {
     /// missing index row only costs the next install a re-download.
     pub async fn shutdown(self) {
         drop(self.store_index_writer);
-        match self.writer_task.await {
-            Ok(Ok(())) => {}
-            Ok(Err(error)) => tracing::warn!(
-                target: "pacquet::pnpr",
-                ?error,
-                "store-index writer task returned an error; some rows may not be persisted",
-            ),
-            Err(error) => tracing::warn!(
-                target: "pacquet::pnpr",
-                ?error,
-                "store-index writer task panicked; some rows may not be persisted",
-            ),
-        }
+        StoreIndexWriter::drain(self.writer_task, "; some rows may not be persisted").await;
     }
 }
 

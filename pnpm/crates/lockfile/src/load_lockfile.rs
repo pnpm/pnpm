@@ -1,9 +1,10 @@
-use crate::{Lockfile, extract_main_document};
+use crate::{Lockfile, ProjectSnapshot, extract_main_document, merge_lockfile_changes};
 use derive_more::{Display, Error};
-use pacquet_diagnostics::miette::{self, Diagnostic};
 use pipe_trait::Pipe;
+use pnpm_diagnostics::miette::{self, Diagnostic};
 use serde_saphyr::MessageFormatter;
 use std::{
+    collections::HashMap,
     env, fs,
     io::{self, ErrorKind},
     path::{Path, PathBuf},
@@ -86,6 +87,44 @@ impl Lockfile {
         Self::load_from_path(&dir.join(Lockfile::FILE_NAME))
     }
 
+    /// Load the wanted lockfile an install reads, honoring the per-branch
+    /// lockfile settings.
+    ///
+    /// A branch-suffixed selection falls back to `pnpm-lock.yaml` when the
+    /// branch has no lockfile of its own yet, so the first install on a
+    /// new branch starts from the shared resolution rather than from
+    /// nothing. Under `mergeGitBranchLockfiles` every branch lockfile in
+    /// `dir` is then folded into whichever file was read.
+    pub fn load_wanted(
+        dir: &Path,
+        selection: &WantedLockfileSelection,
+    ) -> Result<Option<Self>, LoadLockfileError> {
+        Ok(Self::load_wanted_detailed(dir, selection)?.lockfile)
+    }
+
+    /// [`Self::load_wanted`] keeping the importers the fold started from.
+    pub fn load_wanted_detailed(
+        dir: &Path,
+        selection: &WantedLockfileSelection,
+    ) -> Result<LoadedWantedLockfile, LoadLockfileError> {
+        for file_name in selection.read_order() {
+            let Some(lockfile) = Self::load_from_path(&dir.join(file_name))? else {
+                continue;
+            };
+            return if selection.merge_git_branch_lockfiles {
+                let pre_merge_importers = lockfile.importers.clone();
+                let merged = merge_git_branch_lockfiles(lockfile, dir)?;
+                Ok(LoadedWantedLockfile {
+                    lockfile: Some(merged),
+                    pre_merge_importers: Some(pre_merge_importers),
+                })
+            } else {
+                Ok(LoadedWantedLockfile { lockfile: Some(lockfile), pre_merge_importers: None })
+            };
+        }
+        Ok(LoadedWantedLockfile::default())
+    }
+
     /// Whether `<dir>/pnpm-lock.yaml` would load as `Some`: the file
     /// exists and its main document is non-empty. The same absence
     /// rules as [`Self::load_wanted_from_dir`] (a missing file, an
@@ -101,7 +140,18 @@ impl Lockfile {
     /// actually needed.
     #[must_use]
     pub fn wanted_exists_in_dir(dir: &Path) -> bool {
-        match fs::read_to_string(dir.join(Lockfile::FILE_NAME)) {
+        Self::wanted_exists(dir, Lockfile::FILE_NAME)
+    }
+
+    /// [`Self::wanted_exists_in_dir`] for a caller-chosen file name.
+    ///
+    /// Deliberately no fallback to `pnpm-lock.yaml`: pnpm's
+    /// `existsNonEmptyWantedLockfile` asks about the one file the install
+    /// would write, so a branch that has not been installed on yet reads
+    /// as having no lockfile even when the shared one is on disk.
+    #[must_use]
+    pub fn wanted_exists(dir: &Path, file_name: &str) -> bool {
+        match fs::read_to_string(dir.join(file_name)) {
             Ok(content) => !extract_main_document(&content).trim().is_empty(),
             Err(error) => error.kind() != ErrorKind::NotFound,
         }
@@ -118,7 +168,7 @@ impl Lockfile {
             return Ok(None);
         }
         serde_saphyr::from_str_with_options::<Self>(
-            main,
+            &main,
             serde_saphyr::options! {
                 // Every size-proportional budget is raised to the document's
                 // byte length: none of these dimensions can exceed the size of
@@ -142,7 +192,10 @@ impl Lockfile {
         .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
     }
 
-    fn load_from_path(file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {
+    /// Load a lockfile from an explicit path. Returns `Ok(None)` when the
+    /// file is absent or its main document is empty, the same absence
+    /// rules the directory-addressed loaders use.
+    pub fn load_from_path(file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {
         let content = match fs::read_to_string(file_path) {
             Ok(content) => content,
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
@@ -154,3 +207,59 @@ impl Lockfile {
 
 #[cfg(test)]
 mod tests;
+
+/// A wanted lockfile as it was loaded, with the importers as they stood
+/// before `mergeGitBranchLockfiles` folded the branch lockfiles in.
+///
+/// Separating an entry the fold introduced from one the read file already
+/// carried needs that "before": the merged lockfile no longer holds it,
+/// and only the fold's own additions may be reconciled away against the
+/// manifests. `pre_merge_importers` is `None` when no fold was attempted.
+#[derive(Debug, Default)]
+pub struct LoadedWantedLockfile {
+    pub lockfile: Option<Lockfile>,
+    pub pre_merge_importers: Option<HashMap<String, ProjectSnapshot>>,
+}
+
+/// Which wanted-lockfile file an install reads and writes, and whether the
+/// other branches' lockfiles are folded into it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WantedLockfileSelection {
+    /// The file the install reads first and writes back:
+    /// `pnpm-lock.yaml`, or the `pnpm-lock.<branch>.yaml` that
+    /// `useGitBranchLockfile` picked.
+    pub file_name: String,
+    /// `mergeGitBranchLockfiles`: fold every `pnpm-lock.<branch>.yaml`
+    /// next to the file that was read into the loaded lockfile. The
+    /// install deletes them once it has written the merge back.
+    pub merge_git_branch_lockfiles: bool,
+}
+
+impl Default for WantedLockfileSelection {
+    fn default() -> Self {
+        WantedLockfileSelection {
+            file_name: Lockfile::FILE_NAME.to_owned(),
+            merge_git_branch_lockfiles: false,
+        }
+    }
+}
+
+impl WantedLockfileSelection {
+    /// The file names to try, most specific first.
+    fn read_order(&self) -> impl Iterator<Item = &str> {
+        let branch_file = (self.file_name != Lockfile::FILE_NAME).then_some(&*self.file_name);
+        branch_file.into_iter().chain([Lockfile::FILE_NAME])
+    }
+}
+
+fn merge_git_branch_lockfiles(base: Lockfile, dir: &Path) -> Result<Lockfile, LoadLockfileError> {
+    let branch_lockfiles =
+        Lockfile::git_branch_lockfiles(dir).map_err(LoadLockfileError::ReadFile)?;
+    let mut merged = base;
+    for path in branch_lockfiles {
+        if let Some(branch_lockfile) = Lockfile::load_from_path(&path)? {
+            merged = merge_lockfile_changes(&merged, &branch_lockfile);
+        }
+    }
+    Ok(merged)
+}

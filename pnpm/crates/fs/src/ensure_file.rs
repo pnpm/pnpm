@@ -363,8 +363,61 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 fn write_atomic(
     file_path: &Path,
     content: &[u8],
-    #[cfg_attr(windows, allow(unused))] mode: Option<u32>,
+    mode: Option<u32>,
 ) -> Result<(), EnsureFileError> {
+    let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
+    let name = file_path
+        .file_name()
+        .map(|file_name| file_name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let (tmp_path, mut file) = create_exclusive_temp_file(parent, &strip_dash_suffix(&name), mode)?;
+
+    if let Err(error) = file.write_all(content) {
+        drop(file);
+        let _ = fs::remove_file(&tmp_path);
+        return Err(EnsureFileError::WriteFile { file_path: tmp_path, error });
+    }
+    // Close the handle before `rename`. Windows `MoveFileEx` over
+    // an open source file can fail with sharing-violation; Unix
+    // doesn't care but an early `close` lets the kernel commit
+    // dirty buffers before the rename commits the dirent change.
+    drop(file);
+
+    if let Err(error) = rename_with_retry(&tmp_path, file_path) {
+        let _ = fs::remove_file(&tmp_path);
+        return Err(EnsureFileError::RenameFile {
+            tmp_path,
+            file_path: file_path.to_path_buf(),
+            error,
+        });
+    }
+    Ok(())
+}
+
+/// Create a uniquely-named file inside `dir` with `O_CREAT | O_EXCL`
+/// semantics, returning its path and open handle. The name is
+/// `{base}{pid}{counter}`: the counter is a process-local
+/// monotonically-increasing atomic, giving uniqueness across rayon /
+/// tokio workers in the same process, and the pid avoids collisions
+/// when multiple install processes share a store dir.
+///
+/// The exclusive open means we never follow a symlink or truncate a
+/// file an attacker (or a crashed prior install) pre-seeded at our
+/// predicted temp path. If we hit `AlreadyExists` anyway — collisions
+/// are vanishingly rare given the pid + per-process atomic counter temp
+/// scheme, but cross-container shared-store setups can re-use pids — we
+/// advance the counter and try again, up to `MAX_TEMP_ATTEMPTS` times.
+///
+/// The caller owns the file's lifecycle: rename it into place on
+/// success, remove it on failure.
+pub fn create_exclusive_temp_file(
+    dir: &Path,
+    base: &str,
+    // `mode` feeds `OpenOptionsExt::mode` inside the `cfg(unix)` block
+    // below; Windows has no POSIX mode bits to set at open time, so the
+    // parameter is genuinely unused there.
+    #[cfg_attr(windows, allow(unused))] mode: Option<u32>,
+) -> Result<(PathBuf, File), EnsureFileError> {
     /// Retries after `AlreadyExists` on the temp path. Sixteen fresh
     /// counter values is plenty — under benign conditions we never
     /// collide; under shared-store-across-containers the chance of
@@ -374,7 +427,7 @@ fn write_atomic(
     let mut last_already_exists: Option<io::Error> = None;
 
     for _ in 0..MAX_TEMP_ATTEMPTS {
-        let tmp_path = temp_path_for(file_path);
+        let tmp_path = temp_path_in(dir, base);
 
         let mut options = OpenOptions::new();
         options.write(true).create_new(true);
@@ -387,52 +440,30 @@ fn write_atomic(
             }
         }
 
-        let mut file = match retry_on_fd_pressure(|| options.open(&tmp_path)) {
-            Ok(file) => file,
+        match retry_on_fd_pressure(|| options.open(&tmp_path)) {
+            Ok(file) => return Ok((tmp_path, file)),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
                 // Stale temp file or adversarial / concurrent pre-seed.
                 // Retry with a fresh counter; don't touch whatever is
                 // at the colliding path.
                 last_already_exists = Some(error);
-                continue;
             }
             Err(error) => {
                 return Err(EnsureFileError::CreateFile { file_path: tmp_path, error });
             }
-        };
-
-        if let Err(error) = file.write_all(content) {
-            drop(file);
-            let _ = fs::remove_file(&tmp_path);
-            return Err(EnsureFileError::WriteFile { file_path: tmp_path, error });
         }
-        // Close the handle before `rename`. Windows `MoveFileEx` over
-        // an open source file can fail with sharing-violation; Unix
-        // doesn't care but an early `close` lets the kernel commit
-        // dirty buffers before the rename commits the dirent change.
-        drop(file);
-
-        if let Err(error) = rename_with_retry(&tmp_path, file_path) {
-            let _ = fs::remove_file(&tmp_path);
-            return Err(EnsureFileError::RenameFile {
-                tmp_path,
-                file_path: file_path.to_path_buf(),
-                error,
-            });
-        }
-        return Ok(());
     }
 
     // Ran out of temp-name attempts. Surface the last `AlreadyExists`
-    // so the operator can see what happened; pick the file_path as
+    // so the operator can see what happened; pick the directory as
     // the best-effort context since we can't enumerate every temp
     // name we tried.
     Err(EnsureFileError::CreateFile {
-        file_path: file_path.to_path_buf(),
+        file_path: dir.to_path_buf(),
         error: last_already_exists.unwrap_or_else(|| {
             io::Error::new(
                 io::ErrorKind::AlreadyExists,
-                "exhausted temp-path attempts for atomic CAS rewrite",
+                "exhausted temp-path attempts for exclusive temp file",
             )
         }),
     })
@@ -466,7 +497,7 @@ const RENAME_RETRY_BACKOFF_CAP: Duration = Duration::from_millis(100);
 /// (`link_file` → `fs::hard_link` / `reflink_copy`) don't keep file
 /// handles on the target, so there's no "parallel reader sees a gap"
 /// concern that would motivate swap-rename.
-fn rename_with_retry(src: &Path, dst: &Path) -> io::Result<()> {
+pub fn rename_with_retry(src: &Path, dst: &Path) -> io::Result<()> {
     let mut backoff = Duration::ZERO;
     let start = Instant::now();
 
@@ -516,35 +547,24 @@ fn is_transient_rename_error(
     }
 }
 
-/// Build a unique temp path next to `file_path`, of the form
-/// `{stripped_basename}{pid}{counter}`. The counter is a process-local
-/// monotonically-increasing `AtomicU64`, giving uniqueness across
-/// rayon / tokio workers in the same process; combining it with the
-/// pid avoids collisions when multiple install processes share a store
-/// dir.
-///
-/// We drop `-exec` / any dash-suffix, mainly so temp files don't look
-/// like executable CAS entries to any observer scanning the shard.
-fn temp_path_for(file_path: &Path) -> PathBuf {
+/// Build a unique temp path inside `dir`, of the form
+/// `{base}{pid}{counter}` per [`create_exclusive_temp_file`]'s
+/// uniqueness contract.
+fn temp_path_in(dir: &Path, base: &str) -> PathBuf {
     static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
     let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
 
-    let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
-    let name = file_path
-        .file_name()
-        .map(|file_name| file_name.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let base = strip_dash_suffix(&name);
-
-    parent.join(format!("{base}{pid}{counter}"))
+    dir.join(format!("{base}{pid}{counter}"))
 }
 
 /// Strip the first `-…` tail; if the tail was `-exec`, append `x`. On
 /// pacquet's CAS names (`{hex}` or `{hex}-exec`) the only real input is
 /// those two shapes, but the general form is handled so any future
-/// suffix doesn't silently diverge.
+/// suffix doesn't silently diverge. Applied to [`write_atomic`]'s temp
+/// names mainly so temp files don't look like executable CAS entries to
+/// any observer scanning the shard.
 fn strip_dash_suffix(name: &str) -> String {
     let Some(dash_pos) = name.find('-') else {
         return name.to_string();

@@ -17,7 +17,7 @@ use super::{
     parse_proxy_url,
 };
 use crate::proxy::{percent_decode_str, strip_userinfo};
-use pacquet_testing_utils::env_guard::EnvGuard;
+use pnpm_testing_utils::env_guard::EnvGuard;
 use reqwest::{
     Url,
     dns::{Addrs, Name, Resolve, Resolving},
@@ -1017,12 +1017,14 @@ fn for_installs_with_pkcs1_client_key_builds() {
 
 #[test]
 fn for_installs_honors_custom_network_settings() {
-    // A custom concurrency / timeout / user-agent must thread through
+    // Custom concurrency, timeout, warning thresholds, and user-agent must thread through
     // without error — the settings reach the semaphore and the reqwest
     // builder rather than being ignored.
     let settings = NetworkSettings {
         network_concurrency: 4,
         fetch_timeout: std::time::Duration::from_secs(5),
+        fetch_warn_timeout: std::time::Duration::from_secs(2),
+        fetch_min_speed_ki_bps: 75,
         user_agent: "pnpm/9.9.9 npm/? node/? darwin arm64".to_string(),
     };
     let client = ThrottledClient::for_installs(
@@ -1033,6 +1035,8 @@ fn for_installs_honors_custom_network_settings() {
     )
     .expect("custom network settings build");
     assert_eq!(client.semaphore.available_permits(), 4);
+    assert_eq!(client.fetch_warn_timeout(), std::time::Duration::from_secs(2));
+    assert_eq!(client.fetch_min_speed_ki_bps(), 75);
 }
 
 #[test]

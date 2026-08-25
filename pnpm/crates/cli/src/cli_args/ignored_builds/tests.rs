@@ -1,5 +1,5 @@
 use super::render_ignored_builds;
-use pacquet_config::Config;
+use pnpm_config::Config;
 use std::{fs, path::Path};
 use tempfile::tempdir;
 

@@ -1,21 +1,28 @@
 use crate::{
     State,
     cli_args::{
-        install::resolve_bool_override, pipelines::InstallFamilySelection,
-        supported_architectures::SupportedArchitecturesArgs,
+        install::resolve_bool_override, lockfile_dir::LockfileDirArg,
+        pipelines::InstallFamilySelection, supported_architectures::SupportedArchitecturesArgs,
     },
     config_deps,
+    engine_pm::{
+        error::EngineError,
+        pin::{
+            declared_package_manager, describe_pin, record_package_manager_pin, resolve_project_pin,
+        },
+        selector::tool_install_selector,
+    },
 };
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_package_manager::Add;
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::Reporter;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use pacquet_workspace_manifest_writer::set_allow_builds;
+use pnpm_config::Config;
+use pnpm_package_manager::Add;
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_workspace_manifest_writer::set_allow_builds;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -145,6 +152,8 @@ pub struct AddArgs {
     /// Dependencies are not downloaded. Only `pnpm-lock.yaml` is updated.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
+    #[clap(flatten)]
+    pub lockfile_dir: LockfileDirArg,
     /// The directory with links to the store (default is `node_modules/.pnpm`).
     /// All direct and indirect dependencies of the project are linked into this directory
     #[clap(long = "virtual-store-dir", default_value = "node_modules/.pnpm")]
@@ -159,6 +168,29 @@ pub struct AddArgs {
     /// Force-enable lifecycle scripts for this invocation.
     #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
     pub no_ignore_scripts: bool,
+    /// Permit adding dependencies to a multi-package workspace root without `-w`.
+    #[clap(
+        long = "ignore-workspace-root-check",
+        overrides_with = "no_ignore_workspace_root_check"
+    )]
+    pub ignore_workspace_root_check: bool,
+    /// Keep the workspace-root safety check enabled.
+    #[clap(
+        long = "no-ignore-workspace-root-check",
+        hide = true,
+        overrides_with = "ignore_workspace_root_check"
+    )]
+    pub no_ignore_workspace_root_check: bool,
+    /// Include optionalDependencies while materializing the updated project.
+    #[clap(long, overrides_with = "no_optional")]
+    pub optional: bool,
+    /// Exclude optionalDependencies while materializing the updated project.
+    #[clap(long = "no-optional", overrides_with = "optional")]
+    pub no_optional: bool,
+    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
+    /// pnpmfiles of config dependencies.
+    #[clap(long = "ignore-pnpmfile")]
+    pub ignore_pnpmfile: bool,
     /// Reinstall every package the lockfile names: relink packages an
     /// earlier install already materialized, and install optional
     /// dependencies whose `cpu` / `os` / `libc` / `engines` don't match
@@ -168,12 +200,40 @@ pub struct AddArgs {
 }
 
 impl AddArgs {
+    pub(crate) fn check_workspace_root(&self, config: &Config, dir: &Path) -> miette::Result<()> {
+        if config.recursive
+            || config.workspace_root
+            || resolve_bool_override(
+                self.ignore_workspace_root_check,
+                self.no_ignore_workspace_root_check,
+                config.ignore_workspace_root_check,
+            )
+            || config.workspace_dir.as_deref() != Some(dir)
+        {
+            return Ok(());
+        }
+        let patterns = pnpm_workspace::read_workspace_manifest(dir)
+            .into_diagnostic()?
+            .map(|manifest| pnpm_workspace::workspace_package_patterns(&manifest));
+        if patterns.as_ref().is_some_and(|patterns| patterns.len() > 1) {
+            return Err(AddError::AddingToRoot.into());
+        }
+        Ok(())
+    }
+
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         config.ignore_scripts = resolve_bool_override(
             self.ignore_scripts,
             self.no_ignore_scripts,
             config.ignore_scripts,
         );
+        config.ignore_workspace_root_check = resolve_bool_override(
+            self.ignore_workspace_root_check,
+            self.no_ignore_workspace_root_check,
+            config.ignore_workspace_root_check,
+        );
+        config.optional = resolve_bool_override(self.optional, self.no_optional, config.optional);
+        config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
         config.force = self.force || config.force;
     }
 
@@ -251,20 +311,33 @@ impl AddArgs {
             .or_else(|| self.save_catalog.then(|| "default".to_string()))
             .or_else(|| state.config.save_catalog_name.clone());
 
+        let mut state = state;
+        let pins = record_package_manager_pins(&mut state, &self.package_names).await?;
+        if pins.remaining.is_empty() {
+            pins.save(&mut state)?;
+            pins.report::<Reporter>();
+            return Ok(());
+        }
+        let package_names = pins.remaining.clone();
+
         let range_spec_style = self.range_spec_style(state.config);
         let dependency_options =
             self.dependency_options.clone().with_save_peer_setting(state.config.save_peer);
 
+        // The install saves the manifest, so the declarations recorded
+        // above reach disk with the dependencies or not at all.
         add_packages::<Reporter, _>(
             state,
-            &self.package_names,
+            &package_names,
             range_spec_style,
             save_catalog_name,
             self.lockfile_only,
             supported_architectures,
             dependency_options.save_target(),
         )
-        .await
+        .await?;
+        pins.report::<Reporter>();
+        Ok(())
     }
 
     pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(
@@ -272,6 +345,17 @@ impl AddArgs {
         mut state: State,
         selection: InstallFamilySelection,
     ) -> miette::Result<()> {
+        // Which package manager a project uses is that project's own
+        // declaration, so it is recorded where the command runs rather
+        // than written into each project a filter happens to select.
+        // Refusing is the honest answer: the alternative is installing
+        // the npm package that shares the name, which is not what naming
+        // a package manager asks for anywhere else.
+        if let Some(request) =
+            self.package_names.iter().find(|request| declared_package_manager(request).is_some())
+        {
+            return Err(AddError::PackageManagerInSelection { request: request.clone() }.into());
+        }
         let supported_architectures =
             self.supported_architectures.apply_to(state.config.supported_architectures.clone());
         let save_catalog_name = self
@@ -404,6 +488,30 @@ pub(crate) fn apply_allow_build(
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
+pub enum AddError {
+    #[display(
+        "Running this command will add the dependency to the workspace root, which might not be what you want - if you really meant it, make it explicit by running this command again with the -w flag (or --workspace-root). If you don't want to see this warning anymore, you may set the ignore-workspace-root-check setting to true."
+    )]
+    #[diagnostic(code(ERR_PNPM_ADDING_TO_ROOT))]
+    AddingToRoot,
+
+    #[display(
+        "Cannot declare {request} as the package manager of a filtered selection of projects"
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_PACKAGE_MANAGER_IN_SELECTION),
+        help(
+            "Which package manager a project uses is declared in that project. Run the command in the project itself, without a filter."
+        )
+    )]
+    PackageManagerInSelection {
+        #[error(not(source))]
+        request: String,
+    },
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
 pub enum AllowBuildError {
     #[display(
         "The following dependencies are ignored by the root project, but are allowed to be built by the current command: {dependencies}"
@@ -429,7 +537,7 @@ pub(crate) async fn add_package<Reporter, DependencyGroupList>(
     range_spec_style: RangeSpecStyle,
     save_catalog_name: Option<String>,
     lockfile_only: bool,
-    supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     dependency_groups: DependencyGroupList,
 ) -> miette::Result<()>
 where
@@ -449,6 +557,76 @@ where
     .await
 }
 
+/// What [`record_package_manager_pins`] made of a command's requests.
+struct RecordedPins {
+    /// The requests left to install. Empty when the whole command was
+    /// package managers and there is nothing to install.
+    remaining: Vec<String>,
+    /// The declarations written into the manifest, as they read back.
+    recorded: Vec<String>,
+}
+
+/// Record every package manager among `package_names` as the one the
+/// project uses, into `state`'s in-memory manifest.
+///
+/// The manifest is not saved here: an `add` that also installs something
+/// saves it once the install succeeds, so a failed command leaves the
+/// project as it found it. [`RecordedPins::save`] is for the command that
+/// installs nothing.
+///
+/// A runtime is left in the list: unlike a package manager it is
+/// installed, and [`tool_install_selector`] turns it into the `runtime:`
+/// request that records it under `engines.runtime`.
+///
+/// pnpm's own pin is deliberately not written here. Changing it makes the
+/// next command switch the running CLI, which is `pnpm self-update`'s job
+/// to do deliberately rather than an `add`'s to do as a side effect.
+async fn record_package_manager_pins(
+    state: &mut State,
+    package_names: &[String],
+) -> miette::Result<RecordedPins> {
+    let mut remaining = Vec::new();
+    let mut recorded = Vec::new();
+    for request in package_names {
+        if let Some((pm, version_spec)) = declared_package_manager(request) {
+            let reference = resolve_project_pin(state.config, pm, version_spec.as_deref()).await?;
+            let reference = reference.as_deref();
+            let manifest = state
+                .manifest
+                .value_mut()
+                .as_object_mut()
+                .ok_or(EngineError::ManifestIsNotAnObject)?;
+            record_package_manager_pin(manifest, pm, reference);
+            recorded.push(describe_pin(pm, reference));
+        } else {
+            let selector = tool_install_selector(request);
+            remaining.push(selector.unwrap_or_else(|| request.clone()));
+        }
+    }
+    Ok(RecordedPins { remaining, recorded })
+}
+
+impl RecordedPins {
+    /// Save the declarations, for a command with nothing to install.
+    fn save(&self, state: &mut State) -> miette::Result<()> {
+        if self.recorded.is_empty() {
+            return Ok(());
+        }
+        state.manifest.save().map_err(miette::Report::new).wrap_err("save the manifest")
+    }
+
+    /// Report what was declared, once it is on disk.
+    fn report<Reporter: self::Reporter>(&self) {
+        for pin in &self.recorded {
+            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Info,
+                message: format!("Recorded {pin} as the project's package manager"),
+                prefix: String::new(),
+            }));
+        }
+    }
+}
+
 /// Add packages to `state`'s manifest and install them in one operation.
 pub(crate) async fn add_packages<Reporter, DependencyGroupList>(
     mut state: State,
@@ -456,7 +634,7 @@ pub(crate) async fn add_packages<Reporter, DependencyGroupList>(
     range_spec_style: RangeSpecStyle,
     save_catalog_name: Option<String>,
     lockfile_only: bool,
-    supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     dependency_groups: Option<DependencyGroupList>,
 ) -> miette::Result<()>
 where

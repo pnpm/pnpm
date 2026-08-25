@@ -1,7 +1,8 @@
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::Diagnostic;
+use pnpm_config::{Config, check_global_bin_dir};
 use std::path::Path;
+
+use super::global::GlobalError;
 
 /// Print the path to the `node_modules` directory.
 #[derive(Debug, Args)]
@@ -11,23 +12,26 @@ pub struct RootArgs {
     pub global: bool,
 }
 
-/// Errors specific to `pacquet root`.
-#[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum RootError {
-    /// `--global` is rejected because the global-dir machinery is not
-    /// ported to pacquet yet; refuse rather than print a wrong path.
-    #[display("`pnpm root --global` is not supported yet.")]
-    #[diagnostic(code(ERR_PNPM_CLI_ROOT_GLOBAL_UNSUPPORTED))]
-    GlobalUnsupported,
-}
-
 impl RootArgs {
-    pub fn run(self, dir: &Path) -> miette::Result<()> {
+    pub fn run(self, dir: &Path, config: &Config) -> miette::Result<()> {
         if self.global {
-            return Err(RootError::GlobalUnsupported.into());
+            // Mirror pnpm's config reader: create then validate the global bin
+            // dir for every `--global` command. `root` only prints a path, so
+            // it skips the writability check (`globalDirShouldAllowWrite` is
+            // false for `root` and `prefix`; see pnpm issue 2700).
+            let bin = config.global_bin.clone().ok_or(GlobalError::NoGlobalBinDir)?;
+            std::fs::create_dir_all(&bin).map_err(|error| {
+                let bin_dir = bin.display();
+                miette::miette!("failed to create the global bin directory {bin_dir}: {error}")
+            })?;
+            check_global_bin_dir(&bin, std::env::var("PATH").ok().as_deref(), false)
+                .map_err(miette::Report::new)?;
+            let pkg_dir =
+                config.global_pkg_dir.clone().ok_or(GlobalError::MissingGlobalPackageDir)?;
+            println!("{}", pkg_dir.display());
+        } else {
+            println!("{}", dir.join("node_modules").display());
         }
-        println!("{}", dir.join("node_modules").display());
         Ok(())
     }
 }

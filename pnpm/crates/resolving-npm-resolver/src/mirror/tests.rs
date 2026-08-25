@@ -1,15 +1,15 @@
 use std::path::PathBuf;
 
-use pacquet_registry::Package;
+use pnpm_registry::Package;
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
-use pacquet_network::MetadataCacheScope;
+use pnpm_network::MetadataCacheScope;
 
 use super::{
     ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, encode_pkg_name,
-    get_pkg_mirror_path, get_registry_name, load_meta, load_meta_headers, save_meta_indexed,
-    scoped_meta_dir,
+    get_pkg_mirror_path, get_registry_name, load_meta, load_meta_headers, load_meta_with_hold_cap,
+    save_meta_indexed, scoped_meta_dir,
 };
 
 #[test]
@@ -141,6 +141,129 @@ fn load_meta_round_trip_hydrates_versions_from_spans() {
     assert_eq!(loaded.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
     assert_eq!(loaded.dist_tag("latest"), Some("1.0.0"));
     let manifest = loaded.versions.get("1.0.0").expect("hydrate from file span");
+    assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
+}
+
+#[test]
+fn load_meta_survives_mirror_rewrite() {
+    let dir = TempDir::new().expect("tmp dir");
+    let mirror = dir.path().join("acme.jsonl");
+    let pkg = fixture_package();
+    save_meta_indexed(&mirror, &pkg, None).expect("save");
+    let loaded = load_meta(&mirror).expect("read full back");
+    // The fatter `0.9.0` fragment shifts `1.0.0`'s offset, so a loader
+    // that re-read the path instead of the pinned inode parses garbage.
+    let newer: Package = serde_json::from_value(serde_json::json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "0.9.0": {
+                "name": "acme",
+                "version": "0.9.0",
+                "deprecated": "superseded by 1.0.0; padding padding padding padding",
+                "dist": {
+                    "integrity": "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+                    "shasum": "1111111111111111111111111111111111111111",
+                    "tarball": "https://registry/acme-0.9.0.tgz"
+                }
+            },
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/acme-1.0.0-rebuilt.tgz"
+                }
+            }
+        }
+    }))
+    .expect("deserialize rewritten Package");
+    save_meta_indexed(&mirror, &newer, None).expect("overwrite");
+    let manifest = loaded.versions.get("1.0.0").expect("hydrate after rewrite");
+    assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
+}
+
+#[test]
+fn load_meta_past_the_hold_cap_buffers_fragments_instead_of_missing() {
+    let dir = TempDir::new().expect("tmp dir");
+    let mirror = dir.path().join("acme.jsonl");
+    let pkg = fixture_package();
+    save_meta_indexed(&mirror, &pkg, Some(r#"W/"abc""#)).expect("save");
+    let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read full back without a handle");
+    let manifest = loaded.versions.get("1.0.0").expect("hydrate from buffered fragment");
+    assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
+    assert_eq!(loaded.etag.as_deref(), Some(r#"W/"abc""#));
+}
+
+#[test]
+fn load_meta_rejects_oversized_declared_record_lengths() {
+    let dir = TempDir::new().expect("tmp dir");
+    let mirror = dir.path().join("acme.jsonl");
+    std::fs::write(&mirror, "pacquet-meta-v1 128 999999999999\n{}{}").expect("write");
+    assert!(load_meta(&mirror).is_none());
+}
+
+#[test]
+fn load_meta_past_the_hold_cap_ignores_a_sparse_tail() {
+    let dir = TempDir::new().expect("tmp dir");
+    let mirror = dir.path().join("acme.jsonl");
+    let pkg = fixture_package();
+    save_meta_indexed(&mirror, &pkg, None).expect("save");
+    let file = std::fs::OpenOptions::new().write(true).open(&mirror).expect("open");
+    let size = file.metadata().expect("metadata").len();
+    file.set_len(size + 64 * 1024 * 1024).expect("extend sparsely");
+    let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read full back without a handle");
+    let manifest = loaded.versions.get("1.0.0").expect("hydrate from buffered fragment");
+    assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
+}
+
+#[test]
+fn load_meta_past_the_hold_cap_skips_a_sparse_gap_between_spans() {
+    let dir = TempDir::new().expect("tmp dir");
+    let mirror = dir.path().join("acme.jsonl");
+    let headers = "{}";
+    let fragment = r#"{"name":"acme","version":"1.0.0","dist":{"integrity":"sha512-A","shasum":"0","tarball":"https://registry/acme-1.0.0.tgz"}}"#;
+    let far_offset: u64 = 512 * 1024 * 1024;
+    let index = format!(
+        r#"{{"name":"acme","distTags":{{}},"versions":[["1.0.0",0,{}],["2.0.0",{far_offset},16]]}}"#,
+        fragment.len(),
+    );
+    let contents =
+        format!("pacquet-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
+    std::fs::write(&mirror, &contents).expect("write");
+    let file = std::fs::OpenOptions::new().write(true).open(&mirror).expect("open");
+    file.set_len(contents.len() as u64 + far_offset + 16).expect("extend sparsely");
+    let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read full back without a handle");
+    let manifest = loaded.versions.get("1.0.0").expect("hydrate the near fragment");
+    assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
+    // The far span reads zeroes out of the sparse hole — not JSON, so
+    // the version is absent; the gap itself must never be buffered.
+    assert!(loaded.versions.get("2.0.0").is_none());
+}
+
+#[test]
+fn load_meta_treats_an_oversized_fragment_span_as_absent() {
+    let dir = TempDir::new().expect("tmp dir");
+    let mirror = dir.path().join("acme.jsonl");
+    let headers = "{}";
+    let fragment = r#"{"name":"acme","version":"1.0.0","dist":{"integrity":"sha512-A","shasum":"0","tarball":"https://registry/acme-1.0.0.tgz"}}"#;
+    let index = format!(
+        r#"{{"name":"acme","distTags":{{}},"versions":[["1.0.0",0,{}],["9.9.9",{},{}]]}}"#,
+        fragment.len(),
+        fragment.len(),
+        32 * 1024 * 1024,
+    );
+    let contents =
+        format!("pacquet-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
+    std::fs::write(&mirror, &contents).expect("write");
+    // A sparse tail makes the file size cover the declared span
+    // without paying for the bytes, like a corrupt mirror would.
+    let file = std::fs::OpenOptions::new().write(true).open(&mirror).expect("open");
+    file.set_len(contents.len() as u64 + 64 * 1024 * 1024).expect("extend sparsely");
+    let loaded = load_meta(&mirror).expect("read full back");
+    assert!(loaded.versions.get("9.9.9").is_none(), "oversized span must read as absent");
+    let manifest = loaded.versions.get("1.0.0").expect("hydrate the in-bounds fragment");
     assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
 }
 

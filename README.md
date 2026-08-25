@@ -28,6 +28,7 @@ To quote the [Rush](https://rushjs.io/) team:
 > Microsoft uses pnpm in Rush repos with hundreds of projects and hundreds of PRs per day, and we’ve found it to be very fast and reliable.
 
 [![npm version](https://img.shields.io/npm/v/pnpm.svg?label=latest)](https://github.com/pnpm/pnpm/releases/latest)
+[![Ecosystem E2E](https://github.com/pnpm/pnpm/actions/workflows/ecosystem-e2e.yml/badge.svg?branch=main)](https://github.com/pnpm/pnpm/actions/workflows/ecosystem-e2e.yml)
 [![OpenCollective](https://opencollective.com/pnpm/backers/badge.svg)](https://opencollective.com/pnpm)
 [![OpenCollective](https://opencollective.com/pnpm/sponsors/badge.svg)](https://opencollective.com/pnpm)
 [![X Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://x.com/intent/follow?screen_name=pnpmjs&region=follow_link)
@@ -49,6 +50,15 @@ To quote the [Rush](https://rushjs.io/) team:
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/openai_dark.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/openai_light.svg" />
             <img src="https://pnpm.io/img/users/openai_dark.svg" width="160" alt="OpenAI" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://notion.com/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/notion.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/notion_light.svg" />
+            <img src="https://pnpm.io/img/users/notion.svg" width="80" alt="Notion" />
           </picture>
         </a>
       </td>
@@ -130,6 +140,9 @@ To quote the [Rush](https://rushjs.io/) team:
             <img src="https://pnpm.io/img/users/nx.svg" width="50" alt="Nx" />
           </picture>
         </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://latitude.so/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/latitude.svg" width="160" alt="Latitude"></a>
       </td>
     </tr>
   </tbody>

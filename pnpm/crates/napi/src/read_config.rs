@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 
 use napi_derive::napi;
-use pacquet_network::{DEFAULT_REGISTRY_SCOPE, NoProxySetting, nerf_dart};
+use pnpm_network::{DEFAULT_REGISTRY_SCOPE, NoProxySetting, nerf_dart};
 
 use crate::{
     config::{ConfigOverlay, resolve_config},
@@ -57,6 +57,14 @@ pub struct ResolvedConfig {
     pub store_dir: String,
     pub cache_dir: String,
     pub virtual_store_dir_max_length: u32,
+    /// Whether the resolved configuration uses the global virtual store.
+    pub enable_global_virtual_store: bool,
+    /// Shared virtual-store root.
+    pub global_virtual_store_dir: String,
+    /// Project-local virtual-store directory.
+    pub virtual_store_dir: String,
+    /// Virtual-store directory used by this configuration and recorded in `.modules.yaml`.
+    pub effective_virtual_store_dir: String,
     pub network_concurrency: u32,
     pub max_sockets: Option<u32>,
     pub fetch_retries: u32,
@@ -64,6 +72,8 @@ pub struct ResolvedConfig {
     pub fetch_retry_mintimeout: u32,
     pub fetch_retry_maxtimeout: u32,
     pub fetch_timeout: u32,
+    pub fetch_warn_timeout_ms: u32,
+    pub fetch_min_speed_ki_bps: u32,
     /// The explicitly configured user agent, when the cascade set one.
     /// The engine's own computed default is omitted — an embedder that
     /// passes nothing back to `install` gets that same default.
@@ -97,7 +107,7 @@ pub fn read_config(options: ReadConfigOptions) -> napi::Result<ResolvedConfig> {
     Ok(project_config(config))
 }
 
-fn project_config(config: &pacquet_config::Config) -> ResolvedConfig {
+fn project_config(config: &pnpm_config::Config) -> ResolvedConfig {
     // `to_by_scope` maps `nerf-darted uri -> scope -> header`, carrying
     // only static credentials (a `tokenHelper` has no header until run).
     let by_scope = config.auth_headers.to_by_scope();
@@ -110,12 +120,12 @@ fn project_config(config: &pacquet_config::Config) -> ResolvedConfig {
 
     // The default registry lives in `config.registry`; the `registries`
     // map carries it only when something set a `default` key explicitly.
-    let default_entry = (!config.registries.contains_key("default"))
+    let default_entry = (!config.registries_by_scope.contains_key("default"))
         .then(|| ("default".to_string(), config.registry.clone()));
     let registries = default_entry
         .iter()
         .map(|(name, url)| (name, url))
-        .chain(config.registries.iter())
+        .chain(config.registries_by_scope.iter())
         .map(|(name, url)| {
             let uri = nerf_dart(url);
             let scoped = by_scope.get(&uri);
@@ -148,6 +158,10 @@ fn project_config(config: &pacquet_config::Config) -> ResolvedConfig {
         cache_dir: config.cache_dir.display().to_string(),
         virtual_store_dir_max_length: u32::try_from(config.virtual_store_dir_max_length)
             .unwrap_or(u32::MAX),
+        enable_global_virtual_store: config.enable_global_virtual_store,
+        global_virtual_store_dir: config.global_virtual_store_dir.display().to_string(),
+        virtual_store_dir: config.virtual_store_dir.display().to_string(),
+        effective_virtual_store_dir: config.effective_virtual_store_dir().display().to_string(),
         network_concurrency: u32::try_from(config.network_concurrency).unwrap_or(u32::MAX),
         max_sockets: config.max_sockets.map(|value| u32::try_from(value).unwrap_or(u32::MAX)),
         fetch_retries: config.fetch_retries,
@@ -155,6 +169,8 @@ fn project_config(config: &pacquet_config::Config) -> ResolvedConfig {
         fetch_retry_mintimeout: u32::try_from(config.fetch_retry_mintimeout).unwrap_or(u32::MAX),
         fetch_retry_maxtimeout: u32::try_from(config.fetch_retry_maxtimeout).unwrap_or(u32::MAX),
         fetch_timeout: u32::try_from(config.fetch_timeout).unwrap_or(u32::MAX),
+        fetch_warn_timeout_ms: u32::try_from(config.fetch_warn_timeout_ms).unwrap_or(u32::MAX),
+        fetch_min_speed_ki_bps: u32::try_from(config.fetch_min_speed_ki_bps).unwrap_or(u32::MAX),
         user_agent: config
             .explicit_settings
             .contains_key("userAgent")
@@ -165,19 +181,19 @@ fn project_config(config: &pacquet_config::Config) -> ResolvedConfig {
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         shamefully_hoist: config.shamefully_hoist,
-        pnpm_home_dir: pacquet_config::default_pnpm_home_dir::<pacquet_config::Host>()
+        pnpm_home_dir: pnpm_config::default_pnpm_home_dir::<pnpm_config::Host>()
             .map(|dir| dir.display().to_string()),
         explicit_settings: config.explicit_settings.keys().cloned().collect(),
     }
 }
 
-fn import_method_name(method: pacquet_config::PackageImportMethod) -> &'static str {
+fn import_method_name(method: pnpm_config::PackageImportMethod) -> &'static str {
     match method {
-        pacquet_config::PackageImportMethod::Auto => "auto",
-        pacquet_config::PackageImportMethod::Hardlink => "hardlink",
-        pacquet_config::PackageImportMethod::Copy => "copy",
-        pacquet_config::PackageImportMethod::Clone => "clone",
-        pacquet_config::PackageImportMethod::CloneOrCopy => "clone-or-copy",
+        pnpm_config::PackageImportMethod::Auto => "auto",
+        pnpm_config::PackageImportMethod::Hardlink => "hardlink",
+        pnpm_config::PackageImportMethod::Copy => "copy",
+        pnpm_config::PackageImportMethod::Clone => "clone",
+        pnpm_config::PackageImportMethod::CloneOrCopy => "clone-or-copy",
     }
 }
 

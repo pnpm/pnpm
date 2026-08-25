@@ -2,17 +2,17 @@ use std::{marker::PhantomData, path::Path};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::{
+use pnpm_config::{
     Config,
     version_policy::{VersionPolicyError, merge_package_version_specs},
 };
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, PromptAction, PromptLog, Reporter};
-use pacquet_resolving_resolver_base::ResolutionPolicyViolation;
-use pacquet_workspace_manifest_writer::{
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, PromptAction, PromptLog, Reporter};
+use pnpm_resolving_resolver_base::ResolutionPolicyViolation;
+use pnpm_workspace_manifest_writer::{
     UpdateWorkspaceManifestError, set_minimum_release_age_excludes,
 };
 
-use pacquet_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
+use pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum MinimumReleaseAgeError {
@@ -74,12 +74,14 @@ pub(crate) async fn handle_minimum_release_age_violations<ReporterImpl: Reporter
     workspace_dir: &Path,
     violations: &[ResolutionPolicyViolation],
     can_prompt: bool,
+    persist_excludes: bool,
 ) -> Result<(), MinimumReleaseAgeError> {
     handle_minimum_release_age_violations_with::<ReporterImpl, _>(
         config,
         workspace_dir,
         violations,
         can_prompt,
+        persist_excludes,
         &mut DialoguerPrompt,
     )
     .await
@@ -107,20 +109,31 @@ async fn handle_minimum_release_age_violations_with<ReporterImpl, Prompt>(
     workspace_dir: &Path,
     violations: &[ResolutionPolicyViolation],
     can_prompt: bool,
+    persist_excludes: bool,
     prompt: &mut Prompt,
 ) -> Result<(), MinimumReleaseAgeError>
 where
     ReporterImpl: Reporter,
     Prompt: ApprovalPrompt,
 {
-    if !config.resolved_minimum_release_age_strict() {
+    let strict = config.resolved_minimum_release_age_strict();
+    if !strict && !persist_excludes {
         return Ok(());
     }
-
     let immature = sorted_immature_violations(violations);
     if immature.is_empty() {
         return Ok(());
     }
+
+    if !strict {
+        return persist_and_report_excludes::<ReporterImpl>(
+            config,
+            workspace_dir,
+            &immature,
+            "(set minimumReleaseAgeStrict to true to gate these updates with a prompt)",
+        );
+    }
+
     if !can_prompt {
         return Err(MinimumReleaseAgeError::NoMatureMatchingVersion {
             message: format_violation_error(&immature),
@@ -136,6 +149,28 @@ where
         return Err(MinimumReleaseAgeError::Denied);
     }
 
+    // A non-persisting caller (`dedupe --check`) still prompts in strict
+    // mode, but an approval only lets the run proceed — nothing may be
+    // written. `update --no-save` never reaches this point: strict mode
+    // without persistence is rejected up-front by
+    // [`ensure_strict_minimum_release_age_can_save`].
+    if !persist_excludes {
+        return Ok(());
+    }
+    persist_and_report_excludes::<ReporterImpl>(
+        config,
+        workspace_dir,
+        &immature,
+        "(approved at the prompt)",
+    )
+}
+
+fn persist_and_report_excludes<ReporterImpl: Reporter>(
+    config: &Config,
+    workspace_dir: &Path,
+    immature: &[&ResolutionPolicyViolation],
+    reason: &str,
+) -> Result<(), MinimumReleaseAgeError> {
     let added: Vec<String> = immature
         .iter()
         .map(|violation| format!("{}@{}", violation.name, violation.version))
@@ -152,7 +187,7 @@ where
     ReporterImpl::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Info,
         message: format!(
-            "Added {} {} to minimumReleaseAgeExclude in pnpm-workspace.yaml (approved at the prompt):\n  {}",
+            "Added {} {} to minimumReleaseAgeExclude in pnpm-workspace.yaml {reason}:\n  {}",
             added.len(),
             if added.len() == 1 { "entry" } else { "entries" },
             added.join("\n  "),

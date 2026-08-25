@@ -9,9 +9,9 @@ use crate::{
 };
 use itertools::Itertools;
 use os_display::Quotable;
-use pacquet_fs::file_mode::make_file_executable;
-use pacquet_registry_mock::pick_unused_port;
 use pipe_trait::Pipe;
+use pnpm_fs::file_mode::make_file_executable;
+use pnpm_registry_mock::pick_unused_port;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -32,6 +32,11 @@ const PREWARM_SCRIPT: &str = "prewarm.bash";
 const BENCHMARK_DIAGNOSTICS_JSON: &str = "BENCHMARK_DIAGNOSTICS.json";
 const BENCHMARK_DIAGNOSTICS_MD: &str = "BENCHMARK_DIAGNOSTICS.md";
 const PNPR_DIRECT_RATIO_MAX: f64 = 1.05;
+// Absolute slack for the pnpr-vs-direct gate: the repeat-install
+// scenarios finish in tens of milliseconds, where run-to-run noise
+// alone can exceed 5% of the mean. A pnpr arm within this many seconds
+// of the direct arm passes regardless of the ratio.
+const PNPR_DIRECT_ABS_SLACK_SECONDS: f64 = 0.015;
 // A pacquet peer-resolution blowup lands *below* 1x on this DAG, so the floor
 // only has to clear measurement noise, not encode how far ahead pacquet is.
 // The TypeScript resolver's own hot-cache cost moves independently — offline
@@ -586,15 +591,16 @@ impl WorkEnv {
         // would have its server up if a scenario ever combines the two.
         let _pnpr_servers = self.start_pnpr_servers(pnpr_server_registry);
 
-        // For GVS-warm we need a pre-warm pass: hyperfine's `--warmup`
-        // would otherwise time-from-empty for the first run since the
-        // pre-benchmark wipe above just emptied `store-dir`. The
-        // scenario's contract is "GVS already populated", so prime it
-        // by running the install once per target before hyperfine
-        // starts measuring.
-        if scenario.enables_gvs() {
+        // For GVS-warm and repeat-install scenarios we need a pre-warm
+        // pass: hyperfine's `--warmup` would otherwise time-from-empty
+        // for the first run since the pre-benchmark wipe above just
+        // emptied `store-dir` (and `node_modules`). Their contracts are
+        // "GVS already populated" / "`node_modules` already up to date",
+        // so prime them by running the install once per target before
+        // hyperfine starts measuring.
+        if scenario.enables_gvs() || scenario.prewarms_node_modules() {
             for id in self.benchmarked_ids() {
-                eprintln!("Pre-warming GVS for {id}...");
+                eprintln!("Pre-warming the install state for {id}...");
                 Command::new("bash").arg(self.script_path(id)).pipe_mut(executor("install.bash"));
             }
         }
@@ -737,7 +743,7 @@ impl WorkEnv {
             eprintln!(
                 "Serving {revision}'s tarballs from a mock built from pnpr@{revision} on 127.0.0.1:{mock_port}...",
             );
-            let mut command = pacquet_registry_mock::pnpr_command_with_binary(
+            let mut command = pnpm_registry_mock::pnpr_command_with_binary(
                 &binary,
                 mock_port,
                 Some(&registry.url),
@@ -1172,7 +1178,9 @@ impl WorkEnv {
                 continue;
             }
             assert!(
-                ratio.ratio <= PNPR_DIRECT_RATIO_MAX,
+                ratio.ratio <= PNPR_DIRECT_RATIO_MAX
+                    || ratio.pnpr_mean_seconds - ratio.pacquet_mean_seconds
+                        <= PNPR_DIRECT_ABS_SLACK_SECONDS,
                 "pnpr@{} was slower than pacquet@{}: ratio {:.3} > {:.3} (pnpr {:.3}s, pacquet {:.3}s)",
                 ratio.revision,
                 ratio.revision,
@@ -2175,6 +2183,18 @@ fn may_create_lockfile(dst_dir: &Path, scenario: BenchmarkScenario, src_dir: Opt
             .pipe(Cow::Owned)
     };
     if let Some(lockfile) = scenario.lockfile(load_lockfile) {
+        // Land the seeded lockfile in a strictly later millisecond than
+        // the just-written `package.json`. The kernel's file-timestamp
+        // clock ticks coarsely (~1 ms), so back-to-back writes can share
+        // one mtime — and the repeat-install fast path reads a manifest
+        // whose mtime equals its baseline (the lockfile mtime, truncated
+        // to ms) as possibly-modified, pushing every timed iteration
+        // onto the heavier content-check path for one bench dir but not
+        // the other. Real projects never hit this shape (the lockfile is
+        // written by an install that started after the manifest edit),
+        // so the pause keeps the measured runs on the representative
+        // pure-mtime path.
+        std::thread::sleep(std::time::Duration::from_millis(5));
         let path = dst_dir.join("pnpm-lock.yaml");
         fs::write(path, lockfile).expect("write pnpm-lock.yaml for the revision");
     }

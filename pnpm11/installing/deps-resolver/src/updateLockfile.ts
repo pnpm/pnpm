@@ -1,4 +1,4 @@
-import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { getRegistryServerType, normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import * as dp from '@pnpm/deps.path'
 import {
   type LockfileObject,
@@ -7,26 +7,24 @@ import {
 } from '@pnpm/lockfile.pruner'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import type { DepPath, Registries } from '@pnpm/types'
+import type { DepPath, RegistriesByScope, RegistryContext, RegistryServerType } from '@pnpm/types'
 import type { KeyValuePair } from 'ramda'
-import { partition } from 'ramda'
+import { equals, partition } from 'ramda'
 
 import { depPathToRef } from './depPathToRef.js'
 import type { DependenciesGraph } from './index.js'
 import type { ResolvedPackage } from './resolveDependencies.js'
 
 export function updateLockfile (
-  { dependenciesGraph, lockfile, prefix, registries, namedRegistries, lockfileIncludeTarballUrl }: {
+  { dependenciesGraph, lockfile, prefix, registriesByScope, registriesByPrefix, registryOptionsByUrl, lockfileIncludeTarballUrl }: RegistryContext & {
     dependenciesGraph: DependenciesGraph
     lockfile: LockfileObject
     prefix: string
-    registries: Registries
-    namedRegistries?: Record<string, string>
     lockfileIncludeTarballUrl?: boolean
   }
 ): LockfileObject {
   lockfile.packages = lockfile.packages ?? {}
-  const mergedNamedRegistries = normalizeNamedRegistries(namedRegistries)
+  const mergedRegistriesByPrefix = normalizeRegistriesByPrefix(registriesByPrefix)
   for (const [depPath, depNode] of Object.entries(dependenciesGraph)) {
     const [updatedOptionalDeps, updatedDeps] = partition(
       (child) => depNode.optionalDependencies.has(child.alias) || depNode.peerDependencies[child.alias]?.optional === true,
@@ -37,13 +35,15 @@ export function updateLockfile (
     // checked against its named registry, everything else against the
     // scope-routed one.
     const registryName = dp.parse(depPath).registryName
+    const registry = (registryName != null ? mergedRegistriesByPrefix[registryName] : undefined) ??
+      dp.getRegistryByPackageName(registriesByScope, depNode.name)
     lockfile.packages[depPath as DepPath] = toLockfileDependency(depNode, {
       depGraph: dependenciesGraph,
       depPath,
       prevSnapshot: lockfile.packages[depPath as DepPath],
-      registries,
-      registry: (registryName != null ? mergedNamedRegistries[registryName] : undefined) ??
-        dp.getRegistryByPackageName(registries, depNode.name),
+      registriesByScope,
+      registry,
+      serverType: getRegistryServerType({ registryOptionsByUrl }, registry),
       registryName,
       updatedDeps,
       updatedOptionalDeps,
@@ -61,8 +61,9 @@ function toLockfileDependency (
   opts: {
     depPath: string
     registry: string
+    serverType?: RegistryServerType
     registryName?: string
-    registries: Registries
+    registriesByScope: RegistriesByScope
     updatedDeps: Array<{ alias: string, depPath: DepPath }>
     updatedOptionalDeps: Array<{ alias: string, depPath: DepPath }>
     depGraph: DependenciesGraph
@@ -73,8 +74,11 @@ function toLockfileDependency (
   let lockfileResolution = toLockfileResolution(
     { name: pkg.name, version: pkg.version },
     pkg.resolution,
-    opts.registry,
-    opts.lockfileIncludeTarballUrl
+    {
+      registry: opts.registry,
+      serverType: opts.serverType,
+      lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
+    }
   )
 
   if (
@@ -176,6 +180,15 @@ function toLockfileDependency (
   }
   if (pkg.additionalInfo.deprecated) {
     result['deprecated'] = pkg.additionalInfo.deprecated
+  } else if (
+    // `deprecated` is the only registry-mutable field of a published
+    // version; an unchanged resolution must not lose a recorded
+    // deprecation to a registry serving it inconsistently
+    // (pnpm/pnpm#13846).
+    opts.prevSnapshot?.deprecated != null &&
+    equals(opts.prevSnapshot.resolution, lockfileResolution)
+  ) {
+    result['deprecated'] = opts.prevSnapshot.deprecated
   }
   if (pkg.hasBin) {
     result['hasBin'] = true

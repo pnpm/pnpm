@@ -9,8 +9,8 @@ use std::{
     sync::Mutex,
 };
 
-use pacquet_network_web_auth_testing::web_auth_fake;
 use pipe_trait::Pipe;
+use pnpm_network_web_auth_testing::web_auth_fake;
 use pretty_assertions::assert_eq;
 
 use super::{

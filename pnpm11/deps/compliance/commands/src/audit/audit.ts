@@ -6,7 +6,7 @@ import { PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
 import { globalInfo } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import type { Registries } from '@pnpm/types'
+import type { RegistriesByScope } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
 import { pick, pickBy } from 'ramda'
@@ -17,6 +17,7 @@ import { fix } from './fix.js'
 import { fixWithUpdate, type FixWithUpdateResult } from './fixWithUpdate.js'
 import { getAuditFixChoices } from './getAuditFixChoices.js'
 import { ignore } from './ignore.js'
+import { correctInferredPatchedVersions, createPublishTimesFetcher, type PublishTimesFetcher } from './publishTimes.js'
 import { auditSignatures } from './signatures.js'
 
 const AUDIT_LEVEL_NUMBER = {
@@ -157,15 +158,24 @@ export function help (): string {
   })
 }
 
+export type { PublishTimesFetcher } from './publishTimes.js'
+
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   fix?: boolean | 'override' | 'update'
   ignoreRegistryErrors?: boolean
   interactive?: boolean
   json?: boolean
   lockfileDir?: string
-  registries: Registries
+  registriesByScope: RegistriesByScope
   ignore?: string[]
   ignoreUnfixable?: boolean
+  /**
+   * Memoized packument publish-time lookup shared between patched-version
+   * validation and the age-gate exclusion flow so each package is fetched at
+   * most once per `pnpm audit` run. When unset, each consumer creates its own
+   * fetcher.
+   */
+  getPublishTimes?: PublishTimesFetcher
 } & Pick<Config, 'auditConfig'
 | 'auditLevel'
 | 'minimumReleaseAge'
@@ -230,7 +240,7 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
       },
       envLockfile,
       include,
-      registry: opts.registries.default,
+      registry: opts.registriesByScope.default,
       retry: networkOptions.retry,
       timeout: networkOptions.fetchTimeout,
     })
@@ -244,6 +254,12 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
 
     throw err
   }
+  // The inferred patched range is syntactic: verify a published version
+  // actually satisfies it before the report and any fix flow can claim one.
+  // One fetcher is shared with the fix flows below so each affected package
+  // is requested at most once.
+  const getPublishTimes = createPublishTimesFetcher(opts)
+  await correctInferredPatchedVersions(auditReport.advisories, getPublishTimes)
   let fixMethod: 'update' | 'override' | undefined
   if (opts.fix === 'update' || opts.fix === 'override') {
     fixMethod = opts.fix
@@ -266,7 +282,7 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
       filteredAuditReport = await interactiveAuditFix(filteredAuditReport)
     }
     if (fixMethod === 'update') {
-      const result = await fixWithUpdate(filteredAuditReport, { ...opts, include })
+      const result = await fixWithUpdate(filteredAuditReport, { ...opts, getPublishTimes, include })
       let output = formatFixWithUpdateOutput(result, filteredAuditReport)
       if (result.addedAgeExcludes.length > 0) {
         output += `\n${result.addedAgeExcludes.length} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n${result.addedAgeExcludes.join('\n')}\n`
@@ -276,7 +292,7 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
         output,
       }
     }
-    const { vulnOverrides, addedAgeExcludes } = await fix(filteredAuditReport, opts)
+    const { vulnOverrides, addedAgeExcludes } = await fix(filteredAuditReport, { ...opts, getPublishTimes })
     if (Object.values(vulnOverrides).length === 0) {
       return {
         exitCode: 0,
@@ -361,7 +377,7 @@ ${newIgnores.join('\n')}`,
       [AUDIT_COLOR[advisory.severity](advisory.severity), chalk.bold(advisory.title)],
       ['Package', advisory.module_name],
       ['Vulnerable versions', advisory.vulnerable_versions],
-      ['Patched versions', advisory.patched_versions ?? '(unknown)'],
+      ['Patched versions', advisory.patched_versions ?? (advisory.patched_versions_unpublished === true ? 'None' : '(unknown)')],
       [
         'Paths',
         (paths.length > MAX_PATHS_COUNT

@@ -3,7 +3,7 @@ use super::{
     scopeless,
 };
 use clap::Parser;
-use pacquet_package_is_installable::SupportedArchitectures;
+use pnpm_package_is_installable::SupportedArchitectures;
 use std::{
     collections::BTreeMap,
     fs,
@@ -277,4 +277,38 @@ fn get_bin_name_finds_a_runtime_recorded_as_engines_runtime() {
         serde_json::json!({ "name": "node", "version": "26.4.0", "bin": { "node": "bin/node" } }),
     );
     assert_eq!(get_bin_name(dir.path()).expect("bin name"), "node");
+}
+
+/// The command word decides whether dlx provisions a tool or installs a
+/// package. Only the names pnpm actually manages are routed away from the
+/// ordinary path.
+#[test]
+fn only_managed_tools_are_provisioned_by_name() {
+    use super::{parse_package_manager_spec, parse_runtime_spec};
+    use crate::engine_pm::channel::PackageManager;
+
+    assert_eq!(parse_package_manager_spec("yarn@4"), Some((PackageManager::Yarn, "4")));
+    assert_eq!(parse_package_manager_spec("npm"), Some((PackageManager::Npm, "latest")));
+    assert_eq!(parse_package_manager_spec("typescript@5"), None);
+    // A scoped package's leading `@` is not a version separator.
+    assert_eq!(parse_package_manager_spec("@yarnpkg/cli-dist@4.9.2"), None);
+
+    assert_eq!(parse_runtime_spec("node@22"), Some(("node", "22")));
+    assert_eq!(parse_runtime_spec("deno"), Some(("deno", "latest")));
+    assert_eq!(parse_runtime_spec("nodemon@3"), None);
+    assert_eq!(parse_runtime_spec("node@runtime:22"), Some(("node", "22")));
+
+    // A specifier that locates a package names what to install, whether it
+    // spells out a protocol or uses the GitHub shorthand.
+    assert_eq!(parse_package_manager_spec("yarn@npm:@yarnpkg/cli-dist@4.9.2"), None);
+    assert_eq!(parse_package_manager_spec("yarn@yarnpkg/berry"), None);
+    assert_eq!(parse_package_manager_spec("yarn@yarnpkg/berry#main"), None);
+    assert_eq!(parse_runtime_spec("node@github:nodejs/node"), None);
+    assert_eq!(parse_runtime_spec("node@nodejs/node"), None);
+
+    // `--package` names the engine, and the command names which of its
+    // bins to run: every one the channel table publishes qualifies.
+    assert!(PackageManager::Npm.bins().contains(&"npx"));
+    assert!(PackageManager::Yarn.bins().contains(&"yarnpkg"));
+    assert!(!PackageManager::Npm.bins().contains(&"yarn"));
 }

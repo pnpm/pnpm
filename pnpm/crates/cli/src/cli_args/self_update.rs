@@ -15,20 +15,21 @@ pub(crate) mod verify_engine;
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_cmd_shim::{Host as CmdShimHost, link_bins_of_packages_with_excludes};
-use pacquet_config::{Config, PNPM_VERSION};
-use pacquet_fs::force_symlink_dir;
-use pacquet_global::{
+use pnpm_cmd_shim::{Host as CmdShimHost, LinkBinsOptions, link_bins_of_packages_with_excludes};
+use pnpm_config::{Config, PNPM_VERSION, standalone_install_command};
+use pnpm_env_installer::pnpm_engine_packages;
+use pnpm_fs::force_symlink_dir;
+use pnpm_global::{
     create_global_cache_key, find_global_package, get_hash_link, read_installed_packages,
 };
-use pacquet_lockfile::EnvLockfile;
-use pacquet_package_manifest::PackageManifest;
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pacquet_resolving_npm_resolver::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, infer_range_spec_style};
+use pnpm_lockfile::EnvLockfile;
+use pnpm_package_manifest::PackageManifest;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_resolving_npm_resolver::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, infer_range_spec_style};
 use serde_json::Value;
 use std::{collections::HashSet, io::IsTerminal, path::Path};
 
-use crate::config_deps::{self, PnpmPolicyViolation};
+use crate::config_deps::{self, EnginePolicyViolation};
 
 /// Migration guidance printed once when `self-update` crosses a major
 /// boundary. Add an entry per future major that ships breaking changes
@@ -48,9 +49,12 @@ fn major_upgrade_hint(target_major: u64) -> Option<&'static str> {
 /// `ERR_PNPM_PNPM_...`.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub(crate) enum SelfUpdateError {
-    #[display("You should update pnpm with corepack")]
-    #[diagnostic(code(ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK))]
-    CantSelfUpdateInCorepack,
+    #[display("pnpm cannot update itself when it is executed by Corepack")]
+    #[diagnostic(
+        code(ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK),
+        help("Install pnpm with the standalone script instead: {install_command}")
+    )]
+    CantSelfUpdateInCorepack { install_command: &'static str },
 
     #[display(r#"Cannot find "{specifier}" version of pnpm"#)]
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_PNPM))]
@@ -135,11 +139,11 @@ pub struct SelfUpdateArgs {
 /// A `trustPolicy` violation is not negotiable — it means the release's trust
 /// evidence weakened relative to the installed version.
 ///
-/// [`WorkspaceSettings::clear_self_update_policy`]: pacquet_config::WorkspaceSettings::clear_self_update_policy
+/// [`WorkspaceSettings::clear_self_update_policy`]: pnpm_config::WorkspaceSettings::clear_self_update_policy
 fn enforce_resolution_policy(
     config: &Config,
     version: &str,
-    violation: &PnpmPolicyViolation,
+    violation: &EnginePolicyViolation,
 ) -> miette::Result<()> {
     if violation.code != MINIMUM_RELEASE_AGE_VIOLATION_CODE {
         return Err(SelfUpdateError::ReleasePolicyViolation { version: version.to_string() }.into());
@@ -169,7 +173,10 @@ fn enforce_resolution_policy(
 /// `.npmrc` / workspace config can't mask the corepack refusal.
 pub(crate) fn reject_if_corepack() -> miette::Result<()> {
     if is_executed_by_corepack() {
-        return Err(SelfUpdateError::CantSelfUpdateInCorepack.into());
+        return Err(SelfUpdateError::CantSelfUpdateInCorepack {
+            install_command: standalone_install_command(),
+        }
+        .into());
     }
     Ok(())
 }
@@ -205,10 +212,11 @@ async fn handler<Reporter: self::Reporter + 'static>(
     let is_implicit_latest = params.is_none();
     let bare_specifier = params.unwrap_or("latest");
 
-    let resolved =
-        Box::pin(config_deps::resolve_pnpm_version(config, bare_specifier)).await?.ok_or_else(
-            || SelfUpdateError::CannotResolvePnpm { specifier: bare_specifier.to_string() },
-        )?;
+    let resolved = Box::pin(config_deps::resolve_engine_version(config, "pnpm", bare_specifier))
+        .await?
+        .ok_or_else(|| SelfUpdateError::CannotResolvePnpm {
+            specifier: bare_specifier.to_string(),
+        })?;
     let target_version = resolved.version;
     // Before the pin below is written, not just before the install: the pin is
     // shared, so a release this wrapper survives can still break a teammate's.
@@ -284,6 +292,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
         &target_version,
         &target_version,
         false,
+        false,
     ))
     .await?;
     let env = EnvLockfile::read(&env_root)
@@ -294,7 +303,17 @@ async fn handler<Reporter: self::Reporter + 'static>(
                 "Cannot verify the identity of pnpm@{target_version}: its integrity metadata is missing from pnpm-lock.yaml.",
             ),
         })?;
-    Box::pin(verify_engine::verify_pnpm_engine_identity(&env, &target_version, config)).await?;
+    let label = format!("pnpm@{target_version}");
+    let engine = verify_engine::EngineToVerify {
+        label: &label,
+        packages: pnpm_engine_packages(&target_version),
+        platform_binaries: verify_engine::PlatformBinaries::PnpmExe,
+    };
+    if let Some(warning) =
+        Box::pin(verify_engine::verify_engine_identity(&env, &engine, config)).await?
+    {
+        warn::<Reporter>(&prefix, &warning);
+    }
 
     let result = Box::pin(install_pnpm::install_pnpm::<Reporter>(
         config,
@@ -303,7 +322,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
     ))
     .await?;
 
-    link_into_global_bin(config, &result.install_dir, result.package_name)?;
+    link_into_global_bin(config, &result, &target_version)?;
 
     if result.already_existed {
         return Ok(Some(format!(
@@ -396,6 +415,7 @@ async fn update_project_pin(
                 &pin_specifier,
                 target_version,
                 false,
+                false,
             ))
             .await?;
         }
@@ -459,18 +479,18 @@ fn package_manager_pin_specifier(
 }
 
 /// Returns the updated `devEngines.packageManager` version constraint.
-/// A constraint that still satisfies the new version is left as-is (the
+/// Exact pins and simple ranges (`^`, `~`) are rewritten to the new version
+/// while keeping the operator, matching `pnpm update` / `pnpm runtime set`.
+/// Complex ranges that still satisfy the new version are left as-is (the
 /// lockfile pins the exact version); otherwise the new version is written
-/// with the constraint's pinning style, falling back to a caret range.
+/// as a caret range.
 fn update_version_constraint(current: Option<&str>, new_version: &str) -> String {
     let Some(current) = current else {
         return new_version.to_string();
     };
-    if range_satisfies(current, new_version) {
-        return current.to_string();
-    }
     match infer_range_spec_style(current) {
         Some(pinned) => format!("{}{new_version}", pinned.range_prefix()),
+        None if range_satisfies(current, new_version) => current.to_string(),
         None => format!("^{new_version}"),
     }
 }
@@ -501,24 +521,47 @@ fn read_project_pinned_pnpm_version(lockfile_dir: &Path, spec: Option<&str>) -> 
 /// see it).
 fn link_into_global_bin(
     config: &Config,
-    install_dir: &Path,
-    package_name: &str,
+    installed: &install_pnpm::InstallPnpmResult,
+    version: &str,
 ) -> miette::Result<()> {
     let global_bin = config.global_bin.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
     let global_pkg_dir = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
+    let _global_bin_lock = super::global_bin_lock::acquire_global_bin_lock(&global_bin)?;
 
-    let pkgs = read_installed_packages(install_dir);
-    link_bins_of_packages_with_excludes::<CmdShimHost>(&pkgs, &global_bin, &HashSet::new(), &[])
-        .map_err(miette::Report::new)
-        .wrap_err("link the updated pnpm bins")?;
+    refresh_global_shim_dispatcher(&global_bin, installed, version)?;
 
-    let aliases = vec![package_name.to_string()];
+    let pkgs = read_installed_packages(&installed.install_dir);
+    link_bins_of_packages_with_excludes::<CmdShimHost>(
+        &pkgs,
+        &global_bin,
+        &HashSet::new(),
+        &LinkBinsOptions::default(),
+    )
+    .map_err(miette::Report::new)
+    .wrap_err("link the updated pnpm bins")?;
+
+    let aliases = vec![installed.package_name.to_string()];
     let cache_hash = create_global_cache_key(&aliases, &registries_for_cache_key(config));
     let hash_link = get_hash_link(&global_pkg_dir, &cache_hash);
-    force_symlink_dir(install_dir, &hash_link)
+    force_symlink_dir(&installed.install_dir, &hash_link)
         .into_diagnostic()
         .wrap_err("link the global pnpm install directory")?;
     Ok(())
+}
+
+fn refresh_global_shim_dispatcher(
+    global_bin: &Path,
+    installed: &install_pnpm::InstallPnpmResult,
+    version: &str,
+) -> miette::Result<()> {
+    if !node_semver::Version::parse(version).is_ok_and(|version| version.major >= 12) {
+        return Ok(());
+    }
+    let executable =
+        install_pnpm::pnpm_executable_path(&installed.install_dir, installed.package_name);
+    crate::shim_dispatch::refresh_existing_dispatcher(&executable, global_bin)
+        .into_diagnostic()
+        .wrap_err("refresh the global shim dispatcher")
 }
 
 /// Build the registry map (`{ default, ...scoped }`) hashed into the

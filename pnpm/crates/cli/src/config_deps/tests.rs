@@ -1,9 +1,39 @@
 use std::{fs, path::Path};
 
-use pacquet_config::{Config, Host, TrustPolicy};
-use pacquet_reporter::SilentReporter;
+use pnpm_config::{Config, Host, PNPM_VERSION, TrustPolicy};
+use pnpm_reporter::SilentReporter;
 
-use super::{resolve_pnpm_version, run_update_config_hooks};
+use super::{resolve_engine_version, run_update_config_hooks};
+
+#[tokio::test]
+async fn update_config_records_prefer_frozen_lockfile_as_explicit() {
+    for prefer_value in [true, false] {
+        let root = tempfile::tempdir().expect("workspace tempdir");
+        fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+        fs::write(
+            root.path().join(".pnpmfile.cjs"),
+            format!(
+                "module.exports = {{ hooks: {{ updateConfig (config) {{ config.preferFrozenLockfile = {prefer_value}; return config }} }} }}",
+            ),
+        )
+        .expect("write pnpmfile");
+        let mut config =
+            Config::default().current::<Host>(root.path()).expect("load configuration");
+
+        run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+            .await
+            .expect("run updateConfig hook");
+
+        assert_eq!(config.prefer_frozen_lockfile, prefer_value);
+        assert_eq!(
+            config
+                .explicit_settings
+                .get("preferFrozenLockfile")
+                .and_then(serde_json::Value::as_bool),
+            Some(prefer_value),
+        );
+    }
+}
 
 #[tokio::test]
 async fn update_config_null_clears_virtual_store_dir() {
@@ -277,7 +307,7 @@ async fn resolve_pnpm_version_fetches_full_metadata_and_rejects_a_downgrade() {
     let cache_dir = tempfile::TempDir::new().expect("cache tempdir");
     let config = no_downgrade_config(format!("{}/", server.url()), cache_dir.path());
 
-    let err = resolve_pnpm_version(&config, "^1.0.0")
+    let err = resolve_engine_version(&config, "pnpm", "^1.0.0")
         .await
         .expect_err("a trust downgrade must be rejected");
     let report = format!("{err:?}");
@@ -314,7 +344,7 @@ async fn resolve_pnpm_version_resolves_a_clean_update_under_no_downgrade() {
     let cache_dir = tempfile::TempDir::new().expect("cache tempdir");
     let config = no_downgrade_config(format!("{}/", server.url()), cache_dir.path());
 
-    let resolved = resolve_pnpm_version(&config, "^1.0.0")
+    let resolved = resolve_engine_version(&config, "pnpm", "^1.0.0")
         .await
         .expect("a clean update must resolve")
         .expect("a matching pnpm version resolves");
@@ -352,7 +382,7 @@ async fn resolve_pnpm_version_forces_full_metadata_for_no_downgrade_despite_regi
     let mut config = no_downgrade_config(format!("{}/", server.url()), cache_dir.path());
     config.registry_supports_time_field = true;
 
-    let err = resolve_pnpm_version(&config, "^1.0.0")
+    let err = resolve_engine_version(&config, "pnpm", "^1.0.0")
         .await
         .expect_err("the downgrade must be rejected even with registrySupportsTimeField");
     let report = format!("{err:?}");
@@ -360,4 +390,71 @@ async fn resolve_pnpm_version_forces_full_metadata_for_no_downgrade_despite_regi
         report.contains("trust downgrade"),
         "expected a trust-downgrade rejection, got: {report}",
     );
+}
+
+/// pnpm/pnpm#13883: a dist-tag pointing at the running pnpm, published
+/// within the `minimumReleaseAge` cutoff, must still resolve to it. The
+/// maturity filter moved such a tag back to the previous mature release,
+/// so `pnpm self-update <tag>` downgraded instead of doing nothing.
+#[tokio::test]
+async fn resolve_pnpm_version_keeps_a_dist_tag_on_the_running_version() {
+    let running = node_semver::Version::parse(PNPM_VERSION).expect("parse the running version");
+    let older = if running.pre_release.is_empty() {
+        format!("{}.0.0", running.major - 1)
+    } else {
+        format!("{}.{}.{}-0", running.major, running.minor, running.patch)
+    };
+    let body = format!(
+        r#"{{
+    "name": "pnpm",
+    "dist-tags": {{ "latest": "{PNPM_VERSION}" }},
+    "time": {{
+        "{older}": "2024-01-10T08:30:00.000Z",
+        "{PNPM_VERSION}": "{fresh}"
+    }},
+    "versions": {{
+        "{older}": {{
+            "name": "pnpm",
+            "version": "{older}",
+            "dist": {{
+                "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                "shasum": "0000000000000000000000000000000000000000",
+                "tarball": "https://registry/pnpm-{older}.tgz"
+            }}
+        }},
+        "{PNPM_VERSION}": {{
+            "name": "pnpm",
+            "version": "{PNPM_VERSION}",
+            "dist": {{
+                "integrity": "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+                "shasum": "1111111111111111111111111111111111111111",
+                "tarball": "https://registry/pnpm-{PNPM_VERSION}.tgz"
+            }}
+        }}
+    }}
+}}"#,
+        fresh = chrono::Utc::now().to_rfc3339(),
+    );
+    let mut server = mockito::Server::new_async().await;
+    let _packument = server
+        .mock("GET", "/pnpm")
+        .with_status(200)
+        .with_body(&body)
+        .expect_at_least(1)
+        .create_async()
+        .await;
+    let cache_dir = tempfile::TempDir::new().expect("cache tempdir");
+    let mut config = Config {
+        minimum_release_age: Some(24 * 60),
+        cache_dir: cache_dir.path().to_path_buf(),
+        ..Config::default()
+    };
+    config.package_manager_bootstrap.registry = format!("{}/", server.url());
+
+    let resolved = resolve_engine_version(&config, "pnpm", "latest")
+        .await
+        .expect("the tag must resolve")
+        .expect("a matching pnpm version resolves");
+
+    assert_eq!(resolved.version, PNPM_VERSION);
 }

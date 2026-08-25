@@ -4,7 +4,7 @@ import { safeExeca as execa } from 'execa'
 import { loadJsonFileSync } from 'load-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from './utils/index.js'
+import { execPnpm, execPnpmSync } from './utils/index.js'
 
 test('version --recursive bumps every workspace package', async () => {
   preparePackages([
@@ -30,6 +30,18 @@ test('version --recursive --filter bumps only the selected package', async () =>
 
   expect(loadJsonFileSync<{ version: string }>('project-1/package.json').version).toBe('1.0.0')
   expect(loadJsonFileSync<{ version: string }>('project-2/package.json').version).toBe('2.3.1')
+})
+
+test('version --recursive --json prints an empty JSON array when there are no pending changes', async () => {
+  preparePackages([
+    { name: 'project-1', version: '1.0.0' },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'] })
+
+  const result = execPnpmSync(['version', '--recursive', '--json', '--no-git-checks'])
+
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString().trim()).toBe('[]')
 })
 
 test('version from-git is wired through the compiled CLI', async () => {

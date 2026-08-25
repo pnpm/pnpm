@@ -9,7 +9,7 @@
 //! callers can drive every branch (set, unset, empty) with local fakes
 //! instead of mutating the real process environment. Production callers
 //! thread [`SystemEnv`] (which delegates to `std::env::var`) through the
-//! turbofish slot; `pacquet-config` threads its broader `Host` provider
+//! turbofish slot; `pnpm-config` threads its broader `Host` provider
 //! instead, per the DI pattern from
 //! [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339).
 
@@ -44,7 +44,7 @@ pub trait EnvVar {
 ///
 /// Consumers that don't have their own capability provider thread this
 /// through the turbofish slot (e.g. `env_replace_lossy::<SystemEnv>(raw)`).
-/// `pacquet-config` threads its own multi-capability `Host` instead.
+/// `pnpm-config` threads its own multi-capability `Host` instead.
 pub struct SystemEnv;
 
 impl EnvVar for SystemEnv {

@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { StringDecoder } from 'node:string_decoder'
 
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifestOnly, type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli.utils'
@@ -6,6 +7,7 @@ import { type Config, type ConfigContext, getWorkspaceConcurrency, types } from 
 import { lifecycleLogger, type LifecycleMessage } from '@pnpm/core-loggers'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
+import { keepEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { makeNodePackageMapOption, makeNodeRequireOption } from '@pnpm/exec.lifecycle'
 import { logger } from '@pnpm/logger'
 import { prependDirsToPath } from '@pnpm/shell.path'
@@ -243,7 +245,7 @@ export async function handler (
           const packageMapPath = workspacePackageMapPath || (opts.nodeExperimentalPackageMap && existsPackageMap(prefix))
           const extraEnv: Record<string, string | undefined> = {
             ...opts.extraEnv,
-            ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
+            ...(opts.nodeOptions ? { NODE_OPTIONS: keepEsmNodePathLoaderOption(opts.nodeOptions, opts.extraEnv?.NODE_OPTIONS) } : {}),
           }
           if (pnpPath) {
             Object.assign(extraEnv, makeNodeRequireOption(pnpPath, extraEnv))
@@ -273,19 +275,53 @@ export async function handler (
               depPath: manifest.name ?? path.relative(opts.dir, prefix),
               stage: '(exec)',
             } satisfies Partial<LifecycleMessage>
-            const logFn = (stdio: 'stdout' | 'stderr') => (data: unknown): void => {
-              for (const line of String(data).split('\n')) {
-                lifecycleLogger.debug({
-                  ...lifecycleOpts,
-                  stdio,
-                  line,
-                })
+            // A chunk is neither a line nor a whole number of
+            // characters: it may end mid-line, mid-character, or on a
+            // newline (which would otherwise report a trailing empty
+            // line). A StringDecoder holds back the bytes of a split
+            // character, and `pending` holds back a partial line; both
+            // are flushed when the stream ends. Only the newly arrived
+            // text is scanned for newlines, so a long line costs one
+            // concatenation rather than a re-split of everything held.
+            const logFn = (stdio: 'stdout' | 'stderr') => {
+              const log = (line: string): void => {
+                lifecycleLogger.debug({ ...lifecycleOpts, stdio, line })
+              }
+              const decoder = new StringDecoder('utf8')
+              let pending = ''
+              const consume = (text: string): void => {
+                let start = 0
+                for (let end = text.indexOf('\n'); end !== -1; end = text.indexOf('\n', start)) {
+                  const line = pending + text.slice(start, end)
+                  pending = ''
+                  start = end + 1
+                  // A CRLF terminator contributes no CR to the line, the
+                  // same as every other line reader in both stacks.
+                  log(line.endsWith('\r') ? line.slice(0, -1) : line)
+                }
+                pending += text.slice(start)
+              }
+              return {
+                onData (data: Buffer | string): void {
+                  consume(typeof data === 'string' ? data : decoder.write(data))
+                },
+                onEnd (): void {
+                  consume(decoder.end())
+                  if (pending !== '') {
+                    log(pending)
+                    pending = ''
+                  }
+                },
               }
             }
-            child.stdout!.on('data', logFn('stdout'))
-            child.stderr!.on('data', logFn('stderr'))
+            const stdoutLog = logFn('stdout')
+            const stderrLog = logFn('stderr')
+            child.stdout!.on('data', stdoutLog.onData)
+            child.stderr!.on('data', stderrLog.onData)
             await new Promise<void>((resolve) => {
               void child.once('close', exitCode => {
+                stdoutLog.onEnd()
+                stderrLog.onEnd()
                 lifecycleLogger.debug({
                   ...lifecycleOpts,
                   exitCode: exitCode ?? 1,

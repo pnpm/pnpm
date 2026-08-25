@@ -14,7 +14,7 @@
 //! - success:  `{"id": N, "ok": <value>}`
 //! - failure:  `{"id": N, "err": "message"}`
 
-use crate::HookError;
+use crate::{FetcherCallback, FetcherCallbackSender, HookError};
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -28,11 +28,27 @@ use std::{
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, Command},
-    sync::{Mutex, oneshot},
+    sync::{Mutex, Semaphore, oneshot},
     time::{Duration, timeout},
 };
 
 const HOOK_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Floor for a `fetch` that was handed native tarball callbacks. Such a
+/// call is not waiting on the pnpmfile's own code — it is waiting on the
+/// downloads and extractions the installer runs on its behalf, which a
+/// hook-sized budget would abort mid-archive.
+const CALLBACK_FETCH_TIMEOUT: Duration = Duration::from_mins(5);
+
+/// How many requests may be in flight to one worker at a time.
+///
+/// Callers fan out far wider: the resolver runs `readPackage` once per
+/// resolved package, all at once, which on a large install is thousands
+/// of requests. One worker is one Node process, so writing them all at
+/// once buys no throughput — it only makes each request queue behind the
+/// rest while its [`HOOK_TIMEOUT`] runs, until a batch of fast hooks
+/// fails the install on a timeout none of them caused.
+const MAX_IN_FLIGHT_REQUESTS: usize = 16;
 
 /// Callback invoked for each `context.log(...)` a hook emits while it runs.
 pub type LogFn = Arc<dyn Fn(String) + Send + Sync>;
@@ -60,6 +76,7 @@ pub struct FetcherCapabilities {
 struct Pending {
     log: LogFn,
     done: oneshot::Sender<Result<Value, String>>,
+    callbacks: Option<FetcherCallbackSender>,
 }
 
 /// Pending requests keyed by id. A `std` mutex (never held across an
@@ -86,9 +103,13 @@ impl Drop for PendingEntryGuard {
 /// A handle to a running Node worker process loaded with one pnpmfile.
 pub struct NodeWorker {
     pnpmfile: String,
-    stdin: Mutex<ChildStdin>,
+    stdin: Arc<Mutex<ChildStdin>>,
     pending: PendingMap,
     next_id: AtomicU64,
+    in_flight: Semaphore,
+    /// How long a request may take from the moment it is written to the
+    /// worker. [`HOOK_TIMEOUT`] outside tests.
+    request_timeout: Duration,
     /// Kept so the child is killed when the worker is dropped (`kill_on_drop`).
     _child: Child,
 }
@@ -96,6 +117,13 @@ pub struct NodeWorker {
 impl NodeWorker {
     /// Spawn the worker for `file` and start reading its responses.
     pub async fn spawn(file: &Path) -> Result<Arc<NodeWorker>, HookError> {
+        NodeWorker::spawn_with_request_timeout(file, HOOK_TIMEOUT).await
+    }
+
+    async fn spawn_with_request_timeout(
+        file: &Path,
+        request_timeout: Duration,
+    ) -> Result<Arc<NodeWorker>, HookError> {
         let pnpmfile = file.to_string_lossy().into_owned();
         let exec_err =
             |message: String| HookError::Execution { pnpmfile: pnpmfile.clone(), message };
@@ -119,15 +147,16 @@ impl NodeWorker {
             .spawn()
             .map_err(|err| exec_err(err.to_string()))?;
 
-        let stdin = child.stdin.take().expect("worker stdin is piped");
+        let stdin = Arc::new(Mutex::new(child.stdin.take().expect("worker stdin is piped")));
         let stdout = child.stdout.take().expect("worker stdout is piped");
 
         let pending: PendingMap = Arc::new(StdMutex::new(HashMap::new()));
         let pending_reader = Arc::clone(&pending);
+        let stdin_reader = Arc::clone(&stdin);
         tokio::spawn(async move {
             let mut lines = BufReader::new(stdout).lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                dispatch_line(&pending_reader, &line);
+                dispatch_line(&pending_reader, &stdin_reader, &line);
             }
             // The worker exited: fail every still-pending request so callers
             // don't hang waiting for a response that will never arrive.
@@ -138,9 +167,11 @@ impl NodeWorker {
 
         Ok(Arc::new(NodeWorker {
             pnpmfile,
-            stdin: Mutex::new(stdin),
+            stdin,
             pending,
             next_id: AtomicU64::new(0),
+            in_flight: Semaphore::new(MAX_IN_FLIGHT_REQUESTS),
+            request_timeout,
             _child: child,
         }))
     }
@@ -225,16 +256,19 @@ impl NodeWorker {
         method: &str,
         payload: Value,
         log: LogFn,
+        callbacks: Option<FetcherCallbackSender>,
     ) -> Result<Value, HookError> {
-        self.request(
+        self.request_with_callbacks(
             method,
             serde_json::json!({
                 "target": "fetcher",
                 "index": index,
                 "method": method,
                 "payload": payload,
+                "callbacks": callbacks.is_some(),
             }),
             log,
+            callbacks,
         )
         .await
     }
@@ -271,10 +305,27 @@ impl NodeWorker {
     /// await its reply, stamping in the request id and routing any
     /// `context.log(...)` lines to `log`. `label` names the request in a
     /// timeout error.
-    async fn request(&self, label: &str, mut body: Value, log: LogFn) -> Result<Value, HookError> {
+    ///
+    /// Waits for one of the worker's [`MAX_IN_FLIGHT_REQUESTS`] slots
+    /// first, so a request's timeout window covers only the time the
+    /// worker had it, not the time its caller's fan-out spent queued.
+    async fn request(&self, label: &str, body: Value, log: LogFn) -> Result<Value, HookError> {
+        self.request_with_callbacks(label, body, log, None).await
+    }
+
+    async fn request_with_callbacks(
+        &self,
+        label: &str,
+        mut body: Value,
+        log: LogFn,
+        callbacks: Option<FetcherCallbackSender>,
+    ) -> Result<Value, HookError> {
+        let _in_flight = self.in_flight.acquire().await.expect("the semaphore is never closed");
+
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (done, rx) = oneshot::channel();
-        self.pending.lock().unwrap().insert(id, Pending { log, done });
+        let callback_timeout = label == "fetch" && callbacks.is_some();
+        self.pending.lock().unwrap().insert(id, Pending { log, done, callbacks });
         let _pending_guard = PendingEntryGuard { pending: Arc::clone(&self.pending), id };
 
         body["id"] = serde_json::json!(id);
@@ -287,11 +338,16 @@ impl NodeWorker {
             stdin.flush().await.map_err(|err| self.exec_err(err.to_string()))?;
         }
 
-        match timeout(HOOK_TIMEOUT, rx).await {
+        let request_timeout = if callback_timeout {
+            self.request_timeout.max(CALLBACK_FETCH_TIMEOUT)
+        } else {
+            self.request_timeout
+        };
+        match timeout(request_timeout, rx).await {
             Ok(Ok(Ok(value))) => Ok(value),
             Ok(Ok(Err(message))) => Err(self.exec_err(message)),
             Ok(Err(_)) => Err(self.exec_err("pnpmfile worker dropped the response")),
-            Err(_) => Err(HookError::Timeout(label.to_string(), HOOK_TIMEOUT.as_secs())),
+            Err(_) => Err(HookError::Timeout(label.to_string(), request_timeout.as_secs())),
         }
     }
 }
@@ -299,7 +355,7 @@ impl NodeWorker {
 /// Route one line from the worker to its pending request: forward `log` lines
 /// to the call's logger (the entry stays until the result arrives) and resolve
 /// the call on `ok`/`err`.
-fn dispatch_line(pending: &PendingMap, line: &str) {
+fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &str) {
     let Ok(message) = serde_json::from_str::<Value>(line) else { return };
     let Some(id) = message.get("id").and_then(Value::as_u64) else { return };
 
@@ -308,6 +364,41 @@ fn dispatch_line(pending: &PendingMap, line: &str) {
         if let Some(log_fn) = log_fn {
             log_fn(log.to_string());
         }
+        return;
+    }
+
+    if let Some(callback) = message.get("callback") {
+        let Some(callback_id) = callback.get("id").and_then(Value::as_u64) else { return };
+        let Some(method) = callback.get("method").cloned() else { return };
+        let Ok(method) = serde_json::from_value(method) else { return };
+        let resolution = callback.get("resolution").cloned().unwrap_or(Value::Null);
+        let options = callback.get("options").cloned().unwrap_or(Value::Null);
+        let callbacks = pending.lock().unwrap().get(&id).and_then(|entry| entry.callbacks.clone());
+        let (response, receiver) = oneshot::channel();
+        if let Some(callbacks) = callbacks {
+            let _ = callbacks.send(FetcherCallback { method, resolution, options, response });
+        }
+        let stdin = Arc::clone(stdin);
+        tokio::spawn(async move {
+            let result = receiver.await.unwrap_or_else(|_| {
+                Err(serde_json::json!({
+                    "message": "built-in fetcher callback is unavailable",
+                    "code": "ERR_PNPM_FETCHER_CALLBACK_UNAVAILABLE",
+                }))
+            });
+            let reply = match result {
+                Ok(value) => serde_json::json!({ "callbackResponse": callback_id, "ok": value }),
+                Err(error) => {
+                    serde_json::json!({ "callbackResponse": callback_id, "err": error })
+                }
+            };
+            let Ok(mut line) = serde_json::to_string(&reply) else { return };
+            line.push('\n');
+            let mut stdin = stdin.lock().await;
+            if stdin.write_all(line.as_bytes()).await.is_ok() {
+                let _ = stdin.flush().await;
+            }
+        });
         return;
     }
 
@@ -332,15 +423,36 @@ fn build_runner(is_mjs: bool, file_escaped: &str) -> String {
         r#"const readline = require('node:readline');
 let mod = null;
 let loadErr = null;
+let nextCallbackId = 0;
+const pendingCallbacks = new Map();
 async function ensureLoaded() {{
   if (mod !== null || loadErr !== null) return;
   try {{ {load} }} catch (err) {{ loadErr = err && err.stack ? err.stack : String(err); }}
 }}
 const rl = readline.createInterface({{ input: process.stdin }});
-rl.on('line', (line) => {{ handle(line); }});
-async function handle(line) {{
+rl.on('line', (line) => {{
   let req;
   try {{ req = JSON.parse(line); }} catch {{ return; }}
+  if (Object.prototype.hasOwnProperty.call(req, 'callbackResponse')) {{
+    const pending = pendingCallbacks.get(req.callbackResponse);
+    if (!pending) return;
+    pendingCallbacks.delete(req.callbackResponse);
+    if (req.err) {{
+      const error = Object.assign(new Error(req.err.message), req.err);
+      if (req.err.status != null) error.response = {{ status: req.err.status }};
+      pending.reject(error);
+    }} else {{
+      const result = req.ok;
+      if (result && result.filesMap && !(result.filesMap instanceof Map)) {{
+        result.filesMap = new Map(Object.entries(result.filesMap));
+      }}
+      pending.resolve(result);
+    }}
+    return;
+  }}
+  handle(req);
+}});
+async function handle(req) {{
   const id = req.id;
   const send = (obj) => process.stdout.write(JSON.stringify(Object.assign({{ id }}, obj)) + '\n');
   await ensureLoaded();
@@ -410,8 +522,40 @@ async function handle(line) {{
         return;
       }}
       const args = req.payload || [];
+      if (req.method === 'fetch' && req.callbacks) {{
+        const callNative = (method, resolution, options) => {{
+          const callbackId = nextCallbackId++;
+          return new Promise((resolve, reject) => {{
+            pendingCallbacks.set(callbackId, {{ resolve, reject }});
+            send({{ callback: {{ id: callbackId, method, resolution, options }} }});
+          }});
+        }};
+        const cafs = Object.freeze({{
+          ...(await callNative('cafsInfo')),
+          tempDir: () => callNative('tempDir'),
+        }});
+        const callBuiltin = (method, providedCafs, resolution, options) => {{
+          if (providedCafs !== cafs) {{
+            return Promise.reject(new Error('Built-in fetcher received an invalid CAFS handle'));
+          }}
+          return callNative(method, resolution, options);
+        }};
+        args[0] = cafs;
+        args[3] = Object.freeze({{
+          localTarball: (handle, resolution, options) =>
+            callBuiltin('localTarball', handle, resolution, options),
+          remoteTarball: (handle, resolution, options) =>
+            callBuiltin('remoteTarball', handle, resolution, options),
+        }});
+      }}
       const res = await fetcher[req.method](...args);
-      send({{ ok: res === undefined ? null : res }});
+      if (req.method === 'canFetch') {{
+        send({{ ok: {{ value: res === undefined ? null : res, resolution: args[1] }} }});
+      }} else if (res && res.filesMap instanceof Map) {{
+        send({{ ok: {{ ...res, filesMap: Object.fromEntries(res.filesMap) }} }});
+      }} else {{
+        send({{ ok: res === undefined ? null : res }});
+      }}
       return;
     }}
     if (req.hook === 'readPackage') {{

@@ -1,6 +1,6 @@
 'use strict'
 
-// Loader for the pacquet-napi native addon.
+// Loader for the pnpm-napi native addon.
 //
 // Resolution order:
 // 1. PNPM_NAPI_BINARY env var — explicit path to a .node file (local dev,

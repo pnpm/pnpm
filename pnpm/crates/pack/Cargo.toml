@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-pack"
+name                  = "pnpm-pack"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,16 +11,16 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-catalogs-types                    = { workspace = true }
-pacquet-cmd-shim                          = { workspace = true }
-pacquet-config                            = { workspace = true }
-pacquet-executor                          = { workspace = true }
-pacquet-exportable-manifest               = { workspace = true }
-pacquet-fs-packlist                       = { workspace = true }
-pacquet-hooks                             = { workspace = true }
-pacquet-package-manifest                  = { workspace = true }
-pacquet-reporter                          = { workspace = true }
-pacquet-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-catalogs-types                    = { workspace = true }
+pnpm-cmd-shim                          = { workspace = true }
+pnpm-config                            = { workspace = true }
+pnpm-executor                          = { workspace = true }
+pnpm-exportable-manifest               = { workspace = true }
+pnpm-fs-packlist                       = { workspace = true }
+pnpm-hooks                             = { workspace = true }
+pnpm-package-manifest                  = { workspace = true }
+pnpm-reporter                          = { workspace = true }
+pnpm-resolving-parse-wanted-dependency = { workspace = true }
 
 derive_more = { workspace = true }
 flate2      = { workspace = true }

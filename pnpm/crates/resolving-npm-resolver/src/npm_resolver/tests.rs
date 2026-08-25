@@ -5,10 +5,10 @@ use std::{
 };
 
 use chrono::TimeZone;
-use pacquet_config::{TrustPolicy, version_policy::create_package_version_policy};
-use pacquet_lockfile::LockfileResolution;
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pacquet_resolving_resolver_base::{
+use pnpm_config::{TrustPolicy, version_policy::create_package_version_policy};
+use pnpm_lockfile::LockfileResolution;
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_resolving_resolver_base::{
     LatestQuery, PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
     ResolveOptions, Resolver, UpdateBehavior, WantedDependency, WorkspacePackage,
     WorkspacePackages, WorkspacePackagesByVersion,
@@ -32,10 +32,20 @@ const PACKAGE_BODY: &str = r#"{
     "dist-tags": { "latest": "1.1.0" },
     "modified": "2025-01-15T12:00:00.000Z",
     "time": {
+        "1.0.0-canary.1": "2024-01-05T08:30:00.000Z",
         "1.0.0": "2024-01-10T08:30:00.000Z",
         "1.1.0": "2024-12-10T08:30:00.000Z"
     },
     "versions": {
+        "1.0.0-canary.1": {
+            "name": "acme",
+            "version": "1.0.0-canary.1",
+            "dist": {
+                "integrity": "sha512-EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE==",
+                "shasum": "4444444444444444444444444444444444444444",
+                "tarball": "https://registry/acme-1.0.0-canary.1.tgz"
+            }
+        },
         "1.0.0": {
             "name": "acme",
             "version": "1.0.0",
@@ -69,7 +79,7 @@ fn build_resolver_with_registries(
     let cache_dir = TempDir::new().expect("tempdir");
     let resolver = NpmResolver {
         registries,
-        named_registries: HashMap::new(),
+        registries_by_prefix: HashMap::new(),
         http_client: Arc::new(ThrottledClient::default()),
         auth_headers: Arc::new(AuthHeaders::default()),
         meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
@@ -80,6 +90,7 @@ fn build_resolver_with_registries(
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        needs_full_metadata_for: None,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
@@ -206,6 +217,51 @@ async fn range_specifier_picks_max_in_range() {
     assert_eq!(result.alias.as_deref(), Some("acme"));
     assert!(result.policy_violation.is_none());
     assert!(matches!(result.resolution, LockfileResolution::Tarball(_)));
+}
+
+#[tokio::test]
+async fn empty_specifier_resolves_to_the_max_published_version() {
+    // Regression test for pnpm/pnpm#13673.
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some(String::new()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    assert_eq!(result.id.as_str(), "acme@1.1.0");
+    assert_eq!(result.resolved_via, "npm-registry");
+}
+
+/// Regression test for pnpm/pnpm#14096: npm strips build metadata when
+/// it publishes a version, so a selector carrying it must still resolve
+/// to the published version — for a prerelease as much as for a stable
+/// release.
+#[tokio::test]
+async fn exact_version_with_build_metadata_resolves_to_the_published_version() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    for (bare_specifier, expected_id) in
+        [("1.0.0+build1", "acme@1.0.0"), ("1.0.0-canary.1+build1", "acme@1.0.0-canary.1")]
+    {
+        let wanted = WantedDependency {
+            alias: Some("acme".to_string()),
+            bare_specifier: Some(bare_specifier.to_string()),
+            ..WantedDependency::default()
+        };
+        let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+        assert_eq!(result.id.as_str(), expected_id, "for {bare_specifier:?}");
+        assert_eq!(result.resolved_via, "npm-registry", "for {bare_specifier:?}");
+    }
 }
 
 #[tokio::test]
@@ -440,6 +496,66 @@ async fn trust_downgrade_at_resolve_time_fails_under_no_downgrade() {
     };
     let err = resolver.resolve(&wanted, &opts).await.expect_err("trust downgrade should fail");
     assert!(err.to_string().contains("trust downgrade"), "got {err}");
+}
+
+/// [`TRUST_DOWNGRADE_PACKAGE_BODY`] as a registry that strips the
+/// per-version `time` field serves it.
+fn trust_downgrade_body_without_time() -> String {
+    let mut body: serde_json::Value =
+        serde_json::from_str(TRUST_DOWNGRADE_PACKAGE_BODY).expect("parse fixture packument");
+    body.as_object_mut().expect("packument is an object").remove("time");
+    body.to_string()
+}
+
+#[tokio::test]
+async fn trust_check_fails_at_resolve_time_when_the_registry_serves_no_time_field() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(trust_downgrade_body_without_time())
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let opts = ResolveOptions {
+        trust_policy: Some(TrustPolicy::NoDowngrade),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver.resolve(&wanted, &opts).await.expect_err("missing time should fail closed");
+    assert!(err.to_string().contains(r#"missing the "time" field"#), "got {err}");
+}
+
+#[tokio::test]
+async fn trust_check_skipped_at_resolve_time_when_missing_time_is_ignored() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(trust_downgrade_body_without_time())
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (mut resolver, _tempdir) = build_resolver(&registry);
+    resolver.ignore_missing_time_field = true;
+
+    let opts = ResolveOptions {
+        trust_policy: Some(TrustPolicy::NoDowngrade),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
 }
 
 #[tokio::test]
@@ -727,7 +843,7 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
         let cache_dir = TempDir::new().expect("tempdir");
         let resolver = NpmResolver {
             registries,
-            named_registries: HashMap::new(),
+            registries_by_prefix: HashMap::new(),
             http_client: Arc::new(ThrottledClient::default()),
             auth_headers: Arc::new(AuthHeaders::default()),
             meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
@@ -738,6 +854,7 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
             prefer_offline: false,
             ignore_missing_time_field: false,
             full_metadata: false,
+            needs_full_metadata_for: None,
             filter_metadata: false,
             retry_opts: RetryOpts::default(),
         };
@@ -979,6 +1096,219 @@ async fn prefer_workspace_packages_keeps_workspace_over_newer_registry() {
     let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme");
+}
+
+#[tokio::test]
+async fn prefer_workspace_packages_skips_the_registry_entirely() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server.mock("GET", "/acme").expect(0).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let mut opts = workspace_resolve_options(packages);
+    opts.prefer_workspace_packages = true;
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.id.as_str(), "link:../acme");
+    assert_eq!(result.latest, None);
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn prefer_workspace_packages_still_consults_registry_for_several_local_copies() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(single_version_body(
+            "1.1.0",
+            "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+        ))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages_at(
+        "acme",
+        &[("1.0.0", "/repo/packages/acme-1"), ("1.1.0", "/repo/packages/acme-11")],
+    );
+    let mut opts = workspace_resolve_options(packages);
+    opts.prefer_workspace_packages = true;
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
+    mock.assert_async().await;
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.id.as_str(), "link:../acme-11");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+}
+
+#[tokio::test]
+async fn prefer_workspace_packages_still_consults_registry_for_injected_deps() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(single_version_body(
+            "1.1.0",
+            "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+        ))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let mut opts = workspace_resolve_options(packages);
+    opts.prefer_workspace_packages = true;
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        injected: Some(true),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
+    mock.assert_async().await;
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+}
+
+#[tokio::test]
+async fn prefer_workspace_packages_does_not_engage_without_a_matching_local_version() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(single_version_body(
+            "2.0.0",
+            "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+        ))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let mut opts = workspace_resolve_options(packages);
+    opts.prefer_workspace_packages = true;
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("registry pick");
+    mock.assert_async().await;
+    assert_eq!(result.resolved_via, "npm-registry");
+    assert_eq!(result.id.as_str(), "acme@2.0.0");
+}
+
+#[tokio::test]
+async fn prefer_workspace_packages_still_consults_registry_under_no_downgrade() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(single_version_body(
+            "1.1.0",
+            "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+        ))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let mut opts = workspace_resolve_options(packages);
+    opts.prefer_workspace_packages = true;
+    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.id.as_str(), "link:../acme");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn prefer_workspace_packages_still_consults_registry_when_updating_checksums() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(single_version_body(
+            "1.1.0",
+            "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+        ))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let mut opts = workspace_resolve_options(packages);
+    opts.prefer_workspace_packages = true;
+    opts.update_checksums = true;
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.id.as_str(), "link:../acme");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn prefer_workspace_packages_still_consults_registry_when_injecting_workspace_packages() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(single_version_body(
+            "1.1.0",
+            "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+        ))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let mut opts = workspace_resolve_options(packages);
+    opts.prefer_workspace_packages = true;
+    opts.inject_workspace_packages = true;
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+    mock.assert_async().await;
 }
 
 #[tokio::test]

@@ -503,7 +503,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     const workspaceManifest = await readWorkspaceManifest(workspaceRoot)
     if (workspaceManifest ?? workspaceDir) {
       const allProjects = await findWorkspaceProjectsNoCheck(rootProjectManifestDir, {
-        patterns: workspaceManifest?.packages,
+        patterns: workspaceManifest == null ? undefined : workspaceManifest.packages ?? ['.'],
       })
       return checkDepsStatus({
         ...opts,
@@ -701,6 +701,7 @@ async function assertWantedLockfileUpToDate (
     {
       autoInstallPeers,
       excludeLinksFromLockfile,
+      ignoredOptionalDependencies: config.ignoredOptionalDependencies,
     },
     wantedLockfile.importers[projectId],
     projectManifest

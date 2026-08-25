@@ -1,9 +1,9 @@
-use crate::State;
+use crate::{State, cli_args::install::resolve_bool_override};
 use clap::Args;
 use miette::Context;
-use pacquet_package_manager::{Install, ProjectMutation};
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::Reporter;
+use pnpm_package_manager::{Install, ProjectMutation};
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::Reporter;
 
 #[derive(Debug, Args)]
 pub struct PruneArgs {
@@ -11,7 +11,9 @@ pub struct PruneArgs {
     prod: bool,
     #[clap(short = 'D', long)]
     dev: bool,
-    #[clap(long)]
+    #[clap(long, overrides_with = "no_optional")]
+    optional: bool,
+    #[clap(long, overrides_with = "optional")]
     no_optional: bool,
     #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
     pub ignore_scripts: bool,
@@ -21,12 +23,19 @@ pub struct PruneArgs {
 }
 
 impl PruneArgs {
-    fn dependency_groups(&self) -> impl Iterator<Item = DependencyGroup> {
-        let &PruneArgs { prod, dev, no_optional, ignore_scripts: _, no_ignore_scripts: _ } = self;
+    fn dependency_groups(&self, include_optional: bool) -> impl Iterator<Item = DependencyGroup> {
+        let &PruneArgs {
+            prod,
+            dev,
+            optional,
+            no_optional,
+            ignore_scripts: _,
+            no_ignore_scripts: _,
+        } = self;
         let has_both = prod == dev;
         let has_prod = has_both || prod;
         let has_dev = has_both || dev;
-        let has_optional = !no_optional;
+        let has_optional = resolve_bool_override(optional, no_optional, include_optional);
         std::iter::empty()
             .chain(has_prod.then_some(DependencyGroup::Prod))
             .chain(has_dev.then_some(DependencyGroup::Dev))
@@ -38,7 +47,8 @@ impl PruneArgs {
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
 
-        let dependency_groups: Vec<DependencyGroup> = self.dependency_groups().collect();
+        let dependency_groups: Vec<DependencyGroup> =
+            self.dependency_groups(config.optional).collect();
 
         Install {
             tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
@@ -47,7 +57,7 @@ impl PruneArgs {
             config,
             manifest,
             emit_initial_manifest: true,
-            lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
+            lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: Some(&lockfile_path),
             dependency_groups,
             frozen_lockfile: false,
@@ -63,7 +73,9 @@ impl PruneArgs {
             node_linker: config.node_linker,
             lockfile_only: false,
             dry_run: false,
-            update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAll,
+            persist_policy_excludes: false,
+            update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
             auth_override: None,
             resolution_observer: None,
             peer_issues_sink: None,

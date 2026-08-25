@@ -3,7 +3,7 @@
 //! Resolves `file:`, `link:`, `workspace:`, and bare filesystem
 //! specifiers — the four shapes the install layer can satisfy from
 //! the project tree rather than a registry or git host. The fetch
-//! side for the directory case lives in `pacquet-directory-fetcher`;
+//! side for the directory case lives in `pnpm-directory-fetcher`;
 //! this crate is resolution-only.
 //!
 //! Three public entry points:

@@ -5,15 +5,127 @@
 //! single value (existing entries never move relative to each other), the
 //! format-preserving edits are expressed as targeted text splices for inserts
 //! and a [`yamlpatch`] `Op::Replace` for value updates.
+//!
+//! Those splices are line-oriented, so a block whose value is written
+//! inline (`overrides: { foo: 1.0.0 }`) is handed to [`crate::flow`]
+//! instead, and one neither can edit is reported through [`Inline`] so the
+//! caller can refuse the write.
 
-use std::fmt::Write as _;
+use std::collections::HashSet;
 
 use indexmap::IndexMap;
-use pacquet_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
+use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use yamlpatch::{Op, Patch};
 use yamlpath::{Component, Document, Route};
 
-use crate::{model::Manifest, render};
+use crate::{
+    flow,
+    model::{AllowBuildValue, Manifest},
+    render,
+};
+
+/// How the value a key path names is written.
+pub(crate) enum Inline {
+    /// A block body on the following lines — or no such key at all. The
+    /// line-oriented splices in this module apply.
+    Block,
+    /// An inline value none of the splices can edit: a multi-line flow
+    /// collection (whose interleaved comments a rebuild would drop), an
+    /// alias, or a scalar where a collection belongs.
+    Unsupported,
+    /// A flow collection written on one line, edited by [`crate::flow`].
+    Flow(flow::Collection),
+}
+
+/// Classify how the mapping at `path` is written.
+fn locate_mapping(text: &str, path: &[&str]) -> Inline {
+    locate_inline(text, path, flow::Kind::Mapping)
+}
+
+/// Classify how the sequence at `path` is written.
+fn locate_sequence(text: &str, path: &[&str]) -> Inline {
+    locate_inline(text, path, flow::Kind::Sequence)
+}
+
+/// Classify how the value of `path` is written. A flow collection of a kind
+/// other than `expected` is reported as unsupported: no writer here can put
+/// a mapping entry into a sequence, or the reverse.
+fn locate_inline(text: &str, path: &[&str], expected: flow::Kind) -> Inline {
+    let Some(offset) = inline_value_start(text, path) else { return Inline::Block };
+    match flow::parse(text, offset) {
+        Some(collection) if collection.kind() == expected => Inline::Flow(collection),
+        Some(_) | None => Inline::Unsupported,
+    }
+}
+
+/// Whether the value at `path` is an inline shape no writer can edit. A
+/// caller refuses the whole write rather than corrupt it.
+pub(crate) fn has_unsupported_inline_value(text: &str, path: &[&str]) -> bool {
+    document_root_is_inline(text)
+        || (matches!(locate_mapping(text, path), Inline::Unsupported)
+            && matches!(locate_sequence(text, path), Inline::Unsupported))
+}
+
+/// Whether the document itself is written as a flow collection
+/// (`{ overrides: { foo: 1.0.0 } }`). Its keys are then not top-level lines
+/// at all, so neither the splices here nor a new top-level block can
+/// address them.
+pub(crate) fn document_root_is_inline(text: &str) -> bool {
+    text.lines()
+        .find(|line| structural_indent(line).is_some())
+        .is_some_and(|line| line.trim_start().starts_with(['{', '[']))
+}
+
+/// The keys of the mapping at `path`, whether it is written in block or
+/// single-line flow style. Empty for a mapping with no entries, an
+/// unsupported inline value, or an absent key.
+fn mapping_keys(text: &str, path: &[&str]) -> Vec<String> {
+    match locate_mapping(text, path) {
+        Inline::Flow(collection) => collection.keys(),
+        Inline::Unsupported => Vec::new(),
+        Inline::Block => locate(text, path)
+            .map(|mapping| mapping.entries.into_iter().map(|entry| entry.key).collect())
+            .unwrap_or_default(),
+    }
+}
+
+/// Byte offset of the value of the key `path` names, when that value sits
+/// on the key's own line. `None` when the key is absent or its value is a
+/// block body on the lines below.
+fn inline_value_start(text: &str, path: &[&str]) -> Option<usize> {
+    let (key, parent) = path.split_last()?;
+    if parent.is_empty() {
+        let span = top_level_span(text, key)?;
+        return inline_value_on_line(text, span.key_line_start);
+    }
+    if let Some(entry) = locate(text, parent)
+        .and_then(|mapping| mapping.entries.into_iter().find(|entry| entry.key == *key))
+    {
+        return inline_value_on_line(text, entry.line_start);
+    }
+    // The parent has no line entries of its own when it is itself written
+    // inline, and then the key lives among its flow entries.
+    match locate_mapping(text, parent) {
+        Inline::Flow(collection) => collection.value_start(key),
+        Inline::Block | Inline::Unsupported => None,
+    }
+}
+
+/// Byte offset of the value written after the `key:` on the line starting
+/// at `line_start`. `None` when the line carries no value (a bare `key:`,
+/// optionally followed by a comment), which makes it block style.
+fn inline_value_on_line(text: &str, line_start: usize) -> Option<usize> {
+    let line_end = text[line_start..].find('\n').map_or(text.len(), |offset| line_start + offset);
+    let content = &text[line_start..line_end];
+    let indent = content.len() - content.trim_start().len();
+    let colon = indent + structural_colon_index(&content[indent..])?;
+    let after = &content[colon + 1..];
+    let value = after.trim_start();
+    if value.is_empty() || value.starts_with('#') {
+        return None;
+    }
+    Some(line_start + colon + 1 + (after.len() - value.len()))
+}
 
 /// Merge `updated` into `manifest`'s catalog blocks. Returns whether anything
 /// changed.
@@ -158,8 +270,7 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
     // map can be empty while the block still holds other entries. Deleting the
     // whole block off the decoded map would silently drop that configuration.
     let all_keys = override_keys_in_text(manifest.text());
-    let remaining_keys: Vec<&String> =
-        all_keys.iter().filter(|key| !present.contains(key)).collect();
+    let nothing_remains = all_keys.iter().all(|key| present.contains(key));
 
     if let Some(overrides) = manifest.overrides.as_mut() {
         for selector in &present {
@@ -167,32 +278,22 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
         }
     }
 
-    if remaining_keys.is_empty() {
+    if nothing_remains {
         manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
         manifest.overrides = None;
         manifest.top_level_keys.retain(|key| key != BLOCK);
         return true;
     }
 
-    // A block-style mapping stores each entry on its own line, so the requested
-    // entries can be excised surgically while every other entry (string or not)
-    // is preserved. A flow-style mapping (`overrides: { ... }`) exposes no line
-    // entries, so it can only be rewritten wholesale — which the decoded map can
-    // do faithfully only when it accounts for every remaining key (i.e. the
-    // block has no non-string entries). When it does not, leave the file
-    // untouched rather than drop the entries we cannot reserialize.
-    let line_based =
-        locate(manifest.text(), &[BLOCK]).is_some_and(|mapping| !mapping.entries.is_empty());
-
-    if line_based {
-        manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &present));
-        true
-    } else if manifest.overrides.as_ref().map_or(0, IndexMap::len) == remaining_keys.len() {
-        rerender_overrides_block(manifest, BLOCK);
-        true
-    } else {
-        false
+    // Both a block-style mapping and a single-line flow one excise the
+    // requested entries surgically, leaving every other entry — string or
+    // not — as written. An inline shape neither can edit leaves the file
+    // untouched rather than dropping what it cannot reserialize.
+    if has_unsupported_inline_value(manifest.text(), &[BLOCK]) {
+        return false;
     }
+    manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &present));
+    true
 }
 
 /// Raw dependency specifiers per package name, collected from every
@@ -203,15 +304,11 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
 pub(crate) type CatalogReferences =
     std::collections::BTreeMap<String, std::collections::BTreeSet<String>>;
 
-/// The `cleanupUnusedCatalogs` pass: drop catalog entries that no
+/// The `catalogPrune` pass: drop catalog entries that no
 /// collected reference names. A default-catalog entry survives only via
 /// a bare `catalog:` reference; a named-catalog entry survives via
 /// `catalog:<name>` or bare `catalog:`. Emptied blocks are dropped
 /// whole. Returns whether anything changed.
-///
-/// A flow-style (`catalog: { ... }`) block exposes no line entries for
-/// the partial-removal splice, so its entries are left untouched — the
-/// same conservative stance [`remove_overrides`] takes.
 pub(crate) fn remove_unused_catalogs(
     manifest: &mut Manifest,
     references: &CatalogReferences,
@@ -238,7 +335,7 @@ fn remove_unused_default_catalog(manifest: &mut Manifest, references: &CatalogRe
         manifest.top_level_keys.retain(|key| key != BLOCK);
         return true;
     }
-    if to_remove.is_empty() || !has_line_entries(manifest.text(), &[BLOCK]) {
+    if to_remove.is_empty() || !has_removable_entries(manifest.text(), &[BLOCK]) {
         return false;
     }
     manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &to_remove));
@@ -270,7 +367,7 @@ fn remove_unused_named_catalogs(manifest: &mut Manifest, references: &CatalogRef
 
     let mut changed = false;
     for (name, to_remove) in &entry_removals {
-        if !has_line_entries(manifest.text(), &[BLOCK, name]) {
+        if !has_removable_entries(manifest.text(), &[BLOCK, name]) {
             continue;
         }
         manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK, name], to_remove));
@@ -292,7 +389,7 @@ fn remove_unused_named_catalogs(manifest: &mut Manifest, references: &CatalogRef
         manifest.top_level_keys.retain(|key| key != BLOCK);
         return true;
     }
-    if !names_to_drop.is_empty() && has_line_entries(manifest.text(), &[BLOCK]) {
+    if !names_to_drop.is_empty() && has_removable_entries(manifest.text(), &[BLOCK]) {
         manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &names_to_drop));
         let catalogs = manifest.catalogs.as_mut().expect("catalogs presence checked above");
         for name in &names_to_drop {
@@ -303,10 +400,11 @@ fn remove_unused_named_catalogs(manifest: &mut Manifest, references: &CatalogRef
     changed
 }
 
-/// Whether the mapping at `path` is written in block style — i.e. it has
-/// per-line entries the removal splices can excise.
-fn has_line_entries(text: &str, path: &[&str]) -> bool {
-    locate(text, path).is_some_and(|mapping| !mapping.entries.is_empty())
+/// Whether the mapping at `path` holds entries the removal splices can
+/// excise: per-line entries in block style, or the entries of a
+/// single-line flow mapping.
+fn has_removable_entries(text: &str, path: &[&str]) -> bool {
+    !mapping_keys(text, path).is_empty()
 }
 
 /// Every key under the top-level `overrides:` block as written in `text`,
@@ -339,16 +437,16 @@ pub(crate) fn set_audit_ignore_ghsas(
 
     if ghsas.is_empty() {
         let text = manifest.text();
-        let Some(mapping) = locate(text, &[BLOCK]) else {
-            return Ok(false);
-        };
-        // Nothing to remove if `ignoreGhsas` isn't present — and crucially,
-        // don't touch sibling `auditConfig` keys.
-        if !mapping.entries.iter().any(|entry| entry.key == "ignoreGhsas") {
+        if locate(text, &[BLOCK]).is_none() {
             return Ok(false);
         }
-        let only_ignore_ghsas = mapping.entries.iter().all(|entry| entry.key == "ignoreGhsas");
-        if only_ignore_ghsas {
+        let keys = mapping_keys(text, &[BLOCK]);
+        // Nothing to remove if `ignoreGhsas` isn't present — and crucially,
+        // don't touch sibling `auditConfig` keys.
+        if !keys.iter().any(|key| key == "ignoreGhsas") {
+            return Ok(false);
+        }
+        if keys.iter().all(|key| key == "ignoreGhsas") {
             manifest.set_text(remove_top_level_block(text, BLOCK));
             manifest.top_level_keys.retain(|key| key != BLOCK);
         } else {
@@ -380,7 +478,7 @@ pub(crate) fn set_audit_ignore_ghsas(
 /// Set the top-level `minimumReleaseAgeExclude:` block to `items` (the
 /// complete desired list), creating or replacing it, and removing it when
 /// `items` is empty. The caller is responsible for merging with the existing
-/// entries (via `pacquet_config::version_policy::merge_package_version_specs`)
+/// entries (via `pnpm_config::version_policy::merge_package_version_specs`)
 /// before calling. Returns whether anything changed.
 pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &[String]) -> bool {
     const BLOCK: &str = "minimumReleaseAgeExclude";
@@ -402,6 +500,21 @@ pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &
     }
 
     let text = manifest.text();
+    match locate_sequence(text, &[BLOCK]) {
+        Inline::Flow(collection) => {
+            let rendered: Vec<String> =
+                items.iter().map(|item| render::render_value(item)).collect();
+            manifest.set_text(flow::set_items(text, &collection, &rendered));
+            manifest.minimum_release_age_exclude = Some(items.to_vec());
+            return true;
+        }
+        // Rendering the whole block afresh would drop the comments an
+        // inline value this writer cannot edit may hold, so leave it be;
+        // the public writer refuses such a manifest outright.
+        Inline::Unsupported => return false,
+        Inline::Block => {}
+    }
+
     let rendered = render_top_level_sequence(BLOCK, items);
     if let Some(span) = top_level_span(text, BLOCK) {
         // Preserve a trailing blank line before the next block, since the
@@ -419,6 +532,25 @@ pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &
     }
     manifest.minimum_release_age_exclude = Some(items.to_vec());
     true
+}
+
+/// The `minimumReleaseAgeExcludePrune` pass: prune
+/// `minimumReleaseAgeExclude:` entries against the versions the freshly
+/// resolved lockfile records. The per-entry decision lives in
+/// [`pnpm_config::version_policy::drop_unresolved_package_version_specs`];
+/// the text edit is [`set_minimum_release_age_excludes`]'s block replace,
+/// so a pruned-to-empty list drops the block and an unchanged list is a
+/// no-op. Returns whether anything changed.
+pub(crate) fn prune_minimum_release_age_excludes(
+    manifest: &mut Manifest,
+    resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
+) -> bool {
+    let Some(current) = manifest.minimum_release_age_exclude.as_deref() else {
+        return false;
+    };
+    let pruned =
+        pnpm_config::version_policy::drop_unresolved_package_version_specs(current, resolved);
+    set_minimum_release_age_excludes(manifest, &pruned)
 }
 
 /// Render a top-level block whose value is a block sequence (`key:` then
@@ -452,6 +584,13 @@ fn render_audit_config_block(ghsas: &[String]) -> String {
 /// in the position the reorder pass would choose. The mapping at
 /// `block_name` must already exist. Used to write `auditConfig.ignoreGhsas`.
 fn upsert_sequence_entry(text: &str, block_name: &str, key: &str, items: &[String]) -> String {
+    let rendered_items: Vec<String> = items.iter().map(|item| render::render_value(item)).collect();
+    if let Inline::Flow(collection) = locate_sequence(text, &[block_name, key]) {
+        return flow::set_items(text, &collection, &rendered_items);
+    }
+    if let Inline::Flow(collection) = locate_mapping(text, &[block_name]) {
+        return flow::upsert(text, &collection, key, &flow::render_sequence(&rendered_items));
+    }
     let mapping = locate(text, &[block_name]).expect("block exists");
     let item_indent = mapping.entry_indent + 2;
     let mut rendered = String::new();
@@ -489,32 +628,6 @@ fn upsert_sequence_entry(text: &str, block_name: &str, key: &str, items: &[Strin
     splice(text, offset, &rendered)
 }
 
-/// Replace the on-disk `overrides:` block with a block-style rendering of the
-/// decoded (already-edited) map. Used when the original block is flow-style and
-/// cannot be edited entry by entry.
-fn rerender_overrides_block(manifest: &mut Manifest, block_name: &str) {
-    let block = {
-        let overrides = manifest.overrides.as_ref().expect("non-empty overrides above");
-        let mut block = format!("{block_name}:\n");
-        for (selector, specifier) in overrides {
-            writeln!(
-                block,
-                "  {}: {}",
-                render::render_value(selector),
-                render::render_value(specifier),
-            )
-            .expect("writing to a String never fails");
-        }
-        block
-    };
-    manifest.set_text(remove_top_level_block(manifest.text(), block_name));
-    manifest.top_level_keys.retain(|key| key != block_name);
-    let new_text = insert_top_level_block(manifest, block_name, &block);
-    manifest.set_text(new_text);
-    manifest.top_level_keys =
-        render::target_order(&manifest.top_level_keys, &[block_name.to_string()]);
-}
-
 fn upsert_top_level_entry(
     manifest: &mut Manifest,
     block_name: &str,
@@ -523,14 +636,14 @@ fn upsert_top_level_entry(
     current_matches: bool,
 ) -> Result<bool, Box<yamlpatch::Error>> {
     let text = manifest.text();
-    if let Some(mapping) = locate(text, &[block_name]) {
-        let new_text = if mapping.entries.iter().any(|entry| entry.key == key) {
+    if locate(text, &[block_name]).is_some() {
+        let new_text = if mapping_keys(text, &[block_name]).iter().any(|entry| entry == key) {
             if current_matches {
                 return Ok(false);
             }
             replace_value_at(text, &[block_name], key, value)?
         } else {
-            insert_entry_at(text, &[block_name], key, value)
+            write_entry_at(text, &[block_name], key, value)
         };
         manifest.set_text(new_text);
     } else {
@@ -554,17 +667,23 @@ fn upsert_top_level_entry(
 pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) -> bool {
     const BLOCK: &str = "allowBuilds";
     let text = manifest.text();
-    let changed = if let Some(mapping) = locate(text, &[BLOCK]) {
-        if mapping.entries.iter().any(|entry| entry.key == name) {
+    let changed = if locate(text, &[BLOCK]).is_some() {
+        if mapping_keys(text, &[BLOCK]).iter().any(|key| key == name) {
             // Already present with the same value — a true no-op, so don't
             // rewrite the file (which would bump its mtime).
-            if manifest.allow_builds.as_ref().and_then(|builds| builds.get(name)) == Some(&value) {
+            if manifest.allow_builds.as_ref().and_then(|builds| builds.get(name))
+                == Some(&AllowBuildValue::Bool(value))
+            {
                 return false;
             }
-            let new_text = replace_bool_value_at(text, &[BLOCK], name, value);
+            let new_text = if let Inline::Flow(collection) = locate_mapping(text, &[BLOCK]) {
+                flow::upsert(text, &collection, name, render_bool(value))
+            } else {
+                replace_bool_value_at(text, &[BLOCK], name, value)
+            };
             manifest.set_text(new_text);
         } else {
-            let new_text = insert_rendered_entry_at(text, &[BLOCK], name, render_bool(value));
+            let new_text = write_rendered_entry_at(text, &[BLOCK], name, render_bool(value));
             manifest.set_text(new_text);
         }
         true
@@ -578,7 +697,10 @@ pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) 
     };
     // Keep the decoded view in sync so later upserts in the same write see
     // this entry (for both no-op detection and block-presence checks).
-    manifest.allow_builds.get_or_insert_with(IndexMap::new).insert(name.to_string(), value);
+    manifest
+        .allow_builds
+        .get_or_insert_with(IndexMap::new)
+        .insert(name.to_string(), AllowBuildValue::Bool(value));
     changed
 }
 
@@ -593,7 +715,14 @@ pub(crate) fn add_undecided_allow_build(
 ) -> bool {
     const BLOCK: &str = "allowBuilds";
     let text = manifest.text();
-    let Some(mapping) = locate(text, &[BLOCK]) else {
+    if locate(text, &[BLOCK]).is_some() {
+        if mapping_keys(text, &[BLOCK]).iter().any(|key| key == name) {
+            return false;
+        }
+        let new_text =
+            write_rendered_entry_at(text, &[BLOCK], name, &render::render_value(placeholder));
+        manifest.set_text(new_text);
+    } else {
         let block = format!(
             "{BLOCK}:\n  {}: {}\n",
             render::render_value(name),
@@ -603,14 +732,11 @@ pub(crate) fn add_undecided_allow_build(
         manifest.set_text(new_text);
         manifest.top_level_keys =
             render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
-        return true;
-    };
-    if mapping.entries.iter().any(|entry| entry.key == name) {
-        return false;
     }
-    let new_text =
-        insert_rendered_entry_at(text, &[BLOCK], name, &render::render_value(placeholder));
-    manifest.set_text(new_text);
+    manifest
+        .allow_builds
+        .get_or_insert_with(IndexMap::new)
+        .insert(name.to_string(), AllowBuildValue::String(placeholder.to_string()));
     true
 }
 
@@ -757,7 +883,7 @@ fn upsert_existing(
             Ok(true)
         }
         None => {
-            let new_text = insert_entry(manifest.text(), target, dep, specifier);
+            let new_text = write_entry(manifest.text(), target, dep, specifier);
             manifest.set_text(new_text);
             target_map_mut(manifest, target).insert(dep.to_string(), specifier.to_string());
             Ok(true)
@@ -786,7 +912,7 @@ fn create_target(
         manifest.catalog = Some(IndexMap::from([(dep.to_string(), specifier.to_string())]));
     } else if manifest.catalogs.is_some() {
         // `catalogs:` exists but lacks this name — add a named sub-block.
-        let new_text = insert_named_subblock(manifest, catalog_name, dep, &value);
+        let new_text = write_named_subblock(manifest, catalog_name, dep, &value);
         manifest.set_text(new_text);
         manifest.catalogs.as_mut().expect("catalogs present").insert(
             catalog_name.to_string(),
@@ -868,6 +994,13 @@ fn replace_scalar_at(
     dep: &str,
     value: yaml_serde::Value,
 ) -> Result<String, Box<yamlpatch::Error>> {
+    if let Inline::Flow(collection) = locate_mapping(text, path) {
+        let value_text = yaml_serde::to_string(&value)
+            .expect("serializing a scalar to YAML never fails")
+            .trim_end()
+            .to_string();
+        return Ok(flow::upsert(text, &collection, dep, &value_text));
+    }
     let document =
         Document::new(text.to_string()).map_err(yamlpatch::Error::from).map_err(Box::new)?;
     let components: Vec<Component> = path
@@ -881,23 +1014,30 @@ fn replace_scalar_at(
     Ok(patched.source().to_string())
 }
 
-/// Insert a new `dep: value` entry into an existing catalog mapping at the
+/// Write a `dep: value` entry into an existing catalog mapping at the
 /// position the reorder pass would choose (sorted-in when the block is
 /// sorted, appended otherwise).
-fn insert_entry(text: &str, target: &Target, dep: &str, specifier: &str) -> String {
-    insert_entry_at(text, &target.path(), dep, specifier)
+fn write_entry(text: &str, target: &Target, dep: &str, specifier: &str) -> String {
+    write_entry_at(text, &target.path(), dep, specifier)
 }
 
-/// [`insert_entry`] addressed by an explicit mapping path, so non-catalog
+/// [`write_entry`] addressed by an explicit mapping path, so non-catalog
 /// blocks (e.g. `configDependencies`) can reuse the reorder-aware splice.
-fn insert_entry_at(text: &str, path: &[&str], dep: &str, specifier: &str) -> String {
-    insert_rendered_entry_at(text, path, dep, &render::render_value(specifier))
+fn write_entry_at(text: &str, path: &[&str], dep: &str, specifier: &str) -> String {
+    write_rendered_entry_at(text, path, dep, &render::render_value(specifier))
 }
 
-/// [`insert_entry_at`] for an already-rendered value text, so non-string
+/// [`write_entry_at`] for an already-rendered value text, so non-string
 /// blocks (e.g. `allowBuilds`'s `true` / `false`) can reuse the
 /// reorder-aware splice without going through [`render::render_value`].
-fn insert_rendered_entry_at(text: &str, path: &[&str], dep: &str, value_text: &str) -> String {
+///
+/// A block-style mapping gains a new entry line; a single-line flow mapping
+/// is rebuilt with the entry upserted, since a flow mapping the caller
+/// thought was entry-less may well already hold `dep`.
+fn write_rendered_entry_at(text: &str, path: &[&str], dep: &str, value_text: &str) -> String {
+    if let Inline::Flow(collection) = locate_mapping(text, path) {
+        return flow::upsert(text, &collection, dep, value_text);
+    }
     let mapping = locate(text, path).expect("mapping exists");
     let existing: Vec<String> = mapping.entries.iter().map(|entry| entry.key.clone()).collect();
     let order = render::target_order(&existing, &[dep.to_string()]);
@@ -923,7 +1063,12 @@ fn insert_rendered_entry_at(text: &str, path: &[&str], dep: &str, value_text: &s
     splice(text, offset, &line)
 }
 
+/// Drop `keys` from the mapping at `path`, whether it is written in block
+/// or single-line flow style.
 fn remove_mapping_entries(text: &str, path: &[&str], keys: &[String]) -> String {
+    if let Inline::Flow(collection) = locate_mapping(text, path) {
+        return flow::remove_keys(text, &collection, keys);
+    }
     let Some(mapping) = locate(text, path) else {
         return text.to_string();
     };
@@ -943,10 +1088,14 @@ fn remove_top_level_block(text: &str, key: &str) -> String {
     out
 }
 
-/// Insert a new named catalog (`<name>:` + its first entry) into an existing
+/// Write a new named catalog (`<name>:` + its first entry) into an existing
 /// top-level `catalogs:` block, at the position the reorder pass would choose.
-fn insert_named_subblock(manifest: &Manifest, name: &str, dep: &str, value: &str) -> String {
+fn write_named_subblock(manifest: &Manifest, name: &str, dep: &str, value: &str) -> String {
     let text = manifest.text();
+    if let Inline::Flow(collection) = locate_mapping(text, &["catalogs"]) {
+        let entry = format!("{{ {}: {value} }}", render::render_value(dep));
+        return flow::upsert(text, &collection, name, &entry);
+    }
     let catalogs = locate(text, &["catalogs"]).expect("catalogs block exists");
     let existing: Vec<String> = catalogs.entries.iter().map(|entry| entry.key.clone()).collect();
     let order = render::target_order(&existing, &[name.to_string()]);
@@ -1264,35 +1413,20 @@ fn collect_entries(all: &[Line<'_>], from: usize, to: usize, entry_indent: usize
     entries
 }
 
-/// Whether the top-level `key:` carries an inline value (a flow mapping /
-/// flow sequence / scalar) on the same line rather than a block body on the
-/// following lines. The block-style splice writers (e.g.
-/// [`set_audit_ignore_ghsas`]) assume a block body, so a caller can refuse an
-/// inline shape instead of corrupting it. A bare `key:` (optionally with a
-/// trailing comment) is block-style and returns `false`.
-pub(crate) fn top_level_has_inline_value(text: &str, key: &str) -> bool {
-    for line in text.lines() {
-        if structural_indent(line) != Some(0) || line_key(line).as_deref() != Some(key) {
-            continue;
-        }
-        let trimmed = line.trim_start();
-        let Some(colon) = structural_colon_index(trimmed) else { return false };
-        let after = trimmed[colon + 1..].trim_start();
-        return !after.is_empty() && !after.starts_with('#');
-    }
-    false
-}
-
 /// The starting offset of a top-level key's line.
 fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
     let all = lines(text);
     let key_idx = all.iter().position(|line| {
         structural_indent(line.content) == Some(0) && line_key(line.content).as_deref() == Some(key)
     })?;
-    let next_key_idx = ((key_idx + 1)..all.len())
+    // A flow collection written across several lines closes at column zero,
+    // which would otherwise read as the next top-level key and leave the
+    // closing bracket behind when the block is replaced or removed.
+    let body_start = inline_value_last_line(text, &all, key_idx).unwrap_or(key_idx) + 1;
+    let next_key_idx = (body_start..all.len())
         .find(|&idx| structural_indent(all[idx].content) == Some(0))
         .unwrap_or(all.len());
-    let block_end_idx = leading_comment_start(&all, key_idx + 1, next_key_idx);
+    let block_end_idx = leading_comment_start(&all, body_start, next_key_idx);
     let block_end = all
         .get(block_end_idx)
         .map_or_else(|| all.last().map_or(0, |line| line.end), |line| line.start);
@@ -1302,6 +1436,18 @@ fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
                 && line_key(line.content).as_deref() == Some(key)
         })
         .map(|line| TopLevelSpan { key_line_start: line.start, block_end })
+}
+
+/// Index of the line where the flow collection written inline on
+/// `key_idx`'s line closes. `None` when that line carries no inline value,
+/// its value is not a flow collection, or the collection never closes.
+fn inline_value_last_line(text: &str, all: &[Line<'_>], key_idx: usize) -> Option<usize> {
+    let open = inline_value_on_line(text, all[key_idx].start)?;
+    if !text[open..].starts_with(['{', '[']) {
+        return None;
+    }
+    let close = flow::closing_bracket_across_lines(text, open)?;
+    all.iter().position(|line| line.start <= close && close < line.end)
 }
 
 fn leading_comment_start(all: &[Line<'_>], block_start: usize, next_key_idx: usize) -> usize {
@@ -1360,4 +1506,118 @@ fn has_blank_before(all: &[Line<'_>], idx: usize) -> bool {
         return false;
     }
     false
+}
+
+/// Drop undecided placeholder entries whose package is provably absent from
+/// `resolved`. Explicit decisions, keys with no provable package name, and
+/// entries for still-resolved packages always stay.
+pub(crate) fn prune_allow_builds(
+    manifest: &mut Manifest,
+    resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
+) -> bool {
+    const BLOCK: &str = "allowBuilds";
+    let Some(allow_builds) = manifest.allow_builds.as_ref() else {
+        return false;
+    };
+
+    let prunable: HashSet<String> = allow_builds
+        .iter()
+        .filter_map(|(key, value)| {
+            let AllowBuildValue::String(val) = value else {
+                return None;
+            };
+            if val != crate::UNDECIDED_ALLOW_BUILD {
+                return None;
+            }
+            let name = allow_build_key_package_name(key)?;
+            (!resolved.contains_key(name)).then(|| key.clone())
+        })
+        .collect();
+
+    if prunable.is_empty() {
+        return false;
+    }
+
+    // The decoded map came from this same text, so an empty key list means
+    // the narrow re-parse failed; without it surviving entries can't be
+    // told apart from prunable ones, so the block must stay untouched.
+    let all_keys = allow_builds_keys_in_text(manifest.text());
+    if all_keys.is_empty() {
+        return false;
+    }
+
+    if all_keys.iter().all(|key| prunable.contains(key)) {
+        manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
+        manifest.allow_builds = None;
+        manifest.top_level_keys.retain(|key| key != BLOCK);
+        return true;
+    }
+
+    let new_text = match locate_mapping(manifest.text(), &[BLOCK]) {
+        Inline::Flow(collection) => {
+            let prunable: Vec<String> = prunable.iter().cloned().collect();
+            flow::remove_keys(manifest.text(), &collection, &prunable)
+        }
+        Inline::Unsupported => return false,
+        Inline::Block => {
+            let entries = match locate(manifest.text(), &[BLOCK]) {
+                Some(mapping) if !mapping.entries.is_empty() => mapping.entries,
+                _ => return false,
+            };
+            // Entries are removed by pairing each text line with its decoded
+            // key — the raw key text can differ from the decoded form
+            // (quoting, escapes). A count mismatch means the two views
+            // disagree (e.g. duplicate keys), so leave the block untouched.
+            if entries.len() != all_keys.len() {
+                return false;
+            }
+            let mut out = manifest.text().to_string();
+            for (entry, key) in entries.iter().zip(&all_keys).rev() {
+                if prunable.contains(key) {
+                    out.replace_range(entry.line_start..entry.block_end, "");
+                }
+            }
+            out
+        }
+    };
+
+    if let Some(builds) = manifest.allow_builds.as_mut() {
+        for key in &prunable {
+            builds.shift_remove(key);
+        }
+    }
+    manifest.set_text(new_text);
+    true
+}
+
+/// The package name an `allowBuilds` key identifies — the key itself for a
+/// bare name, the name half of a `name@version` dep-path key — or `None`
+/// for keys carrying no single package name (hashless git-repo keys,
+/// malformed shapes). The key shapes mirror
+/// `allow_build_key_from_ignored_build` in the deps-restorer crate, which
+/// this crate cannot depend on.
+fn allow_build_key_package_name(key: &str) -> Option<&str> {
+    if !key.contains('#') && (key.starts_with("git+") || key.contains("@git+")) {
+        return None;
+    }
+    let name = match key.get(1..).and_then(|rest| rest.find('@')) {
+        // The version part after the `@` separator must be non-empty.
+        Some(off) if off + 2 < key.len() => &key[..=off],
+        Some(_) => return None,
+        None => key,
+    };
+    (!name.is_empty() && !name.contains(':')).then_some(name)
+}
+
+fn allow_builds_keys_in_text(text: &str) -> Vec<String> {
+    #[derive(serde::Deserialize)]
+    struct OnlyAllowBuilds {
+        #[serde(default, rename = "allowBuilds")]
+        allow_builds: Option<IndexMap<String, serde::de::IgnoredAny>>,
+    }
+    serde_saphyr::from_str::<OnlyAllowBuilds>(text)
+        .ok()
+        .and_then(|parsed| parsed.allow_builds)
+        .map(|map| map.into_keys().collect())
+        .unwrap_or_default()
 }

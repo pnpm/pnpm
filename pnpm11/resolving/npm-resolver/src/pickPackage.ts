@@ -7,6 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
+import type { TrustPolicy } from '@pnpm/types'
 import getRegistryName from 'encode-registry'
 import pLimit, { type LimitFunction } from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
@@ -21,11 +22,14 @@ import {
 } from './fetch.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import {
+  getDominantLockfileVersion,
   pickLowestVersionByVersionRange,
   pickPackageFromMeta,
   type PickPackageFromMetaOptions,
+  pickStableCachedRangeVersion,
   pickVersionByVersionRange,
 } from './pickPackageFromMeta.js'
+import { dropIncompletePublishTimes } from './publishTimes.js'
 import { toRaw } from './toRaw.js'
 
 export interface PackageMetaCache {
@@ -82,6 +86,7 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   dryRun: boolean
   includeLatestTag?: boolean
   optional?: boolean
+  trustPolicy?: TrustPolicy
   /**
    * When true, force a conditional registry request so a stale on-disk
    * packument can't satisfy the call: the on-disk exact-version fast
@@ -99,6 +104,19 @@ interface PickerOptions extends PickPackageFromMetaOptions {
   pickLowestVersion?: boolean
   includeLatestTag?: boolean
   ignoreMissingTimeField?: boolean
+}
+
+function canReuseStableCachedRange (
+  spec: RegistryPackageSpec,
+  opts: PickPackageOptions
+): boolean {
+  return (
+    spec.type === 'range' &&
+    !opts.includeLatestTag &&
+    !opts.updateChecksums &&
+    opts.publishedBy == null &&
+    opts.trustPolicy !== 'no-downgrade'
+  )
 }
 
 // When includeLatestTag is set, the "latest" dist-tag is added as a candidate
@@ -127,18 +145,20 @@ function pickMax (
 const pickHighest = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
 const pickLowest = pickPackageFromMeta.bind(null, pickLowestVersionByVersionRange)
 
-// When minimumReleaseAge is active: try the highest mature version; if none
-// satisfies the range, fall back to the lowest version regardless of maturity
-// so the resolver can report the violation inline and let the install layer
-// (or other caller) decide what to do — never throw at this layer.
+// `minimumReleaseAge` narrows which versions are on offer; `pickLowestVersion`
+// decides which end of what is left to take. The fallback deliberately drops
+// the maturity filter so a range no mature version satisfies still yields a
+// pick, which the install layer reports as a violation rather than this layer
+// throwing.
 function pickRespectingMinReleaseAge (
   pickerOpts: PickerOptions,
   spec: RegistryPackageSpec,
   meta: PackageMeta
 ): PackageInRegistry | null {
   return runPicker(pickerOpts, spec, (targetSpec) => {
-    const highest = pickHighest(pickerOpts, meta, targetSpec)
-    if (highest) return highest
+    const pickMature = pickerOpts.pickLowestVersion ? pickLowest : pickHighest
+    const mature = pickMature(pickerOpts, meta, targetSpec)
+    if (mature) return mature
     return pickLowest({
       preferredVersionSelectors: pickerOpts.preferredVersionSelectors,
     }, meta, targetSpec)
@@ -181,7 +201,7 @@ function pickMatchingVersionFinal (
     return pickMatchingVersionFast(pickerOpts, spec, meta)
   } catch (err: unknown) {
     if (pickerOpts.ignoreMissingTimeField && isMissingTimeError(err)) {
-      warnMissingTimeFieldOnce(meta.name)
+      warnMissingTimeFieldOnce(meta.name, 'minimumReleaseAge')
       return pickMatchingVersionFast({
         ...pickerOpts,
         publishedBy: undefined,
@@ -234,12 +254,23 @@ export async function pickPackage (
   ctx: {
     fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, cacheBypass?: boolean, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
     fullMetadata?: boolean
+    /**
+     * Whether a time-based resolution has to read the full metadata of
+     * `registry`, because that registry's abbreviated form carries no `time`.
+     * Asked per registry: the answer differs between the public registry and a
+     * proxy that does carry it, and the mirror path and cache key below are
+     * already keyed by registry, so two registries may disagree within one
+     * install.
+     */
+    needsFullMetadataFor?: (registry: string) => boolean
     metaCache: PackageMetaCache
     cacheDir: string
     offline?: boolean
     preferOffline?: boolean
     filterMetadata?: boolean
     ignoreMissingTimeField?: boolean
+    /** Packuments whose release-age upgrade fetch already answered 304 in this resolver. */
+    releaseAgeUpgradeCheckedPackuments?: WeakSet<PackageMeta>
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
@@ -259,7 +290,12 @@ export async function pickPackage (
 
   // Use full metadata for optional dependencies to get libc field.
   // See: https://github.com/pnpm/pnpm/issues/9950
-  const fullMetadata = opts.optional === true || ctx.fullMetadata === true
+  // The per-registry answer is authoritative when the caller can give one: it
+  // already folds in the reasons that hold for every registry, so a registry
+  // that carries `time` is free to stay on abbreviated metadata while the
+  // others do not.
+  const policyWantsFullMetadata = ctx.needsFullMetadataFor?.(opts.registry) ?? ctx.fullMetadata === true
+  const fullMetadata = opts.optional === true || policyWantsFullMetadata
   const metaDir = fullMetadata
     ? (ctx.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR)
     : ABBREVIATED_META_DIR
@@ -284,7 +320,22 @@ export async function pickPackage (
       ctx.metaCache.set(cacheKey, metaForCache)
     }
     const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, metaForCache)
-    if (pickedPackage != null || ctx.offline === true || !unverifiedDiskPackuments.has(metaForCache)) {
+    const unverified = unverifiedDiskPackuments.has(metaForCache)
+    const stableCachedRangeVersion =
+      unverified &&
+      canReuseStableCachedRange(spec, opts)
+        ? getDominantLockfileVersion(spec.fetchSpec, opts.preferredVersionSelectors)
+        : null
+    const unverifiedPickIsSafe =
+      ctx.preferOffline === true ||
+      opts.pickLowestVersion === true ||
+      spec.type === 'version' ||
+      (pickedPackage != null && pickedPackage.version === stableCachedRangeVersion)
+    const cacheResultCanReturn =
+      ctx.offline === true ||
+      !unverified ||
+      (pickedPackage != null && unverifiedPickIsSafe)
+    if (cacheResultCanReturn) {
       return {
         meta: metaForCache,
         pickedPackage,
@@ -377,6 +428,34 @@ export async function pickPackage (
           // abbreviated meta) and fall through to the network fetch, which
           // can upgrade to full metadata and run the maturity check on
           // real `time` data.
+        }
+      }
+    }
+    const dominantLockfileVersion = canReuseStableCachedRange(spec, opts)
+      ? getDominantLockfileVersion(spec.fetchSpec, opts.preferredVersionSelectors)
+      : null
+    if (dominantLockfileVersion != null) {
+      diskMeta = diskMeta ?? await limit(loadMetaCondensed)
+      if (diskMeta != null) {
+        try {
+          const stableVersion = pickStableCachedRangeVersion({
+            meta: diskMeta,
+            preferredVersionSelectors: opts.preferredVersionSelectors,
+            versionRange: spec.fetchSpec,
+          })
+          if (stableVersion != null) {
+            // Strict dominance makes the preferred tier a singleton, so the
+            // highest-version picker used by the proof and the normal picker
+            // agree even if pickLowestVersion reaches this code in the future.
+            const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, diskMeta)
+            if (pickedPackage?.version === stableVersion) {
+              cacheDiskLoadedMeta(ctx.metaCache, cacheKey, diskMeta)
+              return { meta: diskMeta, pickedPackage }
+            }
+          }
+        } catch {
+          // Any malformed cached metadata falls through to normal online
+          // resolution, matching the neighboring disk fast paths.
         }
       }
     }
@@ -486,6 +565,7 @@ export async function pickPackage (
       // and most packages won't have been modified recently enough to need the full
       // document. We only upgrade to full metadata when the package's modification
       // date is recent enough that some versions might not yet be "mature."
+      let attemptedReleaseAgeUpgrade = false
       if (
         opts.publishedBy &&
         !fullMetadata &&
@@ -504,6 +584,7 @@ export async function pickPackage (
           if (!opts.dryRun) {
             saveMetaBestEffort(pkgMirror, prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText))
           }
+          attemptedReleaseAgeUpgrade = true
           const fullFetchResult = await ctx.fetch(spec.name, {
             authHeaderValue: opts.authHeaderValue,
             fullMetadata: true,
@@ -517,6 +598,9 @@ export async function pickPackage (
       }
 
       meta = condenseMetaForCache(ctx, meta)
+      if (attemptedReleaseAgeUpgrade) {
+        ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
+      }
       if (!opts.dryRun) {
         // Mirror the raw registry body, unless the retained form is
         // deliberately narrower: `filterMetadata` always mirrors the stripped
@@ -554,6 +638,7 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   ctx: {
     fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, cacheBypass?: boolean, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
     offline?: boolean
+    releaseAgeUpgradeCheckedPackuments?: WeakSet<PackageMeta>
   },
   spec: RegistryPackageSpec,
   opts: {
@@ -568,6 +653,7 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     ctx.offline === true ||
     !opts.publishedBy ||
     meta.time != null ||
+    ctx.releaseAgeUpgradeCheckedPackuments?.has(meta) === true ||
     opts.publishedByExclude?.(spec.name) === true
   ) {
     return { meta }
@@ -596,8 +682,11 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     registry: opts.registry,
   })
   if (fullFetchResult.notModified) {
-    // Upgrade fetch came back 304: keep the abbreviated meta. The downstream
-    // `pickMatchingVersionFinal` will fall through to its warn-and-skip path.
+    // Upgrade fetch came back 304: the registry has no fuller form of this
+    // document, so keep it and let `pickMatchingVersionFinal` fall through to
+    // its warn-and-skip path. Remember the outcome against the packument
+    // itself so no other pick in this resolver repeats the request.
+    ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
     return { meta }
   }
   return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
@@ -609,14 +698,29 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
  * pre-upgrade abbreviated form without `time`, and every future install
  * would re-trigger the upgrade fetch.
  */
+/**
+ * The document to serve and cache after an upgrade attempt, marked so no
+ * later pick in this resolver repeats the request.
+ *
+ * Marking belongs here rather than in
+ * {@link maybeUpgradeAbbreviatedMetaForReleaseAge} because persisting the
+ * response to the mirror can hand back a different object, and only the one
+ * that reaches the cache is worth remembering. A registry whose full form is
+ * no more complete than its abbreviated one answers `200` rather than `304`,
+ * so both outcomes have to be marked — otherwise every dependency edge
+ * re-asks for the same full document.
+ */
 function upgradeMetaForCache (
-  ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
+  ctx: { fullMetadata?: boolean, filterMetadata?: boolean, releaseAgeUpgradeCheckedPackuments?: WeakSet<PackageMeta> },
   upgrade: { meta: PackageMeta, upgradedFrom?: FetchMetadataResult },
   opts: { pkgMirror: string, dryRun: boolean }
 ): PackageMeta {
   if (upgrade.upgradedFrom == null) return upgrade.meta
-  if (opts.dryRun) return condenseMetaForCache(ctx, upgrade.meta)
-  return persistUpgradedMeta(ctx, opts.pkgMirror, upgrade.upgradedFrom)
+  const meta = opts.dryRun
+    ? condenseMetaForCache(ctx, upgrade.meta)
+    : persistUpgradedMeta(ctx, opts.pkgMirror, upgrade.upgradedFrom)
+  ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
+  return meta
 }
 
 // A condensing resolver keeps and mirrors the condensed form — the mirror
@@ -730,15 +834,27 @@ function isMissingTimeError (err: unknown): boolean {
 const MAX_WARNED_MISSING_TIME = 1024
 const warnedMissingTimeFor = new Set<string>()
 
-export function warnMissingTimeFieldOnce (pkgName: string): void {
-  if (warnedMissingTimeFor.has(pkgName)) return
+/**
+ * At most one warning per package per check. `minimumReleaseAge` and
+ * `trustPolicy` both go dark on the same missing field, so keying by package
+ * alone would let whichever check ran first silence the other and leave the
+ * user told about only one of the two skips.
+ */
+export function warnMissingTimeFieldOnce (
+  pkgName: string,
+  skippedCheck: 'minimumReleaseAge' | 'trustPolicy'
+): void {
+  // A package name cannot contain ':', so the check name prefix cannot
+  // collide with a name that happens to embed it.
+  const key = `${skippedCheck}:${pkgName}`
+  if (warnedMissingTimeFor.has(key)) return
   if (warnedMissingTimeFor.size >= MAX_WARNED_MISSING_TIME) {
     // Set preserves insertion order, so the first entry is the oldest.
     const oldest = warnedMissingTimeFor.values().next().value
     if (oldest != null) warnedMissingTimeFor.delete(oldest)
   }
-  warnedMissingTimeFor.add(pkgName)
-  globalWarn(`The metadata of ${pkgName} is missing the "time" field; skipping the minimumReleaseAge check for this package.`)
+  warnedMissingTimeFor.add(key)
+  globalWarn(`The metadata of ${pkgName} is missing the "time" field; skipping the ${skippedCheck} check for this package.`)
 }
 
 async function getFileMtime (filePath: string): Promise<Date | null> {
@@ -792,6 +908,7 @@ export async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> 
     if (newlineIdx === -1) return null
     const headers = JSON.parse(data.slice(0, newlineIdx)) as MetaHeaders
     const meta = JSON.parse(data.slice(newlineIdx + 1)) as PackageMeta
+    dropIncompletePublishTimes(meta)
     meta.etag = headers.etag
     return meta
   } catch {

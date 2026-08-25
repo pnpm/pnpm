@@ -2,8 +2,8 @@
 //!
 //! [`api`] packs a single project into a `.tgz`: it runs the
 //! `prepack` / `prepare` lifecycle scripts, builds the publish manifest
-//! (via [`pacquet_exportable_manifest`]), computes the file list (via
-//! [`pacquet_fs_packlist`]), writes the reproducible gzipped tarball,
+//! (via [`pnpm_exportable_manifest`]), computes the file list (via
+//! [`pnpm_fs_packlist`]), writes the reproducible gzipped tarball,
 //! then runs `postpack`. [`to_pack_result_json`] and
 //! [`format_pack_output`] render the result the way the CLI prints it.
 //!
@@ -26,21 +26,21 @@ mod tests;
 use derive_more::{Display, Error};
 use manifest_entry::is_manifest_entry;
 use miette::Diagnostic;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_cmd_shim::get_bins_from_package_manifest;
-use pacquet_config::NodeLinker;
-use pacquet_executor::{
+use pnpm_catalogs_types::Catalogs;
+use pnpm_cmd_shim::get_bins_from_package_manifest;
+use pnpm_config::NodeLinker;
+use pnpm_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook,
 };
-use pacquet_exportable_manifest::{
+use pnpm_exportable_manifest::{
     CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
     read_readme_file,
 };
-use pacquet_fs_packlist::{PacklistError, PacklistOptions, packlist_with_options};
-use pacquet_hooks::{HookContext, LogFn, PnpmfileHooks};
-use pacquet_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
-use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter};
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_fs_packlist::{PacklistError, PacklistOptions, packlist_with_options};
+use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks};
+use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
+use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use serde_json::Value;
 use std::{
     cmp::Ordering,
@@ -57,7 +57,7 @@ pub use capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile, Hos
 /// errors, matching pnpm's `manifestFileName`.
 const MANIFEST_FILE_NAME: &str = "package.json";
 
-/// Inputs for [`api`]. The CLI maps the resolved [`pacquet_config::Config`]
+/// Inputs for [`api`]. The CLI maps the resolved [`pnpm_config::Config`]
 /// and command-line flags onto this struct.
 pub struct PackOptions {
     /// Project directory to pack.
@@ -67,7 +67,7 @@ pub struct PackOptions {
     /// Skip the `prepack` / `prepare` / `postpack` lifecycle scripts.
     pub ignore_scripts: bool,
     /// `--unsafe-perm`: run lifecycle scripts without dropping privileges.
-    /// Threaded from [`pacquet_config::Config::unsafe_perm`] so packing
+    /// Threaded from [`pnpm_config::Config::unsafe_perm`] so packing
     /// honors the same policy (and `TMPDIR` isolation) as an install.
     pub unsafe_perm: bool,
     /// Embed the project's `README.md` into the published manifest.
@@ -338,7 +338,7 @@ where
     )
     .map_err(PackError::Packlist)?;
     let mut files_map = build_files_map(&dir, &files);
-    inject_workspace_license(opts, &dir, &files, &mut files_map);
+    inject_workspace_license(opts, &dir, &mut files_map);
     // A composed entry supersedes any same-named on-disk file (e.g. a stale
     // committed CHANGELOG.md), so drop it from the file map before packing.
     for (name, _) in &opts.injected_files {
@@ -614,9 +614,10 @@ fn run_scripts_if_present<Reporter: self::Reporter>(
         node_gyp_path: None,
         user_agent: Some(&opts.user_agent),
         unsafe_perm: opts.unsafe_perm,
-        node_gyp_bin: pacquet_executor::bundled_node_gyp_bin(),
+        node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: ScriptsPrependNodePath::default(),
         script_shell: None,
+        shell_emulator: false,
         optional: false,
     };
     let parent_env: HashMap<String, String> = std::env::vars().collect();
@@ -709,7 +710,7 @@ fn packed_tarball_path(
 /// `publishConfig.executableFiles`.
 fn executable_sources(publish_manifest: &Value, manifest: &Value, dir: &Path) -> Vec<PathBuf> {
     let mut bins: Vec<PathBuf> =
-        get_bins_from_package_manifest::<pacquet_cmd_shim::Host>(publish_manifest, dir)
+        get_bins_from_package_manifest::<pnpm_cmd_shim::Host>(publish_manifest, dir)
             .into_iter()
             .map(|command| command.path)
             .collect();
@@ -730,11 +731,10 @@ fn executable_sources(publish_manifest: &Value, manifest: &Value, dir: &Path) ->
 fn inject_workspace_license(
     opts: &PackOptions,
     dir: &Path,
-    files: &[String],
     files_map: &mut indexmap::IndexMap<String, PathBuf>,
 ) {
     let Some(workspace_dir) = &opts.workspace_dir else { return };
-    if dir == workspace_dir || files.iter().any(|file| contains_license(file)) {
+    if dir == workspace_dir || files_map.values().any(|file| contains_license(file)) {
         return;
     }
     let Ok(entries) = std::fs::read_dir(workspace_dir) else { return };
@@ -847,10 +847,12 @@ fn case_precedence_tiebreak(left: &str, right: &str) -> Ordering {
 }
 
 /// Whether a packed path looks like a license file, matching upstream's
-/// unanchored `/LICEN[CS]E(?:\..+)?/i` presence test.
-fn contains_license(path: &str) -> bool {
-    let lower = path.to_ascii_lowercase();
-    lower.contains("license") || lower.contains("licence")
+/// anchored `/(?:^|[\\/])LICEN[CS]E(?:\..+)?$/i` presence test.
+fn contains_license(path: &Path) -> bool {
+    if let Some(file_name) = path.file_name() {
+        return is_license_filename(&file_name.to_string_lossy());
+    }
+    false
 }
 
 /// Whether a root filename matches the `LICEN{S,C}E{,.*}` glob pnpm

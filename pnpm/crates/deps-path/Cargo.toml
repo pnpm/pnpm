@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-deps-path"
+name                  = "pnpm-deps-path"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,8 +11,9 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-node-semver         = { workspace = true }
-pacquet-crypto-hash = { workspace = true }
+derive_more      = { workspace = true }
+node-semver      = { workspace = true }
+pnpm-crypto-hash = { workspace = true }
 
 [lints]
 workspace = true

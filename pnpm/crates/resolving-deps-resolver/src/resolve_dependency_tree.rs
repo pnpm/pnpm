@@ -1,19 +1,22 @@
 use derive_more::{Display, Error};
 use futures_util::future;
 use miette::Diagnostic;
-use pacquet_catalogs_resolver::CatalogResolutionError;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_hooks::PnpmfileHooks;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_patching::{PatchGroupRecord, PatchKeyConflictError};
-use pacquet_resolving_resolver_base::{
-    NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError, ResolveOptions,
-    Resolver, WantedDependency,
-};
 use pipe_trait::Pipe;
+use pnpm_catalogs_resolver::CatalogResolutionError;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_hooks::PnpmfileHooks;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_patching::{PatchGroupRecord, PatchKeyConflictError};
+use pnpm_resolving_resolver_base::{
+    GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError,
+    ResolveOptions, Resolver, WantedDependency,
+};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 use crate::{
     parent_pkg_aliases::ParentPkgAliases,
@@ -30,6 +33,7 @@ mod workspace_ctx;
 #[cfg(test)]
 mod test_support;
 
+pub use reuse::real_package_name_of;
 pub use tree_ctx::TreeCtx;
 pub use workspace_ctx::WorkspaceTreeCtx;
 
@@ -39,7 +43,7 @@ pub(crate) use workspace_ctx::SyncCursor;
 
 use reuse::{ReuseSource, record_direct_dep_versions};
 use walk::{
-    NodeSeed, level_aliases, level_versions, resolve_node_seed, walk_node_children,
+    NodeSeed, level_aliases, level_versions, resolve_node_seed, walk_from_seeds,
     warm_children_resolutions,
 };
 
@@ -66,9 +70,95 @@ pub enum UpdateReuseScope {
     /// Reuse nothing — the whole graph re-resolves. `pacquet update`
     /// with no selectors.
     None,
-    /// Reuse everything except the named packages (matched at any depth
+    /// Reuse everything except the update's targets (matched at any depth
     /// the update reaches). `pacquet update <pattern>`.
-    Except(HashSet<String>),
+    Except(UpdateTargets),
+}
+
+/// The major and minor of a version, which is how far an exact update
+/// selector reaches. `pacquet update foo@1.2.3` targets only the copies of
+/// `foo` that could resolve to `1.2.3`: the same major, or -- on `0.x`,
+/// where the minor is the compatibility boundary -- the same minor. Copies
+/// on another line keep their locked resolution, so bumping one line of a
+/// package the workspace depends on twice leaves the other alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct VersionLine {
+    major: u64,
+    minor: u64,
+}
+
+impl VersionLine {
+    /// The line `version` sits on.
+    #[must_use]
+    pub fn of(version: &node_semver::Version) -> Self {
+        VersionLine { major: version.major, minor: version.minor }
+    }
+
+    /// The line a version selector pins, or `None` when it pins none -- a
+    /// range, a tag and an `npm:` alias spec all name no single version.
+    #[must_use]
+    pub fn parse(version_spec: &str) -> Option<Self> {
+        node_semver::Version::parse(version_spec).ok().as_ref().map(VersionLine::of)
+    }
+
+    /// Whether `version` resolves within this line.
+    #[must_use]
+    fn covers(self, version: &node_semver::Version) -> bool {
+        version.major == self.major && (self.major != 0 || version.minor == self.minor)
+    }
+}
+
+/// The packages a `pacquet update` targets, each mapped to the version
+/// lines its selectors scoped it to -- or to `None` when a selector named
+/// no single version, which targets the package at every version. See
+/// [`VersionLine`].
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UpdateTargets(BTreeMap<String, Option<BTreeSet<VersionLine>>>);
+
+impl UpdateTargets {
+    /// Add `name` as a target. `line` scopes it to one version line; `None`
+    /// widens the target to every version, and never narrows one already
+    /// recorded.
+    pub fn insert(&mut self, name: String, line: Option<VersionLine>) {
+        let lines = self.0.entry(name).or_insert_with(|| Some(BTreeSet::new()));
+        match line {
+            // pnpm evaluates every selector that matches a dependency, so
+            // one selector targeting every version makes the narrower ones
+            // moot.
+            None => *lines = None,
+            Some(line) => {
+                if let Some(lines) = lines {
+                    lines.insert(line);
+                }
+            }
+        }
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Whether the edge resolved to `version` under `name` is an update
+    /// target. A `None` version -- an edge with no locked resolution to
+    /// judge yet -- matches by name alone, mirroring pnpm's version-less
+    /// `updateMatching` calls.
+    #[must_use]
+    pub fn covers(&self, name: &str, version: Option<&node_semver::Version>) -> bool {
+        let Some(lines) = self.0.get(name) else { return false };
+        let (Some(lines), Some(version)) = (lines.as_ref(), version) else { return true };
+        lines.iter().any(|line| line.covers(version))
+    }
+}
+
+impl FromIterator<(String, Option<VersionLine>)> for UpdateTargets {
+    fn from_iter<Iter: IntoIterator<Item = (String, Option<VersionLine>)>>(iter: Iter) -> Self {
+        let mut targets = UpdateTargets::default();
+        for (name, line) in iter {
+            targets.insert(name, line);
+        }
+        targets
+    }
 }
 
 /// How deep `pacquet update` reaches — the `--depth` ceiling. A node
@@ -128,7 +218,7 @@ pub struct ResolveDependencyTreeOptions {
     /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
     /// calls. `None` leaves hook logging a no-op. See
     /// [`WorkspaceTreeCtx::with_read_package_log`].
-    pub read_package_log: Option<pacquet_hooks::LogFn>,
+    pub read_package_log: Option<pnpm_hooks::LogFn>,
     /// The install's `autoInstallPeers` setting. See
     /// [`WorkspaceTreeCtx::with_auto_install_peers`].
     pub auto_install_peers: bool,
@@ -234,6 +324,11 @@ pub enum ResolveDependencyTreeError {
     #[diagnostic(transparent)]
     RegistryResponse(#[error(source)] RegistryResponseError),
 
+    /// A git dependency's `git ls-remote` failed, raised with the
+    /// `ERR_PNPM_GIT_RESOLVE_FAILED` code.
+    #[diagnostic(transparent)]
+    GitResolve(#[error(source)] GitResolveError),
+
     /// An optional dependency failed to resolve while the wanted
     /// lockfile still holds a package entry satisfying the wanted
     /// range. Rethrown loudly instead of skipped, because skipping
@@ -265,7 +360,7 @@ pub enum ResolveDependencyTreeError {
     /// `patchedDependencies` configured more than one version range that
     /// satisfies the same `name@version` and the user did not break the
     /// tie with an exact-version entry. Propagated verbatim from
-    /// [`pacquet_patching::get_patch_info`].
+    /// [`pnpm_patching::get_patch_info`].
     #[display("{_0}")]
     #[diagnostic(transparent)]
     PatchKeyConflict(#[error(source)] PatchKeyConflictError),
@@ -304,7 +399,7 @@ pub enum ResolveDependencyTreeError {
     /// two yet.
     #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
-    PnpmfileHook(#[error(not(source))] pacquet_hooks::HookError),
+    PnpmfileHook(#[error(not(source))] pnpm_hooks::HookError),
 }
 
 impl From<PatchKeyConflictError> for ResolveDependencyTreeError {
@@ -366,14 +461,14 @@ where
         let injected = injected_names.contains(name);
         wanted.push((name.to_string(), range.to_string(), optional, injected));
     }
-    record_changed_direct_deps(&ctx, pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY, &wanted);
+    record_changed_direct_deps(&ctx, pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY, &wanted);
     let parent_pkg_aliases =
         ParentPkgAliases::root(wanted.iter().map(|(alias, ..)| alias.clone()).collect());
     let direct = extend_tree(
         &ctx,
         resolver,
         wanted,
-        pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+        pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY,
         &parent_pkg_aliases,
     )
     .await?;
@@ -562,6 +657,7 @@ where
                     base_overlay,
                     None,
                     parent_pkg_aliases,
+                    false,
                 )
                 .await?;
                 warm_children_resolutions(ctx, resolver, &seed).await;
@@ -581,24 +677,10 @@ where
         direct_versions,
     );
     let children_pkg_aliases = parent_pkg_aliases.extend(level_aliases(&seeds));
-    // Phase 2: walk each direct dep's children with the level overlay.
-    let results = seeds
-        .into_iter()
-        .map(|seed| {
-            let overlay = children_overlay.clone();
-            let pkg_aliases = Arc::clone(&children_pkg_aliases);
-            async move {
-                match seed {
-                    NodeSeed::Done(dep) => Ok(dep),
-                    NodeSeed::Pending(pending) => {
-                        walk_node_children(ctx, resolver, *pending, overlay, pkg_aliases).await
-                    }
-                }
-            }
-        })
-        .pipe(future::try_join_all)
-        .await?;
-    let direct: Vec<DirectDep> = results.into_iter().flatten().collect();
+    // Phase 2: settle this level's children ownership and walk the tree
+    // below it a level at a time.
+    let direct =
+        walk_from_seeds(ctx, resolver, seeds, children_overlay, children_pkg_aliases).await?;
     ctx.workspace.record_preferred_version_roots(direct.iter().map(|dep| dep.id.as_str()));
     // Second bump, after every write of this wave (including the roots
     // above) has landed: a `run_preferred_versions` read racing with

@@ -2,10 +2,11 @@ use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use node_semver::Version;
-use pacquet_config::version_policy::create_package_version_policy;
-use pacquet_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
-use pacquet_resolving_resolver_base::{
-    VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight, VersionSelectors,
+use pnpm_config::version_policy::create_package_version_policy;
+use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
+use pnpm_resolving_resolver_base::{
+    EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
+    VersionSelectorWithWeight, VersionSelectors,
 };
 use pretty_assertions::assert_eq;
 
@@ -13,7 +14,7 @@ use super::{
     PickPackageFromMetaError, PickPackageFromMetaOptions, PickVersionByVersionRangeOptions,
     RegistryPackageSpec, RegistryPackageSpecType, filter_pkg_metadata_by_publish_date,
     filter_pkg_metadata_versions, pick_lowest_version_by_version_range, pick_package_from_meta,
-    pick_version_by_version_range,
+    pick_stable_cached_range_version, pick_version_by_version_range,
 };
 
 fn parse_iso(input: &str) -> DateTime<Utc> {
@@ -58,7 +59,6 @@ fn make_package(
         etag: None,
         homepage: None,
         mutex: std::sync::Arc::default(),
-        release_age_upgrade_checked: false,
         derived: DerivedPackuments::default(),
     }
 }
@@ -257,6 +257,142 @@ fn preferred_versions_higher_weight_wins() {
         published_by: None,
     };
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.0.0"));
+}
+
+#[test]
+fn stable_cached_range_returns_dominant_lockfile_version() {
+    let pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[]);
+    let mut selectors = VersionSelectors::new();
+    selectors.insert(
+        "1.0.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+        }),
+    );
+    selectors.insert(
+        "^1.0.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Range,
+            weight: 1_000,
+        }),
+    );
+
+    assert_eq!(
+        pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)).as_deref(),
+        Some("1.0.0"),
+    );
+}
+
+#[test]
+fn stable_cached_range_rejects_missing_lockfile_version() {
+    let pkg = make_package("acme", &[("1.0.0", None)], &[]);
+    let mut selectors = VersionSelectors::new();
+    selectors.insert(
+        "1.1.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+        }),
+    );
+
+    assert_eq!(pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)), None);
+}
+
+#[test]
+fn stable_cached_range_rejects_multiple_satisfying_lockfile_versions() {
+    let pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[]);
+    let selectors = ["1.0.0", "1.1.0"]
+        .into_iter()
+        .map(|version| {
+            (
+                version.to_string(),
+                VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                    selector_type: VersionSelectorType::Version,
+                    weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+                }),
+            )
+        })
+        .collect();
+
+    assert_eq!(pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)), None);
+}
+
+#[test]
+fn stable_cached_range_rejects_competing_tie() {
+    let pkg = make_package("acme", &[("1.0.0", None)], &[]);
+    let mut selectors = VersionSelectors::new();
+    selectors.insert(
+        "1.0.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+        }),
+    );
+    selectors.insert(
+        ">=1.1.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Range,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+        }),
+    );
+
+    assert_eq!(pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)), None);
+}
+
+#[test]
+fn stable_cached_range_accounts_for_movable_tag_weight() {
+    let pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[("next", "1.1.0")]);
+    let mut selectors = VersionSelectors::new();
+    selectors.insert(
+        "1.0.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+        }),
+    );
+    selectors.insert(
+        "next".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Tag,
+            weight: 1_000,
+        }),
+    );
+
+    assert_eq!(
+        pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)).as_deref(),
+        Some("1.0.0"),
+    );
+}
+
+#[test]
+fn preferred_selector_pick_uses_canonical_packument_name() {
+    let mut pkg = make_package("@acme/private", &[("1.0.0", None)], &[]);
+    pkg.versions =
+        std::iter::once(("1.0.0".to_string(), make_pkg_version("private", "1.0.0", None)))
+            .collect();
+    let mut selectors = VersionSelectors::new();
+    selectors.insert(
+        "1.0.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+        }),
+    );
+    let picked = pick_package_from_meta(
+        pick_version_by_version_range,
+        &PickPackageFromMetaOptions {
+            preferred_version_selectors: Some(&selectors),
+            published_by: None,
+            published_by_exclude: None,
+        },
+        &pkg,
+        &spec("@acme/private", "^1.0.0", RegistryPackageSpecType::Range),
+    )
+    .expect("pick")
+    .expect("manifest");
+
+    assert_eq!(picked.name, "@acme/private");
 }
 
 #[test]
@@ -515,6 +651,29 @@ fn filter_latest_fallback_does_not_exceed_original_tag_target() {
     let filtered = filter_pkg_metadata_by_publish_date(&pkg_without_safe_fallback, cutoff, None);
 
     assert_eq!(filtered.dist_tag("latest"), None);
+}
+
+#[test]
+fn filter_custom_dist_tag_fallback_does_not_exceed_original_target() {
+    let mut pkg = make_package(
+        "nightly-fallback",
+        &[
+            ("0.0.29-nightly.20260724.896", None),
+            ("0.0.29-nightly.20260725.899", None),
+            ("0.1.0-alpha.1", None),
+        ],
+        &[("nightly", "0.0.29-nightly.20260725.899")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("0.0.29-nightly.20260724.896", "2026-07-24T20:37:59.752Z"),
+        ("0.0.29-nightly.20260725.899", "2026-07-25T04:18:17.590Z"),
+        ("0.1.0-alpha.1", "2026-02-28T23:12:56.014Z"),
+    ]));
+    let cutoff = parse_iso("2026-07-25T00:00:00.000Z");
+
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+
+    assert_eq!(filtered.dist_tag("nightly"), Some("0.0.29-nightly.20260724.896"));
 }
 
 #[test]

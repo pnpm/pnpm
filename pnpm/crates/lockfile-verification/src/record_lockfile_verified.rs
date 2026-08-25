@@ -14,8 +14,8 @@
 
 use std::{path::Path, sync::Arc};
 
-use pacquet_lockfile::Lockfile;
-use pacquet_resolving_resolver_base::ResolutionVerifier;
+use pnpm_lockfile::Lockfile;
+use pnpm_resolving_resolver_base::ResolutionVerifier;
 
 use crate::{
     cache::record_verification, hash_lockfile,

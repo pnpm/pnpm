@@ -21,20 +21,29 @@
 )]
 
 mod config;
+mod dependents;
 mod error;
 mod hooks;
 mod install;
+mod lockfile;
+mod native_reporter;
 mod pack;
 mod read_config;
 mod reporter_bridge;
 mod resolve;
 mod specifier;
 
+pub use dependents::{DependentsOptions, RenderDependentsInput, get_dependents, render_dependents};
 pub use install::{
     InstallOptions, InstallResult, InstallStatsResult, NodeApiProject, get_peer_dependency_issues,
     install, rebuild,
 };
+pub use lockfile::{
+    FilterLockfileOptions, ReadLockfileOptions, WriteLockfileOptions, filter_lockfile_by_importers,
+    read_lockfile, read_modules_manifest, write_lockfile,
+};
 use napi_derive::napi;
+pub use native_reporter::ReporterOptions;
 pub use pack::{PackOptions, PackResult, pack};
 pub use read_config::{ReadConfigOptions, ResolvedConfig, ResolvedRegistry, read_config};
 pub use resolve::{
@@ -47,7 +56,7 @@ pub use specifier::{ParsedBareSpecifier, parse_bare_specifier};
 #[napi(js_name = "engineVersion")]
 #[must_use]
 pub fn engine_version() -> &'static str {
-    pacquet_config::PNPM_VERSION
+    pnpm_config::PNPM_VERSION
 }
 
 /// Honor the same `TRACE` env var the pacquet CLI honors: an addon
@@ -55,7 +64,7 @@ pub fn engine_version() -> &'static str {
 /// is installed when the module loads.
 #[napi_derive::module_init]
 fn init_tracing() {
-    pacquet_diagnostics::enable_tracing_by_env();
+    pnpm_diagnostics::enable_tracing_by_env();
 }
 
 /// No-op stubs for the napi runtime symbols the `#[napi]` trampolines

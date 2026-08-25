@@ -183,13 +183,13 @@ impl VerifyError {
             // Safe: distinct_codes has exactly one element.
             let code = *distinct_codes.iter().next().expect("at least one code");
             match code {
-                pacquet_resolving_npm_resolver_violation_codes::MINIMUM_RELEASE_AGE_VIOLATION => {
+                pnpm_resolving_npm_resolver_violation_codes::MINIMUM_RELEASE_AGE_VIOLATION => {
                     VerifyError::MinimumReleaseAgeViolation { count, breakdown }
                 }
-                pacquet_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE => {
+                pnpm_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE => {
                     VerifyError::TrustDowngrade { count, breakdown }
                 }
-                pacquet_resolving_npm_resolver_violation_codes::MISSING_TARBALL_INTEGRITY => {
+                pnpm_resolving_npm_resolver_violation_codes::MISSING_TARBALL_INTEGRITY => {
                     VerifyError::MissingTarballIntegrity { count, breakdown }
                 }
                 crate::RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE => {
@@ -206,15 +206,15 @@ impl VerifyError {
 
 /// Aliases the violation codes the npm verifier defines, so this
 /// crate doesn't take a runtime dependency on
-/// `pacquet-resolving-npm-resolver` just to compare two `&'static str`
+/// `pnpm-resolving-npm-resolver` just to compare two `&'static str`
 /// constants. Keep the values byte-identical to the canonical
 /// definitions over there.
-mod pacquet_resolving_npm_resolver_violation_codes {
-    /// Matches `pacquet_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE`.
+mod pnpm_resolving_npm_resolver_violation_codes {
+    /// Matches `pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE`.
     pub const MINIMUM_RELEASE_AGE_VIOLATION: &str = "MINIMUM_RELEASE_AGE_VIOLATION";
-    /// Matches `pacquet_resolving_npm_resolver::TRUST_DOWNGRADE_VIOLATION_CODE`.
+    /// Matches `pnpm_resolving_npm_resolver::TRUST_DOWNGRADE_VIOLATION_CODE`.
     pub const TRUST_DOWNGRADE: &str = "TRUST_DOWNGRADE";
-    /// Matches `pacquet_resolving_npm_resolver::MISSING_TARBALL_INTEGRITY_VIOLATION_CODE`.
+    /// Matches `pnpm_resolving_npm_resolver::MISSING_TARBALL_INTEGRITY_VIOLATION_CODE`.
     pub const MISSING_TARBALL_INTEGRITY: &str = "MISSING_TARBALL_INTEGRITY";
 }
 

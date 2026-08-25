@@ -1,6 +1,6 @@
 //! `install` / `rebuild` / `getPeerDependencyIssues`.
 //!
-//! [`install`] runs `pacquet_package_manager::Install` against caller-supplied
+//! [`install`] runs `pnpm_package_manager::Install` against caller-supplied
 //! in-memory manifests. pacquet's install pipeline holds borrowed state
 //! (`&'a PackageManifest`, `&'a ResolvedPackages`) and a `&'static Config`, and
 //! the CLI drives it from a dedicated 32 MiB-stack thread with its own tokio
@@ -23,21 +23,22 @@ use std::{
 
 use indexmap::IndexMap;
 use napi_derive::napi;
-use pacquet_hooks::PnpmfileHooks;
-use pacquet_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
-use pacquet_network::{NetworkSettings, NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
-use pacquet_package_manager::{
+use pnpm_hooks::PnpmfileHooks;
+use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
+use pnpm_network::{NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
+use pnpm_package_manager::{
     DepsRequiringBuildSink, Install, ProjectMutation, RebuildOptions, ResolvedPackages,
     UpdateSeedPolicy,
 };
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_tarball::MemCache;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_tarball::MemCache;
 use tokio::sync::Mutex;
 
 use crate::{
     config::{ConfigOverlay, resolve_config},
     error::{invalid_manifest_error, to_napi_error, unsupported_option_error},
     hooks::{BatchHookSink, HookSink, JsBatchedReadPackageHook, JsReadPackageHook},
+    native_reporter::{NativeRenderer, OutputSink, ReporterOptions},
     reporter_bridge::{EngineCallGuard, LogSink, NodeBridgeReporter, begin_stats, take_stats},
 };
 
@@ -90,6 +91,19 @@ pub struct InstallOptions {
     pub prefer_offline: Option<bool>,
     pub offline: Option<bool>,
     pub virtual_store_dir_max_length: Option<u32>,
+    /// Whether to use the shared global virtual store for dependency slots.
+    pub enable_global_virtual_store: Option<bool>,
+    /// Overrides the global virtual store directory.
+    pub global_virtual_store_dir: Option<String>,
+    /// Manifest fields to add to packages selected by name or version range.
+    pub package_extensions: Option<IndexMap<String, PackageExtensionInput>>,
+    /// Patch paths keyed by package selector. Relative paths resolve from `dir`.
+    pub patched_dependencies: Option<IndexMap<String, String>>,
+    /// Warn instead of failing with `ERR_PNPM_UNUSED_PATCH` when a
+    /// `patchedDependencies` entry matches no installed package. Lets an
+    /// embedder ship a patch keyed to a version range that only some
+    /// workspaces resolve.
+    pub allow_unused_patches: Option<bool>,
     pub peers_suffix_max_length: Option<u32>,
     pub dedupe_peer_dependents: Option<bool>,
     pub dedupe_peers: Option<bool>,
@@ -118,6 +132,12 @@ pub struct InstallOptions {
     pub fetch_retry_mintimeout: Option<u32>,
     pub fetch_retry_maxtimeout: Option<u32>,
     pub fetch_timeout: Option<u32>,
+    /// Slow metadata-request threshold in milliseconds. When set, this takes
+    /// precedence over the same field in `networkConfig`.
+    pub fetch_warn_timeout_ms: Option<u32>,
+    /// Minimum average tarball speed in KiB/s. When set, this takes precedence
+    /// over the same field in `networkConfig`.
+    pub fetch_min_speed_ki_bps: Option<u32>,
     pub user_agent: Option<String>,
     /// Fail the install with `ERR_PNPM_IGNORED_BUILDS` when a dependency build
     /// script is blocked. Defaults to `false` — the install instead reports the
@@ -144,6 +164,10 @@ pub struct InstallOptions {
     /// it, never to a registry the project's own `.npmrc` names.
     pub auth_header_by_uri: Option<HashMap<String, String>>,
     pub pnpm_home_dir: Option<String>,
+    /// Render pnpm's own terminal output for this call. Omitted, the call
+    /// prints nothing and the embedder renders the `onLog` event stream
+    /// itself (or not at all).
+    pub reporter: Option<ReporterOptions>,
 }
 
 #[napi(object)]
@@ -168,7 +192,28 @@ pub struct NetworkConfigInput {
     pub fetch_retry_mintimeout: Option<u32>,
     pub fetch_retry_maxtimeout: Option<u32>,
     pub fetch_timeout: Option<u32>,
+    /// Slow metadata-request threshold in milliseconds. Used when the
+    /// corresponding top-level install option is omitted.
+    pub fetch_warn_timeout_ms: Option<u32>,
+    /// Minimum average tarball speed in KiB/s. Used when the corresponding
+    /// top-level install option is omitted.
+    pub fetch_min_speed_ki_bps: Option<u32>,
     pub user_agent: Option<String>,
+}
+
+/// Manifest fields to add to a matching package.
+#[napi(object)]
+pub struct PackageExtensionInput {
+    pub dependencies: Option<HashMap<String, String>>,
+    pub optional_dependencies: Option<HashMap<String, String>>,
+    pub peer_dependencies: Option<HashMap<String, String>>,
+    pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMetaInput>>,
+}
+
+/// Metadata for a peer dependency.
+#[napi(object)]
+pub struct PeerDependencyMetaInput {
+    pub optional: Option<bool>,
 }
 
 /// `peerDependencyRules` input. Mirrors `PeerDependencyRules` in `index.d.ts`.
@@ -197,6 +242,16 @@ pub struct InstallResult {
     pub store_dir: String,
 }
 
+/// The renderer for one call, built on the caller's thread: a
+/// `ThreadsafeFunction` must be constructed while the napi environment is
+/// live, before the work moves to the dedicated engine thread.
+fn build_renderer(
+    options: &InstallOptions,
+    on_output: Option<OutputSink>,
+) -> Option<NativeRenderer> {
+    options.reporter.as_ref().map(|reporter| NativeRenderer::new(reporter, &options.dir, on_output))
+}
+
 /// Serializes every engine call that touches the process-global log sink /
 /// stats accumulator (`install`, `rebuild`, `pack`) so their reporter state
 /// never overlaps. Held across the whole call; different install dirs still run
@@ -213,8 +268,10 @@ pub async fn install(
     on_log: Option<LogSink>,
     read_package_hook: Option<HookSink>,
     read_package_batch_hook: Option<BatchHookSink>,
+    on_output: Option<OutputSink>,
 ) -> napi::Result<InstallResult> {
     let _guard = engine_call_lock().lock().await;
+    let renderer = build_renderer(&options, on_output);
     let (tx, rx) = tokio::sync::oneshot::channel();
     std::thread::Builder::new()
         .name("pnpm-napi-install".to_string())
@@ -225,6 +282,7 @@ pub async fn install(
             let _ = tx.send(run_install_blocking(
                 &options,
                 on_log,
+                renderer,
                 read_package_hook,
                 read_package_batch_hook,
             ));
@@ -238,12 +296,14 @@ pub async fn install(
 fn run_install_blocking(
     options: &InstallOptions,
     on_log: Option<LogSink>,
+    renderer: Option<NativeRenderer>,
     read_package_hook: Option<HookSink>,
     read_package_batch_hook: Option<BatchHookSink>,
 ) -> napi::Result<InstallResult> {
-    // Restores the previous sink and clears stats on drop — including on a
-    // panic in `run_install_inner`, which unwinds this dedicated thread.
-    let _sink_guard = EngineCallGuard::new(on_log);
+    // Restores the previous sink and renderer and clears stats on drop —
+    // including on a panic in `run_install_inner`, which unwinds this
+    // dedicated thread.
+    let _sink_guard = EngineCallGuard::with_renderer(on_log, renderer);
     // The batch sink (synthesized by the `@pnpm/napi` wrapper) wins over the
     // per-manifest sink: one threadsafe call serves a whole batch, where
     // per-manifest dispatch pays roughly one event-loop tick per call. The
@@ -313,7 +373,7 @@ enum EngineMode {
     /// and collects the per-importer peer-dependency issues into the
     /// sink. Mirrors v11's `getPeerDependencyIssues` (`dryRun: true`,
     /// `forceFullResolution: true`).
-    PeerIssues(pacquet_package_manager::PeerIssuesSink),
+    PeerIssues(pnpm_package_manager::PeerIssuesSink),
 }
 
 impl EngineMode {
@@ -356,23 +416,20 @@ fn run_install_inner(
             &config.proxy,
             &config.tls,
             &config.tls_by_uri,
-            &NetworkSettings {
-                network_concurrency: config.network_concurrency,
-                fetch_timeout: std::time::Duration::from_millis(config.fetch_timeout),
-                user_agent: config.user_agent.clone(),
-            },
+            &config.network_settings(),
         )
         .map_err(|error| to_napi_error(&error))?
         .with_max_sockets_per_host(config.max_sockets),
     );
     let lazy_lockfile = if config.lockfile {
-        LazyLockfile::deferred(dir.clone())
+        LazyLockfile::deferred(dir.clone(), config.wanted_lockfile_selection())
     } else {
         LazyLockfile::disabled()
     };
     let resolved_packages = ResolvedPackages::new();
     let tarball_mem_cache = Arc::new(MemCache::new());
-    let lockfile_path = manifest.path().parent().map(|parent| parent.join(Lockfile::FILE_NAME));
+    let lockfile_path =
+        manifest.path().parent().map(|parent| parent.join(config.wanted_lockfile_name()));
 
     let mut groups = vec![DependencyGroup::Prod, DependencyGroup::Dev];
     if options.include_optional_deps != Some(false) {
@@ -384,7 +441,7 @@ fn run_install_inner(
     // package selectors, so an update always targets every dependency
     // (`UpdateSeedPolicy::drop_all()`); `depth` is only pnpm's direct-vs-any-depth
     // selector toggle, which has no effect without selectors and is accepted for
-    // API compatibility only. Mirrors `pacquet_package_manager::Update`, which
+    // API compatibility only. Mirrors `pnpm_package_manager::Update`, which
     // forces `prefer_frozen_lockfile: false` and a non-frozen path so the
     // re-resolution is not short-circuited by the auto-frozen / repeat-install
     // fast paths.
@@ -463,7 +520,9 @@ fn run_install_inner(
                 // A peer-issue query resolves without writing anything;
                 // the sink presence suppresses the CLI dry-run report.
                 dry_run: matches!(mode, EngineMode::PeerIssues(_)),
+                persist_policy_excludes: false,
                 update_seed_policy,
+                preferred_versions_override: None,
                 auth_override: None,
                 resolution_observer: None,
                 peer_issues_sink: match &mode {
@@ -500,7 +559,7 @@ fn run_install_inner(
 
 /// Build the in-memory workspace-projects override from the caller's importer
 /// list. `None` for a single importer (the plain, non-workspace install path);
-/// otherwise one [`pacquet_workspace::Project`] per importer so `workspace:`
+/// otherwise one [`pnpm_workspace::Project`] per importer so `workspace:`
 /// specifiers resolve across them and each importer gets its own resolved
 /// dependency tree. The root importer (the project at the install dir) is
 /// included too — `Install::run` skips its `"."` id for the per-importer
@@ -508,7 +567,7 @@ fn run_install_inner(
 /// `workspace:`-spec lookup.
 fn build_workspace_projects_override(
     projects: &[NodeApiProject],
-) -> Option<Vec<pacquet_workspace::Project>> {
+) -> Option<Vec<pnpm_workspace::Project>> {
     if projects.len() <= 1 {
         return None;
     }
@@ -524,7 +583,7 @@ fn build_workspace_projects_override(
                     .dependency_manifest
                     .as_ref()
                     .map(|value| PackageManifest::from_value(manifest_path.clone(), value.clone()));
-                pacquet_workspace::Project { root_dir, manifest, dependency_manifest }
+                pnpm_workspace::Project { root_dir, manifest, dependency_manifest }
             })
             .collect(),
     )
@@ -548,6 +607,43 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
             .as_deref()
             .and_then(parse_import_method),
         virtual_store_dir_max_length: options.virtual_store_dir_max_length.map(u64::from),
+        enable_global_virtual_store: options.enable_global_virtual_store,
+        global_virtual_store_dir: options.global_virtual_store_dir.as_ref().map(PathBuf::from),
+        package_extensions: options.package_extensions.as_ref().map(|extensions| {
+            extensions
+                .iter()
+                .map(|(selector, extension)| {
+                    let to_sorted = |map: &Option<HashMap<String, String>>| {
+                        map.as_ref()
+                            .map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                    };
+                    (
+                        selector.clone(),
+                        pnpm_config::PackageExtension {
+                            dependencies: to_sorted(&extension.dependencies),
+                            optional_dependencies: to_sorted(&extension.optional_dependencies),
+                            peer_dependencies: to_sorted(&extension.peer_dependencies),
+                            peer_dependencies_meta: extension.peer_dependencies_meta.as_ref().map(
+                                |meta| {
+                                    meta.iter()
+                                        .map(|(name, entry)| {
+                                            (
+                                                name.clone(),
+                                                pnpm_config::PeerDependencyMeta {
+                                                    optional: entry.optional,
+                                                },
+                                            )
+                                        })
+                                        .collect()
+                                },
+                            ),
+                        },
+                    )
+                })
+                .collect()
+        }),
+        patched_dependencies: options.patched_dependencies.clone(),
+        allow_unused_patches: options.allow_unused_patches,
         hoist_pattern: options.hoist_pattern.clone(),
         public_hoist_pattern: options.public_hoist_pattern.clone(),
         external_dependencies: options
@@ -598,6 +694,14 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
         fetch_timeout: options
             .fetch_timeout
             .or_else(|| network_config.and_then(|config| config.fetch_timeout))
+            .map(u64::from),
+        fetch_warn_timeout_ms: options
+            .fetch_warn_timeout_ms
+            .or_else(|| network_config.and_then(|config| config.fetch_warn_timeout_ms))
+            .map(u64::from),
+        fetch_min_speed_ki_bps: options
+            .fetch_min_speed_ki_bps
+            .or_else(|| network_config.and_then(|config| config.fetch_min_speed_ki_bps))
             .map(u64::from),
         user_agent: options
             .user_agent
@@ -724,24 +828,24 @@ fn parse_single_string(value: &serde_json::Value) -> napi::Result<Option<String>
     }
 }
 
-fn parse_node_linker(value: &str) -> Option<pacquet_config::NodeLinker> {
+fn parse_node_linker(value: &str) -> Option<pnpm_config::NodeLinker> {
     match value {
-        "hoisted" => Some(pacquet_config::NodeLinker::Hoisted),
-        "isolated" => Some(pacquet_config::NodeLinker::Isolated),
-        "pnp" => Some(pacquet_config::NodeLinker::Pnp),
+        "hoisted" => Some(pnpm_config::NodeLinker::Hoisted),
+        "isolated" => Some(pnpm_config::NodeLinker::Isolated),
+        "pnp" => Some(pnpm_config::NodeLinker::Pnp),
         _ => None,
     }
 }
 
 /// Parse the JS `linkWorkspacePackages` value (`true` / `false` / `"deep"`)
-/// into a [`pacquet_config::LinkWorkspacePackages`], reusing the config
+/// into a [`pnpm_config::LinkWorkspacePackages`], reusing the config
 /// crate's `Deserialize`. Rejects any other value.
 fn parse_link_workspace_packages(
     value: Option<&serde_json::Value>,
-) -> napi::Result<Option<pacquet_config::LinkWorkspacePackages>> {
+) -> napi::Result<Option<pnpm_config::LinkWorkspacePackages>> {
     value
         .map(|value| {
-            serde_json::from_value::<pacquet_config::LinkWorkspacePackages>(value.clone()).map_err(
+            serde_json::from_value::<pnpm_config::LinkWorkspacePackages>(value.clone()).map_err(
                 |error| {
                     napi::Error::from_reason(format!(
                         r#"invalid linkWorkspacePackages (expected true, false, or "deep"): {error}"#,
@@ -752,13 +856,13 @@ fn parse_link_workspace_packages(
         .transpose()
 }
 
-pub(crate) fn parse_import_method(value: &str) -> Option<pacquet_config::PackageImportMethod> {
+pub(crate) fn parse_import_method(value: &str) -> Option<pnpm_config::PackageImportMethod> {
     match value {
-        "auto" => Some(pacquet_config::PackageImportMethod::Auto),
-        "hardlink" => Some(pacquet_config::PackageImportMethod::Hardlink),
-        "copy" => Some(pacquet_config::PackageImportMethod::Copy),
-        "clone" => Some(pacquet_config::PackageImportMethod::Clone),
-        "clone-or-copy" => Some(pacquet_config::PackageImportMethod::CloneOrCopy),
+        "auto" => Some(pnpm_config::PackageImportMethod::Auto),
+        "hardlink" => Some(pnpm_config::PackageImportMethod::Hardlink),
+        "copy" => Some(pnpm_config::PackageImportMethod::Copy),
+        "clone" => Some(pnpm_config::PackageImportMethod::Clone),
+        "clone-or-copy" => Some(pnpm_config::PackageImportMethod::CloneOrCopy),
         _ => None,
     }
 }
@@ -768,14 +872,16 @@ pub async fn rebuild(
     options: InstallOptions,
     on_log: Option<LogSink>,
     selected_names: Option<Vec<String>>,
+    on_output: Option<OutputSink>,
 ) -> napi::Result<()> {
     let _guard = engine_call_lock().lock().await;
+    let renderer = build_renderer(&options, on_output);
     let (tx, rx) = tokio::sync::oneshot::channel();
     std::thread::Builder::new()
         .name("pnpm-napi-rebuild".to_string())
         .stack_size(32 * 1024 * 1024)
         .spawn(move || {
-            let _ = tx.send(run_rebuild_blocking(&options, on_log, selected_names));
+            let _ = tx.send(run_rebuild_blocking(&options, on_log, renderer, selected_names));
         })
         .map_err(|error| {
             napi::Error::from_reason(format!("failed to spawn rebuild thread: {error}"))
@@ -786,11 +892,12 @@ pub async fn rebuild(
 fn run_rebuild_blocking(
     options: &InstallOptions,
     on_log: Option<LogSink>,
+    renderer: Option<NativeRenderer>,
     selected_names: Option<Vec<String>>,
 ) -> napi::Result<()> {
-    // Restores the previous sink on drop — including on a panic in
-    // `run_install_inner`, which unwinds this dedicated thread.
-    let _sink_guard = EngineCallGuard::new(on_log);
+    // Restores the previous sink and renderer on drop — including on a
+    // panic in `run_install_inner`, which unwinds this dedicated thread.
+    let _sink_guard = EngineCallGuard::with_renderer(on_log, renderer);
     // `None` (or an empty list) rebuilds every build-needing package; a
     // non-empty list restricts the rebuild to the matching names / build keys.
     let rebuild_options = RebuildOptions {
@@ -902,7 +1009,7 @@ fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_j
         ..InstallOptions::default()
     };
 
-    let sink: pacquet_package_manager::PeerIssuesSink = Arc::default();
+    let sink: pnpm_package_manager::PeerIssuesSink = Arc::default();
     run_install_inner(&install_options, None, EngineMode::PeerIssues(Arc::clone(&sink)))?;
     let issues_by_importer =
         std::mem::take(&mut *sink.lock().expect("peer-issues sink lock poisoned"));
@@ -921,11 +1028,12 @@ fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_j
 /// ranges intersect via semver bound-set intersection (`null`
 /// intersection → conflict).
 fn peer_issues_to_json(
-    issues: &pacquet_resolving_deps_resolver::PeerDependencyIssues,
+    issues: &pnpm_resolving_deps_resolver::PeerDependencyIssues,
 ) -> serde_json::Value {
-    let parents_json = |parents: &[pacquet_resolving_deps_resolver::ParentPackageRef]| {
+    let parents_json = |parents: &pnpm_resolving_deps_resolver::ParentChain| {
         parents
-            .iter()
+            .to_refs()
+            .into_iter()
             .map(|parent| serde_json::json!({ "name": parent.name, "version": parent.version }))
             .collect::<Vec<_>>()
     };

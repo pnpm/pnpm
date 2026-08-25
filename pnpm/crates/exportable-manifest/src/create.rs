@@ -23,7 +23,7 @@
 //! a list of closures.
 //!
 //! `beforePacking` pnpmfile hooks are not applied here: pacquet's
-//! pnpmfile bridge (`pacquet_hooks::PnpmfileHooks`) does not yet
+//! pnpmfile bridge (`pnpm_hooks::PnpmfileHooks`) does not yet
 //! expose that hook, so there is no source to feed it. The step lands
 //! when the bridge grows a `beforePacking` entry point.
 
@@ -36,11 +36,11 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_catalogs_resolver::{
+use pnpm_catalogs_resolver::{
     CatalogResolutionError, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
 };
-use pacquet_catalogs_types::Catalogs;
-use pacquet_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
 use serde_json::{Map, Value};
 use std::{fs, io, path::Path};
 

@@ -26,8 +26,9 @@
 //! keeps catching the next default that needs porting.
 
 use crate::{
-    CatalogMode, Config, LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, VerifyDepsBeforeRun,
+    CatalogMode, ColorMode, Config, InitType, LinkWorkspacePackages, NodeLinker,
+    NodePackageMapType, ResolutionMode, SaveWorkspaceProtocol, ScriptsPrependNodePath,
+    VerifyDepsBeforeRun,
 };
 use std::collections::BTreeSet;
 
@@ -54,41 +55,19 @@ fn s(value: &str) -> Scalar {
 /// is nothing to string-compare against, so they are exercised by the
 /// dedicated `current::<Host>()` config-loading tests instead.
 const NON_LITERAL: &[&str] = &[
+    "ci",                           // detected from the process environment
+    "package-lock",                 // npmDefaults['package-lock']
     "registry",                     // npmDefaults.registry
     "unsafe-perm",                  // npmDefaults['unsafe-perm']
     "userconfig",                   // npmDefaults.userconfig (home-derived path)
     "virtual-store-dir-max-length", // isWindows() ? 60 : 120
     "workspace-concurrency",        // derived from CPU count
+    "workspace-prefix",             // the discovered workspace directory
 ];
 
 /// pnpm settings pacquet has no `Config` field for yet. Porting one
 /// means moving its key from here into a `mapped` row.
-const NOT_PORTED: &[&str] = &[
-    "bail",
-    "ci",
-    "color",
-    "disallow-workspace-cycles",
-    "embed-readme",
-    "fail-if-no-match",
-    "fetch-min-speed-ki-bps",
-    "fetch-warn-timeout-ms",
-    "git-branch-lockfile",
-    "ignore-workspace-cycles",
-    "ignore-workspace-root-check",
-    "init-package-manager",
-    "init-type",
-    "optional",
-    "package-lock",
-    "pending",
-    "recursive-install",
-    "reverse",
-    "shell-emulator",
-    "skip-manifest-obfuscation",
-    "sort",
-    "strict-store-pkg-content-check",
-    "use-beta-cli",
-    "workspace-prefix",
-];
+const NOT_PORTED: &[&str] = &[];
 
 /// Settings both stacks implement but deliberately default differently,
 /// with the reason each divergence is intended. Entries here are exempt
@@ -112,6 +91,18 @@ fn divergent_rows(_cfg: &Config) -> Vec<(&'static str, Scalar, &'static str)> {
 fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
     use Scalar::{Bool, Int};
     vec![
+        ("bail", Bool(cfg.bail)),
+        ("color", color_mode_scalar(cfg.color)),
+        ("embed-readme", Bool(cfg.embed_readme)),
+        ("ignore-workspace-root-check", Bool(cfg.ignore_workspace_root_check)),
+        ("optional", Bool(cfg.optional)),
+        ("pending", Bool(cfg.pending)),
+        ("recursive-install", Bool(cfg.recursive_install)),
+        ("reverse", Bool(cfg.reverse)),
+        ("shell-emulator", Bool(cfg.shell_emulator)),
+        ("skip-manifest-obfuscation", Bool(cfg.skip_manifest_obfuscation)),
+        ("sort", Bool(cfg.sort)),
+        ("use-beta-cli", Bool(cfg.use_beta_cli)),
         ("auto-install-peers", Bool(cfg.auto_install_peers)),
         ("block-exotic-subdeps", Bool(cfg.block_exotic_subdeps)),
         ("dangerously-allow-all-builds", Bool(cfg.dangerously_allow_all_builds)),
@@ -126,9 +117,13 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("enable-pre-post-scripts", Bool(cfg.enable_pre_post_scripts)),
         ("exclude-links-from-lockfile", Bool(cfg.exclude_links_from_lockfile)),
         ("extend-node-path", Bool(cfg.extend_node_path)),
+        ("fail-if-no-match", Bool(cfg.fail_if_no_match)),
         ("force-legacy-deploy", Bool(cfg.force_legacy_deploy)),
+        ("git-branch-lockfile", Bool(cfg.use_git_branch_lockfile)),
         ("hoist", Bool(cfg.hoist)),
         ("hoist-workspace-packages", Bool(cfg.hoist_workspace_packages)),
+        ("init-package-manager", Bool(cfg.init_package_manager)),
+        ("init-type", init_type_scalar(cfg.init_type)),
         ("inject-workspace-packages", Bool(cfg.inject_workspace_packages)),
         ("lockfile-include-tarball-url", Bool(cfg.lockfile_include_tarball_url)),
         (
@@ -142,6 +137,9 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("side-effects-cache", Bool(cfg.side_effects_cache)),
         ("shared-workspace-lockfile", Bool(cfg.shared_workspace_lockfile)),
         ("strict-peer-dependencies", Bool(cfg.strict_peer_dependencies)),
+        ("disallow-workspace-cycles", Bool(cfg.disallow_workspace_cycles)),
+        ("ignore-workspace-cycles", Bool(cfg.ignore_workspace_cycles)),
+        ("strict-store-pkg-content-check", Bool(cfg.strict_store_pkg_content_check)),
         ("symlink", Bool(cfg.symlink)),
         ("verify-store-integrity", Bool(cfg.verify_store_integrity)),
         // `boolean | 'deep'` upstream; the default is `false`.
@@ -168,6 +166,8 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("fetch-retry-maxtimeout", Int(cfg.fetch_retry_maxtimeout as i64)),
         ("fetch-retry-mintimeout", Int(cfg.fetch_retry_mintimeout as i64)),
         ("fetch-timeout", Int(cfg.fetch_timeout as i64)),
+        ("fetch-warn-timeout-ms", Int(cfg.fetch_warn_timeout_ms as i64)),
+        ("fetch-min-speed-ki-bps", Int(cfg.fetch_min_speed_ki_bps as i64)),
         ("frozen-store", Bool(cfg.frozen_store)),
         (
             "minimum-release-age",
@@ -187,6 +187,21 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ),
         ("git-shallow-hosts", Scalar::Set(cfg.git_shallow_hosts.iter().cloned().collect())),
     ]
+}
+
+fn color_mode_scalar(value: ColorMode) -> Scalar {
+    match value {
+        ColorMode::Always => s("always"),
+        ColorMode::Auto => s("auto"),
+        ColorMode::Never => s("never"),
+    }
+}
+
+fn init_type_scalar(value: InitType) -> Scalar {
+    match value {
+        InitType::Module => s("module"),
+        InitType::Commonjs => s("commonjs"),
+    }
 }
 
 fn node_linker_scalar(value: NodeLinker) -> Scalar {

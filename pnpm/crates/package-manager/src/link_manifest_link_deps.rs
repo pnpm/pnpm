@@ -5,9 +5,10 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_lockfile::ProjectSnapshot;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::{AddedRoot, DependencyType, LogEvent, LogLevel, RootLog, RootMessage};
+use pnpm_cmd_shim::LinkBinsOptions;
+use pnpm_lockfile::ProjectSnapshot;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::{AddedRoot, DependencyType, LogEvent, LogLevel, RootLog, RootMessage};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -37,12 +38,12 @@ use std::{
 /// (matching v11's re-link semantics), and `force_symlink_dir` creates
 /// missing parent directories on demand. Specs that don't start with
 /// `link:` are ignored — everything else is the lockfile passes' job.
-pub fn link_manifest_link_deps<Reporter: pacquet_reporter::Reporter>(
+pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
     workspace_root: &Path,
     project_manifests: &[(PathBuf, &PackageManifest)],
     importers: Option<&HashMap<String, ProjectSnapshot>>,
     modules_dir_name: &std::ffi::OsStr,
-    extra_node_paths: &[String],
+    link_options: &LinkBinsOptions,
 ) -> Result<(), LinkManifestLinkDepsError> {
     // The name must be a single normal path component. The install
     // call site derives it from `config.modules_dir.file_name()`,
@@ -61,8 +62,7 @@ pub fn link_manifest_link_deps<Reporter: pacquet_reporter::Reporter>(
     }
     for (project_dir, manifest) in project_manifests {
         let importer_snapshot = importers.and_then(|importers| {
-            importers
-                .get(&pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir))
+            importers.get(&pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir))
         });
         // The per-project modules dir honors a `modulesDir` override
         // the same way `SymlinkDirectDependencies` does — the caller
@@ -139,7 +139,7 @@ pub fn link_manifest_link_deps<Reporter: pacquet_reporter::Reporter>(
         // targets without a `package.json` (Bit's manifest-less
         // component links), so a bin-less link is a no-op.
         if !linked_aliases.is_empty() {
-            crate::link_direct_dep_bins(&modules_dir, &linked_aliases, extra_node_paths)
+            crate::link_direct_dep_bins(&modules_dir, &linked_aliases, link_options)
                 .map_err(LinkManifestLinkDepsError::LinkBins)?;
         }
     }
@@ -197,7 +197,7 @@ pub enum LinkManifestLinkDepsError {
 
     /// Linking the placed deps' bins into `<modules_dir>/.bin` failed.
     #[diagnostic(transparent)]
-    LinkBins(#[error(source)] pacquet_cmd_shim::LinkBinsError),
+    LinkBins(#[error(source)] pnpm_cmd_shim::LinkBinsError),
 }
 
 #[cfg(test)]

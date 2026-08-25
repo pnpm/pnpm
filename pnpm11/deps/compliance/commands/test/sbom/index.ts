@@ -8,6 +8,7 @@ import { sbom } from '@pnpm/deps.compliance.commands'
 import { install } from '@pnpm/installing.commands'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
+import { REGISTRY_URL } from '@pnpm/testing.command-defaults'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -262,6 +263,71 @@ test('pnpm sbom --exclude-peers drops peers declared in workspace sub-packages',
   expect(componentNames).toContain('is-positive')
   expect(componentNames).not.toContain('is-odd')
   expect(componentNames).not.toContain('is-number')
+})
+
+test('pnpm sbom --workspace-root covers only the root project', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-peer-workspace', workspaceDir)
+
+  // What `-w` produces: the `{<workspace-root>}` selector main.ts appends
+  // selects the root project alone, even though the workspace package
+  // patterns name only `packages/*`. Mirrors pacquet's
+  // `sbom_workspace_root_selects_only_the_root`.
+  const { allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+  const rootOnlyGraph = Object.fromEntries(
+    Object.entries(selectedProjectsGraph).filter(([dir]) => dir === workspaceDir)
+  ) as typeof selectedProjectsGraph
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    lockfileOnly: true,
+    allProjectsGraph,
+    selectedProjectsGraph: rootOnlyGraph,
+  })
+
+  expect(exitCode).toBe(0)
+  const parsed = JSON.parse(output)
+  expect(parsed.metadata.component.name).toBe('sbom-peer-workspace')
+  const componentNames = parsed.components.map((c: { name: string }) => c.name)
+  expect(componentNames).toContain('is-positive') // the root's own dependency
+  expect(componentNames).not.toContain('is-odd') // declared by packages/pkg-a
+})
+
+test('pnpm sbom fails when the lockfile has no importer for a selected project', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-peer-workspace', workspaceDir)
+  // A workspace package the lockfile knows nothing about: only an out-of-date
+  // lockfile produces that, and the SBOM it would answer with under-reports
+  // the selection's dependencies.
+  const addedDir = path.join(workspaceDir, 'packages/not-installed')
+  fs.mkdirSync(addedDir, { recursive: true })
+  fs.writeFileSync(
+    path.join(addedDir, 'package.json'),
+    JSON.stringify({ name: 'not-installed', version: '1.0.0' })
+  )
+
+  const { allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [
+      { namePattern: 'not-installed' },
+    ])
+
+  await expect(
+    sbom.handler({
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      pnpmHomeDir: '',
+      sbomFormat: 'cyclonedx',
+      lockfileOnly: true,
+      allProjectsGraph,
+      selectedProjectsGraph,
+    })
+  ).rejects.toThrow('has no entry for the selected project: packages/not-installed')
 })
 
 test('pnpm sbom --exclude-peers tolerates a malformed importer manifest', async () => {
@@ -988,4 +1054,53 @@ test('pnpm sbom --split --out without %s throws', async () => {
       lockfileOnly: true,
     })
   ).rejects.toThrow('must contain %s')
+})
+
+test('pnpm sbom excludes platform-incompatible optional packages instead of emitting them without licenses', async () => {
+  const workspaceDir = tempDir()
+  f.copy('platform-optional', workspaceDir)
+
+  // Pinning the architecture keeps the expected component the same on every
+  // host the test runs on. `@pnpm.e2e/only-win32-x64` is the only one of the
+  // eight bindings that matches it.
+  const supportedArchitectures = { os: ['win32'], cpu: ['x64'] }
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    registriesByScope: { default: REGISTRY_URL },
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    supportedArchitectures,
+  })
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    registriesByScope: { default: REGISTRY_URL },
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    supportedArchitectures,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  expect(parsed.bomFormat).toBe('CycloneDX')
+
+  // `@pnpm.e2e/support-different-architectures` declares eight platform
+  // bindings as optionalDependencies. Only the supported one is fetched; the
+  // others are in the lockfile but have no metadata to describe.
+  // Component names drop the scope, so match on the purl, which keeps the full
+  // package name.
+  const onlyBindings = parsed.components.filter(
+    (c: { name?: string, purl?: string }) => c.purl?.startsWith('pkg:npm/%40pnpm.e2e/only-') === true
+  )
+  expect(onlyBindings).toHaveLength(1)
+  expect(onlyBindings[0].name).toBe('only-win32-x64')
+  // The installed binding carries a resolvable license from its manifest.
+  expect(onlyBindings[0].licenses).toEqual([{ license: { id: 'MIT' } }])
 })

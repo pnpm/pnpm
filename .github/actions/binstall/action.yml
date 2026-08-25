@@ -12,7 +12,7 @@ runs:
 
   steps:
       - name: Install cargo-binstall
-        uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
+        uses: taiki-e/install-action@6cd13508893c0e7eab5f273c2575d3859bd7229a # v2.86.6
         with:
           tool: cargo-binstall
 

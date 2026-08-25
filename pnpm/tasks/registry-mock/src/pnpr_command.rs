@@ -13,7 +13,7 @@ use std::{
 /// `assert_cmd::cargo::cargo_bin` (the obvious choice) panics here:
 /// it relies on `CARGO_BIN_EXE_<name>`, which cargo only injects
 /// when running an *integration test* of the crate that defines the
-/// binary. Both `pacquet-registry-mock launch` (the recipe invoked
+/// binary. Both `pnpm-registry-mock launch` (the recipe invoked
 /// from `just registry-mock launch`) and the auto-spawn path in
 /// pacquet's install tests run from a different crate, so the env
 /// var is unset and `cargo_bin` aborts. We resolve the path

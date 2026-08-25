@@ -1,6 +1,6 @@
 //! `registry`-storage changelog composition and the publication check that
 //! gates intent garbage-collection. The registry access the pure
-//! `pacquet-versioning` crate deliberately lacks lives here, in the CLI, which
+//! `pnpm-versioning` crate deliberately lacks lives here, in the CLI, which
 //! already builds a registry client for publish. Mirrors the TypeScript
 //! `releasing/commands/src/publish/previousChangelog.ts`.
 
@@ -13,10 +13,10 @@ use std::{
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;
 use miette::IntoDiagnostic;
-use pacquet_config::Config;
-use pacquet_network::{ThrottledClient, encode_package_name, redact_url_credentials};
-use pacquet_registry::Package;
-use pacquet_versioning::{
+use pnpm_config::Config;
+use pnpm_network::{ThrottledClient, encode_package_name, redact_url_credentials};
+use pnpm_registry::Package;
+use pnpm_versioning::{
     ChangelogStorage, ReleasePlan, changelog_storage, list_pending_changelogs,
     read_pending_changelog, render_changelog,
 };
@@ -89,7 +89,7 @@ pub async fn confirmed_published_versions(
 /// Manifest name → published name, for every workspace project that renames
 /// itself with `publishConfig.name`. Projects that publish under their
 /// manifest name are absent, so a lookup miss means "no rename".
-pub fn published_names(projects: &[pacquet_workspace::Project]) -> HashMap<String, String> {
+pub fn published_names(projects: &[pnpm_workspace::Project]) -> HashMap<String, String> {
     let mut renames = HashMap::new();
     for project in projects {
         let manifest = project.manifest.value();
@@ -233,7 +233,7 @@ fn registry_for(config: &Config, name: &str) -> String {
     let registry = name
         .strip_prefix('@')
         .and_then(|rest| rest.split('/').next())
-        .and_then(|scope| config.registries.get(&format!("@{scope}")))
+        .and_then(|scope| config.registries_by_scope.get(&format!("@{scope}")))
         .cloned()
         .unwrap_or_else(|| config.registry.clone());
     if registry.ends_with('/') { registry } else { format!("{registry}/") }
@@ -262,8 +262,7 @@ fn extract_entry(gzipped_tarball: &[u8], entry_name: &str) -> Option<String> {
 /// only ever sees the published one.
 fn read_name_version(project_dir: &Path) -> Option<(String, String, String)> {
     let manifest =
-        pacquet_package_manifest::PackageManifest::from_path(project_dir.join("package.json"))
-            .ok()?;
+        pnpm_package_manifest::PackageManifest::from_path(project_dir.join("package.json")).ok()?;
     let value = manifest.value();
     let name = value.get("name")?.as_str()?.to_string();
     let published = published_name(value).map_or_else(|| name.clone(), ToString::to_string);

@@ -10,24 +10,27 @@
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::{Config, LinkWorkspacePackages};
-use pacquet_package_manager::{GraphSequencerResult, graph_sequencer};
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_workspace::{
-    FindWorkspaceProjectsOpts, Project, find_workspace_projects, read_workspace_manifest,
-    workspace_package_patterns,
+use pnpm_config::{Config, LinkWorkspacePackages};
+use pnpm_package_manager::{GraphSequencerResult, graph_sequencer};
+use pnpm_workspace::{
+    FindWorkspaceProjectsOpts, GraphPkg, Project, find_workspace_projects,
+    importer_id_from_root_dir, read_workspace_manifest, workspace_package_patterns,
 };
-use pacquet_workspace_projects_filter::{
+use pnpm_workspace_projects_filter::{
     FilterWorkspaceProjectsOptions, ProjectSelector, filter_workspace_projects,
     parse_project_selector,
 };
-use pacquet_workspace_projects_graph::{
-    BaseProject, CreateProjectsGraphOptions, GraphProject, ProjectGraph, create_projects_graph,
+use pnpm_workspace_projects_graph::{
+    BaseProject, CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
 };
 use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
+    sync::{
+        Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 /// `Cannot find package {resume_from}` — raised by both recursive `run`
@@ -42,28 +45,21 @@ pub struct ResumeFromNotFound {
     pub resume_from: String,
 }
 
-/// `{operation} with `sharedWorkspaceLockfile=false` is not supported yet.`
-///
-/// Every workspace-aware command reads and rewrites one shared
-/// `pnpm-lock.yaml`; the per-project lockfiles that
-/// `sharedWorkspaceLockfile=false` produces have no reader here yet. pnpm
-/// itself supports the combination, so this is a known gap rather than a
-/// rejected configuration — it fails loudly instead of silently installing
-/// something other than what was asked for.
-#[derive(Debug, Display, Error, Diagnostic)]
-#[display("{operation} with `sharedWorkspaceLockfile=false` is not supported yet.")]
-#[diagnostic(code(ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED))]
-pub struct RecursiveSharedLockfileUnsupported {
-    /// The user-facing description of what was attempted, e.g.
-    /// ``Recursive and filtered `pnpm why` ``.
-    #[error(not(source))]
-    pub operation: String,
-}
+/// Diagnostic code of [`NoMatchingProjects`]. pnpm has no error code for
+/// an empty selection — it prints the sentence and sets the exit code — so
+/// this one exists only for `is_reported_error` to recognize the failure as
+/// already printed, and is never rendered.
+pub const NO_MATCHING_PROJECTS_CODE: &str = "ERR_PNPM_NO_MATCHING_PROJECTS";
 
-impl RecursiveSharedLockfileUnsupported {
-    pub fn new(operation: impl Into<String>) -> Self {
-        RecursiveSharedLockfileUnsupported { operation: operation.into() }
-    }
+/// `--fail-if-no-match` with an empty workspace-project selection. The
+/// message is already on stdout by the time this is returned; see
+/// [`ensure_projects_matched`].
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("{message}")]
+#[diagnostic(code(ERR_PNPM_NO_MATCHING_PROJECTS))]
+pub struct NoMatchingProjects {
+    #[error(not(source))]
+    pub message: String,
 }
 
 /// Sort the `--filter`-selected workspace projects into topologically
@@ -224,20 +220,31 @@ pub fn count_failures(summary: &IndexMap<PathBuf, ExecutionStatus>) -> usize {
     summary.values().filter(|status| status.status == Status::Failure).count()
 }
 
-/// Read the workspace manifest at `workspace_root` and enumerate its
-/// projects, returning them alongside the workspace package patterns
-/// (`config.workspacePackagePatterns`). Shared by recursive `run` /
-/// `exec` / `pack` so all discover the same set before
-/// [`select_recursive_projects`] narrows it. The patterns feed the
-/// root-only guard of [`AutoExcludeRoot`]; `None` means no
+/// Enumerate the projects of the workspace rooted at `workspace_root`,
+/// returning them alongside the package patterns that selected them.
+/// Shared by recursive `run` / `exec` / `pack` so all discover the same
+/// set before [`select_recursive_projects`] narrows it. The patterns feed
+/// the root-only guard of [`AutoExcludeRoot`]; `None` means no
 /// `pnpm-workspace.yaml` was found.
+///
+/// The patterns come from `config.workspace_package_patterns`, already
+/// resolved from `--workspace-packages` or the manifest's `packages`.
+/// When the config found no workspace, `workspace_root` is one the caller
+/// picked itself (a global install's packages dir), so its own manifest
+/// decides — unless `--ignore-workspace` disowned every manifest, which
+/// leaves the enumeration on its `['.', '**']` default.
 pub fn discover_workspace_projects(
     workspace_root: &Path,
+    config: &Config,
 ) -> miette::Result<(Vec<Project>, Option<Vec<String>>)> {
-    let patterns = read_workspace_manifest(workspace_root)
-        .into_diagnostic()
-        .wrap_err("reading pnpm-workspace.yaml")?
-        .map(|manifest| workspace_package_patterns(&manifest));
+    let patterns = match &config.workspace_package_patterns {
+        Some(patterns) => Some(patterns.clone()),
+        None if config.ignore_workspace => None,
+        None => read_workspace_manifest(workspace_root)
+            .into_diagnostic()
+            .wrap_err("reading pnpm-workspace.yaml")?
+            .map(|manifest| workspace_package_patterns(&manifest)),
+    };
     let projects = find_workspace_projects(
         workspace_root,
         &FindWorkspaceProjectsOpts { patterns: patterns.clone() },
@@ -304,6 +311,7 @@ pub fn select_recursive_projects<'a>(
     let root_selector = auto_exclude_root.root_selector(config, prefix);
 
     if config.filter.is_empty() && config.filter_prod.is_empty() && root_selector.is_none() {
+        ensure_projects_matched(all.len(), all.len(), config, prefix)?;
         return Ok(RecursiveSelection {
             selected: all,
             all: None,
@@ -329,14 +337,10 @@ pub fn select_recursive_projects<'a>(
 
     let root_in_prod = !config.filter_prod.is_empty();
     let walk_opts = FilterWorkspaceProjectsOptions {
-        // Glob dir filtering (the default, the inverse of
-        // `legacyDirFiltering`) is load-bearing for the
-        // `!{<workspace-root>}` augmentation: glob matching excludes only
-        // the project whose dir equals the workspace root, whereas the
-        // legacy subtree match would also drop every nested package.
-        // `legacyDirFiltering` is not surfaced by `Config` yet, so this
-        // stays at the default.
-        use_glob_dir_filtering: true,
+        // The mode user-written `{<dir>}` selectors match in. The
+        // generated `!{<workspace-root>}` selector pins itself to glob
+        // matching instead — see `filter_against`.
+        use_glob_dir_filtering: !config.legacy_dir_filtering,
         workspace_dir: config.workspace_dir.as_deref().unwrap_or(prefix).to_path_buf(),
         test_pattern: config.test_pattern.clone(),
         changed_files_ignore_pattern: config.changed_files_ignore_pattern.clone(),
@@ -389,7 +393,113 @@ pub fn select_recursive_projects<'a>(
         }
     }
 
+    ensure_projects_matched(selected.len(), all.len(), config, prefix)?;
     Ok(RecursiveSelection { selected, all: Some(all), prod_all, prod_only_selected })
+}
+
+/// pnpm's `--fail-if-no-match`: a selection that came back empty ends the
+/// run with exit code 1 instead of letting the command operate on no
+/// project at all.
+///
+/// pnpm prints the sentence to stdout and sets `process.exitCode = 1`, so
+/// the message is printed here and the returned error carries
+/// [`NO_MATCHING_PROJECTS_CODE`], which `is_reported_error` recognizes as
+/// already-printed.
+fn ensure_projects_matched(
+    selected_count: usize,
+    all_count: usize,
+    config: &Config,
+    prefix: &Path,
+) -> miette::Result<()> {
+    if !config.fail_if_no_match || selected_count != 0 {
+        return Ok(());
+    }
+    let workspace_dir = notice_workspace_dir(config, prefix);
+    let message = if all_count == 0 {
+        format!(r#"No projects found in "{}""#, workspace_dir.display())
+    } else {
+        no_projects_matched_message(workspace_dir)
+    };
+    println!("{message}");
+    Err(NoMatchingProjects { message }.into())
+}
+
+/// The directory pnpm names in its empty-selection notices: the workspace
+/// root when the run found one, else where the command was invoked.
+pub fn notice_workspace_dir<'a>(config: &'a Config, prefix: &'a Path) -> &'a Path {
+    config.workspace_dir.as_deref().unwrap_or(prefix)
+}
+
+/// pnpm's notice for `--filter` / `--filter-prod` selectors that selected
+/// no workspace project. pnpm prints it and skips the command; a command
+/// that would otherwise emit output for the empty selection prints this
+/// first.
+pub fn no_projects_matched_message(workspace_dir: &Path) -> String {
+    format!(r#"No projects matched the filters in "{}""#, workspace_dir.display())
+}
+
+/// The lockfile importer ids of `selection`'s projects, in selection
+/// order. The ids key the lockfile's `importers` map, so a lockfile-driven
+/// command (`licenses`, `sbom`) can narrow its walk to what `--filter` /
+/// `--filter-prod` selected.
+pub fn selected_importer_ids(
+    selection: &RecursiveSelection<'_>,
+    lockfile_dir: &Path,
+) -> Vec<String> {
+    selection
+        .selected
+        .keys()
+        .map(|project_dir| importer_id_from_root_dir(lockfile_dir, project_dir))
+        .collect()
+}
+
+/// Run one dependency-independent workspace chunk with at most
+/// `workspace_concurrency` operations in flight, preserving input order in
+/// the returned results.
+pub fn run_workspace_chunk<Output, Operation>(
+    roots: &[PathBuf],
+    workspace_concurrency: u32,
+    operation: Operation,
+) -> miette::Result<Vec<Output>>
+where
+    Output: Send,
+    Operation: Fn(&Path) -> Output + Sync,
+{
+    if roots.is_empty() {
+        return Ok(Vec::new());
+    }
+    let concurrency =
+        usize::try_from(workspace_concurrency).unwrap_or(usize::MAX).max(1).min(roots.len());
+    let next = AtomicUsize::new(0);
+    let outputs = Mutex::new((0..roots.len()).map(|_| None).collect::<Vec<Option<Output>>>());
+    std::thread::scope(|scope| -> miette::Result<()> {
+        let handles = (0..concurrency)
+            .map(|_| {
+                std::thread::Builder::new()
+                    .spawn_scoped(scope, || {
+                        loop {
+                            let index = next.fetch_add(1, Ordering::Relaxed);
+                            let Some(root) = roots.get(index) else { break };
+                            let output = operation(root);
+                            outputs.lock().expect("workspace output lock is not poisoned")[index] =
+                                Some(output);
+                        }
+                    })
+                    .into_diagnostic()
+                    .wrap_err("failed to start workspace task runner")
+            })
+            .collect::<miette::Result<Vec<_>>>()?;
+        for handle in handles {
+            handle.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+        }
+        Ok(())
+    })?;
+    Ok(outputs
+        .into_inner()
+        .expect("workspace output lock is not poisoned")
+        .into_iter()
+        .map(|output| output.expect("every workspace operation produced an output"))
+        .collect())
 }
 
 /// Build the workspace [`ProjectGraph`] from `projects` under `options`.
@@ -417,16 +527,26 @@ fn filter_against<Pkg: BaseProject>(
     if filters.is_empty() && root_selector.is_none() {
         return Ok(Vec::new());
     }
-    let selectors: Vec<ProjectSelector> = filters
+    let mut selectors: Vec<ProjectSelector> = filters
         .iter()
-        .map(String::as_str)
-        .chain(root_selector)
         .map(|filter| {
             let mut selector = parse_project_selector(filter, prefix);
             selector.follow_prod_deps_only = follow_prod_deps_only;
             selector
         })
         .collect();
+    if let Some(root_selector) = root_selector {
+        let mut selector = parse_project_selector(root_selector, prefix);
+        selector.follow_prod_deps_only = follow_prod_deps_only;
+        // pnpm generates this selector; the user did not write it. It has
+        // to mean "the project whose directory is the workspace root",
+        // which only glob matching says. Left to follow the pass,
+        // `legacyDirFiltering`'s subtree matching would read it as "every
+        // project below the root" and a recursive `run` / `exec` would
+        // select the root alone.
+        selector.use_glob_dir_filtering = Some(true);
+        selectors.push(selector);
+    }
     let selected = filter_workspace_projects(graph, &selectors, walk_opts)
         .map_err(miette::Report::new)
         .wrap_err("filtering workspace projects")?;
@@ -466,8 +586,9 @@ impl AutoExcludeRoot<'_> {
         let AutoExcludeRoot::Enabled { workspace_patterns } = self else {
             return None;
         };
-        // pnpm additionally suppresses the exclusion under
-        // `--include-workspace-root`, which pacquet does not surface yet.
+        if config.include_workspace_root {
+            return None;
+        }
         // An inclusion selector already pins the selected set, so the
         // root is kept only if it matches one.
         if config
@@ -502,49 +623,6 @@ fn relative_workspace_dir(config: &Config, prefix: &Path) -> String {
 /// Whether the workspace enumerates the root project only.
 fn is_root_only_patterns(patterns: &[String]) -> bool {
     patterns.len() == 1 && patterns[0] == "."
-}
-
-/// Adapter that lets a [`Project`] feed `create_projects_graph`. Owns
-/// nothing beyond a borrow of the project; the graph reads the manifest
-/// name, version, and dependency groups through it.
-#[derive(Clone, Copy)]
-pub struct GraphPkg<'a> {
-    pub project: &'a Project,
-}
-
-impl BaseProject for GraphPkg<'_> {
-    fn root_dir(&self) -> &Path {
-        &self.project.root_dir
-    }
-
-    fn manifest_name(&self) -> Option<&str> {
-        self.project.manifest.value().get("name").and_then(|name| name.as_str())
-    }
-}
-
-impl GraphProject for GraphPkg<'_> {
-    fn manifest_version(&self) -> Option<&str> {
-        self.project.manifest.value().get("version").and_then(|version| version.as_str())
-    }
-
-    fn merged_dependencies(&self, ignore_dev_deps: bool) -> Vec<(String, String)> {
-        // Precedence: peer, then dev (unless excluded), then optional,
-        // then prod, with a later group overwriting an earlier
-        // duplicate's specifier while keeping the first-seen position.
-        let mut merged: IndexMap<String, String> = IndexMap::new();
-        let mut absorb = |group: DependencyGroup| {
-            for (name, spec) in self.project.manifest.dependencies([group]) {
-                merged.insert(name.to_string(), spec.to_string());
-            }
-        };
-        absorb(DependencyGroup::Peer);
-        if !ignore_dev_deps {
-            absorb(DependencyGroup::Dev);
-        }
-        absorb(DependencyGroup::Optional);
-        absorb(DependencyGroup::Prod);
-        merged.into_iter().collect()
-    }
 }
 
 /// `pnpm-exec-summary.json` top-level shape: `{ "executionStatus": { ... } }`.

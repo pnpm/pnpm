@@ -100,6 +100,9 @@
       "path": "../../global/commands"
     },
     {
+      "path": "../../global/packages"
+    },
+    {
       "path": "../../hooks/pnpmfile"
     },
     {
@@ -107,6 +110,9 @@
     },
     {
       "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../network/auth-header"
@@ -149,6 +155,9 @@
     },
     {
       "path": "../../text/ordinal-comparator"
+    },
+    {
+      "path": "../../text/sanitize"
     },
     {
       "path": "../../worker"

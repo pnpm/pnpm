@@ -1,8 +1,11 @@
-use super::{ConfigOverrides, apply_registry_override, apply_store_dir_override};
-use pacquet_config::{
-    Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail, RuntimeOnFail,
+use super::{
+    ConfigOverrides, apply_registry_override, apply_state_dir_override, apply_store_dir_override,
 };
-use pacquet_store_dir::STORE_VERSION;
+use pnpm_config::{
+    ColorMode, Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail,
+    RuntimeOnFail,
+};
+use pnpm_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;
 use std::{ffi::OsString, path::PathBuf};
 
@@ -23,7 +26,10 @@ fn extract_separates_config_tokens_from_argv() {
     overrides.apply(&mut config);
     assert_eq!(config.registry, "https://example.test/");
     assert_eq!(config.package_manager_bootstrap.registry, "https://example.test/");
-    assert_eq!(config.registries.get("default").map(String::as_str), Some("https://example.test/"));
+    assert_eq!(
+        config.registries_by_scope.get("default").map(String::as_str),
+        Some("https://example.test/"),
+    );
     assert_eq!(
         config.package_manager_bootstrap.registries.get("default").map(String::as_str),
         Some("https://example.test/"),
@@ -92,12 +98,51 @@ fn extract_leaves_other_bare_flags_for_clap() {
 }
 
 #[test]
+fn extract_rewrites_the_dotted_state_dir_for_clap() {
+    let (_, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.state-dir=/custom/state", "install"]));
+    assert_eq!(remaining, argv(["pacquet", "--state-dir=/custom/state", "install"]));
+}
+
+#[test]
+fn state_dir_cli_override_is_recorded() {
+    let anchor = tempfile::tempdir().unwrap();
+    let mut config = Config::default();
+    apply_state_dir_override::<pnpm_config::Host>(
+        &mut config,
+        PathBuf::from("custom-state").as_path(),
+        anchor.path(),
+    );
+    assert_eq!(config.state_dir, anchor.path().join("custom-state"));
+    assert_eq!(
+        config.explicit_settings.get("stateDir"),
+        Some(&serde_json::Value::String("custom-state".to_string())),
+    );
+}
+
+#[test]
+fn absolute_state_dir_cli_override_is_preserved() {
+    let root = tempfile::tempdir().unwrap();
+    let state_dir = root.path().join("absolute-state");
+    let mut config = Config::default();
+    apply_state_dir_override::<pnpm_config::Host>(
+        &mut config,
+        &state_dir,
+        &root.path().join("unrelated-anchor"),
+    );
+    assert_eq!(config.state_dir, state_dir);
+}
+
+#[test]
 fn registry_cli_override_normalizes_and_sets_every_registry_slot() {
     let mut config = Config::default();
     // No trailing slash on the input; it is normalized on the way in.
     apply_registry_override(&mut config, "https://cli.example");
     assert_eq!(config.registry, "https://cli.example/");
-    assert_eq!(config.registries.get("default").map(String::as_str), Some("https://cli.example/"));
+    assert_eq!(
+        config.registries_by_scope.get("default").map(String::as_str),
+        Some("https://cli.example/"),
+    );
     assert_eq!(config.package_manager_bootstrap.registry, "https://cli.example/");
     assert_eq!(
         config.package_manager_bootstrap.registries.get("default").map(String::as_str),
@@ -116,7 +161,7 @@ fn extract_applies_scoped_registry_overrides() {
     let mut config = Config::default();
     overrides.apply(&mut config);
     assert_eq!(
-        config.registries.get("@private").map(String::as_str),
+        config.registries_by_scope.get("@private").map(String::as_str),
         Some("https://private.example/npm/"),
     );
     assert_eq!(
@@ -130,14 +175,16 @@ fn scoped_registry_override_wins_over_existing_config() {
     let (overrides, _) =
         ConfigOverrides::extract(argv(["--config.@private:registry=https://cli.example/npm/"]));
     let mut config = Config::default();
-    config.registries.insert("@private".to_string(), "https://workspace.example/npm/".to_string());
+    config
+        .registries_by_scope
+        .insert("@private".to_string(), "https://workspace.example/npm/".to_string());
     config
         .package_manager_bootstrap
         .registries
         .insert("@private".to_string(), "https://json-env.example/npm/".to_string());
     overrides.apply(&mut config);
     assert_eq!(
-        config.registries.get("@private").map(String::as_str),
+        config.registries_by_scope.get("@private").map(String::as_str),
         Some("https://cli.example/npm/"),
     );
     assert_eq!(
@@ -173,6 +220,175 @@ fn extract_applies_inject_workspace_packages_and_node_linker_overrides() {
     overrides.apply(&mut config);
     assert!(config.inject_workspace_packages);
     assert_eq!(config.node_linker, NodeLinker::Hoisted);
+}
+
+#[test]
+fn extract_applies_the_minimum_release_age_overrides() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.minimum-release-age=0",
+        "--config.minimum-release-age-ignore-missing-time=false",
+        "--config.minimum-release-age-strict=false",
+        "add",
+        "pnpm",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "add", "pnpm"]));
+    let mut config = Config::default();
+    assert_eq!(config.minimum_release_age, Some(1440));
+    assert!(config.minimum_release_age_ignore_missing_time);
+    assert_eq!(config.minimum_release_age_strict, None);
+    overrides.apply(&mut config);
+    assert_eq!(config.minimum_release_age, Some(0));
+    assert!(!config.minimum_release_age_ignore_missing_time);
+    assert_eq!(config.minimum_release_age_strict, Some(false));
+    assert!(config.explicit_settings.contains_key("minimumReleaseAge"));
+}
+
+#[test]
+fn max_sockets_overrides_win_over_the_config_layers_in_either_spelling() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.maxsockets=4", "install"]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+    let mut config = Config { max_sockets: Some(2), ..Config::default() };
+    overrides.apply(&mut config);
+    assert_eq!(config.max_sockets, Some(4));
+
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.maxsockets=4",
+        "--config.max-sockets=9",
+        "install",
+    ]));
+    let mut config = Config::default();
+    overrides.apply(&mut config);
+    assert_eq!(config.max_sockets, Some(9), "the canonical spelling wins over npm's");
+}
+
+#[test]
+fn repeated_minimum_release_age_exclude_overrides_collect_into_a_list() {
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "--config.minimum-release-age-exclude=pnpm",
+        "--config.minimum-release-age-exclude=@pnpm/exe",
+    ]));
+    let mut config = Config {
+        minimum_release_age_exclude: Some(vec!["from-yaml".to_string()]),
+        ..Config::default()
+    };
+    overrides.apply(&mut config);
+    assert_eq!(
+        config.minimum_release_age_exclude,
+        Some(vec!["pnpm".to_string(), "@pnpm/exe".to_string()]),
+    );
+}
+
+#[test]
+fn node_linker_override_rederives_prefer_symlinked_executables() {
+    // Overriding away from hoisted drops the derived `true`.
+    let (overrides, _) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.node-linker=isolated", "install"]));
+    let mut config = Config { node_linker: NodeLinker::Hoisted, ..Config::default() };
+    config.apply_prefer_symlinked_executables_derivation();
+    assert_eq!(config.prefer_symlinked_executables, Some(true));
+    overrides.apply(&mut config);
+    assert_eq!(config.node_linker, NodeLinker::Isolated);
+    assert_eq!(config.prefer_symlinked_executables, None);
+
+    // Overriding to hoisted derives `true`, like pnpm's config reader
+    // seeing the CLI-selected linker.
+    let (overrides, _) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.node-linker=hoisted", "install"]));
+    let mut config = Config::default();
+    overrides.apply(&mut config);
+    assert_eq!(config.prefer_symlinked_executables, Some(true));
+
+    // An explicit `false` — recorded in `explicit_settings` by the
+    // config layer that set it — outranks the hoisted default.
+    let (overrides, _) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.node-linker=hoisted", "install"]));
+    let mut config = Config { prefer_symlinked_executables: Some(false), ..Config::default() };
+    config
+        .explicit_settings
+        .insert("preferSymlinkedExecutables".to_string(), serde_json::Value::Bool(false));
+    overrides.apply(&mut config);
+    assert_eq!(config.node_linker, NodeLinker::Hoisted);
+    assert_eq!(config.prefer_symlinked_executables, Some(false));
+}
+
+#[test]
+fn extract_applies_ignore_scripts_override() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.ignore-scripts=true", "pack"]));
+    assert_eq!(remaining, argv(["pacquet", "pack"]));
+    let mut config = Config::default();
+    assert!(!config.ignore_scripts);
+    overrides.apply(&mut config);
+    assert!(config.ignore_scripts);
+    assert_eq!(config.explicit_settings.get("ignoreScripts"), Some(&serde_json::Value::Bool(true)));
+
+    let (overrides, _) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.ignore-scripts=false", "pack"]));
+    let mut config = Config { ignore_scripts: true, ..Config::default() };
+    overrides.apply(&mut config);
+    assert!(!config.ignore_scripts);
+    assert_eq!(
+        config.explicit_settings.get("ignoreScripts"),
+        Some(&serde_json::Value::Bool(false)),
+    );
+}
+
+#[test]
+fn extract_applies_default_parity_overrides() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.bail=false",
+        "--config.ci=true",
+        "--config.color=never",
+        "--config.embed-readme=true",
+        "--config.ignore-workspace-root-check=true",
+        "--config.optional=false",
+        "--config.package-lock=false",
+        "--config.pending=true",
+        "--config.recursive-install=false",
+        "--config.reverse=true",
+        "--config.shell-emulator=true",
+        "--config.skip-manifest-obfuscation=true",
+        "--config.sort=false",
+        "--config.use-beta-cli=true",
+        "install",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let mut config = Config::default();
+    overrides.apply(&mut config);
+    assert!(!config.bail);
+    assert!(config.ci);
+    assert_eq!(config.color, ColorMode::Never);
+    assert!(config.embed_readme);
+    assert!(config.ignore_workspace_root_check);
+    assert!(!config.optional);
+    assert!(!config.package_lock);
+    assert!(!config.lockfile);
+    assert!(config.pending);
+    assert!(!config.recursive_install);
+    assert!(config.reverse);
+    assert!(config.shell_emulator);
+    assert!(config.skip_manifest_obfuscation);
+    assert!(!config.sort);
+    assert!(config.use_beta_cli);
+}
+
+#[test]
+fn explicit_lockfile_override_wins_over_package_lock() {
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.package-lock=false",
+        "--config.lockfile=true",
+        "install",
+    ]));
+    let mut config = Config::default();
+    overrides.apply(&mut config);
+    assert!(!config.package_lock);
+    assert!(config.lockfile);
 }
 
 #[test]
@@ -250,7 +466,7 @@ fn dotted_proxy_overrides_apply_to_network_config() {
     assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://proxy.example:8080"));
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec![
+        Some(pnpm_network::NoProxySetting::List(vec![
             "localhost".to_string(),
             "127.0.0.1".to_string(),
         ])),

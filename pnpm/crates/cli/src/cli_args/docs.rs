@@ -1,13 +1,13 @@
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
-use pacquet_package_manifest::PackageManifest;
-use pacquet_resolving_npm_resolver::{
+use pnpm_config::Config;
+use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_package_manifest::PackageManifest;
+use pnpm_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
     pick_registry_for_package,
 };
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 
 /// Open the documentation page of a package in a browser.
 #[derive(Debug, Args)]
@@ -29,15 +29,10 @@ impl DocsArgs {
             &config.proxy,
             &config.tls,
             &config.tls_by_uri,
-            &NetworkSettings {
-                network_concurrency: config.network_concurrency,
-                fetch_timeout: std::time::Duration::from_millis(config.fetch_timeout),
-                user_agent: config.user_agent.clone(),
-            },
+            &config.network_settings(),
         )
         .into_diagnostic()
         .wrap_err("create the network client for docs")?;
-
         let registries: std::collections::HashMap<String, String> =
             config.resolved_registries().into_iter().collect();
         let registry = pick_registry_for_package(&registries, resolved_name, Some(bare));

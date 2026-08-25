@@ -28,6 +28,28 @@ fn hydrates_only_requested_versions_and_caches_them() {
 }
 
 #[test]
+fn sorts_version_slots_for_lookup() {
+    let package = parse_package(
+        r#"{
+            "name": "foo",
+            "dist-tags": {},
+            "versions": {
+                "10.0.0": {"name": "foo", "version": "10.0.0", "dist": {"integrity": "sha512-c", "tarball": "https://r/foo-10.0.0.tgz"}},
+                "2.0.0": {"name": "foo", "version": "2.0.0", "dist": {"integrity": "sha512-b", "tarball": "https://r/foo-2.0.0.tgz"}},
+                "1.0.0": {"name": "foo", "version": "1.0.0", "dist": {"integrity": "sha512-a", "tarball": "https://r/foo-1.0.0.tgz"}}
+            }
+        }"#,
+    );
+
+    assert_eq!(
+        package.versions.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["1.0.0", "10.0.0", "2.0.0"],
+    );
+    assert!(package.versions.get("2.0.0").is_some());
+    assert!(package.versions.get("3.0.0").is_none());
+}
+
+#[test]
 fn undecodable_fragment_behaves_as_absent() {
     let package = parse_package(
         r#"{

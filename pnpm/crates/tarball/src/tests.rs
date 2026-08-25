@@ -1,20 +1,31 @@
 use super::{
-    DownloadTarballToStore, FetchTarballForResolution, HttpStatusError,
-    MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, NetworkError, PrefetchedCasPaths, RetryOpts,
-    SharedReportedProgressKeys, TarballError, VerifyChecksumError, allocate_local_tarball_buffer,
-    allocate_tarball_buffer, apply_append_manifest, apply_placeholder_manifest,
-    bounded_gzip_size_hint, decompress_gzip, download_priority, extract_tarball_entries,
-    extract_zip_entries, fetch_and_extract_with_retry, is_transient_error, local_file_tarball_path,
-    normalize_bundled_manifest, open_local_tarball, prefetch_cas_paths, read_local_tarball_buffer,
-    read_local_tarball_metadata,
+    FetchTarballForResolution, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, RetryOpts,
+    SharedReportedProgressKeys,
+    download::{
+        DownloadTarballToStore, download_priority, fetch_and_extract_with_retry,
+        is_transient_error, slow_download_warning,
+    },
+    error::{HttpStatusError, NetworkError, TarballError, VerifyChecksumError},
+    extract::{
+        STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD, allocate_tarball_buffer,
+        apply_append_manifest, apply_placeholder_manifest, bounded_gzip_size_hint, decompress_gzip,
+        extract_tarball_entries, normalize_bundled_manifest, should_stream_extract,
+        stream_extract_gzipped_tarball,
+    },
+    local_tarball::{
+        allocate_local_tarball_buffer, local_file_tarball_path, open_local_tarball,
+        read_local_tarball_buffer, read_local_tarball_metadata,
+    },
+    prefetch::{PrefetchedCasPaths, prefetch_cas_paths},
+    zip_archive::extract_zip_entries,
 };
-use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
-use pacquet_reporter::SilentReporter;
-use pacquet_store_dir::{
+use pipe_trait::Pipe;
+use pnpm_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, ThrottledClient, UNPRIORITIZED};
+use pnpm_reporter::SilentReporter;
+use pnpm_store_dir::{
     CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
     StoreIndexWriter, store_index_key,
 };
-use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::{
@@ -28,6 +39,39 @@ use tempfile::{TempDir, tempdir};
 
 fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")
+}
+
+#[test]
+fn formats_warning_for_slow_tarball_download() {
+    assert_eq!(
+        slow_download_warning(
+            40 * 1024,
+            Duration::from_millis(2_001),
+            50,
+            "https://user:pass@registry.example.test/pkg.tgz?token=secret#fragment\u{1b}",
+        ),
+        Some(
+            "Tarball download average speed 19 KiB/s (size 40 KiB) is below 50 KiB/s: https://registry.example.test/pkg.tgz (GET)"
+                .to_string(),
+        ),
+    );
+}
+
+#[test]
+fn does_not_warn_for_short_or_fast_tarball_download() {
+    assert_eq!(
+        slow_download_warning(1, Duration::from_secs(1), 50, "https://example.test/pkg.tgz"),
+        None,
+    );
+    assert_eq!(
+        slow_download_warning(
+            100 * 1024,
+            Duration::from_secs(2),
+            50,
+            "https://example.test/pkg.tgz",
+        ),
+        None,
+    );
 }
 
 #[test]
@@ -109,6 +153,7 @@ fn allocate_tarball_buffer_rejects_absurd_content_length() {
 /// plenty for loopback and keep the failure mode deterministic.
 fn fast_fail_client() -> ThrottledClient {
     let client = reqwest::Client::builder()
+        .no_proxy()
         .connect_timeout(std::time::Duration::from_secs(1))
         .timeout(std::time::Duration::from_secs(1))
         .build()
@@ -124,16 +169,15 @@ fn fast_fail_client() -> ThrottledClient {
 /// which is what triggered the original "what's actually failing?"
 /// debugging round on this branch.
 ///
-/// Uses `127.0.0.1:1` (port 1 is reserved; connect always fails
-/// with a deterministic ECONNREFUSED on every host I've tried)
-/// and [`fast_fail_client`]'s 1 s bounds, so the test stays
-/// hermetic and quick.
+/// Uses `127.0.0.1:1` and [`fast_fail_client`]'s 1 s bounds. A
+/// firewalled runner may time out instead of refusing the connection.
 #[tokio::test]
 async fn network_error_display_includes_reqwest_inner_chain() {
-    let url = "http://127.0.0.1:1/whatever";
+    let url = "http://127.0.0.1:1/ssl-package.tgz";
     let client = fast_fail_client();
     let err =
         client.acquire().await.get(url).send().await.expect_err("connecting to port 1 must fail");
+    let expected_code = if err.is_timeout() { "ETIMEDOUT" } else { "ECONNREFUSED" };
     let net_err = NetworkError { url: url.to_string(), error: err };
 
     let rendered = net_err.to_string();
@@ -167,6 +211,9 @@ async fn network_error_display_includes_reqwest_inner_chain() {
         std::error::Error::source(&net_err).is_some(),
         "NetworkError should expose its reqwest::Error as source",
     );
+    let details = TarballError::FetchTarball(net_err).fetch_error_details();
+    assert_eq!(details.code.as_deref(), Some(expected_code));
+    assert_eq!(details.status, None);
 }
 
 /// Default `RetryOpts` for unit tests. We don't want the suite to
@@ -208,6 +255,7 @@ async fn packages_under_orgs_should_work() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&integrity("sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),
         package_unpacked_size: Some(16697),
         package_file_count: None,
@@ -273,6 +321,7 @@ async fn network_fetch_records_progress_key() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: Some(16697),
         package_file_count: None,
@@ -310,6 +359,7 @@ async fn should_throw_error_on_checksum_mismatch() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&integrity("sha512-aaaan1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),
         package_unpacked_size: Some(16697),
         package_file_count: None,
@@ -384,12 +434,13 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
     // key to prevent a later warm/cold pass from counting the same
     // package status again.
     let progress_reported = SharedReportedProgressKeys::default();
-    let cas_paths = DownloadTarballToStore {
+    let download = DownloadTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -408,10 +459,11 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         offline: false,
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
         append_manifest: None,
-    }
-    .run_without_mem_cache::<SilentReporter>()
-    .await
-    .expect("cache hit should succeed without network");
+    };
+    let cas_paths = download
+        .run_without_mem_cache::<SilentReporter>()
+        .await
+        .expect("cache hit should succeed without network");
 
     assert_eq!(cas_paths.len(), 2);
     assert_eq!(cas_paths.get("package.json"), Some(&pkg_json_path));
@@ -420,6 +472,11 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         progress_reported.contains(&index_key),
         "a store cache hit must record its progress key; got {progress_reported:?}",
     );
+    let error = download
+        .fetch_and_extract::<SilentReporter>()
+        .await
+        .expect_err("an explicit fetch must read the requested URL despite the cached digest");
+    assert!(matches!(error, TarballError::FetchTarball(_)), "{error}");
 
     drop(store_dir);
 }
@@ -462,6 +519,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -744,6 +802,7 @@ async fn falls_through_when_cafs_file_missing() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -765,6 +824,151 @@ async fn falls_through_when_cafs_file_missing() {
     assert!(
         matches!(err, TarballError::FetchTarball(_)),
         "expected fall-through to network fetch, got: {err:?}",
+    );
+
+    drop(store_dir);
+}
+
+/// Write one store-index row whose bundled manifest names
+/// `other-package@9.9.9`, keyed for `fake@1.0.0`.
+fn seed_row_holding_another_package(store_path: &StoreDir, index_key: &str) {
+    let mut files = HashMap::new();
+    files.insert(
+        "package.json".to_string(),
+        CafsFileInfo { digest: "0".repeat(128), mode: 0o644, size: 0, checked_at: None },
+    );
+    let entry = PackageFilesIndex {
+        manifest: Some(serde_json::json!({ "name": "other-package", "version": "9.9.9" })),
+        requires_build: None,
+        algo: "sha512".to_string(),
+        files,
+        side_effects: None,
+    };
+    let index = StoreIndex::open_in(store_path).unwrap();
+    index.set(index_key, &entry).unwrap();
+    drop(index);
+}
+
+/// A lockfile that pairs an integrity with the wrong package, or a
+/// registry serving a tarball that isn't what its metadata says, leaves
+/// a store row whose `package.json` names another package. Reusing it
+/// would install that other package under this name, so the read fails
+/// instead — pnpm's `ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE`.
+#[tokio::test]
+async fn store_row_holding_another_package_fails_the_read() {
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+
+    let pkg_integrity = integrity(
+        "sha512-q/IXcMGuF8v7ZLf/JeYfE/pB4Wg1yxT6jXJz8JxRK7a4mJSXV1QKMXDPfZkvMHTZpYxWBDoJiXtptDWFnoCA2w==",
+    );
+    let pkg_id = "fake@1.0.0";
+    let index_key = store_index_key(&pkg_integrity.to_string(), pkg_id);
+    seed_row_holding_another_package(store_path, &index_key);
+
+    let err = DownloadTarballToStore {
+        http_client: &fast_fail_client(),
+        store_dir: store_path,
+        store_index: StoreIndex::shared_readonly_in(store_path),
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        package_integrity: Some(&pkg_integrity),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: "http://127.0.0.1:1/unreachable.tgz",
+        package_id: pkg_id,
+        requester: "",
+        prefetched_cas_paths: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: None,
+        append_manifest: None,
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .expect_err("a row holding another package must not be reused");
+    let TarballError::UnexpectedPkgContentInStore { hint } = &err else {
+        panic!("expected an unexpected-content error, got: {err:?}");
+    };
+    assert!(hint.contains("Expected package: fake@1.0.0."), "{hint}");
+    assert!(hint.contains("Actual package in the store: other-package@9.9.9."), "{hint}");
+
+    drop(store_dir);
+}
+
+/// `strictStorePkgContentCheck: false` downgrades the same
+/// disagreement to a warning and installs from the row anyway.
+#[tokio::test]
+async fn store_row_holding_another_package_only_warns_when_not_strict() {
+    use std::sync::Mutex;
+
+    use pnpm_reporter::LogEvent;
+
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+
+    struct RecordingReporter;
+    impl pnpm_reporter::Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+
+    let pkg_integrity = integrity(
+        "sha512-q/IXcMGuF8v7ZLf/JeYfE/pB4Wg1yxT6jXJz8JxRK7a4mJSXV1QKMXDPfZkvMHTZpYxWBDoJiXtptDWFnoCA2w==",
+    );
+    let pkg_id = "fake@1.0.0";
+    let index_key = store_index_key(&pkg_integrity.to_string(), pkg_id);
+    seed_row_holding_another_package(store_path, &index_key);
+
+    EVENTS.lock().unwrap().clear();
+    let cas_paths = DownloadTarballToStore {
+        http_client: &fast_fail_client(),
+        store_dir: store_path,
+        store_index: StoreIndex::shared_readonly_in(store_path),
+        store_index_writer: None,
+        // The row's blob was never written to disk, so the reuse this
+        // asserts is only reachable with verification off.
+        verify_store_integrity: false,
+        strict_store_pkg_content_check: false,
+        package_integrity: Some(&pkg_integrity),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: "http://127.0.0.1:1/unreachable.tgz",
+        package_id: pkg_id,
+        requester: "",
+        prefetched_cas_paths: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: None,
+        append_manifest: None,
+    }
+    .run_without_mem_cache::<RecordingReporter>()
+    .await
+    .expect("without the strict check the row is still used");
+    assert!(cas_paths.contains_key("package.json"));
+
+    let warnings: Vec<String> = EVENTS
+        .lock()
+        .unwrap()
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Global(log) => Some(log.message.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(
+        warnings[0]
+            .starts_with("Package name or version mismatch found while reading from the store."),
+        "{warnings:?}",
     );
 
     drop(store_dir);
@@ -806,6 +1010,7 @@ async fn falls_through_when_digest_is_malformed() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -873,6 +1078,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -950,6 +1156,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -1171,6 +1378,397 @@ fn extract_tarball_reads_a_manifest_that_starts_with_a_utf8_bom() {
     assert_eq!(pkg_files_idx.requires_build, Some(true));
     assert!(pkg_files_idx.manifest.is_some(), "the bundled manifest must be recorded");
     drop(tempdir);
+}
+
+#[test]
+fn should_stream_extract_pivots_on_compressed_size_and_unpacked_hint() {
+    assert!(!should_stream_extract(0, None));
+    assert!(!should_stream_extract(STREAM_EXTRACT_COMPRESSED_THRESHOLD - 1, None));
+    assert!(should_stream_extract(STREAM_EXTRACT_COMPRESSED_THRESHOLD, None));
+    assert!(!should_stream_extract(0, Some(MAX_UNTRUSTED_PREALLOC_BYTES - 1)));
+    assert!(should_stream_extract(0, Some(MAX_UNTRUSTED_PREALLOC_BYTES)));
+    // A hostile hint only routes to the (still correct) streaming path.
+    assert!(should_stream_extract(0, Some(usize::MAX)));
+}
+
+/// Build a tar archive spanning every entry shape the streaming
+/// extractor branches on: a manifest, an executable, a small file, a
+/// directory (skipped), and one payload above
+/// [`STREAM_ENTRY_BUFFER_MAX`] that must take the
+/// direct-to-store streaming branch.
+fn mixed_size_tar() -> (Vec<u8>, Vec<u8>) {
+    let large_payload: Vec<u8> =
+        (0..=STREAM_ENTRY_BUFFER_MAX).map(|index| (index % 251) as u8).collect();
+
+    let mut builder = tar::Builder::new(Vec::new());
+    let mut dir_header = tar::Header::new_gnu();
+    dir_header.set_size(0);
+    dir_header.set_mode(0o755);
+    dir_header.set_entry_type(tar::EntryType::Directory);
+    dir_header.set_cksum();
+    builder.append_data(&mut dir_header, "package/lib/", &b""[..]).expect("append dir entry");
+    for (path, mode, body) in [
+        (
+            "package/package.json",
+            0o644,
+            &br#"{"name":"big","scripts":{"install":"node-gyp rebuild"}}"#[..],
+        ),
+        ("package/bin/tool", 0o755, &b"#!/bin/sh\necho hi\n"[..]),
+        ("package/big.bin", 0o644, large_payload.as_slice()),
+        ("package/lib/small.js", 0o644, &b"module.exports = 1\n"[..]),
+    ] {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(body.len() as u64);
+        header.set_mode(mode);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_cksum();
+        builder.append_data(&mut header, path, body).expect("append entry");
+    }
+    let tar_bytes = builder.into_inner().expect("finish tar");
+    (tar_bytes, large_payload)
+}
+
+fn gzip_bytes(bytes: &[u8]) -> Vec<u8> {
+    use std::io::Write;
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    encoder.write_all(bytes).expect("gzip bytes");
+    encoder.finish().expect("finish gzip")
+}
+
+/// The streaming extractor must produce byte-identical outputs to the
+/// eager whole-archive extractor — same store-relative CAS paths, same
+/// digests/modes/sizes in the index row, same bundled manifest and
+/// requires-build flag — because [`should_stream_extract`] routes
+/// between the two per download and the shared `index.db` must not be
+/// able to tell them apart.
+#[test]
+fn streaming_extract_matches_eager_extract() {
+    let (tar_bytes, large_payload) = mixed_size_tar();
+
+    let (eager_tempdir, eager_store) = tempdir_with_leaked_path();
+    let (eager_cas_paths, eager_idx) =
+        extract_tarball_entries(&tar_bytes, eager_store, None).expect("eager extraction");
+
+    let (streaming_tempdir, streaming_store) = tempdir_with_leaked_path();
+    let (streaming_cas_paths, streaming_idx) =
+        stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), streaming_store, None)
+            .expect("streaming extraction");
+
+    let relative =
+        |cas_paths: &HashMap<String, PathBuf>, store: &StoreDir| -> HashMap<String, PathBuf> {
+            cas_paths
+                .iter()
+                .map(|(key, path)| {
+                    let path = path.strip_prefix(store.root()).expect("path within store");
+                    (key.clone(), path.to_path_buf())
+                })
+                .collect()
+        };
+    assert_eq!(
+        relative(&streaming_cas_paths, streaming_store),
+        relative(&eager_cas_paths, eager_store),
+    );
+
+    let comparable = |idx: &PackageFilesIndex| -> Vec<(String, String, u32, u64)> {
+        let mut rows: Vec<_> = idx
+            .files
+            .iter()
+            .map(|(path, info)| (path.clone(), info.digest.clone(), info.mode, info.size))
+            .collect();
+        rows.sort();
+        rows
+    };
+    assert_eq!(comparable(&streaming_idx), comparable(&eager_idx));
+    assert_eq!(streaming_idx.manifest, eager_idx.manifest);
+    assert_eq!(streaming_idx.requires_build, Some(true));
+    assert_eq!(streaming_idx.algo, eager_idx.algo);
+
+    let large_cas_path = &streaming_cas_paths["big.bin"];
+    assert_eq!(
+        std::fs::read(large_cas_path).expect("read streamed large entry"),
+        large_payload,
+        "the direct-to-store streamed entry must land byte-identical content",
+    );
+    assert!(
+        streaming_cas_paths["bin/tool"].to_string_lossy().ends_with("-exec"),
+        "executable entries must keep the -exec CAS suffix on the streaming path",
+    );
+
+    drop(eager_tempdir);
+    drop(streaming_tempdir);
+}
+
+/// Streaming-path counterpart of
+/// [`extract_rejects_parent_dir_component_in_entry_path`] — the
+/// traversal guard must hold on both extraction paths.
+#[test]
+fn streaming_extract_rejects_parent_dir_component_in_entry_path() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(5);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        // Same `set_path`-bypass as the eager-path test: raw name
+        // bytes + recomputed checksum.
+        let raw = header.as_mut_bytes();
+        let name = b"package/../evil.txt";
+        raw[..name.len()].copy_from_slice(name);
+        for result_b in &mut raw[name.len()..100] {
+            *result_b = 0;
+        }
+        header.set_cksum();
+        builder.append(&header, &b"evil!"[..]).expect("append entry");
+        builder.finish().expect("finalize tar");
+    }
+
+    let err = stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None)
+        .expect_err("parent-dir component must be rejected, not normalized");
+
+    match err {
+        TarballError::ReadTarballEntries(io_err) => {
+            assert_eq!(io_err.kind(), ErrorKind::InvalidData);
+        }
+        other => panic!("expected ReadTarballEntries(InvalidData), got: {other:?}"),
+    }
+
+    drop(tempdir);
+}
+
+/// Streaming-path counterpart of
+/// [`extract_tarball_applies_ignore_filter_dropping_entries_from_both_maps`].
+#[test]
+fn streaming_extract_applies_ignore_filter_dropping_entries_from_both_maps() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        for (path, body) in [
+            ("package/bin/tool", &b"binary"[..]),
+            ("package/lib/node_modules/npm/package.json", &b"{}"[..]),
+            ("package/README.md", &b"readme"[..]),
+        ] {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(body.len() as u64);
+            header.set_mode(0o644);
+            header.set_entry_type(tar::EntryType::Regular);
+            header.set_cksum();
+            builder.append_data(&mut header, path, body).expect("append entry");
+        }
+        builder.finish().expect("finalize tar");
+    }
+
+    fn drop_npm(path: &str) -> bool {
+        path.starts_with("lib/node_modules/npm/")
+    }
+
+    let (cas_paths, pkg_files_idx) =
+        stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, Some(&drop_npm))
+            .expect("streaming extraction with ignore filter");
+
+    dbg!(&cas_paths);
+    assert!(cas_paths.contains_key("bin/tool"));
+    assert!(cas_paths.contains_key("README.md"));
+    assert!(!cas_paths.contains_key("lib/node_modules/npm/package.json"));
+    assert!(!pkg_files_idx.files.contains_key("lib/node_modules/npm/package.json"));
+    assert_eq!(pkg_files_idx.requires_build, Some(false));
+
+    drop(tempdir);
+}
+
+/// A `package.json` above [`STREAM_ENTRY_BUFFER_MAX`] must still be
+/// buffered and parsed on the streaming path — routing it through the
+/// direct-to-store branch would silently record
+/// `requires_build: Some(false)` and drop the bundled manifest.
+#[test]
+fn streaming_extract_parses_manifest_larger_than_entry_buffer() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let padding = "p".repeat(usize::try_from(STREAM_ENTRY_BUFFER_MAX).unwrap() + 1);
+    let manifest =
+        format!(r#"{{"name":"pad","scripts":{{"install":"node-gyp rebuild"}},"x":"{padding}"}}"#);
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(manifest.len() as u64);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "package/package.json", manifest.as_bytes())
+            .expect("append manifest");
+        builder.finish().expect("finalize tar");
+    }
+
+    let (_cas_paths, pkg_files_idx) =
+        stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None)
+            .expect("streaming extraction");
+
+    assert_eq!(pkg_files_idx.requires_build, Some(true));
+    assert!(pkg_files_idx.manifest.is_some(), "the bundled manifest must be recorded");
+    drop(tempdir);
+}
+
+/// A `package.json` header claiming more than
+/// [`MAX_UNTRUSTED_PREALLOC_BYTES`] must be rejected before its payload
+/// is read — buffering it would defeat the streaming path's
+/// bounded-memory guarantee, and skipping the parse would record wrong
+/// build metadata. No payload follows the forged header below: the
+/// guard has to fire on the header alone.
+#[test]
+fn streaming_extract_rejects_manifest_beyond_prealloc_cap() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut header = tar::Header::new_gnu();
+    header.set_path("package/package.json").expect("set tar entry path");
+    header.set_size(MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1);
+    header.set_mode(0o644);
+    header.set_entry_type(tar::EntryType::Regular);
+    header.set_cksum();
+
+    let err = stream_extract_gzipped_tarball(&gzip_bytes(header.as_bytes()), store_path, None)
+        .expect_err("oversized manifest must be rejected, not buffered");
+
+    match err {
+        TarballError::ReadTarballEntries(io_err) => {
+            assert_eq!(io_err.kind(), ErrorKind::InvalidData);
+        }
+        other => panic!("expected ReadTarballEntries(InvalidData), got: {other:?}"),
+    }
+
+    drop(tempdir);
+}
+
+/// A large entry cut short by a truncated (but gzip-valid) archive
+/// must fail extraction without committing the partial payload to the
+/// CAS — the blob would be correctly content-addressed, but a
+/// cut-short transfer must leave the store as it found it.
+#[test]
+fn streaming_extract_truncated_large_entry_commits_nothing() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut tar_bytes = Vec::new();
+    let mut header = tar::Header::new_gnu();
+    header.set_path("package/big.bin").expect("set tar entry path");
+    header.set_size(STREAM_ENTRY_BUFFER_MAX + 1);
+    header.set_mode(0o644);
+    header.set_entry_type(tar::EntryType::Regular);
+    header.set_cksum();
+    tar_bytes.extend_from_slice(header.as_bytes());
+    // Only 1 KiB of the claimed payload is present.
+    tar_bytes.extend_from_slice(&[0u8; 1024]);
+
+    let err = stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None)
+        .expect_err("truncated large entry must fail extraction");
+    assert!(
+        matches!(err, TarballError::ReadTarballEntries(_)),
+        "expected ReadTarballEntries, got: {err:?}",
+    );
+
+    fn count_files_recursively(dir: &Path) -> usize {
+        std::fs::read_dir(dir).map_or(0, |entries| {
+            entries
+                .map(|entry| entry.expect("read dirent"))
+                .map(|entry| {
+                    if entry.file_type().expect("dirent file type").is_dir() {
+                        count_files_recursively(&entry.path())
+                    } else {
+                        1
+                    }
+                })
+                .sum()
+        })
+    }
+    assert_eq!(
+        count_files_recursively(&store_path.root().join("files")),
+        0,
+        "the truncated entry must not commit anything to the CAS",
+    );
+
+    drop(tempdir);
+}
+
+/// Corrupt gzip bytes must surface as a [`TarballError`] the retry
+/// classifier treats as transient, matching the eager path's
+/// `DecodeGzip` handling; on the streaming path the decoder fails
+/// through the tar reader as `ReadTarballEntries`.
+#[test]
+fn streaming_extract_propagates_corrupt_gzip_as_read_error() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let bogus: Vec<u8> = vec![0xFF; 1024];
+    let err = stream_extract_gzipped_tarball(&bogus, store_path, None)
+        .expect_err("corrupt gzip must surface a TarballError, not panic");
+
+    assert!(
+        matches!(err, TarballError::ReadTarballEntries(_)),
+        "expected ReadTarballEntries, got: {err:?}",
+    );
+    assert!(is_transient_error(&err), "a corrupt stream must remain retryable");
+
+    drop(tempdir);
+}
+
+/// A registry `dist.unpackedSize` at the streaming pivot routes the
+/// full download pipeline — integrity verification included — through
+/// the streaming extractor.
+#[tokio::test]
+async fn download_pipeline_extracts_via_streaming_path_for_large_unpacked_hint() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let (tar_bytes, large_payload) = mixed_size_tar();
+    let body = gzip_bytes(&tar_bytes);
+    let pkg_integrity = {
+        let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
+        opts.input(&body);
+        opts.result()
+    };
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(&body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let url = format!("{}/pkg.tgz", server.url());
+    let client = ThrottledClient::default();
+
+    let (computed_integrity, cas_paths, pkg_files_idx) =
+        fetch_and_extract_with_retry::<SilentReporter>(
+            &client,
+            &url,
+            Some(&pkg_integrity),
+            Some(MAX_UNTRUSTED_PREALLOC_BYTES),
+            0,
+            "test-pkg",
+            "",
+            store_path,
+            fast_retry_opts(),
+            &AuthHeaders::default(),
+            None,
+            None,
+        )
+        .await
+        .expect("download with a large unpacked-size hint");
+
+    assert_eq!(computed_integrity.to_string(), pkg_integrity.to_string());
+    assert!(cas_paths.contains_key("package.json"));
+    assert!(cas_paths.contains_key("bin/tool"));
+    assert_eq!(
+        std::fs::read(&cas_paths["big.bin"]).expect("read streamed large entry"),
+        large_payload,
+    );
+    assert_eq!(pkg_files_idx.requires_build, Some(true));
+    mock.assert_async().await;
+    drop(store_dir_keep);
 }
 
 /// `RetryOpts::default()` uses pnpm's network-fetch defaults: 2
@@ -1428,43 +2026,65 @@ async fn read_local_tarball_metadata_reports_a_missing_file_as_not_found() {
 }
 
 #[tokio::test]
-async fn run_without_mem_cache_reads_local_file_tarball() {
+async fn fetch_and_extract_records_expected_or_computed_integrity() {
     let local_dir = tempdir().unwrap();
     let tarball_path = local_dir.path().join("pkg.tgz");
     std::fs::write(&tarball_path, FASTIFY_ERROR_TARBALL).unwrap();
 
-    let (store_dir, store_path) = tempdir_with_leaked_path();
     let package_url = format!("file:{}", tarball_path.display());
     let client = fast_fail_client();
-    let package_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
-    let cas_paths = DownloadTarballToStore {
-        http_client: &client,
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        package_integrity: Some(&package_integrity),
-        package_unpacked_size: Some(16697),
-        package_file_count: None,
-        package_url: &package_url,
-        package_id: "@fastify/error@3.3.0",
-        requester: "",
-        prefetched_cas_paths: None,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
-        ignore_file_pattern: None,
-        offline: true,
-        progress_reported: None,
-        append_manifest: None,
+    let mut sha1 = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha1);
+    sha1.input(FASTIFY_ERROR_TARBALL);
+    let sha1 = sha1.result();
+    let sha512 = integrity(FASTIFY_ERROR_INTEGRITY);
+    let package_id = "@fastify/error@3.3.0";
+    for package_integrity in [Some(&sha1), None] {
+        let expected = package_integrity.unwrap_or(&sha512);
+        let (store_dir, store_path) = tempdir_with_leaked_path();
+        let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
+        let result = DownloadTarballToStore {
+            http_client: &client,
+            store_dir: store_path,
+            store_index: None,
+            store_index_writer: Some(Arc::clone(&writer)),
+            verify_store_integrity: true,
+            strict_store_pkg_content_check: true,
+            package_integrity,
+            package_unpacked_size: Some(16697),
+            package_file_count: None,
+            package_url: &package_url,
+            package_id,
+            requester: "",
+            prefetched_cas_paths: None,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            retry_opts: test_retry_opts(),
+            auth_headers: &AuthHeaders::default(),
+            ignore_file_pattern: None,
+            offline: true,
+            progress_reported: None,
+            append_manifest: None,
+        }
+        .fetch_and_extract::<SilentReporter>()
+        .await
+        .expect("local tarballs should be read from disk without network access");
+
+        assert_eq!(&result.integrity, expected);
+        let manifest = result.manifest.expect("bundled manifest");
+        assert_eq!(manifest["name"], "@fastify/error");
+        assert_eq!(manifest["version"], "3.3.0");
+        assert!(!result.requires_build, "fixture has no install script");
+        assert!(result.files_map.contains_key("package.json"));
+
+        drop(writer);
+        writer_task.await.expect("writer task").expect("writer flushed");
+        let index = StoreIndex::open_in(store_path).expect("open store index");
+        let key = store_index_key(&expected.to_string(), package_id);
+        assert_eq!(index.keys().expect("read index keys"), vec![key.clone()]);
+        let entry = index.get(&key).expect("read index entry").expect("archive is indexed");
+        assert_eq!(entry.manifest, Some(manifest));
+        assert_eq!(entry.requires_build, Some(false));
+        drop((index, store_dir));
     }
-    .run_without_mem_cache::<SilentReporter>()
-    .await
-    .expect("local tarballs should be read from disk without network access");
-
-    assert!(cas_paths.contains_key("package.json"));
-
-    drop((store_dir, local_dir));
 }
 
 /// A resolution that pins no integrity is downloaded unverified, and
@@ -1488,6 +2108,7 @@ async fn run_without_mem_cache_fetches_unverified_and_writes_no_index_row() {
         store_index: None,
         store_index_writer: Some(Arc::clone(&writer)),
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: None,
         package_unpacked_size: None,
         package_file_count: None,
@@ -1655,7 +2276,7 @@ async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
 
     let url = format!("{}/pkg.tgz", server.url());
     let client = ThrottledClient::default();
-    let registry_key = format!("{}@scope", pacquet_network::nerf_dart(&server.url()));
+    let registry_key = format!("{}@scope", pnpm_network::nerf_dart(&server.url()));
     let auth_headers =
         AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())]);
 
@@ -2035,6 +2656,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     store_index: None,
                     store_index_writer: None,
                     verify_store_integrity: true,
+                    strict_store_pkg_content_check: true,
                     package_integrity: Some(pkg_integrity),
                     package_unpacked_size: None,
                     package_file_count: None,
@@ -2150,7 +2772,7 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
     let auth_headers = AuthHeaders::from_creds_map([(
-        pacquet_network::nerf_dart(&url),
+        pnpm_network::nerf_dart(&url),
         "Bearer test-token".to_owned(),
     )]);
 
@@ -2192,7 +2814,7 @@ async fn fetch_attaches_authorization_header_when_scope_creds_match_package_id()
     let url = format!("{}/pkg.tgz", server.url());
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
-    let registry_key = format!("{}@scope", pacquet_network::nerf_dart(&server.url()));
+    let registry_key = format!("{}@scope", pnpm_network::nerf_dart(&server.url()));
     let auth_headers =
         AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())]);
 
@@ -2248,7 +2870,7 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
     let auth_headers = AuthHeaders::from_creds_map([(
-        pacquet_network::nerf_dart(&url),
+        pnpm_network::nerf_dart(&url),
         "Bearer test-token".to_owned(),
     )]);
 
@@ -2294,12 +2916,12 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
 async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     use std::sync::Mutex;
 
-    use pacquet_reporter::{LogEvent, ProgressMessage};
+    use pnpm_reporter::{LogEvent, ProgressMessage};
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
-    impl pacquet_reporter::Reporter for RecordingReporter {
+    impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
             EVENTS.lock().unwrap().push(event.clone());
         }
@@ -2330,6 +2952,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -2345,7 +2968,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         progress_reported: None,
         append_manifest: None,
     }
-    .run_with_mem_cache::<pacquet_reporter::SilentReporter>(&mem_cache)
+    .run_with_mem_cache::<pnpm_reporter::SilentReporter>(&mem_cache)
     .await
     .expect("first call should populate the mem cache");
 
@@ -2360,6 +2983,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -2421,12 +3045,12 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
 async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
     use std::sync::Mutex;
 
-    use pacquet_reporter::{LogEvent, ProgressMessage};
+    use pnpm_reporter::{LogEvent, ProgressMessage};
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
-    impl pacquet_reporter::Reporter for RecordingReporter {
+    impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
             EVENTS.lock().unwrap().push(event.clone());
         }
@@ -2457,6 +3081,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -2496,6 +3121,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -2544,7 +3170,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
 /// the whole runtime).
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
-    use pacquet_reporter::SilentReporter;
+    use pnpm_reporter::SilentReporter;
 
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
@@ -2579,6 +3205,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::default(),
         package_integrity: Some(pkg_integrity),
         package_unpacked_size: None,
@@ -2653,12 +3280,12 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
 async fn fetching_progress_and_fetched_events_fire_during_download() {
     use std::sync::Mutex;
 
-    use pacquet_reporter::{FetchingProgressMessage, LogEvent, ProgressMessage, Reporter as _};
+    use pnpm_reporter::{FetchingProgressMessage, LogEvent, ProgressMessage, Reporter as _};
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
-    impl pacquet_reporter::Reporter for RecordingReporter {
+    impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
             EVENTS.lock().unwrap().push(event.clone());
         }
@@ -2753,12 +3380,12 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
 async fn started_fires_for_connection_level_failures() {
     use std::sync::Mutex;
 
-    use pacquet_reporter::{FetchingProgressMessage, LogEvent};
+    use pnpm_reporter::{FetchingProgressMessage, LogEvent};
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
-    impl pacquet_reporter::Reporter for RecordingReporter {
+    impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
             EVENTS.lock().unwrap().push(event.clone());
         }
@@ -2830,12 +3457,12 @@ async fn started_fires_for_connection_level_failures() {
 async fn found_in_store_event_fires_on_cache_hit() {
     use std::sync::Mutex;
 
-    use pacquet_reporter::{LogEvent, ProgressMessage};
+    use pnpm_reporter::{LogEvent, ProgressMessage};
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
-    impl pacquet_reporter::Reporter for RecordingReporter {
+    impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
             EVENTS.lock().unwrap().push(event.clone());
         }
@@ -2867,6 +3494,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         store_index: None,
         store_index_writer: Some(Arc::clone(&writer)),
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -2895,7 +3523,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
     // reporter sees the `found_in_store` emit; the mockito mock must
     // not be hit again (`expect(1)` above).
     let store_index = tokio::task::spawn_blocking(move || {
-        pacquet_store_dir::StoreIndex::shared_readonly_in(store_path)
+        pnpm_store_dir::StoreIndex::shared_readonly_in(store_path)
     })
     .await
     .expect("spawn_blocking")
@@ -2908,6 +3536,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         store_index: Some(store_index),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -2961,12 +3590,12 @@ async fn found_in_store_event_fires_on_cache_hit() {
 async fn request_retry_event_fires_per_retried_attempt() {
     use std::sync::Mutex;
 
-    use pacquet_reporter::{LogEvent, RequestRetryLog};
+    use pnpm_reporter::{LogEvent, RequestRetryLog};
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
-    impl pacquet_reporter::Reporter for RecordingReporter {
+    impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
             EVENTS.lock().unwrap().push(event.clone());
         }
@@ -3118,7 +3747,7 @@ fn extract_zip_applies_ignore_filter_on_stripped_path() {
 
     // Filter matching the `NODE_EXTRAS_IGNORE_PATTERN` shape — strips
     // bundled npm / corepack — but compiled by hand so the test
-    // doesn't pull a regex engine into pacquet-tarball.
+    // doesn't pull a regex engine into pnpm-tarball.
     fn node_extras_filter(path: &str) -> bool {
         path.starts_with("lib/node_modules/npm/") || path.starts_with("lib/node_modules/corepack/")
     }
@@ -3276,7 +3905,7 @@ fn extract_zip_normalizes_dot_segments_in_entry_paths() {
 /// ever reaching `fetch_and_extract_with_retry`.
 #[tokio::test]
 async fn offline_mode_skips_network_on_cache_miss() {
-    use pacquet_diagnostics::miette::Diagnostic;
+    use pnpm_diagnostics::miette::Diagnostic;
 
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
@@ -3296,6 +3925,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::default(),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -3369,6 +3999,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::default(),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -3571,14 +4202,15 @@ mod normalize_bundled_manifest_tests {
     }
 }
 
-/// Saturated `dist` stats must not collide with the latency-class
-/// sentinel (`UNPRIORITIZED`) — a hostile registry publishing absurd
+/// Saturated `dist` stats must not collide with the latency- or
+/// background-class sentinels — a hostile registry publishing absurd
 /// sizes would otherwise reclassify its downloads as metadata.
 #[test]
-fn download_priority_never_reaches_the_latency_sentinel() {
+fn download_priority_never_reaches_the_class_sentinels() {
     let priority = download_priority(Some(usize::MAX), Some(usize::MAX));
+    assert!(priority < pnpm_network::BACKGROUND);
     assert!(priority < UNPRIORITIZED);
-    assert_eq!(priority, UNPRIORITIZED - 1);
+    assert_eq!(priority, MAX_THROUGHPUT_PRIORITY);
 }
 
 /// A runtime archive (Node.js / Bun / Deno) ships no `package.json`, so
@@ -3667,4 +4299,478 @@ fn apply_placeholder_manifest_is_a_noop_when_a_package_json_is_already_recorded(
 
     assert!(cas_paths.is_empty(), "the real package.json is not overwritten in cas_paths");
     assert_eq!(idx.files["package.json"].digest, "kept", "the row's real file entry is kept");
+}
+
+/// Entry keys are joined with `/` on every platform. The store's
+/// `index.db` is shared with pnpm, whose path layer is string-based and
+/// always forward-slashed, so a `PathBuf`-joined key would write
+/// `bin\tool` on Windows and desynchronize the two implementations.
+#[test]
+fn extract_joins_nested_entry_paths_with_forward_slashes() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(3);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_path("package/bin/nested/tool.js").expect("set entry path");
+        header.set_cksum();
+        builder.append(&header, &b"hi\n"[..]).expect("append entry");
+        builder.finish().expect("finalize tar");
+    }
+
+    let (cas_paths, _) =
+        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+
+    assert!(
+        cas_paths.contains_key("bin/nested/tool.js"),
+        "nested entries must be keyed with `/`, got {:?}",
+        cas_paths.keys().collect::<Vec<_>>(),
+    );
+    assert!(
+        !cas_paths.keys().any(|key| key.contains('\\')),
+        "no key may carry a platform separator, got {:?}",
+        cas_paths.keys().collect::<Vec<_>>(),
+    );
+
+    drop(tempdir);
+}
+
+/// Build a gzipped tar whose *compressed* body is at least `min_bytes`,
+/// so the response carries a `Content-Length` over the in-progress
+/// threshold. The payload is LCG noise because gzip would otherwise
+/// collapse a compressible body well under the threshold.
+fn incompressible_tarball(min_bytes: usize) -> Vec<u8> {
+    let mut payload = vec![0_u8; min_bytes + (1 << 16)];
+    let mut state: u32 = 0x1234_5678;
+    for byte in &mut payload {
+        state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        *byte = (state >> 24) as u8;
+    }
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(payload.len() as u64);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_path("package/noise.bin").expect("set entry path");
+        header.set_cksum();
+        builder.append(&header, payload.as_slice()).expect("append entry");
+        builder.finish().expect("finalize tar");
+    }
+
+    let mut gz = Vec::new();
+    {
+        use std::io::Write as _;
+        let mut encoder = flate2::write::GzEncoder::new(&mut gz, flate2::Compression::fast());
+        encoder.write_all(&tar_bytes).expect("gzip the tar");
+        encoder.finish().expect("finish gzip");
+    }
+    gz
+}
+
+/// `in_progress` fires only for tarballs at or above `BIG_TARBALL_SIZE`.
+/// pnpm's reporter renders a percent gauge from these, and per-byte
+/// events for the typical sub-megabyte package flood the consumer with
+/// values that reach 100% before any UI tick can show them.
+#[tokio::test]
+async fn in_progress_events_fire_only_for_big_tarballs() {
+    use std::sync::Mutex;
+
+    use pnpm_reporter::{FetchingProgressMessage, LogEvent};
+
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+
+    struct RecordingReporter;
+    impl pnpm_reporter::Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    fn in_progress_count() -> usize {
+        EVENTS
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|event| {
+                matches!(
+                    event,
+                    LogEvent::FetchingProgress(log)
+                        if matches!(log.message, FetchingProgressMessage::InProgress { .. }),
+                )
+            })
+            .count()
+    }
+
+    fn last_in_progress_bytes() -> Option<u64> {
+        EVENTS.lock().unwrap().iter().rev().find_map(|event| match event {
+            LogEvent::FetchingProgress(log) => match log.message {
+                FetchingProgressMessage::InProgress { downloaded, .. } => Some(downloaded),
+                FetchingProgressMessage::Started { .. } => None,
+            },
+            _ => None,
+        })
+    }
+
+    async fn download_body<Reporter: pnpm_reporter::Reporter>(
+        body: Vec<u8>,
+        store_path: &'static pnpm_store_dir::StoreDir,
+    ) {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/pkg.tgz")
+            .with_status(200)
+            .with_body(body)
+            .expect(1)
+            .create_async()
+            .await;
+        let url = format!("{}/pkg.tgz", server.url());
+
+        fetch_and_extract_with_retry::<Reporter>(
+            &ThrottledClient::default(),
+            &url,
+            None,
+            None,
+            0,
+            "noise@1.0.0",
+            "",
+            store_path,
+            fast_retry_opts(),
+            &AuthHeaders::default(),
+            None,
+            None,
+        )
+        .await
+        .expect("the download should succeed");
+
+        mock.assert_async().await;
+    }
+
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+
+    let big = incompressible_tarball(6 * 1024 * 1024);
+    let big_len = big.len() as u64;
+    EVENTS.lock().unwrap().clear();
+    download_body::<RecordingReporter>(big, store_path).await;
+    assert!(in_progress_count() > 0, "a tarball over the threshold must report download progress");
+    // Trailing edge: the last event carries the true total rather than
+    // whatever the final throttle window happened to observe.
+    assert_eq!(
+        last_in_progress_bytes(),
+        Some(big_len),
+        "the final progress event must report the whole body",
+    );
+
+    EVENTS.lock().unwrap().clear();
+    download_body::<RecordingReporter>(incompressible_tarball(16 * 1024), store_path).await;
+    assert_eq!(
+        in_progress_count(),
+        0,
+        "a tarball under the threshold must not report per-chunk progress",
+    );
+
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn streaming_download_extracts_a_big_pinned_tarball() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let body = incompressible_tarball(5 * 1024 * 1024);
+    let pinned = Integrity::from(&body);
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(body.clone())
+        .expect(1)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    let (verified, cas_paths, files_idx) = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&pinned),
+        None,
+        0,
+        "noise@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+    )
+    .await
+    .expect("a well-formed pinned tarball must download and extract");
+    mock.assert_async().await;
+
+    assert_eq!(verified.to_string(), pinned.to_string(), "the pinned integrity is what verifies");
+
+    let (reference_keep, reference_store) = tempdir_with_leaked_path();
+    let (reference_paths, reference_idx) =
+        super::stream_extract_gzipped_tarball(&body, reference_store, None)
+            .expect("the reference extraction of the same bytes must succeed");
+    assert_eq!(
+        cas_paths.keys().collect::<std::collections::BTreeSet<_>>(),
+        reference_paths.keys().collect::<std::collections::BTreeSet<_>>(),
+        "the streaming path must materialize the same entries",
+    );
+    // `checked_at` is stamped at write time; everything else must match.
+    let strip_checked_at = |mut idx: PackageFilesIndex| {
+        for info in idx.files.values_mut() {
+            info.checked_at = None;
+        }
+        idx
+    };
+    assert_eq!(
+        strip_checked_at(files_idx),
+        strip_checked_at(reference_idx),
+        "the streaming path must index the same file hashes",
+    );
+
+    drop(reference_keep);
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn streaming_download_integrity_mismatch_retries_and_fails() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let body = incompressible_tarball(5 * 1024 * 1024);
+    let wrong = Integrity::from(b"not the body being served");
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(body)
+        .expect(3)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    let err = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&wrong),
+        None,
+        0,
+        "noise@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+    )
+    .await
+    .expect_err("an integrity mismatch must exhaust the retry budget");
+    assert!(matches!(err, TarballError::Checksum(_)), "expected Checksum error, got {err:?}");
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn streaming_download_corrupt_archive_retries_and_fails() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut body = vec![0x1f_u8, 0x8b];
+    body.extend(std::iter::repeat_n(0xa5_u8, 5 * 1024 * 1024));
+    // The integrity pins the garbage itself, so only the archive
+    // decode can produce the failure under test.
+    let pinned = Integrity::from(&body);
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(body)
+        .expect(3)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    let err = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&pinned),
+        None,
+        0,
+        "noise@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+    )
+    .await
+    .expect_err("a corrupt archive must exhaust the retry budget");
+    assert!(
+        matches!(err, TarballError::DecodeGzip(_)),
+        "the exhausting attempt is buffered, so the eager decode diagnostic surfaces, got {err:?}",
+    );
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn streaming_download_tampered_and_corrupt_body_reports_integrity() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut body = vec![0x1f_u8, 0x8b];
+    body.extend(std::iter::repeat_n(0x5a_u8, 5 * 1024 * 1024));
+    let wrong = Integrity::from(b"the body the registry was supposed to serve");
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(body)
+        .expect(3)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    let err = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&wrong),
+        None,
+        0,
+        "noise@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+    )
+    .await
+    .expect_err("a tampered body must exhaust the retry budget");
+    assert!(
+        matches!(err, TarballError::Checksum(_)),
+        "the integrity verdict must outrank the decode failure, got {err:?}",
+    );
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+/// Only regular files reach the CAFS. A symlink's zero-byte body would
+/// otherwise be stored as though it were the file it points at.
+#[test]
+fn extract_keeps_only_regular_file_entries() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+
+        let mut file = tar::Header::new_gnu();
+        file.set_size(3);
+        file.set_mode(0o644);
+        file.set_entry_type(tar::EntryType::Regular);
+        file.set_path("package/real.txt").expect("set file path");
+        file.set_cksum();
+        builder.append(&file, &b"hi\n"[..]).expect("append file");
+
+        let mut dir = tar::Header::new_gnu();
+        dir.set_size(0);
+        dir.set_mode(0o755);
+        dir.set_entry_type(tar::EntryType::Directory);
+        dir.set_path("package/sub/").expect("set dir path");
+        dir.set_cksum();
+        builder.append(&dir, std::io::empty()).expect("append dir");
+
+        let mut link = tar::Header::new_gnu();
+        link.set_size(0);
+        link.set_mode(0o777);
+        link.set_entry_type(tar::EntryType::Symlink);
+        link.set_path("package/link.txt").expect("set link path");
+        link.set_link_name("real.txt").expect("set link target");
+        link.set_cksum();
+        builder.append(&link, std::io::empty()).expect("append symlink");
+
+        builder.finish().expect("finalize tar");
+    }
+
+    let (cas_paths, _) =
+        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+
+    assert_eq!(
+        cas_paths.keys().collect::<Vec<_>>(),
+        vec!["real.txt"],
+        "only the regular file may be stored",
+    );
+
+    drop(tempdir);
+}
+
+/// Build a tar carrying one entry whose raw header name is `name`,
+/// bypassing `set_path`'s own validation so hostile names can be tested.
+fn tar_with_raw_entry_name(name: &[u8]) -> Vec<u8> {
+    let mut tar_bytes = Vec::new();
+    let mut builder = tar::Builder::new(&mut tar_bytes);
+    let mut header = tar::Header::new_gnu();
+    header.set_size(5);
+    header.set_mode(0o644);
+    header.set_entry_type(tar::EntryType::Regular);
+    let raw = header.as_mut_bytes();
+    raw[..name.len()].copy_from_slice(name);
+    for byte in &mut raw[name.len()..100] {
+        *byte = 0;
+    }
+    header.set_cksum();
+    builder.append(&header, &b"bytes"[..]).expect("append entry");
+    builder.finish().expect("finalize tar");
+    drop(builder);
+    tar_bytes
+}
+
+/// A backslash is an ordinary filename character on Unix but a
+/// separator on Windows, and these keys travel between the two through
+/// the shared `index.db`. pnpm folds `\` to `/` before validating
+/// (`parseTarball.ts`), so a traversal spelled with backslashes has to
+/// be caught here too rather than stored verbatim.
+#[test]
+fn extract_rejects_backslash_traversal_in_entry_path() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let tar_bytes = tar_with_raw_entry_name(br"package/..\..\evil.txt");
+    let err = extract_tarball_entries(&tar_bytes, store_path, None)
+        .expect_err("a backslash-spelled traversal must be rejected");
+
+    match err {
+        TarballError::ReadTarballEntries(io_err) => {
+            assert_eq!(io_err.kind(), std::io::ErrorKind::InvalidData);
+        }
+        other => panic!("expected a rejected tar entry, got {other:?}"),
+    }
+
+    drop(tempdir);
+}
+
+/// Folding `\` to `/` must not reject the benign case: an archive built
+/// by Windows tooling that spells a nested path with backslashes
+/// installs under pnpm, so it installs here, under the same key.
+#[test]
+fn extract_reads_a_windows_separator_entry_as_a_nested_path() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let tar_bytes = tar_with_raw_entry_name(br"package/bin\tool.js");
+    let (cas_paths, _) =
+        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+
+    assert!(
+        cas_paths.contains_key("bin/tool.js"),
+        "a backslash separator must resolve to the same key as `/`, got {:?}",
+        cas_paths.keys().collect::<Vec<_>>(),
+    );
+
+    drop(tempdir);
 }

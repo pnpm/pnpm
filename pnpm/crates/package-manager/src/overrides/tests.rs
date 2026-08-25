@@ -1,14 +1,14 @@
 use super::VersionsOverrider;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config_parse_overrides::parse_overrides;
-use pacquet_package_manifest::PackageManifest;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config_parse_overrides::parse_overrides;
+use pnpm_package_manifest::PackageManifest;
 use serde_json::{Value, json};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
 };
 
-fn parsed(map: &[(&str, &str)]) -> Vec<pacquet_config_parse_overrides::VersionOverride> {
+fn parsed(map: &[(&str, &str)]) -> Vec<pnpm_config_parse_overrides::VersionOverride> {
     let owned: HashMap<String, String> =
         map.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect();
     parse_overrides(&owned, &Catalogs::new()).expect("parse_overrides fixture")

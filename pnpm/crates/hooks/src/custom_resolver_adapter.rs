@@ -5,7 +5,7 @@ use std::{
 
 use serde_json::Value;
 
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_resolver_base::{
     LatestQuery, PkgResolutionId, PreferredVersions, ResolveError, ResolveFuture,
     ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, VersionSelectorEntry,
     WantedDependency,

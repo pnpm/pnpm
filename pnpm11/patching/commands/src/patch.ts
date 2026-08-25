@@ -60,7 +60,7 @@ export function help (): string {
 export type PatchCommandOptions = Pick<Config,
 | 'dir'
 | 'patchedDependencies'
-| 'registries'
+| 'registriesByScope'
 | 'tag'
 | 'storeDir'
 | 'lockfileDir'

@@ -10,13 +10,14 @@ import {
 import { type Config, type ConfigContext, getWorkspaceConcurrency, types as allTypes } from '@pnpm/config.reader'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
+import { keepEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
   runLifecycleHook,
   type RunLifecycleHookOptions,
 } from '@pnpm/exec.lifecycle'
-import type { PackageScripts, ProjectManifest } from '@pnpm/types'
+import type { DependencyManifest, PackageScripts, ProjectManifest } from '@pnpm/types'
 import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
 import pLimit from 'p-limit'
 import { pick } from 'ramda'
@@ -220,7 +221,7 @@ export async function handler (
   if (opts.nodeOptions) {
     opts.extraEnv = {
       ...opts.extraEnv,
-      NODE_OPTIONS: opts.nodeOptions,
+      NODE_OPTIONS: keepEsmNodePathLoaderOption(opts.nodeOptions, opts.extraEnv?.NODE_OPTIONS),
     }
   }
 
@@ -456,6 +457,8 @@ export async function runScript (opts: {
       pkgName: opts.manifest.name,
       pkgRootDir: opts.lifecycleOpts.pkgRoot,
       workspaceDir: opts.runScriptOptions.workspaceDir,
+      // Read before the script ran, so a bin it drops can still be named.
+      manifestBeforeScripts: opts.manifest as DependencyManifest,
     })
   }
 }

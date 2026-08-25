@@ -1,9 +1,12 @@
 use crate::{
     Lockfile, serialize_yaml,
-    yaml_documents::{YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, extract_env_document},
+    yaml_documents::{
+        YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, extract_env_document,
+        normalize_lockfile_content,
+    },
 };
 use derive_more::{Display, Error};
-use pacquet_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{self, Diagnostic};
 use std::{
     env,
     fs::{self, OpenOptions},
@@ -79,9 +82,7 @@ pub fn save_value_to_path<Document: serde::Serialize>(
 ) -> Result<(), SaveLockfileError> {
     let content = serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml)?;
     let existing = match fs::read_to_string(path) {
-        Ok(existing) => {
-            Some(existing.strip_prefix('\u{feff}').unwrap_or(&existing).replace("\r\n", "\n"))
-        }
+        Ok(existing) => Some(normalize_lockfile_content(&existing).into_owned()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => return Err(SaveLockfileError::WriteFile(error)),
     };
@@ -204,7 +205,7 @@ fn carry_mode_across(_file: &fs::File, _target: &Path) -> io::Result<()> {
 /// truncate a file an attacker (or a crashed prior install) pre-seeded
 /// at our predicted temp path. On `AlreadyExists` we advance the
 /// counter and try again, up to `MAX_TEMP_ATTEMPTS` times — matching
-/// the hardening already in `pacquet_fs::ensure_file::write_atomic`
+/// the hardening already in `pnpm_fs::ensure_file::write_atomic`
 /// (per-call review on [#442](https://github.com/pnpm/pacquet/pull/442)).
 fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> {
     /// Sixteen fresh counter values is plenty — under benign

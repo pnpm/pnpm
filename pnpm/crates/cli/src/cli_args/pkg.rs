@@ -4,11 +4,11 @@ use crate::cli_args::recursive::{
 use clap::{Args, Subcommand};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
-use pacquet_config::{
+use pnpm_config::{
     Config,
     property_path::{self, Segment, get_object_value_by_property_path, parse_property_path},
 };
-use pacquet_package_manifest::PackageManifest;
+use pnpm_package_manifest::PackageManifest;
 use serde_json::{Map, Value};
 use std::path::Path;
 
@@ -129,8 +129,8 @@ impl PkgArgs {
         if config.workspace_dir.is_none() {
             return Err(PkgError::RecursiveNoRoot.into());
         }
-        let (projects, _patterns) =
-            discover_workspace_projects(workspace_root).wrap_err("discover workspace projects")?;
+        let (projects, _patterns) = discover_workspace_projects(workspace_root, config)
+            .wrap_err("discover workspace projects")?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         if selection.selected.is_empty() {

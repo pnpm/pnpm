@@ -1,4 +1,4 @@
-use pacquet_lockfile::ResolvedDependencySpec;
+use pnpm_lockfile::ResolvedDependencySpec;
 use serde_json::json;
 
 use super::{MAX_JSON_SORT_DEPTH, request_matches_dependency, sort_deep_keys};

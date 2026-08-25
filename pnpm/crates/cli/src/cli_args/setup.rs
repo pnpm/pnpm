@@ -10,11 +10,11 @@ mod path_extender;
 
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::{Host, PNPM_VERSION, default_pnpm_home_dir};
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use path_extender::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderReport,
 };
+use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir};
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use std::{fs, path::Path, process::Command};
 
 #[derive(Debug, Args)]
@@ -57,7 +57,12 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
     // pnpm's single-executable branch always applies: install the CLI
     // globally and write the alias scripts.
     install_cli_globally::<Reporter>(&exec_path, &pnpm_home_dir, dir)?;
-    create_alias_scripts(&bin_dir).into_diagnostic().wrap_err("create the pnpm alias scripts")?;
+    {
+        let _global_bin_lock = super::global_bin_lock::acquire_global_bin_lock(&bin_dir)?;
+        create_alias_scripts(&bin_dir)
+            .into_diagnostic()
+            .wrap_err("create the pnpm alias scripts")?;
+    }
 
     let report = path_extender::add_dir_to_env_path(
         &pnpm_home_dir,
@@ -96,12 +101,7 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
     // ship with package.json already.)
     let created_pkg_json = !pkg_json_path.exists();
     if created_pkg_json {
-        let pkg = serde_json::json!({
-            "name": "@pnpm/exe",
-            "version": PNPM_VERSION,
-            "bin": { "pnpm": exec_name, "pn": exec_name },
-        });
-        fs::write(&pkg_json_path, pkg.to_string())
+        fs::write(&pkg_json_path, standalone_manifest(&exec_name).to_string())
             .into_diagnostic()
             .wrap_err("write the temporary package.json next to the pnpm executable")?;
     }
@@ -144,6 +144,21 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
         .into_diagnostic()
         .wrap_err("remove the temporary package.json next to the pnpm executable")?;
     Ok(())
+}
+
+/// The manifest `pnpm setup` writes next to a standalone executable that ships
+/// without one, so the global install has a package to install.
+///
+/// `type: module` matters even though nothing here is imported as a package:
+/// without it Node.js reparses the ESM files shipped alongside the executable
+/// as `CommonJS` first and warns on every spawn.
+fn standalone_manifest(exec_name: &str) -> serde_json::Value {
+    serde_json::json!({
+        "name": "@pnpm/exe",
+        "version": PNPM_VERSION,
+        "type": "module",
+        "bin": { "pnpm": exec_name, "pn": exec_name },
+    })
 }
 
 /// Write the `pn` / `pnpx` / `pnx` wrapper scripts into `$PNPM_HOME/bin`.

@@ -5,9 +5,9 @@ use super::{
     RemoveValidationError, persist_selected_manifests, prepare_selected_manifests,
     selected_project_indices, validate_removable, validate_selected_remove,
 };
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::SilentReporter;
-use pacquet_workspace::Project;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::SilentReporter;
+use pnpm_workspace::Project;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::{collections::HashSet, path::PathBuf};

@@ -7,15 +7,18 @@
 //     │   │   ├── node-gyp
 //     │   │   └── node-gyp.cmd
 //     │   └── node_modules
+//     │       ├── get-pnpm       <- downloads the binary for bin/pnpm.mjs
 //     │       └── node-gyp       <- the frozen tree, plus its dependencies
 //     ├── pnpm                   <- the native binary, placed by install.js
 //     └── package.json
 //
 // pnpm ships node-gyp so packages whose install scripts shell out to it build
-// out of the box. The tree is produced by `pnpm deploy` against this repo's
-// lockfile, so it is frozen and reviewed per pnpm release rather than resolved
-// on the user's machine at the moment an install script runs — see
-// pnpm/crates/executor/src/bundled_node_gyp.rs for the runtime half.
+// out of the box, and get-pnpm so the Corepack entry point can fetch the native
+// binary Corepack does not install. Both are the wrapper's production
+// dependencies, deployed by `pnpm deploy` against this repo's lockfile, so they
+// are frozen and reviewed per pnpm release rather than resolved on the user's
+// machine — see pnpm/crates/executor/src/bundled_node_gyp.rs for node-gyp's
+// runtime half, and pnpm/npm/pnpm/bin/pnpm.mjs for get-pnpm's.
 //
 // The TypeScript CLI builds the same payload for its own package in
 // pnpm11/pnpm/bundle-deps.ts, and both read the node-gyp version from the
@@ -25,6 +28,7 @@ import { execFileSync } from 'node:child_process'
 import console from 'node:console'
 import fs from 'node:fs'
 import path from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 const PNPM_ROOT = path.resolve(fileURLToPath(import.meta.url), '../..')
@@ -49,7 +53,17 @@ function deployNodeGyp () {
     '--prod',
     'deploy',
     DEPLOY_DIR,
-  ], { cwd: REPO_ROOT, stdio: 'inherit' })
+  ], {
+    cwd: REPO_ROOT,
+    stdio: 'inherit',
+    // The hoisted node linker turns preferSymlinkedExecutables on, which makes
+    // node_modules/.bin a directory of symlinks — and a symlink cannot travel
+    // inside an npm tarball, so every bin would silently disappear from the
+    // published dist/node_modules/.bin. Shell shims survive packing. Passed
+    // through the environment rather than as `--config.` because the release-
+    // pinned pnpm ignores that flag for this setting.
+    env: { ...process.env, pnpm_config_prefer_symlinked_executables: 'false' },
+  })
 
   const nmPrune = path.join(PNPM_ROOT, 'node_modules', '.bin', 'nm-prune')
   execFileSync(nmPrune, ['--force'], { cwd: DEPLOY_DIR, stdio: 'inherit' })
@@ -88,23 +102,42 @@ function copyNodeGypBin () {
 }
 
 // The payload is only useful if a lifecycle script can actually reach node-gyp
-// through it. A silently incomplete dist/ would ship a PATH entry that resolves
-// nothing, which is worse than shipping none at all.
+// through it, and if the Corepack entry point can reach get-pnpm. A silently
+// incomplete dist/ would ship a PATH entry that resolves nothing and a pnpm
+// that cannot fetch its own binary, which is worse than shipping none at all.
 function verifyPayload () {
   const required = [
     path.join(DIST_DIR, 'node-gyp-bin', 'node-gyp'),
     path.join(DIST_DIR, 'node-gyp-bin', 'node-gyp.cmd'),
     path.join(DIST_DIR, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js'),
+    // The Corepack entry point loads its downloader from here.
+    path.join(DIST_DIR, 'node_modules', 'get-pnpm', 'lib', 'index.js'),
   ]
   const missing = required.filter((file) => !fs.existsSync(file))
   if (missing.length > 0) {
     throw new Error(
-      `The node-gyp payload is incomplete; missing:\n${missing.map((file) => `  ${file}`).join('\n')}`
+      `The dist/ payload is incomplete; missing:\n${missing.map((file) => `  ${file}`).join('\n')}`
     )
   }
+  // A symlink never reaches a consumer: `pnpm pack` drops it from the tarball
+  // without a warning, so it would leave the same hole as a missing file.
+  const symlinks = findSymlinks(DIST_DIR)
+  if (symlinks.length > 0) {
+    throw new Error(
+      `The dist/ payload contains symlinks, which npm tarballs cannot carry:\n${symlinks.map((file) => `  ${file}`).join('\n')}`
+    )
+  }
+}
+
+function findSymlinks (dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = path.join(dir, entry.name)
+    if (entry.isSymbolicLink()) return [fullPath]
+    return entry.isDirectory() ? findSymlinks(fullPath) : []
+  })
 }
 
 deployNodeGyp()
 copyNodeGypBin()
 verifyPayload()
-console.log(`Bundled node-gyp into ${DIST_DIR}`)
+console.log(`Bundled node-gyp and get-pnpm into ${DIST_DIR}`)

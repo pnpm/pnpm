@@ -1,19 +1,46 @@
+import type { RegistryServerType } from '@pnpm/types'
+
+const PUBLIC_NPM_REGISTRY = 'https://registry.npmjs.org/'
+
+/**
+ * registry.npmjs.org is the one registry whose layout pnpm knows without being
+ * told, so it is a row of data rather than a hostname comparison. A declared
+ * `serverType` wins over it.
+ */
+const DEFAULT_REGISTRY_SERVER_TYPES: Record<string, RegistryServerType> = {
+  [PUBLIC_NPM_REGISTRY]: 'npm',
+}
+
+export interface TarballUrlOptions {
+  registry?: string
+  /**
+   * Undeclared by default, which is the strict reading: only the exact
+   * canonical URL is reconstructible. See {@link RegistryServerType}.
+   */
+  serverType?: RegistryServerType
+}
+
 /**
  * Build the canonical tarball URL of an npm package — i.e. the URL pnpm derives
  * from a package's name, version, and registry. Vendored from the
  * `get-npm-tarball-url` package so the logic and its inverse
  * ({@link isCanonicalRegistryTarballUrl}) live together in the monorepo.
+ *
+ * This is the single source of the URL shape: the lockfile writer drops a
+ * tarball URL only when this function rebuilds it, and the lockfile reader
+ * rebuilds it with this function. Both sides therefore agree by construction,
+ * under every {@link RegistryServerType}.
  */
 export function getNpmTarballUrl (
   pkgName: string,
   pkgVersion: string,
-  opts?: {
-    registry?: string
-  }
+  opts?: TarballUrlOptions
 ): string {
   const registry = normalizeRegistry(opts?.registry)
-  const scopelessName = getScopelessName(pkgName)
-  return `${registry}${pkgName}/-/${scopelessName}-${removeBuildMetadataFromVersion(pkgVersion)}.tgz`
+  // Artifactory keeps the scope in the filename of a scoped package's tarball
+  // (`@acme/widget/-/@acme/widget-1.0.0.tgz`); the npm layout strips it.
+  const filenameName = opts?.serverType === 'artifactory' ? pkgName : getScopelessName(pkgName)
+  return `${registry}${pkgName}/-/${filenameName}-${removeBuildMetadataFromVersion(pkgVersion)}.tgz`
 }
 
 /**
@@ -29,21 +56,31 @@ export function getNpmTarballUrl (
  * to `getNpmTarballUrl(name, version, { registry })` so nothing host-specific
  * is persisted to `pnpm-lock.yaml`.
  *
- * Percent-encoding is case-insensitive, so the `%2f` unescape matches both
- * `%2f` and `%2F` in the URLs npm produces for scoped packages.
+ * A `serverType` the user declared (via `getRegistryServerType` in
+ * `@pnpm/config.normalize-registries`) wins; otherwise the built-in layout of
+ * a known registry applies, and an unknown registry is read strictly.
  */
 export function isCanonicalRegistryTarballUrl (
   tarball: string,
   pkg: { name: string, version: string },
-  registry: string
+  opts: TarballUrlOptions
 ): boolean {
-  const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
-  const actualTarball = tarball.replace(/%2f/gi, '/')
-  return removeProtocol(expectedTarball) === removeProtocol(actualTarball)
+  const expectedTarball = removeProtocol(getNpmTarballUrl(pkg.name, pkg.version, opts))
+  const actualTarball = removeProtocol(tarball)
+  if (expectedTarball === actualTarball) return true
+  // A registry behaving like registry.npmjs.org serves a scoped package from
+  // both the encoded and the unencoded path. A registry that has not been
+  // declared to behave like it may serve only the encoded one, so its URL is
+  // kept. See https://github.com/pnpm/pnpm/issues/13534.
+  return effectiveServerType(opts) === 'npm' && expectedTarball === actualTarball.replace(/%2f/gi, '/')
+}
+
+function effectiveServerType (opts: TarballUrlOptions): RegistryServerType | undefined {
+  return opts.serverType ?? DEFAULT_REGISTRY_SERVER_TYPES[normalizeRegistry(opts.registry)]
 }
 
 function normalizeRegistry (registry?: string): string {
-  if (!registry) return 'https://registry.npmjs.org/'
+  if (!registry) return PUBLIC_NPM_REGISTRY
   return registry.endsWith('/') ? registry : `${registry}/`
 }
 

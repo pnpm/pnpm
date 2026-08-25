@@ -5,12 +5,13 @@ import { stripVTControlCharacters } from 'node:util'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { createMatcher } from '@pnpm/config.matcher'
-import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
+import { BUILTIN_REGISTRIES_BY_PREFIX, GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
+import { PnpmError, redactAndSanitize } from '@pnpm/error'
+import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
 import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
 import { isCamelCase } from '@pnpm/text.naming-cases'
-import type { DevEngines, EngineDependency, ProjectManifest } from '@pnpm/types'
+import type { DevEngines, EngineDependency, ProjectManifest, VirtualStoreType } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { betterPathResolve } from 'better-path-resolve'
@@ -49,14 +50,16 @@ import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
 } from './overrideSupportedArchitecturesWithCLI.js'
+import { quoteAndJoin } from './quoteAndJoin.js'
 import { transformPathKeys } from './transformPath.js'
 import { types } from './types.js'
+import { isKnownSettingKey, quoteAndAnnotateUnknown } from './unknownSettings.js'
 export { types }
 
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 export { getGlobalConfigPath } from './dirs.js'
 export { getDefaultCreds, getNetworkConfigs, type NetworkConfigs } from './getNetworkConfigs.js'
-export { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+export { getOptionsFromPnpmSettings, type OptionsFromRootManifest, toAuditSettings, toUpdateSettings } from './getOptionsFromRootManifest.js'
 export {
   getPackageManagerBootstrapConfig,
   getPackageManagerRegistries,
@@ -79,6 +82,12 @@ export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDeps
 
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
 export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
+
+/**
+ * A YAML-language-server schema association, not a setting; tools put it in
+ * config files pnpm reads, so it must not trip the unknown-setting warnings.
+ */
+const SCHEMA_DIRECTIVE_KEY = '$schema'
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
   ? `${T extends Lowercase<T> ? '' : '-'}${Lowercase<T>}${CamelToKebabCase<U>}`
@@ -301,11 +310,6 @@ export async function getConfig (opts: {
     warnings.push(`Directory "${cwd}" contains the path delimiter character (${path.delimiter}), so binaries from node_modules/.bin will not be accessible via PATH. Consider renaming the directory.`)
   }
 
-  // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
-  pnpmConfig.maxSockets = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets'] ?? npmDefaults.maxsockets
-  // @ts-expect-error
-  delete pnpmConfig['maxsockets']
-
   pnpmConfig.configDir = configDir
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.workspaceRoot = cliOptions['workspace-root'] as boolean // This is needed to prevent pnpm reading workspaceRoot from env variables
@@ -321,24 +325,51 @@ export async function getConfig (opts: {
     // Consumed by loadNpmrcConfig above; drop so it isn't flagged as unknown.
     delete (globalYamlConfig as unknown as Record<string, unknown>)._auth
     const ignoredKeys: string[] = []
+    // The gate below is kebab-based, but only camelCase keys are picked up later.
+    const kebabKeys: string[] = []
     for (const key in globalYamlConfig) {
-      if (!isConfigFileKey(kebabCase(key))) {
-        ignoredKeys.push(key)
+      // A key set to null is dropped like any other the file may not set, but
+      // it is not reported: it chose nothing, so there is nothing to correct.
+      // A null a setting accepts (`httpProxy`, `pnprServer`, ...) is a value
+      // like any other and passes through both branches untouched.
+      const setsNothing = globalYamlConfig[key as keyof typeof globalYamlConfig] == null
+      if (key === SCHEMA_DIRECTIVE_KEY) {
+        delete globalYamlConfig[key as keyof typeof globalYamlConfig]
+      } else if (!isConfigFileKey(kebabCase(key))) {
+        if (!setsNothing) ignoredKeys.push(key)
+        delete globalYamlConfig[key as keyof typeof globalYamlConfig]
+      } else if (!isCamelCase(key)) {
+        if (!setsNothing) kebabKeys.push(key)
         delete globalYamlConfig[key as keyof typeof globalYamlConfig]
       }
     }
-    if (ignoredKeys.length > 0) {
+    if (ignoredKeys.length > 0 || kebabKeys.length > 0) {
       const globalYamlConfigPath = getGlobalConfigPath(configDir)
-      warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${ignoredKeys.map(k => `"${k}"`).join(', ')}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
+      const movable = ignoredKeys.filter((key) => !isRefusedByAProjectManifest(key) && isKnownSettingKey(key))
+      const unrecognized = ignoredKeys.filter((key) => !isRefusedByAProjectManifest(key) && !isKnownSettingKey(key))
+      const nowhere = ignoredKeys.filter(isRefusedByAProjectManifest)
+      if (movable.length > 0) {
+        warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndJoin(movable.map(redactAndSanitize))}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
+      }
+      if (unrecognized.length > 0) {
+        warnings.push(`The following settings in the global config file ("${globalYamlConfigPath}") are not recognized by this version of pnpm and were ignored: ${quoteAndAnnotateUnknown(unrecognized)}.`)
+      }
+      if (nowhere.length > 0) {
+        warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndExplain(nowhere)}.`)
+      }
+      if (kebabKeys.length > 0) {
+        warnings.push(`The following settings in the global config file ("${globalYamlConfigPath}") were ignored because they are not written in camelCase: ${quoteAndSuggestCamelCase(kebabKeys)}.`)
+      }
     }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
       configFromCliOpts,
       expandRequestDestinationEnv: true,
       projectManifest: undefined,
+      skipSettings: GLOBAL_CONFIG_SKIPPED_KEYS,
       workspaceDir: undefined,
       workspaceManifest: globalYamlConfig,
     })
-    globalYamlRegistries = pnpmConfig.registries as Record<string, string> | undefined
+    globalYamlRegistries = pnpmConfig.registriesByScope as Record<string, string> | undefined
   }
   const networkConfigs = getNetworkConfigs(pnpmConfig.authConfig)
   const registriesFromNpmrc = {
@@ -353,9 +384,9 @@ export async function getConfig (opts: {
       cliScopedRegistries[key.slice(0, -':registry'.length)] = normalizeRegistryUrl(value)
     }
   }
-  pnpmConfig.registries = { ...registriesFromNpmrc }
+  pnpmConfig.registriesByScope = { ...registriesFromNpmrc }
   if (explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string') {
-    pnpmConfig.registries.default = normalizeRegistryUrl(pnpmConfig.registry)
+    pnpmConfig.registriesByScope.default = normalizeRegistryUrl(pnpmConfig.registry)
   }
   pnpmConfig.packageManagerRegistries = {
     default: normalizeRegistryUrl(trustedAuthConfig.registry as string),
@@ -459,7 +490,7 @@ export async function getConfig (opts: {
       }
       const ignoredPnpmFieldKeys = getIgnoredPnpmFieldKeys(pnpmConfig.rootProjectManifest)
       if (ignoredPnpmFieldKeys.length > 0) {
-        warnings.push(`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: ${ignoredPnpmFieldKeys.map(k => `"pnpm.${k}"`).join(', ')}. See https://pnpm.io/settings for the new home of each setting.`)
+        warnings.push(`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: ${quoteAndJoin(ignoredPnpmFieldKeys.map(k => `pnpm.${k}`))}. See https://pnpm.io/settings for the new home of each setting.`)
       }
       const wantedPmResult = getWantedPackageManager(pnpmConfig.rootProjectManifest)
       if (wantedPmResult.pm) {
@@ -476,15 +507,43 @@ export async function getConfig (opts: {
 
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
       if (workspaceManifest) {
+        const refusedKeys: string[] = []
+        const unrecognizedKeys: string[] = []
+        const kebabKeys: string[] = []
+        for (const [key, value] of Object.entries(workspaceManifest)) {
+          // An unrecognized key is only reported, never dropped: this file's
+          // unknown camelCase keys reach the config record, which
+          // `pnpm config list` prints, and taking that away is the breaking
+          // change v12 makes rather than v11.
+          if (key === SCHEMA_DIRECTIVE_KEY || value == null) continue
+          if (isRefusedByAProjectManifest(key)) {
+            refusedKeys.push(key)
+          } else if (!isKnownSettingKey(key)) {
+            unrecognizedKeys.push(key)
+          } else if (!isCamelCase(key)) {
+            kebabKeys.push(key)
+          }
+        }
+        if (refusedKeys.length > 0) {
+          warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${quoteAndExplain(refusedKeys)}.`)
+        }
+        if (unrecognizedKeys.length > 0) {
+          warnings.push(`The following settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: ${quoteAndAnnotateUnknown(unrecognizedKeys)}.`)
+        }
+        if (kebabKeys.length > 0) {
+          warnings.push(`The following settings in pnpm-workspace.yaml were ignored because they are not written in camelCase: ${quoteAndSuggestCamelCase(kebabKeys)}.`)
+        }
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
           projectManifest: pnpmConfig.rootProjectManifest,
-          skipSettings: opts.forSelfUpdate ? SELF_UPDATE_SKIPPED_SETTINGS : undefined,
+          skipSettings: opts.forSelfUpdate
+            ? new Set([...PROJECT_MANIFEST_SKIPPED_KEYS, ...SELF_UPDATE_SKIPPED_SETTINGS])
+            : PROJECT_MANIFEST_SKIPPED_KEYS,
           workspaceDir: pnpmConfig.workspaceDir,
           workspaceManifest,
         })
         if (workspaceManifest.registries != null) {
-          workspaceManifestRegistries = pnpmConfig.registries as Record<string, string> | undefined
+          workspaceManifestRegistries = pnpmConfig.registriesByScope as Record<string, string> | undefined
         }
       }
     } else if (cliOptions['global']) {
@@ -498,7 +557,7 @@ export async function getConfig (opts: {
           workspaceManifest,
         })
         if (workspaceManifest.registries != null) {
-          workspaceManifestRegistries = pnpmConfig.registries as Record<string, string> | undefined
+          workspaceManifestRegistries = pnpmConfig.registriesByScope as Record<string, string> | undefined
         }
       }
     }
@@ -509,7 +568,7 @@ export async function getConfig (opts: {
   // via `authConfig`, so they're re-applied last here to avoid being buried
   // by yaml. `cliScopedRegistries` iterates raw `cliOptions` because
   // `explicitlySetKeys` is camelCased, which mangles `@org-a:registry`.
-  pnpmConfig.registries = {
+  pnpmConfig.registriesByScope = {
     ...registriesFromNpmrc,
     ...globalYamlRegistries,
     ...workspaceManifestRegistries,
@@ -523,14 +582,14 @@ export async function getConfig (opts: {
   // as `cliScopedRegistries` — it entered `registriesFromNpmrc` via
   // `authConfig.registry` and would otherwise be buried by env JSON.
   if (explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string') {
-    pnpmConfig.registries.default = normalizeRegistryUrl(pnpmConfig.registry)
+    pnpmConfig.registriesByScope.default = normalizeRegistryUrl(pnpmConfig.registry)
   }
-  if (!pnpmConfig.registries.default) {
-    pnpmConfig.registries.default = registriesFromNpmrc.default
+  if (!pnpmConfig.registriesByScope.default) {
+    pnpmConfig.registriesByScope.default = registriesFromNpmrc.default
   }
-  for (const [scope, url] of Object.entries(pnpmConfig.registries)) {
+  for (const [scope, url] of Object.entries(pnpmConfig.registriesByScope)) {
     if (typeof url === 'string') {
-      pnpmConfig.registries[scope] = normalizeRegistryUrl(url)
+      pnpmConfig.registriesByScope[scope] = normalizeRegistryUrl(url)
     }
   }
 
@@ -539,23 +598,53 @@ export async function getConfig (opts: {
   // registry configured in pnpm-workspace.yaml. Only sync when the workspace
   // manifest actually contributed a different default than what .npmrc provided,
   // and when registry was not explicitly set via CLI.
-  if (!explicitlySetKeys.has('registry') && pnpmConfig.registries.default !== registriesFromNpmrc.default) {
-    pnpmConfig.registry = pnpmConfig.registries.default
+  if (!explicitlySetKeys.has('registry') && pnpmConfig.registriesByScope.default !== registriesFromNpmrc.default) {
+    pnpmConfig.registry = pnpmConfig.registriesByScope.default
   }
 
-  // omit some schema that the custom parser can't yet handle
-  const envPnpmTypes = omit([
-    'init-version', // the type is a private function named 'semver'
-    'node-version', // the type is a private function named 'semver'
-    'umask', // the type is a private function named 'Umask'
-  ], types)
+  const envPnpmTypes = {
+    ...omit([
+      // npm interprets leading-zero values as octal, while the Number schema does not.
+      'umask',
+    ], types),
+    // `types` carries npm's `maxsockets` spelling alone, so without this
+    // entry `PNPM_CONFIG_MAX_SOCKETS` — the canonical setting name, spelled
+    // the way the environment spells every other camelCase setting — would
+    // match no schema and be dropped. Env-only: the CLI flag and
+    // `pnpm config` keys keep npm's spelling.
+    'max-sockets': Number,
+  }
 
+  let virtualStoreTypeFromEnv: VirtualStoreType | undefined
+  let maxsocketsFromEnv: number | undefined
+  let maxSocketsFromEnv: number | undefined
   for (const { key, value } of parseEnvVars(key => envPnpmTypes[key as keyof typeof envPnpmTypes], env)) {
     // undefined means that the env key was defined, but its value couldn't be parsed according to the schema
     // TODO: should we throw some error or print some warning here?
     if (value === undefined) continue
 
     if (Object.hasOwn(cliOptions, key) || Object.hasOwn(cliOptions, kebabCase(key))) continue
+
+    // Held back rather than assigned: the rest of pnpm reads the boolean
+    // spelling, and applying the translation after the loop is what makes
+    // the canonical key win over `PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE`
+    // whichever order the two arrive in.
+    if (key === 'virtualStoreType') {
+      virtualStoreTypeFromEnv = value as VirtualStoreType
+      continue
+    }
+
+    // The two spellings of `maxSockets` the environment can carry, held
+    // back rather than assigned so the fold below can keep the environment
+    // ranked above the config files whichever order the two arrive in.
+    if (key === 'maxsockets') {
+      maxsocketsFromEnv = value as number
+      continue
+    }
+    if (key === 'maxSockets') {
+      maxSocketsFromEnv = value as number
+      continue
+    }
 
     // @ts-expect-error
     pnpmConfig[key] = value
@@ -565,10 +654,35 @@ export async function getConfig (opts: {
       if (typeof value !== 'string') {
         throw new TypeError(`Unexpected type of registry, expecting a string but received ${JSON.stringify(value)}`)
       }
-      pnpmConfig.registries.default = normalizeRegistryUrl(value)
+      pnpmConfig.registriesByScope.default = normalizeRegistryUrl(value)
       pnpmConfig.packageManagerRegistries.default = normalizeRegistryUrl(value)
     }
   }
+  if (virtualStoreTypeFromEnv != null) {
+    pnpmConfig.enableGlobalVirtualStore = virtualStoreTypeFromEnv === 'global'
+    explicitlySetKeys.add('enableGlobalVirtualStore')
+  }
+
+  // After the env loop: PNPM_CONFIG_REGISTRY can still change
+  // `registries.default` above, and an entry matching it must not be reported
+  // as unused.
+  warnAboutUnmatchedRegistryOptions(pnpmConfig, warnings)
+
+  // Also after the env loop, and after the config files were applied: npm
+  // spells the setting `maxsockets`, so every source may carry either
+  // spelling and both have to be folded into the one field the rest of
+  // pnpm reads. The layers keep their usual rank — command line over
+  // environment over config files — and within each layer the canonical
+  // spelling wins. Ranking the command line here rather than leaving it to
+  // the loop's CLI guard is what keeps a `--maxsockets` above a
+  // `PNPM_CONFIG_MAX_SOCKETS`, and above a `maxSockets` in the YAML.
+  // npm's own default stands in when no layer set either.
+  const maxSocketsFromCli = (configFromCliOpts.maxSockets ?? configFromCliOpts.maxsockets) as number | undefined
+  // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
+  const maxSocketsFromFiles: number | undefined = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets']
+  pnpmConfig.maxSockets = maxSocketsFromCli ?? maxSocketsFromEnv ?? maxsocketsFromEnv ?? maxSocketsFromFiles ?? npmDefaults.maxsockets
+  // @ts-expect-error
+  delete pnpmConfig['maxsockets']
 
   // When the user explicitly sets `minimumReleaseAge`, treat it as strict by
   // default. Without this, a user-set value would silently fall back to
@@ -641,6 +755,10 @@ export async function getConfig (opts: {
     pnpmConfig.filterProd = (pnpmConfig.filterProd as string).split(' ')
   }
 
+  if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir && pnpmConfig.workspaceDir) {
+    pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
+  }
+
   if (pnpmConfig.workspaceDir) {
     pnpmConfig.extraBinPaths = [path.join(pnpmConfig.workspaceDir, 'node_modules', '.bin')]
   } else {
@@ -681,6 +799,17 @@ export async function getConfig (opts: {
         break
     }
   }
+  // `catalogPrune`'s former name, still accepted. The canonical key wins
+  // when both are set.
+  pnpmConfig.catalogPrune ??= pnpmConfig.cleanupUnusedCatalogs
+  // Every layer folds `virtualStoreType` into the boolean the rest of pnpm
+  // reads, so the canonical spelling is restored here from the folded value
+  // rather than from any one layer — otherwise `pnpm config get
+  // virtualStoreType` could name the store a later layer overrode.
+  if (explicitlySetKeys.has('enableGlobalVirtualStore')) {
+    pnpmConfig.virtualStoreType = pnpmConfig.enableGlobalVirtualStore ? 'global' : 'project'
+    explicitlySetKeys.add('virtualStoreType')
+  }
   if (!pnpmConfig.httpsProxy) {
     // An empty `proxy=` is unset, so it must not suppress the environment
     // fallback. `false` and `null` keep their meaning: proxying is off.
@@ -710,10 +839,6 @@ export async function getConfig (opts: {
   pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache ?? pnpmConfig.sideEffectsCacheReadonly
   pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
 
-  if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir && pnpmConfig.workspaceDir) {
-    pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
-  }
-
   pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
 
   if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {
@@ -734,6 +859,26 @@ export async function getConfig (opts: {
     // However, if the user explicitly enabled GVS (e.g., for Nix builds
     // or CI systems with persistent caches), respect that setting.
     pnpmConfig.enableGlobalVirtualStore = false
+  }
+
+  // With a global virtual store, package directories live outside the
+  // project, so Node's upward node_modules walk from their real paths never
+  // reaches the project's hoisted node_modules or root node_modules. Expose
+  // both through NODE_PATH for every child process pnpm spawns, and register
+  // the ESM loader that restores NODE_PATH lookups for ESM imports.
+  if (
+    pnpmConfig.enableGlobalVirtualStore &&
+    pnpmConfig.extendNodePath !== false &&
+    (pnpmConfig.nodeLinker == null || pnpmConfig.nodeLinker === 'isolated')
+  ) {
+    const modulesDir = pathAbsolute(pnpmConfig.modulesDir ?? 'node_modules', pnpmConfig.rootProjectManifestDir)
+    const nodePaths = [
+      ...(pnpmConfig.extraEnv['NODE_PATH']?.split(path.delimiter) ?? []),
+      path.join(modulesDir, '.pnpm', 'node_modules'),
+      modulesDir,
+    ]
+    pnpmConfig.extraEnv['NODE_PATH'] = Array.from(new Set(nodePaths)).join(path.delimiter)
+    pnpmConfig.extraEnv['NODE_OPTIONS'] = addEsmNodePathLoaderOption(env['NODE_OPTIONS'])
   }
 
   // The yes option is only meant to be a CLI option. Remove it from the
@@ -1083,7 +1228,7 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
  * the repository. The policy therefore comes from the built-in defaults, the
  * global config yaml, the environment, and CLI flags only.
  */
-const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
+const SELF_UPDATE_SKIPPED_SETTINGS = [
   'ci',
   'minimumReleaseAge',
   'minimumReleaseAgeExclude',
@@ -1092,7 +1237,199 @@ const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   'trustPolicy',
   'trustPolicyExclude',
   'trustPolicyIgnoreAfter',
-] satisfies Array<keyof Config>)
+] as const satisfies ReadonlyArray<keyof Config>
+
+/**
+ * Where the machine keeps what it holds across runs, which no project chooses.
+ *
+ * A repository setting one would redirect where pnpm writes: `pnpm login`'s
+ * `auth.ini`, `pnpm setup`'s PATH entry, the bins `pnpm install` links.
+ */
+const MACHINE_LOCATION_KEYS = [
+  'configDir',
+  'globalBinDir',
+  'globalDir',
+  'globalPkgDir',
+  'npmrcAuthFile',
+  'pnpmHomeDir',
+  'stateDir',
+  'userconfig',
+] as const satisfies ReadonlyArray<keyof (Config & ConfigContext)>
+
+/**
+ * The directories the current command reads and writes in.
+ *
+ * The reader resolves these from the command line and the cwd, and it needs
+ * them before it can find a manifest at all, so a manifest cannot supply them.
+ */
+const CURRENT_RUN_LOCATION_KEYS = [
+  'bin',
+  'dir',
+  'rootProjectManifestDir',
+  'workspaceDir',
+] as const satisfies ReadonlyArray<keyof (Config & ConfigContext)>
+
+/**
+ * Which credentials pnpm sends, and to whom.
+ *
+ * The reader assembles these from the trusted config sources. `userConfig` is
+ * the parsed contents of the user's `.npmrc`, so it carries credentials rather
+ * than the path `npmrcAuthFile` holds.
+ */
+const CREDENTIAL_KEYS = [
+  'authConfig',
+  'userConfig',
+  'configByUri',
+  'packageManagerNetworkConfig',
+  'packageManagerRegistries',
+] as const satisfies ReadonlyArray<keyof (Config & ConfigContext)>
+
+/**
+ * Keys a project's `pnpm-workspace.yaml` does not contribute.
+ *
+ * `cacheDir` and `storeDir` are deliberately absent: those name caches a
+ * project may legitimately place.
+ */
+type ProjectManifestSkippedKey =
+  | typeof MACHINE_LOCATION_KEYS[number]
+  | typeof CURRENT_RUN_LOCATION_KEYS[number]
+  | typeof CREDENTIAL_KEYS[number]
+
+/** Every key a caller of {@link addSettingsFromWorkspaceManifestToConfig} may skip. */
+type SkippableKey =
+  | ProjectManifestSkippedKey
+  | typeof SELF_UPDATE_SKIPPED_SETTINGS[number]
+  | typeof GLOBAL_CONFIG_ONLY_SKIPPED_KEYS[number]
+
+const PROJECT_MANIFEST_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKey> = new Set([
+  ...MACHINE_LOCATION_KEYS,
+  ...CURRENT_RUN_LOCATION_KEYS,
+  ...CREDENTIAL_KEYS,
+])
+
+/**
+ * The refused keys the global config file does not accept either.
+ *
+ * That file's own contents are already filtered by {@link isConfigFileKey},
+ * but the CLI options are merged in again alongside them, so without this a
+ * `--config.config-dir` would land back on a key the reader resolves for
+ * itself, and only for the users who happen to have a `config.yaml`.
+ */
+/**
+ * Only the layout half of a `registries` entry is workspace-only: it decides
+ * which tarball URLs are omitted from the lockfile, so a machine-local setting
+ * would make one developer write a lockfile their collaborators read back with
+ * a different layout. The routes to the registry are a legitimate global
+ * preference, which is why the whole `registries` key is not refused here.
+ */
+const GLOBAL_CONFIG_ONLY_SKIPPED_KEYS = ['registryOptionsByUrl'] as const satisfies ReadonlyArray<keyof Config>
+
+const GLOBAL_CONFIG_SKIPPED_KEYS: ReadonlySet<SkippableKey> = new Set([
+  ...[...PROJECT_MANIFEST_SKIPPED_KEYS].filter((key) => !isConfigFileKey(kebabCase(key))),
+  ...GLOBAL_CONFIG_ONLY_SKIPPED_KEYS,
+])
+
+
+/**
+ * Whether a project's `pnpm-workspace.yaml` would ignore this camelCase key.
+ * See {@link PROJECT_MANIFEST_SKIPPED_KEYS}.
+ */
+export function isProjectManifestSkippedKey (camelKey: string): boolean {
+  const keys: ReadonlySet<string> = PROJECT_MANIFEST_SKIPPED_KEYS
+  return keys.has(camelKey)
+}
+
+/**
+ * Whether a project's `pnpm-workspace.yaml` drops {@link key}, given in either
+ * camelCase or kebab-case, whether as a value a project may not contribute or
+ * as the reader's own bookkeeping.
+ *
+ * Shared by the warnings so that they cannot disagree on what was dropped.
+ */
+function isRefusedByAProjectManifest (key: string): boolean {
+  const camelKey = camelcase(key, { locale: 'en-US' })
+  return isProjectManifestSkippedKey(camelKey) || CONFIG_CONTEXT_KEY_SET.has(camelKey)
+}
+
+/**
+ * The reader's own bookkeeping, which shares one object with the settings but
+ * is not settable by anyone.
+ *
+ * A manifest naming one of these would not choose a setting: it would
+ * overwrite what the reader worked out, with a value of the wrong type.
+ */
+const CONFIG_CONTEXT_KEYS = [
+  'hooks',
+  'finders',
+  'allProjects',
+  'selectedProjectsGraph',
+  'allProjectsGraph',
+  'prodAllProjectsGraph',
+  'prodOnlySelectedProjectDirs',
+  'rootProjectManifest',
+  'rootProjectManifestDir',
+  'cliOptions',
+  'explicitlySetKeys',
+  'packageManager',
+  'wantedPackageManager',
+] as const satisfies ReadonlyArray<keyof ConfigContext>
+
+type ProofConfigContextKeysIsExhaustive =
+  (_: Record<typeof CONFIG_CONTEXT_KEYS[number], unknown>) => Record<keyof ConfigContext, unknown>
+
+const _proofConfigContextKeysIsExhaustive: ProofConfigContextKeysIsExhaustive = (x) => x
+
+const CONFIG_CONTEXT_KEY_SET: ReadonlySet<string> = new Set(CONFIG_CONTEXT_KEYS)
+
+/**
+ * The global config file key that sets a refused setting, where it is not that
+ * setting's own name.
+ */
+const GLOBAL_EQUIVALENT_KEYS: Record<string, string> = {
+  /** Derived from the global bin directory. */
+  bin: 'global-bin-dir',
+  /** Derived from the global directory. */
+  globalPkgDir: 'global-dir',
+  /**
+   * Accepted under its own name, but never read back: the user-level `.npmrc`
+   * comes from `npmrcAuthFile` or `--userconfig`, so its own name would send
+   * the user to a command that changes nothing.
+   */
+  userconfig: 'npmrc-auth-file',
+}
+
+/**
+ * Where {@link camelKey} can be set, for a key a project manifest refuses.
+ *
+ * Lives here rather than in the config command so that the reader's warnings
+ * and the command's errors cannot drift into naming different routes for the
+ * same setting.
+ */
+export function whereRefusedKeyBelongs (camelKey: string): string {
+  if (camelKey === 'dir') return 'Pass --dir on the command line instead'
+  const kebabKey = GLOBAL_EQUIVALENT_KEYS[camelKey] ?? kebabCase(camelKey)
+  if (isConfigFileKey(kebabKey)) {
+    return `Set it for the machine instead: pnpm config set --global ${kebabKey}`
+  }
+  return 'This is not a pnpm setting'
+}
+
+function quoteRefusedKey (key: string): string {
+  const sanitized = redactAndSanitize(key)
+  return `"${sanitized}" (${whereRefusedKeyBelongs(camelcase(sanitized, { locale: 'en-US' }))})`
+}
+
+function quoteAndExplain (keys: string[]): string {
+  return keys.map(quoteRefusedKey).join(', ')
+}
+
+/** Renders keys pnpm only reads in camelCase, naming the spelling that works. */
+function quoteAndSuggestCamelCase (keys: string[]): string {
+  return keys.map((key) => {
+    const sanitized = redactAndSanitize(key)
+    return `"${sanitized}" (use "${camelcase(sanitized, { locale: 'en-US' })}")`
+  }).join(', ')
+}
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,
@@ -1105,15 +1442,17 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   configFromCliOpts: Record<string, unknown>
   expandRequestDestinationEnv?: boolean
   projectManifest: ProjectManifest | undefined
-  /** Settings this manifest may not contribute. See {@link SELF_UPDATE_SKIPPED_SETTINGS}. */
-  skipSettings?: ReadonlySet<string>
+  /** Settings this manifest may not contribute, chosen by the caller. */
+  skipSettings?: ReadonlySet<SkippableKey>
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
 }): void {
+  const skipped: ReadonlySet<string> | undefined = skipSettings
   const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
-    if (skipSettings?.has(key)) continue
+    if (CONFIG_CONTEXT_KEY_SET.has(key)) continue
+    if (skipped?.has(key)) continue
 
     // @ts-expect-error
     pnpmConfig[key] = value
@@ -1128,4 +1467,31 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
     pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
   }
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+}
+
+/**
+ * A `registries` entry that routes nothing to itself — no `scopes`, no
+ * `prefix` — describes a registry configured elsewhere, so it only takes
+ * effect when its key is one pnpm actually resolves from. A key that matches
+ * none is inert: the wrong URL, a stale entry, a scope that moved. Warn rather
+ * than throw, because a shared config dependency can legitimately describe
+ * registries a given project does not use.
+ */
+function warnAboutUnmatchedRegistryOptions (config: Config, warnings: string[]): void {
+  const registryOptionsByUrl = config.registryOptionsByUrl
+  if (registryOptionsByUrl == null) return
+  const configuredRegistries = new Set([
+    ...Object.values(config.registriesByScope),
+    ...Object.values(config.registriesByPrefix ?? {}),
+    ...Object.values(BUILTIN_REGISTRIES_BY_PREFIX),
+  ].map(normalizeRegistryUrl))
+  const unmatched = Object.keys(registryOptionsByUrl).filter((registry) => !configuredRegistries.has(registry))
+  if (unmatched.length === 0) return
+  // A registry URL can carry `user:pass@` credentials, and the global config's
+  // keys have had `${VAR}` expanded by this point, so neither list may be
+  // echoed raw into a terminal or a CI log.
+  warnings.push(
+    `The following "registries" entries do not match any configured registry and were ignored: ${quoteAndJoin(unmatched.map(redactAndSanitize))}. ` +
+    `The configured registries are: ${quoteAndJoin([...configuredRegistries].sort().map(redactAndSanitize))}.`
+  )
 }

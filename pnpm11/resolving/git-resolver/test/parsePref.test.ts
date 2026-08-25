@@ -3,8 +3,8 @@ import { expect, jest, test } from '@jest/globals'
 jest.unstable_mockModule('@pnpm/network.fetch', () => ({
   fetchWithDispatcher: jest.fn(async () => ({ ok: true })),
 }))
-jest.unstable_mockModule('graceful-git', () => ({
-  gracefulGit: jest.fn(async () => ({ stdout: '' })),
+jest.unstable_mockModule('execa', () => ({
+  safeExeca: jest.fn(async () => ({ stdout: '' })),
 }))
 const { parseBareSpecifier } = await import('../lib/parseBareSpecifier.js')
 
@@ -57,6 +57,40 @@ test.each([
   ['git+https://github.com/pnpm/pnpm.git', 'https://github.com/pnpm/pnpm.git'],
   ['git+ssh://git@sub.domain.tld:internal-app/sub-path/service-name.git', 'ssh://git@sub.domain.tld/internal-app/sub-path/service-name.git'],
 ])('the fetchSpec of %s should be %s', async (input, output) => {
+  const parsed = await parseBareSpecifier(input, {})?.()
+  expect(parsed?.fetchSpec).toBe(output)
+})
+
+test.each([
+  ['ssh://git.example.com/team/repo.git', 'ssh://git.example.com/team/repo.git'],
+  ['ssh://git.example.com:2222/team/repo.git', 'ssh://git.example.com:2222/team/repo.git'],
+  ['ssh://git.example.com:team/repo.git', 'ssh://git.example.com/team/repo.git'],
+  ['ssh://git.example.com:repo.git', 'ssh://git.example.com/repo.git'],
+  ['git+ssh://git.example.com/team/repo.git', 'ssh://git.example.com/team/repo.git'],
+  ['git+ssh://git.example.com:team/repo.git', 'ssh://git.example.com/team/repo.git'],
+  ['ssh://git.example.com:2222/team/repo.git#v1.0.0', 'ssh://git.example.com:2222/team/repo.git'],
+])('the fetchSpec of %s, which carries no user info, should be %s', async (input, output) => {
+  const parsed = await parseBareSpecifier(input, {})?.()
+  expect(parsed?.fetchSpec).toBe(output)
+})
+
+test.each([
+  ['ssh://user@a@b.example.com/repo.git', 'ssh://user%40a@b.example.com/repo.git'],
+  ['ssh://user:p@ss@example.com:repo.git', 'ssh://user:p%40ss@example.com/repo.git'],
+  ['ssh://user:p@ss@example.com:22/repo.git', 'ssh://user:p%40ss@example.com:22/repo.git'],
+])('the fetchSpec of %s, whose authority holds more than one @, should be %s', async (input, output) => {
+  const parsed = await parseBareSpecifier(input, {})?.()
+  expect(parsed?.fetchSpec).toBe(output)
+})
+
+test.each([
+  ['ssh://[::1]/repo.git', 'ssh://[::1]/repo.git'],
+  ['ssh://[2001:db8::1]/team/repo.git', 'ssh://[2001:db8::1]/team/repo.git'],
+  ['ssh://[::1]:2222/repo.git', 'ssh://[::1]:2222/repo.git'],
+  ['ssh://[::1]:team/repo.git', 'ssh://[::1]/team/repo.git'],
+  ['ssh://git@[::1]/repo.git', 'ssh://git@[::1]/repo.git'],
+  ['ssh://git@[::1]:team/repo.git', 'ssh://git@[::1]/team/repo.git'],
+])('the fetchSpec of %s, which holds a bracketed IPv6 host, should be %s', async (input, output) => {
   const parsed = await parseBareSpecifier(input, {})?.()
   expect(parsed?.fetchSpec).toBe(output)
 })

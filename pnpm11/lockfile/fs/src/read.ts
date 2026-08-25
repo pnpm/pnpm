@@ -52,6 +52,31 @@ export async function readWantedLockfileAndAutofixConflicts (
   })
 }
 
+/**
+ * {@link readWantedLockfile} plus what the caller cannot reconstruct from
+ * the returned lockfile: whether autofixing a merge conflict rewrote it,
+ * and, under `mergeGitBranchLockfiles`, the importers as they stood
+ * before the branch lockfiles were folded in. Telling a merged entry from
+ * one the read file already carried needs that "before", which the merged
+ * object no longer holds.
+ */
+export async function readWantedLockfileWithMergeInfo (
+  pkgPath: string,
+  opts: {
+    wantedVersions?: string[]
+    ignoreIncompatible: boolean
+    useGitBranchLockfile?: boolean
+    mergeGitBranchLockfiles?: boolean
+    autofixMergeConflicts?: boolean
+  }
+): Promise<{
+  lockfile: LockfileObject | null
+  hadConflicts: boolean
+  preMergeImporters: LockfileObject['importers'] | undefined
+}> {
+  return _readWantedLockfile(pkgPath, opts)
+}
+
 export async function readWantedLockfile (
   pkgPath: string,
   opts: {
@@ -250,6 +275,7 @@ async function _readWantedLockfile (
   lockfile: LockfileObject | null
   lockfileFile: LockfileFile | null
   hadConflicts: boolean
+  preMergeImporters: LockfileObject['importers'] | undefined
 }> {
   const lockfileNames: string[] = [WANTED_LOCKFILE]
   if (opts.useGitBranchLockfile) {
@@ -259,11 +285,13 @@ async function _readWantedLockfile (
     }
   }
   let result: { lockfile: LockfileObject | null, lockfileFile: LockfileFile | null, hadConflicts: boolean } = { lockfile: null, lockfileFile: null, hadConflicts: false }
+  let preMergeImporters: LockfileObject['importers'] | undefined
   /* eslint-disable no-await-in-loop */
   for (const lockfileName of lockfileNames) {
     result = await _read(path.join(pkgPath, lockfileName), pkgPath, { ...opts, autofixMergeConflicts: true })
     if (result.lockfile) {
       if (opts.mergeGitBranchLockfiles) {
+        preMergeImporters = result.lockfile.importers
         result.lockfile = await _mergeGitBranchLockfiles(result.lockfile, pkgPath, pkgPath, opts)
         result.lockfileFile = result.lockfile ? convertToLockfileFile(result.lockfile) : null
       }
@@ -271,7 +299,7 @@ async function _readWantedLockfile (
     }
   }
   /* eslint-enable no-await-in-loop */
-  return result
+  return { ...result, preMergeImporters }
 }
 
 async function _mergeGitBranchLockfiles (

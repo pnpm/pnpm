@@ -4,25 +4,31 @@
 //! `config.filter` / `config.filter_prod` (`--filter` / `--filter-prod`,
 //! include and exclude selectors) narrow the selected set via
 //! [`select_recursive_projects`]; the selection is then sorted
-//! topologically by default, or kept in workspace order under `--no-sort`.
-//! `--parallel` starts every selected project concurrently. `--reverse`
-//! and bounded `--workspace-concurrency` parallelism are not supported yet.
+//! topologically by default, or kept in workspace order under `--no-sort`,
+//! and reversed under `--reverse`. `--parallel` starts every selected
+//! project concurrently; otherwise `workspaceConcurrency` bounds the work
+//! within each dependency-independent chunk.
 //! The main-dispatch auto-exclusion of the workspace root is applied via
 //! [`AutoExcludeRoot::Enabled`].
 
 use super::{RunArgs, RunContext, ScriptSelector, render_project_commands, run_stages};
 use crate::cli_args::recursive::{
-    AutoExcludeRoot, ExecutionStatus, GraphPkg, Status, count_failures,
-    discover_workspace_projects, get_resumed_package_chunks, select_recursive_projects,
+    AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
+    get_resumed_package_chunks, run_workspace_chunk, select_recursive_projects,
     sort_filtered_projects, write_recursive_summary,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
-use pacquet_config::Config;
-use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
-use pacquet_reporter::{LogEvent, LogLevel, ScopeLog};
-use pacquet_workspace_projects_graph::ProjectGraph;
+use pnpm_config::Config;
+use pnpm_executor::ScriptOutput;
+use pnpm_package_manager::{
+    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    pnp_path_for_execution,
+};
+use pnpm_reporter::{LogEvent, LogLevel, ScopeLog};
+use pnpm_workspace::GraphPkg;
+use pnpm_workspace_projects_graph::ProjectGraph;
 use std::{
     collections::HashMap,
     env,
@@ -83,7 +89,7 @@ pub fn run_recursive(
 ) -> miette::Result<()> {
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
-    let (projects, patterns) = discover_workspace_projects(workspace_root)?;
+    let (projects, patterns) = discover_workspace_projects(workspace_root, config)?;
     let selection = select_recursive_projects(
         &projects,
         config,
@@ -136,8 +142,14 @@ pub fn run_recursive(
     } else {
         graph.keys().cloned().map(|root| vec![root]).collect()
     };
+    if args.reverse {
+        chunks.reverse();
+    }
     if let Some(resume_from) = &args.resume_from {
         chunks = get_resumed_package_chunks(resume_from, chunks, graph)?;
+    }
+    if !args.sort {
+        chunks = vec![chunks.into_iter().flatten().collect()];
     }
 
     // Compiled once for the whole run, not per project.
@@ -147,22 +159,11 @@ pub fn run_recursive(
         chunks.iter().flatten().map(|root| (root.clone(), ExecutionStatus::queued())).collect();
     let mut has_command = 0_usize;
 
-    // Lifecycle env reused per project: each recursive script sets up
-    // `node_modules/.bin` on `PATH`, the `npm_*` env, the configured
-    // `script_shell`, and the user-agent. Compute the bits that don't
-    // vary per project once; the per-project `RunContext` reuses them.
+    // Compute the shared lifecycle env once. Each project adds loader
+    // options for its own root before reusing that environment across
+    // the selected pre/main/post stages.
     let init_cwd = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
-    let mut extra_env: HashMap<String, String> = config.extra_env.clone();
-    if let Some(node_options) = &config.node_options {
-        extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
-    }
-    if let Some(package_map_path) = package_map_path_for_execution(config, dir) {
-        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
-        extra_env.insert(
-            "NODE_OPTIONS".to_string(),
-            make_node_package_map_option(&package_map_path, node_options),
-        );
-    }
+    let extra_env: HashMap<String, String> = config.extra_env_with_node_options();
 
     if args.parallel {
         let roots = chunks.iter().flatten().collect::<Vec<_>>();
@@ -182,6 +183,7 @@ pub fn run_recursive(
                                 extra_env: &extra_env,
                                 bail,
                                 silent,
+                                emit,
                             })
                         })
                         .into_diagnostic()
@@ -215,29 +217,40 @@ pub fn run_recursive(
         }
     } else {
         for chunk in &chunks {
-            for root in chunk {
-                let execution = run_project(RunProjectOptions {
-                    root,
-                    graph,
-                    selector: &selector,
-                    args,
-                    init_cwd: &init_cwd,
-                    config,
-                    extra_env: &extra_env,
-                    bail,
-                    silent,
-                })?;
-                has_command += execution.has_command;
-                let failed = execution.status.status == Status::Failure;
-                result.insert(root.clone(), execution.status);
-                if bail && failed {
+            let concurrency =
+                usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1);
+            let batch_size = if bail { concurrency } else { chunk.len().max(1) };
+            for batch in chunk.chunks(batch_size) {
+                let executions =
+                    run_workspace_chunk(batch, config.workspace_concurrency, |root| {
+                        run_project(RunProjectOptions {
+                            root,
+                            graph,
+                            selector: &selector,
+                            args,
+                            init_cwd: &init_cwd,
+                            config,
+                            extra_env: &extra_env,
+                            bail,
+                            silent,
+                            emit,
+                        })
+                    })?;
+                let mut first_failure = None;
+                for (root, execution) in batch.iter().zip(executions) {
+                    let execution = execution?;
+                    has_command += execution.has_command;
+                    let failed = execution.status.status == Status::Failure;
+                    result.insert(root.clone(), execution.status);
+                    if failed && first_failure.is_none() {
+                        first_failure = Some(root.to_string_lossy().into_owned());
+                    }
+                }
+                if bail && let Some(prefix) = first_failure {
                     if args.report_summary {
                         write_recursive_summary(workspace_root, &result)?;
                     }
-                    return Err(RecursiveRunError::RecursiveRunFirstFail {
-                        prefix: root.to_string_lossy().into_owned(),
-                    }
-                    .into());
+                    return Err(RecursiveRunError::RecursiveRunFirstFail { prefix }.into());
                 }
             }
         }
@@ -284,6 +297,7 @@ struct RunProjectOptions<'a, 'project> {
     extra_env: &'a HashMap<String, String>,
     bail: bool,
     silent: bool,
+    emit: fn(&LogEvent),
 }
 
 fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExecution> {
@@ -297,6 +311,7 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
         extra_env,
         bail,
         silent,
+        emit,
     } = options;
     let manifest = &graph[root].package.project.manifest;
     let specified = selector.select(manifest.value());
@@ -305,7 +320,24 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
         status.status = Status::Skipped;
         return Ok(ProjectExecution { status, has_command: 0 });
     }
+    let mut extra_env = extra_env.clone();
+    if let Some(pnp_path) = pnp_path_for_execution(config, root) {
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env
+            .insert("NODE_OPTIONS".to_string(), make_node_require_option(&pnp_path, node_options));
+    }
+    if let Some(package_map_path) = package_map_path_for_execution(config, root) {
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            make_node_package_map_option(&package_map_path, node_options),
+        );
+    }
 
+    // pnpm names the project directory as the `depPath` of a recursive
+    // run's lifecycle events; the reporter renders `wd` and only groups
+    // by this.
+    let root_str = root.to_string_lossy().into_owned();
     let mut execution = ProjectExecution { status: ExecutionStatus::queued(), has_command: 0 };
     let mut project_failed = false;
     for selected in &specified {
@@ -334,9 +366,21 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
             dir: root,
             init_cwd,
             config,
-            extra_env,
+            extra_env: &extra_env,
             silent,
             sequential: args.sequential,
+            // pnpm pipes unless the output cannot interleave —
+            // `!stream && (workspaceConcurrency === 1 || a single
+            // project)`. pacquet runs sequentially or fully in parallel
+            // (and `--parallel` implies `--stream`), so sequential is
+            // pnpm's concurrency-of-one case and `--stream` alone
+            // decides. Porting bounded `--workspace-concurrency`
+            // (pnpm/pnpm#14101) has to widen this.
+            output: if config.stream {
+                ScriptOutput::Streamed { dep_path: &root_str, emit }
+            } else {
+                ScriptOutput::Inherit
+            },
         };
         let status = run_stages(&ctx, selected, script, args.script_args())?;
         let duration = start.elapsed().as_secs_f64() * 1e3;

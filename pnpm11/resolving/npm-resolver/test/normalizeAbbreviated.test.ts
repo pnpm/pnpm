@@ -4,12 +4,12 @@ import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
-import type { Registries } from '@pnpm/types'
+import type { RegistriesByScope } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 
 import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
-const registries: Registries = {
+const registriesByScope: RegistriesByScope = {
   default: 'https://registry.npmjs.org/',
 }
 
@@ -58,7 +58,7 @@ beforeEach(async () => {
 test('a full document served for an abbreviated request is normalized before caching (registry ignored the Accept header)', async () => {
   const cacheDir = temporaryDirectory()
 
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/foo', method: 'GET' })
     // application/json (not the abbreviated content type) signals that the
     // registry ignored our abbreviated Accept header and served the full doc.
@@ -67,7 +67,7 @@ test('a full document served for an abbreviated request is normalized before cac
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir,
-    registries,
+    registriesByScope,
   })
   const res = await resolveFromNpm({ alias: 'foo', bareSpecifier: '^1.0.0' }, {})
   expect(res!.id).toBe('foo@1.0.0')
@@ -111,7 +111,7 @@ test('a document served with the abbreviated content type is cached verbatim (re
     },
   }
 
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/foo', method: 'GET' })
     // Media types are case-insensitive and may carry parameters; both must
     // still be recognized as the abbreviated content type.
@@ -120,7 +120,7 @@ test('a document served with the abbreviated content type is cached verbatim (re
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir,
-    registries,
+    registriesByScope,
   })
   const res = await resolveFromNpm({ alias: 'foo', bareSpecifier: '^1.0.0' }, {})
   expect(res!.id).toBe('foo@1.0.0')

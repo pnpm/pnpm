@@ -686,3 +686,21 @@ test('lockfile verifier respects trust-policy-exclude on a downgraded lockfile e
     '--trust-policy-exclude=@pnpm/e2e.test-provenance',
   ], { expectSuccess: true })
 })
+
+test('trustPolicyExclude set to a single string in pnpm-workspace.yaml excludes that package', () => {
+  prepare()
+  execPnpmSync(
+    ['add', '@pnpm/e2e.test-provenance@0.0.5', '--trust-policy=off'],
+    { expectSuccess: true }
+  )
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: '@pnpm/e2e.test-provenance@0.0.5',
+  })
+
+  execPnpmSync([
+    'install',
+    '--lockfile-only',
+  ], { expectSuccess: true })
+})

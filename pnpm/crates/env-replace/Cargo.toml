@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-env-replace"
+name                  = "pnpm-env-replace"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true

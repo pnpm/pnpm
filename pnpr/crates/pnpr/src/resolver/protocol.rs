@@ -3,8 +3,9 @@
 
 use std::collections::BTreeMap;
 
-use pacquet_catalogs_types::Catalogs;
-use pacquet_network::AuthHeadersByScope;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::RegistryDeclaration;
+use pnpm_network::AuthHeadersByScope;
 use serde::Deserialize;
 
 pub type DepMap = BTreeMap<String, String>;
@@ -53,10 +54,17 @@ pub struct ResolveRequest {
     /// The client's default registry. Falls back to npmjs when absent.
     #[serde(default)]
     pub registry: Option<String>,
-    /// The client's named-registry aliases (`pnpm-workspace.yaml`
-    /// `namedRegistries`).
+    /// The registries the client declares, keyed by URL, in the shape of
+    /// its `registries` setting: the scopes routed to each, the
+    /// bare-specifier prefix each answers to, and each one's tarball
+    /// layout. The default registry is not among them — it arrives as
+    /// [`Self::registry`].
+    ///
+    /// Declarations only, never the setting's older `<scope>: <url>` shape:
+    /// a key is always a URL, which is what lets the boundary checks read one
+    /// as a fetch target. A request in the older shape fails to parse.
     #[serde(default)]
-    pub named_registries: BTreeMap<String, String>,
+    pub registries: BTreeMap<String, RegistryDeclaration>,
     /// The caller's forwarded upstream credentials so the server resolves
     /// and fetches private content as the caller. Keyed as
     /// `auth_headers[registry_uri][scope]`; the `@` scope stores
@@ -77,12 +85,22 @@ pub struct ResolveRequest {
     /// and overrides.
     #[serde(default)]
     pub catalogs: Option<Catalogs>,
+    /// The client's current values for the settings that shape the lockfile
+    /// this request resolves. `None` is a client that doesn't send them, not
+    /// `Some(false)`; `EffectiveResolverSettings` documents what each one
+    /// falls back to.
+    #[serde(default)]
+    pub auto_install_peers: Option<bool>,
+    #[serde(default)]
+    pub dedupe_peers: Option<bool>,
+    #[serde(default)]
+    pub exclude_links_from_lockfile: Option<bool>,
     /// The client's existing on-disk lockfile, when present. Sent both
     /// as the verification target (the server verifies it under the
     /// client's policy before resolving) and as the resolution-reuse
     /// seed. Absent on a true first install (nothing to verify).
     #[serde(default)]
-    pub lockfile: Option<pacquet_lockfile::Lockfile>,
+    pub lockfile: Option<pnpm_lockfile::Lockfile>,
     /// Governs *resolution behavior* only — frozen (use the lockfile
     /// as-is) vs reuse-and-update. Does not affect whether the input
     /// lockfile is verified.
@@ -104,6 +122,13 @@ pub struct ResolveRequest {
     /// `trustLockfile` opt-out.
     #[serde(default)]
     pub trust_lockfile: bool,
+    /// The client's `resolutionMode`, which decides how a version is
+    /// picked: highest satisfying, lowest-satisfying direct, or
+    /// time-based (lowest direct, with subdependencies constrained to
+    /// what was published by the newest direct dependency). A client
+    /// that sends none gets the `highest` default.
+    #[serde(default)]
+    pub resolution_mode: pnpm_config::ResolutionMode,
     /// Minimum package age (minutes) before a version is acceptable.
     #[serde(default)]
     pub minimum_release_age: Option<u64>,
@@ -118,7 +143,7 @@ pub struct ResolveRequest {
     pub minimum_release_age_ignore_missing_time: Option<bool>,
     /// The client's supply-chain trust policy. Defaults to `off`.
     #[serde(default)]
-    pub trust_policy: pacquet_config::TrustPolicy,
+    pub trust_policy: pnpm_config::TrustPolicy,
     /// Glob patterns opting packages out of the `trustPolicy` check.
     #[serde(default)]
     pub trust_policy_exclude: Option<Vec<String>>,

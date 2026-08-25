@@ -13,9 +13,9 @@ use std::{
 use derive_more::{Display, Error};
 use dialoguer::Confirm;
 use miette::{Diagnostic, IntoDiagnostic};
-use pacquet_config::{Config, VerifyDepsBeforeRun};
-use pacquet_default_reporter::colors::Colors;
-use pacquet_package_manager::{RunDepsStatus, check_deps_status_before_run_at};
+use pnpm_config::{Config, VerifyDepsBeforeRun};
+use pnpm_default_reporter::colors::Colors;
+use pnpm_package_manager::{RunDepsStatus, check_deps_status_before_run_at};
 
 #[derive(Debug, Display, Error, Diagnostic)]
 enum VerifyDepsError {
@@ -122,8 +122,7 @@ fn warn(silent: bool, message: &str) {
     if silent {
         return;
     }
-    let colors = Colors {
-        enabled: std::io::stderr().is_terminal() && std::env::var_os("NO_COLOR").is_none(),
-    };
+    let colors =
+        Colors { enabled: pnpm_default_reporter::colors_enabled(std::io::stderr().is_terminal()) };
     eprintln!("{} {message}", colors.warn_label());
 }

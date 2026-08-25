@@ -11,7 +11,7 @@ Unless otherwise noted, TypeScript paths are relative to the TypeScript repo roo
 
 This plan already cites a handful of `pnpm/test/...` files inline next to the feature they belong to, but those citations are not exhaustive. Treat `pnpm/test/` as a parallel test tree that must be audited for every feature you port, not just the ones it is already mentioned under. Skipping `pnpm/test/` is the single most common way a port misses behavioral coverage.
 
-Expected-failing test ports should live under a `known_failures` test module and use `pacquet_testing_utils::allow_known_failure!` at the not-yet-implemented subject-under-test boundary. List all expected failures with `just known-failures`.
+Expected-failing test ports should live under a `known_failures` test module and use `pnpm_testing_utils::allow_known_failure!` at the not-yet-implemented subject-under-test boundary. List all expected failures with `just known-failures`.
 
 Test the tests before marking them ported. After porting a test, temporarily modify the relevant implementation path so the test should fail, run that test, and verify it fails for the expected reason. Revert the temporary breakage before committing. This guards against porting tests that execute but do not actually detect the behavior they claim to cover. See https://github.com/pnpm/pacquet/issues/299#issuecomment-4323032648.
 
@@ -234,7 +234,7 @@ Supporting tests:
 - [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:60` `return the list of packages that should be build` — the N-API install result collects deduplicated `pnpm:ignored-scripts` names as `depsRequiringBuild`, pinned by `ignored_scripts_are_returned_as_dependencies_requiring_build` in `crates/napi/src/reporter_bridge.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:121` `run install scripts` — ported as `run_install_scripts` in `crates/cli/tests/lifecycle_scripts.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:139` `run install scripts in the current project` covers the root project's own stages plus `pnpm:devPreinstall` — ported as the `project_scripts` and `project_scripts::dev_preinstall` modules in `crates/cli/tests/lifecycle_scripts.rs`, which pin `pnpm:devPreinstall` running before resolution and linking, its skip conditions, and its root-only scope.
-- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:175` `installation fails if lifecycle script fails` — ported at unit level as `fail_when_failing_postinstall_is_required` in `crates/package-manager/src/build_modules/tests.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:175` `installation fails if lifecycle script fails` — ported at unit level as `fail_when_failing_postinstall_is_required` in `crates/deps-restorer/src/build_modules/tests.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:303` `run lifecycle scripts of dependent packages after running scripts of their deps` — ported as `lifecycle_scripts_run_in_dependency_order` in `crates/cli/tests/lifecycle_scripts.rs`.
 
 Rust port notes:
@@ -246,10 +246,10 @@ Rust port notes:
 
 Primary side-effects tests:
 
-- [x] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:79` `using side effects cache` covers side-effects read/write — ported at unit level as `using_side_effects_cache_skips_rebuild` (read) and `write_path_populates_side_effects_row` (write) in `crates/package-manager/src/build_modules/tests.rs`, plus the end-to-end `side_effects_materialized_on_warm_frozen_reinstall` in `crates/cli/tests/side_effects_cache.rs`.
-- [x] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:166` `uploading errors do not interrupt installation` verifies cache upload errors do not fail install — ported as `upload_error_does_not_interrupt_install` in `crates/package-manager/src/build_modules/tests.rs`.
-- [x] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:189` `a postinstall script does not modify the original sources added to the store` verifies side effects stay separate from original CAFS files — covered by `write_path_populates_side_effects_row` in `crates/package-manager/src/build_modules/tests.rs` (drives a source-modifying postinstall and asserts the originals stay intact).
-- [x] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:225` `a corrupted side-effects cache is ignored` verifies fallback when cache contents are invalid — ported as `corrupt_side_effects_cache_falls_back_to_rebuild` in `crates/package-manager/src/build_modules/tests.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:79` `using side effects cache` covers side-effects read/write — ported at unit level as `using_side_effects_cache_skips_rebuild` (read) and `write_path_populates_side_effects_row` (write) in `crates/deps-restorer/src/build_modules/tests.rs`, plus the end-to-end `side_effects_materialized_on_warm_frozen_reinstall` in `crates/cli/tests/side_effects_cache.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:166` `uploading errors do not interrupt installation` verifies cache upload errors do not fail install — ported as `upload_error_does_not_interrupt_install` in `crates/deps-restorer/src/build_modules/tests.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:189` `a postinstall script does not modify the original sources added to the store` verifies side effects stay separate from original CAFS files — covered by `write_path_populates_side_effects_row` in `crates/deps-restorer/src/build_modules/tests.rs` (drives a source-modifying postinstall and asserts the originals stay intact).
+- [x] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:225` `a corrupted side-effects cache is ignored` verifies fallback when cache contents are invalid — ported as `corrupt_side_effects_cache_falls_back_to_rebuild` in `crates/deps-restorer/src/build_modules/tests.rs`.
 
 Frozen/headless cross-coverage:
 
@@ -274,7 +274,7 @@ Primary frozen/headless tests:
 - [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:438` `dependencies of other importers are not pruned when (headless) installing for a subset of importers` — ported as `deps_of_other_importers_are_not_pruned_when_headless_installing_a_subset` in `crates/cli/tests/multiple_importers.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:208` `install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore` — ported as `stale_current_lockfile_importers_are_retained_on_subset_install` in `crates/cli/tests/multiple_importers.rs` (the project leaves the workspace on disk; upstream shrinks the mutated-importer set instead).
 - [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:730` `current lockfile contains only installed dependencies when adding a new importer to workspace with shared lockfile` — ported as `current_lockfile_contains_only_installed_dependencies` in `crates/cli/tests/multiple_importers.rs`.
-- [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:540` `headless install is used when package linked to another package in the workspace` — ported as `headless_install_is_used_when_package_is_linked_to_another_workspace_package` in `crates/cli/tests/multiple_importers.rs`. The upstream tail (the unselected link target's own deps stay uninstalled) is stubbed in `known_failures::subset_install_does_not_install_unselected_link_targets_dependencies`: pacquet's subset closure deep-installs importer-level link targets, upstream keeps them shallow — a cross-stack decision is needed.
+- [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:540` `headless install is used when package linked to another package in the workspace` — ported as `headless_install_is_used_when_package_is_linked_to_another_workspace_package` in `crates/cli/tests/multiple_importers.rs`, including the upstream tail that keeps the unselected link target's own dependencies uninstalled.
 - [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:598` `headless install is used with an up-to-date lockfile when package references another package via workspace: protocol` — ported as `headless_install_is_used_with_workspace_protocol_references` in `crates/cli/tests/multiple_importers.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:656` `headless install is used when packages are not linked from the workspace (unless workspace ranges are used)` — ported as `headless_install_is_used_when_packages_are_not_linked_from_the_workspace` in `crates/cli/tests/multiple_importers.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:865` `partial installation in a monorepo does not remove dependencies of other workspace projects when lockfile is frozen` — ported as `partial_frozen_install_does_not_remove_dependencies_of_other_workspace_projects` in `crates/cli/tests/multiple_importers.rs` (the divergent transitive pin is produced by repinning the generated lockfile rather than hand-writing one).
@@ -302,17 +302,49 @@ CLI-level frozen workspace tests:
 Rust port notes:
 
 - Subset (`--filter`) install tests live in `crates/cli/tests/multiple_importers.rs` and drive the CLI selection that upstream expresses through `mutateModules` subsets.
-- Pacquet's subset closure deep-installs importer-level link targets where upstream keeps them shallow (only `--filter <project>...` widens the selection upstream); the divergence is pinned by the `known_failures` stub on the `multipleImporters.ts:540` tail and needs a cross-stack decision.
 
 ## Workspace Script `PATH` (`extraBinPaths`)
 
 - [x] `TypeScript repo: pnpm/test/recursive/run.ts:8` `pnpm recursive run finds bins from the root of the workspace` — the run-related assertions are ported as `recursive_run_finds_workspace_root_bin_on_path` and `recursive_run_prefers_project_bin_over_workspace_root_bin` (`crates/cli/tests/run_recursive.rs`) plus `run_finds_workspace_root_bin_on_path` for the member-dir `pnpm run` step (`crates/cli/tests/run.rs`). The upstream test's `-r install` postinstall and `recursive rebuild` steps are install/rebuild coverage, tracked with those features.
 - [x] `TypeScript repo: config/reader/test/index.ts:2421` `extraBinPaths` — ported as `extra_bin_paths_lists_workspace_root_bin_only_inside_a_workspace` (`crates/config/src/tests.rs`).
 
+## Recursive Script Output (`--stream`, `--aggregate-output`, `--reporter-hide-prefix`, `--use-stderr`)
+
+Reporter unit tests (`crates/default-reporter/tests/render.rs`):
+
+- [x] `TypeScript repo: cli/default-reporter/test/reportingLifecycleScripts.ts:362` `groups lifecycle output when streamLifecycleOutput is used` — ported as `stream_lifecycle_output_streams_without_append_only`.
+- [x] `TypeScript repo: cli/default-reporter/test/reportingLifecycleScripts.ts:475` `groups lifecycle output when append-only and aggregate-output are used with mixed stages` — ported as `aggregate_output_withholds_each_script_until_it_exits`.
+- [x] `TypeScript repo: cli/default-reporter/test/reportingLifecycleScripts.ts:540` `groups lifecycle output when append-only and reporter-hide-prefix are used` — ported as `hide_lifecycle_prefix_only_drops_it_from_output_lines`.
+- [ ] `TypeScript repo: cli/default-reporter/test/reportingLifecycleScripts.ts:248` `groups lifecycle output when append-only and aggregate-output are used` — the single-stage case the mixed-stage port above subsumes.
+
+End-to-end:
+
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1694` `run --stream should prefix with dir name` — ported as `run_recursive::stream_prefixes_recursive_script_output_with_the_project`.
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1776` `run --reporter-hide-prefix should hide prefix` — ported as `run_recursive::reporter_hide_prefix_drops_the_prefix_from_streamed_script_output`.
+- [x] `TypeScript repo: pnpm/test/run.ts:239` `--reporter-hide-prefix should hide workspace prefix` — covered by the same port plus `run_recursive::parallel_implies_stream` for the `--parallel` spelling upstream uses.
+- [x] `TypeScript repo: exec/commands/test/exec.logs.ts:27` `pnpm exec --recursive --no-reporter-hide-prefix prints prefixes` — ported as `exec_recursive::no_reporter_hide_prefix_labels_each_project`.
+- [x] `TypeScript repo: exec/commands/test/exec.logs.ts:90` `pnpm exec --recursive --reporter-hide-prefix does not print prefixes` and `exec/commands/test/exec.logs.ts:127` `pnpm exec --recursive does not print prefixes by default` — ported together as `exec_recursive::recursive_exec_inherits_stdio_by_default`.
+
+Pacquet-only coverage: `run_recursive::recursive_run_inherits_stdio_without_stream`,
+`run_recursive::aggregate_output_keeps_each_project_in_one_block`, and
+`run_recursive::use_stderr_diverts_reporter_output`.
+
+## Standalone Runs (`--ignore-workspace`, `--workspace-packages`)
+
+Upstream has no end-to-end test for either flag; the pacquet coverage in
+`crates/cli/tests/ignore_workspace.rs` and
+`approve_builds::ignore_workspace_skips_the_allow_builds_scaffold` is
+written against `config/reader/src/index.ts` (`getWorkspaceDir`,
+`workspacePackagePatterns`) and `installing/commands/src/handleIgnoredBuilds.ts`.
+
+- [x] `--ignore-workspace` stops the workspace search — `ignore_workspace::ignore_workspace_drops_the_workspace_manifest_settings`.
+- [x] `--ignore-workspace` suppresses the `allowBuilds` scaffold — `approve_builds::ignore_workspace_skips_the_allow_builds_scaffold`.
+- [x] `--workspace-packages` replaces the manifest's patterns — `ignore_workspace::workspace_packages_overrides_the_manifest_patterns`.
+
 ## Workspace Project Filtering (`--filter`)
 
-Ported into the new `pacquet-workspace-projects-filter` and
-`pacquet-workspace-projects-graph` crates (the Rust ports of
+Ported into the new `pnpm-workspace-projects-filter` and
+`pnpm-workspace-projects-graph` crates (the Rust ports of
 `@pnpm/workspace.projects-filter` and `@pnpm/workspace.projects-graph`).
 The CLI `--filter` / `--filter-prod` flags are parsed into
 `Config::filter` / `Config::filter_prod`. Recursive `run` / `exec`
@@ -473,6 +505,10 @@ Supporting tests:
 - [x] `TypeScript repo: installing/deps-installer/test/install/bundledDependencies.ts:79` `installing a package with bundleDependencies set to false` — ported as `bundle_dependencies_false_is_not_recorded`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/bundledDependencies.ts:89` `installing a package with bundleDependencies set to true` — ported as `bundle_dependencies_true_is_recorded_as_true`, extended with the lockfile round trip the boolean form needs. Pacquet also keeps `bundled_bins_are_linked_under_the_hoisted_linker` for the `nodeLinker: hoisted` counterpart, which upstream reaches only through `linkAllBins`.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/bundledDependencies.ts:29` `local tarball with bundledDependencies` and `:46` `local tarball with bundledDependencies true` (covering <https://github.com/pnpm/pnpm/issues/7411>) — need `.tgz` fixtures on the Rust side.
+- [x] `TypeScript repo: bins/linker/test/index.ts:617` `enable prefer-symlinked-executables` (`linkBins()` and the dangling-target case) — ported as `prefer_symlinked_executables_links_bins_as_relative_symlinks`, `prefer_symlinked_executables_replaces_shims_and_vice_versa`, and `prefer_symlinked_executables_links_a_bin_whose_target_is_missing` in `crates/cmd-shim/src/link_bins/tests.rs`; the pacquet linker keeps a dangling symlink and reports it at `tracing::warn!` level, pnpm's warn-and-continue.
+- [x] `TypeScript repo: pnpm/test/run.ts:161` `pnpm run with preferSymlinkedExecutables true` and `:177` `pnpm run with preferSymlinkedExecutables and custom virtualStoreDir` — ported as `run_exports_node_path_when_prefer_symlinked_executables` and `run_exports_node_path_from_a_custom_virtual_store_dir` in `crates/cli/tests/suite/run.rs`.
+- [x] `TypeScript repo: config/reader/test/index.ts` `preferSymlinkedExecutables should be true when nodeLinker is hoisted` and `NODE_PATH points to the virtual store of the workspace root when pnpm runs from a workspace package` (the pnpm/pnpm#13912 regression) — ported as `hoisted_node_linker_defaults_prefer_symlinked_executables_on` and `prefer_symlinked_executables_node_path_anchors_at_the_workspace_root` (plus the explicit-`virtualStoreDir` and plain-export cases) in `crates/config/src/tests.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/misc.ts:865` (bin created as a symlink under `prefer-symlinked-executables`) — covered as `prefer_symlinked_executables_symlinks_workspace_bins` in `crates/cli/tests/suite/workspace_install.rs` and `hoisted_linker_symlinks_bins_by_default` in `crates/cli/tests/suite/hoisted_node_linker.rs`.
 
 Rust port notes:
 
@@ -703,7 +739,7 @@ Rust port notes:
 
 Install tests:
 
-The install-level ports build a local repo per test and reference it over `git+file://` (`GitRepoFixture` in `pacquet-testing-utils`), so the whole git install path runs without network access — the same technique upstream's `createGitPreparePackage` uses. That trades away the *host* archive identity (`gitHosted: true` tarball resolution), which is pinned separately at the resolver level; a `file:` repo resolves to `type: git`. They live in `crates/cli/tests/git_hosted_install.rs`.
+The install-level ports build a local repo per test and reference it over `git+file://` (`GitRepoFixture` in `pnpm-testing-utils`), so the whole git install path runs without network access — the same technique upstream's `createGitPreparePackage` uses. That trades away the *host* archive identity (`gitHosted: true` tarball resolution), which is pinned separately at the resolver level; a `file:` repo resolves to `type: git`. They live in `crates/cli/tests/git_hosted_install.rs`.
 
 - [x] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:31` `from a github repo` — alias-less hosted shorthands are recognized before registry package-name parsing; `add_from_a_git_url_without_an_alias` covers the shared end-to-end add path without a public-service dependency.
 - [x] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:48` `from a github repo through URL` — ported as `add_from_a_git_url_without_an_alias` using a local git URL.
@@ -769,13 +805,13 @@ The gate ported in pacquet/#11722 re-applies the resolver's policy
 checks to every lockfile entry before resolution or fetch, so a
 lockfile resolved elsewhere can't reach the install path under a
 weaker policy. Spans three new crates
-(`pacquet-resolving-resolver-base`, `pacquet-resolving-npm-resolver`,
-`pacquet-lockfile-verification`) plus install-side wiring in
-`pacquet-package-manager`. Reference: upstream `2a9bd897bf`.
+(`pnpm-resolving-resolver-base`, `pnpm-resolving-npm-resolver`,
+`pnpm-lockfile-verification`) plus install-side wiring in
+`pnpm-package-manager`. Reference: upstream `2a9bd897bf`.
 
 ### Trust check (`failIfTrustDowngraded`)
 
-- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:8` `returns "trustedPublisher" when _npmUser.trustedPublisher exists` — `pacquet-resolving-npm-resolver`: implicit in `trust_checks::tests::trusted_publisher_to_provenance_downgrade_fails` (covers the rank assignment).
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:8` `returns "trustedPublisher" when _npmUser.trustedPublisher exists` — `pnpm-resolving-npm-resolver`: implicit in `trust_checks::tests::trusted_publisher_to_provenance_downgrade_fails` (covers the rank assignment).
 - [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:28` `returns "trustedPublisher" even when attestations.provenance exists` — same coverage as above (the rank function prefers `trustedPublisher`).
 - [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:53` `returns true when provenance exists` — `trust_checks::tests::provenance_to_unsigned_downgrade_fails` exercises the same rank path.
 - [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:70` `returns undefined when provenance and attestations are undefined` — covered by `trust_checks::tests::first_version_passes_with_no_history`.
@@ -863,19 +899,19 @@ weaker policy. Spans three new crates
 
 ### `minimumReleaseAge` install-side behavior
 
-- [x] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:15` `prevents installation of versions that do not meet the required publish date cutoff` — covered end-to-end by `pacquet-package-manager::install::tests::frozen_lockfile_gate_rejects_under_huge_minimum_release_age` and the CLI integration test `cli::lockfile_verification::install_fails_under_huge_minimum_release_age`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:15` `prevents installation of versions that do not meet the required publish date cutoff` — covered end-to-end by `pnpm-package-manager::install::tests::frozen_lockfile_gate_rejects_under_huge_minimum_release_age` and the CLI integration test `cli::lockfile_verification::install_fails_under_huge_minimum_release_age`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:23` `ignored for packages in the minimumReleaseAgeExclude array` — `create_npm_resolution_verifier::tests::verify_skips_age_check_when_package_excluded`.
-- [x] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:128` `throws error when semver range is used in minimumReleaseAgeExclude` — `pacquet-package-manager::install::tests::install_rejects_invalid_minimum_release_age_exclude_pattern`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:128` `throws error when semver range is used in minimumReleaseAgeExclude` — `pnpm-package-manager::install::tests::install_rejects_invalid_minimum_release_age_exclude_pattern`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:32` `ignored using a pattern` — `create_npm_resolution_verifier::tests::verify_skips_age_check_when_package_matches_exclude_pattern`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:41` `ignored for specific exact versions in minimumReleaseAgeExclude` — `create_npm_resolution_verifier::tests::verify_skips_age_check_for_an_exact_version_in_a_union`.
-- [x] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:68` `falls back to immature version when no mature version satisfies the range (non-strict mode)` — ported as `pacquet-cli::lockfile_verification::non_strict_minimum_release_age_falls_back_when_no_mature_version_matches`: the non-strict install falls back to the lowest matching immature version end to end.
+- [x] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:68` `falls back to immature version when no mature version satisfies the range (non-strict mode)` — ported as `pnpm-cli::lockfile_verification::non_strict_minimum_release_age_falls_back_when_no_mature_version_matches`: the non-strict install falls back to the lowest matching immature version end to end.
 - [x] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:86` `strict minimumReleaseAge surfaces every immature pick via handleResolutionPolicyViolations, then aborts` — `minimum_release_age::tests::non_interactive_strict_mode_reports_every_immature_pick`.
-- [x] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:140` `enforced on an existing lockfile entry that does not meet the cutoff` — `pacquet-cli::lockfile_verification::install_fails_under_huge_minimum_release_age` starts from a lockfile entry and pins the gate.
+- [x] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:140` `enforced on an existing lockfile entry that does not meet the cutoff` — `pnpm-cli::lockfile_verification::install_fails_under_huge_minimum_release_age` starts from a lockfile entry and pins the gate.
 
 ### Version-policy parser
 
-- [x] `TypeScript repo: config/version-policy/test/index.ts:8` `createPackageVersionPolicy()` — `pacquet-config::version_policy::tests` exhaustive coverage of the parsing + matcher contract.
-- [x] `TypeScript repo: config/version-policy/test/index.ts:57` `createPackageVersionPolicyOrThrow() rewraps parser errors with INVALID_<KEY>` — handled at the install boundary in `pacquet-package-manager::build_resolution_verifiers` (wraps `VersionPolicyError` → `BuildVerifiersError::InvalidMinimumReleaseAgeExclude` / `InvalidTrustPolicyExclude`).
+- [x] `TypeScript repo: config/version-policy/test/index.ts:8` `createPackageVersionPolicy()` — `pnpm-config::version_policy::tests` exhaustive coverage of the parsing + matcher contract.
+- [x] `TypeScript repo: config/version-policy/test/index.ts:57` `createPackageVersionPolicyOrThrow() rewraps parser errors with INVALID_<KEY>` — handled at the install boundary in `pnpm-package-manager::build_resolution_verifiers` (wraps `VersionPolicyError` → `BuildVerifiersError::InvalidMinimumReleaseAgeExclude` / `InvalidTrustPolicyExclude`).
 
 Rust port notes:
 
@@ -885,13 +921,13 @@ Rust port notes:
 
 ## Exact Override Lockfile Reuse
 
-- [x] `TypeScript repo: pnpm11/installing/deps-installer/test/install/overrides.ts` `adding an exact override reuses the lockfile when the new package has the same dependencies` and `an exact override update reuses the lockfile when the new package has the same dependencies` — the rewrite core is pinned by `fast_update_overrides::tests::rewrites_an_exact_override_when_locked_children_satisfy_the_new_manifest`, including the single replacement-manifest resolve; `pacquet-cli::lockfile_resolution_reuse::exact_override_update_reuses_the_locked_children` covers wanted/current lockfile and materialization integration.
+- [x] `TypeScript repo: pnpm11/installing/deps-installer/test/install/overrides.ts` `adding an exact override reuses the lockfile when the new package has the same dependencies` and `an exact override update reuses the lockfile when the new package has the same dependencies` — the rewrite core is pinned by `fast_update_overrides::tests::rewrites_an_exact_override_when_locked_children_satisfy_the_new_manifest`, including the single replacement-manifest resolve; `pnpm-cli::lockfile_resolution_reuse::exact_override_update_reuses_the_locked_children` covers wanted/current lockfile and materialization integration.
 - [x] `TypeScript repo: pnpm11/installing/deps-installer/test/install/overrides.ts` `an exact override update falls back to resolution when the package dependencies changed` — `fast_update_overrides::tests::falls_back_when_a_locked_child_does_not_satisfy_the_new_manifest`.
-- [x] `TypeScript repo: pnpm11/installing/deps-installer/test/install/overrides.ts` `a dependency removal override prunes the locked subtree without resolution` — the rewrite and peer-safety gates are pinned by `fast_update_overrides::tests::removes_a_dependency_and_its_unreachable_subtree_without_resolving` and `falls_back_when_the_removed_dependency_is_used_as_a_peer`; `pacquet-cli::lockfile_resolution_reuse::dependency_removal_override_prunes_the_locked_subtree_without_resolving` verifies the wanted/current lockfiles and succeeds with the registry unavailable.
+- [x] `TypeScript repo: pnpm11/installing/deps-installer/test/install/overrides.ts` `a dependency removal override prunes the locked subtree without resolution` — the rewrite and peer-safety gates are pinned by `fast_update_overrides::tests::removes_a_dependency_and_its_unreachable_subtree_without_resolving` and `falls_back_when_the_removed_dependency_is_used_as_a_peer`; `pnpm-cli::lockfile_resolution_reuse::dependency_removal_override_prunes_the_locked_subtree_without_resolving` verifies the wanted/current lockfiles and succeeds with the registry unavailable.
 
 ## `optimisticRepeatInstall` + `checkDepsStatus` Pre-Install Shortcut
 
-Tracks pnpm/pnpm#11940. Pacquet's port (`pacquet-package-manager::optimistic_repeat_install`) covers the mtime-vs-`lastValidatedTimestamp` branch of upstream's `checkDepsStatus`. Ported tests live in `optimistic_repeat_install::tests` and the install-level `optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh` end-to-end.
+Tracks pnpm/pnpm#11940. Pacquet's port (`pnpm-package-manager::optimistic_repeat_install`) covers the mtime-vs-`lastValidatedTimestamp` branch of upstream's `checkDepsStatus`. Ported tests live in `optimistic_repeat_install::tests` and the install-level `optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh` end-to-end.
 
 ### Ported
 
@@ -911,25 +947,25 @@ Tracks pnpm/pnpm#11940. Pacquet's port (`pacquet-package-manager::optimistic_rep
 
 ## `catalogMode` Auto-Cataloging (`saveCatalogName` / catalog write-back)
 
-Tracks pnpm/pnpm#12196. The `catalogMode` mismatch gate landed earlier (pnpm#11706); this is the auto-cataloging half — writing `catalog:` / `catalog:<name>` to `package.json`, the entry to `pnpm-workspace.yaml`, and the snapshot to `pnpm-lock.yaml`. The decision core is `pacquet-package-manager::catalog_mode::decide_catalog`; the format-preserving workspace writer is the `pacquet-workspace-manifest-writer` crate; the lockfile `catalogs:` snapshot is built in `dependencies_graph_to_lockfile::build_catalog_snapshots`.
+Tracks pnpm/pnpm#12196. The `catalogMode` mismatch gate landed earlier (pnpm#11706); this is the auto-cataloging half — writing `catalog:` / `catalog:<name>` to `package.json`, the entry to `pnpm-workspace.yaml`, and the snapshot to `pnpm-lock.yaml`. The decision core is `pnpm-package-manager::catalog_mode::decide_catalog`; the format-preserving workspace writer is the `pnpm-workspace-manifest-writer` crate; the lockfile `catalogs:` snapshot is built in `dependencies_graph_to_lockfile::build_catalog_snapshots`.
 
 ### Ported
 
-- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:1312` `adding with catalogMode: strict will add to or use from catalog` — `pacquet-cli::catalog::add_strict_catalogs_a_new_dependency`.
-- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:1348` `re-adding existing catalog dependency with catalogMode: strict preserves catalog specifier` (pnpm#10176) — `pacquet-cli::catalog::readd_catalog_dependency_preserves_specifier`.
-- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:1404` `adding with catalogMode: prefer will add to or use from catalog` — `pacquet-cli::catalog::add_prefer_catalogs_a_new_dependency`.
-- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:1435` `adding mismatched version with catalogMode: strict will error` — `pacquet-cli::catalog::add_mismatched_version_strict_errors`.
-- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:1840` `update --latest works on named catalog dependency with catalogMode=prefer` — `pacquet-cli::catalog::update_latest_named_catalog_bumps_the_entry`.
-- [x] `TypeScript repo: workspace/workspace-manifest-writer/test/addCatalogs.test.ts` and `updateWorkspaceManifest.test.ts` (catalog cases) — ported as byte-for-byte unit tests in `pacquet-workspace-manifest-writer::tests` (comment/blank-line/quote-style/sorted-insert/named-catalog preservation).
-- [x] Decision-core branches (gate strict/prefer/manual, named-catalog resolution, `--save-catalog-name`, runtime skip) — `pacquet-package-manager::catalog_mode::tests`.
+- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:1312` `adding with catalogMode: strict will add to or use from catalog` — `pnpm-cli::catalog::add_strict_catalogs_a_new_dependency`.
+- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:1348` `re-adding existing catalog dependency with catalogMode: strict preserves catalog specifier` (pnpm#10176) — `pnpm-cli::catalog::readd_catalog_dependency_preserves_specifier`.
+- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:1404` `adding with catalogMode: prefer will add to or use from catalog` — `pnpm-cli::catalog::add_prefer_catalogs_a_new_dependency`.
+- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:1435` `adding mismatched version with catalogMode: strict will error` — `pnpm-cli::catalog::add_mismatched_version_strict_errors`.
+- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:1840` `update --latest works on named catalog dependency with catalogMode=prefer` — `pnpm-cli::catalog::update_latest_named_catalog_bumps_the_entry`.
+- [x] `TypeScript repo: workspace/workspace-manifest-writer/test/addCatalogs.test.ts` and `updateWorkspaceManifest.test.ts` (catalog cases) — ported as byte-for-byte unit tests in `pnpm-workspace-manifest-writer::tests` (comment/blank-line/quote-style/sorted-insert/named-catalog preservation).
+- [x] Decision-core branches (gate strict/prefer/manual, named-catalog resolution, `--save-catalog-name`, runtime skip) — `pnpm-package-manager::catalog_mode::tests`.
 - [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:789` `catalog entry using npm alias can be reused` — the `catalogs:` snapshot assertion (`{ specifier: npm:…, version: … }` for an `npm:`-aliased catalog entry) is ported as `dependencies_graph_to_lockfile::tests::aliased_catalog_dependency_records_catalog_snapshot`. The reuse half is covered at the single-importer level by `catalog_mode::tests::reinstalling_a_catalog_dependency_reuses_the_existing_entry` (aliased reuse verified stable manually); the test's two-project shape needs workspaces (pacquet/pacquet#431).
 
 ### Not yet ported / known divergences
 
-- [x] `TypeScript repo: installing/commands/test/saveCatalog.ts` — `pacquet-cli::catalog::save_catalog_flag_writes_the_default_catalog` and `save_catalog_name_preserves_the_dependency_group` cover the command-level default/named and `--save-dev` flows.
-- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts` general integration cases — `pacquet-cli::catalog::install_with_catalog_reference_writes_catalog_snapshot` pins install resolution and the lockfile snapshot; the existing catalog unit and workspace tests cover filtering and pruning at their implementation boundaries.
-- [x] `cleanupUnusedCatalogs` — implemented end to end: `pacquet-cli::catalog::removes_unused_entries_from_the_workspace_catalog` covers the CLI flow, and `pacquet-workspace-manifest-writer::tests::remove_unused_catalogs` ports the `removeCatalogs.test.ts` suite.
-- [x] Manual-mode `update --latest` of a `catalog:` dependency — `pacquet-cli::catalog::update_latest_keeps_catalog_reference_in_manual_mode`.
+- [x] `TypeScript repo: installing/commands/test/saveCatalog.ts` — `pnpm-cli::catalog::save_catalog_flag_writes_the_default_catalog` and `save_catalog_name_preserves_the_dependency_group` cover the command-level default/named and `--save-dev` flows.
+- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts` general integration cases — `pnpm-cli::catalog::install_with_catalog_reference_writes_catalog_snapshot` pins install resolution and the lockfile snapshot; the existing catalog unit and workspace tests cover filtering and pruning at their implementation boundaries.
+- [x] `catalogPrune` (formerly `cleanupUnusedCatalogs`) — implemented end to end: `pnpm-cli::catalog::removes_unused_entries_from_the_workspace_catalog` covers the CLI flow, and `pnpm-workspace-manifest-writer::tests::remove_unused_catalogs` ports the `removeCatalogs.test.ts` suite.
+- [x] Manual-mode `update --latest` of a `catalog:` dependency — `pnpm-cli::catalog::update_latest_keeps_catalog_reference_in_manual_mode`.
 
 ### Rust port notes
 
@@ -973,7 +1009,7 @@ lockfile-parity peer fixes (pnpm/pnpm#12266, pnpm/pnpm#12267).
 
 ## `pnpm logout` (`@pnpm/auth.commands`)
 
-Pacquet's port lives in `pacquet-auth-commands` (`logout` module) with the CLI adapter in `pacquet-cli`'s `cli_args::logout`. Upstream injects its side effects (`fetch`, `readIniFile`, `writeIniFile`, `globalInfo`, `globalWarn`) through a `LogoutContext` object of functions; the Rust port threads them through the project's capability-trait seam instead (`FsReadToString` / `FsWrite` / `RevokeToken` on `Sys`, plus `R: Reporter` for the two `global*` channels). The whole upstream suite translates, so every case is a unit test of the ported `logout` function with unit-struct fakes.
+Pacquet's port lives in `pnpm-auth-commands` (`logout` module) with the CLI adapter in `pnpm-cli`'s `cli_args::logout`. Upstream injects its side effects (`fetch`, `readIniFile`, `writeIniFile`, `globalInfo`, `globalWarn`) through a `LogoutContext` object of functions; the Rust port threads them through the project's capability-trait seam instead (`FsReadToString` / `FsWrite` / `RevokeToken` on `Sys`, plus `R: Reporter` for the two `global*` channels). The whole upstream suite translates, so every case is a unit test of the ported `logout` function with unit-struct fakes.
 
 ### Ported
 
@@ -993,7 +1029,7 @@ Pacquet's port lives in `pacquet-auth-commands` (`logout` module) with the CLI a
 
 ## `pnpm login` / `pnpm adduser` (`@pnpm/auth.commands`)
 
-Pacquet's port lives in `pacquet-auth-commands` (`login` module) with the CLI adapter in `pacquet-cli`'s `cli_args::login`. Upstream injects its side effects through a `LoginContext` object of functions (`Date`, `setTimeout`, `createReadlineInterface`, `enquirer`, `fetch`, `globalInfo`/`globalWarn`, `process`, `readIniFile`/`writeIniFile`); the Rust port threads them through the project's seams instead. The interactive OTP / web-auth effects reuse `pacquet-network-web-auth`'s eight capability traits, the credential prompts are the crate-local `PromptInput` / `PromptPassword` capabilities, `auth.ini` I/O reuses logout's `FsReadToString` / `FsWrite`, and the two `global*` channels flow through `R: Reporter`. The web-login `POST` and classic `PUT` go over the shared `ThrottledClient` against a `mockito` server (the real-fixture route), so only the effects a fixture can't stage portably sit behind the `Sys` seam. The whole upstream suite translates.
+Pacquet's port lives in `pnpm-auth-commands` (`login` module) with the CLI adapter in `pnpm-cli`'s `cli_args::login`. Upstream injects its side effects through a `LoginContext` object of functions (`Date`, `setTimeout`, `createReadlineInterface`, `enquirer`, `fetch`, `globalInfo`/`globalWarn`, `process`, `readIniFile`/`writeIniFile`); the Rust port threads them through the project's seams instead. The interactive OTP / web-auth effects reuse `pnpm-network-web-auth`'s eight capability traits, the credential prompts are the crate-local `PromptInput` / `PromptPassword` capabilities, `auth.ini` I/O reuses logout's `FsReadToString` / `FsWrite`, and the two `global*` channels flow through `R: Reporter`. The web-login `POST` and classic `PUT` go over the shared `ThrottledClient` against a `mockito` server (the real-fixture route), so only the effects a fixture can't stage portably sit behind the `Sys` seam. The whole upstream suite translates.
 
 ### Ported
 
@@ -1061,9 +1097,23 @@ Tree-builder ports (`crates/cli/src/cli_args/deps_tree/{get_tree,search,pkg_info
 - [ ] `TypeScript repo: deps/inspection/tree-builder/test/buildDependentsTree.test.ts` `nameFormatter` group (3 tests) — not ported: no pnpm command passes a `nameFormatter`, so pacquet's `build_dependents_tree` has no formatter parameter; the `displayName` rendering it feeds is covered by the renderDependentsTree ports.
 - [ ] `TypeScript repo: deps/inspection/list/test/manyDeps.ts` `list all deps in a project with many dependencies without failing with an OOM error` — the guard it exercises is the materialization dedup cache, pinned directly by the cross-call dedup ports.
 - [x] `TypeScript repo: installing/commands/test/update/recursive.ts:14` `recursive update` — ported as `recursive_update_only_reaches_projects_that_have_the_dependency` in `crates/cli/tests/update_recursive.rs`.
+- [x] `TypeScript repo: installing/commands/test/update/recursive.ts:57` `recursive update prod dependencies only` — ported as `recursive_update_prod_dependencies_only`.
+- [x] `TypeScript repo: installing/commands/test/update/recursive.ts:122` `recursive update with pattern` — ported as `recursive_update_with_pattern`.
+- [x] `TypeScript repo: installing/commands/test/update/recursive.ts:172` `recursive update with pattern and name in project` — ported as `recursive_update_with_pattern_and_name_in_project`.
+- [x] `TypeScript repo: installing/commands/test/update/recursive.ts:260` `recursive update --latest foo should only update projects that have foo` — ported as `recursive_update_latest_only_reaches_the_named_packages` (`@pnpm.e2e/multi-version-b` stands in for upstream's `@zkochan/async-regex-replace`, which the fixture registry does not carry).
+- [x] `TypeScript repo: installing/commands/test/update/recursive.ts:323` `recursive update --latest foo should only update packages that have foo` — ported as `recursive_update_latest_with_dedicated_lockfiles_only_touches_the_declaring_project`.
 - [x] `TypeScript repo: installing/commands/test/update/recursive.ts:384` `recursive update in workspace should not add new dependencies` — ported as `recursive_update_does_not_add_a_dependency_no_project_declares`.
 - [x] `TypeScript repo: installing/commands/test/update/recursive.ts:416` `recursive update with aliased workspace dependency (#7975)` — ported as `recursive_update_keeps_an_aliased_workspace_dependency`.
-- [ ] `TypeScript repo: installing/commands/test/update/recursive.ts` — the remaining five cases move `latest` mid-test with `addDistTag`. The fixture registry derives `dist-tags.latest` from the highest published version and has no per-run override, so they stay unported. See pnpm/pnpm#12101.
 - [x] `TypeScript repo: installing/commands/test/update/jsr.ts:25` `jsr without alias` — ported as `install_records_a_plain_jsr_dependency` and `update_latest_bumps_a_jsr_dependency` in `crates/cli/tests/update_jsr.rs`.
 - [x] `TypeScript repo: installing/commands/test/update/jsr.ts:91` `jsr with alias` — ported as `install_records_an_aliased_jsr_dependency` and `update_latest_bumps_an_aliased_jsr_dependency` in `crates/cli/tests/update_jsr.rs`.
-- [ ] `TypeScript repo: installing/commands/test/update/interactive.ts` and `issue-7415.ts` — both drive the prompt programmatically by mocking `@inquirer/prompts`. pacquet prompts through `dialoguer`, which wants a TTY and has no injection seam, so these need that seam first.
+- [x] `TypeScript repo: installing/commands/test/update/update.ts:13` `update with "*" pattern` — ported as `update_latest_with_glob_selector_is_scoped` in `crates/cli/tests/update.rs`.
+- [x] `TypeScript repo: installing/commands/test/update/update.ts:44` `update to latest should not touch the automatically installed peer dependencies` — ported as `update_latest_leaves_auto_installed_peers_alone`.
+- [x] `TypeScript repo: installing/commands/test/update/update.ts:397` `update should work normal when set empty string version` — ported as `update_latest_star_selector_updates_an_empty_specifier`.
+- [x] `TypeScript repo: installing/commands/test/update/update.ts:479` `not ignore packages if these are specified in parameter even if these are listed in ... ignoreDependencies` — ported as `update_selectors_override_ignore_dependencies`.
+- [x] `TypeScript repo: installing/commands/test/update/update.ts:548` `should not update tag version when --latest not set` — ported as `update_keeps_every_dist_tag_specifier_without_latest`.
+- [x] `TypeScript repo: installing/commands/test/update/interactive.ts:65` `global interactive update handles an empty global directory` — ported as `global_interactive_update_handles_an_empty_global_directory` in `crates/cli/src/cli_args/update_interactive/tests.rs`.
+- [x] `TypeScript repo: installing/commands/test/update/interactive.ts:239` `interactively update` — ported as `interactively_update`.
+- [x] `TypeScript repo: installing/commands/test/update/interactive.ts:441` `interactively update should ignore dependencies from the ignoreDependencies field` — ported as `interactively_update_skips_ignored_dependencies`.
+- [x] `TypeScript repo: installing/commands/test/update/issue-7415.ts:63` `interactive recursive should not error on git specifier override` — ported as `choices_walk_past_a_dependency_overridden_to_a_git_specifier`, at the level the seam reaches: the outdated collector walks past a resolution that names no version, which is what the upstream run exercises.
+- [ ] `TypeScript repo: installing/commands/test/update/interactive.ts` — the five remaining `global interactive update` cases and `interactive update of dev dependencies only`. pacquet answers its prompt through `UpdatePrompt::Scripted`, a crate-internal seam, so its ports run the command in-process against a `Config` built by hand; a global-install and a workspace-install fixture at that level are what these still need.
+- [x] `TypeScript repo: deps/inspection/commands/test/outdated/index.ts:380` `ignore packages in package.json > pnpm.updateConfig.ignoreDependencies in outdated command` — ported as `outdated_leaves_out_ignored_dependencies` in `crates/cli/tests/outdated.rs`.

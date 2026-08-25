@@ -1,5 +1,5 @@
 //! Shared test fakes for the OTP / web-auth flow
-//! ([`pacquet_network_web_auth`]).
+//! ([`pnpm_network_web_auth`]).
 //!
 //! The OTP / web-auth tests need a fake for every web-auth capability. This
 //! crate keeps the fake's mutable pieces per-test: the [`web_auth_fake`] macro
@@ -16,8 +16,8 @@
 //! [`ok_202`], [`ok_token`], [`web_auth_body`] — carry no mutable state, so
 //! they stay ordinary `pub` items shared across every test.
 
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_network_web_auth::{
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_network_web_auth::{
     OtpChallenge, OtpError, OtpErrorBody, WebAuthFetchError, WebAuthFetchResponse,
 };
 use serde_json::json;
@@ -109,7 +109,7 @@ macro_rules! web_auth_fake {
                 ::std::option::Option<::tokio::sync::oneshot::Sender<()>>,
             > = const { ::std::cell::RefCell::new(::std::option::Option::None) };
             static EMITTED: ::std::cell::RefCell<
-                ::std::vec::Vec<(::pacquet_reporter::LogLevel, ::std::string::String)>,
+                ::std::vec::Vec<(::pnpm_reporter::LogLevel, ::std::string::String)>,
             > = const { ::std::cell::RefCell::new(::std::vec::Vec::new()) };
         }
 
@@ -136,25 +136,25 @@ macro_rules! web_auth_fake {
         /// thread-local script the `set_*` functions configure.
         struct FakeHost;
 
-        impl ::pacquet_network_web_auth::StdinIsTty for FakeHost {
+        impl ::pnpm_network_web_auth::StdinIsTty for FakeHost {
             fn stdin_is_tty() -> bool {
                 STDIN_TTY.with(::std::cell::Cell::get)
             }
         }
 
-        impl ::pacquet_network_web_auth::StdoutIsTty for FakeHost {
+        impl ::pnpm_network_web_auth::StdoutIsTty for FakeHost {
             fn stdout_is_tty() -> bool {
                 STDOUT_TTY.with(::std::cell::Cell::get)
             }
         }
 
-        impl ::pacquet_network_web_auth::Clock for FakeHost {
+        impl ::pnpm_network_web_auth::Clock for FakeHost {
             fn now_ms() -> u64 {
                 TIME.with(::std::cell::Cell::get)
             }
         }
 
-        impl ::pacquet_network_web_auth::Sleep for FakeHost {
+        impl ::pnpm_network_web_auth::Sleep for FakeHost {
             fn sleep_ms(ms: u64) -> impl ::std::future::Future<Output = ()> {
                 let _ = ms;
                 if let $crate::SleepBehavior::AdvanceByFixed(jump) =
@@ -166,14 +166,14 @@ macro_rules! web_auth_fake {
             }
         }
 
-        impl ::pacquet_network_web_auth::WebAuthFetch for FakeHost {
+        impl ::pnpm_network_web_auth::WebAuthFetch for FakeHost {
             fn fetch(
                 _url: &str,
-                _options: &::pacquet_network_web_auth::WebAuthFetchOptions,
+                _options: &::pnpm_network_web_auth::WebAuthFetchOptions,
             ) -> impl ::std::future::Future<
                 Output = ::std::result::Result<
-                    ::pacquet_network_web_auth::WebAuthFetchResponse,
-                    ::pacquet_network_web_auth::WebAuthFetchError,
+                    ::pnpm_network_web_auth::WebAuthFetchResponse,
+                    ::pnpm_network_web_auth::WebAuthFetchError,
                 >,
             > {
                 let result = FETCH.with(|fetch| {
@@ -183,26 +183,26 @@ macro_rules! web_auth_fake {
             }
         }
 
-        impl ::pacquet_network_web_auth::PromptOtp for FakeHost {
+        impl ::pnpm_network_web_auth::PromptOtp for FakeHost {
             fn input(
                 _message: &str,
             ) -> impl ::std::future::Future<
                 Output = ::std::result::Result<
                     ::std::option::Option<::std::string::String>,
-                    ::pacquet_network_web_auth::PromptError,
+                    ::pnpm_network_web_auth::PromptError,
                 >,
             > {
                 let response = INPUT.with(|input| match &*input.borrow() {
                     $crate::InputResponse::Value(value) => ::std::result::Result::Ok(value.clone()),
                     $crate::InputResponse::Cancelled => ::std::result::Result::Err(
-                        ::pacquet_network_web_auth::PromptError::Cancelled,
+                        ::pnpm_network_web_auth::PromptError::Cancelled,
                     ),
                 });
                 ::std::future::ready(response)
             }
         }
 
-        impl ::pacquet_network_web_auth::OpenUrl for FakeHost {
+        impl ::pnpm_network_web_auth::OpenUrl for FakeHost {
             fn open_url(_url: &str) -> ::std::io::Result<()> {
                 ::std::result::Result::Ok(())
             }
@@ -226,7 +226,7 @@ macro_rules! web_auth_fake {
             }
         }
 
-        impl ::pacquet_network_web_auth::EnterKeyListener for FakeHost {
+        impl ::pnpm_network_web_auth::EnterKeyListener for FakeHost {
             type Handle = PendingEnterHandle;
 
             fn listen() -> ::std::io::Result<PendingEnterHandle> {
@@ -242,9 +242,9 @@ macro_rules! web_auth_fake {
         /// auth URL / warnings the flow surfaces.
         struct RecordingReporter;
 
-        impl ::pacquet_reporter::Reporter for RecordingReporter {
-            fn emit(event: &::pacquet_reporter::LogEvent) {
-                if let ::pacquet_reporter::LogEvent::Global(::pacquet_reporter::GlobalLog {
+        impl ::pnpm_reporter::Reporter for RecordingReporter {
+            fn emit(event: &::pnpm_reporter::LogEvent) {
+                if let ::pnpm_reporter::LogEvent::Global(::pnpm_reporter::GlobalLog {
                     level,
                     message,
                 }) = event
@@ -260,8 +260,8 @@ macro_rules! web_auth_fake {
         /// expects no emission at all.
         struct UnexpectedReporter;
 
-        impl ::pacquet_reporter::Reporter for UnexpectedReporter {
-            fn emit(event: &::pacquet_reporter::LogEvent) {
+        impl ::pnpm_reporter::Reporter for UnexpectedReporter {
+            fn emit(event: &::pnpm_reporter::LogEvent) {
                 panic!("unexpected log: {event:?}");
             }
         }
@@ -317,7 +317,7 @@ macro_rules! web_auth_fake {
                 emitted
                     .borrow()
                     .iter()
-                    .filter(|(level, _)| *level == ::pacquet_reporter::LogLevel::Info)
+                    .filter(|(level, _)| *level == ::pnpm_reporter::LogLevel::Info)
                     .map(|(_, message)| message.clone())
                     .collect()
             })
@@ -331,7 +331,7 @@ macro_rules! web_auth_fake {
                 emitted
                     .borrow()
                     .iter()
-                    .filter(|(level, _)| *level == ::pacquet_reporter::LogLevel::Warn)
+                    .filter(|(level, _)| *level == ::pnpm_reporter::LogLevel::Warn)
                     .map(|(_, message)| message.clone())
                     .collect()
             })

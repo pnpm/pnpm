@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-fs-packlist"
+name                  = "pnpm-fs-packlist"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,8 +11,8 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-diagnostics      = { workspace = true }
-pacquet-package-manifest = { workspace = true }
+pnpm-diagnostics      = { workspace = true }
+pnpm-package-manifest = { workspace = true }
 
 derive_more = { workspace = true }
 ignore      = { workspace = true }

@@ -2,15 +2,16 @@
 //!
 //! The manifest is stored at `<modules_dir>/.modules.yaml`, where
 //! `modules_dir` is the path of a `node_modules` directory. The on-disk
-//! format is JSON (which YAML accepts), so reads use a YAML parser and
-//! writes emit [`serde_json::to_string_pretty`] output to match pnpm exactly.
+//! format is JSON: writes emit [`serde_json::to_string_pretty`] output to
+//! match pnpm exactly, and reads parse JSON first, falling back to a YAML
+//! parser for manifests written by old pnpm versions.
 
 use derive_more::{Display, Error, From, Into};
 use indexmap::{IndexMap, IndexSet};
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_fs::lexical_normalize;
 use pipe_trait::Pipe;
-use serde::{Deserialize, Serialize};
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_fs::lexical_normalize;
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
     collections::BTreeMap,
     fs, io, iter,
@@ -147,7 +148,11 @@ pub struct Modules {
     #[serde(default)]
     pub included: IncludedDependencies,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_layout_version",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub layout_version: Option<LayoutVersion>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -164,12 +169,6 @@ pub struct Modules {
 
     #[serde(default)]
     pub pruned_at: String,
-
-    // TODO: the strict manifest shape that the write path takes tightens
-    // this to a required `Registries`. Revisit when the install-pipeline
-    // port supplies a producer that always populates `default`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub registries: Option<BTreeMap<String, String>>,
 
     /// Legacy: the v5-era flag used to mean "hoist everything publicly."
     /// Replaced by [`Self::public_hoist_pattern`].
@@ -231,7 +230,7 @@ pub struct ModulesLayout {
     pub hoist_pattern: Option<Vec<String>>,
     #[serde(default)]
     pub included: IncludedDependencies,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_layout_version")]
     pub layout_version: Option<LayoutVersion>,
     #[serde(default)]
     pub node_linker: Option<NodeLinker>,
@@ -243,8 +242,6 @@ pub struct ModulesLayout {
     pub ignored_builds: Option<IndexSet<DepPath>>,
     #[serde(default)]
     pub pruned_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub registries: Option<BTreeMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_hoist_pattern: Option<Vec<String>>,
     /// Legacy: the v5-era flag used to mean "hoist everything publicly."
@@ -292,12 +289,13 @@ pub enum NodeLinker {
 
 /// Pinned identifier for the `node_modules` layout pacquet emits.
 ///
-/// The unit type carries no data: its existence is the value. It serializes
-/// as the integer `5` and deserializes only when the on-disk value is
-/// exactly `5`. Any other version causes a deserialization error, the
-/// breaking-change reaction to a missing or mismatched `layoutVersion`.
-/// Wrapping this in [`Option`] on [`Modules`] distinguishes "missing"
-/// (legacy, breaking change) from "present and matching".
+/// The unit type carries no data: its existence is the value. It
+/// serializes as the integer `5` and converts from `u32` only when the
+/// on-disk value is exactly `5`. On [`Modules`] and [`ModulesLayout`] it
+/// is wrapped in an [`Option`] whose `None` means "not the layout this
+/// build emits" — a missing field and an unsupported version read alike,
+/// so an old layout rebuilds `node_modules` instead of making the whole
+/// manifest unreadable.
 ///
 /// The `#[serde(try_from = "u32", into = "u32")]` proxy lets us reuse
 /// serde's number deserializer, while the [`TryFrom`] impl owns the
@@ -328,6 +326,28 @@ impl TryFrom<u32> for LayoutVersion {
             Err(UnsupportedLayoutVersionError { found: value })
         }
     }
+}
+
+/// Read `layoutVersion`, reporting any number that is not the version
+/// this build supports as `None` — the same "layout predates this pnpm"
+/// signal a missing field carries, which the caller reacts to by
+/// rebuilding `node_modules`. Rejecting it at parse time instead would
+/// make the whole manifest unreadable, and an unreadable manifest fails
+/// the install. pnpm reads any number here too and defers the decision to
+/// its own compatibility check.
+///
+/// The number is read as `f64` because that is the one JSON numeric type,
+/// so `5` and `5.0` are the same version to pnpm and must be here too.
+fn deserialize_layout_version<'de, Deser>(
+    deserializer: Deser,
+) -> Result<Option<LayoutVersion>, Deser::Error>
+where
+    Deser: serde::Deserializer<'de>,
+{
+    Ok(Option::<f64>::deserialize(deserializer)?
+        .filter(|found| found.fract() == 0.0)
+        .and_then(|found| u32::try_from(found as i64).ok())
+        .and_then(|found| LayoutVersion::try_from(found).ok()))
 }
 
 /// Returned by [`LayoutVersion::try_from`] when the on-disk `layoutVersion`
@@ -390,6 +410,20 @@ pub enum WriteModulesError {
     WriteFile { path: PathBuf, source: io::Error },
 }
 
+/// Parse the manifest as JSON first (the format every current pnpm writes),
+/// falling back to the YAML parser for manifests written by old pnpm
+/// versions. JSON parsing also accepts object keys longer than YAML's
+/// 1,024-character simple-key limit, which long dependency paths can exceed.
+fn deserialize_modules<Manifest>(content: &str) -> Result<Manifest, serde_saphyr::Error>
+where
+    Manifest: DeserializeOwned,
+{
+    match serde_json::from_str(content) {
+        Ok(manifest) => Ok(manifest),
+        Err(_) => serde_saphyr::from_str(content),
+    }
+}
+
 /// Read `<modules_dir>/.modules.yaml` and return the normalized manifest.
 ///
 /// Returns `Ok(None)` when the file does not exist or contains a YAML
@@ -411,10 +445,9 @@ where
             return Err(ReadModulesError::ReadFile { path: manifest_path, source });
         }
     };
-    let parsed: Option<Modules> =
-        content.pipe_as_ref(serde_saphyr::from_str).map_err(|source| {
-            ReadModulesError::ParseYaml { path: manifest_path.clone(), source: Box::new(source) }
-        })?;
+    let parsed: Option<Modules> = content.pipe_as_ref(deserialize_modules).map_err(|source| {
+        ReadModulesError::ParseYaml { path: manifest_path.clone(), source: Box::new(source) }
+    })?;
     let Some(mut manifest) = parsed else { return Ok(None) };
     apply_legacy_shamefully_hoist(&mut manifest);
     resolve_virtual_store_dir(&mut manifest, modules_dir);
@@ -444,8 +477,9 @@ where
         }
     };
     let parsed: Option<ModulesLayout> =
-        content.pipe_as_ref(serde_saphyr::from_str).map_err(|source| {
-            ReadModulesError::ParseYaml { path: manifest_path.clone(), source: Box::new(source) }
+        content.pipe_as_ref(deserialize_modules).map_err(|source| ReadModulesError::ParseYaml {
+            path: manifest_path.clone(),
+            source: Box::new(source),
         })?;
     let Some(mut manifest) = parsed else { return Ok(None) };
 

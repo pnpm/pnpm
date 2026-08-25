@@ -3,54 +3,104 @@ use super::{
     PnprBenchmarkRegistryOverride, rewrite_resolution_registry,
 };
 use clap::Parser;
-use pacquet_config::NodeLinker;
-use pacquet_lockfile::{LockfileResolution, TarballResolution};
-use pacquet_package_manifest::DependencyGroup;
+use pnpm_config::NodeLinker;
+use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
 
+/// The full flag matrix, mirroring the TypeScript CLI's prod/dev/optional
+/// resolution in `config/reader/src/index.ts`.
 #[test]
 fn dependency_options_to_dependency_groups() {
     use DependencyGroup::{Dev, Optional, Prod};
-    let create_list = |opts: InstallDependencyOptions| opts.dependency_groups().collect::<Vec<_>>();
+    let create_list =
+        |opts: InstallDependencyOptions| opts.dependency_groups(true).collect::<Vec<_>>();
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: false, dev: false, no_optional: false }),
+        create_list(InstallDependencyOptions {
+            prod: false,
+            dev: false,
+            optional: false,
+            no_optional: false,
+        }),
         [Prod, Dev, Optional],
     );
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: true, dev: false, no_optional: false }),
+        create_list(InstallDependencyOptions {
+            prod: true,
+            dev: false,
+            optional: false,
+            no_optional: false,
+        }),
         [Prod, Optional],
     );
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: false, dev: true, no_optional: false }),
-        [Dev, Optional],
-    );
-
-    assert_eq!(
-        create_list(InstallDependencyOptions { prod: false, dev: false, no_optional: true }),
-        [Prod, Dev],
-    );
-
-    assert_eq!(
-        create_list(InstallDependencyOptions { prod: true, dev: false, no_optional: true }),
-        [Prod],
-    );
-
-    assert_eq!(
-        create_list(InstallDependencyOptions { prod: false, dev: true, no_optional: true }),
+        create_list(InstallDependencyOptions {
+            prod: false,
+            dev: true,
+            optional: false,
+            no_optional: false,
+        }),
         [Dev],
     );
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: true, dev: true, no_optional: false }),
-        [Prod, Dev, Optional],
+        create_list(InstallDependencyOptions {
+            prod: false,
+            dev: false,
+            optional: false,
+            no_optional: true,
+        }),
+        [Prod, Dev],
     );
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: true, dev: true, no_optional: true }),
-        [Prod, Dev],
+        create_list(InstallDependencyOptions {
+            prod: true,
+            dev: false,
+            optional: false,
+            no_optional: true,
+        }),
+        [Prod],
+    );
+
+    assert_eq!(
+        create_list(InstallDependencyOptions {
+            prod: false,
+            dev: true,
+            optional: false,
+            no_optional: true,
+        }),
+        [Dev],
+    );
+
+    assert_eq!(
+        create_list(InstallDependencyOptions {
+            prod: true,
+            dev: true,
+            optional: false,
+            no_optional: false,
+        }),
+        [Prod, Optional],
+    );
+
+    assert_eq!(
+        create_list(InstallDependencyOptions {
+            prod: true,
+            dev: true,
+            optional: false,
+            no_optional: true,
+        }),
+        [Prod],
+    );
+
+    assert_eq!(
+        InstallDependencyOptions { prod: false, dev: false, optional: true, no_optional: false }
+            .dependency_groups(false)
+            .collect::<Vec<_>>(),
+        [Prod, Dev, Optional],
     );
 }
 
@@ -112,6 +162,16 @@ fn ignore_manifest_check_flag_parses() {
 }
 
 #[test]
+fn ignore_pnpmfile_flag_parses() {
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
+    assert!(!parsed.args.ignore_pnpmfile, "flag absent → false");
+
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--ignore-pnpmfile"])
+        .expect("parses --ignore-pnpmfile");
+    assert!(parsed.args.ignore_pnpmfile, "flag present → true");
+}
+
+#[test]
 fn dry_run_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
     assert!(!parsed.args.dry_run, "flag absent → false");
@@ -135,8 +195,23 @@ fn frozen_store_flag_parses() {
     assert!(parsed.args.frozen_store, "flag present → true");
 }
 
+#[test]
+fn slow_fetch_warning_flags_parse() {
+    let parsed = InstallArgsHarness::try_parse_from([
+        "pacquet-test",
+        "--fetch-warn-timeout-ms",
+        "2500",
+        "--fetch-min-speed-ki-bps",
+        "125",
+    ])
+    .expect("slow-fetch warning flags parse");
+
+    assert_eq!(parsed.args.fetch_warn_timeout_ms, Some(2_500));
+    assert_eq!(parsed.args.fetch_min_speed_ki_bps, Some(125));
+}
+
 /// `NodeLinkerArg::into_config` maps every variant 1:1 to the
-/// canonical `pacquet_config::NodeLinker` enum. Tied to the
+/// canonical `pnpm_config::NodeLinker` enum. Tied to the
 /// `ValueEnum` derive's kebab-case rename — if a future variant
 /// is added, this test starts failing at compile time as a
 /// reminder to update the mapping.

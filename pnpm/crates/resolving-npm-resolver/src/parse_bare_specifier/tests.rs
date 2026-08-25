@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use pacquet_resolving_jsr_specifier_parser::ParseJsrSpecifierError;
+use pnpm_resolving_jsr_specifier_parser::ParseJsrSpecifierError;
 
 use crate::{
     parse_bare_specifier::{
@@ -23,6 +23,21 @@ fn version_selector_classified_as_version() {
 }
 
 #[test]
+fn version_selector_drops_build_metadata() {
+    // pnpm/pnpm#14096: `@parcel/codeframe` is published as
+    // `2.0.0-canary.1718`, but dependents declare it as
+    // `2.0.0-canary.1718+d8408010f`.
+    for (selector, expected) in
+        [("1.0.0+build1", "1.0.0"), ("1.0.0-canary.1+build1", "1.0.0-canary.1")]
+    {
+        let spec = parse_bare_specifier(selector, Some("foo"), DEFAULT_TAG, REGISTRY)
+            .unwrap_or_else(|| panic!("expected a spec for {selector:?}"));
+        assert_eq!(spec.fetch_spec, expected, "for {selector:?}");
+        assert_eq!(spec.spec_type, RegistryPackageSpecType::Version, "for {selector:?}");
+    }
+}
+
+#[test]
 fn range_selector_classified_as_range() {
     let spec = parse_bare_specifier("^1.0.0", Some("foo"), DEFAULT_TAG, REGISTRY).unwrap();
     assert_eq!(spec.name, "foo");
@@ -41,6 +56,55 @@ fn tag_selector_classified_as_tag() {
 #[test]
 fn no_alias_no_npm_prefix_declines() {
     assert!(parse_bare_specifier("^1.0.0", None, DEFAULT_TAG, REGISTRY).is_none());
+}
+
+#[test]
+fn empty_selector_classified_as_any_version_range() {
+    // pnpm/pnpm#13673: `js-xlsx@0.8.22` declares `"adler-32": ""`.
+    let spec = parse_bare_specifier("", Some("adler-32"), DEFAULT_TAG, REGISTRY).unwrap();
+    assert_eq!(spec.name, "adler-32");
+    assert_eq!(spec.fetch_spec, "*");
+    assert_eq!(spec.spec_type, RegistryPackageSpecType::Range);
+}
+
+#[test]
+fn blank_selector_classified_as_any_version_range() {
+    let spec = parse_bare_specifier("   ", Some("foo"), DEFAULT_TAG, REGISTRY).unwrap();
+    assert_eq!(spec.fetch_spec, "*");
+    assert_eq!(spec.spec_type, RegistryPackageSpecType::Range);
+}
+
+#[test]
+fn union_with_empty_member_classified_as_any_version_range() {
+    let spec = parse_bare_specifier("^1.0.0 || ", Some("foo"), DEFAULT_TAG, REGISTRY).unwrap();
+    assert_eq!(spec.fetch_spec, "*");
+    assert_eq!(spec.spec_type, RegistryPackageSpecType::Range);
+}
+
+#[test]
+fn union_with_unparsable_member_still_classifies_as_any_version_range() {
+    for selector in ["latest || ", "|| latest", "garbage ||"] {
+        let spec = parse_bare_specifier(selector, Some("foo"), DEFAULT_TAG, REGISTRY)
+            .unwrap_or_else(|| panic!("expected a spec for {selector:?}"));
+        assert_eq!(spec.fetch_spec, "*", "for {selector:?}");
+        assert_eq!(spec.spec_type, RegistryPackageSpecType::Range, "for {selector:?}");
+    }
+}
+
+#[test]
+fn npm_alias_keeps_its_inner_name_when_the_union_does_not_parse_strictly() {
+    let spec = parse_bare_specifier("npm:bar@^5 || ", Some("foo"), DEFAULT_TAG, REGISTRY).unwrap();
+    assert_eq!(spec.name, "bar");
+    assert_eq!(spec.fetch_spec, "*");
+    assert_eq!(spec.spec_type, RegistryPackageSpecType::Range);
+}
+
+#[test]
+fn npm_alias_with_empty_selector_uses_outer_alias_as_name() {
+    let spec = parse_bare_specifier("npm:", Some("is-positive"), DEFAULT_TAG, REGISTRY).unwrap();
+    assert_eq!(spec.name, "is-positive");
+    assert_eq!(spec.fetch_spec, "*");
+    assert_eq!(spec.spec_type, RegistryPackageSpecType::Range);
 }
 
 #[test]
@@ -292,6 +356,44 @@ fn named_registry_with_scoped_alias_parses_version_selectors() {
     assert_eq!(spec.spec.name, "@acme/foo");
     assert_eq!(spec.spec.fetch_spec, "latest");
     assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Tag);
+}
+
+#[test]
+fn named_registry_with_any_version_body_uses_the_alias_as_name() {
+    let gh = gh_aliases();
+    for body in ["", "   ", "^1.0.0 || "] {
+        let input = format!("gh:{body}");
+        let spec = parse_named_registry_specifier_to_registry_package_spec(
+            &input,
+            &gh,
+            Some("@acme/foo"),
+            "latest",
+        )
+        .unwrap()
+        .unwrap_or_else(|| panic!("expected a spec for {input:?}"));
+        assert_eq!(spec.spec.name, "@acme/foo", "for {input:?}");
+        assert_eq!(spec.spec.fetch_spec, "*", "for {input:?}");
+        assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Range, "for {input:?}");
+        assert_eq!(spec.registry_name, "gh", "for {input:?}");
+    }
+}
+
+#[test]
+fn named_registry_reads_a_strictly_invalid_union_as_a_package_name() {
+    let gh = gh_aliases();
+    for input in ["gh:latest || ", "gh:garbage ||"] {
+        let err = parse_named_registry_specifier_to_registry_package_spec(
+            input,
+            &gh,
+            Some("foo"),
+            "latest",
+        )
+        .expect_err("a strictly invalid union is a malformed package name");
+        assert!(
+            matches!(err, ParseNamedRegistrySpecifierError::InvalidPackageName { .. }),
+            "got {err:?} for {input:?}",
+        );
+    }
 }
 
 #[test]

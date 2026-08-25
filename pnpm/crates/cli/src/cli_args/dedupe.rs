@@ -12,35 +12,93 @@ use crate::{
         deps_tree::render::{
             TreeNode, blue_bright_underline, gray, green, plain, red, render_archy,
         },
-        peers::peer_issues_warrant_warning,
+        install::resolve_bool_override,
     },
 };
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_lockfile::{Lockfile, PkgNameVerPeer};
-use pacquet_modules_yaml::{Host, read_modules_manifest};
-use pacquet_package_manager::{
+use pnpm_config::Config;
+use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
+use pnpm_modules_yaml::{Host, read_modules_manifest};
+use pnpm_package_manager::{
     ImporterDiffKey, Install, InstallabilityHost, LockfileDiff, ProjectMutation,
     ResolutionObserver, ResolvedPackageHint, SnapshotDiff, diff_lockfiles,
     package_metadata_is_installable,
 };
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::{
-    DedupeCheckLog, GlobalLog, LogEvent, LogLevel, PnpmErrorLog, ProgressLog, ProgressMessage,
-    Reporter,
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::{
+    DedupeCheckLog, LogEvent, LogLevel, PnpmErrorLog, ProgressLog, ProgressMessage, Reporter,
 };
-use pacquet_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
+use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
 use serde_json::{Map, Value, json};
 use tempfile::NamedTempFile;
 
 #[derive(Debug, Args)]
 pub struct DedupeArgs {
+    /// Check if running dedupe would result in changes without installing
+    /// packages or editing the lockfile. Exits with a non-zero status code
+    /// if changes are possible.
     #[clap(long)]
     pub check: bool,
+
+    /// Only update `pnpm-lock.yaml`. Don't download packages or write
+    /// `node_modules`.
+    #[clap(long = "lockfile-only")]
+    pub lockfile_only: bool,
+
+    /// Don't run lifecycle scripts of the project or its dependencies.
+    /// Packages are still installed; only their build scripts are skipped,
+    /// and the install won't fail because of it.
+    #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
+    pub ignore_scripts: bool,
+
+    /// Run lifecycle scripts even when the configuration disables them.
+    #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
+    pub no_ignore_scripts: bool,
+
+    /// Fail on a cache miss instead of fetching from the registry, using
+    /// only packages already in the store.
+    #[clap(long, overrides_with = "no_offline")]
+    pub offline: bool,
+
+    /// Allow network fetches even when the configuration enables offline
+    /// mode.
+    #[clap(long = "no-offline", overrides_with = "offline")]
+    pub no_offline: bool,
+
+    /// Prefer packages already in the cache over the network, even past
+    /// their freshness window.
+    #[clap(long, overrides_with = "no_prefer_offline")]
+    pub prefer_offline: bool,
+
+    /// Don't prefer cached packages even when the configuration enables
+    /// it.
+    #[clap(long = "no-prefer-offline", overrides_with = "prefer_offline")]
+    pub no_prefer_offline: bool,
+
+    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
+    /// pnpmfiles of config dependencies.
+    #[clap(long = "ignore-pnpmfile")]
+    pub ignore_pnpmfile: bool,
 }
 
 impl DedupeArgs {
+    pub(crate) fn apply_cli_config(&self, config: &mut Config) {
+        config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
+        config.ignore_scripts = resolve_bool_override(
+            self.ignore_scripts,
+            self.no_ignore_scripts,
+            config.ignore_scripts,
+        );
+        config.offline = resolve_bool_override(self.offline, self.no_offline, config.offline);
+        config.prefer_offline = resolve_bool_override(
+            self.prefer_offline,
+            self.no_prefer_offline,
+            config.prefer_offline,
+        );
+    }
+
     /// Run the deduplication install pipeline. In `--check` mode the method
     /// receives a pre-computed snapshot (`existing`) and drop guard created by
     /// the caller *before* config-dependency steps, so the gate covers any
@@ -79,14 +137,14 @@ impl DedupeArgs {
             .flatten()
             .collect();
 
-        Install {
+        let install = Install {
             tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
             http_client,
             http_client_arc: std::sync::Arc::clone(http_client),
             config,
             manifest,
             emit_initial_manifest: true,
-            lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
+            lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: Some(lockfile_path),
             dependency_groups: [
                 DependencyGroup::Prod,
@@ -105,9 +163,15 @@ impl DedupeArgs {
             resolved_packages,
             supported_architectures: config.supported_architectures.clone(),
             node_linker: config.node_linker,
-            lockfile_only: true,
+            lockfile_only: self.lockfile_only || self.check,
             dry_run: false,
-            update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
+            // `--check` must leave the working tree untouched: `lockfile_only`
+            // above keeps `node_modules` out of it, the lockfile guard restores
+            // `pnpm-lock.yaml`, and this gate keeps loose minimumReleaseAge
+            // picks out of `pnpm-workspace.yaml`.
+            persist_policy_excludes: !self.check,
+            update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
+            preferred_versions_override: None,
             auth_override: None,
             resolution_observer: Some(Arc::new(DedupeResolutionReporter::<Reporter> {
                 requester: lockfile_path
@@ -115,11 +179,7 @@ impl DedupeArgs {
                     .unwrap_or_else(|| Path::new("."))
                     .display()
                     .to_string(),
-                store_index: if config.frozen_store {
-                    StoreIndex::shared_immutable_in(&config.store_dir)
-                } else {
-                    StoreIndex::shared_readonly_in(&config.store_dir)
-                },
+                store_index: StoreIndex::shared_for(&config.store_dir, config.frozen_store),
                 reusable_skipped_package_ids,
                 reporter: PhantomData,
             })),
@@ -129,25 +189,16 @@ impl DedupeArgs {
             disable_optimistic_repeat_install: false,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+        };
+        if self.check {
+            install.run_lockfile_check::<Reporter>().await
+        } else {
+            install.run::<Reporter>().await
         }
-        .run::<Reporter>()
-        .await
         .wrap_err("deduplicating dependencies")?;
 
         let current = read_lockfile_snapshot(lockfile_path)?;
         let deduped = parse_snapshot(current.as_deref(), lockfile_path);
-
-        let lockfile_dir = lockfile_path.parent().unwrap_or_else(|| Path::new("."));
-        if let Some(deduped) = &deduped
-            && peer_issues_warrant_warning(deduped, lockfile_dir, &config.peer_dependency_rules)
-        {
-            Reporter::emit(&LogEvent::Global(GlobalLog {
-                level: LogLevel::Warn,
-                message:
-                    r#"Issues with peer dependencies found. Run "pnpm peers check" to list them."#
-                        .to_string(),
-            }));
-        }
 
         if self.check {
             let mut guard = guard.unwrap();
@@ -215,7 +266,7 @@ impl<Reporter: self::Reporter> ResolutionObserver for DedupeResolutionReporter<R
 
 fn reusable_skipped_package_id(
     package_key: &PkgNameVerPeer,
-    metadata: &pacquet_lockfile::PackageMetadata,
+    metadata: &pnpm_lockfile::PackageMetadata,
     installability_host: &InstallabilityHost,
     ignored_optional_dependencies: Option<&[String]>,
 ) -> miette::Result<Option<String>> {

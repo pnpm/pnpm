@@ -3,9 +3,9 @@ use super::{
 };
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_fs::{is_subdir, lexical_normalize, relative_path};
-use pacquet_workspace::read_project_manifest_only;
+use pnpm_config::Config;
+use pnpm_fs::{is_subdir, lexical_normalize, relative_path, remove_dirent};
+use pnpm_workspace::read_project_manifest_only;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -59,6 +59,7 @@ impl CleanArgs {
                 report_summary: false,
                 no_bail: false,
                 sort: true,
+                reverse: false,
                 parallel: false,
                 sequential: false,
             }
@@ -83,7 +84,7 @@ impl CleanArgs {
 /// (`None` when the manifest is absent), mirroring pnpm's
 /// `safeReadProjectManifestOnly` tolerance for a missing `package.json`.
 fn script_of(
-    manifest: Option<pacquet_package_manifest::PackageManifest>,
+    manifest: Option<pnpm_package_manifest::PackageManifest>,
     command_name: &str,
 ) -> Option<String> {
     manifest?
@@ -110,7 +111,7 @@ fn clean_builtin(ctx: &RunCtx<'_>, config: &Config, remove_lockfile: bool) -> mi
     let modules_leaf = config.modules_dir.strip_prefix(ctx.dir).unwrap_or(&config.modules_dir);
     let root_dir = config.workspace_dir.as_deref().unwrap_or(ctx.dir);
     let dirs: Vec<PathBuf> = if let Some(workspace_dir) = config.workspace_dir.as_deref() {
-        let (projects, _patterns) = discover_workspace_projects(workspace_dir)?;
+        let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
         projects.into_iter().map(|project| project.root_dir).collect()
     } else {
         vec![ctx.dir.to_path_buf()]
@@ -177,9 +178,7 @@ fn remove_modules_dir_contents(modules_dir: &Path) -> miette::Result<()> {
 }
 
 fn remove_path(path: &Path) -> miette::Result<()> {
-    let result =
-        if path.is_dir() { std::fs::remove_dir_all(path) } else { std::fs::remove_file(path) };
-    result
+    remove_dirent(path)
         .or_else(
             |error| {
                 if error.kind() == std::io::ErrorKind::NotFound { Ok(()) } else { Err(error) }

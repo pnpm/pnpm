@@ -1,13 +1,13 @@
 use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Utc};
-use pacquet_config::{TrustPolicy, version_policy::create_package_version_policy};
-use pacquet_lockfile::{LockfileResolution, PkgName, RegistryResolution, TarballResolution};
-use pacquet_network::{
+use pnpm_config::{TrustPolicy, version_policy::create_package_version_policy};
+use pnpm_lockfile::{LockfileResolution, PkgName, RegistryResolution, TarballResolution};
+use pnpm_network::{
     AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient, UpstreamRouteHook,
 };
-use pacquet_registry::Package;
-use pacquet_resolving_resolver_base::{ResolutionVerification, ResolutionVerifier, VerifyCtx};
+use pnpm_registry::Package;
+use pnpm_resolving_resolver_base::{ResolutionVerification, ResolutionVerifier, VerifyCtx};
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use tempfile::TempDir;
@@ -57,22 +57,25 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
         minimum_release_age_exclude: None,
         minimum_release_age_exclude_patterns: Vec::new(),
         ignore_missing_time_field: false,
+        registry_supports_time_field: false,
         trust_policy: None,
         trust_policy_exclude: None,
         trust_policy_exclude_patterns: Vec::new(),
         trust_policy_ignore_after: None,
         registries: registries_with_default(registry_url),
-        named_registries: HashMap::new(),
+        registries_by_prefix: HashMap::new(),
         http_client: Arc::new(ThrottledClient::default()),
         auth_headers: Arc::new(AuthHeaders::default()),
         cache_dir: None,
         meta_cache: None,
+        offline: false,
         // No retries: tests that point an endpoint at an unmocked /
         // erroring upstream would otherwise wait out the full pnpm
         // backoff (10 s + 60 s) on every run.
         retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
         now: None,
         observed_dist_stats: None,
+        planned_canonical_fetches: None,
     }
 }
 
@@ -373,7 +376,7 @@ async fn verify_short_circuits_non_registry_resolution() {
     let mut opts = default_opts("https://registry.example/");
     opts.minimum_release_age = Some(60 * 24 * 365);
     let verifier = create_npm_resolution_verifier(opts);
-    let directory = LockfileResolution::Directory(pacquet_lockfile::DirectoryResolution {
+    let directory = LockfileResolution::Directory(pnpm_lockfile::DirectoryResolution {
         directory: "/some/path".into(),
     });
     let name: PkgName = "acme".parse().expect("parse");
@@ -669,6 +672,65 @@ async fn verify_skips_age_check_for_an_exact_version_in_a_union() {
 }
 
 #[tokio::test]
+async fn planned_fetch_head_shortcut_skips_the_metadata_body() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _head_mock = server
+        .mock("HEAD", "/acme")
+        .with_status(200)
+        .with_header("last-modified", "Mon, 01 Jan 2024 00:00:00 GMT")
+        .expect(1)
+        .create_async()
+        .await;
+    // The whole point: no metadata body is fetched for a planned entry
+    // whose package-level Last-Modified is older than the cutoff.
+    let _meta_mock = server.mock("GET", "/acme").expect(0).create_async().await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(60 * 24);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let planned = pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
+    planned
+        .set(std::collections::HashSet::from([("acme".to_string(), "1.0.0".to_string(), None)]))
+        .expect("first fill");
+    opts.planned_canonical_fetches = Some(std::sync::Arc::clone(&planned));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"))
+        .await;
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
+async fn unplanned_entry_sends_no_head_probe() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _head_mock = server.mock("HEAD", "/acme").expect(0).create_async().await;
+    // The metadata-backed chain answers instead: the abbreviated
+    // `modified` shortcut passes on an old package whose pinned
+    // version the versions map still lists.
+    let _meta_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(min_age_packument_json("acme", "1.0.0", "2024-01-01T00:00:00.000Z").to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(60 * 24);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let planned = pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
+    planned
+        .set(std::collections::HashSet::from([("other".to_string(), "2.0.0".to_string(), None)]))
+        .expect("first fill");
+    opts.planned_canonical_fetches = Some(std::sync::Arc::clone(&planned));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"))
+        .await;
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
 async fn min_age_pass_when_published_before_cutoff() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
@@ -821,6 +883,42 @@ async fn min_age_missing_time_passes_when_ignored() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
+/// The opt-in speaks for a registry that cannot date its releases, not
+/// for a pin it has never heard of: a packument that dates every version
+/// it lists is saying this one is not among them.
+#[tokio::test]
+async fn min_age_unlisted_version_fails_when_missing_time_is_ignored() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _attestation_mock = server
+        .mock("GET", "/-/npm/v1/attestations/acme@1.0.1")
+        .with_status(404)
+        .create_async()
+        .await;
+    let _full_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(min_age_packument_json("acme", "1.0.0", "2025-01-01T00:00:00.000Z").to_string())
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(60 * 24);
+    opts.ignore_missing_time_field = true;
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.1"))
+        .await;
+    let ResolutionVerification::Err { code, reason } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "MINIMUM_RELEASE_AGE_VIOLATION");
+    assert!(
+        reason.contains("could not be checked against minimumReleaseAge"),
+        "got reason: {reason}",
+    );
+}
+
 #[tokio::test]
 async fn trust_downgrade_publisher_to_provenance_fails() {
     let mut server = mockito::Server::new_async().await;
@@ -867,6 +965,92 @@ async fn trust_downgrade_pass_when_no_weaker_evidence() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
+/// Same fixture as [`trust_downgrade_packument`] minus the `time` map:
+/// a downgrade the check cannot see because it has no publish order to
+/// walk.
+fn time_free_trust_packument(name: &str) -> serde_json::Value {
+    let mut body = trust_downgrade_packument(name);
+    body.as_object_mut().expect("packument is an object").remove("time");
+    body
+}
+
+#[tokio::test]
+async fn trust_time_free_packument_fails_closed_by_default() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _full_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(time_free_trust_packument("acme").to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"))
+        .await;
+    let ResolutionVerification::Err { code, reason } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "TRUST_DOWNGRADE");
+    assert!(reason.contains(r#"missing the "time" field"#), "got reason: {reason}");
+}
+
+/// The same registry deficiency the age check already tolerates under
+/// this opt-in: with no `time` map there is no publish order for the
+/// downgrade walk to read, so the verifier passes the entry rather than
+/// locking the user out of a registry that never serves the field.
+#[tokio::test]
+async fn trust_time_free_packument_passes_when_ignored() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _full_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(time_free_trust_packument("acme").to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    opts.ignore_missing_time_field = true;
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"))
+        .await;
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
+async fn trust_downgrade_still_reported_when_ignored_and_time_is_complete() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _full_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(trust_downgrade_packument("acme").to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    opts.ignore_missing_time_field = true;
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts);
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"))
+        .await;
+    let ResolutionVerification::Err { code, reason } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "TRUST_DOWNGRADE");
+    assert!(reason.contains("trust downgrade"), "got reason: {reason}");
+}
+
 #[tokio::test]
 async fn verify_routes_via_named_registry_prefix() {
     let mut server = mockito::Server::new_async().await;
@@ -910,7 +1094,7 @@ async fn verify_routes_via_named_registry_prefix() {
     // breaks, the request would target the bogus URL and the test
     // would fail with a connection error instead of finding the mock.
     let mut opts = default_opts("http://nonexistent.example.invalid/");
-    opts.named_registries = named;
+    opts.registries_by_prefix = named;
     opts.minimum_release_age = Some(60 * 24);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
@@ -965,6 +1149,43 @@ fn policy_snapshot_records_all_fields_sorted_and_deduped() {
         policy.get("trustPolicyIgnoreAfter").and_then(serde_json::Value::as_u64),
         Some(60 * 24 * 30),
     );
+    assert_eq!(
+        policy.get("minimumReleaseAgeIgnoreMissingTime").and_then(serde_json::Value::as_bool),
+        Some(false),
+    );
+}
+
+/// Dropping the missing-time tolerance invalidates a cached run that
+/// may have waved entries through on it; adding the tolerance keeps a
+/// stricter cached run trustworthy, since it accepted a subset of what
+/// today's policy accepts.
+#[test]
+fn can_trust_past_check_tracks_ignore_missing_time_field() {
+    let mut tolerant_opts = default_opts("https://registry.example/");
+    tolerant_opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    tolerant_opts.ignore_missing_time_field = true;
+    let tolerant = create_npm_resolution_verifier(tolerant_opts);
+
+    let mut strict_opts = default_opts("https://registry.example/");
+    strict_opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    let strict = create_npm_resolution_verifier(strict_opts);
+
+    assert!(!strict.can_trust_past_check(tolerant.policy()));
+    assert!(tolerant.can_trust_past_check(strict.policy()));
+}
+
+/// A record written before the field existed reads as intolerant, which
+/// is the safe direction: it cannot have passed anything today's
+/// stricter policy would reject.
+#[test]
+fn can_trust_past_check_reads_a_missing_tolerance_field_as_intolerant() {
+    let mut opts = default_opts("https://registry.example/");
+    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    let verifier = create_npm_resolution_verifier(opts);
+
+    let mut cached = verifier.policy().clone();
+    cached.remove("minimumReleaseAgeIgnoreMissingTime");
+    assert!(verifier.can_trust_past_check(&cached));
 }
 
 /// A previously-cached run with a stricter (larger) cutoff stays
@@ -991,11 +1212,14 @@ fn can_trust_past_check_accepts_looser_min_age() {
 #[test]
 fn can_trust_past_check_rejects_changed_named_registry_mapping() {
     let mut opts = default_opts("https://registry.example/");
-    opts.named_registries.insert("work".to_string(), "https://registry.work.example/".to_string());
+    opts.registries_by_prefix
+        .insert("work".to_string(), "https://registry.work.example/".to_string());
     let verifier = create_npm_resolution_verifier(opts);
     let cached = verifier.policy().clone();
     let mut changed_opts = default_opts("https://registry.example/");
-    changed_opts.named_registries.insert("work".to_string(), "https://other.example/".to_string());
+    changed_opts
+        .registries_by_prefix
+        .insert("work".to_string(), "https://other.example/".to_string());
     let changed = create_npm_resolution_verifier(changed_opts);
 
     // Pins that the rejection below comes from the URL change and not from
@@ -1455,4 +1679,128 @@ async fn version_absent_from_fetched_metadata_stays_tarball_url_mismatch() {
         panic!("expected Err, got {result:?}");
     };
     assert_eq!(code, "TARBALL_URL_MISMATCH");
+}
+
+/// With `registrySupportsTimeField`, a version's publish timestamp is
+/// taken from the `time` map of the abbreviated document the verifier
+/// already fetched. The `modified` shortcut cannot answer here (the
+/// package was modified inside the cutoff window), and no other source
+/// is mocked, so a passing verification proves the timestamp came from
+/// the abbreviated document — the attestation round-trip and the
+/// full-packument download never happen.
+#[tokio::test]
+async fn registry_supports_time_field_reads_version_time_from_abbreviated_meta() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let server_url = server.url();
+    let now = Utc::now();
+    let meta = serde_json::json!({
+        "name": "aged-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        // Package touched *inside* the cutoff window: the modified
+        // shortcut must fall through.
+        "modified": now.to_rfc3339(),
+        "time": {
+            "created": "2020-01-01T00:00:00.000Z",
+            "modified": now.to_rfc3339(),
+            // The pinned version itself is years old.
+            "1.0.0": "2020-01-01T00:00:00.000Z"
+        },
+        "versions": {
+            "1.0.0": {
+                "name": "aged-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": format!("{server_url}/aged-pkg/-/aged-pkg-1.0.0.tgz"),
+                }
+            }
+        }
+    });
+    let meta_mock = server
+        .mock("GET", "/aged-pkg")
+        .with_status(200)
+        .with_body(meta.to_string())
+        // The whole point: one abbreviated fetch answers everything. A
+        // second hit would be the full-packument fallback this flag
+        // exists to avoid.
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(60 * 24); // 24h
+    opts.registry_supports_time_field = true;
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("{server_url}/aged-pkg/-/aged-pkg-1.0.0.tgz"),
+        integrity: Some(fake_integrity()),
+        git_hosted: None,
+        path: None,
+    });
+    let name: PkgName = "aged-pkg".parse().expect("parse");
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+    assert_eq!(result, ResolutionVerification::Ok);
+    meta_mock.assert_async().await;
+}
+
+/// Same registry document, flag unset: the verifier still passes, but
+/// only by escalating to the full-packument fetch — a second request
+/// for the same document. Guards both directions: the new step never
+/// runs without the flag, and the request the flag saves is real.
+#[tokio::test]
+async fn without_registry_supports_time_field_abbreviated_time_is_not_consulted() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let server_url = server.url();
+    let now = Utc::now();
+    let meta = serde_json::json!({
+        "name": "aged-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "modified": now.to_rfc3339(),
+        "time": { "1.0.0": "2020-01-01T00:00:00.000Z" },
+        "versions": {
+            "1.0.0": {
+                "name": "aged-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": format!("{server_url}/aged-pkg/-/aged-pkg-1.0.0.tgz"),
+                }
+            }
+        }
+    });
+    let meta_mock = server
+        .mock("GET", "/aged-pkg")
+        .with_status(200)
+        .with_body(meta.to_string())
+        // Abbreviated fetch for the modified shortcut, then the
+        // full-packument fallback for the per-version timestamp.
+        .expect(2)
+        .create_async()
+        .await;
+    // Without the flag the per-version fallbacks run in order, so the
+    // attestation endpoint is consulted (and 404s) before the full
+    // packument. Asserting it makes the escalation the flag avoids explicit.
+    let attestation_mock = server
+        .mock("GET", "/-/npm/v1/attestations/aged-pkg@1.0.0")
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(60 * 24);
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("{server_url}/aged-pkg/-/aged-pkg-1.0.0.tgz"),
+        integrity: Some(fake_integrity()),
+        git_hosted: None,
+        path: None,
+    });
+    let name: PkgName = "aged-pkg".parse().expect("parse");
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+    assert_eq!(result, ResolutionVerification::Ok);
+    meta_mock.assert_async().await;
+    attestation_mock.assert_async().await;
 }

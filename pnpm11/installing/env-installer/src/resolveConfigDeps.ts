@@ -52,7 +52,7 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
     }
     const pkgName = wantedDep.alias
     const version = resolution.manifest.version
-    const registry = pickRegistryForPackage(opts.registries, pkgName)
+    const registry = pickRegistryForPackage(opts.registriesByScope, pkgName)
 
     // Write clean specifier to workspace manifest
     configDependencySpecifiers[pkgName] = wantedDep.bareSpecifier ?? version
@@ -67,13 +67,13 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
       resolution: toLockfileResolution(
         { name: pkgName, version },
         resolution.resolution,
-        registry
+        { registry }
       ),
     }
     const optionalSubdeps = await resolveOptionalSubdeps(pkgName, resolution.manifest, {
       envLockfile,
       lockfileDir: opts.rootDir,
-      registries: opts.registries,
+      registriesByScope: opts.registriesByScope,
       resolveFromNpm,
     })
     envLockfile.snapshots[pkgKey] = optionalSubdeps ? { optionalDependencies: optionalSubdeps } : {}

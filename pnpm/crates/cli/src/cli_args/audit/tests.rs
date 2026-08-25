@@ -1,15 +1,23 @@
 use super::{
-    AuditAdvisory, AuditFinding, AuditMetadata, AuditPathIndex, AuditReport,
-    AuditVulnerabilityCounts, BTreeMap, Config, ConfigAuditLevel, Cwe, HashMap, Include,
-    InstalledPackages, MAX_PATHS_PER_FINDING, PackageVersionGuard, PackageVersionGuardDecision,
-    PathInfo, Range, RawBulkAdvisory, SnapshotDepRef, VulnerabilityGuard, build_audit_path_index,
-    bulk_response_to_audit_report, caret_range_for_patched, classify_for_update, create_overrides,
-    filter_advisories_for_fix, filter_ignored_advisories, format_fix_with_update_output,
-    lockfile_to_audit_request, minimum_release_age_excludes, normalize_ghsa_id,
-    redact_url_userinfo, render_json_report, render_text_report, report_fixed_remaining,
-    sanitize_control_chars, satisfies_safe,
+    BTreeMap, Config, ConfigAuditLevel, HashMap, MAX_PATHS_PER_FINDING, PackageVersionGuard,
+    PackageVersionGuardDecision, Range, SnapshotDepRef, filter_ignored_advisories,
+    fix::{
+        InstalledPackages, PackumentPublishInfo, VulnerabilityGuard, classify_for_update,
+        create_overrides, filter_advisories_for_fix, format_fix_with_update_output,
+        minimum_release_age_excludes, report_fixed_remaining,
+    },
+    paths::{AuditPathIndex, PathInfo, build_audit_path_index},
+    render::{render_json_report, render_text_report},
+    report::{
+        AuditAdvisory, AuditFinding, AuditMetadata, AuditReport, AuditVulnerabilityCounts, Cwe,
+        RawBulkAdvisory, bulk_response_to_audit_report, normalize_ghsa_id, redact_url_userinfo,
+        sanitize_control_chars,
+    },
+    request::{Include, lockfile_to_audit_request},
+    version_ranges::{caret_range_for_patched, satisfies_safe},
 };
-use pacquet_lockfile::{EnvLockfile, Lockfile, SnapshotEntry, SpecifierAndResolution};
+use chrono::{DateTime, Utc};
+use pnpm_lockfile::{EnvLockfile, Lockfile, SnapshotEntry, SpecifierAndResolution};
 use std::{collections::HashSet, fmt::Write as _};
 
 fn parse_lockfile(yaml: &str) -> Lockfile {
@@ -976,6 +984,71 @@ fn text_report_separates_advisory_table_from_summary() {
 }
 
 #[test]
+fn text_report_shows_none_when_patched_version_was_unpublished() {
+    let mut adv = advisory(1, "high issue", ConfigAuditLevel::High, "GHSA-high-3333-4444");
+    adv.patched_versions = None;
+    adv.patched_versions_unpublished = Some(true);
+    let report = AuditReport {
+        advisories: BTreeMap::from([("1".to_string(), adv)]),
+        metadata: AuditMetadata {
+            vulnerabilities: AuditVulnerabilityCounts {
+                info: 0,
+                low: 0,
+                moderate: 0,
+                high: 1,
+                critical: 0,
+            },
+            dependencies: 1,
+            dev_dependencies: 0,
+            optional_dependencies: 0,
+            total_dependencies: 1,
+        },
+    };
+
+    let output =
+        render_text_report(&report, ConfigAuditLevel::Low, 1, &AuditVulnerabilityCounts::default());
+    assert!(output.contains("Patched versions"), "row label should be present:\n{output}");
+    assert!(
+        output.contains("Patched versions    │ None"),
+        "an unpublished patch renders as None:\n{output}",
+    );
+    assert!(
+        !output.contains("(unknown)"),
+        "unpublished must not render as the inference-failed fallback:\n{output}",
+    );
+}
+
+#[test]
+fn text_report_shows_unknown_when_patched_version_cannot_be_inferred() {
+    let mut adv = advisory(1, "high issue", ConfigAuditLevel::High, "GHSA-high-3333-4444");
+    adv.patched_versions = None;
+    adv.patched_versions_unpublished = None;
+    let report = AuditReport {
+        advisories: BTreeMap::from([("1".to_string(), adv)]),
+        metadata: AuditMetadata {
+            vulnerabilities: AuditVulnerabilityCounts {
+                info: 0,
+                low: 0,
+                moderate: 0,
+                high: 1,
+                critical: 0,
+            },
+            dependencies: 1,
+            dev_dependencies: 0,
+            optional_dependencies: 0,
+            total_dependencies: 1,
+        },
+    };
+
+    let output =
+        render_text_report(&report, ConfigAuditLevel::Low, 1, &AuditVulnerabilityCounts::default());
+    assert!(
+        output.contains("Patched versions    │ (unknown)"),
+        "a non-inferable range renders as (unknown):\n{output}",
+    );
+}
+
+#[test]
 fn redact_url_userinfo_removes_credentials_from_audit_endpoint() {
     assert_eq!(
         redact_url_userinfo(
@@ -1009,6 +1082,7 @@ fn advisory(id: u64, title: &str, severity: ConfigAuditLevel, ghsa: &str) -> Aud
         module_name: "pkg".to_string(),
         vulnerable_versions: "<2.0.0".to_string(),
         patched_versions: Some(">=2.0.0".to_string()),
+        patched_versions_unpublished: None,
         severity,
         cwe: String::new(),
         github_advisory_id: normalize_ghsa_id(ghsa),
@@ -1163,6 +1237,39 @@ fn format_fix_with_update_output_lists_fixed_and_remaining() {
     assert!(output.contains("stuck-pkg"));
 }
 
+fn age_cutoff() -> DateTime<Utc> {
+    DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z").expect("valid cutoff").with_timezone(&Utc)
+}
+
+fn publish_times(
+    package: &str,
+    entries: &[(&str, &str)],
+) -> HashMap<String, Option<PackumentPublishInfo>> {
+    HashMap::from([(
+        package.to_string(),
+        Some(PackumentPublishInfo {
+            time: entries
+                .iter()
+                .map(|(version, time)| (version.to_string(), time.to_string()))
+                .collect(),
+            deprecated: HashSet::new(),
+        }),
+    )])
+}
+
+fn deprecate(
+    publish_infos: &mut HashMap<String, Option<PackumentPublishInfo>>,
+    package: &str,
+    version: &str,
+) {
+    publish_infos
+        .get_mut(package)
+        .and_then(Option::as_mut)
+        .expect("publish info for the package")
+        .deprecated
+        .insert(version.parse().expect("valid deprecated version"));
+}
+
 #[test]
 fn minimum_release_age_excludes_uses_patched_minimums_and_skips_unfixable() {
     let advisories = report_of(vec![
@@ -1172,9 +1279,222 @@ fn minimum_release_age_excludes_uses_patched_minimums_and_skips_unfixable() {
     ])
     .advisories;
 
-    let excludes = minimum_release_age_excludes(&advisories).expect("compute excludes");
+    // No publish-time information at all: fail open, keep the entry.
+    let excludes = minimum_release_age_excludes(&advisories, &HashMap::new(), age_cutoff())
+        .expect("compute excludes");
 
     assert_eq!(excludes, vec!["foo@2.0.0".to_string()]);
+}
+
+#[test]
+fn minimum_release_age_excludes_drops_versions_older_than_the_cutoff() {
+    let advisories = report_of(vec![
+        fix_advisory(1, "old", "<2.0.0", Some(">=2.0.0"), ConfigAuditLevel::High, "GHSA-a"),
+        fix_advisory(2, "fresh", "<3.0.0", Some(">=3.0.0"), ConfigAuditLevel::High, "GHSA-b"),
+    ])
+    .advisories;
+    let times = HashMap::from([
+        (
+            "old".to_string(),
+            Some(PackumentPublishInfo {
+                time: HashMap::from([("2.0.0".to_string(), "2020-01-01T00:00:00Z".to_string())]),
+                deprecated: HashSet::new(),
+            }),
+        ),
+        (
+            "fresh".to_string(),
+            Some(PackumentPublishInfo {
+                time: HashMap::from([("3.0.0".to_string(), "2026-06-01T00:00:00Z".to_string())]),
+                deprecated: HashSet::new(),
+            }),
+        ),
+    ]);
+
+    let excludes =
+        minimum_release_age_excludes(&advisories, &times, age_cutoff()).expect("compute excludes");
+
+    assert_eq!(excludes, vec!["fresh@3.0.0".to_string()], "the old fix needs no bypass");
+}
+
+#[test]
+fn minimum_release_age_excludes_drops_versions_published_exactly_at_the_cutoff() {
+    let advisories = report_of(vec![fix_advisory(
+        1,
+        "foo",
+        "<2.0.0",
+        Some(">=2.0.0"),
+        ConfigAuditLevel::High,
+        "GHSA-a",
+    )])
+    .advisories;
+    let times = publish_times("foo", &[("2.0.0", "2026-01-01T00:00:00Z")]);
+
+    let excludes =
+        minimum_release_age_excludes(&advisories, &times, age_cutoff()).expect("compute excludes");
+
+    assert!(excludes.is_empty(), "a version at the cutoff is mature: {excludes:?}");
+}
+
+#[test]
+fn minimum_release_age_excludes_keeps_versions_with_unknown_publish_times() {
+    let advisories = report_of(vec![
+        fix_advisory(2, "garbled", "<3.0.0", Some(">=3.0.0"), ConfigAuditLevel::High, "GHSA-b"),
+        fix_advisory(3, "unfetchable", "<4.0.0", Some(">=4.0.0"), ConfigAuditLevel::High, "GHSA-c"),
+    ])
+    .advisories;
+    let times = HashMap::from([
+        // The timestamp does not parse.
+        (
+            "garbled".to_string(),
+            Some(PackumentPublishInfo {
+                time: HashMap::from([("3.0.0".to_string(), "not-a-date".to_string())]),
+                deprecated: HashSet::new(),
+            }),
+        ),
+        // The fetch failed outright.
+        ("unfetchable".to_string(), None),
+    ]);
+
+    let excludes =
+        minimum_release_age_excludes(&advisories, &times, age_cutoff()).expect("compute excludes");
+
+    assert_eq!(
+        excludes,
+        vec!["garbled@3.0.0".to_string(), "unfetchable@4.0.0".to_string()],
+        "unknown publish times fail open so a fresh fix stays installable",
+    );
+}
+
+#[test]
+fn minimum_release_age_excludes_drops_versions_missing_from_the_packument() {
+    let advisories = report_of(vec![fix_advisory(
+        1,
+        "absent",
+        "<2.0.0",
+        Some(">=2.0.0"),
+        ConfigAuditLevel::High,
+        "GHSA-a",
+    )])
+    .advisories;
+    // The packument was fetched but names no such version: the patched
+    // release was never published.
+    let times = publish_times("absent", &[("1.0.0", "2020-01-01T00:00:00Z")]);
+
+    let excludes =
+        minimum_release_age_excludes(&advisories, &times, age_cutoff()).expect("compute excludes");
+
+    assert!(excludes.is_empty(), "an unpublished patched version gets no bypass: {excludes:?}");
+}
+
+#[test]
+fn minimum_release_age_excludes_uses_lowest_published_version_satisfying_range() {
+    let advisories = report_of(vec![fix_advisory(
+        1,
+        "foo",
+        "<2.0.0",
+        Some(">=2.0.0"),
+        ConfigAuditLevel::High,
+        "GHSA-a",
+    )])
+    .advisories;
+    // 2.0.0 was never published; 2.0.1 is the lowest published version
+    // satisfying >=2.0.0 and it is fresh enough to need the bypass.
+    let times = publish_times("foo", &[("2.0.1", "2026-06-01T00:00:00Z")]);
+
+    let excludes =
+        minimum_release_age_excludes(&advisories, &times, age_cutoff()).expect("compute excludes");
+
+    assert_eq!(
+        excludes,
+        vec!["foo@2.0.1".to_string()],
+        "the lowest published satisfying version is used",
+    );
+}
+
+#[test]
+fn minimum_release_age_excludes_skips_deprecated_versions() {
+    let advisories = report_of(vec![fix_advisory(
+        1,
+        "lodash-es",
+        "<4.18.0",
+        Some(">=4.18.0"),
+        ConfigAuditLevel::High,
+        "GHSA-a",
+    )])
+    .advisories;
+    // 4.18.0 is deprecated; 4.18.1 is the lowest non-deprecated published
+    // version satisfying >=4.18.0.
+    let mut info = publish_times(
+        "lodash-es",
+        &[("4.18.0", "2026-06-01T00:00:00Z"), ("4.18.1", "2026-06-01T01:00:00Z")],
+    );
+    deprecate(&mut info, "lodash-es", "4.18.0");
+
+    let excludes =
+        minimum_release_age_excludes(&advisories, &info, age_cutoff()).expect("compute excludes");
+
+    assert_eq!(
+        excludes,
+        vec!["lodash-es@4.18.1".to_string()],
+        "the deprecated version is skipped in favor of the next non-deprecated one",
+    );
+}
+
+#[test]
+fn minimum_release_age_excludes_skips_deprecated_versions_spelled_differently() {
+    let advisories = report_of(vec![fix_advisory(
+        1,
+        "lodash-es",
+        "<4.18.0",
+        Some(">=4.18.0"),
+        ConfigAuditLevel::High,
+        "GHSA-a",
+    )])
+    .advisories;
+    // The `time` map spells 4.18.0 with a leading `v` while `versions` — the
+    // source of the deprecation set — does not.
+    let mut info = publish_times(
+        "lodash-es",
+        &[("v4.18.0", "2026-06-01T00:00:00Z"), ("4.18.1", "2026-06-01T01:00:00Z")],
+    );
+    deprecate(&mut info, "lodash-es", "4.18.0");
+
+    let excludes =
+        minimum_release_age_excludes(&advisories, &info, age_cutoff()).expect("compute excludes");
+
+    assert_eq!(
+        excludes,
+        vec!["lodash-es@4.18.1".to_string()],
+        "deprecation is matched on the parsed version, not the raw packument key",
+    );
+}
+
+#[test]
+fn minimum_release_age_excludes_prefers_a_stable_release_over_a_lower_prerelease() {
+    let advisories = report_of(vec![fix_advisory(
+        1,
+        "foo",
+        "<=1.9.9",
+        Some(">=1.9.10"),
+        ConfigAuditLevel::High,
+        "GHSA-a",
+    )])
+    .advisories;
+    // 2.0.0-beta.1 sorts below 2.0.0 but is not a release users should be
+    // pointed at as the fix.
+    let times = publish_times(
+        "foo",
+        &[("2.0.0-beta.1", "2026-06-01T00:00:00Z"), ("2.0.0", "2026-06-01T01:00:00Z")],
+    );
+
+    let excludes =
+        minimum_release_age_excludes(&advisories, &times, age_cutoff()).expect("compute excludes");
+
+    assert_eq!(
+        excludes,
+        vec!["foo@2.0.0".to_string()],
+        "the stable release outranks the lower-sorting prerelease",
+    );
 }
 
 #[test]

@@ -1,11 +1,12 @@
 use clap::Subcommand;
 use indexmap::IndexMap;
 use miette::IntoDiagnostic;
-use pacquet_config::{Config, ResolutionMode};
-use pacquet_resolving_npm_resolver::mirror::{
+use pnpm_config::{Config, ResolutionMode};
+use pnpm_fs::lexical_normalize;
+use pnpm_resolving_npm_resolver::mirror::{
     ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_registry_name, load_meta,
 };
-use pacquet_store_dir::StoreIndex;
+use pnpm_store_dir::StoreIndex;
 use serde_json::json;
 use std::{
     fs,
@@ -19,6 +20,8 @@ pub enum CacheCommand {
     List { packages: Vec<String> },
     /// Lists all registries that have their metadata cache locally.
     ListRegistries,
+    /// Prints the path to the cache directory.
+    Path,
     /// Views information from the specified package's cache.
     View { package: String },
     /// Deletes metadata cache for the specified package(s). Supports patterns.
@@ -38,6 +41,17 @@ impl CacheCommand {
 
     fn cache_dir(config: &Config) -> PathBuf {
         config.cache_dir.join(Self::meta_dir(config))
+    }
+
+    /// Lexically cleaned form of the configured cache directory, for
+    /// `pnpm cache path` to hand to other tools.
+    ///
+    /// `dunce::canonicalize` would also resolve symlinks, which the
+    /// TypeScript CLI's `path.resolve` does not — on macOS, where the
+    /// temporary and home directories are symlinked, the two stacks would
+    /// then print different paths for the same configuration.
+    fn cleaned_cache_dir(config: &Config) -> PathBuf {
+        lexical_normalize(&config.cache_dir)
     }
 
     /// Filesystem-safe slug of the configured registry, used as the top-level
@@ -105,6 +119,9 @@ impl CacheCommand {
         let cache_dir = Self::cache_dir(config);
 
         match self {
+            CacheCommand::Path => {
+                println!("{}", Self::cleaned_cache_dir(config).display());
+            }
             CacheCommand::ListRegistries => {
                 if let Ok(entries) = fs::read_dir(&cache_dir) {
                     let mut registries: Vec<String> = entries
@@ -209,7 +226,7 @@ impl CacheCommand {
                             continue;
                         };
 
-                        let key = pacquet_store_dir::store_index_key(
+                        let key = pnpm_store_dir::store_index_key(
                             integrity,
                             &format!("{}@{}", meta_object.name, version),
                         );

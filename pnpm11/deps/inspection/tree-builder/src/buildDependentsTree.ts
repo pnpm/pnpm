@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { normalizeRegistries } from '@pnpm/config.normalize-registries'
+import { normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import {
   getLockfileImporterId,
@@ -11,7 +11,7 @@ import {
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { StoreIndex } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type { DependenciesField, DependencyManifest, Finder, Registries } from '@pnpm/types'
+import type { DependenciesField, DependencyManifest, Finder, RegistriesByScope } from '@pnpm/types'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
 
@@ -79,8 +79,8 @@ export async function buildDependentsTree (
     lockfileDir: string
     include?: { [field in DependenciesField]?: boolean }
     modulesDir?: string
-    registries?: Registries
-    namedRegistries?: Record<string, string>
+    registriesByScope?: RegistriesByScope
+    registriesByPrefix?: Record<string, string>
     finders?: Finder[]
     importerInfoMap: Map<string, ImporterInfo>
     lockfile: LockfileObject
@@ -89,10 +89,7 @@ export async function buildDependentsTree (
 ): Promise<DependentsTree[]> {
   const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
   const modules = await readModulesManifest(modulesDir)
-  const registries = normalizeRegistries({
-    ...opts.registries,
-    ...modules?.registries,
-  })
+  const registriesByScope = normalizeRegistriesByScope(opts.registriesByScope)
   const storeDir = modules?.storeDir
   const storeIndex = storeDir ? new StoreIndex(storeDir) : undefined
   const virtualStoreDir = modules?.virtualStoreDir ?? path.join(modulesDir, '.pnpm')
@@ -131,8 +128,8 @@ export async function buildDependentsTree (
     virtualStoreDir,
     virtualStoreDirMaxLength,
     modulesDir,
-    registries,
-    namedRegistries: opts.namedRegistries,
+    registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
     wantedPackages: currentPackages,
     storeDir,
     storeIndex,
@@ -253,8 +250,8 @@ function resolvePackageNodes (
     virtualStoreDir: string
     virtualStoreDirMaxLength: number
     modulesDir: string
-    registries: Registries
-    namedRegistries?: Record<string, string>
+    registriesByScope: RegistriesByScope
+    registriesByPrefix?: Record<string, string>
     wantedPackages: PackageSnapshots
     storeDir?: string
     storeIndex?: StoreIndex

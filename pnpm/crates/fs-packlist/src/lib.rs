@@ -47,8 +47,8 @@
 
 use derive_more::{Display, Error};
 use ignore::{WalkBuilder, gitignore::Gitignore};
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_package_manifest::safe_read_package_json_from_dir;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_package_manifest::safe_read_package_json_from_dir;
 use serde_json::Value;
 use std::{
     collections::{BTreeSet, HashSet, VecDeque},
@@ -501,10 +501,11 @@ fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
     let mut added = 0;
     for entry in entries {
         let Some(raw) = entry.as_str() else { continue };
-        let pattern = normalize_field_path(raw);
-        if pattern.is_empty() {
+        let normalized = normalize_field_path(raw);
+        if normalized.is_empty() {
             continue;
         }
+        let pattern = anchor_files_entry(&normalized);
         if let Err(error) = builder.add_line(None, &pattern) {
             tracing::debug!(
                 target: "pacquet::fs_packlist",
@@ -530,6 +531,17 @@ fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
             None
         }
     }
+}
+
+/// Anchor a [`normalize_field_path`]-ed `files` entry at the package
+/// root — the matcher is rooted there, so the leading slash is what
+/// binds the pattern to it. An exclusion is left unanchored, matching
+/// how npm-packlist hands a negated entry to `ignore-walk`.
+fn anchor_files_entry(pattern: &str) -> String {
+    if pattern.starts_with('!') {
+        return pattern.to_string();
+    }
+    format!("/{pattern}")
 }
 
 /// `true` when `rel` matches the `files`-field allowlist. The matcher

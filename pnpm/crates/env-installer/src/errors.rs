@@ -1,9 +1,9 @@
 use derive_more::{Display, Error};
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_lockfile::{LoadLockfileError, SaveLockfileError};
-use pacquet_package_manager::ImportIndexedDirError;
-use pacquet_resolving_resolver_base::ResolveError;
-use pacquet_tarball::TarballError;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_lockfile::{LoadLockfileError, SaveLockfileError};
+use pnpm_package_manager::ImportIndexedDirError;
+use pnpm_resolving_resolver_base::ResolveError;
+use pnpm_tarball::TarballError;
 use std::{io, path::PathBuf};
 
 /// Errors surfaced while resolving or installing configurational

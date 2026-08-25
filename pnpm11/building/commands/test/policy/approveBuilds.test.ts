@@ -474,6 +474,38 @@ test('should retain existing allowBuilds entries when approving builds', async (
   })
 })
 
+test('clears legacy build settings when writing allowBuilds', async () => {
+  const temp = tempDir()
+
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      '@pnpm.e2e/install-script-example': '*',
+    },
+  }, {
+    tempDir: temp,
+  })
+
+  const workspaceManifestFile = path.join(temp, 'pnpm-workspace.yaml')
+  writeYamlFileSync(workspaceManifestFile, {
+    packages: ['packages/*'],
+    onlyBuiltDependencies: ['@pnpm.e2e/existing-package'],
+    onlyBuiltDependenciesFile: 'allowed.json',
+    neverBuiltDependencies: ['fsevents'],
+    ignoredBuiltDependencies: ['esbuild'],
+  })
+
+  await approveSomeBuilds({ workspaceDir: temp, rootProjectManifestDir: temp })
+
+  expect(readYamlFileSync(workspaceManifestFile)).toStrictEqual({
+    packages: ['packages/*'],
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': false,
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
+  })
+})
+
 // Regression test for the global-install path: globalAdd invokes
 // approve-builds with globalPkgDir set (so writeSettings updates the global
 // pnpm-workspace.yaml) but without workspaceDir. If approve-builds were to

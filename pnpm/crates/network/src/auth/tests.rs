@@ -1,6 +1,7 @@
 use super::{
     AuthHeaders, DEFAULT_REGISTRY_SCOPE, UpstreamRouteHook, base64_encode, hide_auth_information,
-    nerf_dart, redact_and_sanitize, redact_url_credentials,
+    nerf_dart, redact_and_sanitize, redact_and_sanitize_multiline, redact_url_credentials,
+    redact_url_for_display,
 };
 use crate::TokenHelperOutput;
 use pretty_assertions::assert_eq;
@@ -231,6 +232,18 @@ fn redact_and_sanitize_strips_credentials_and_control_chars() {
     // A control character inside the userinfo must not break the redaction:
     // controls are stripped first, then credentials are redacted.
     assert_eq!(redact_and_sanitize("https://user:pass\r@host/x"), "https://host/x");
+}
+
+#[test]
+fn redact_url_for_display_strips_secrets_and_control_chars() {
+    assert_eq!(
+        redact_url_for_display("https://user:pass@host/pkg?token=secret#fragment\u{1b}"),
+        "https://host/pkg",
+    );
+    assert_eq!(redact_url_for_display("https://host/pkg#secret"), "https://host/pkg");
+    assert_eq!(redact_url_for_display("https://host/pkg"), "https://host/pkg");
+    assert_eq!(redact_url_for_display("https://user:pa?ss@host/pkg"), "[hidden]");
+    assert_eq!(redact_url_for_display("https://user:pa#ss@host/pkg"), "[hidden]");
 }
 
 #[test]
@@ -578,4 +591,22 @@ fn nerf_dart_handles_url_with_no_path_separator() {
 fn empty_user_info_returns_no_basic_header() {
     let empty = AuthHeaders::default();
     assert_eq!(empty.for_url("https://@reg.com/"), None);
+}
+
+#[test]
+fn redact_and_sanitize_multiline_keeps_line_breaks() {
+    assert_eq!(
+        redact_and_sanitize_multiline("cloning https://user:pass@host/x.git\r\nfailed"),
+        "cloning https://host/x.git\nfailed",
+    );
+}
+
+#[test]
+fn redact_and_sanitize_multiline_collapses_when_a_newline_splits_credentials() {
+    // Redacting each line on its own would leave "user:pass" readable, so the
+    // collapsed form wins over the more readable one.
+    let redacted = redact_and_sanitize_multiline("url: https://user:pass\n@host/x.git\nfailed");
+    dbg!(&redacted);
+    assert!(!redacted.contains("user:pass"), "{redacted}");
+    assert_eq!(redacted, redact_and_sanitize("url: https://user:pass\n@host/x.git\nfailed"));
 }

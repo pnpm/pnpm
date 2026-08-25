@@ -63,7 +63,7 @@ pub enum LogEvent {
     /// `clone-or-copy` config values, the wire value reflects the
     /// post-fallback method rather than the optimistic configured
     /// one. Up to three events per install (one per resolved method)
-    /// gated by an install-scoped atomic in `pacquet-package-manager`.
+    /// gated by an install-scoped atomic in `pnpm-package-manager`.
     #[serde(rename = "pnpm:package-import-method")]
     PackageImportMethod(PackageImportMethodLog),
 
@@ -123,6 +123,13 @@ pub enum LogEvent {
     #[serde(rename = "pnpm:ignored-scripts")]
     IgnoredScripts(IgnoredScriptsLog),
 
+    /// The latest pnpm the registry offers, next to the running one
+    /// (`pnpm:update-check`). Emitted at most once a day by the
+    /// install-family commands the update notifier covers; the default
+    /// reporter prints a notice only when the latest version is newer.
+    #[serde(rename = "pnpm:update-check")]
+    UpdateCheck(UpdateCheckLog),
+
     /// One per optional-dependency pacquet decided to skip rather
     /// than fail the install over. Reason discriminates the cause —
     /// pacquet currently only emits `build_failure` (from
@@ -178,7 +185,7 @@ pub enum LogEvent {
     /// Global-logger message (`name: "pnpm:global"`). Written to a
     /// `bole('pnpm:global')` logger with just a message string — no
     /// `prefix`, unlike [`LogEvent::Pnpm`]. The interactive
-    /// web-authentication flow (`pacquet-network-web-auth`) emits on this
+    /// web-authentication flow (`pnpm-network-web-auth`) emits on this
     /// channel to surface the auth URL / QR code and the browser-open
     /// prompts. `@pnpm/cli.default-reporter` routes these into the "other"
     /// log stream.
@@ -207,6 +214,16 @@ pub enum LogEvent {
     /// `pnpm:stage` time.
     #[serde(rename = "pnpm:deprecation")]
     Deprecation(DeprecationLog),
+
+    /// Unmet peer dependencies left behind by a resolving install
+    /// (`pnpm:peer-dependency-issues`). Emitted once per install that
+    /// resolved, and only when at least one issue survives the
+    /// project's `peerDependencyRules`; the default reporter renders a
+    /// single line pointing at `pnpm peers check`. Under
+    /// `strictPeerDependencies` the install fails instead of emitting
+    /// this, matching pnpm.
+    #[serde(rename = "pnpm:peer-dependency-issues")]
+    PeerDependencyIssues(PeerDependencyIssuesLog),
 }
 
 /// `pnpm:context` payload.
@@ -281,7 +298,7 @@ pub struct PackageImportMethodLog {
 }
 
 /// Wire-format import method. pnpm only knows three values; pacquet's
-/// config enum (`pacquet_config::PackageImportMethod`) carries `Auto`
+/// config enum (`pnpm_config::PackageImportMethod`) carries `Auto`
 /// and `CloneOrCopy` on top of those, but those are dispatched-on by
 /// the auto-importer's fallback chain, not emitted. The wire value is
 /// the resolved method `link_file` actually used — `Clone` /
@@ -492,13 +509,13 @@ pub struct RequestRetryLog {
 /// JS-shaped error object the default-reporter dispatches on:
 /// `error.httpStatusCode ?? error.status ?? error.errno ?? error.code`
 /// is what gets rendered as the reason. pacquet populates whichever
-/// field its `pacquet_tarball::TarballError` variant maps to (HTTP
+/// field its `pnpm_tarball::TarballError` variant maps to (HTTP
 /// status → `http_status_code`, decode / IO failures → `code`) and
 /// always carries the rendered `message` so consumers that read
 /// `err.message` directly still work.
 ///
-/// Plain backticks (not an intra-doc link) because `pacquet-reporter`
-/// cannot depend on `pacquet-tarball` — the dependency runs the
+/// Plain backticks (not an intra-doc link) because `pnpm-reporter`
+/// cannot depend on `pnpm-tarball` — the dependency runs the
 /// other way.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -591,6 +608,16 @@ pub struct IgnoredScriptsLog {
     pub strict_dep_builds: bool,
 }
 
+/// `pnpm:update-check` payload: the running pnpm version and the latest
+/// one the registry resolved for the `latest` tag.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCheckLog {
+    pub level: LogLevel,
+    pub current_version: String,
+    pub latest_version: String,
+}
+
 /// `pnpm:skipped-optional-dependency` payload.
 ///
 /// The wire shape is a discriminated union over `reason` with two
@@ -605,7 +632,7 @@ pub struct IgnoredScriptsLog {
 /// The pairing is not type-enforced against `reason` (a
 /// `BuildFailure` reason with a `ResolutionFailure` package is
 /// constructible in Rust); emit sites live in
-/// `pacquet-package-manager` (`installability.rs` for the
+/// `pnpm-package-manager` (`installability.rs` for the
 /// installability skips, `build_modules.rs` for the build-failure
 /// path) and must keep the pairing correct by hand.
 /// `CreateVirtualStore`'s slice 4 fetch-failure path is silent on
@@ -818,6 +845,19 @@ pub struct DedupeCheckLog {
     pub rendered: String,
 }
 
+/// `pnpm:peer-dependency-issues` payload.
+///
+/// `issues_by_projects` is the same `importerId -> issues` map pnpm's
+/// `peerDependencyIssuesLogger` carries, already filtered through
+/// `peerDependencyRules`, so an NDJSON consumer sees the detail the
+/// one-line terminal rendering leaves out.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeerDependencyIssuesLog {
+    pub level: LogLevel,
+    pub issues_by_projects: serde_json::Value,
+}
+
 /// `pnpm:scope` payload: how many workspace projects the command
 /// selected, out of how many the workspace has.
 ///
@@ -923,8 +963,22 @@ pub enum LogLevel {
 /// production sinks satisfy this: [`SilentReporter`] is a no-op, and
 /// [`NdjsonReporter`] serializes per-event then writes under
 /// `std::io::stderr().lock()`.
-pub trait Reporter {
+///
+/// The `Send + Sync + 'static` supertraits state the same contract in
+/// the type system, so emitting code can hand `R` to a spawned task
+/// (the concurrent lockfile-verification gate) without re-declaring the
+/// bounds at every generic hop. Implementations are unit structs, which
+/// satisfy them automatically.
+pub trait Reporter: Send + Sync + 'static {
     fn emit(event: &LogEvent);
+}
+
+/// Adapt a [`Reporter`] into the warning callback used by the network client.
+pub fn emit_global_warning<Sink: Reporter>(message: &str) {
+    Sink::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Warn,
+        message: message.to_string(),
+    }));
 }
 
 /// `--reporter=silent`: every event is dropped.

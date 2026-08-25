@@ -465,6 +465,99 @@ async fn packument_is_proxied_cached_and_rewritten() {
 }
 
 #[tokio::test]
+async fn packument_responses_carry_last_modified_for_head_probes() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({
+        "name": "foo",
+        "time": { "modified": "2026-06-21T12:00:00.500Z" },
+        "versions": {
+            "1.0.0": {
+                "name": "foo",
+                "version": "1.0.0",
+                "dist": { "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()) },
+            }
+        }
+    });
+    let _packument_mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+    let bare = json!({
+        "name": "bare",
+        "versions": {
+            "1.0.0": {
+                "name": "bare",
+                "version": "1.0.0",
+                "dist": { "tarball": format!("{}/bare/-/bare-1.0.0.tgz", upstream.url()) },
+            }
+        }
+    });
+    let _bare_mock = upstream
+        .mock("GET", "/bare")
+        .with_status(200)
+        .with_body(bare.to_string())
+        .create_async()
+        .await;
+    let garbled = json!({
+        "name": "garbled",
+        "time": { "modified": "not-a-date" },
+        "versions": {
+            "1.0.0": {
+                "name": "garbled",
+                "version": "1.0.0",
+                "dist": { "tarball": format!("{}/garbled/-/garbled-1.0.0.tgz", upstream.url()) },
+            }
+        }
+    });
+    let _garbled_mock = upstream
+        .mock("GET", "/garbled")
+        .with_status(200)
+        .with_body(garbled.to_string())
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let app = router(config);
+
+    // The fractional `time.modified` rounds *up*: the header must stay
+    // an upper bound on the publish time for release-age checks.
+    let expected = "Sun, 21 Jun 2026 12:00:01 GMT";
+    let get = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(get.status(), StatusCode::OK);
+    assert_eq!(
+        get.headers().get("last-modified").and_then(|value| value.to_str().ok()),
+        Some(expected),
+    );
+
+    // The same route answers `HEAD` (hyper strips the body on the wire),
+    // so a client can read the bound without downloading the document.
+    let head = app
+        .clone()
+        .oneshot(Request::builder().method("HEAD").uri("/foo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(head.status(), StatusCode::OK);
+    assert_eq!(
+        head.headers().get("last-modified").and_then(|value| value.to_str().ok()),
+        Some(expected),
+    );
+
+    // A document without a parsable `time.modified` omits the header
+    // instead of guessing — absent and garbled values alike.
+    let no_time =
+        app.clone().oneshot(Request::get("/bare").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(no_time.status(), StatusCode::OK);
+    assert!(no_time.headers().get("last-modified").is_none());
+    let unparsable =
+        app.clone().oneshot(Request::get("/garbled").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(unparsable.status(), StatusCode::OK);
+    assert!(unparsable.headers().get("last-modified").is_none());
+}
+
+#[tokio::test]
 async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
     let mut upstream = mockito::Server::new_async().await;
     let packument = json!({
