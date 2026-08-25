@@ -119,9 +119,10 @@ fn variation_input_keys_use_the_selected_platform_integrity() {
     };
     let darwin = PlatformSelector { os: "darwin".to_string(), cpu: "x64".to_string(), libc: None };
 
-    let input_key = |selector: &PlatformSelector| {
+    let mut cache = HashMap::new();
+    let mut input_key = |selector: &PlatformSelector| {
         let graph = build_deps_graph_for_platform(&snapshots, &packages, selector);
-        calc_dep_state_input_key(&graph, &mut HashMap::new(), &pkg, None)
+        calc_dep_state_input_key(&graph, &mut cache, &pkg, None)
     };
     let keys = [input_key(&linux_glibc), input_key(&linux_musl), input_key(&darwin)];
     assert_eq!(keys.iter().collect::<std::collections::HashSet<_>>().len(), 3);

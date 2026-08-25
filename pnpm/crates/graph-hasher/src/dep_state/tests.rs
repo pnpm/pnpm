@@ -187,7 +187,7 @@ fn shared_input_key_excludes_engine_and_includes_patch() {
         "x@1.0.0".to_string(),
         DepsGraphNode { full_pkg_id: "x@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
     );
-    let mut cache = HashMap::new();
+    let mut cache = HashMap::from([("x@1.0.0".to_string(), "stale-platform-hash".to_string())]);
     let key =
         calc_dep_state_input_key(&graph, &mut cache, &"x@1.0.0".to_string(), Some("patchhex"));
     let deps_hash = hash_object(&serde_json::json!({
@@ -195,6 +195,17 @@ fn shared_input_key_excludes_engine_and_includes_patch() {
         "deps": {},
     }));
     assert_eq!(key, format!("dependency-side-effects:v1:deps={deps_hash};patch=patchhex"));
+}
+
+#[test]
+#[should_panic(expected = "input-key root is not present")]
+fn shared_input_key_rejects_a_missing_root() {
+    calc_dep_state_input_key(
+        &HashMap::<String, DepsGraphNode<String>>::new(),
+        &mut HashMap::new(),
+        &"missing@1.0.0".to_string(),
+        None,
+    );
 }
 
 #[test]

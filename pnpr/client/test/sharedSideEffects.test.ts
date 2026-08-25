@@ -91,6 +91,8 @@ describe('signed shared artifacts', () => {
     'CON',
     'dir/NUL.txt',
     'dir/com1.js',
+    'COM¹',
+    'dir/LPT².txt',
     'dir/LpT9',
     'nul\0byte',
   ])('rejects unsafe manifest path %p before signing', (path) => {

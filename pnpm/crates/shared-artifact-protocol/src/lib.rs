@@ -444,7 +444,10 @@ fn is_windows_reserved_name(segment: &str) -> bool {
     matches!(basename.as_str(), "con" | "prn" | "aux" | "nul")
         || ["com", "lpt"].iter().any(|prefix| {
             basename.strip_prefix(prefix).is_some_and(|suffix| {
-                matches!(suffix, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
+                matches!(
+                    suffix,
+                    "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³",
+                )
             })
         })
 }

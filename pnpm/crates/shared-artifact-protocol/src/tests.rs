@@ -88,6 +88,8 @@ fn rejects_paths_before_the_importer_can_see_them() {
         "CON",
         "dir/NUL.txt",
         "dir/com1.js",
+        "COM¹",
+        "dir/LPT².txt",
         "dir/LpT9",
         "nul\0byte",
     ] {

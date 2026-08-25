@@ -79,6 +79,14 @@ test('calcDepStateInputKey() excludes the host engine and includes patches', () 
   })).toBe(`dependency-side-effects:v1:deps=${expectedDepsHash};patch=patch-hash`)
 })
 
+test('calcDepStateInputKey() rejects a missing root', () => {
+  expect(() => calcDepStateInputKey({
+    depsGraph,
+    cache: {},
+    depPath: 'missing@1.0.0',
+  })).toThrow('input-key root missing@1.0.0 is not present in depsGraph')
+})
+
 test('findRuntimeNodeVersion() pulls the pinned major from a node@runtime: snapshot key', () => {
   // Mirrors pacquet's `find_runtime_node_major` helper; both must
   // agree on the version-extraction rule or the two tools would

@@ -105,20 +105,33 @@ export interface CalcDepStateInputKeyOptions<T extends string> {
 
 /**
  * Compute the machine-independent lookup key for a remotely shareable
- * dependency build. Host identity is advertised by the artifact's signed
- * compatibility constraints; a dependency's selected platform-variant source
- * integrity remains part of the graph identity.
+ * dependency build.
+ *
+ * `depsGraph` must contain `depPath`, and every reachable node must provide
+ * either `fullPkgId` or the resolution metadata needed to derive it. The
+ * function does not mutate the graph, but populates `cache`; cache entries are
+ * scoped by `supportedArchitectures` and may be reused by later calls.
+ *
+ * The returned key starts with {@link DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX},
+ * followed by the recursive dependency-graph hash and, when non-empty, the
+ * patch-file hash. Host identity is excluded and advertised by the artifact's
+ * signed compatibility constraints. When a resolution contains platform
+ * variations, `supportedArchitectures` selects the source integrity included
+ * in the graph hash.
  */
 export function calcDepStateInputKey<T extends string> (
   opts: CalcDepStateInputKeyOptions<T>
 ): string {
-  const depGraphHash = calcDepGraphHash(
-    opts.depsGraph,
-    opts.cache,
-    new Set(),
-    opts.depPath,
-    createDepGraphHashContext(opts.supportedArchitectures)
-  )
+  if (opts.depsGraph[opts.depPath] == null) {
+    throw new Error(`Dependency side-effects input-key root ${opts.depPath} is not present in depsGraph`)
+  }
+  const depGraphHash = calcDepGraphHash({
+    depsGraph: opts.depsGraph,
+    cache: opts.cache,
+    parents: new Set(),
+    depPath: opts.depPath,
+    context: createDepGraphHashContext(opts.supportedArchitectures),
+  })
   let result = `${DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX}deps=${depGraphHash}`
   if (opts.patchFileHash) {
     result += `;patch=${opts.patchFileHash}`
@@ -150,13 +163,13 @@ export function calcDepState<T extends string> (
   const ownPin = readSnapshotRuntimePin(depsGraph[depPath as T]?.children)
   let result = engineName(ownPin ?? opts.nodeVersion)
   if (opts.includeDepGraphHash) {
-    const depGraphHash = calcDepGraphHash(
+    const depGraphHash = calcDepGraphHash({
       depsGraph,
       cache,
-      new Set(),
-      depPath as T,
-      createDepGraphHashContext(opts.supportedArchitectures)
-    )
+      parents: new Set(),
+      depPath: depPath as T,
+      context: createDepGraphHashContext(opts.supportedArchitectures),
+    })
     result += `;deps=${depGraphHash}`
   }
   if (opts.patchFileHash) {
@@ -165,13 +178,21 @@ export function calcDepState<T extends string> (
   return result
 }
 
-function calcDepGraphHash<T extends string> (
-  depsGraph: DepsGraph<T>,
-  cache: DepsStateCache,
-  parents: Set<string>,
-  depPath: T,
+interface CalcDepGraphHashOptions<T extends string> {
+  depsGraph: DepsGraph<T>
+  cache: DepsStateCache
+  parents: Set<string>
+  depPath: T
   context: DepGraphHashContext
-): string {
+}
+
+function calcDepGraphHash<T extends string> ({
+  depsGraph,
+  cache,
+  parents,
+  depPath,
+  context,
+}: CalcDepGraphHashOptions<T>): string {
   const cacheKey = `${context.cacheKeyPrefix}${depPath}`
   if (cache[cacheKey]) return cache[cacheKey]
   const node = depsGraph[depPath]
@@ -188,7 +209,13 @@ function calcDepGraphHash<T extends string> (
     for (const alias in node.children) {
       if (Object.hasOwn(node.children, alias)) {
         const childId = node.children[alias]
-        deps[alias] = calcDepGraphHash(depsGraph, cache, nextParents, childId, context)
+        deps[alias] = calcDepGraphHash({
+          depsGraph,
+          cache,
+          parents: nextParents,
+          depPath: childId,
+          context,
+        })
       }
     }
   }
@@ -308,13 +335,13 @@ export function calcGraphNodeHash<T extends PkgMeta> (
   // to the install-wide value.
   const ownPin = readSnapshotRuntimePin(graph[depPath]?.children)
   const engine = includeEngine ? engineName(ownPin ?? nodeVersion) : null
-  const deps = calcDepGraphHash(
-    graph,
+  const deps = calcDepGraphHash({
+    depsGraph: graph,
     cache,
-    new Set(),
+    parents: new Set(),
     depPath,
-    createDepGraphHashContext(supportedArchitectures)
-  )
+    context: createDepGraphHashContext(supportedArchitectures),
+  })
   const isLocalDirectory = isLocalDirectoryResolution(graph[depPath]?.resolution)
   // Scoping the slot needs the project's identity; the segment only needs to
   // know that the package is a local directory, so a caller that leaves

@@ -91,6 +91,18 @@ where
 /// Unlike [`calc_dep_state`], this key deliberately excludes the engine name.
 /// The signed artifact advertises platform compatibility separately, allowing
 /// one compatible artifact to serve more than one exact host identity.
+///
+/// `graph` must contain `dep_path`; a missing root is a caller error and
+/// panics rather than producing the same key for every missing dependency.
+/// `cache` is cleared before the walk and then repopulated for the selected
+/// graph. Pacquet builds a new graph for each platform selector, so retaining
+/// values from another graph could otherwise reuse a digest computed from a
+/// different selected variation. `graph` is not mutated.
+///
+/// The returned key starts with [`DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX`],
+/// followed by the recursive dependency-graph hash and, when supplied, the
+/// patch-file hash. The selected variation's source integrity is included in
+/// the graph hash through [`DepsGraphNode::full_pkg_id`].
 pub fn calc_dep_state_input_key<Key>(
     graph: &HashMap<Key, DepsGraphNode<Key>>,
     cache: &mut DepsStateCache<Key>,
@@ -100,6 +112,11 @@ pub fn calc_dep_state_input_key<Key>(
 where
     Key: Clone + Eq + std::hash::Hash,
 {
+    assert!(
+        graph.contains_key(dep_path),
+        "dependency side-effects input-key root is not present in the graph",
+    );
+    cache.clear();
     let deps_hash = calc_dep_graph_hash(graph, cache, &mut HashSet::new(), dep_path);
     let mut result = format!("{DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX}deps={deps_hash}");
     if let Some(patch) = patch_file_hash {

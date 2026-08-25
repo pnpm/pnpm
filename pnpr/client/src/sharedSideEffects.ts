@@ -485,7 +485,7 @@ function isWindowsReservedName (segment: string): boolean {
   if (['con', 'prn', 'aux', 'nul'].includes(basename)) return true
   return ['com', 'lpt'].some(prefix => {
     const suffix = basename.startsWith(prefix) ? basename.slice(prefix.length) : ''
-    return suffix.length === 1 && suffix >= '1' && suffix <= '9'
+    return (suffix.length === 1 && suffix >= '1' && suffix <= '9') || ['¹', '²', '³'].includes(suffix)
   })
 }
 
