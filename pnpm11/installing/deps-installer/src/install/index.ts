@@ -211,7 +211,7 @@ export async function install (
 
   // When a pnpr server is configured, use server-side resolution
   // instead of the normal resolution flow.
-  if (opts.pnprServer) {
+  if (opts.pnprServer && !opts.updatePatches) {
     return installViaPnprServer(manifest, rootDir, opts)
   }
 
@@ -2798,7 +2798,7 @@ function canUsePnprForMutations (projects: MutatedProject[]): boolean {
     if (p.mutation === 'uninstallSome') return true
     if (p.mutation !== 'install' && p.mutation !== 'installSome') return false
     const m = p as InstallDepsMutation | InstallSomeDepsMutation
-    return !m.update && !m.updateToLatest && m.updateMatching == null
+    return !m.update && !m.updatePatches && !m.updateToLatest && m.updateMatching == null
   })
 }
 

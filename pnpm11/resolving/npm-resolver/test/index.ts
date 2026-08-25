@@ -12,6 +12,7 @@ import {
   NoMatchingVersionError,
   RegistryResponseError,
 } from '@pnpm/resolving.npm-resolver'
+import type { PkgResolutionId } from '@pnpm/resolving.resolver-base'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectRootDir, RegistriesByScope } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
@@ -1722,6 +1723,73 @@ test('resolve from local directory when it matches the latest version of the pac
   expect(resolveResult!.manifest).toBeTruthy()
   expect(resolveResult!.manifest!.name).toBe('is-positive')
   expect(resolveResult!.manifest!.version).toBe('1.0.0')
+})
+
+test('revision refresh preserves an implicit workspace resolution', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(404)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    projectDir: '/home/istvan/src',
+    updatePatches: true,
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: { name: 'is-positive', version: '1.0.0' },
+        }],
+      ])],
+    ]),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('workspace')
+  expect(resolveResult!.id).toBe('link:is-positive')
+})
+
+test('revision refresh does not replace a registry resolution with a matching workspace package', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const refreshOptions = {
+    currentPkg: {
+      id: 'is-positive@1.0.0' as PkgResolutionId,
+      name: 'is-positive',
+      version: '1.0.0',
+      resolution: {
+        integrity: isPositiveMeta.versions['1.0.0'].dist.integrity,
+        tarball: isPositiveMeta.versions['1.0.0'].dist.tarball,
+      },
+    },
+    projectDir: '/home/istvan/src',
+    updatePatches: true,
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: { name: 'is-positive', version: '1.0.0' },
+        }],
+      ])],
+    ]),
+  }
+  const resolveResult = await resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    refreshOptions
+  )
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
 })
 
 test('resolve injected dependency from local directory when it matches the latest version of the package', async () => {

@@ -546,7 +546,7 @@ async function resolveNpm (
       id: PkgResolutionId
       name?: string
       version?: string
-      resolution: TarballResolution
+      resolution: Resolution
       publishedAt?: string
     }
   }
@@ -573,7 +573,8 @@ async function resolveNpm (
       return resolvedFromWorkspace
     }
   }
-  const workspacePackages = !opts.updatePatches && opts.alwaysTryWorkspacePackages !== false
+  const canKeepWorkspaceResolution = opts.currentPkg == null || opts.currentPkg.resolution.type === 'directory'
+  const workspacePackages = (!opts.updatePatches || canKeepWorkspaceResolution) && opts.alwaysTryWorkspacePackages !== false
     ? opts.workspacePackages
     : undefined
   const spec = wantedDependency.bareSpecifier
@@ -591,11 +592,13 @@ async function resolveNpm (
     ctx.peekManifestFromStore &&
     opts.currentPkg?.resolution &&
     !opts.update &&
+    !opts.updatePatches &&
+    spec.revision == null &&
     (opts.publishedBy == null || opts.currentPkg.publishedAt != null)
   ) {
     const currentResolution = opts.currentPkg.resolution
     // Only use this optimization for tarball resolutions with integrity (npm packages)
-    if ('tarball' in currentResolution && currentResolution.integrity) {
+    if ('tarball' in currentResolution && typeof currentResolution.integrity === 'string') {
       const manifest = await ctx.peekManifestFromStore({
         id: opts.currentPkg.id,
         integrity: currentResolution.integrity,

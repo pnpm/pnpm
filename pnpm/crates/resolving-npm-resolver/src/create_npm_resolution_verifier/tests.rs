@@ -268,7 +268,7 @@ fn does_not_verify_a_revision_without_an_active_policy() {
 }
 
 #[tokio::test]
-async fn treats_an_explicit_zero_current_revision_as_ordinary_metadata() {
+async fn rejects_an_explicit_zero_current_revision() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
     let packument = serde_json::json!({
@@ -296,13 +296,20 @@ async fn treats_an_explicit_zero_current_revision_as_ordinary_metadata() {
     let mut opts = default_opts(&registry);
     opts.minimum_release_age = Some(1);
     let verifier = create_npm_resolution_verifier(opts);
-    let resolution = registry_resolution();
+    let resolution = tarball_resolution(
+        &format!("{registry}revision-pkg/-/revision-pkg-1.0.0.tgz"),
+        Some(fake_integrity()),
+    );
     let name = "revision-pkg".parse::<PkgName>().unwrap();
-    assert_eq!(verifier.verify(&resolution, ctx(&name, "1.0.0")).await, ResolutionVerification::Ok);
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "TARBALL_REVISION_MISMATCH");
 }
 
 #[tokio::test]
-async fn accepts_zero_as_the_current_revision_when_history_is_present() {
+async fn rejects_a_non_numeric_current_revision() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
     let packument = serde_json::json!({
@@ -315,13 +322,7 @@ async fn accepts_zero_as_the_current_revision_when_history_is_present() {
                 "dist": {
                     "integrity": FAKE_INTEGRITY,
                     "tarball": format!("{registry}revision-pkg/-/revision-pkg-1.0.0.tgz"),
-                    "revision": 0,
-                    "revisions": [{
-                        "revision": 0,
-                        "integrity": FAKE_INTEGRITY,
-                        "tarball": format!("{registry}revision-pkg/-/revision-pkg-1.0.0.tgz"),
-                        "manifest": {},
-                    }],
+                    "revision": "1",
                 }
             }
         },
@@ -336,9 +337,16 @@ async fn accepts_zero_as_the_current_revision_when_history_is_present() {
     let mut opts = default_opts(&registry);
     opts.minimum_release_age = Some(1);
     let verifier = create_npm_resolution_verifier(opts);
-    let resolution = registry_resolution();
+    let resolution = tarball_resolution(
+        &format!("{registry}revision-pkg/-/revision-pkg-1.0.0.tgz"),
+        Some(fake_integrity()),
+    );
     let name = "revision-pkg".parse::<PkgName>().unwrap();
-    assert_eq!(verifier.verify(&resolution, ctx(&name, "1.0.0")).await, ResolutionVerification::Ok);
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "TARBALL_REVISION_MISMATCH");
 }
 
 #[tokio::test]

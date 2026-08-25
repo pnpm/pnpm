@@ -14,6 +14,7 @@ test.each([
   { dependencies: ['is-positive'], options: { patches: true } },
   { dependencies: [], options: { latest: true, patches: true } },
   { dependencies: [], options: { interactive: true, patches: true } },
+  { dependencies: [], options: { global: true, patches: true } },
 ])('update --patches rejects selector-based update modes', async ({ dependencies, options }) => {
   await expect(update.handler({
     ...DEFAULT_OPTS,

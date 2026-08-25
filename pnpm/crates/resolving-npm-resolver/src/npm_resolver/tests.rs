@@ -6,12 +6,12 @@ use std::{
 
 use chrono::TimeZone;
 use pnpm_config::{TrustPolicy, version_policy::create_package_version_policy};
-use pnpm_lockfile::{LockfileResolution, TarballRevision};
+use pnpm_lockfile::{LockfileResolution, RegistryResolution, TarballRevision};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_resolving_resolver_base::{
-    LatestQuery, PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
-    ResolveOptions, Resolver, UpdateBehavior, WantedDependency, WorkspacePackage,
-    WorkspacePackages, WorkspacePackagesByVersion,
+    CurrentPkg, LatestQuery, PackageVersionGuard, PackageVersionGuardDecision,
+    PackageVersionGuardFuture, PkgResolutionId, ResolveOptions, Resolver, UpdateBehavior,
+    WantedDependency, WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -982,6 +982,69 @@ async fn falls_back_to_workspace_when_registry_returns_404() {
         LockfileResolution::Directory(dir) => assert_eq!(dir.directory, "../acme"),
         other => panic!("expected directory resolution, got {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn revision_refresh_preserves_an_implicit_workspace_resolution() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let mut opts = workspace_resolve_options(packages);
+    opts.update = UpdateBehavior::Patches;
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace fallback");
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.id.as_str(), "link:../acme");
+}
+
+#[tokio::test]
+async fn revision_refresh_does_not_replace_a_registry_resolution_with_a_workspace_package() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(single_version_body(
+            "1.0.0",
+            "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+        ))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let mut opts = workspace_resolve_options(packages);
+    opts.update = UpdateBehavior::Patches;
+    opts.current_pkg = Some(CurrentPkg {
+        id: PkgResolutionId::from("acme@1.0.0"),
+        name: Some("acme".to_string()),
+        version: Some("1.0.0".to_string()),
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+                .parse()
+                .unwrap(),
+            revision: None,
+        }),
+        published_at: None,
+    });
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("registry pick");
+    assert_eq!(result.resolved_via, "npm-registry");
+    assert_eq!(result.id.as_str(), "acme@1.0.0");
+    mock.assert_async().await;
 }
 
 #[tokio::test]

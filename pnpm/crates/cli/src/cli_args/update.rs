@@ -167,7 +167,9 @@ enum WorkspaceUpdateError {
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
-#[display("--patches cannot be combined with package selectors, --latest, or --interactive")]
+#[display(
+    "--patches cannot be combined with package selectors, --latest, --interactive, or --global"
+)]
 #[diagnostic(code(ERR_PNPM_PATCHES_WITH_SELECTOR))]
 struct PatchesWithSelectorError;
 
@@ -475,7 +477,9 @@ impl UpdateArgs {
     }
 
     fn check_patches_options(&self) -> miette::Result<()> {
-        if self.patches && (!self.packages.is_empty() || self.latest || self.interactive) {
+        if self.patches
+            && (!self.packages.is_empty() || self.latest || self.interactive || self.global)
+        {
             return Err(PatchesWithSelectorError.into());
         }
         Ok(())

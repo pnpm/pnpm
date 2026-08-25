@@ -99,6 +99,34 @@ test('update --patches refreshes a registry revision without changing the versio
   }
 })
 
+test('update --patches preserves an implicit workspace dependency', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      dependencies: { 'workspace-only': '^1.0.0' },
+    },
+    {
+      name: 'workspace-only',
+      version: '1.0.0',
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    linkWorkspacePackages: true,
+    packages: ['**', '!store/**'],
+  })
+  await execPnpm(['recursive', 'install'])
+
+  process.chdir('project')
+  const manifest = await readPackageJsonFromDir('.')
+  await execPnpm(['update', '--patches'])
+
+  expect(await readPackageJsonFromDir('.')).toStrictEqual(manifest)
+  expect(fs.realpathSync('node_modules/workspace-only')).toBe(fs.realpathSync('../workspace-only'))
+  const lockfile = readYamlFileSync<any>('../pnpm-lock.yaml') // eslint-disable-line
+  expect(lockfile.importers.project.dependencies['workspace-only'].version).toBe('link:../workspace-only')
+})
+
 test('update <dep>', async () => {
   const project = prepare()
 

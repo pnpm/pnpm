@@ -83,6 +83,18 @@ fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selecto
         "corp:@scope/pkg@1.2.3",
     );
     assert_eq!(
+        exact_registry_specifier_for_revision_refresh("corp:@scope/pkg", "1.2.3", Some("corp"),),
+        "corp:@scope/pkg@1.2.3",
+    );
+    assert_eq!(
+        exact_registry_specifier_for_revision_refresh("corp:pkg", "1.2.3", Some("corp"),),
+        "corp:pkg@1.2.3",
+    );
+    assert_eq!(
+        exact_registry_specifier_for_revision_refresh("jsr:@scope/pkg", "1.2.3", None,),
+        "jsr:@scope/pkg@1.2.3",
+    );
+    assert_eq!(
         exact_registry_specifier_for_revision_refresh("1.2.3+r1", "1.2.3", None),
         "1.2.3+r1",
     );

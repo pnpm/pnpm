@@ -223,8 +223,12 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         validate_revision_selector(&spec)?;
 
         let optional = wanted_dependency.optional.unwrap_or(false);
-        let workspace_packages_active = (opts.update != UpdateBehavior::Patches
-            && opts.always_try_workspace_packages)
+        let can_keep_workspace_resolution = opts
+            .current_pkg
+            .as_ref()
+            .is_none_or(|current| matches!(current.resolution, LockfileResolution::Directory(_)));
+        let workspace_packages_active = (opts.always_try_workspace_packages
+            && (opts.update != UpdateBehavior::Patches || can_keep_workspace_resolution))
             .then_some(opts.workspace_packages.as_ref())
             .flatten();
 

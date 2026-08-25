@@ -140,12 +140,13 @@ fn patches_is_a_selectorless_update_mode() {
         &["--patches", "foo"][..],
         &["--patches", "--latest"][..],
         &["--patches", "--interactive"][..],
+        &["--patches", "--global"][..],
     ] {
         let error =
             update_args(args).check_patches_options().expect_err("--patches combination must fail");
         assert_eq!(
             error.to_string(),
-            "--patches cannot be combined with package selectors, --latest, or --interactive",
+            "--patches cannot be combined with package selectors, --latest, --interactive, or --global",
         );
     }
 }

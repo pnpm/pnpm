@@ -211,6 +211,30 @@ test('pnpr runs under trustPolicy instead of refusing the install', async () => 
   expect(resolveViaPnprServer).toHaveBeenCalledTimes(1)
 })
 
+test('updatePatches uses client-side resolution instead of silently delegating to pnpr', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir)
+
+  await install(manifest, { ...options, updatePatches: true })
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+})
+
+test('an updatePatches mutation uses client-side resolution instead of silently delegating to pnpr', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir, {
+    allProjects: [{ buildIndex: 0, manifest, rootDir }],
+  })
+
+  await mutateModules([{ mutation: 'install', rootDir, updatePatches: true }], options)
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+})
+
 function createOptions (
   workspaceRoot: string,
   rootDir: ProjectRootDir,

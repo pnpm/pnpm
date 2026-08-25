@@ -564,7 +564,7 @@ fn exact_registry_specifier_for_revision_refresh(
         return format!("{protocol}:{version}");
     }
     let Some(delimiter) = body.rfind('@').filter(|index| *index > 0) else {
-        return specifier.to_string();
+        return format!("{protocol}:{body}@{version}");
     };
     format!("{protocol}:{}@{version}", &body[..delimiter])
 }

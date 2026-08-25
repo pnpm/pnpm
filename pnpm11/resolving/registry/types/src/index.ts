@@ -68,8 +68,6 @@ export interface PackageRevision {
   integrity: string
   tarball: string
   manifest: PackageRevisionManifest
-  withdrawn?: boolean
-  supersededBy?: number
 }
 
 export type PackageRevisionManifest = Pick<PackageManifest,

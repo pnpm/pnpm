@@ -483,8 +483,8 @@ async function update (
 }
 
 function assertPatchesOptions (dependencies: string[], opts: UpdateCommandOptions): void {
-  if (opts.patches && (dependencies.length > 0 || opts.latest || opts.interactive)) {
-    throw new PnpmError('PATCHES_WITH_SELECTOR', '--patches cannot be combined with package selectors, --latest, or --interactive')
+  if (opts.patches && (dependencies.length > 0 || opts.latest || opts.interactive || opts.global)) {
+    throw new PnpmError('PATCHES_WITH_SELECTOR', '--patches cannot be combined with package selectors, --latest, --interactive, or --global')
   }
 }
 

@@ -635,6 +635,34 @@ test('createNpmResolutionVerifier() does not fetch metadata for a revision witho
   )).resolves.toStrictEqual({ ok: true })
 })
 
+test.each([0, '1', true])('createNpmResolutionVerifier() rejects an invalid current registry revision (%p)', async (metadataRevision) => {
+  const meta = {
+    name: 'revision-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'revision-pkg',
+        version: '1.0.0',
+        dist: {
+          integrity: revisionIntegrity(0),
+          tarball: revisionTarball(0),
+          revision: metadataRevision,
+        },
+      },
+    },
+    time: { '1.0.0': '2020-01-01T00:00:00.000Z' },
+  }
+  getMockAgent().get('https://registry.npmjs.org')
+    .intercept({ path: '/revision-pkg', method: 'GET' })
+    .reply(200, meta)
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({ minimumReleaseAge: 1 }))
+  const result = await verifier.verify(
+    { integrity: revisionIntegrity(0), tarball: revisionTarball(0) } as unknown as Resolution,
+    { name: 'revision-pkg', version: '1.0.0' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'TARBALL_REVISION_MISMATCH' })
+})
+
 test('createNpmResolutionVerifier() accepts an advertised historical revision', async () => {
   const meta = {
     name: 'revision-pkg',

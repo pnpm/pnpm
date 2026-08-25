@@ -471,7 +471,8 @@ async function runRegistryArtifactCheck (
       reason: "could not be verified against the registry's published metadata",
     }
   }
-  const revisionAware = rawRevision != null || artifact.current.revision !== 0 || artifact.revisions.length > 0
+  const metadataRevision = artifact.current.revision
+  const revisionAware = rawRevision != null || metadataRevision !== undefined || artifact.revisions.length > 0
   if (!revisionAware) {
     if (lockfileTarball == null) return undefined
     if (typeof artifact.current.tarball === 'string' && sameTarballUrl(lockfileTarball, artifact.current.tarball)) {
@@ -492,15 +493,17 @@ async function runRegistryArtifactCheck (
       reason: `has an invalid revision (${String(rawRevision)})`,
     }
   }
-  if (artifact.current.revision !== 0) {
-    if (!isValidTarballRevision(artifact.current.revision)) {
+  let currentRevision = 0
+  if (metadataRevision !== undefined) {
+    if (!isValidTarballRevision(metadataRevision)) {
       return {
         ok: false,
         code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
-        reason: `registry metadata has an invalid current revision (${String(artifact.current.revision)})`,
+        reason: `registry metadata has an invalid current revision (${String(metadataRevision)})`,
       }
     }
-    const currentHistory = artifact.revisions.filter(candidate => candidate.revision === artifact.current.revision)
+    currentRevision = metadataRevision
+    const currentHistory = artifact.revisions.filter(candidate => candidate.revision === currentRevision)
     if (
       currentHistory.length !== 1 ||
       currentHistory[0].integrity !== artifact.current.integrity ||
@@ -517,12 +520,12 @@ async function runRegistryArtifactCheck (
       return {
         ok: false,
         code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
-        reason: `registry metadata revision ${artifact.current.revision} does not have exactly one matching history entry`,
+        reason: `registry metadata revision ${currentRevision} does not have exactly one matching history entry`,
       }
     }
   }
   const revision = typeof rawRevision === 'number' ? rawRevision : 0
-  const currentMatches = artifact.current.revision === revision
+  const currentMatches = currentRevision === revision
   const historicalCandidates = artifact.revisions.filter(candidate => candidate.revision === revision)
   if (historicalCandidates.length > 1) {
     return {
@@ -996,7 +999,7 @@ function projectAbbreviatedMeta (meta: PackageMeta): AbbreviatedMetaProjection {
     for (const [version, manifest] of Object.entries(meta.versions)) {
       versionArtifacts.set(version, {
         current: {
-          revision: manifest.dist?.revision === undefined ? 0 : manifest.dist.revision,
+          revision: manifest.dist?.revision,
           integrity: manifest.dist?.integrity,
           tarball: manifest.dist?.tarball,
         },
