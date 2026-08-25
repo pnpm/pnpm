@@ -556,7 +556,9 @@ function fetchToStore (
         requiresPrepare: cached.files.requiresPrepare,
         resolutionKind,
       })) return cached
-      ctx.fetchingLocker.delete(fetchingKey)
+      if (ctx.fetchingLocker.get(fetchingKey) === result) {
+        ctx.fetchingLocker.delete(fetchingKey)
+      }
       return fetchToStore(ctx, opts).fetching()
     }))
     : result.fetching

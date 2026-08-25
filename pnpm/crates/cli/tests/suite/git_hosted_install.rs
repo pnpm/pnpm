@@ -514,6 +514,35 @@ fn prepared_git_package_in_shared_store_still_requires_project_approval() {
     );
     assert!(!workspace_b.join("node_modules/shared-prepare/prepare.txt").exists());
 
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
+    let store_index_key = pnpm_store_dir::git_hosted_store_index_key(&spec, true);
+    let store_index = pnpm_store_dir::StoreIndex::open_in(&store_dir).expect("open store index");
+    let mut legacy_index = store_index
+        .get(&store_index_key)
+        .expect("read store index")
+        .expect("prepared git package is indexed");
+    assert_eq!(legacy_index.requires_prepare, Some(true));
+    legacy_index.requires_prepare = None;
+    store_index.set(&store_index_key, &legacy_index).expect("write legacy store index row");
+
+    let workspace_c = root.path().join("workspace-c");
+    fs::create_dir(&workspace_c).expect("create third workspace");
+    fs::copy(workspace.join(".npmrc"), workspace_c.join(".npmrc"))
+        .expect("copy shared-store npmrc");
+    fs::write(workspace_c.join("pnpm-workspace.yaml"), workspace_b_yaml)
+        .expect("write workspace config without build approval");
+    write_dependencies(&workspace_c, &[("shared-prepare", &spec)]);
+
+    let output =
+        pnpm_at(&workspace_c).with_arg("install").output().expect("install from legacy store");
+    dbg!(&output);
+    assert!(!output.status.success(), "the unapproved legacy-store install unexpectedly succeeded");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED"),
+        "stderr did not report the build-policy failure",
+    );
+    assert!(!workspace_c.join("node_modules/shared-prepare/prepare.txt").exists());
+
     drop((root, npmrc_info));
 }
 
