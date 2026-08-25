@@ -1200,7 +1200,14 @@ fn line_value(line: &str) -> Option<&str> {
             }
         } else {
             match char {
-                '\'' | '"' => quote = Some(char),
+                // A quote only opens a scalar at the start of a token: the
+                // apostrophe in a plain key like `it's` is part of the key.
+                '\'' | '"'
+                    if index == 0
+                        || line[..index].ends_with([' ', '\t', ':', '-', '[', '{', ',']) =>
+                {
+                    quote = Some(char);
+                }
                 '#' if index == 0 || line[..index].ends_with([' ', '\t']) => return None,
                 ':' => {
                     let value = &line[index + 1..];
@@ -1217,8 +1224,16 @@ fn line_value(line: &str) -> Option<&str> {
 
 /// Whether `value` is a block scalar header carrying a `+`, in either order
 /// relative to an explicit indentation digit (`|+`, `>+2`, `|2+`), with or
-/// without a trailing comment.
+/// without a trailing comment. Any anchor and tag properties in front of the
+/// header (`&notes |+`, `!!str >+`) are skipped.
 fn opens_kept_chomping_scalar(value: &str) -> bool {
+    let mut value = value.trim_start();
+    while value.starts_with(['&', '!']) {
+        let Some((_, rest)) = value.split_once([' ', '\t']) else {
+            return false;
+        };
+        value = rest.trim_start();
+    }
     let Some(indicators) = value.strip_prefix(['|', '>']) else {
         return false;
     };

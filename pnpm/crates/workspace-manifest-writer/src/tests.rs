@@ -1264,7 +1264,16 @@ fn delete_last_field_leaves_no_trailing_blank_line() {
 
 #[test]
 fn delete_last_field_keeps_a_kept_chomped_block_scalars_trailing_blank() {
-    for header in ["|+", ">+", "|+2", "|2+", "|2+ # keep the breaks", "|+ # retain > blanks"] {
+    for header in [
+        "|+",
+        ">+",
+        "|+2",
+        "|2+",
+        "|2+ # keep the breaks",
+        "|+ # retain > blanks",
+        "&notes |+",
+        "!!str >+",
+    ] {
         let original = format!("notes: {header}\n  foo\n\nvirtualStoreDir: .pnpm\n");
         let out = run_update_field(Some(&original), "virtualStoreDir", &serde_json::Value::Null)
             .expect("file kept");
@@ -1292,6 +1301,17 @@ fn delete_last_field_keeps_the_blank_of_a_scalar_under_a_quoted_key() {
     )
     .expect("file kept");
     assert_eq!(out, "\"notes: title\": |+\n  foo\n\n");
+}
+
+#[test]
+fn delete_last_field_keeps_the_blank_of_a_scalar_under_an_apostrophe_key() {
+    let out = run_update_field(
+        Some("it's: |+\n  foo\n\nvirtualStoreDir: .pnpm\n"),
+        "virtualStoreDir",
+        &serde_json::Value::Null,
+    )
+    .expect("file kept");
+    assert_eq!(out, "it's: |+\n  foo\n\n");
 }
 
 #[test]
