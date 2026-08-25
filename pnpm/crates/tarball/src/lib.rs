@@ -151,7 +151,8 @@ pub enum CacheValue {
 
 /// Internal in-memory cache of tarballs.
 ///
-/// The key of this hashmap is the url of each tarball.
+/// The key is the tarball URL, prefixed for revision-addressed fetches so
+/// redirect and retry policies never share a result.
 pub type MemCache = DashMap<String, Arc<RwLock<CacheValue>>>;
 
 /// Install-scoped set of store-index cache keys

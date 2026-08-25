@@ -443,12 +443,14 @@ fn rewrite_dist_tarball(
         }
         integrity_addressed_registry_tarball_url(&integrity, public_url)
     });
-    let Some(tarball_value) = dist.get_mut("tarball") else { return };
-    if !tarball_value.is_string() {
+    if let Some(revision_url) = revision_url {
+        let Some(tarball_value) = dist.get_mut("tarball") else { return };
+        *tarball_value = Value::String(revision_url);
         return;
     }
-    if let Some(revision_url) = revision_url {
-        *tarball_value = Value::String(revision_url);
+    dist.remove("revision");
+    let Some(tarball_value) = dist.get_mut("tarball") else { return };
+    if !tarball_value.is_string() {
         return;
     }
     let filename = tarball_value

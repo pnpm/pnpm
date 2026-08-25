@@ -278,6 +278,7 @@ fn does_not_preserve_an_invalid_upstream_revision_route() {
         );
 
         assert_eq!(doc["dist"]["tarball"], format!("http://pnpr.test/~corp/foo/-/{digest}"));
+        assert!(doc["dist"].get("revision").is_none());
     }
 }
 

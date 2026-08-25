@@ -2,7 +2,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, ParsePkgVerPeerError, PkgName, PkgNameVerPeer,
-    PkgVerPeer, RegistryResolution, SnapshotDepRef, SnapshotEntry,
+    PkgVerPeer, RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballRevision,
 };
 use pnpm_registry::PackageVersion;
 use std::collections::HashMap;
@@ -25,6 +25,17 @@ pub enum BuildSnapshotError {
     )]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_BUILD_SNAPSHOT_MISSING_INTEGRITY))]
     MissingIntegrity { name: String, version: String },
+
+    #[display(
+        "Package `{name}@{version}` was returned from the registry with an invalid revision: {source}"
+    )]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_BUILD_SNAPSHOT_INVALID_REVISION))]
+    InvalidRevision {
+        name: String,
+        version: String,
+        #[error(source)]
+        source: serde_json::Error,
+    },
 
     #[display("Failed to parse package name `{name}`: {source}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_BUILD_SNAPSHOT_PARSE_NAME))]
@@ -79,6 +90,17 @@ pub fn build_package_snapshot(
             name: package.name.clone(),
             version: package.version.to_string(),
         })?;
+    let revision = package
+        .dist
+        .revision
+        .clone()
+        .map(serde_json::from_value::<TarballRevision>)
+        .transpose()
+        .map_err(|source| BuildSnapshotError::InvalidRevision {
+            name: package.name.clone(),
+            version: package.version.to_string(),
+            source,
+        })?;
 
     let mut dependencies: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
     for (dep_name, ver_peer) in resolved_dependencies {
@@ -88,7 +110,7 @@ pub fn build_package_snapshot(
     }
 
     let metadata = PackageMetadata {
-        resolution: LockfileResolution::Registry(RegistryResolution { integrity, revision: None }),
+        resolution: LockfileResolution::Registry(RegistryResolution { integrity, revision }),
         version: None,
         engines: None,
         cpu: None,

@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use pnpm_config::{ResolutionMode, TrustPolicy};
+use pnpm_lockfile::TarballRevision;
 use serde_json::json;
 
 use super::{
@@ -130,7 +131,17 @@ fn a_package_frame_parses_its_fetch_hint() {
     assert_eq!(tarball, "https://r.test/acme/-/acme-1.0.0.tgz");
     assert_eq!(unpacked_size, Some(123456));
     assert_eq!(file_count, Some(42));
-    assert_eq!(revision, Some(3));
+    assert_eq!(revision, Some(TarballRevision::try_from(3).unwrap()));
+}
+
+#[test]
+fn package_frames_reject_invalid_revisions() {
+    for revision in [0, 9_007_199_254_740_992_u64] {
+        let line = format!(
+            r#"{{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz","revision":{revision}}}"#,
+        );
+        assert!(matches!(parse_frame(line.as_bytes()), Err(PnprClientError::Protocol(_)),));
+    }
 }
 
 #[test]

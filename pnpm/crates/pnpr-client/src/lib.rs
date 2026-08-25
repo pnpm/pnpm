@@ -23,7 +23,7 @@ use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{RegistryDeclaration, ResolutionMode, TrustPolicy};
-use pnpm_lockfile::Lockfile;
+use pnpm_lockfile::{Lockfile, TarballRevision};
 use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
 use reqwest::Client;
 
@@ -280,7 +280,7 @@ pub struct ResolvedPackage {
     pub file_count: Option<usize>,
     /// Registry artifact revision, when the server resolved an immutable
     /// integrity-addressed artifact.
-    pub revision: Option<u64>,
+    pub revision: Option<TarballRevision>,
 }
 
 #[derive(Debug, Display, Error, From)]
@@ -592,7 +592,7 @@ enum Frame {
         #[serde(rename = "fileCount", default)]
         file_count: Option<usize>,
         #[serde(default)]
-        revision: Option<u64>,
+        revision: Option<TarballRevision>,
     },
     /// Boxed: the lockfile dwarfs the other variants, so keeping it
     /// behind a pointer keeps the enum small.

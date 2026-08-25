@@ -9,7 +9,7 @@
 //! progress as it consumes each tarball.
 //!
 //! Each download lands its result in the shared [`MemCache`] keyed by
-//! tarball URL; the later install pass picks it up via
+//! tarball URL and fetch policy; the later install pass picks it up via
 //! [`DownloadTarballToStore::run_with_mem_cache`] (an immediate
 //! `CacheValue::Available` hit, or a brief park on the per-URL `Notify`
 //! while the prefetch finishes).
@@ -26,9 +26,13 @@ use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexError,
     StoreIndexWriter, store_index_key,
 };
-use pnpm_tarball::{DownloadTarballToStore, MemCache, RetryOpts};
+use pnpm_tarball::{DownloadTarballToStore, MemCache, RetryOpts, TarballError};
 use ssri::Integrity;
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+};
 
 /// One registry lockfile entry [`TarballPrefetcher::prefetch_lockfile`]
 /// may spawn a download for, staged so the whole batch can be filtered
@@ -95,6 +99,14 @@ pub(crate) struct TarballDownload {
 /// → imported` progress itself as it consumes each tarball, so the
 /// prefetch must not emit a competing, out-of-order set.
 pub(crate) fn spawn_tarball_download(download: TarballDownload) {
+    tokio::spawn(async move {
+        let _ = run_tarball_download(download).await;
+    });
+}
+
+async fn run_tarball_download(
+    download: TarballDownload,
+) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
     let TarballDownload {
         http_client,
         mem_cache,
@@ -116,39 +128,37 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
         revision_addressed,
     } = download;
 
-    tokio::spawn(async move {
-        let download = DownloadTarballToStore {
-            http_client: &http_client,
-            store_dir,
-            store_index,
-            store_index_writer,
-            verify_store_integrity,
-            strict_store_pkg_content_check,
-            verified_files_cache,
-            package_integrity: Some(&integrity),
-            package_unpacked_size,
-            package_file_count,
-            package_url: &package_url,
-            package_id: &package_id,
-            requester: &requester,
-            prefetched_cas_paths: None,
-            retry_opts,
-            auth_headers: &auth_headers,
-            ignore_file_pattern: None,
-            offline,
-            // The client prefetch routes through `SilentReporter`, so
-            // there's no install reporter to dedup progress events
-            // against — the frozen materialization install emits its own
-            // progress as it consumes each tarball from the mem cache.
-            progress_reported: None,
-            append_manifest: None,
-        };
-        let _ = if revision_addressed {
-            download.run_revision_addressed_with_mem_cache::<SilentReporter>(&mem_cache).await
-        } else {
-            download.run_with_mem_cache::<SilentReporter>(&mem_cache).await
-        };
-    });
+    let download = DownloadTarballToStore {
+        http_client: &http_client,
+        store_dir,
+        store_index,
+        store_index_writer,
+        verify_store_integrity,
+        strict_store_pkg_content_check,
+        verified_files_cache,
+        package_integrity: Some(&integrity),
+        package_unpacked_size,
+        package_file_count,
+        package_url: &package_url,
+        package_id: &package_id,
+        requester: &requester,
+        prefetched_cas_paths: None,
+        retry_opts,
+        auth_headers: &auth_headers,
+        ignore_file_pattern: None,
+        offline,
+        // The client prefetch routes through `SilentReporter`, so
+        // there's no install reporter to dedup progress events
+        // against — the frozen materialization install emits its own
+        // progress as it consumes each tarball from the mem cache.
+        progress_reported: None,
+        append_manifest: None,
+    };
+    if revision_addressed {
+        download.run_revision_addressed_with_mem_cache::<SilentReporter>(&mem_cache).await
+    } else {
+        download.run_with_mem_cache::<SilentReporter>(&mem_cache).await
+    }
 }
 
 /// Fires background tarball downloads on the pnpr client as resolved
@@ -157,7 +167,8 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
 /// finished lockfile.
 ///
 /// Mirrors the local fresh-install [`crate::PrefetchingResolver`] —
-/// each download lands in the shared [`MemCache`] keyed by tarball URL,
+/// each download lands in the shared [`MemCache`] keyed by tarball URL and
+/// fetch policy,
 /// and the frozen materialization install the client runs afterward
 /// picks it up from the cache. It carries its own store-index writer so
 /// freshly-downloaded tarballs are recorded in `index.db` (the frozen
