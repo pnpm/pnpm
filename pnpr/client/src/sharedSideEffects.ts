@@ -469,7 +469,7 @@ function decodeBase64 (label: string, encoded: string): Buffer {
     throw new Error(`Shared artifact ${label} is not valid base64`)
   }
   const decoded = Buffer.from(encoded, 'base64')
-  if (decoded.toString('base64').replace(/=+$/, '') !== encoded.replace(/=+$/, '')) {
+  if (decoded.toString('base64') !== encoded) {
     throw new Error(`Shared artifact ${label} is not valid base64`)
   }
   return decoded

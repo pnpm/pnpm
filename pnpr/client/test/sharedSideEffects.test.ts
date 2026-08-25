@@ -43,6 +43,7 @@ describe('signed shared artifacts', () => {
     })
     const publicKeySpki = publicKey.export({ format: 'der', type: 'spki' }).toString('base64')
     expect(verifySignedArtifactEnvelope(envelope, publicKeySpki)).toEqual(payload())
+    expect(() => verifySignedArtifactEnvelope({ ...envelope, payload: `${envelope.payload}=` }, publicKeySpki)).toThrow('not valid base64')
 
     envelope.payload = Buffer.from(JSON.stringify({ ...payload(), builderId: 'attacker' })).toString('base64')
     expect(() => verifySignedArtifactEnvelope(envelope, publicKeySpki)).toThrow('signature verification failed')
