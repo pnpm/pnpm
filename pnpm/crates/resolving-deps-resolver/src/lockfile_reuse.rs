@@ -5,9 +5,9 @@
 
 use node_semver::{Range, Version};
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer, ProjectSnapshot,
-    RegistryContext, ResolvedDependencySpec, SnapshotEntry, TarballResolution, TarballUrlOptions,
-    npm_tarball_url, pick_registry_for_package, registry_server_type,
+    BundledDependencies, Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer,
+    ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotEntry, TarballResolution,
+    TarballUrlOptions, npm_tarball_url, pick_registry_for_package, registry_server_type,
 };
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
 use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
@@ -338,6 +338,13 @@ fn synthesize_manifest(
     }
     if let Some(deprecated) = metadata.deprecated.as_ref() {
         manifest.insert("deprecated".to_string(), Value::String(deprecated.clone()));
+    }
+    if let Some(bundled) = metadata.bundled_dependencies.as_ref() {
+        let value = match bundled {
+            BundledDependencies::Boolean(bundles_all) => Value::Bool(*bundles_all),
+            BundledDependencies::Names(names) => string_array(names),
+        };
+        manifest.insert("bundledDependencies".to_string(), value);
     }
     // `has_bin: Some(true)` round-trips as a truthy `bin` so the
     // bundled-manifest bin linker sees a non-empty bin set; the exact

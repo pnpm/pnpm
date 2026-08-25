@@ -7,9 +7,9 @@ fn registry_context(registries: HashMap<String, String>) -> pnpm_lockfile::Regis
 }
 
 use pnpm_lockfile::{
-    ComVer, GitResolution, ImporterDepVersion, Lockfile, LockfileResolution, LockfileVersion,
-    PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution,
-    ResolvedDependencySpec, TarballResolution,
+    BundledDependencies, ComVer, GitResolution, ImporterDepVersion, Lockfile, LockfileResolution,
+    LockfileVersion, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot,
+    RegistryResolution, ResolvedDependencySpec, TarballResolution,
 };
 
 use super::{reusable_importer_dep, synthesize_reused_result};
@@ -175,6 +175,40 @@ fn synthesized_manifest_carries_deprecated_metadata() {
     assert_eq!(
         manifest.get("deprecated").and_then(serde_json::Value::as_str),
         Some("use String.prototype.padStart()"),
+    );
+}
+
+#[test]
+fn synthesized_manifest_carries_bundled_dependencies() {
+    let key: PkgNameVerPeer = "pkg-with-bundled-deps@1.0.0".parse().expect("parse key");
+    let mut metadata = registry_metadata();
+    metadata.bundled_dependencies = Some(BundledDependencies::Names(vec!["napi-wasm".to_string()]));
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+
+    let result = synthesize_reused_result(&lockfile, &key, "pkg-with-bundled-deps")
+        .expect("registry dep is reusable");
+    let manifest = result.manifest.expect("synthesized manifest");
+    assert_eq!(
+        BundledDependencies::from_manifest(Some(&manifest)),
+        Some(BundledDependencies::Names(vec!["napi-wasm".to_string()])),
+    );
+}
+
+#[test]
+fn synthesized_manifest_carries_the_boolean_bundled_dependencies_form() {
+    let key: PkgNameVerPeer = "pkg-bundling-everything@1.0.0".parse().expect("parse key");
+    let mut metadata = registry_metadata();
+    metadata.bundled_dependencies = Some(BundledDependencies::Boolean(true));
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+
+    let result = synthesize_reused_result(&lockfile, &key, "pkg-bundling-everything")
+        .expect("registry dep is reusable");
+    let manifest = result.manifest.expect("synthesized manifest");
+    assert_eq!(
+        BundledDependencies::from_manifest(Some(&manifest)),
+        Some(BundledDependencies::Boolean(true)),
     );
 }
 
