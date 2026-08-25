@@ -1,5 +1,5 @@
 import path from 'path'
-import { type Config } from '@pnpm/config'
+import { type Config, getPackageManagerBootstrapConfig } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { packageManager } from '@pnpm/cli-meta'
@@ -7,8 +7,6 @@ import { prependDirsToPath } from '@pnpm/env.path'
 import { installPnpmToTools } from '@pnpm/tools.plugin-commands-self-updater'
 import spawn from 'cross-spawn'
 import semver from 'semver'
-
-import { getPackageManagerBootstrapConfig } from './packageManagerRegistries.js'
 
 export async function switchCliVersion (config: Config): Promise<void> {
   const pm = config.wantedPackageManager

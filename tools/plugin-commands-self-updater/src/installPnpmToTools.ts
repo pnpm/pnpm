@@ -9,7 +9,7 @@ import { fastPathTemp as pathTemp } from 'path-temp'
 import semver from 'semver'
 import symlinkDir from 'symlink-dir'
 import { type SelfUpdateCommandOptions } from './selfUpdate.js'
-import { verifyPnpmEngineIdentity } from './verifyPnpmEngineIdentity.js'
+import { type RegistryKey, verifyPnpmEngineIdentity } from './verifyPnpmEngineIdentity.js'
 
 export interface InstallPnpmToToolsResult {
   binDir: string
@@ -17,7 +17,11 @@ export interface InstallPnpmToToolsResult {
   alreadyExisted: boolean
 }
 
-export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateCommandOptions): Promise<InstallPnpmToToolsResult> {
+export async function installPnpmToTools (
+  pnpmVersion: string,
+  opts: SelfUpdateCommandOptions,
+  trustedKeys?: RegistryKey[]
+): Promise<InstallPnpmToToolsResult> {
   const currentPkgName = getCurrentPackageName()
   const targetPkgName = pnpmPackageNameToInstall(pnpmVersion, currentPkgName)
   // The v11-only darwin-x64 fallback (see pnpmPackageNameToInstall) swaps the
@@ -93,7 +97,7 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
     // from the wrapper's own (still untrusted) package.json, so it must not run
     // until the wrapper is proven to be a genuine, signed pnpm release. On
     // failure the stage is removed by the catch below.
-    await verifyPnpmEngineIdentity(stage, targetPkgName, pnpmVersion, opts)
+    await verifyPnpmEngineIdentity(stage, targetPkgName, pnpmVersion, { ...opts, trustedKeys })
     // pnpm's own installs run with --ignore-scripts, so the wrapper's
     // preinstall (which links the native binary over the placeholder bin) never
     // runs — replicate it here. Needed for any wrapper that ships a native

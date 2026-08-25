@@ -46,6 +46,11 @@ import {
 export { types }
 
 export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+export {
+  getPackageManagerBootstrapConfig,
+  getPackageManagerRegistries,
+  type PackageManagerBootstrapConfig,
+} from './packageManagerRegistries.js'
 export * from './readLocalConfig.js'
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 

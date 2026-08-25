@@ -1,9 +1,12 @@
-import { type Config, type PackageManagerNetworkConfig } from '@pnpm/config'
 import { type Registries } from '@pnpm/types'
+
+import { type Config, type PackageManagerNetworkConfig } from './Config.js'
 
 const DEFAULT_PACKAGE_MANAGER_REGISTRY = 'https://registry.npmjs.org/'
 
-export type PackageManagerBootstrapConfig = Partial<PackageManagerNetworkConfig> & {
+type PackageManagerConfig = Pick<Config, 'packageManagerNetworkConfig' | 'packageManagerRegistries'>
+
+export type PackageManagerBootstrapConfig = PackageManagerNetworkConfig & {
   registries: Registries
 }
 
@@ -13,15 +16,17 @@ export type PackageManagerBootstrapConfig = Partial<PackageManagerNetworkConfig>
  * and global .npmrc), defaulting to the public npm registry — repository
  * config must not steer where pnpm fetches the binary it is about to execute.
  */
-export function getPackageManagerRegistries (config: Config): Registries {
+export function getPackageManagerRegistries (config: PackageManagerConfig): Registries {
   return {
     default: DEFAULT_PACKAGE_MANAGER_REGISTRY,
     ...config.packageManagerRegistries,
   }
 }
 
-export function getPackageManagerBootstrapConfig (config: Config): PackageManagerBootstrapConfig {
+export function getPackageManagerBootstrapConfig (config: PackageManagerConfig): PackageManagerBootstrapConfig {
   return {
+    rawConfig: {},
+    sslConfigs: {},
     ...config.packageManagerNetworkConfig,
     registries: getPackageManagerRegistries(config),
   }
