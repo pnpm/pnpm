@@ -1264,12 +1264,34 @@ fn delete_last_field_leaves_no_trailing_blank_line() {
 
 #[test]
 fn delete_last_field_keeps_a_kept_chomped_block_scalars_trailing_blank() {
-    for header in ["|+", ">+", "|+2", "|2+", "|2+ # keep the breaks"] {
+    for header in ["|+", ">+", "|+2", "|2+", "|2+ # keep the breaks", "|+ # retain > blanks"] {
         let original = format!("notes: {header}\n  foo\n\nvirtualStoreDir: .pnpm\n");
         let out = run_update_field(Some(&original), "virtualStoreDir", &serde_json::Value::Null)
             .expect("file kept");
         assert_eq!(out, format!("notes: {header}\n  foo\n\n"), "header {header}");
     }
+}
+
+#[test]
+fn delete_last_field_keeps_the_blank_below_a_deeper_indented_scalar_line() {
+    let out = run_update_field(
+        Some("notes: |+\n  foo\n    bar\n\nvirtualStoreDir: .pnpm\n"),
+        "virtualStoreDir",
+        &serde_json::Value::Null,
+    )
+    .expect("file kept");
+    assert_eq!(out, "notes: |+\n  foo\n    bar\n\n");
+}
+
+#[test]
+fn delete_last_field_drops_a_separator_below_a_quoted_scalar_holding_a_header() {
+    let out = run_update_field(
+        Some("notes: \"foo |+ #\"\n\nvirtualStoreDir: .pnpm\n"),
+        "virtualStoreDir",
+        &serde_json::Value::Null,
+    )
+    .expect("file kept");
+    assert_eq!(out, "notes: \"foo |+ #\"\n");
 }
 
 #[test]

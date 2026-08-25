@@ -1147,35 +1147,47 @@ fn remove_top_level_block(text: &str, key: &str) -> String {
 /// the blank lines that follow it *as its value*, so dropping them would
 /// rewrite a setting the caller never asked to touch.
 ///
-/// The blanks belong to the scalar when the last content line above them
-/// sits inside one: either it is the header itself (an otherwise empty
-/// scalar) or the nearest less-indented line above it is.
+/// The blanks belong to the scalar when the content above them climbs out to
+/// a keep-chomping header: walking up, each line that is less indented than
+/// everything seen so far either is that header or becomes the new bar to
+/// clear. A top-level line that is not a header ends the search — a scalar's
+/// body is always indented past its own key.
 fn blanks_belong_to_kept_scalar(text: &str, line_start: usize) -> bool {
     let all = lines(&text[..line_start]);
-    let Some(last) = all.iter().rposition(|line| !line.content.trim().is_empty()) else {
-        return false;
-    };
-    if is_kept_chomping_header(all[last].content) {
-        return true;
+    let mut enclosing_indent = usize::MAX;
+    for line in all.iter().rev().filter(|line| !line.content.trim().is_empty()) {
+        let indent = indent_width(line.content);
+        if indent >= enclosing_indent {
+            continue;
+        }
+        if is_kept_chomping_header(line.content) {
+            return true;
+        }
+        if indent == 0 {
+            return false;
+        }
+        enclosing_indent = indent;
     }
-    let body_indent = indent_width(all[last].content);
-    all[..last]
-        .iter()
-        .rev()
-        .filter(|line| !line.content.trim().is_empty())
-        .find(|line| indent_width(line.content) < body_indent)
-        .is_some_and(|line| is_kept_chomping_header(line.content))
+    false
 }
 
 /// Whether `content` opens a block scalar that keeps its trailing line
 /// breaks: a `|` or `>` header carrying a `+`, in either order relative to
 /// an explicit indentation digit (`|+`, `>+2`, `|2+`), with or without a
-/// trailing comment.
+/// trailing comment. Only the value position counts — a `|+` inside an
+/// ordinary scalar, or inside the header's own comment, is text.
 fn is_kept_chomping_header(content: &str) -> bool {
-    let Some((_, indicators)) = content.rsplit_once(['|', '>']) else {
+    let mut value = content.trim_start();
+    while let Some(item) = value.strip_prefix("- ") {
+        value = item.trim_start();
+    }
+    if let Some(delimiter) = structural_colon_index(value) {
+        value = value[delimiter + 1..].trim_start();
+    }
+    let Some(indicators) = value.strip_prefix(['|', '>']) else {
         return false;
     };
-    let indicators = indicators.split('#').next().unwrap_or_default().trim();
+    let indicators = indicators.split_whitespace().next().unwrap_or_default();
     indicators.contains('+') && indicators.chars().all(|char| char == '+' || char.is_ascii_digit())
 }
 
