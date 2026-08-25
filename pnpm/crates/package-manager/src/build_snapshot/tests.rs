@@ -99,5 +99,9 @@ fn returns_error_when_revision_is_invalid() {
 
     let err = build_package_snapshot(&pkg, &HashMap::new())
         .expect_err("should fail with an invalid revision");
-    assert!(matches!(err, BuildSnapshotError::InvalidRevision { .. }));
+    assert!(matches!(err, BuildSnapshotError::InvalidRevision(_)));
+    assert_eq!(
+        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_MALFORMED_METADATA"),
+    );
 }

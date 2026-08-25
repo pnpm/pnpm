@@ -5,6 +5,7 @@ use pnpm_lockfile::{
     PkgVerPeer, RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballRevision,
 };
 use pnpm_registry::PackageVersion;
+use pnpm_resolving_npm_resolver::InvalidTarballRevisionMetadataError;
 use std::collections::HashMap;
 
 /// Result of converting a resolved [`PackageVersion`] into the v9 lockfile
@@ -26,16 +27,8 @@ pub enum BuildSnapshotError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_BUILD_SNAPSHOT_MISSING_INTEGRITY))]
     MissingIntegrity { name: String, version: String },
 
-    #[display(
-        "Package `{name}@{version}` was returned from the registry with an invalid revision: {source}"
-    )]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_BUILD_SNAPSHOT_INVALID_REVISION))]
-    InvalidRevision {
-        name: String,
-        version: String,
-        #[error(source)]
-        source: serde_json::Error,
-    },
+    #[diagnostic(transparent)]
+    InvalidRevision(#[error(source)] InvalidTarballRevisionMetadataError),
 
     #[display("Failed to parse package name `{name}`: {source}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_BUILD_SNAPSHOT_PARSE_NAME))]
@@ -96,10 +89,11 @@ pub fn build_package_snapshot(
         .clone()
         .map(serde_json::from_value::<TarballRevision>)
         .transpose()
-        .map_err(|source| BuildSnapshotError::InvalidRevision {
-            name: package.name.clone(),
-            version: package.version.to_string(),
-            source,
+        .map_err(|source| {
+            BuildSnapshotError::InvalidRevision(InvalidTarballRevisionMetadataError::new(
+                &package.dist.tarball,
+                source.to_string(),
+            ))
         })?;
 
     let mut dependencies: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
