@@ -861,23 +861,45 @@ fn ignore_ghsas_empty_with_sibling_only_is_a_noop() {
 }
 
 #[test]
+fn ignore_ghsas_targets_the_canonical_audit_ignore_list() {
+    let original = "audit:\n  ignorePrune: true\n  ignore:\n    - GHSA-aaaa-bbbb-cccc\n";
+    let out = run_ignore_ghsas(Some(original), &["GHSA-dddd-eeee-ffff"]).expect("written");
+    assert_eq!(out, "audit:\n  ignorePrune: true\n  ignore:\n    - GHSA-dddd-eeee-ffff\n");
+}
+
+#[test]
+fn ignore_ghsas_removes_the_shadowed_deprecated_list_when_both_are_present() {
+    let original = "audit:\n  ignore:\n    - GHSA-aaaa-bbbb-cccc\nauditConfig:\n  ignoreGhsas:\n    - GHSA-1111-2222-3333\n";
+    let out = run_ignore_ghsas(Some(original), &["GHSA-dddd-eeee-ffff"]).expect("written");
+    assert_eq!(out, "audit:\n  ignore:\n    - GHSA-dddd-eeee-ffff\n");
+}
+
+#[test]
+fn ignore_ghsas_empty_removes_audit_ignore_and_keeps_siblings() {
+    let original = "audit:\n  ignorePrune: true\n  ignore:\n    - GHSA-aaaa-bbbb-cccc\n";
+    let out = run_ignore_ghsas(Some(original), &[]).expect("written");
+    assert_eq!(out, "audit:\n  ignorePrune: true\n");
+}
+
+#[test]
+fn ignore_ghsas_empty_removes_the_audit_block_when_ignore_is_its_only_key() {
+    let original = "packages:\n  - '.'\naudit:\n  ignore:\n    - GHSA-aaaa-bbbb-cccc\n";
+    let out = run_ignore_ghsas(Some(original), &[]).expect("written");
+    assert_eq!(out, "packages:\n  - '.'\n");
+}
+
+#[test]
 fn ignore_ghsas_edits_an_inline_flow_audit_config() {
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
-    fs::write(
-        &path,
-        "auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [GHSA-aaaa-bbbb-cccc] }\n",
-    )
-    .expect("seed");
+    fs::write(&path, "auditConfig: { other: keep, ignoreGhsas: [GHSA-aaaa-bbbb-cccc] }\n")
+        .expect("seed");
 
     crate::set_audit_ignore_ghsas(dir.path(), &["GHSA-dddd-eeee-ffff".to_string()])
         .expect("set_audit_ignore_ghsas succeeds");
 
     let after = fs::read_to_string(&path).expect("read manifest");
-    assert_eq!(
-        after,
-        "auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [ GHSA-dddd-eeee-ffff ] }\n",
-    );
+    assert_eq!(after, "auditConfig: { other: keep, ignoreGhsas: [ GHSA-dddd-eeee-ffff ] }\n");
 }
 
 #[test]

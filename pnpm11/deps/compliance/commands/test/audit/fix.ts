@@ -1,9 +1,10 @@
-import { existsSync as fsExistsSync } from 'node:fs'
+import fs, { existsSync as fsExistsSync } from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
 import type { AuditAdvisory } from '@pnpm/deps.compliance.audit'
 import { audit } from '@pnpm/deps.compliance.commands'
+import { type LogBase, streamParser } from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { readYamlFileSync } from 'read-yaml-file'
@@ -14,13 +15,24 @@ import * as responses from './utils/responses/index.js'
 
 const f = fixtures(import.meta.dirname)
 
+const collectedInfos: string[] = []
+
 beforeEach(async () => {
+  collectedInfos.length = 0
+  streamParser.on('data', collectInfos as (msg: LogBase) => void)
   await setupMockAgent()
 })
 
 afterEach(async () => {
+  streamParser.removeListener('data', collectInfos as (msg: LogBase) => void)
   await teardownMockAgent()
 })
+
+function collectInfos (msg: LogBase & { message?: string }): void {
+  if (msg.level === 'info' && typeof msg.message === 'string') {
+    collectedInfos.push(msg.message)
+  }
+}
 
 test('overrides are added for vulnerable dependencies', async () => {
   const tmp = f.prepare('has-vulnerabilities')
@@ -248,6 +260,273 @@ test('audit --fix respects auditLevel and only fixes matching severities', async
   expect(manifest.overrides?.['axios@<=0.18.0']).toBeFalsy()
   expect(manifest.overrides?.['axios@<0.21.2']).toBeFalsy()
   expect(manifest.overrides?.['url-parse@<1.5.6']).toBeFalsy()
+})
+
+test('audit.ignorePrune removes ignored GHSAs that are no longer in the report', async () => {
+  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  // GHSA-42xw-2xvc-qx8m exists in the report (axios <=0.18.0)
+  // GHSA-xxxx-xxxx-xxxx does NOT exist in the report - should be removed
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    auditConfig: {
+      ignoreGhsas: [
+        'GHSA-42xw-2xvc-qx8m',
+        'GHSA-xxxx-xxxx-xxxx',
+      ],
+    },
+    auditIgnorePrune: true,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const manifest = readYamlFileSync<{ auditConfig?: { ignoreGhsas?: string[] } }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.auditConfig?.ignoreGhsas).toContain('GHSA-42xw-2xvc-qx8m')
+  expect(manifest.auditConfig?.ignoreGhsas).not.toContain('GHSA-xxxx-xxxx-xxxx')
+
+  // The preceding comment and the trailing same-line comment attached to
+  // the removed entry must both go with it.
+  const rawContent = fs.readFileSync(path.join(tmp, 'pnpm-workspace.yaml'), 'utf8')
+  expect(rawContent).not.toContain('Expired GHSA')
+  expect(rawContent).not.toContain('trailing comment')
+
+  expect(collectedInfos).toContain('Removed 1 unused ignored GHSA: GHSA-xxxx-xxxx-xxxx')
+})
+
+test('audit.ignorePrune is disabled by default - no pruning', async () => {
+  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  // Without audit.ignorePrune: true, pruning should NOT run
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    auditConfig: {
+      ignoreGhsas: [
+        'GHSA-42xw-2xvc-qx8m',
+        'GHSA-xxxx-xxxx-xxxx',
+      ],
+    },
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  // When pruning doesn't run, the auditConfig stays unchanged
+  const manifest = readYamlFileSync<{ auditConfig?: { ignoreGhsas?: string[] } }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.auditConfig?.ignoreGhsas).toContain('GHSA-xxxx-xxxx-xxxx')
+})
+
+// GHSA ids are case-insensitive; lowercase version should match uppercase in report
+test('audit.ignorePrune handles case normalization', async () => {
+  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    auditConfig: {
+      ignoreGhsas: [
+        'ghsa-42xw-2xvc-qx8m', // lowercase, should be retained
+        'GHSA-XXXX-XXXX-XXXX', // uppercase, NOT in report - should be removed
+      ],
+    },
+    auditIgnorePrune: true,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const manifest = readYamlFileSync<{ auditConfig?: { ignoreGhsas?: string[] } }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  // Retained entries are written in their canonical form regardless of the
+  // casing the user originally ignored them with.
+  expect(manifest.auditConfig?.ignoreGhsas).toEqual(['GHSA-42xw-2xvc-qx8m'])
+})
+
+test('audit.ignorePrune persists the canonical form even when nothing is removed', async () => {
+  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  // Both entries match the same advisory (a differently-cased duplicate) —
+  // nothing gets removed, but the stored list should still collapse to the
+  // single canonical entry.
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    auditConfig: {
+      ignoreGhsas: [
+        'ghsa-42xw-2xvc-qx8m',
+        'GHSA-42XW-2XVC-QX8M',
+      ],
+    },
+    auditIgnorePrune: true,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+  expect(collectedInfos.some((message) => message.includes('unused ignored GHSA'))).toBe(false)
+
+  const manifest = readYamlFileSync<{ auditConfig?: { ignoreGhsas?: string[] } }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.auditConfig?.ignoreGhsas).toEqual(['GHSA-42xw-2xvc-qx8m'])
+})
+
+test('audit.ignorePrune removes all entries when none are relevant', async () => {
+  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  // Only GHSAs that don't exist in the report - all should be pruned
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    auditConfig: {
+      ignoreGhsas: [
+        'GHSA-xxxx-0000-0001',
+        'GHSA-xxxx-0000-0002',
+      ],
+    },
+    auditIgnorePrune: true,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const manifest = readYamlFileSync<{ auditConfig?: { ignoreGhsas?: string[] } }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.auditConfig?.ignoreGhsas).toBeUndefined()
+})
+
+test('audit.ignorePrune edits an inline (flow-style) auditConfig in place', async () => {
+  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  fs.writeFileSync(
+    path.join(tmp, 'pnpm-workspace.yaml'),
+    'packages:\n  - \'.\'\nsharedWorkspaceLockfile: false\nauditConfig: { ignoreGhsas: [GHSA-42xw-2xvc-qx8m, GHSA-xxxx-xxxx-xxxx] }\n'
+  )
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    auditConfig: {
+      ignoreGhsas: [
+        'GHSA-42xw-2xvc-qx8m',
+        'GHSA-xxxx-xxxx-xxxx',
+      ],
+    },
+    auditIgnorePrune: true,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  // The retained GHSA is edited in place inside the flow-style block, rather
+  // than the whole auditConfig being reformatted into block style.
+  const rawContent = fs.readFileSync(path.join(tmp, 'pnpm-workspace.yaml'), 'utf8')
+  expect(rawContent).toContain(
+    'auditConfig: { ignoreGhsas: [ GHSA-42xw-2xvc-qx8m ] }'
+  )
+
+  const manifest = readYamlFileSync<{ auditConfig?: { ignoreGhsas?: string[] } }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.auditConfig?.ignoreGhsas).toEqual(['GHSA-42xw-2xvc-qx8m'])
+})
+
+test('audit.ignorePrune updates the canonical audit.ignore list', async () => {
+  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  fs.writeFileSync(
+    path.join(tmp, 'pnpm-workspace.yaml'),
+    'packages:\n  - \'.\'\nsharedWorkspaceLockfile: false\naudit:\n  ignorePrune: true\n  ignore:\n    - GHSA-42xw-2xvc-qx8m\n    - GHSA-xxxx-xxxx-xxxx\n'
+  )
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  // `auditConfig`/`auditIgnorePrune` are the internal fields the config
+  // reader derives from the manifest's `audit` section.
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    auditConfig: {
+      ignoreGhsas: [
+        'GHSA-42xw-2xvc-qx8m',
+        'GHSA-xxxx-xxxx-xxxx',
+      ],
+    },
+    auditIgnorePrune: true,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  // The retained list must land back on the canonical `audit.ignore` that
+  // supplied it — writing the deprecated `auditConfig.ignoreGhsas` instead
+  // would let the unchanged canonical list shadow the prune on the next
+  // read and restore the stale id.
+  const manifest = readYamlFileSync<{ audit?: { ignorePrune?: boolean, ignore?: string[] }, auditConfig?: unknown }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.audit).toStrictEqual({ ignorePrune: true, ignore: ['GHSA-42xw-2xvc-qx8m'] })
+  expect(manifest.auditConfig).toBeUndefined()
+})
+
+test('audit.ignorePrune sanitizes the removed ids in the log message', async () => {
+  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  // The stale entry carries an ANSI escape from the repository-controlled
+  // manifest; the removal message must strip it before the terminal.
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    auditConfig: {
+      ignoreGhsas: [
+        'GHSA-42xw-2xvc-qx8m',
+        'GHSA-xxxx-xxxx-xxxx\u001b[31m',
+      ],
+    },
+    auditIgnorePrune: true,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+  expect(collectedInfos).toContain('Removed 1 unused ignored GHSA: GHSA-xxxx-xxxx-xxxx[31m')
+  expect(collectedInfos.every((message) => !message.includes('\u001b'))).toBe(true)
 })
 
 function advisory (moduleName: string, vulnerableVersions: string, patchedVersions?: string): AuditAdvisory {

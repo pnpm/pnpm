@@ -132,6 +132,17 @@ test('getOptionsFromPnpmSettings() maps the "audit" settings section to auditCon
   expect(globalWarn).not.toHaveBeenCalled()
 })
 
+test('getOptionsFromPnpmSettings() maps "audit.ignorePrune" to auditIgnorePrune', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    audit: {
+      ignore: ['GHSA-1'],
+      ignorePrune: true,
+    },
+  })
+  expect(options.auditConfig).toStrictEqual({ ignoreGhsas: ['GHSA-1'] })
+  expect(options.auditIgnorePrune).toBe(true)
+})
+
 test('getOptionsFromPnpmSettings() never leaks the raw "audit" key into the options', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     audit: {
@@ -177,6 +188,12 @@ test('getOptionsFromPnpmSettings() throws when "audit.ignore" is not a string ar
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     audit: { ignore: 'GHSA-1' },
   } as any)).toThrow(/audit\.ignore/) // eslint-disable-line
+})
+
+test('getOptionsFromPnpmSettings() throws when "audit.ignorePrune" is not a boolean', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    audit: { ignorePrune: 'yes' },
+  } as any)).toThrow(/audit\.ignorePrune/) // eslint-disable-line
 })
 
 test('getOptionsFromPnpmSettings() throws on an invalid "audit.level"', () => {

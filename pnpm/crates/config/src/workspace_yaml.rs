@@ -832,6 +832,13 @@ pub struct AuditSettings {
     /// [`AuditConfig::ignore_ghsas`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ignore: Option<Vec<String>>,
+
+    /// When `true`, `pnpm audit --fix` removes entries from the ignore
+    /// list that no longer appear in the audit report, so a re-introduced
+    /// vulnerability under the same GHSA ID gets re-evaluated instead of
+    /// staying silently suppressed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_prune: Option<bool>,
 }
 
 /// `update` entry: settings that tune `pnpm update` (and `pnpm
@@ -1876,6 +1883,9 @@ impl WorkspaceSettings {
                     );
                 }
                 config.audit_config.ignore_ghsas = ignore;
+            }
+            if let Some(prune) = audit.ignore_prune {
+                config.audit_ignore_prune = Some(prune);
             }
         }
         if let Some(v) = self.versioning {

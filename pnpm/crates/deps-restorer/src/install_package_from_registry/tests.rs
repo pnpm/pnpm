@@ -200,6 +200,7 @@ fn create_config(
         verify_deps_before_run: Default::default(),
         audit_level: None,
         audit_config: Default::default(),
+        audit_ignore_prune: None,
         trust_policy_exclude: None,
         trust_policy_ignore_after: None,
         resolution_mode: Default::default(),

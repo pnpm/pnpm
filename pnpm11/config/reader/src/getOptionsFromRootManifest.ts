@@ -39,6 +39,7 @@ export type OptionsFromRootManifest = {
   registriesByScope?: Record<string, string>
   registriesByPrefix?: Record<string, string>
   registryOptionsByUrl?: Record<string, RegistryOptions>
+  auditIgnorePrune?: boolean
 } & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'updateConfig'>
 
 interface GetOptionsFromPnpmSettingsOptions {
@@ -332,6 +333,9 @@ function translateUpdateSettings (pnpmSettings: PnpmSettings, settings: OptionsF
  */
 function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFromRootManifest): void {
   delete (settings as { audit?: unknown }).audit
+  // `auditIgnorePrune` is derived from `audit.ignorePrune` below; a raw
+  // top-level key of that name is not a setting in either CLI.
+  delete settings.auditIgnorePrune
   const audit = pnpmSettings.audit
   if (audit == null) return
   assertObjectSetting(audit, 'audit')
@@ -350,6 +354,10 @@ function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFr
       globalWarn('Both the "audit" and "auditLevel" settings are set. The deprecated "auditLevel" setting is ignored in favor of "audit".')
     }
     ;(settings as { auditLevel?: string }).auditLevel = audit.level
+  }
+  if (audit.ignorePrune != null) {
+    assertBoolean(audit.ignorePrune, 'audit.ignorePrune')
+    settings.auditIgnorePrune = audit.ignorePrune
   }
 }
 
@@ -372,15 +380,17 @@ export function toUpdateSettings (updateConfig: OptionsFromRootManifest['updateC
 
 /**
  * The `audit` settings the CLI acts on, re-joined from the internal
- * `auditConfig` / `auditLevel` pair {@link translateAuditSettings} splits the
- * section into — the view `pnpm config get audit` prints. An empty ignore
- * list reads as unset. `undefined` when nothing is set.
+ * `auditConfig` / `auditLevel` / `auditIgnorePrune` settings
+ * {@link translateAuditSettings} splits the section into — the view
+ * `pnpm config get audit` prints. An empty ignore list reads as unset.
+ * `undefined` when nothing is set.
  */
-export function toAuditSettings ({ auditConfig, auditLevel }: { auditConfig?: AuditConfig, auditLevel?: AuditLevel }): AuditSettings | undefined {
+export function toAuditSettings ({ auditConfig, auditLevel, auditIgnorePrune }: { auditConfig?: AuditConfig, auditLevel?: AuditLevel, auditIgnorePrune?: boolean }): AuditSettings | undefined {
   const ignore = auditConfig?.ignoreGhsas
   const audit: AuditSettings = {
     ...(auditLevel != null ? { level: auditLevel } : {}),
     ...(ignore != null && ignore.length > 0 ? { ignore } : {}),
+    ...(auditIgnorePrune != null ? { ignorePrune: auditIgnorePrune } : {}),
   }
   return Object.keys(audit).length > 0 ? audit : undefined
 }

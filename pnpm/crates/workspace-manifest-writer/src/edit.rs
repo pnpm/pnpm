@@ -423,15 +423,41 @@ fn override_keys_in_text(text: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Set `auditConfig.ignoreGhsas:` to `ghsas` (the complete desired list),
-/// creating the `auditConfig:` block or the nested `ignoreGhsas:` key when
-/// absent. An empty `ghsas` removes the `auditConfig:` block. `pnpm audit
-/// --ignore` calls this with the merged ignore list. Returns whether anything
+/// Set the ignore list to `ghsas` (the complete desired list) in whichever
+/// spelling the manifest uses — the canonical `audit.ignore` wins over the
+/// deprecated `auditConfig.ignoreGhsas`, matching the reader's precedence,
+/// so a stale canonical list can't shadow the update on the next read. When
+/// both spellings are present, the shadowed deprecated list is removed as
+/// part of the write. `auditConfig.ignoreGhsas` is created when neither is
+/// present. An empty `ghsas` removes the list, dropping its block when
+/// nothing else remains in it. `pnpm audit --ignore` and `audit.ignorePrune`
+/// call this with the complete desired list. Returns whether anything
 /// changed.
 pub(crate) fn set_audit_ignore_ghsas(
     manifest: &mut Manifest,
     ghsas: &[String],
 ) -> Result<bool, Box<yamlpatch::Error>> {
+    if manifest.audit_ignore.is_some() {
+        let mut changed = if ghsas.is_empty() {
+            remove_block_list_key(manifest, "audit", "ignore");
+            manifest.audit_ignore = None;
+            true
+        } else if manifest.audit_ignore.as_deref() == Some(ghsas) {
+            false
+        } else {
+            let new_text = upsert_sequence_entry(manifest.text(), "audit", "ignore", ghsas);
+            manifest.set_text(new_text);
+            manifest.audit_ignore = Some(ghsas.to_vec());
+            true
+        };
+        if manifest.audit_ignore_ghsas.is_some() {
+            remove_block_list_key(manifest, "auditConfig", "ignoreGhsas");
+            manifest.audit_ignore_ghsas = None;
+            changed = true;
+        }
+        return Ok(changed);
+    }
+
     const BLOCK: &str = "auditConfig";
     let current = manifest.audit_ignore_ghsas.as_deref().unwrap_or_default();
 
@@ -440,18 +466,12 @@ pub(crate) fn set_audit_ignore_ghsas(
         if locate(text, &[BLOCK]).is_none() {
             return Ok(false);
         }
-        let keys = mapping_keys(text, &[BLOCK]);
         // Nothing to remove if `ignoreGhsas` isn't present — and crucially,
         // don't touch sibling `auditConfig` keys.
-        if !keys.iter().any(|key| key == "ignoreGhsas") {
+        if !mapping_keys(text, &[BLOCK]).iter().any(|key| key == "ignoreGhsas") {
             return Ok(false);
         }
-        if keys.iter().all(|key| key == "ignoreGhsas") {
-            manifest.set_text(remove_top_level_block(text, BLOCK));
-            manifest.top_level_keys.retain(|key| key != BLOCK);
-        } else {
-            manifest.set_text(remove_mapping_entries(text, &[BLOCK], &["ignoreGhsas".to_string()]));
-        }
+        remove_block_list_key(manifest, BLOCK, "ignoreGhsas");
         manifest.audit_ignore_ghsas = None;
         return Ok(true);
     }
@@ -473,6 +493,28 @@ pub(crate) fn set_audit_ignore_ghsas(
     }
     manifest.audit_ignore_ghsas = Some(ghsas.to_vec());
     Ok(true)
+}
+
+/// Remove `block.key` from the document — the whole `block:` when the key is
+/// its only entry, so no empty mapping is left behind. Sibling keys of
+/// `block` are never touched. A missing block or key is a no-op.
+fn remove_block_list_key(manifest: &mut Manifest, block: &str, key: &str) {
+    let text = manifest.text();
+    if locate(text, &[block]).is_none() {
+        return;
+    }
+    let keys = mapping_keys(text, &[block]);
+    if !keys.iter().any(|k| k == key) {
+        return;
+    }
+    if keys.iter().all(|k| k == key) {
+        let new_text = remove_top_level_block(text, block);
+        manifest.set_text(new_text);
+        manifest.top_level_keys.retain(|k| k != block);
+    } else {
+        let new_text = remove_mapping_entries(text, &[block], &[key.to_string()]);
+        manifest.set_text(new_text);
+    }
 }
 
 /// Set the top-level `minimumReleaseAgeExclude:` block to `items` (the

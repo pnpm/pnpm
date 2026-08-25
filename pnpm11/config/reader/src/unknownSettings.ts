@@ -57,6 +57,7 @@ const _proofTypedWorkspaceManifestKeysAreExhaustive: ProofTypedWorkspaceManifest
  */
 const CONFIG_ONLY_SETTING_KEYS = [
   'allowNew',
+  'auditIgnorePrune',
   'authConfig',
   'autoConfirmAllPrompts',
   'bin',
