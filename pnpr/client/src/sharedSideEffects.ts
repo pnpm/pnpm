@@ -6,6 +6,7 @@ import { TextDecoder } from 'node:util'
 
 export const ARTIFACT_KIND = 'dependency-side-effects:v1'
 export const INPUT_KEY_PREFIX = 'dependency-side-effects:v1:'
+export const COMPATIBILITY_TAG_SCHEMA = 'pnpm:v1'
 export const SIGNATURE_ALGORITHM = 'ecdsa-p256-sha256'
 const MAX_CANDIDATES = 2_048
 const MAX_VARIANTS_PER_CANDIDATE = 8
@@ -25,6 +26,18 @@ export type OwnerScope =
 export type CompatibilityConstraints =
   | { kind: 'universal' }
   | { kind: 'tagged', tags: string[] }
+
+export interface PackageIdentity {
+  name: string
+  version: string
+}
+
+export interface LinuxGlibcPlatform {
+  architecture: string
+  nodeMajor: number
+  glibcMajor: number
+  glibcMinor: number
+}
 
 export interface BuilderProfile {
   imageDigest?: string
@@ -46,6 +59,7 @@ export interface ArtifactManifest {
 
 export interface ArtifactPayload {
   kind: typeof ARTIFACT_KIND
+  package: PackageIdentity
   sourceIntegrity: string
   inputKey: string
   owner: OwnerScope
@@ -64,6 +78,7 @@ export interface SignedArtifactEnvelope {
 
 export interface ArtifactCandidate {
   key: string
+  package: PackageIdentity
   sourceIntegrity: string
   owner: OwnerScope
 }
@@ -103,6 +118,11 @@ export interface ResolveSharedSideEffectsOptions {
   authorization?: string
   candidates: ArtifactCandidate[]
   supportedTags: string[]
+  policy: {
+    ignoreScripts: boolean
+    eligiblePackages: ReadonlySet<string>
+    allowedBuilds: ReadonlySet<string>
+  }
   /** Base64-encoded P-256 SubjectPublicKeyInfo DER, keyed by key id. */
   trustedKeys: Record<string, string>
 }
@@ -158,11 +178,17 @@ export async function publishSharedSideEffects (
 export async function resolveSharedSideEffects (
   opts: ResolveSharedSideEffectsOptions
 ): Promise<Map<string, VerifiedArtifact>> {
-  if (opts.candidates.length > MAX_CANDIDATES) {
+  validateSupportedTags(opts.supportedTags)
+  if (opts.policy.ignoreScripts) return new Map()
+  const permittedCandidates = opts.candidates.filter(candidate =>
+    opts.policy.eligiblePackages.has(candidate.package.name) && opts.policy.allowedBuilds.has(candidate.package.name)
+  )
+  if (permittedCandidates.length === 0) return new Map()
+  if (permittedCandidates.length > MAX_CANDIDATES) {
     throw new Error(`Shared artifact lookup exceeds the ${MAX_CANDIDATES}-candidate limit`)
   }
   const candidates = new Map<string, ArtifactCandidate>()
-  for (const candidate of opts.candidates) {
+  for (const candidate of permittedCandidates) {
     validateCandidate(candidate)
     if (candidates.has(candidate.key)) {
       throw new Error(`Duplicate shared artifact candidate ${JSON.stringify(candidate.key)}`)
@@ -174,7 +200,7 @@ export async function resolveSharedSideEffects (
     path: '-/pnpr/v0/artifacts/resolve',
     method: 'POST',
     authorization: opts.authorization,
-    body: Buffer.from(JSON.stringify({ candidates: opts.candidates })),
+    body: Buffer.from(JSON.stringify({ candidates: permittedCandidates })),
     maxResponseSize: MAX_LOOKUP_RESPONSE_SIZE,
   })
   assertSuccess(response, '/-/pnpr/v0/artifacts/resolve')
@@ -208,18 +234,25 @@ export async function resolveSharedSideEffects (
       }
       if (
         payload.inputKey !== candidate.key ||
+        payload.package.name !== candidate.package.name ||
+        payload.package.version !== candidate.package.version ||
         payload.sourceIntegrity !== candidate.sourceIntegrity ||
         !ownersEqual(payload.owner, candidate.owner)
       ) continue
       const rank = compatibilityRank(payload.compatibility, opts.supportedTags)
       if (rank == null) continue
-      if (best == null || rank < best.rank) {
+      const digest = signedArtifactEnvelopeDigest(variant.envelope)
+      if (
+        best == null ||
+        rank < best.rank ||
+        (rank === best.rank && digest < best.artifact.envelopeDigest)
+      ) {
         best = {
           rank,
           artifact: {
             payload,
             envelope: variant.envelope,
-            envelopeDigest: envelopeDigest(variant.envelope),
+            envelopeDigest: digest,
           },
         }
       }
@@ -338,12 +371,13 @@ function decodeEnvelope (envelope: SignedArtifactEnvelope): {
     throw new Error(`Signed artifact payload exceeds ${MAX_SIGNED_PAYLOAD_SIZE} bytes`)
   }
   const signatureBytes = decodeBase64('signature', envelope.signature)
+  validateP256DerSignature(signatureBytes)
   const payload = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(payloadBytes)) as ArtifactPayload
   validatePayload(payload)
   return { payload, payloadBytes, signatureBytes }
 }
 
-function envelopeDigest (envelope: SignedArtifactEnvelope): string {
+export function signedArtifactEnvelopeDigest (envelope: SignedArtifactEnvelope): string {
   const { payloadBytes, signatureBytes } = decodeEnvelope(envelope)
   return createHash('sha256')
     .update('pnpm-shared-artifact-envelope-v1\0')
@@ -364,9 +398,11 @@ function validatePayload (payload: ArtifactPayload): void {
     throw new Error(`Shared artifact input key must start with ${JSON.stringify(INPUT_KEY_PREFIX)}`)
   }
   validateScalar('input key', payload.inputKey, 4_096)
+  validatePackageIdentity(payload.package)
   validateScalar('source integrity', payload.sourceIntegrity, 1_024)
   validateScalar('builder id', payload.builderId, 256)
   validateOwner(payload.owner)
+  validatePublisherPackage(payload.owner, payload.package)
   validateBuilderProfile(payload.builderProfile)
   validateCompatibility(payload.compatibility)
   validateManifest(payload.manifest)
@@ -378,8 +414,24 @@ function validateCandidate (candidate: ArtifactCandidate): void {
     throw new Error(`Shared artifact input key must start with ${JSON.stringify(INPUT_KEY_PREFIX)}`)
   }
   validateScalar('input key', candidate.key, 4_096)
+  validatePackageIdentity(candidate.package)
   validateScalar('source integrity', candidate.sourceIntegrity, 1_024)
   validateOwner(candidate.owner)
+  validatePublisherPackage(candidate.owner, candidate.package)
+}
+
+function validatePackageIdentity (packageIdentity: PackageIdentity): void {
+  if (packageIdentity == null || typeof packageIdentity !== 'object') {
+    throw new Error('Shared artifact package identity is malformed')
+  }
+  validateScalar('package name', packageIdentity.name, 256)
+  validateScalar('package version', packageIdentity.version, 256)
+}
+
+function validatePublisherPackage (owner: OwnerScope, packageIdentity: PackageIdentity): void {
+  if (owner.type === 'publisher' && owner.package !== packageIdentity.name) {
+    throw new Error('Shared artifact publisher owner does not match the signed package name')
+  }
 }
 
 function validateOwner (owner: OwnerScope): void {
@@ -413,7 +465,7 @@ function validateCompatibility (compatibility: CompatibilityConstraints): void {
   }
   const unique = new Set<string>()
   for (const tag of compatibility.tags) {
-    validateScalar('compatibility tag', tag, 512)
+    validateCompatibilityTag(tag)
     if (unique.has(tag)) throw new Error(`Duplicate compatibility tag ${JSON.stringify(tag)}`)
     unique.add(tag)
   }
@@ -507,6 +559,82 @@ function compatibilityRank (constraints: CompatibilityConstraints, supportedTags
   return undefined
 }
 
+export function linuxGlibcCompatibilityTag (
+  platform: LinuxGlibcPlatform
+): string {
+  const { architecture, nodeMajor, glibcMajor, glibcMinor } = platform
+  const tag = `${COMPATIBILITY_TAG_SCHEMA}:linux-${architecture}-node${nodeMajor}-glibc${glibcMajor}.${glibcMinor}`
+  validateCompatibilityTag(tag)
+  return tag
+}
+
+export function linuxGlibcSupportedTags (
+  platform: LinuxGlibcPlatform
+): string[] {
+  const { architecture, nodeMajor, glibcMajor, glibcMinor } = platform
+  if (!Number.isSafeInteger(glibcMinor) || glibcMinor < 0 || glibcMinor >= 64) {
+    throw new Error('Shared artifact glibc floor expansion exceeds 64 tags')
+  }
+  return Array.from(
+    { length: glibcMinor + 1 },
+    (_, index) => linuxGlibcCompatibilityTag({
+      architecture,
+      nodeMajor,
+      glibcMajor,
+      glibcMinor: glibcMinor - index,
+    })
+  )
+}
+
+export function platformFingerprint (supportedTags: string[]): string {
+  validateSupportedTags(supportedTags)
+  const hash = createHash('sha256').update('pnpm-platform-fingerprint-v1\0')
+  for (const tag of supportedTags) hash.update(tag).update('\0')
+  return hash.digest('hex')
+}
+
+function validateSupportedTags (tags: string[]): void {
+  if (!Array.isArray(tags) || tags.length > 64) {
+    throw new Error('Shared artifact consumer advertises more than 64 supported tags')
+  }
+  const unique = new Set<string>()
+  for (const tag of tags) {
+    validateCompatibilityTag(tag)
+    if (unique.has(tag)) throw new Error(`Duplicate consumer compatibility tag ${JSON.stringify(tag)}`)
+    unique.add(tag)
+  }
+}
+
+function validateCompatibilityTag (tag: string): void {
+  validateScalar('compatibility tag', tag, 512)
+  if (!tag.startsWith(`${COMPATIBILITY_TAG_SCHEMA}:`)) {
+    throw new Error('Shared artifact compatibility tag uses an unknown schema')
+  }
+  const parts = tag.slice(COMPATIBILITY_TAG_SCHEMA.length + 1).split('-')
+  if (parts.length !== 4) throw new Error('Shared artifact compatibility tag has the wrong number of dimensions')
+  const [os, architecture, node, libc] = parts
+  if (os !== 'linux' || !['x64', 'arm64'].includes(architecture)) {
+    throw new Error('Shared artifact compatibility tag only supports Linux x64 and arm64 in v1')
+  }
+  parseCanonicalNumber(node.startsWith('node') ? node.slice(4) : '', 'Node major version', false)
+  const glibc = libc.startsWith('glibc') ? libc.slice(5) : ''
+  const version = glibc.split('.')
+  if (version.length !== 2) throw new Error('Shared artifact glibc floor must be major.minor')
+  parseCanonicalNumber(version[0], 'glibc major version', false)
+  parseCanonicalNumber(version[1], 'glibc minor version', true)
+}
+
+function parseCanonicalNumber (value: string, label: string, allowZero: boolean): number {
+  if (value.length === 0 || Array.from(value).some(character => character < '0' || character > '9')) {
+    throw new Error(`Shared artifact compatibility tag has an invalid ${label}`)
+  }
+  const number = Number(value)
+  if (!Number.isSafeInteger(number) || String(number) !== value || (!allowZero && number === 0)) {
+    throw new Error(`Shared artifact compatibility tag has a non-canonical ${label}`)
+  }
+  return number
+}
+
 function ownersEqual (left: OwnerScope, right: OwnerScope): boolean {
   if (left.type !== right.type) return false
   return left.type === 'organization'
@@ -554,6 +682,30 @@ function decodeBase64 (label: string, encoded: string, allowEmpty = false): Buff
     throw new Error(`Shared artifact ${label} is not valid base64`)
   }
   return decoded
+}
+
+function validateP256DerSignature (signature: Buffer): void {
+  if (signature.length < 8 || signature[0] !== 0x30 || signature[1] !== signature.length - 2) {
+    throw new Error('Shared artifact signature is not canonical P-256 DER')
+  }
+  let offset = 2
+  for (let integer = 0; integer < 2; integer++) {
+    if (signature[offset] !== 0x02) throw new Error('Shared artifact signature is not canonical P-256 DER')
+    const length = signature[offset + 1]
+    const start = offset + 2
+    const end = start + length
+    if (
+      length === 0 ||
+      length > 33 ||
+      end > signature.length ||
+      (signature[start] & 0x80) !== 0 ||
+      (length > 1 && signature[start] === 0 && (signature[start + 1] & 0x80) === 0)
+    ) {
+      throw new Error('Shared artifact signature is not canonical P-256 DER')
+    }
+    offset = end
+  }
+  if (offset !== signature.length) throw new Error('Shared artifact signature is not canonical P-256 DER')
 }
 
 function parseResolveResponse (body: Buffer): ResolveArtifactsResponse {

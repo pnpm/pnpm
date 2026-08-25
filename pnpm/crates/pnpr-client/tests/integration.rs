@@ -14,7 +14,7 @@
 //! access-bearing upstream the caller is authorized to use.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     net::{Ipv4Addr, SocketAddr},
     sync::Arc,
     time::Duration,
@@ -28,8 +28,8 @@ use p256::{
 use pnpm_config::RegistryDeclaration;
 use pnpm_pnpr_client::{
     ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
-    ArtifactPayload, BuilderProfile, CompatibilityConstraints, OwnerScope, PnprClient,
-    PnprClientError, PublishArtifactRequest, ResolveArtifactsOptions, ResolveOptions,
+    ArtifactPayload, BuilderProfile, CompatibilityConstraints, OwnerScope, PackageIdentity,
+    PnprClient, PnprClientError, PublishArtifactRequest, ResolveArtifactsOptions, ResolveOptions,
     ResolveProject, ResolveProjectsOptions, SignedArtifactEnvelope, VerifyLockfileOptions,
 };
 use pnpm_testing_utils::registry::TestRegistry;
@@ -260,6 +260,7 @@ fn signed_artifact_fixture_with_builder_id(
     let integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(&blob)));
     let payload = ArtifactPayload {
         kind: "dependency-side-effects:v1".to_string(),
+        package: PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
         source_integrity: "sha512-source".to_string(),
         input_key: "dependency-side-effects:v1:deps=abc".to_string(),
         owner: OwnerScope::organization("pnpr-client"),
@@ -270,7 +271,7 @@ fn signed_artifact_fixture_with_builder_id(
             environment: BTreeMap::from([("CFLAGS".to_string(), "-O2".to_string())]),
         },
         compatibility: CompatibilityConstraints::Tagged {
-            tags: vec!["pnpm:v1:linux-x64-node22-glibc".to_string()],
+            tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
         },
         manifest: ArtifactManifest {
             added: vec![ArtifactFile {
@@ -855,6 +856,7 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
 
     let candidate = ArtifactCandidate {
         key: publish.key.clone(),
+        package: PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
         source_integrity: "sha512-source".to_string(),
         owner: OwnerScope::organization("pnpr-client"),
     };
@@ -867,7 +869,10 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
     let untrusted = client
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: vec![candidate.clone()],
-            supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc".to_string()],
+            supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
+            eligible_packages: HashSet::from([candidate.package.name.clone()]),
+            allowed_builds: HashSet::from([candidate.package.name.clone()]),
+            ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), untrusted_public_key)]),
             authorization: Some(pnpr_auth.clone()),
         })
@@ -875,10 +880,29 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
         .expect("an invalid signature is a cache miss");
     assert!(untrusted.is_empty());
 
+    let mut mismatched_candidate = candidate.clone();
+    mismatched_candidate.package.version = "2.0.0".to_string();
+    let mismatched = client
+        .resolve_artifacts(ResolveArtifactsOptions {
+            candidates: vec![mismatched_candidate],
+            supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
+            eligible_packages: HashSet::from([candidate.package.name.clone()]),
+            allowed_builds: HashSet::from([candidate.package.name.clone()]),
+            ignore_scripts: false,
+            trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key.clone())]),
+            authorization: Some(pnpr_auth.clone()),
+        })
+        .await
+        .expect("a mismatched signed package identity is a cache miss");
+    assert!(mismatched.is_empty());
+
     let selected = client
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: vec![candidate.clone()],
-            supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc".to_string()],
+            supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
+            eligible_packages: HashSet::from([candidate.package.name.clone()]),
+            allowed_builds: HashSet::from([candidate.package.name.clone()]),
+            ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key)]),
             authorization: Some(pnpr_auth.clone()),
         })
@@ -899,6 +923,44 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
         .await
         .expect("download verified blob");
     assert_eq!(bytes, expected_blob);
+}
+
+#[tokio::test]
+async fn artifact_lookup_preserves_script_eligibility_and_allow_build_policy() {
+    let (publish, public_key, _) = signed_artifact_fixture();
+    let candidate = ArtifactCandidate {
+        key: publish.key,
+        package: PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
+        source_integrity: "sha512-source".to_string(),
+        owner: OwnerScope::organization("pnpr-client"),
+    };
+    let supported_tags = vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()];
+    let trusted_keys = BTreeMap::from([("acme-2026".to_string(), public_key)]);
+    let client = PnprClient::new("http://127.0.0.1:9/");
+
+    for (ignore_scripts, eligible_packages, allowed_builds) in [
+        (
+            true,
+            HashSet::from([candidate.package.name.clone()]),
+            HashSet::from([candidate.package.name.clone()]),
+        ),
+        (false, HashSet::new(), HashSet::from([candidate.package.name.clone()])),
+        (false, HashSet::from([candidate.package.name.clone()]), HashSet::new()),
+    ] {
+        let selected = client
+            .resolve_artifacts(ResolveArtifactsOptions {
+                candidates: vec![candidate.clone()],
+                supported_tags: supported_tags.clone(),
+                eligible_packages,
+                allowed_builds,
+                ignore_scripts,
+                trusted_keys: trusted_keys.clone(),
+                authorization: None,
+            })
+            .await
+            .expect("a denied remote build must not contact pnpr");
+        assert!(selected.is_empty());
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 16)]
@@ -979,10 +1041,17 @@ async fn organization_artifact_existence_is_not_exposed_to_another_owner() {
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: vec![ArtifactCandidate {
                 key: publish.key,
+                package: PackageIdentity {
+                    name: "native-addon".to_string(),
+                    version: "1.0.0".to_string(),
+                },
                 source_integrity: "sha512-source".to_string(),
                 owner: OwnerScope::organization("another-owner"),
             }],
-            supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc".to_string()],
+            supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
+            eligible_packages: HashSet::from(["native-addon".to_string()]),
+            allowed_builds: HashSet::from(["native-addon".to_string()]),
+            ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key)]),
             authorization: Some(pnpr_auth),
         })

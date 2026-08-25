@@ -17,6 +17,7 @@ use sha2::{Digest as _, Sha256, Sha512};
 
 pub const ARTIFACT_KIND: &str = "dependency-side-effects:v1";
 pub const INPUT_KEY_PREFIX: &str = "dependency-side-effects:v1:";
+pub const COMPATIBILITY_TAG_SCHEMA: &str = "pnpm:v1";
 pub const SIGNATURE_ALGORITHM: &str = "ecdsa-p256-sha256";
 pub const MAX_CANDIDATES: usize = 2_048;
 pub const MAX_VARIANTS_PER_CANDIDATE: usize = 8;
@@ -39,11 +40,26 @@ pub enum ArtifactProtocolError {
     InvalidBlobIntegrity(#[error(not(source))] String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum OwnerScope {
     Organization { name: String },
     Publisher { package: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackageIdentity {
+    pub name: String,
+    pub version: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LinuxGlibcPlatform<'a> {
+    pub architecture: &'a str,
+    pub node_major: u32,
+    pub glibc_major: u32,
+    pub glibc_minor: u32,
 }
 
 impl OwnerScope {
@@ -96,6 +112,7 @@ pub struct ArtifactManifest {
 #[serde(rename_all = "camelCase")]
 pub struct ArtifactPayload {
     pub kind: String,
+    pub package: PackageIdentity,
     pub source_integrity: String,
     pub input_key: String,
     pub owner: OwnerScope,
@@ -118,6 +135,7 @@ pub struct SignedArtifactEnvelope {
 #[serde(rename_all = "camelCase")]
 pub struct ArtifactCandidate {
     pub key: String,
+    pub package: PackageIdentity,
     pub source_integrity: String,
     pub owner: OwnerScope,
 }
@@ -187,6 +205,11 @@ impl SignedArtifactEnvelope {
         let payload_bytes = BASE64.decode(&self.payload).map_err(|_| {
             ArtifactProtocolError::InvalidEnvelope("payload is not valid base64".to_string())
         })?;
+        if BASE64.encode(&payload_bytes) != self.payload {
+            return Err(ArtifactProtocolError::InvalidEnvelope(
+                "payload is not canonical base64".to_string(),
+            ));
+        }
         if payload_bytes.len() > MAX_SIGNED_PAYLOAD_SIZE {
             return Err(ArtifactProtocolError::InvalidEnvelope(format!(
                 "signed payload exceeds {MAX_SIGNED_PAYLOAD_SIZE} bytes",
@@ -201,11 +224,7 @@ impl SignedArtifactEnvelope {
 
     pub fn verify(&self, public_key_spki: &[u8]) -> Result<ArtifactPayload, ArtifactProtocolError> {
         let (payload, payload_bytes) = self.decode_payload()?;
-        let signature_bytes = BASE64.decode(&self.signature).map_err(|_| {
-            ArtifactProtocolError::InvalidEnvelope("signature is not valid base64".to_string())
-        })?;
-        let signature = Signature::from_der(&signature_bytes)
-            .map_err(|_| ArtifactProtocolError::InvalidSignature)?;
+        let (signature, _) = self.decode_signature()?;
         let public_key = VerifyingKey::from_public_key_der(public_key_spki)
             .map_err(|_| ArtifactProtocolError::InvalidSignature)?;
         public_key
@@ -216,14 +235,7 @@ impl SignedArtifactEnvelope {
 
     pub fn digest(&self) -> Result<String, ArtifactProtocolError> {
         let (_, payload_bytes) = self.decode_payload()?;
-        let signature_bytes = BASE64.decode(&self.signature).map_err(|_| {
-            ArtifactProtocolError::InvalidEnvelope("signature is not valid base64".to_string())
-        })?;
-        Signature::from_der(&signature_bytes).map_err(|_| {
-            ArtifactProtocolError::InvalidEnvelope(
-                "signature is not a DER-encoded P-256 signature".to_string(),
-            )
-        })?;
+        let (_, signature_bytes) = self.decode_signature()?;
         let mut hasher = Sha256::new();
         hasher.update(b"pnpm-shared-artifact-envelope-v1\0");
         hasher.update(self.algorithm.as_bytes());
@@ -234,6 +246,28 @@ impl SignedArtifactEnvelope {
         hasher.update([0]);
         hasher.update(signature_bytes);
         Ok(hex(&hasher.finalize()))
+    }
+
+    fn decode_signature(&self) -> Result<(Signature, Vec<u8>), ArtifactProtocolError> {
+        let signature_bytes = BASE64.decode(&self.signature).map_err(|_| {
+            ArtifactProtocolError::InvalidEnvelope("signature is not valid base64".to_string())
+        })?;
+        if BASE64.encode(&signature_bytes) != self.signature {
+            return Err(ArtifactProtocolError::InvalidEnvelope(
+                "signature is not canonical base64".to_string(),
+            ));
+        }
+        let signature = Signature::from_der(&signature_bytes).map_err(|_| {
+            ArtifactProtocolError::InvalidEnvelope(
+                "signature is not a DER-encoded P-256 signature".to_string(),
+            )
+        })?;
+        if signature.to_der().as_bytes() != signature_bytes {
+            return Err(ArtifactProtocolError::InvalidEnvelope(
+                "signature is not canonical DER".to_string(),
+            ));
+        }
+        Ok((signature, signature_bytes))
     }
 }
 
@@ -323,9 +357,11 @@ impl ArtifactPayload {
             )));
         }
         validate_scalar("input key", &self.input_key, 4_096)?;
+        self.package.validate()?;
         validate_scalar("source integrity", &self.source_integrity, 1_024)?;
         validate_scalar("builder id", &self.builder_id, 256)?;
         validate_owner(&self.owner)?;
+        validate_publisher_package(&self.owner, &self.package)?;
         validate_builder_profile(&self.builder_profile)?;
         validate_compatibility(&self.compatibility)?;
         self.manifest.validate()
@@ -340,8 +376,17 @@ impl ArtifactCandidate {
             )));
         }
         validate_scalar("input key", &self.key, 4_096)?;
+        self.package.validate()?;
         validate_scalar("source integrity", &self.source_integrity, 1_024)?;
-        validate_owner(&self.owner)
+        validate_owner(&self.owner)?;
+        validate_publisher_package(&self.owner, &self.package)
+    }
+}
+
+impl PackageIdentity {
+    pub fn validate(&self) -> Result<(), ArtifactProtocolError> {
+        validate_scalar("package name", &self.name, 256)?;
+        validate_scalar("package version", &self.version, 256)
     }
 }
 
@@ -491,6 +536,7 @@ pub fn compatibility_rank(
     constraints: &CompatibilityConstraints,
     supported_tags: &[String],
 ) -> Option<usize> {
+    validate_supported_tags(supported_tags).ok()?;
     match constraints {
         CompatibilityConstraints::Universal => Some(supported_tags.len()),
         CompatibilityConstraints::Tagged { tags } => {
@@ -499,11 +545,83 @@ pub fn compatibility_rank(
     }
 }
 
+pub fn linux_glibc_tag(platform: LinuxGlibcPlatform<'_>) -> Result<String, ArtifactProtocolError> {
+    let LinuxGlibcPlatform { architecture, node_major, glibc_major, glibc_minor } = platform;
+    let tag = format!(
+        "{COMPATIBILITY_TAG_SCHEMA}:linux-{architecture}-node{node_major}-glibc{glibc_major}.{glibc_minor}",
+    );
+    validate_compatibility_tag(&tag)?;
+    Ok(tag)
+}
+
+pub fn linux_glibc_supported_tags(
+    platform: LinuxGlibcPlatform<'_>,
+) -> Result<Vec<String>, ArtifactProtocolError> {
+    let LinuxGlibcPlatform { architecture, node_major, glibc_major, glibc_minor } = platform;
+    let count = usize::try_from(glibc_minor)
+        .ok()
+        .and_then(|minor| minor.checked_add(1))
+        .ok_or_else(|| invalid_tag("glibc minor version is too large"))?;
+    if count > 64 {
+        return Err(invalid_tag("glibc floor expansion exceeds 64 tags"));
+    }
+    (0..=glibc_minor)
+        .rev()
+        .map(|minor| {
+            linux_glibc_tag(LinuxGlibcPlatform {
+                architecture,
+                node_major,
+                glibc_major,
+                glibc_minor: minor,
+            })
+        })
+        .collect()
+}
+
+pub fn platform_fingerprint(supported_tags: &[String]) -> Result<String, ArtifactProtocolError> {
+    validate_supported_tags(supported_tags)?;
+    let mut hasher = Sha256::new();
+    hasher.update(b"pnpm-platform-fingerprint-v1\0");
+    for tag in supported_tags {
+        hasher.update(tag.as_bytes());
+        hasher.update([0]);
+    }
+    Ok(hex(&hasher.finalize()))
+}
+
+pub fn validate_supported_tags(tags: &[String]) -> Result<(), ArtifactProtocolError> {
+    if tags.len() > 64 {
+        return Err(invalid_tag("consumer advertises more than 64 supported tags"));
+    }
+    let mut unique = HashSet::with_capacity(tags.len());
+    for tag in tags {
+        validate_compatibility_tag(tag)?;
+        if !unique.insert(tag) {
+            return Err(invalid_tag("consumer compatibility tags contain a duplicate"));
+        }
+    }
+    Ok(())
+}
+
 fn validate_owner(owner: &OwnerScope) -> Result<(), ArtifactProtocolError> {
     match owner {
         OwnerScope::Organization { name } => validate_scalar("organization owner", name, 256),
         OwnerScope::Publisher { package } => validate_scalar("publisher owner", package, 256),
     }
+}
+
+fn validate_publisher_package(
+    owner: &OwnerScope,
+    package: &PackageIdentity,
+) -> Result<(), ArtifactProtocolError> {
+    if let OwnerScope::Publisher { package: owner_package } = owner
+        && owner_package != &package.name
+    {
+        return Err(ArtifactProtocolError::InvalidEnvelope(
+            "publisher owner does not match the signed package name".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn validate_builder_profile(profile: &BuilderProfile) -> Result<(), ArtifactProtocolError> {
@@ -534,7 +652,7 @@ fn validate_compatibility(
     }
     let mut unique = HashSet::with_capacity(tags.len());
     for tag in tags {
-        validate_scalar("compatibility tag", tag, 512)?;
+        validate_compatibility_tag(tag)?;
         if !unique.insert(tag) {
             return Err(ArtifactProtocolError::InvalidEnvelope(format!(
                 "duplicate compatibility tag {tag:?}",
@@ -542,6 +660,49 @@ fn validate_compatibility(
         }
     }
     Ok(())
+}
+
+fn validate_compatibility_tag(tag: &str) -> Result<(), ArtifactProtocolError> {
+    validate_scalar("compatibility tag", tag, 512)?;
+    let Some(platform) = tag.strip_prefix("pnpm:v1:") else {
+        return Err(invalid_tag("unknown compatibility tag schema"));
+    };
+    let mut parts = platform.split('-');
+    let (Some(os), Some(architecture), Some(node), Some(libc), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return Err(invalid_tag("compatibility tag has the wrong number of dimensions"));
+    };
+    if os != "linux" || !matches!(architecture, "x64" | "arm64") {
+        return Err(invalid_tag("v1 only defines Linux x64 and arm64 tags"));
+    }
+    parse_canonical_number(
+        node.strip_prefix("node").ok_or_else(|| invalid_tag("missing Node dimension"))?,
+        "Node major version",
+        false,
+    )?;
+    let libc = libc.strip_prefix("glibc").ok_or_else(|| invalid_tag("missing glibc floor"))?;
+    let (major, minor) =
+        libc.split_once('.').ok_or_else(|| invalid_tag("glibc floor must be major.minor"))?;
+    parse_canonical_number(major, "glibc major version", false)?;
+    parse_canonical_number(minor, "glibc minor version", true)?;
+    Ok(())
+}
+
+fn parse_canonical_number(
+    value: &str,
+    label: &str,
+    allow_zero: bool,
+) -> Result<u32, ArtifactProtocolError> {
+    let number = value.parse::<u32>().map_err(|_| invalid_tag(&format!("invalid {label}")))?;
+    if number.to_string() != value || (!allow_zero && number == 0) {
+        return Err(invalid_tag(&format!("non-canonical {label}")));
+    }
+    Ok(number)
+}
+
+fn invalid_tag(reason: &str) -> ArtifactProtocolError {
+    ArtifactProtocolError::InvalidEnvelope(format!("invalid compatibility tag: {reason}"))
 }
 
 fn validate_scalar(label: &str, value: &str, max_len: usize) -> Result<(), ArtifactProtocolError> {

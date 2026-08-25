@@ -9,8 +9,9 @@ use sha2::{Digest as _, Sha512};
 
 use crate::{
     ARTIFACT_KIND, ArtifactBlobUpload, ArtifactFile, ArtifactManifest, ArtifactPayload,
-    BuilderProfile, CompatibilityConstraints, OwnerScope, PublishArtifactRequest,
-    SIGNATURE_ALGORITHM, SignedArtifactEnvelope, blob_id, compatibility_rank,
+    BuilderProfile, CompatibilityConstraints, LinuxGlibcPlatform, OwnerScope, PackageIdentity,
+    PublishArtifactRequest, SIGNATURE_ALGORITHM, SignedArtifactEnvelope, blob_id,
+    compatibility_rank, linux_glibc_supported_tags, linux_glibc_tag, platform_fingerprint,
     validate_manifest_path, verify_blob,
 };
 
@@ -18,9 +19,14 @@ fn integrity(bytes: &[u8]) -> String {
     format!("sha512-{}", BASE64.encode(Sha512::digest(bytes)))
 }
 
+fn linux(architecture: &str, glibc_minor: u32) -> LinuxGlibcPlatform<'_> {
+    LinuxGlibcPlatform { architecture, node_major: 22, glibc_major: 2, glibc_minor }
+}
+
 fn payload(file_integrity: String) -> ArtifactPayload {
     ArtifactPayload {
         kind: ARTIFACT_KIND.to_string(),
+        package: PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
         source_integrity: "sha512-source".to_string(),
         input_key: "dependency-side-effects:v1:deps=abc".to_string(),
         owner: OwnerScope::organization("acme"),
@@ -31,7 +37,7 @@ fn payload(file_integrity: String) -> ArtifactPayload {
             environment: BTreeMap::from([("CFLAGS".to_string(), "-O2".to_string())]),
         },
         compatibility: CompatibilityConstraints::Tagged {
-            tags: vec!["pnpm:v1:linux-x64-node22-glibc".to_string()],
+            tags: vec![linux_glibc_tag(linux("x64", 17)).unwrap()],
         },
         manifest: ArtifactManifest {
             added: vec![ArtifactFile {
@@ -68,6 +74,24 @@ fn verifies_the_exact_signed_payload_bytes() {
     let other_public_key =
         p256::PublicKey::from(other_private_key.verifying_key()).to_public_key_der().unwrap();
     assert!(envelope.verify(other_public_key.as_bytes()).is_err());
+}
+
+#[test]
+fn envelope_digest_matches_the_cross_stack_vector() {
+    let envelope = SignedArtifactEnvelope {
+        algorithm: SIGNATURE_ALGORITHM.to_string(),
+        key_id: "acme-2026".to_string(),
+        payload: "eyJraW5kIjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djEiLCJwYWNrYWdlIjp7Im5hbWUiOiJuYXRpdmUtYWRkb24iLCJ2ZXJzaW9uIjoiMS4wLjAifSwic291cmNlSW50ZWdyaXR5Ijoic2hhNTEyLXNvdXJjZSIsImlucHV0S2V5IjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djE6ZGVwcz1hYmMiLCJvd25lciI6eyJ0eXBlIjoib3JnYW5pemF0aW9uIiwibmFtZSI6ImFjbWUifSwiYnVpbGRlcklkIjoiY2kvbWFpbi80MiIsImJ1aWxkZXJQcm9maWxlIjp7ImltYWdlRGlnZXN0Ijoic2hhMjU2OmltYWdlIiwiYXJjaGl0ZWN0dXJlQmFzZWxpbmUiOiJ4ODYtNjQtdjIiLCJlbnZpcm9ubWVudCI6eyJDRkxBR1MiOiItTzIifX0sImNvbXBhdGliaWxpdHkiOnsia2luZCI6InRhZ2dlZCIsInRhZ3MiOlsicG5wbTp2MTpsaW51eC14NjQtbm9kZTIyLWdsaWJjMi4xNyJdfSwibWFuaWZlc3QiOnsiYWRkZWQiOlt7InBhdGgiOiJidWlsZC9hZGRvbi5ub2RlIiwiaW50ZWdyaXR5Ijoic2hhNTEyLUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBPT0iLCJtb2RlIjo0OTMsInNpemUiOjV9XSwiZGVsZXRlZCI6WyJzcmMvaW50ZXJtZWRpYXRlLm8iXX19".to_string(),
+        signature: "MAYCAQECAQE=".to_string(),
+    };
+    assert_eq!(
+        envelope.digest().unwrap(),
+        "f4d59d1718847f2188dbf1921eb72474037af978033264fd79e90426e4475f11",
+    );
+
+    let mut noncanonical = envelope;
+    noncanonical.payload.push('=');
+    assert!(noncanonical.digest().is_err());
 }
 
 #[test]
@@ -160,21 +184,65 @@ fn verifies_blob_bytes_and_derives_a_path_safe_id() {
 
 #[test]
 fn compatibility_uses_the_consumers_preference_order() {
-    let constraints =
-        CompatibilityConstraints::Tagged { tags: vec!["fallback".to_string(), "best".to_string()] };
-    let supported = vec!["best".to_string(), "fallback".to_string()];
-    assert_eq!(compatibility_rank(&constraints, &supported), Some(0));
+    let supported = linux_glibc_supported_tags(linux("x64", 39)).unwrap();
+    let closest =
+        CompatibilityConstraints::Tagged { tags: vec![linux_glibc_tag(linux("x64", 31)).unwrap()] };
+    let fallback =
+        CompatibilityConstraints::Tagged { tags: vec![linux_glibc_tag(linux("x64", 17)).unwrap()] };
+    assert_eq!(compatibility_rank(&closest, &supported), Some(8));
+    assert_eq!(compatibility_rank(&fallback, &supported), Some(22));
     assert_eq!(
         compatibility_rank(&CompatibilityConstraints::Universal, &supported),
         Some(supported.len()),
     );
     assert_eq!(
         compatibility_rank(
-            &CompatibilityConstraints::Tagged { tags: vec!["unknown".to_string()] },
+            &CompatibilityConstraints::Tagged {
+                tags: vec![linux_glibc_tag(linux("arm64", 17)).unwrap()],
+            },
             &supported
         ),
         None,
     );
+}
+
+#[test]
+fn compatibility_tags_and_platform_fingerprints_are_canonical() {
+    let supported = linux_glibc_supported_tags(linux("x64", 3)).unwrap();
+    assert_eq!(
+        supported,
+        [
+            "pnpm:v1:linux-x64-node22-glibc2.3",
+            "pnpm:v1:linux-x64-node22-glibc2.2",
+            "pnpm:v1:linux-x64-node22-glibc2.1",
+            "pnpm:v1:linux-x64-node22-glibc2.0",
+        ],
+    );
+    assert_eq!(
+        platform_fingerprint(&supported).unwrap(),
+        "fdfaaed730a56031779ee5e572e1e82aad454501ec5fbcfad6648e8a1e465f0c",
+    );
+
+    for invalid in [
+        "pnpm:v2:linux-x64-node22-glibc2.17",
+        "pnpm:v1:darwin-x64-node22-glibc2.17",
+        "pnpm:v1:linux-x64-node022-glibc2.17",
+        "pnpm:v1:linux-x64-node22-glibc02.17",
+        "pnpm:v1:linux-x64-node22-glibc2",
+    ] {
+        let mut artifact = payload(integrity(b"addon"));
+        artifact.compatibility =
+            CompatibilityConstraints::Tagged { tags: vec![invalid.to_string()] };
+        assert!(artifact.validate().is_err());
+        assert_eq!(compatibility_rank(&artifact.compatibility, &supported), None);
+    }
+}
+
+#[test]
+fn publisher_owner_must_match_the_signed_package() {
+    let mut artifact = payload(integrity(b"addon"));
+    artifact.owner = OwnerScope::Publisher { package: "another-package".to_string() };
+    assert!(artifact.validate().is_err());
 }
 
 #[test]

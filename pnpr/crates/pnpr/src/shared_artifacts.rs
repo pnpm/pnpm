@@ -7,8 +7,8 @@ use std::{
 use pnpm_shared_artifact_protocol::{
     ArtifactBlobRequest, ArtifactCandidate, ArtifactPayload, ArtifactProtocolError,
     ArtifactVariant, MAX_CANDIDATES, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
-    OwnerScope, PublishArtifactRequest, ResolveArtifactsRequest, ResolveArtifactsResponse,
-    ResolvedArtifact, SignedArtifactEnvelope, blob_id, verify_blob,
+    OwnerScope, PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest,
+    ResolveArtifactsResponse, ResolvedArtifact, SignedArtifactEnvelope, blob_id, verify_blob,
 };
 use sha2::{Digest as _, Sha256};
 use tokio::fs;
@@ -34,7 +34,11 @@ pub(crate) async fn publish(
     let payload = validated.payload;
     let mut uploads = validated.blobs;
     let owner_dir = owner_dir(cache_storage, username, &payload.owner)?;
-    let key_dir = owner_dir.join("entries").join(digest_segment(request.key.as_bytes()));
+    let key_dir = owner_dir.join("entries").join(entry_digest(
+        &request.key,
+        &payload.package,
+        &payload.source_integrity,
+    ));
     let envelope_digest = request.envelope.digest().map_err(|err| protocol_error(&err))?;
     let variant_path = key_dir.join(format!("{envelope_digest}.json"));
     let already_present = fs::try_exists(&variant_path).await?;
@@ -159,7 +163,11 @@ async fn resolve_candidate(
         Err(RegistryError::Forbidden { .. }) => return Ok(None),
         Err(err) => return Err(err),
     };
-    let key_dir = owner_dir.join("entries").join(digest_segment(candidate.key.as_bytes()));
+    let key_dir = owner_dir.join("entries").join(entry_digest(
+        &candidate.key,
+        &candidate.package,
+        &candidate.source_integrity,
+    ));
     let mut entries = match fs::read_dir(key_dir).await {
         Ok(entries) => entries,
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
@@ -254,16 +262,34 @@ async fn count_variants(key_dir: &Path) -> Result<usize> {
 }
 
 fn digest_segment(bytes: &[u8]) -> String {
-    Sha256::digest(bytes).iter().fold(String::with_capacity(64), |mut output, byte| {
+    hex(&Sha256::digest(bytes))
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().fold(String::with_capacity(64), |mut output, byte| {
         use std::fmt::Write as _;
         write!(output, "{byte:02x}").expect("writing to a String cannot fail");
         output
     })
 }
 
+fn entry_digest(key: &str, package: &PackageIdentity, source_integrity: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"pnpm-shared-artifact-entry-v0\0");
+    hasher.update(key.as_bytes());
+    hasher.update([0]);
+    hasher.update(package.name.as_bytes());
+    hasher.update([0]);
+    hasher.update(package.version.as_bytes());
+    hasher.update([0]);
+    hasher.update(source_integrity.as_bytes());
+    hex(&hasher.finalize())
+}
+
 fn artifact_matches_candidate(payload: &ArtifactPayload, candidate: &ArtifactCandidate) -> bool {
-    let ArtifactCandidate { key: input_key, source_integrity, owner } = candidate;
+    let ArtifactCandidate { key: input_key, package, source_integrity, owner } = candidate;
     payload.input_key == *input_key
+        && payload.package == *package
         && payload.source_integrity == *source_integrity
         && payload.owner == *owner
 }

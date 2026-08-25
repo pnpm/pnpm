@@ -32,13 +32,14 @@ use reqwest::Client;
 
 pub use pnpm_shared_artifact_protocol::{
     ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
-    ArtifactManifest, ArtifactPayload, BuilderProfile, CompatibilityConstraints, INPUT_KEY_PREFIX,
-    OwnerScope, PublishArtifactRequest, ResolveArtifactsRequest, SIGNATURE_ALGORITHM,
-    SignedArtifactEnvelope,
+    ArtifactManifest, ArtifactPayload, BuilderProfile, COMPATIBILITY_TAG_SCHEMA,
+    CompatibilityConstraints, INPUT_KEY_PREFIX, LinuxGlibcPlatform, OwnerScope, PackageIdentity,
+    PublishArtifactRequest, ResolveArtifactsRequest, SIGNATURE_ALGORITHM, SignedArtifactEnvelope,
+    linux_glibc_supported_tags, linux_glibc_tag, platform_fingerprint,
 };
 use pnpm_shared_artifact_protocol::{
     MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
-    ResolveArtifactsResponse, compatibility_rank, verify_blob,
+    ResolveArtifactsResponse, compatibility_rank, validate_supported_tags, verify_blob,
 };
 
 /// The `registries` a request declares, keyed by registry URL.
@@ -320,6 +321,15 @@ pub struct ResolveArtifactsOptions {
     pub candidates: Vec<ArtifactCandidate>,
     /// Most preferred compatibility tag first.
     pub supported_tags: Vec<String>,
+    /// Package names that passed the configured remote-artifact eligibility
+    /// policy.
+    pub eligible_packages: HashSet<String>,
+    /// Package names that passed pnpm's effective `allowBuild` policy.
+    pub allowed_builds: HashSet<String>,
+    /// The effective `--ignore-scripts` value. When true, no remote lookup is
+    /// made because applying build output would violate the same policy that
+    /// suppresses a local build.
+    pub ignore_scripts: bool,
     /// P-256 `SubjectPublicKeyInfo` DER bytes keyed by the envelope's key id.
     pub trusted_keys: BTreeMap<String, Vec<u8>>,
     pub authorization: Option<String>,
@@ -451,8 +461,20 @@ impl PnprClient {
     /// cache miss; a malformed response envelope is a protocol error.
     pub async fn resolve_artifacts(
         &self,
-        opts: ResolveArtifactsOptions,
+        mut opts: ResolveArtifactsOptions,
     ) -> Result<BTreeMap<String, VerifiedArtifact>, PnprClientError> {
+        validate_supported_tags(&opts.supported_tags)
+            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        if opts.ignore_scripts {
+            return Ok(BTreeMap::new());
+        }
+        opts.candidates.retain(|candidate| {
+            opts.eligible_packages.contains(&candidate.package.name)
+                && opts.allowed_builds.contains(&candidate.package.name)
+        });
+        if opts.candidates.is_empty() {
+            return Ok(BTreeMap::new());
+        }
         if opts.candidates.len() > MAX_CANDIDATES {
             return Err(PnprClientError::Protocol(format!(
                 "shared artifact lookup exceeds the {MAX_CANDIDATES}-candidate limit",
@@ -513,7 +535,7 @@ impl PnprClient {
                     artifact.key,
                 )));
             }
-            let mut best: Option<(usize, VerifiedArtifact)> = None;
+            let mut best: Option<(usize, String, VerifiedArtifact)> = None;
             for variant in artifact.variants {
                 let Some(public_key) = opts.trusted_keys.get(&variant.envelope.key_id) else {
                     continue;
@@ -530,14 +552,17 @@ impl PnprClient {
                     .envelope
                     .digest()
                     .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-                if best.as_ref().is_none_or(|(best_rank, _)| rank < *best_rank) {
+                if best.as_ref().is_none_or(|(best_rank, best_digest, _)| {
+                    (rank, &envelope_digest) < (*best_rank, best_digest)
+                }) {
                     best = Some((
                         rank,
+                        envelope_digest.clone(),
                         VerifiedArtifact { payload, envelope: variant.envelope, envelope_digest },
                     ));
                 }
             }
-            if let Some((_, artifact)) = best {
+            if let Some((_, _, artifact)) = best {
                 selected.insert(candidate.key.clone(), artifact);
             }
         }
@@ -857,8 +882,9 @@ fn parse_frame(line: &[u8]) -> Result<Frame, PnprClientError> {
 }
 
 fn artifact_matches_candidate(payload: &ArtifactPayload, candidate: &ArtifactCandidate) -> bool {
-    let ArtifactCandidate { key: input_key, source_integrity, owner } = candidate;
+    let ArtifactCandidate { key: input_key, package, source_integrity, owner } = candidate;
     payload.input_key == *input_key
+        && payload.package == *package
         && payload.source_integrity == *source_integrity
         && payload.owner == *owner
 }
