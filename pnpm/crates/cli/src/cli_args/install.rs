@@ -693,6 +693,7 @@ fn workspace_install_selection(
         ordered_groups: &selection.ordered_groups,
         ordered_dirs: &selection.ordered_dirs,
         selected_dirs: selection.selected_dirs.as_ref(),
+        install_dirs: selection.install_dirs.as_ref(),
         active_manifest_is_standin: selection.active_manifest_is_standin,
     }
 }
@@ -862,7 +863,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             })
             .collect();
         let selected_importer_ids = selection
-            .selected_dirs
+            .install_dirs
             .iter()
             .map(|project_dir| {
                 pnpm_workspace::importer_id_from_root_dir(importer_root, project_dir)

@@ -230,7 +230,12 @@ pub struct WorkspaceInstallSelection<'a> {
     pub all_projects: &'a [pnpm_workspace::Project],
     pub ordered_groups: &'a [Vec<PathBuf>],
     pub ordered_dirs: &'a [PathBuf],
+    /// Projects chosen by the original filter. Manifest mutations stay
+    /// scoped to these projects.
     pub selected_dirs: &'a HashSet<PathBuf>,
+    /// Importers to materialize: [`Self::selected_dirs`] plus an omitted
+    /// workspace root that pnpm treats as a full-install importer.
+    pub install_dirs: &'a HashSet<PathBuf>,
     pub active_manifest_is_standin: bool,
 }
 

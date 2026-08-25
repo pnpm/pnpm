@@ -238,6 +238,110 @@ fn filtered_remove_mutates_only_selected_importers() {
     assert_stage_once(&records);
 }
 
+fn workspace_with_installable_root(
+    selected_deps: ManifestDeps<'_>,
+) -> (WorkspaceFixture, std::path::PathBuf, std::path::PathBuf, Vec<u8>) {
+    let fixture = WorkspaceFixture::new();
+    fixture.write_root_manifest(
+        "workspace-root",
+        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+    );
+    let selected = fixture.project("selected", "selected", selected_deps);
+    let unselected = fixture.project(
+        "unselected",
+        "unselected",
+        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+    );
+    let root_manifest = fs::read(fixture.workspace.join("package.json")).expect("read manifest");
+    (fixture, selected, unselected, root_manifest)
+}
+
+fn assert_root_and_selected_are_materialized(
+    fixture: &WorkspaceFixture,
+    selected: &Path,
+    unselected: &Path,
+    selected_dependency: &str,
+) {
+    assert!(has_link(&fixture.workspace, HELLO), "workspace root dependency must be linked");
+    assert!(has_link(selected, selected_dependency), "selected dependency must be linked");
+    assert!(
+        !unselected.join("node_modules").exists(),
+        "unselected project must not be materialized",
+    );
+    assert_eq!(
+        importer_ids(&fixture.current()),
+        BTreeSet::from([".".to_string(), "packages/selected".to_string()]),
+    );
+}
+
+#[test]
+fn filtered_install_materializes_the_workspace_root() {
+    let (fixture, selected, unselected, root_manifest) =
+        workspace_with_installable_root(ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        });
+
+    fixture.run(["--filter", "selected", "install"]);
+
+    assert_root_and_selected_are_materialized(&fixture, &selected, &unselected, PARENT);
+    assert_eq!(
+        fs::read(fixture.workspace.join("package.json")).expect("read manifest"),
+        root_manifest,
+    );
+}
+
+#[test]
+fn filtered_add_materializes_the_workspace_root_without_mutating_it() {
+    let (fixture, selected, unselected, root_manifest) =
+        workspace_with_installable_root(ManifestDeps::default());
+
+    fixture.run(["--filter", "selected", "add", PARENT]);
+
+    assert_root_and_selected_are_materialized(&fixture, &selected, &unselected, PARENT);
+    assert_eq!(dependency_spec(&selected, "dependencies", PARENT).as_deref(), Some("^100.1.0"));
+    assert_eq!(
+        fs::read(fixture.workspace.join("package.json")).expect("read manifest"),
+        root_manifest,
+    );
+}
+
+#[test]
+fn filtered_update_materializes_the_workspace_root_without_mutating_it() {
+    let (fixture, selected, unselected, root_manifest) =
+        workspace_with_installable_root(ManifestDeps {
+            prod: &[(DEP, "100.0.0")],
+            ..Default::default()
+        });
+
+    fixture.run(["--filter", "selected", "update", DEP, "--latest"]);
+
+    assert_root_and_selected_are_materialized(&fixture, &selected, &unselected, DEP);
+    assert_eq!(dependency_spec(&selected, "dependencies", DEP).as_deref(), Some("101.0.0"));
+    assert_eq!(
+        fs::read(fixture.workspace.join("package.json")).expect("read manifest"),
+        root_manifest,
+    );
+}
+
+#[test]
+fn filtered_remove_materializes_the_workspace_root_without_mutating_it() {
+    let (fixture, selected, unselected, root_manifest) =
+        workspace_with_installable_root(ManifestDeps {
+            prod: &[(HELLO, "1.0.0"), (PARENT, "100.0.0")],
+            ..Default::default()
+        });
+
+    fixture.run(["--filter", "selected", "remove", HELLO]);
+
+    assert_root_and_selected_are_materialized(&fixture, &selected, &unselected, PARENT);
+    assert_eq!(dependency_spec(&selected, "dependencies", HELLO), None);
+    assert_eq!(
+        fs::read(fixture.workspace.join("package.json")).expect("read manifest"),
+        root_manifest,
+    );
+}
+
 #[test]
 fn filtered_update_from_selected_child_uses_discovered_manifest_as_source_of_truth() {
     let fixture = WorkspaceFixture::new();

@@ -2187,6 +2187,17 @@ mod project_scripts_in_a_workspace {
         drop((root, anchor));
     }
 
+    #[test]
+    fn filtered_bare_update_runs_the_selected_member_and_workspace_root() {
+        let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
+
+        pacquet(&workspace, ["--filter", "a", "update"]).assert().success();
+
+        assert_ran(&workspace, &["root", "a"], &["root", "a", "b"]);
+
+        drop((root, anchor));
+    }
+
     /// Run at the workspace root, an update mutates the root alone: the
     /// members are materialized from the lockfile but run no scripts.
     #[test]

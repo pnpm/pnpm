@@ -345,6 +345,7 @@ where
         ordered_groups: &[Vec<PathBuf>],
         ordered_dirs: &[PathBuf],
         selected_dirs: &HashSet<PathBuf>,
+        install_dirs: &HashSet<PathBuf>,
         active_manifest_is_standin: bool,
     ) -> Result<(), AddError> {
         let Add {
@@ -478,6 +479,7 @@ where
                 ordered_groups,
                 ordered_dirs,
                 selected_dirs,
+                install_dirs,
                 active_manifest_is_standin,
             }),
         )

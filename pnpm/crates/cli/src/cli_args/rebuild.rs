@@ -237,6 +237,7 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
                         ordered_groups: &selection.ordered_groups,
                         ordered_dirs: &selection.ordered_dirs,
                         selected_dirs: selection.selected_dirs.as_ref(),
+                        install_dirs: selection.selected_dirs.as_ref(),
                         active_manifest_is_standin: selection.active_manifest_is_standin,
                     },
                     rebuild,

@@ -1555,9 +1555,9 @@ fn unused_patch_warns_when_allow_unused_patches_is_set() {
     drop((root, mock_instance));
 }
 
-/// pnpm only verifies patch usage when every workspace importer was part
-/// of the resolution, so a filtered install must not fail on an unused
-/// patch.
+/// pnpm only verifies patch usage when the original project selection
+/// covers the workspace, so adding the workspace root to a filtered
+/// install must not make an unused patch fail.
 #[test]
 fn unused_patch_is_not_checked_on_a_filtered_install() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =

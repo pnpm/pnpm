@@ -300,6 +300,15 @@ where
             ),
             None => build_project_manifests_list(manifest, workspace_projects),
         };
+        let install_importer_ids = selection.as_ref().map(|selection| {
+            selection
+                .install_dirs
+                .iter()
+                .map(|project_dir| {
+                    pnpm_workspace::importer_id_from_root_dir(&workspace_root, project_dir)
+                })
+                .collect::<HashSet<_>>()
+        });
         let selected_importer_ids = selection.as_ref().map(|selection| {
             selection
                 .selected_dirs
@@ -318,7 +327,7 @@ where
         let filtered_install = selected_importer_ids
             .as_ref()
             .is_some_and(|selected_importer_ids| selected_importer_ids != &real_importer_ids);
-        let requested_importer_ids = if filtered_install { selected_importer_ids } else { None };
+        let requested_importer_ids = if filtered_install { install_importer_ids } else { None };
         // Only an install that covers a whole workspace sees the complete
         // project list, so only it may conclude that an importer the
         // lockfile records belongs to a project that is gone. This is
@@ -634,7 +643,7 @@ where
             Some(selection) => selected_manifest_freshness_inputs(
                 &workspace_root,
                 &project_manifests,
-                selection.selected_dirs,
+                selection.install_dirs,
             ),
             None => project_manifests
                 .iter()
