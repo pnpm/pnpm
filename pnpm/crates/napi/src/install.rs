@@ -113,6 +113,9 @@ pub struct InstallOptions {
     pub inject_workspace_packages: Option<bool>,
     pub hoist_workspace_packages: Option<bool>,
     pub enable_modules_dir: Option<bool>,
+    /// Install from the lockfile alone, ignoring the project manifests —
+    /// pnpm's `pnpm fetch` semantics: the frozen path, no post-import
+    /// linking, and no project lifecycle scripts.
     pub ignore_package_manifest: Option<bool>,
     pub node_version: Option<String>,
     pub engine_strict: Option<bool>,
@@ -163,6 +166,9 @@ pub struct InstallOptions {
     /// engine pins to the `registry` / `registries.default` passed alongside
     /// it, never to a registry the project's own `.npmrc` names.
     pub auth_header_by_uri: Option<HashMap<String, String>>,
+    /// The pnpm home directory the default store location is resolved under
+    /// when no `storeDir` is configured (`<pnpmHomeDir>/store`, with pnpm's
+    /// same-volume fallback).
     pub pnpm_home_dir: Option<String>,
     /// Render pnpm's own terminal output for this call. Omitted, the call
     /// prints nothing and the embedder renders the `onLog` event stream
@@ -406,8 +412,21 @@ fn run_install_inner(
         })?;
     let workspace_projects_override = build_workspace_projects_override(&options.projects);
 
+    // `ignorePackageManifest` is pnpm's "install from the lockfile, ignore the
+    // project manifests" mode — the shape the `pnpm fetch` handler passes in
+    // both stacks. The install takes the frozen path against the lockfile
+    // alone (the manifest ↔ lockfile freshness gate is skipped via
+    // `ignore_manifest_check`), and `virtualStoreOnly` — forced in
+    // `build_overlay` — suppresses all post-import linking: importer symlinks,
+    // `.bin` entries, hoisting, and project lifecycle scripts. Confined to the
+    // install path: a rebuild runs against an already-materialized
+    // `node_modules` and must keep its own frozen shape even when the caller
+    // reuses install options that carry the flag.
+    let ignore_package_manifest =
+        matches!(mode, EngineMode::Install(_)) && options.ignore_package_manifest == Some(true);
+
     reject_unsupported_install_options(options)?;
-    let overlay = build_overlay(options)?;
+    let overlay = build_overlay(options, ignore_package_manifest)?;
     let config = resolve_config(&dir, &overlay).map_err(|error| to_napi_error(&error))?;
 
     let manifest = PackageManifest::from_value(dir.join("package.json"), root_manifest_value);
@@ -444,16 +463,13 @@ fn run_install_inner(
     // API compatibility only. Mirrors `pnpm_package_manager::Update`, which
     // forces `prefer_frozen_lockfile: false` and a non-frozen path so the
     // re-resolution is not short-circuited by the auto-frozen / repeat-install
-    // fast paths.
-    let update_requested = matches!(mode, EngineMode::Install(_)) && options.update == Some(true);
+    // fast paths. `ignorePackageManifest` contradicts an update — it installs
+    // exactly what the lockfile records — and wins, matching pnpm, where it
+    // forces the headless path.
+    let update_requested = matches!(mode, EngineMode::Install(_))
+        && options.update == Some(true)
+        && !ignore_package_manifest;
 
-    // `ignorePackageManifest` maps to pacquet's `ignore_manifest_check`: the
-    // per-importer `package.json` ↔ `pnpm-lock.yaml` freshness gate is skipped,
-    // so the install proceeds from the lockfile even when the in-memory
-    // manifest disagrees with it. pnpm additionally skips the project-level
-    // linking phase (its `pnpm fetch` semantics); pacquet still links direct
-    // dependencies. The difference is immaterial to the programmatic consumers
-    // that pass this option — a fuller native port is tracked in NAPI.md.
     let ignore_manifest_check = options.ignore_package_manifest == Some(true);
 
     // `enableModulesDir: false` ("do not create a `node_modules` directory") is
@@ -463,14 +479,22 @@ fn run_install_inner(
     // already-materialized `node_modules`, so it must never take the
     // lockfile-only short-circuit (which would make it silently do nothing) even
     // when the caller reuses install options that disable the modules dir.
+    // `ignorePackageManifest` overrides both: it materializes the virtual
+    // store from the lockfile, which the lockfile-only short-circuit would
+    // skip entirely (the TS fetch handler forces `enableModulesDir: true` for
+    // the same reason).
     let lockfile_only = matches!(mode, EngineMode::Install(_))
+        && !ignore_package_manifest
         && (options.lockfile_only.unwrap_or(false) || options.enable_modules_dir == Some(false));
 
     // A rebuild takes the frozen path against the already-materialized
     // `node_modules`, and re-runs dependency build scripts rather than the
     // root project's own lifecycle scripts.
     let frozen_lockfile = match &mode {
-        EngineMode::Install(_) => !update_requested && options.frozen_lockfile.unwrap_or(false),
+        EngineMode::Install(_) => {
+            ignore_package_manifest
+                || (!update_requested && options.frozen_lockfile.unwrap_or(false))
+        }
         EngineMode::Rebuild(_) => true,
         // Peer issues need a full fresh resolve — never frozen.
         EngineMode::PeerIssues(_) => false,
@@ -482,7 +506,10 @@ fn run_install_inner(
     };
     let update_seed_policy =
         if update_requested { UpdateSeedPolicy::drop_all() } else { UpdateSeedPolicy::KeepAll };
-    let mutation = if matches!(mode, EngineMode::Install(_)) {
+    // An `ignorePackageManifest` install materializes what the lockfile
+    // records without installing any project's manifest — `NoInstall`, the
+    // mutation both stacks' fetch handlers use.
+    let mutation = if matches!(mode, EngineMode::Install(_)) && !ignore_package_manifest {
         ProjectMutation::InstallWorkspace
     } else {
         ProjectMutation::NoInstall
@@ -589,11 +616,18 @@ fn build_workspace_projects_override(
     )
 }
 
-fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
+/// Map the install options onto the config overlay. `fetch_shaped` is the
+/// resolved `ignorePackageManifest` decision (see [`run_install_inner`]):
+/// it forces `virtualStoreOnly` on and the modules dir back on, the same
+/// two settings the `pnpm fetch` handlers pin in both stacks.
+fn build_overlay(options: &InstallOptions, fetch_shaped: bool) -> napi::Result<ConfigOverlay> {
     let network_config = options.network_config.as_ref();
     Ok(ConfigOverlay {
         store_dir: options.store_dir.as_ref().map(PathBuf::from),
         cache_dir: options.cache_dir.as_ref().map(PathBuf::from),
+        pnpm_home_dir: options.pnpm_home_dir.as_ref().map(PathBuf::from),
+        virtual_store_only: fetch_shaped.then_some(true),
+        enable_modules_dir: fetch_shaped.then_some(true),
         registry: None,
         registries: options.registries.as_ref().map(|map| map.clone().into_iter().collect()),
         proxy: options.proxy_config.as_ref().map(build_proxy_config).transpose()?,
@@ -657,12 +691,15 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
         inject_workspace_packages: options.inject_workspace_packages,
         prefer_offline: options.prefer_offline,
         offline: options.offline,
+        // Both of these installs are defined in terms of the lockfile, so an
+        // ambient `lockfile: false` must not disable it underneath them.
         // `enableModulesDir: false` writes the lockfile while skipping
         // `node_modules`, so it runs through the lockfile-only path — which
-        // requires the lockfile to be enabled. Force it on for that case so an
-        // ambient `lockfile: false` can't turn the install into an opaque
-        // `ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE`.
-        lockfile: (options.enable_modules_dir == Some(false)).then_some(true),
+        // requires the lockfile to be enabled, or the install fails with an
+        // opaque `ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE`. A
+        // fetch-shaped install reads the lockfile as its only input, and
+        // would fail with `ERR_PNPM_NO_LOCKFILE`.
+        lockfile: (fetch_shaped || options.enable_modules_dir == Some(false)).then_some(true),
         prefer_frozen_lockfile: options.prefer_frozen_lockfile,
         dedupe_peer_dependents: options.dedupe_peer_dependents,
         dedupe_peers: options.dedupe_peers,

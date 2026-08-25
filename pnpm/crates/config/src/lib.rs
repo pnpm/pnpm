@@ -3006,6 +3006,20 @@ impl Config {
         );
     }
 
+    /// Resolve the default store location relative to an explicit pnpm home
+    /// directory instead of the ambient one — the programmatic counterpart
+    /// of the `pnpmHomeDir` input of pnpm's `getStorePath`. The store lands
+    /// at `<pnpm_home_dir>/store/<version>` when `start_dir` can hardlink
+    /// into that volume, with the same mount-point fallback as the ambient
+    /// default. Callers apply it only when no config source set `storeDir`.
+    pub fn resolve_store_dir_from_home<Sys>(&mut self, pnpm_home_dir: &Path, start_dir: &Path)
+    where
+        Sys: GetHomeDir + LinkProbe,
+    {
+        self.store_dir = StoreDir::new(pnpm_home_dir.join("store"));
+        self.resolve_default_store_dir::<Sys>(start_dir);
+    }
+
     fn resolve_default_store_dir<Sys: GetHomeDir + LinkProbe>(&mut self, start_dir: &Path) {
         let Some(home_dir) = Sys::home_dir() else {
             return;
