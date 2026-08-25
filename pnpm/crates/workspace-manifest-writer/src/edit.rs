@@ -1130,7 +1130,8 @@ fn remove_top_level_block(text: &str, key: &str) -> String {
     // document has no such successor: its separator is the blank line
     // *before* it, which has to go too, or the file is left ending in a
     // blank line that the next insert would then separate from again.
-    let start = if span.block_end == text.len() {
+    let preceding = &text[..span.key_line_start];
+    let start = if span.block_end == text.len() && !has_kept_chomping_scalar(preceding) {
         blank_run_start(text, span.key_line_start)
     } else {
         span.key_line_start
@@ -1138,6 +1139,22 @@ fn remove_top_level_block(text: &str, key: &str) -> String {
     let mut out = text.to_string();
     out.replace_range(start..span.block_end, "");
     out
+}
+
+/// Whether `text` opens a block scalar with keep chomping (`|+`, `>+`, and
+/// their explicit-indent spellings). Such a scalar's value ends *with* the
+/// blank lines that follow it, so a blank line after one is content rather
+/// than a separator and must survive a neighbouring block's removal. The
+/// test is deliberately loose — a false positive only forgoes tidying a
+/// separator away.
+fn has_kept_chomping_scalar(text: &str) -> bool {
+    text.lines().any(|line| {
+        let header = line.trim_end();
+        header.ends_with('+')
+            && header
+                .trim_end_matches(|char: char| char == '+' || char.is_ascii_digit())
+                .ends_with(['|', '>'])
+    })
 }
 
 /// Start of the run of blank lines immediately preceding `line_start`, or
@@ -1217,7 +1234,7 @@ fn insert_top_level_block(manifest: &Manifest, new_key: &str, block_text: &str) 
         if !out.is_empty() && !out.ends_with('\n') {
             out.push('\n');
         }
-        if blank_style && !out.is_empty() && !out.ends_with("\n\n") {
+        if blank_style && !out.is_empty() && !ends_with_blank_line(&out) {
             out.push('\n');
         }
         out.push_str(block_text);
@@ -1554,6 +1571,13 @@ pub(crate) fn uses_blank_line_style(text: &str, top_level_keys: &[String]) -> bo
         }
     }
     non_first > 0 && non_first == non_first_with_blank
+}
+
+/// Whether `text`'s final line is blank, by the same trimmed-content test
+/// [`blank_run_start`] and [`has_blank_before`] use — so a whitespace-only
+/// separator counts as one too.
+fn ends_with_blank_line(text: &str) -> bool {
+    lines(text).last().is_some_and(|line| line.content.trim().is_empty())
 }
 
 /// Whether a blank line precedes the key at `idx`, looking past the key's own

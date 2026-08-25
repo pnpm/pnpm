@@ -1263,6 +1263,17 @@ fn delete_last_field_leaves_no_trailing_blank_line() {
 }
 
 #[test]
+fn delete_last_field_keeps_a_kept_chomped_block_scalars_trailing_blank() {
+    let out = run_update_field(
+        Some("notes: |+\n  foo\n\nvirtualStoreDir: .pnpm\n"),
+        "virtualStoreDir",
+        &serde_json::Value::Null,
+    )
+    .expect("file kept");
+    assert_eq!(out, "notes: |+\n  foo\n\n");
+}
+
+#[test]
 fn setting_a_field_after_deleting_the_last_one_keeps_a_single_blank_line() {
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
@@ -1297,6 +1308,17 @@ fn a_manifest_already_ending_in_a_blank_line_gains_no_second_one() {
     )
     .expect("file written");
     assert_eq!(out, "cacheDir: ~/cache\n\nstoreDir: ~/store\n\nvirtualStoreDir: .pnpm\n");
+}
+
+#[test]
+fn a_manifest_ending_in_a_whitespace_only_line_gains_no_second_blank() {
+    let out = run_update_field(
+        Some("cacheDir: ~/cache\n\nstoreDir: ~/store\n  \n"),
+        "virtualStoreDir",
+        &serde_json::json!(".pnpm"),
+    )
+    .expect("file written");
+    assert_eq!(out, "cacheDir: ~/cache\n\nstoreDir: ~/store\n  \nvirtualStoreDir: .pnpm\n");
 }
 
 #[test]
