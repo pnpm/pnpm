@@ -113,9 +113,6 @@ struct AppInner {
     /// two concurrent writers to the same package on this instance can't
     /// lose each other's changes.
     package_locks: StripedLocks,
-    /// Keeps the variant-limit decision and envelope publication atomic for
-    /// one artifact key within this server instance.
-    artifact_locks: StripedLocks,
     /// Lazily-built engine backing the `/-/pnpr/v0/resolve` endpoint. Built on
     /// first such request so servers that never receive one pay nothing.
     resolver: std::sync::OnceLock<crate::resolver::Resolver>,
@@ -285,7 +282,6 @@ fn router_with_auth_and_osv(
             config,
             auth,
             package_locks: StripedLocks::new(),
-            artifact_locks: StripedLocks::new(),
             resolver: std::sync::OnceLock::new(),
             osv_index,
         }),
@@ -4950,7 +4946,6 @@ async fn serve_publish_artifact(
         Ok(request) => request,
         Err(err) => return private_no_cache(error_response(&err)),
     };
-    let _artifact_guard = state.inner.artifact_locks.lock(&request.key).await;
     private_no_cache(
         match crate::shared_artifacts::publish(
             &state.inner.config.cache_storage,

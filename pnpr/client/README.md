@@ -55,7 +55,8 @@ The PoC implements the main trust boundary from the
 - `PUT /-/pnpr/v0/artifacts` stores an opaque signed envelope and its inline
   content-addressed blobs in the authenticated organization's namespace.
 - `POST /-/pnpr/v0/artifacts/resolve` performs one batch lookup for candidate
-  input keys and returns at most eight signed variants per key.
+  input keys and returns at most eight signed variants per key. Envelope bytes
+  scanned plus serialized response bytes share one 16 MiB lookup budget.
 - `POST /-/pnpr/v0/artifacts/blob` reads one owner-scoped blob.
 - `resolveSharedSideEffects` verifies the P-256 signature against an
   independently configured public key, validates the signed package identity,
@@ -64,6 +65,10 @@ The PoC implements the main trust boundary from the
   that passed both package eligibility and `allowBuild`, and returns without a
   request when `--ignore-scripts` is effective.
 - `downloadSharedArtifactBlob` recomputes SHA-512 before returning bytes.
+
+Publication serializes the variant-count check and envelope write with a
+cross-process filesystem lock, so pnpr processes sharing one local cache enforce
+the eight-variant cap together.
 
 ### v0 compatibility tags
 

@@ -2,8 +2,10 @@ use std::{
     collections::{BTreeMap, HashSet},
     io::ErrorKind,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
+use pnpm_fs::DirLock;
 use pnpm_shared_artifact_protocol::{
     ArtifactBlobRequest, ArtifactCandidate, ArtifactPayload, ArtifactProtocolError,
     ArtifactVariant, MAX_CANDIDATES, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
@@ -19,6 +21,8 @@ use crate::{
 };
 
 const ARTIFACT_CACHE_DIR: &str = "shared-artifacts/v0";
+const ARTIFACT_LOCK_WAIT: Duration = Duration::from_secs(30);
+const ARTIFACT_LOCK_ABANDONED_AFTER: Duration = Duration::from_hours(1);
 
 pub(crate) fn parse_publish(body: &[u8]) -> Result<PublishArtifactRequest> {
     serde_json::from_slice(body)
@@ -34,11 +38,11 @@ pub(crate) async fn publish(
     let payload = validated.payload;
     let mut uploads = validated.blobs;
     let owner_dir = owner_dir(cache_storage, username, &payload.owner)?;
-    let key_dir = owner_dir.join("entries").join(entry_digest(
-        &request.key,
-        &payload.package,
-        &payload.source_integrity,
-    ));
+    let entry_digest = entry_digest(&request.key, &payload.package, &payload.source_integrity);
+    let key_dir = owner_dir.join("entries").join(&entry_digest);
+    let _publication_lock =
+        acquire_publication_lock(owner_dir.join("locks").join(format!("{entry_digest}.lock")))
+            .await?;
     let envelope_digest = request.envelope.digest().map_err(|err| protocol_error(&err))?;
     let variant_path = key_dir.join(format!("{envelope_digest}.json"));
     let already_present = fs::try_exists(&variant_path).await?;
@@ -106,9 +110,7 @@ pub(crate) async fn resolve(
     let mut seen = HashSet::with_capacity(request.candidates.len());
     let mut artifacts = Vec::new();
     let mut budget = ResolveBudget {
-        scanned_bytes: 0,
-        response_bytes: serde_json::to_vec(&ResolveArtifactsResponse { artifacts: Vec::new() })?
-            .len(),
+        used_bytes: serde_json::to_vec(&ResolveArtifactsResponse { artifacts: Vec::new() })?.len(),
     };
     for candidate in request.candidates {
         candidate.validate().map_err(|err| protocol_error(&err))?;
@@ -175,7 +177,7 @@ async fn resolve_candidate(
     };
     let mut paths = Vec::new();
     while let Some(entry) = entries.next_entry().await? {
-        if entry.file_type().await?.is_file() {
+        if entry.file_type().await?.is_file() && is_variant_file(&entry.file_name()) {
             paths.push(entry.path());
         }
     }
@@ -198,27 +200,22 @@ async fn resolve_candidate(
 }
 
 struct ResolveBudget {
-    scanned_bytes: usize,
-    response_bytes: usize,
+    used_bytes: usize,
 }
 
 impl ResolveBudget {
     fn add_scan(&mut self, bytes: u64) -> Result<()> {
-        self.scanned_bytes = self
-            .scanned_bytes
-            .checked_add(usize::try_from(bytes).unwrap_or(usize::MAX))
-            .ok_or_else(resolve_limit_error)?;
-        if self.scanned_bytes > MAX_RESOLVE_RESPONSE_SIZE {
-            return Err(resolve_limit_error());
-        }
-        Ok(())
+        self.add(usize::try_from(bytes).unwrap_or(usize::MAX))
     }
 
     fn add_response(&mut self, artifact: &ResolvedArtifact, needs_comma: bool) -> Result<()> {
         let serialized_size = serde_json::to_vec(artifact)?.len() + usize::from(needs_comma);
-        self.response_bytes =
-            self.response_bytes.checked_add(serialized_size).ok_or_else(resolve_limit_error)?;
-        if self.response_bytes > MAX_RESOLVE_RESPONSE_SIZE {
+        self.add(serialized_size)
+    }
+
+    fn add(&mut self, bytes: usize) -> Result<()> {
+        self.used_bytes = self.used_bytes.checked_add(bytes).ok_or_else(resolve_limit_error)?;
+        if self.used_bytes > MAX_RESOLVE_RESPONSE_SIZE {
             return Err(resolve_limit_error());
         }
         Ok(())
@@ -227,7 +224,7 @@ impl ResolveBudget {
 
 fn resolve_limit_error() -> RegistryError {
     bad_request(format!(
-        "shared artifact lookup exceeds the {MAX_RESOLVE_RESPONSE_SIZE}-byte response budget",
+        "shared artifact lookup exceeds the {MAX_RESOLVE_RESPONSE_SIZE}-byte budget",
     ))
 }
 
@@ -246,6 +243,16 @@ fn owner_dir(cache_storage: &Path, username: &str, owner: &OwnerScope) -> Result
     }
 }
 
+async fn acquire_publication_lock(path: PathBuf) -> Result<DirLock> {
+    tokio::task::spawn_blocking(move || {
+        DirLock::acquire(path, ARTIFACT_LOCK_WAIT, ARTIFACT_LOCK_ABANDONED_AFTER)
+    })
+    .await??
+    .ok_or_else(|| RegistryError::Internal {
+        reason: "timed out acquiring shared artifact publication lock".to_string(),
+    })
+}
+
 async fn count_variants(key_dir: &Path) -> Result<usize> {
     let mut entries = match fs::read_dir(key_dir).await {
         Ok(entries) => entries,
@@ -254,11 +261,20 @@ async fn count_variants(key_dir: &Path) -> Result<usize> {
     };
     let mut count = 0;
     while let Some(entry) = entries.next_entry().await? {
-        if entry.file_type().await?.is_file() {
+        if entry.file_type().await?.is_file() && is_variant_file(&entry.file_name()) {
             count += 1;
         }
     }
     Ok(count)
+}
+
+fn is_variant_file(name: &std::ffi::OsStr) -> bool {
+    name.to_str().is_some_and(|name| {
+        let bytes = name.as_bytes();
+        bytes.len() == 69
+            && bytes[64..] == *b".json"
+            && bytes[..64].iter().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+    })
 }
 
 fn digest_segment(bytes: &[u8]) -> String {

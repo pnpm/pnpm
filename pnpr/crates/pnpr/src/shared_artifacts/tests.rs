@@ -1,15 +1,22 @@
-use pnpm_shared_artifact_protocol::{
-    ArtifactVariant, MAX_RESOLVE_RESPONSE_SIZE, ResolveArtifactsResponse, ResolvedArtifact,
-    SignedArtifactEnvelope,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
-use super::ResolveBudget;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use pnpm_shared_artifact_protocol::{
+    ARTIFACT_KIND, ArtifactManifest, ArtifactPayload, ArtifactVariant, BuilderProfile,
+    CompatibilityConstraints, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE, OwnerScope,
+    PackageIdentity, PublishArtifactRequest, ResolveArtifactsResponse, ResolvedArtifact,
+    SIGNATURE_ALGORITHM, SignedArtifactEnvelope,
+};
+use tempfile::TempDir;
+use tokio::sync::Barrier;
+
+use super::{ResolveBudget, is_variant_file, publish};
 
 #[test]
-fn resolve_budget_bounds_scanned_and_serialized_bytes() {
+fn resolve_budget_bounds_combined_scanned_and_serialized_bytes() {
     let empty_response_size =
         serde_json::to_vec(&ResolveArtifactsResponse { artifacts: Vec::new() }).unwrap().len();
-    let mut scan_budget = ResolveBudget { scanned_bytes: 0, response_bytes: empty_response_size };
+    let mut scan_budget = ResolveBudget { used_bytes: 0 };
     scan_budget.add_scan(MAX_RESOLVE_RESPONSE_SIZE as u64).unwrap();
     assert!(scan_budget.add_scan(1).is_err());
 
@@ -24,7 +31,80 @@ fn resolve_budget_bounds_scanned_and_serialized_bytes() {
             },
         }],
     };
-    let mut response_budget =
-        ResolveBudget { scanned_bytes: 0, response_bytes: MAX_RESOLVE_RESPONSE_SIZE };
+    let mut response_budget = ResolveBudget { used_bytes: MAX_RESOLVE_RESPONSE_SIZE };
     assert!(response_budget.add_response(&artifact, false).is_err());
+
+    let mut combined_budget = ResolveBudget { used_bytes: empty_response_size };
+    combined_budget.add_scan((MAX_RESOLVE_RESPONSE_SIZE - empty_response_size) as u64).unwrap();
+    assert!(combined_budget.add_response(&artifact, false).is_err());
+}
+
+#[test]
+fn variant_files_have_canonical_envelope_digest_names() {
+    let digest = "a".repeat(64);
+    assert!(is_variant_file(format!("{digest}.json").as_ref()));
+    assert!(!is_variant_file(format!("{digest}.json.tmp").as_ref()));
+    assert!(!is_variant_file(format!("{}.json", "A".repeat(64)).as_ref()));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 16)]
+async fn concurrent_publishers_sharing_a_cache_respect_the_variant_limit() {
+    const PUBLICATIONS: usize = 16;
+
+    let storage = TempDir::new().unwrap();
+    let barrier = Arc::new(Barrier::new(PUBLICATIONS + 1));
+    let mut publications = Vec::with_capacity(PUBLICATIONS);
+    for index in 0..PUBLICATIONS {
+        let barrier = Arc::clone(&barrier);
+        let cache_storage = storage.path().to_path_buf();
+        publications.push(tokio::spawn(async move {
+            barrier.wait().await;
+            publish(&cache_storage, "acme", publication(&format!("ci/concurrent/{index}")))
+                .await
+                .map_err(|err| err.to_string())
+        }));
+    }
+    barrier.wait().await;
+
+    let mut accepted = 0;
+    let mut rejected = Vec::new();
+    for publication in publications {
+        match publication.await.unwrap() {
+            Ok(true) => accepted += 1,
+            Ok(false) => panic!("all publications have distinct envelopes"),
+            Err(err) => rejected.push(err),
+        }
+    }
+    assert_eq!(accepted, MAX_VARIANTS_PER_CANDIDATE);
+    assert_eq!(rejected.len(), PUBLICATIONS - accepted);
+    assert!(rejected.iter().all(|error| error.contains("variant limit")));
+}
+
+fn publication(builder_id: &str) -> PublishArtifactRequest {
+    let payload = ArtifactPayload {
+        kind: ARTIFACT_KIND.to_string(),
+        package: PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
+        source_integrity: "sha512-source".to_string(),
+        input_key: "dependency-side-effects:v1:deps=abc".to_string(),
+        owner: OwnerScope::organization("acme"),
+        builder_id: builder_id.to_string(),
+        builder_profile: BuilderProfile {
+            image_digest: Some("sha256:image".to_string()),
+            architecture_baseline: "x86-64-v2".to_string(),
+            environment: BTreeMap::new(),
+        },
+        compatibility: CompatibilityConstraints::Universal,
+        manifest: ArtifactManifest { added: Vec::new(), deleted: Vec::new() },
+    };
+    let payload_bytes = serde_json::to_vec(&payload).unwrap();
+    PublishArtifactRequest {
+        key: payload.input_key,
+        envelope: SignedArtifactEnvelope {
+            algorithm: SIGNATURE_ALGORITHM.to_string(),
+            key_id: "acme-2026".to_string(),
+            payload: BASE64.encode(payload_bytes),
+            signature: "MAYCAQECAQE=".to_string(),
+        },
+        blobs: Vec::new(),
+    }
 }
