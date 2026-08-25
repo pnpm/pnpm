@@ -32,23 +32,7 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
   const manifest = await safeReadPackageJsonFromDir(pkgDir)
   if (manifest?.scripts == null || !packageShouldBeBuilt(manifest, pkgDir)) return { shouldBeBuilt: false, pkgDir }
   if (opts.ignoreScripts) return { shouldBeBuilt: true, pkgDir }
-  // Check if the package is allowed to run build scripts
-  // If allowBuild is undefined or returns false, block the build.
-  // The depPath is synthesized from the resolution id rather than read from
-  // a lockfile; resolution ids of git and tarball artifacts are never
-  // semver-shaped, so the policy derives an untrusted package identity.
-  const depPath = `${manifest.name}@${opts.pkgResolutionId}` as DepPath
-  if (!opts.allowBuild?.(depPath)) {
-    throw new PnpmError(
-      'GIT_DEP_PREPARE_NOT_ALLOWED',
-      `The git-hosted package "${manifest.name}@${manifest.version}" needs to execute build scripts but is not in the "allowBuilds" allowlist.`,
-      {
-        hint: `Add the package to "allowBuilds" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:
-allowBuilds:
-  ${depPath}: true`,
-      }
-    )
-  }
+  assertPackageBuildIsAllowed(opts, manifest)
   const pm = (await preferredPM(gitRootDir))?.name ?? 'npm'
   const execOpts: RunLifecycleHookOptions = {
     depPath: `${manifest.name}@${manifest.version}`,
@@ -82,6 +66,24 @@ allowBuilds:
   }
   await rimraf(path.join(pkgDir, 'node_modules'))
   return { shouldBeBuilt: true, pkgDir }
+}
+
+export function assertPackageBuildIsAllowed (
+  opts: Pick<PreparePackageOptions, 'allowBuild' | 'pkgResolutionId'>,
+  manifest: Partial<PackageManifest>
+): void {
+  const depPath = `${manifest.name}@${opts.pkgResolutionId}` as DepPath
+  if (!opts.allowBuild?.(depPath)) {
+    throw new PnpmError(
+      'GIT_DEP_PREPARE_NOT_ALLOWED',
+      `The git-hosted package "${manifest.name}@${manifest.version}" needs to execute build scripts but is not in the "allowBuilds" allowlist.`,
+      {
+        hint: `Add the package to "allowBuilds" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:
+allowBuilds:
+  ${depPath}: true`,
+      }
+    )
+  }
 }
 
 function packageShouldBeBuilt (manifest: PackageManifest, pkgDir: string): boolean {

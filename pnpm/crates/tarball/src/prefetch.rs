@@ -60,8 +60,16 @@ pub type PrefetchedSideEffectsMaps =
 /// pnpm's worker fallback when `pkgFilesIndex.requiresBuild` is absent.
 pub type PrefetchedRequiresBuild = HashMap<String, bool>;
 
-pub(crate) type DecodedPrefetchRow =
-    (String, Option<Arc<serde_json::Value>>, Option<bool>, pnpm_store_dir::VerifyResult);
+/// `requiresPrepare` flags present in git package store-index rows.
+pub type PrefetchedRequiresPrepare = HashMap<String, bool>;
+
+pub(crate) type DecodedPrefetchRow = (
+    String,
+    Option<Arc<serde_json::Value>>,
+    Option<bool>,
+    Option<bool>,
+    pnpm_store_dir::VerifyResult,
+);
 
 /// Output of [`prefetch_cas_paths`]: the warm-cache filesystem map
 /// plus any bundled manifests and side-effects overlays recovered
@@ -75,6 +83,7 @@ pub struct PrefetchResult {
     pub manifests: PrefetchedManifests,
     pub side_effects_maps: PrefetchedSideEffectsMaps,
     pub requires_build: PrefetchedRequiresBuild,
+    pub requires_prepare: PrefetchedRequiresPrepare,
 }
 
 /// Resolve the whole install's warm-cache lookups up front, returning a
@@ -151,6 +160,7 @@ pub async fn prefetch_cas_paths(
                     return None;
                 }
                 let stored_requires_build = entry.requires_build;
+                let stored_requires_prepare = entry.requires_prepare;
                 let manifest = entry.manifest.take().map(Arc::new);
                 let verify_result = if verify_store_integrity {
                     pnpm_store_dir::check_pkg_files_integrity(
@@ -161,7 +171,13 @@ pub async fn prefetch_cas_paths(
                 } else {
                     pnpm_store_dir::build_file_maps_from_index(store_dir, entry)
                 };
-                Some((cache_key, manifest, stored_requires_build, verify_result))
+                Some((
+                    cache_key,
+                    manifest,
+                    stored_requires_build,
+                    stored_requires_prepare,
+                    verify_result,
+                ))
             })
             .collect();
 
@@ -169,7 +185,10 @@ pub async fn prefetch_cas_paths(
         let mut manifests = HashMap::new();
         let mut side_effects_maps = HashMap::new();
         let mut requires_build = HashMap::with_capacity(decoded.len());
-        for (cache_key, manifest, stored_requires_build, verify_result) in decoded {
+        let mut requires_prepare = HashMap::new();
+        for (cache_key, manifest, stored_requires_build, stored_requires_prepare, verify_result) in
+            decoded
+        {
             if verify_result.passed {
                 let calculated_requires_build = stored_requires_build.unwrap_or_else(|| {
                     manifest.as_deref().is_some_and(manifest_requires_build)
@@ -184,10 +203,19 @@ pub async fn prefetch_cas_paths(
                     side_effects_maps.insert(cache_key.clone(), Arc::new(maps));
                 }
                 requires_build.insert(cache_key.clone(), calculated_requires_build);
+                if let Some(requires_prepare_value) = stored_requires_prepare {
+                    requires_prepare.insert(cache_key.clone(), requires_prepare_value);
+                }
                 cas_paths.insert(cache_key, Arc::new(verify_result.files_map));
             }
         }
-        PrefetchResult { cas_paths, manifests, side_effects_maps, requires_build }
+        PrefetchResult {
+            cas_paths,
+            manifests,
+            side_effects_maps,
+            requires_build,
+            requires_prepare,
+        }
     })
     .await;
     result.unwrap_or_else(|error| {

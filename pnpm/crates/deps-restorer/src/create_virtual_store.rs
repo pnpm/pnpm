@@ -10,6 +10,7 @@ use futures_util::{StreamExt, stream::FuturesUnordered};
 use miette::Diagnostic;
 use pnpm_config::{Config, NodeLinker, PackageImportMethod};
 use pnpm_deps_path::get_pkg_id_with_patch_hash;
+use pnpm_git_fetcher::{GitFetcherError, assert_package_build_allowed};
 use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, PkgNameVerPeer,
     PlatformSelector, SnapshotEntry, select_platform_variant,
@@ -25,8 +26,9 @@ use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter,
     store_index_key,
 };
-use pnpm_tarball::{MemCache, SharedReportedProgressKeys, prefetch_cas_paths};
+use pnpm_tarball::{MemCache, PrefetchResult, SharedReportedProgressKeys, prefetch_cas_paths};
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
@@ -407,7 +409,7 @@ impl CreateVirtualStore<'_> {
         // doesn't redo identical SELECT + integrity-check work for
         // every peer variant.
         let snapshot_plan::SnapshotPlan {
-            survivors: snapshot_entries,
+            survivors: mut snapshot_entries,
             skipped_entries,
             marker_rebuilds,
         } = snapshot_plan::plan_snapshots::<Reporter>(&snapshot_plan::SnapshotPlanInputs {
@@ -465,6 +467,13 @@ impl CreateVirtualStore<'_> {
             SharedVerifiedFilesCache::clone(&verified_files_cache),
         )
         .await;
+        enforce_cached_git_prepare_policy(
+            &mut snapshot_entries,
+            packages,
+            &prefetch,
+            allow_build_policy,
+            config.ignore_scripts,
+        )?;
         let partition::Partition {
             warm,
             cold,
@@ -892,6 +901,74 @@ fn removed_child_aliases(
         }
     }
     removed
+}
+
+fn enforce_cached_git_prepare_policy(
+    snapshots: &mut [SnapshotWithCacheKey<'_>],
+    packages: &HashMap<PackageKey, PackageMetadata>,
+    prefetch: &PrefetchResult,
+    allow_build_policy: &crate::AllowBuildPolicy,
+    ignore_scripts: bool,
+) -> Result<(), CreateVirtualStoreError> {
+    if ignore_scripts {
+        return Ok(());
+    }
+    for (snapshot_key, _snapshot, cache_key) in snapshots {
+        let Some(key) = cache_key.as_deref() else { continue };
+        let Some(cas_paths) = prefetch.cas_paths.get(key) else { continue };
+        let metadata_key = snapshot_key.without_peer();
+        let metadata = packages.get(&metadata_key).ok_or_else(|| {
+            CreateVirtualStoreError::MissingPackageMetadata {
+                snapshot_key: snapshot_key.to_string(),
+                metadata_key: metadata_key.to_string(),
+            }
+        })?;
+        let is_git_hosted = match &metadata.resolution {
+            LockfileResolution::Git(_) => true,
+            LockfileResolution::Tarball(tarball) => tarball.is_git_hosted(),
+            _ => false,
+        };
+        if !is_git_hosted {
+            continue;
+        }
+        if prefetch.requires_prepare.get(key) == Some(&false) {
+            continue;
+        }
+        let manifest = if let Some(manifest) = prefetch.manifests.get(key) {
+            Cow::Borrowed(manifest.as_ref())
+        } else {
+            let Some(package_json) = cas_paths.get("package.json") else {
+                *cache_key = None;
+                continue;
+            };
+            let Ok(contents) = fs::read_to_string(package_json) else {
+                *cache_key = None;
+                continue;
+            };
+            let Ok(manifest) = parse_manifest(&contents) else {
+                *cache_key = None;
+                continue;
+            };
+            Cow::Owned(manifest)
+        };
+        let package_id = metadata_key.pkg_id();
+        let name = manifest.get("name").and_then(serde_json::Value::as_str).unwrap_or("");
+        let dep_path = format!("{name}@{package_id}");
+        if allow_build_policy.check(&dep_path) == Some(true) {
+            continue;
+        }
+        if !prefetch.requires_prepare.contains_key(key) {
+            *cache_key = None;
+            continue;
+        }
+        let allow_build = |dep_path: &str| allow_build_policy.check(dep_path).unwrap_or(false);
+        assert_package_build_allowed(&allow_build, &package_id, &manifest).map_err(|error| {
+            CreateVirtualStoreError::InstallPackageBySnapshot(
+                InstallPackageBySnapshotError::GitFetch(GitFetcherError::Prepare(error)),
+            )
+        })?;
+    }
+    Ok(())
 }
 
 fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {

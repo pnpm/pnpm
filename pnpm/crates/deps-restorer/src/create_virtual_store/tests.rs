@@ -272,6 +272,7 @@ async fn shared_store_context_materializes_a_warm_package() {
             &PackageFilesIndex {
                 manifest: None,
                 requires_build: Some(false),
+                requires_prepare: None,
                 algo: "sha512".to_string(),
                 files,
                 side_effects: None,

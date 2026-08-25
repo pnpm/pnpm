@@ -162,6 +162,7 @@ async function handleMessage (
               sideEffectsMaps: verifyResult.sideEffectsMaps,
               resolvedFrom: 'store',
               requiresBuild,
+              requiresPrepare: pkgFilesIndex.requiresPrepare,
             },
           },
         })
@@ -284,6 +285,7 @@ interface AddFilesFromDirResult {
     filesMap: FilesMap
     manifest?: BundledManifest
     requiresBuild: boolean
+    requiresPrepare?: boolean
   }
   indexWrites?: IndexWrite[]
 }
@@ -323,6 +325,7 @@ function addFilesFromDir (
     files,
     filesIndexFile,
     includeNodeModules,
+    requiresPrepare,
     sideEffectsCacheKey,
     storeDir,
   }: AddDirToStoreMessage
@@ -345,6 +348,7 @@ function addFilesFromDir (
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
   let requiresBuild: boolean
+  let storedRequiresPrepare = requiresPrepare
   let indexWrites: IndexWrite[] | undefined
   if (sideEffectsCacheKey) {
     const existingFilesIndex = getStoreIndex(storeDir).get(filesIndexFile) as PackageFilesIndex | undefined
@@ -375,18 +379,20 @@ function addFilesFromDir (
     } else {
       requiresBuild = existingFilesIndex.requiresBuild
     }
+    storedRequiresPrepare = existingFilesIndex.requiresPrepare
     indexWrites = [{ key: filesIndexFile, buffer: packToShared(existingFilesIndex) }]
   } else {
     requiresBuild = pkgRequiresBuild(bundledManifest, filesIntegrity)
     const pkgFilesIndex: PackageFilesIndex = {
       requiresBuild,
+      requiresPrepare,
       manifest: bundledManifest,
       algo: HASH_ALGORITHM,
       files: filesIntegrity,
     }
     indexWrites = [{ key: filesIndexFile, buffer: packToShared(pkgFilesIndex) }]
   }
-  return { status: 'success', value: { filesMap, manifest: bundledManifest, requiresBuild }, indexWrites }
+  return { status: 'success', value: { filesMap, manifest: bundledManifest, requiresBuild, requiresPrepare: storedRequiresPrepare }, indexWrites }
 }
 
 function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifest: DependencyManifest): void {
@@ -507,4 +513,3 @@ function symlinkAllModules (opts: SymlinkAllModulesMessage): { status: 'success'
   }
   return { status: 'success' }
 }
-
