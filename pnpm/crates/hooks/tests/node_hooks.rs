@@ -205,6 +205,8 @@ function filterLog(log) {
 
     let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
 
+    assert!(hooks.has_filter_log().await);
+
     let debug_log = serde_json::json!({
         "level": "debug",
         "message": "test debug"
@@ -595,6 +597,7 @@ async fn update_config_without_hook_returns_config_unchanged() {
     let config = serde_json::json!({ "registry": "https://r/" });
     let updated = hooks.update_config(config.clone(), noop_context()).await.expect("ok");
 
+    assert!(!hooks.has_filter_log().await);
     assert_eq!(updated, config, "a pnpmfile without updateConfig leaves config unchanged");
 }
 
