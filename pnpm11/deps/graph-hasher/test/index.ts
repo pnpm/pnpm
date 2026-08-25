@@ -71,7 +71,10 @@ test('calcDepStateInputKey() excludes the host engine and includes patches', () 
       }),
     },
   })
-  expect(calcDepStateInputKey(depsGraph, {}, 'foo@1.0.0', {
+  expect(calcDepStateInputKey({
+    depsGraph,
+    cache: {},
+    depPath: 'foo@1.0.0',
     patchFileHash: 'patch-hash',
   })).toBe(`dependency-side-effects:v1:deps=${expectedDepsHash};patch=patch-hash`)
 })

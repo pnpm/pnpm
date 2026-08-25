@@ -388,6 +388,22 @@ impl PnprClient {
     /// if it's unreachable, isn't a pnpr (404 at `/-/pnpr`), or shares
     /// no protocol version with this client.
     pub async fn handshake(&self) -> Result<(), PnprClientError> {
+        self.fetch_compatible_handshake().await?;
+        Ok(())
+    }
+
+    /// Confirm that the server enabled the v0 signed-artifact `PoC`.
+    pub async fn handshake_artifacts(&self) -> Result<(), PnprClientError> {
+        let capability = self.fetch_compatible_handshake().await?;
+        if !capability.artifacts.contains(&PROTOCOL_VERSION) {
+            return Err(PnprClientError::Server(format!(
+                "pnpr server does not advertise shared artifact protocol v{PROTOCOL_VERSION}",
+            )));
+        }
+        Ok(())
+    }
+
+    async fn fetch_compatible_handshake(&self) -> Result<HandshakeCapability, PnprClientError> {
         let response = self.http.get(format!("{}-/pnpr", self.base_url)).send().await?;
         if !response.status().is_success() {
             return Err(PnprClientError::Server(format!(
@@ -403,26 +419,7 @@ impl PnprClient {
                 body.pnpr.versions,
             )));
         }
-        Ok(())
-    }
-
-    /// Confirm that the server enabled the v0 signed-artifact `PoC`.
-    pub async fn handshake_artifacts(&self) -> Result<(), PnprClientError> {
-        let response = self.http.get(format!("{}-/pnpr", self.base_url)).send().await?;
-        if !response.status().is_success() {
-            return Err(PnprClientError::Server(format!(
-                "{} is not a pnpr server (GET /-/pnpr returned {})",
-                self.base_url,
-                response.status(),
-            )));
-        }
-        let body: HandshakeResponse = response.json().await?;
-        if !body.pnpr.artifacts.contains(&PROTOCOL_VERSION) {
-            return Err(PnprClientError::Server(format!(
-                "pnpr server does not advertise shared artifact protocol v{PROTOCOL_VERSION}",
-            )));
-        }
-        Ok(())
+        Ok(body.pnpr)
     }
 
     /// Upload one already-signed organization artifact and all blobs that are

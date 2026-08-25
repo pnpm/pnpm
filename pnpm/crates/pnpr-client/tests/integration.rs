@@ -826,6 +826,25 @@ async fn artifact_capability_is_disabled_by_default() {
 }
 
 #[tokio::test]
+async fn artifact_handshake_requires_the_base_protocol() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/-/pnpr")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"pnpr":{"versions":[],"artifacts":[0]}}"#)
+        .create_async()
+        .await;
+
+    let error = PnprClient::new(server.url())
+        .handshake_artifacts()
+        .await
+        .expect_err("artifact capability cannot outlive its base protocol");
+    assert!(error.to_string().contains("speaks protocol versions []"));
+    mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn publishes_resolves_and_verifies_an_organization_artifact() {
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
     let client = PnprClient::new(pnpr_url);
