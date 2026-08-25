@@ -214,6 +214,20 @@ impl NodeWorker {
             .unwrap_or(false)
     }
 
+    /// Whether the loaded pnpmfile exports a callable `filterLog` hook.
+    pub async fn has_filter_log(&self) -> bool {
+        self.request(
+            "hasFilterLog",
+            serde_json::json!({ "query": "hasFilterLog" }),
+            Arc::new(|_| {}),
+        )
+        .await
+        .ok()
+        .as_ref()
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    }
+
     /// Call `method` on the custom resolver at `index` in the pnpmfile's
     /// `resolvers` array, forwarding any `context.log(...)` to `log`.
     pub async fn call_resolver(
@@ -458,6 +472,10 @@ async function handle(req) {{
   await ensureLoaded();
   if (loadErr !== null) {{ send({{ err: loadErr }}); return; }}
   if (req.query === 'hasHooks') {{ send({{ ok: mod != null && mod.hooks != null }}); return; }}
+  if (req.query === 'hasFilterLog') {{
+    send({{ ok: mod != null && mod.hooks != null && typeof mod.hooks.filterLog === 'function' }});
+    return;
+  }}
   try {{
     const fn = mod && mod.hooks && mod.hooks[req.hook];
     const context = {{ log: (m) => send({{ log: String(m) }}) }};

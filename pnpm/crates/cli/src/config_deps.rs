@@ -19,7 +19,7 @@ use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
 use pnpm_lockfile::EnvLockfile;
 use pnpm_network::{RetryOpts, ThrottledClient};
-use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{HookLog, LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
@@ -520,6 +520,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
 
     let prefix = root_dir.to_string_lossy().into_owned();
     let mut current = input.clone();
+    let mut has_filter_log = false;
     for pnpmfile in &pnpmfiles {
         let hooks = finder::load_pnpmfile_at(pnpmfile.clone());
         let ctx = HookContext { log: hook_logger::<Reporter>(pnpmfile, &prefix), dir: None };
@@ -530,6 +531,15 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
             .wrap_err_with(|| {
             format!("running updateConfig hook from {}", pnpmfile.display())
         })?;
+        has_filter_log |= hooks.has_filter_log().await;
+    }
+    if has_filter_log {
+        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
+            message: "The pnpmfile filterLog hook is deprecated and is not supported by pnpm v12. Remove it from the pnpmfile."
+                .to_string(),
+            prefix: prefix.clone(),
+        }));
     }
 
     // Adopt the hook output's catalogs wholesale into `Config::catalogs`
