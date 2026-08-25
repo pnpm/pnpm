@@ -6,8 +6,9 @@
 use node_semver::{Range, Version};
 use pnpm_lockfile::{
     BundledDependencies, Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer,
-    ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotEntry, TarballResolution,
-    TarballUrlOptions, npm_tarball_url, pick_registry_for_package, registry_server_type,
+    ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotEntry, StringOrList,
+    TarballResolution, TarballUrlOptions, npm_tarball_url, pick_registry_for_package,
+    registry_server_type,
 };
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
 use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
@@ -288,9 +289,11 @@ pub(crate) fn synthesize_reused_result(
 }
 
 /// Reconstruct the minimal manifest fragment downstream consumers read
-/// off a reused [`ResolveResult`]. Carries the peer / platform metadata
-/// the lockfile records; omits `dependencies` because a reused node's
-/// children come from the snapshot graph, not the manifest.
+/// off a reused [`ResolveResult`]. Carries the peer / platform /
+/// packaging metadata the lockfile records, in the shape it recorded it,
+/// so a rewrite re-emits the entry unchanged; omits `dependencies`
+/// because a reused node's children come from the snapshot graph, not
+/// the manifest.
 fn synthesize_manifest(
     name: &PkgName,
     version: Option<&str>,
@@ -334,7 +337,11 @@ fn synthesize_manifest(
         manifest.insert("os".to_string(), string_array(os));
     }
     if let Some(libc) = metadata.libc.as_ref() {
-        manifest.insert("libc".to_string(), string_array(libc));
+        let value = match libc {
+            StringOrList::String(single) => Value::String(single.clone()),
+            StringOrList::List(names) => string_array(names),
+        };
+        manifest.insert("libc".to_string(), value);
     }
     if let Some(deprecated) = metadata.deprecated.as_ref() {
         manifest.insert("deprecated".to_string(), Value::String(deprecated.clone()));

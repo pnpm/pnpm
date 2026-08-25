@@ -9,7 +9,7 @@ fn registry_context(registries: HashMap<String, String>) -> pnpm_lockfile::Regis
 use pnpm_lockfile::{
     BundledDependencies, ComVer, GitResolution, ImporterDepVersion, Lockfile, LockfileResolution,
     LockfileVersion, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot,
-    RegistryResolution, ResolvedDependencySpec, TarballResolution,
+    RegistryResolution, ResolvedDependencySpec, StringOrList, TarballResolution,
 };
 
 use super::{reusable_importer_dep, synthesize_reused_result};
@@ -189,10 +189,7 @@ fn synthesized_manifest_carries_bundled_dependencies() {
     let result = synthesize_reused_result(&lockfile, &key, "pkg-with-bundled-deps")
         .expect("registry dep is reusable");
     let manifest = result.manifest.expect("synthesized manifest");
-    assert_eq!(
-        BundledDependencies::from_manifest(Some(&manifest)),
-        Some(BundledDependencies::Names(vec!["napi-wasm".to_string()])),
-    );
+    assert_eq!(manifest.get("bundledDependencies"), Some(&serde_json::json!(["napi-wasm"])));
 }
 
 #[test]
@@ -206,10 +203,21 @@ fn synthesized_manifest_carries_the_boolean_bundled_dependencies_form() {
     let result = synthesize_reused_result(&lockfile, &key, "pkg-bundling-everything")
         .expect("registry dep is reusable");
     let manifest = result.manifest.expect("synthesized manifest");
-    assert_eq!(
-        BundledDependencies::from_manifest(Some(&manifest)),
-        Some(BundledDependencies::Boolean(true)),
-    );
+    assert_eq!(manifest.get("bundledDependencies"), Some(&serde_json::Value::Bool(true)));
+}
+
+#[test]
+fn synthesized_manifest_keeps_the_scalar_libc_form() {
+    let key: PkgNameVerPeer = "pkg-with-scalar-libc@1.0.0".parse().expect("parse key");
+    let mut metadata = registry_metadata();
+    metadata.libc = Some(StringOrList::String("musl".to_string()));
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+
+    let result = synthesize_reused_result(&lockfile, &key, "pkg-with-scalar-libc")
+        .expect("registry dep is reusable");
+    let manifest = result.manifest.expect("synthesized manifest");
+    assert_eq!(manifest.get("libc"), Some(&serde_json::Value::String("musl".to_string())));
 }
 
 #[test]

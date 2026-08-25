@@ -153,6 +153,9 @@ fn bundled_dependencies_survive_a_lockfile_rewrite() {
         CommandTempCwd::init().add_mocked_registry();
 
     pacquet.with_args(["add", "@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0"]).assert().success();
+
+    // Adding an unrelated package rewrites the lockfile while the first
+    // entry's resolution is reused rather than resolved again.
     pacquet_in(&workspace).with_args(["add", "@pnpm.e2e/foo@100.0.0"]).assert().success();
 
     let lockfile = read_wanted_lockfile(&workspace);
