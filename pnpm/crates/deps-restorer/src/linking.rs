@@ -153,9 +153,9 @@ pub struct LinkPhaseOutput {
 /// `.modules.yaml` observe the same skip set this phase acted on.
 ///
 /// Returns what the build phase and the caller's `.modules.yaml` writer
-/// need — see [`LinkPhaseOutput`]. Under `virtual_store_only` nothing
-/// below the reconciliation runs and every output is empty: that mode
-/// populates the store without touching the project.
+/// need — see [`LinkPhaseOutput`]. Under `virtual_store_only` only the
+/// per-slot bin pass runs and every output is empty: that mode
+/// populates the virtual store without touching the project.
 pub fn run_link_phase<Reporter: self::Reporter>(
     inputs: LinkPhaseInputs<'_>,
     skipped: &mut SkippedSnapshots,
@@ -225,23 +225,10 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     // [`crate::link_hoisted_modules()`]); on the isolated linker
     // the event fires here, so every install carries exactly one,
     // pairing the `added` emitted in `CreateVirtualStore`.
-    // Nothing below this point runs under `virtual_store_only`: it
-    // creates no importer or hoist links, so it has neither anything to
-    // reconcile nor anything to link. Returning here rather than gating
-    // each pass keeps that a single decision — and keeps the hoist pass,
-    // which writes into `config.modules_dir`, from touching a project
-    // this mode is meant to leave alone.
-    if config.virtual_store_only {
-        return Ok(LinkPhaseOutput {
-            hoisted_dependencies: crate::HoistedDependencies::new(),
-            hoisted_locations: BTreeMap::new(),
-            hoisted_pkg_roots_by_key: None,
-            publicly_hoisted_for_post_build: Vec::new(),
-        });
-    }
-
-    //
-    if !is_hoisted {
+    // `virtual_store_only` is excluded as well: it creates no importer
+    // or hoist links, so it has neither anything to reconcile nor
+    // anything to link.
+    if !is_hoisted && !config.virtual_store_only {
         let removed_count = match current_lockfile {
             Some(current) => crate::PruneStaleModules {
                 config,
@@ -260,9 +247,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
             level: LogLevel::Debug,
             message: StatsMessage::Removed { prefix: requester.to_owned(), removed: removed_count },
         }));
-    }
 
-    if !is_hoisted {
         SymlinkDirectDependencies {
             config,
             layout,
@@ -295,7 +280,9 @@ pub fn run_link_phase<Reporter: self::Reporter>(
             skipped,
         )
         .map_err(LinkPhaseError::LinkRootComponentMembers)?;
+    }
 
+    if !is_hoisted {
         // Link the bins of each virtual-store slot's children into the
         // slot's own `node_modules/.bin`.
         // Done before `importing_done` so reporters see the import phase
@@ -304,15 +291,20 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         // lets the linker hit `pkgFilesIndex.manifest` directly instead
         // of re-reading every child's `package.json` from disk.
         //
-        // Both passes are gated by `!is_hoisted`: under
-        // `nodeLinker: hoisted` there is no virtual store
-        // (`CreateVirtualStore` skipped slot writes), and the
-        // bin links go into `<parent>/node_modules/.bin` for
+        // This pass and [`SymlinkDirectDependencies`] above are both
+        // gated by `!is_hoisted`: under `nodeLinker: hoisted` there is
+        // no virtual store (`CreateVirtualStore` skipped slot writes),
+        // and the bin links go into `<parent>/node_modules/.bin` for
         // every hoist location instead. The hoisted linker
         // ([`crate::link_hoisted_modules()`], called below) does
         // its own per-`node_modules` bin pass while walking the
         // hierarchy, routing both link phases through the hoisted
         // linker.
+        //
+        // Unlike every other pass here this one also runs under
+        // `virtual_store_only`: the links it writes live inside the
+        // virtual store, and the build phase — which `pnpm fetch` still
+        // runs — resolves a dependency's sibling bin through them.
         LinkVirtualStoreBins {
             layout,
             snapshots,
@@ -324,6 +316,19 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         }
         .run()
         .map_err(LinkPhaseError::LinkVirtualStoreBins)?;
+    }
+
+    // Nothing below this point runs under `virtual_store_only`: it
+    // materializes the importer-visible tree and the sidecars that
+    // describe it, and the hoist pass writes into `config.modules_dir`
+    // — a project this mode is meant to leave alone.
+    if config.virtual_store_only {
+        return Ok(LinkPhaseOutput {
+            hoisted_dependencies: crate::HoistedDependencies::new(),
+            hoisted_locations: BTreeMap::new(),
+            hoisted_pkg_roots_by_key: None,
+            publicly_hoisted_for_post_build: Vec::new(),
+        });
     }
 
     // Hoisted-linker materialization. Replaces the isolated
