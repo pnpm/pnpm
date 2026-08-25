@@ -63,6 +63,16 @@ describe('signed shared artifacts', () => {
     })
     const publicKeySpki = publicKey.export({ format: 'der', type: 'spki' }).toString('base64')
     expect(() => verifySignedArtifactEnvelope(envelope, publicKeySpki)).toThrow('P-256 EC public key')
+
+    const { privateKey: p384PrivateKey, publicKey: p384PublicKey } = generateKeyPairSync('ec', { namedCurve: 'secp384r1' })
+    expect(() => createSignedArtifactEnvelope(payload(), {
+      keyId: 'acme-p384',
+      privateKey: p384PrivateKey.export({ format: 'pem', type: 'pkcs8' }),
+    })).toThrow('P-256 EC private key')
+    expect(() => verifySignedArtifactEnvelope(
+      envelope,
+      p384PublicKey.export({ format: 'der', type: 'spki' }).toString('base64')
+    )).toThrow('P-256 EC public key')
   })
 
   test.each([
@@ -77,6 +87,7 @@ describe('signed shared artifacts', () => {
     'trailing-space ',
     'dir/trailing-dot.',
     'dir/trailing-space ',
+    'dir/addon.node:payload',
     'nul\0byte',
   ])('rejects unsafe manifest path %p before signing', (path) => {
     const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })

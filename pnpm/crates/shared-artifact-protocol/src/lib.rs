@@ -338,6 +338,7 @@ pub fn validate_manifest_path(path: &str) -> Result<(), ArtifactProtocolError> {
         segment.is_empty()
             || segment == "."
             || segment == ".."
+            || segment.contains(':')
             || segment.ends_with('.')
             || segment.ends_with(' ')
     }) {

@@ -413,6 +413,7 @@ function validateManifestPath (path: string): void {
     segment === '' ||
     segment === '.' ||
     segment === '..' ||
+    segment.includes(':') ||
     segment.endsWith('.') ||
     segment.endsWith(' ')
   )) {
