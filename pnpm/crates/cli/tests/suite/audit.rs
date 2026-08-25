@@ -1190,7 +1190,7 @@ fn audit_fix_ignore_prune_sanitizes_the_removed_ids_in_output() {
     write_audit_workspace(
         &workspace,
         &registry.url(),
-        "audit:\n  ignorePrune: true\nauditConfig:\n  ignoreGhsas:\n    - GHSA-test-1111-2222\n    - \"GHSA-test-9999-9999\\e[31mred\"\n",
+        "audit:\n  ignorePrune: true\nauditConfig:\n  ignoreGhsas:\n    - GHSA-test-1111-2222\n    - \"GHSA-test-9999-9999\\e[31m\"\n",
     );
 
     let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
@@ -1198,7 +1198,7 @@ fn audit_fix_ignore_prune_sanitizes_the_removed_ids_in_output() {
     assert_success(&output);
     let out = stdout(&output);
     assert!(
-        out.contains("Removed 1 unused ignored GHSA: GHSA-test-9999-9999[31mred"),
+        out.contains("Removed 1 unused ignored GHSA: GHSA-test-9999-9999[31m"),
         "stdout should report the removed GHSA with its control characters stripped:\n{out}",
     );
     assert!(!out.contains('\u{1b}'), "stdout must not carry the escape character:\n{out}");

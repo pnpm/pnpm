@@ -515,7 +515,7 @@ test('audit.ignorePrune sanitizes the removed ids in the log message', async () 
     auditConfig: {
       ignoreGhsas: [
         'GHSA-42xw-2xvc-qx8m',
-        'GHSA-xxxx-xxxx-xxxx\u001b[31mred',
+        'GHSA-xxxx-xxxx-xxxx\u001b[31m',
       ],
     },
     auditIgnorePrune: true,
@@ -525,7 +525,7 @@ test('audit.ignorePrune sanitizes the removed ids in the log message', async () 
   })
 
   expect(exitCode).toBe(0)
-  expect(collectedInfos).toContain('Removed 1 unused ignored GHSA: GHSA-xxxx-xxxx-xxxx[31mred')
+  expect(collectedInfos).toContain('Removed 1 unused ignored GHSA: GHSA-xxxx-xxxx-xxxx[31m')
   expect(collectedInfos.every((message) => !message.includes('\u001b'))).toBe(true)
 })
 
