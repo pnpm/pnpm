@@ -1,4 +1,5 @@
 mod workspace_resolution;
+mod workspace_sort;
 
 use std::{fs, hint::black_box, path::Path, time::Duration};
 
@@ -245,6 +246,7 @@ pub fn main() -> Result<(), String> {
     bench_packument(&mut criterion, &packument);
     bench_lockfile(&mut criterion, &lockfile_dir);
     workspace_resolution::bench_workspace_resolution(&mut criterion);
+    workspace_sort::bench_workspace_sort(&mut criterion);
 
     Ok(())
 }
