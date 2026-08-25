@@ -16,18 +16,18 @@ export type PackageManagerBootstrapConfig = PackageManagerNetworkConfig & {
  * and global .npmrc), defaulting to the public npm registry — repository
  * config must not steer where pnpm fetches the binary it is about to execute.
  */
-export function getPackageManagerRegistries (config: PackageManagerConfig): Registries {
-  return {
-    default: DEFAULT_PACKAGE_MANAGER_REGISTRY,
-    ...config.packageManagerRegistries,
-  }
-}
-
 export function getPackageManagerBootstrapConfig (config: PackageManagerConfig): PackageManagerBootstrapConfig {
   return {
     rawConfig: {},
     sslConfigs: {},
     ...config.packageManagerNetworkConfig,
     registries: getPackageManagerRegistries(config),
+  }
+}
+
+export function getPackageManagerRegistries (config: PackageManagerConfig): Registries {
+  return {
+    default: DEFAULT_PACKAGE_MANAGER_REGISTRY,
+    ...config.packageManagerRegistries,
   }
 }
