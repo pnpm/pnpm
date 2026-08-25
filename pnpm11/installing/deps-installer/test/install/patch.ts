@@ -4,13 +4,14 @@ import path from 'node:path'
 import { afterAll, expect, jest, test } from '@jest/globals'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
-import { install } from '@pnpm/installing.deps-installer'
+import { install, type MutatedProject, mutateModules } from '@pnpm/installing.deps-installer'
 import type { LockfileFile } from '@pnpm/lockfile.types'
-import { prepareEmpty } from '@pnpm/prepare'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { getIntegrity } from '@pnpm/testing.registry-mock'
+import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { readYamlFileSync } from 'read-yaml-file'
 
@@ -266,6 +267,122 @@ test('patch package throws an exception if not all patches are applied', async (
       },
     }, opts)
   ).rejects.toThrow('The following patches were not used: is-negative@1.0.0')
+})
+
+test('patch package throws an exception for an unused patch during an incremental install', async () => {
+  prepareEmpty()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const manifest = {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  const opts = testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await install(manifest, opts)
+
+  await expect(install(manifest, {
+    ...opts,
+    patchedDependencies: {
+      'is-negative@1.0.0': patchPath,
+    },
+  })).rejects.toThrow('The following patches were not used: is-negative@1.0.0')
+})
+
+test('an incremental install recognizes a patch in an untouched locked subtree', async () => {
+  const project = prepareEmpty()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const opts = testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies: {
+      'is-positive@1.0.0': patchPath,
+    },
+    overrides: {
+      'is-positive': '1.0.0',
+    },
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await install({
+    dependencies: {
+      'is-not-positive': '1.0.0',
+    },
+  }, opts)
+
+  await install({
+    dependencies: {
+      'is-negative': '1.0.0',
+      'is-not-positive': '1.0.0',
+    },
+  }, opts)
+
+  const patchFileHash = await createHexHashFromFile(patchPath)
+  expect(project.readLockfile().snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
+})
+
+test('an incremental workspace install recognizes a patch used by an unchanged non-root importer', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+  }
+  const projects = preparePackages([
+    { location: 'project-1', package: project1Manifest },
+    { location: 'project-2', package: project2Manifest },
+  ])
+  const project1Root = path.resolve('project-1') as ProjectRootDir
+  const project2Root = path.resolve('project-2') as ProjectRootDir
+  const importers: MutatedProject[] = [
+    { mutation: 'install', rootDir: project1Root },
+    { mutation: 'install', rootDir: project2Root },
+  ]
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchedDependencies = {
+    'is-positive@1.0.0': patchPath,
+  }
+  const opts = testDefaults({
+    allProjects: [
+      { buildIndex: 0, manifest: project1Manifest, rootDir: project1Root },
+      { buildIndex: 0, manifest: project2Manifest, rootDir: project2Root },
+    ],
+    patchedDependencies,
+  })
+  await mutateModules(importers, opts)
+
+  const updatedProject2Manifest = {
+    ...project2Manifest,
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  projects['project-2'].writePackageJson(updatedProject2Manifest)
+  const requestedPackages: string[] = []
+  const requestPackage = opts.storeController.requestPackage
+  opts.storeController.requestPackage = async (wantedDependency, requestOptions) => {
+    requestedPackages.push(wantedDependency.alias!)
+    return requestPackage(wantedDependency, requestOptions)
+  }
+  await mutateModules(importers, {
+    ...opts,
+    allProjects: [
+      { buildIndex: 0, manifest: project1Manifest, rootDir: project1Root },
+      { buildIndex: 0, manifest: updatedProject2Manifest, rootDir: project2Root },
+    ],
+  })
+
+  expect(requestedPackages).toContain('@pnpm.e2e/pkg-with-1-dep')
+  const patchFileHash = await createHexHashFromFile(patchPath)
+  const lockfile = readYamlFileSync<LockfileFile>(WANTED_LOCKFILE)
+  expect(lockfile.snapshots?.[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 })
 
 test('the patched package is updated if the patch is modified', async () => {

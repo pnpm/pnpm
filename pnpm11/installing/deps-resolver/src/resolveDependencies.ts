@@ -157,7 +157,6 @@ export interface ResolutionContext extends RegistryContext {
   autoInstallPeersFromHighestMatch: boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allPreferredVersions?: PreferredVersions
-  appliedPatches: Set<string>
   updatedSet: Set<string>
   catalogResolver: CatalogResolver
   defaultTag: string
@@ -2104,7 +2103,6 @@ async function resolveDependency (
     let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
     const patch = getPatchInfo(ctx.patchedDependencies, pkg.name, pkg.version)
     if (patch) {
-      ctx.appliedPatches.add(patch.key)
       pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patch.hash})` as PkgIdWithPatchHash
     }
 
