@@ -813,6 +813,11 @@ fn integrity_addressed_tarball_url_is_relative_to_the_declared_registry() {
         &integrity(REVISION_SHA512),
         registry,
     ));
+    assert!(!is_integrity_addressed_registry_tarball_url(
+        "https://registry.example.test/npm/private/foo/-/foo-1.0.0.tgz",
+        &integrity(REVISION_SHA512),
+        registry,
+    ));
 }
 
 #[test]

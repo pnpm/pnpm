@@ -642,6 +642,9 @@ pub fn is_integrity_addressed_registry_tarball_url(
     integrity: &Integrity,
     registry: &str,
 ) -> bool {
+    if !tarball.contains("/-/tarballs/sha512/") {
+        return false;
+    }
     let Some(expected) = integrity_addressed_registry_tarball_url(integrity, registry) else {
         return false;
     };
