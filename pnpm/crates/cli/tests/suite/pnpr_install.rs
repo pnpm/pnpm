@@ -783,6 +783,7 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
         .to_string(),
     )
     .expect("add workspace root dependency");
+    let root_manifest = fs::read(workspace.join("package.json")).expect("read root manifest");
     replace_workspace_dependency(&workspace, "selected", (WORKSPACE_HELLO, "1.0.0"));
     replace_workspace_dependency(&workspace, "unselected", (WORKSPACE_HELLO_PARENT, "1.0.0"));
     let unselected_manifest =
@@ -813,6 +814,10 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
     assert!(workspace_snapshot_entries(&after, WORKSPACE_HELLO_PARENT).is_empty());
     assert_eq!(workspace_importer_version(&after, "packages/selected", WORKSPACE_HELLO), "1.0.0");
     assert_eq!(workspace_importer_version(&after, ".", WORKSPACE_ROOT_DEP), "1.0.0");
+    assert_eq!(
+        fs::read(workspace.join("package.json")).expect("read root manifest"),
+        root_manifest,
+    );
 
     if lockfile_only {
         assert!(!workspace.join("node_modules").exists());
