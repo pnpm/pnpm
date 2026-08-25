@@ -555,8 +555,9 @@ where
 /// Set `dir`'s `pnpm-workspace.yaml` audit ignore list to `ghsas` (the
 /// complete desired list), targeting whichever spelling the manifest uses —
 /// the canonical `audit.ignore` wins over the deprecated
-/// `auditConfig.ignoreGhsas` (see [`edit::set_audit_ignore_ghsas`]) — and
-/// creating the file plus an `auditConfig:` block when neither is present.
+/// `auditConfig.ignoreGhsas`, matching the reader's precedence, and the
+/// shadowed deprecated list is removed when both are present — creating the
+/// file plus an `auditConfig:` block when neither is present.
 /// Preserves the rest of the document's formatting and writes the file back
 /// only when something actually changed. Used by `pnpm audit --ignore` /
 /// `--ignore-unfixable` and the `audit.ignorePrune` cleanup to persist
