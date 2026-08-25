@@ -9780,6 +9780,9 @@ importers:
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader
+      '@pnpm/engine.pm.commands':
+        specifier: workspace:*
+        version: link:../../engine/pm/commands
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
@@ -9801,6 +9804,9 @@ importers:
       render-help:
         specifier: 'catalog:'
         version: 2.0.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.5
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -9817,6 +9823,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.32.0
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.8.0
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
@@ -15527,7 +15536,7 @@ packages:
             archive: tarball
             bin:
               node: bin/node
-            integrity: sha256-5lBWCrHs7A61hFtDuH1gJMh7ThQ8PgRMu2B8wTXbqts=
+            integrity: sha256-HxbMD2/ryxvtHUVQMGgG28+69cG8L0Tzxci10ipMwno=
             type: binary
             url: https://unofficial-builds.nodejs.org/download/release/v26.7.0/node-v26.7.0-linux-arm64-musl.tar.gz
           targets:
@@ -15538,7 +15547,7 @@ packages:
             archive: tarball
             bin:
               node: bin/node
-            integrity: sha256-hPxOKeX4YCKkC6xQooobknXdHzLuu/TbSZ4lc/+CISQ=
+            integrity: sha256-XcAYDnaE7eb8nZ5jM9pFaG9LWnggcp0zxoM1soMzcpU=
             type: binary
             url: https://unofficial-builds.nodejs.org/download/release/v26.7.0/node-v26.7.0-linux-x64-musl.tar.gz
           targets:
@@ -21301,6 +21310,7 @@ snapshots:
       es-object-atoms: 1.1.2
       es-set-tostringtag: 2.1.0
       es-to-primitive: 1.3.4
+      for-each: 0.3.5
       function.prototype.name: 1.2.0
       get-intrinsic: 1.3.0
       get-proto: 1.0.1
