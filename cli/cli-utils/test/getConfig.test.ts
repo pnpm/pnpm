@@ -82,3 +82,38 @@ test('allowBuilds does not add duplicates', async () => {
   expect(config.onlyBuiltDependencies).toEqual(['already-allowed'])
   expect(config.ignoredBuiltDependencies).toEqual(['already-blocked'])
 })
+
+test('self-update does not load the default project pnpmfile', async () => {
+  prepare()
+
+  fs.writeFileSync('.pnpmfile.cjs', `
+    require('fs').writeFileSync('pnpmfile-was-loaded', '')
+    module.exports = { hooks: {} }
+  `)
+
+  await getConfig({}, {
+    workspaceDir: process.cwd(),
+    excludeReporter: false,
+    rcOptionsTypes: {},
+    forSelfUpdate: true,
+  })
+
+  expect(fs.existsSync('pnpmfile-was-loaded')).toBe(false)
+})
+
+test('the default project pnpmfile is loaded for other commands', async () => {
+  prepare()
+
+  fs.writeFileSync('.pnpmfile.cjs', `
+    require('fs').writeFileSync('pnpmfile-was-loaded', '')
+    module.exports = { hooks: {} }
+  `)
+
+  await getConfig({}, {
+    workspaceDir: process.cwd(),
+    excludeReporter: false,
+    rcOptionsTypes: {},
+  })
+
+  expect(fs.existsSync('pnpmfile-was-loaded')).toBe(true)
+})

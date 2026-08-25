@@ -2,7 +2,7 @@ import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { packageManager, isExecutedByCorepack, standaloneInstallCommand } from '@pnpm/cli-meta'
 import { createResolver } from '@pnpm/client'
-import { type Config, types as allTypes } from '@pnpm/config'
+import { type Config, getPackageManagerBootstrapConfig, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
@@ -54,26 +54,35 @@ export type SelfUpdateCommandOptions = Pick<Config,
 | 'lockfileDir'
 | 'managePackageManagerVersions'
 | 'modulesDir'
+| 'packageManagerNetworkConfig'
+| 'packageManagerRegistries'
 | 'pnpmHomeDir'
 | 'rawConfig'
 | 'registries'
 | 'rootProjectManifestDir'
 | 'wantedPackageManager'
-> & {
-  /** See {@link VerifyPnpmEngineIdentityOptions.trustedKeys} — a test seam. */
-  trustedKeys?: VerifyPnpmEngineIdentityOptions['trustedKeys']
+>
+
+interface SelfUpdateHandlerTestOptions {
+  trustedKeys: VerifyPnpmEngineIdentityOptions['trustedKeys']
 }
 
 export async function handler (
   opts: SelfUpdateCommandOptions,
-  params: string[]
+  params: string[],
+  testOptions?: SelfUpdateHandlerTestOptions
 ): Promise<undefined | string> {
   if (isExecutedByCorepack()) {
     throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'pnpm cannot update itself when it is executed by Corepack', {
       hint: `Install pnpm with the standalone script instead: ${standaloneInstallCommand()}`,
     })
   }
-  const { resolve } = createResolver({ ...opts, authConfig: opts.rawConfig })
+  const bootstrapConfig = getPackageManagerBootstrapConfig(opts)
+  const { resolve } = createResolver({
+    ...opts,
+    ...bootstrapConfig,
+    authConfig: bootstrapConfig.rawConfig,
+  })
   const pkgName = 'pnpm'
   // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we
   // refuse to downgrade in that case — `latest` on the registry can lag the
@@ -136,7 +145,10 @@ export async function handler (
     return `The currently active ${packageManager.name} v${packageManager.version} is newer than the "latest" version on the registry (v${resolution.manifest.version}). No update performed. Run "pnpm self-update latest" to downgrade.`
   }
 
-  const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, opts)
+  const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, {
+    ...opts,
+    ...bootstrapConfig,
+  }, testOptions?.trustedKeys)
   await linkBins(path.join(baseDir, 'node_modules'), opts.pnpmHomeDir,
     {
       warn: globalWarn,

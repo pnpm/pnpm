@@ -61,9 +61,6 @@ function prepareOptions (dir: string) {
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     dir,
     managePackageManagerVersions: false,
-    // The fixture pnpm installed here is not signed with npm's real keys, so
-    // skip the engine identity signature check (empty trusted-keys = skip).
-    trustedKeys: [],
   }
 }
 
@@ -97,7 +94,7 @@ test('self-update', async () => {
     .get('/pnpm/-/pnpm-9.1.0.tgz')
     .replyWithFile(200, pnpmTarballPath)
 
-  await selfUpdate.handler(opts, [])
+  await selfUpdate.handler(opts, [], { trustedKeys: [] })
 
   const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(opts.pnpmHomeDir, '.tools/pnpm/9.1.0/node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')
@@ -113,6 +110,49 @@ test('self-update', async () => {
   expect(stdout.toString().trim()).toBe('9.1.0')
 })
 
+test('project config cannot redirect the download', async () => {
+  const opts = prepare()
+  const trustedRegistry = 'https://trusted.example.test/'
+  const projectRegistry = 'https://project.example.test/'
+  nock(trustedRegistry)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.0.0', trustedRegistry))
+  const projectRegistryMock = nock(projectRegistry)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.1.0', projectRegistry))
+
+  const projectConfig = {
+    ...opts,
+    packageManagerNetworkConfig: { rawConfig: {}, sslConfigs: {} },
+    packageManagerRegistries: { default: trustedRegistry },
+    rawConfig: { registry: projectRegistry },
+    registries: { default: projectRegistry },
+  }
+
+  await expect(selfUpdate.handler(projectConfig, [])).resolves.toBe('The currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
+  expect(projectRegistryMock.isDone()).toBe(false)
+})
+
+test('project config cannot disable identity verification', async () => {
+  const opts = prepare()
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .twice()
+    .reply(200, createMetadata('9.1.0', opts.registries.default))
+  nock(opts.registries.default)
+    .get('/pnpm/-/pnpm-9.1.0.tgz')
+    .replyWithFile(200, pnpmTarballPath)
+
+  const projectConfig = {
+    ...opts,
+    trustedKeys: [],
+  } as selfUpdate.SelfUpdateCommandOptions & { trustedKeys: never[] }
+
+  await expect(selfUpdate.handler(projectConfig, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_PNPM_ENGINE_IDENTITY_MISMATCH',
+  })
+})
+
 test('self-update by exact version', async () => {
   const opts = prepare()
   nock(opts.registries.default)
@@ -122,7 +162,7 @@ test('self-update by exact version', async () => {
     .get('/pnpm/-/pnpm-9.1.0.tgz')
     .replyWithFile(200, pnpmTarballPath)
 
-  await selfUpdate.handler(opts, ['9.1.0'])
+  await selfUpdate.handler(opts, ['9.1.0'], { trustedKeys: [] })
 
   const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(opts.pnpmHomeDir, '.tools/pnpm/9.1.0/node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')

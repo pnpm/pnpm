@@ -17,6 +17,7 @@ export async function getConfig (
     workspaceDir: string | undefined
     checkUnknownSetting?: boolean
     ignoreNonAuthSettingsFromLocal?: boolean
+    forSelfUpdate?: boolean
   }
 ): Promise<Config> {
   let { config, warnings } = await _getConfig({
@@ -38,7 +39,7 @@ export async function getConfig (
     })
   }
   if (!config.ignorePnpmfile) {
-    config.tryLoadDefaultPnpmfile = config.pnpmfile == null
+    config.tryLoadDefaultPnpmfile = config.pnpmfile == null && !opts.forSelfUpdate
     const pnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
     if (config.configDependencies) {
       const configModulesDir = path.join(config.lockfileDir ?? config.rootProjectManifestDir, 'node_modules/.pnpm-config')

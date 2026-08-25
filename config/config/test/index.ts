@@ -3,8 +3,8 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import PATH from 'path-name'
+import { getConfig, getPackageManagerBootstrapConfig } from '@pnpm/config'
 import { getCurrentBranch } from '@pnpm/git-utils'
-import { getConfig } from '@pnpm/config'
 import loadNpmConf from '@pnpm/npm-conf'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -528,6 +528,11 @@ test('packageManagerRegistries is built from trusted config only', async () => {
   expect(config.packageManagerRegistries?.default).toBe('https://user-registry.example.test/')
   expect(config.packageManagerRegistries?.['@scope']).toBeUndefined()
   expect(config.packageManagerNetworkConfig?.rawConfig.registry).toBe('https://user-registry.example.test/')
+
+  const bootstrapConfig = getPackageManagerBootstrapConfig(config)
+  expect(bootstrapConfig.registries.default).toBe('https://user-registry.example.test/')
+  expect(bootstrapConfig.registries['@scope']).toBeUndefined()
+  expect(bootstrapConfig.rawConfig?.registry).toBe('https://user-registry.example.test/')
 })
 
 test('packageManagerRegistries defaults to the public npm registry', async () => {
