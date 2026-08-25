@@ -822,7 +822,9 @@ test('a lifecycle script that reads the manifest above its node_modules does not
   expect(JSON.parse(fs.readFileSync(path.join(slotDir, 'package.json'), 'utf8'))).toStrictEqual({ private: true })
 
   // What the script read is the slot, and it declares nothing about the
-  // project that installed the package.
+  // project that installed the package. Both sides are resolved before they
+  // are compared: the script derives its path from `process.cwd()`, which is
+  // `getcwd()` and therefore physical, while the test's own path need not be.
   const readFrom = path.join(slotDir, 'node_modules/@pnpm.e2e/reads-consumer-manifest/read-consumer-manifest-from.txt')
-  expect(fs.readFileSync(readFrom, 'utf8')).toBe(slotDir)
+  expect(fs.realpathSync(fs.readFileSync(readFrom, 'utf8'))).toBe(fs.realpathSync(slotDir))
 })

@@ -1548,12 +1548,16 @@ fn a_lifecycle_script_may_read_the_manifest_above_its_node_modules() {
     );
 
     // What the script read is the slot, and it declares nothing about the
-    // project that installed the package.
+    // project that installed the package. Both sides are resolved before they
+    // are compared: the script derives its path from `process.cwd()`, which is
+    // `getcwd()` and therefore physical, while the harness's temp dir reaches
+    // it through a symlink on macOS.
     let read_from = pkg_in_slot(&slot_dir, "@pnpm.e2e/reads-consumer-manifest")
         .join("read-consumer-manifest-from.txt");
+    let recorded = fs::read_to_string(&read_from).expect("read what the script recorded");
     assert_eq!(
-        fs::read_to_string(&read_from).expect("read what the script recorded"),
-        slot_dir.to_string_lossy(),
+        fs::canonicalize(&recorded).expect("resolve the path the script recorded"),
+        fs::canonicalize(&slot_dir).expect("resolve the slot"),
     );
 
     drop((root, mock_instance));
