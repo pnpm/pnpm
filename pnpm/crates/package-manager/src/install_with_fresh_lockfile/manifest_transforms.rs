@@ -10,7 +10,9 @@ use super::{
     InstallWithFreshLockfileError, compose_manifest_hooks, parse_config_overrides,
     resolved_overrides_map,
 };
-use crate::{VersionsOverrider, apply_deploy_manifest_hook};
+use crate::{
+    VersionsOverrider, apply_deploy_manifest_hook, install::apply_deploy_manifest_hook_to_arc,
+};
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
@@ -106,13 +108,8 @@ pub(super) fn build_manifest_transforms(
         let overrider = Arc::clone(overrider);
         Arc::new(move |manifest| overrider.apply_to_arc(manifest, None)) as ManifestHook
     });
-    let deploy_manifest_hook: Option<ManifestHook> = deploy_manifest_hook.then(|| {
-        Arc::new(|manifest: Arc<serde_json::Value>| {
-            let mut manifest = (*manifest).clone();
-            apply_deploy_manifest_hook(&mut manifest);
-            Arc::new(manifest)
-        }) as ManifestHook
-    });
+    let deploy_manifest_hook: Option<ManifestHook> =
+        deploy_manifest_hook.then(|| Arc::new(apply_deploy_manifest_hook_to_arc) as ManifestHook);
     let override_bare_specifier: Option<Arc<DependencyOverrider>> =
         active_overrider.map(|overrider| {
             let overrider = Arc::clone(overrider);

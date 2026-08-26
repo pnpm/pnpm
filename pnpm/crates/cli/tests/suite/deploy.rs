@@ -721,10 +721,18 @@ fn legacy_deploy_injects_transitive_workspace_dependencies() {
         deploy_dir.join("node_modules/.pnpm").join(lib_entry).join("node_modules/leaf");
     let deployed_leaf =
         deploy_dir.join("node_modules/.pnpm").join(leaf_entry).join("node_modules/leaf");
-    assert_eq!(
-        fs::canonicalize(nested_leaf).expect("resolve lib's leaf dependency"),
-        fs::canonicalize(deployed_leaf).expect("resolve the deployed leaf package"),
-    );
+    let deploy_dir = fs::canonicalize(deploy_dir).expect("resolve the deploy directory");
+    let deployed_lib = fs::canonicalize(deploy_dir.join("node_modules/lib"))
+        .expect("resolve the deployed lib package");
+    let nested_leaf = fs::canonicalize(nested_leaf).expect("resolve lib's leaf dependency");
+    let deployed_leaf = fs::canonicalize(deployed_leaf).expect("resolve the deployed leaf package");
+    for deployed_package in [&deployed_lib, &nested_leaf, &deployed_leaf] {
+        assert!(
+            deployed_package.starts_with(&deploy_dir),
+            "{deployed_package:?} should resolve inside {deploy_dir:?}",
+        );
+    }
+    assert_eq!(nested_leaf, deployed_leaf);
 
     drop((root, mock_instance));
 }

@@ -1103,17 +1103,35 @@ where
 }
 
 pub fn apply_deploy_manifest_hook(manifest: &mut serde_json::Value) {
-    let names = ["optionalDependencies", "dependencies", "devDependencies"]
+    let names = deploy_workspace_dependency_names(manifest).map(str::to_owned).collect::<Vec<_>>();
+    inject_deploy_dependencies_meta(manifest, names);
+}
+
+pub(crate) fn apply_deploy_manifest_hook_to_arc(
+    mut manifest: Arc<serde_json::Value>,
+) -> Arc<serde_json::Value> {
+    let names = deploy_workspace_dependency_names(&manifest).map(str::to_owned).collect::<Vec<_>>();
+    if names.is_empty() {
+        return manifest;
+    }
+    inject_deploy_dependencies_meta(Arc::make_mut(&mut manifest), names);
+    manifest
+}
+
+fn deploy_workspace_dependency_names(manifest: &serde_json::Value) -> impl Iterator<Item = &str> {
+    ["optionalDependencies", "dependencies", "devDependencies"]
         .into_iter()
-        .filter_map(|field| manifest.get(field)?.as_object())
+        .filter_map(move |field| manifest.get(field)?.as_object())
         .flat_map(|dependencies| dependencies.iter())
         .filter_map(|(name, specifier)| {
             specifier
                 .as_str()
                 .is_some_and(|specifier| specifier.starts_with("workspace:"))
-                .then_some(name.clone())
+                .then_some(name.as_str())
         })
-        .collect::<Vec<_>>();
+}
+
+fn inject_deploy_dependencies_meta(manifest: &mut serde_json::Value, names: Vec<String>) {
     if names.is_empty() {
         return;
     }
@@ -1123,6 +1141,12 @@ pub fn apply_deploy_manifest_hook(manifest: &mut serde_json::Value) {
         .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
     let Some(meta_object) = dependencies_meta.as_object_mut() else { return };
     for name in names {
-        meta_object.insert(name, serde_json::json!({ "injected": true }));
+        let dependency_meta = meta_object.entry(name).or_insert(serde_json::Value::Null);
+        match dependency_meta {
+            serde_json::Value::Object(object) => {
+                object.insert("injected".to_owned(), serde_json::Value::Bool(true));
+            }
+            value => *value = serde_json::json!({ "injected": true }),
+        }
     }
 }
