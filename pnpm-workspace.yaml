@@ -220,7 +220,7 @@ catalog:
   escape-string-regexp: ^5.0.0
   eslint: ^10.9.1
   eslint-plugin-import-x: ^4.17.1
-  eslint-plugin-jest: ^29.16.1
+  eslint-plugin-jest: ^29.16.2
   eslint-plugin-n: ^18.3.0
   eslint-plugin-promise: ^7.3.0
   eslint-plugin-regexp: ^3.1.1
@@ -345,7 +345,7 @@ catalog:
   strip-comments-strings: 1.2.0
   symlink-dir: ^10.0.1
   tar: ^7.5.22
-  tar-stream: ^3.2.0
+  tar-stream: ^3.2.1
   # tempy >=3.1.0 uses temp-dir 3.x which has an async fs.realpath() in its
   # module init. When esbuild bundles this into its __esm lazy-init pattern,
   # the async operation deadlocks and the pnpm binary hangs on startup.
