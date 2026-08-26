@@ -1,11 +1,14 @@
 use std::collections::BTreeMap;
 
-use pnpm_config::{ResolutionMode, TrustPolicy};
+use indexmap::IndexMap;
+use pnpm_config::{PackageExtension, ResolutionMode, TrustPolicy};
+use pnpm_graph_hasher::hash_object_nullable_with_prefix;
 use pnpm_lockfile::TarballRevision;
-use serde_json::json;
+use serde_json::{Value, json};
 
 use super::{
-    Frame, PnprClient, PnprClientError, ResolveProject, ResolveProjectsOptions, VerifyError,
+    Frame, PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION, PnprClient, PnprClientError,
+    ResolveOutcome, ResolveProject, ResolveProjectsOptions, ResolvedPackage, VerifyError,
     build_verify_error, parse_frame,
 };
 
@@ -16,11 +19,18 @@ use super::{
 /// wire rather than on the options struct.
 #[tokio::test]
 async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
+    let options = resolve_projects_options();
+    let response_lockfile = matching_transform_lockfile(&options);
     let mut server = mockito::Server::new_async().await;
     let resolve_mock = server
         .mock("POST", "/-/pnpr/v0/resolve")
         .match_body(mockito::Matcher::PartialJson(json!({
             "catalogs": { "default": { "acme": "^1.0.0" } },
+            "patchedDependencies": { "acme@1.0.0": "abc123" },
+            "packageExtensions": {
+                "acme@1.0.0": { "dependencies": { "helper": "1.0.0" } }
+            },
+            "allowUnusedPatches": true,
             "autoInstallPeers": false,
             "dedupePeers": true,
             "excludeLinksFromLockfile": false,
@@ -33,16 +43,93 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
             "trustPolicyIgnoreAfter": 43200,
             "trustLockfile": true,
         })))
-        .with_body("{\"type\":\"done\",\"lockfile\":{\"lockfileVersion\":\"9.0\"}}\n")
+        .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
+        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile })))
         .create_async()
         .await;
 
     let _outcome = PnprClient::new(server.url())
-        .resolve_projects(resolve_projects_options())
+        .resolve_projects(options)
         .await
         .expect("the resolve succeeds");
 
     resolve_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn rejects_a_server_that_omits_or_changes_patch_metadata() {
+    let options = resolve_projects_options();
+    let extensions_checksum = package_extensions_checksum(&options);
+    for patched_dependencies in [None, Some(json!({ "acme@1.0.0": "different-hash" }))] {
+        let mut lockfile = json!({
+            "lockfileVersion": "9.0",
+            "packageExtensionsChecksum": extensions_checksum,
+        });
+        if let Some(patched_dependencies) = patched_dependencies {
+            lockfile["patchedDependencies"] = patched_dependencies;
+        }
+        assert_transform_metadata_rejected(
+            resolve_projects_options(),
+            lockfile,
+            "returned patchedDependencies that do not match the request",
+        )
+        .await;
+    }
+}
+
+#[tokio::test]
+async fn rejects_a_server_that_omits_or_changes_package_extension_metadata() {
+    for package_extensions_checksum in [None, Some("sha256-different-checksum")] {
+        let mut lockfile = json!({
+            "lockfileVersion": "9.0",
+            "patchedDependencies": { "acme@1.0.0": "abc123" },
+        });
+        if let Some(package_extensions_checksum) = package_extensions_checksum {
+            lockfile["packageExtensionsChecksum"] = json!(package_extensions_checksum);
+        }
+        assert_transform_metadata_rejected(
+            resolve_projects_options(),
+            lockfile,
+            "returned packageExtensionsChecksum that does not match the request",
+        )
+        .await;
+    }
+}
+
+#[tokio::test]
+async fn rejects_an_old_server_before_consuming_package_frames() {
+    let frames = vec![
+        mock_package_frame(),
+        json!({
+            "type": "done",
+            "lockfile": { "lockfileVersion": "9.0" },
+        }),
+    ];
+    let mut prefetched = Vec::new();
+    let result = resolve_mock_frames(resolve_projects_options(), frames, false, |package| {
+        prefetched.push(package.id);
+    })
+    .await;
+
+    let Err(PnprClientError::Protocol(message)) = result else {
+        panic!("expected a protocol error");
+    };
+    assert!(message.contains("does not advertise project-transform support"));
+    assert!(prefetched.is_empty(), "an old server must not trigger prefetches");
+}
+
+#[tokio::test]
+async fn a_project_transform_header_preserves_streaming_prefetch() {
+    let frames =
+        vec![mock_package_frame(), json!({ "type": "error", "message": "resolution stopped" })];
+    let mut prefetched = Vec::new();
+    let result = resolve_mock_frames(resolve_projects_options(), frames, true, |package| {
+        prefetched.push(package.id);
+    })
+    .await;
+
+    assert!(matches!(result, Err(PnprClientError::Server(_))));
+    assert_eq!(prefetched, ["acme@1.0.0"]);
 }
 
 fn resolve_projects_options() -> ResolveProjectsOptions {
@@ -59,6 +146,18 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
         registries: BTreeMap::new(),
         authorization: None,
         overrides: None,
+        patched_dependencies: Some(IndexMap::from([(
+            "acme@1.0.0".to_string(),
+            "abc123".to_string(),
+        )])),
+        package_extensions: Some(IndexMap::from([(
+            "acme@1.0.0".to_string(),
+            PackageExtension {
+                dependencies: Some(BTreeMap::from([("helper".to_string(), "1.0.0".to_string())])),
+                ..PackageExtension::default()
+            },
+        )])),
+        allow_unused_patches: true,
         catalogs: Some(BTreeMap::from([(
             "default".to_string(),
             BTreeMap::from([("acme".to_string(), "^1.0.0".to_string())]),
@@ -79,6 +178,73 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
         trust_policy_exclude: Some(vec!["legacy-pkg".to_string()]),
         trust_policy_ignore_after: Some(43200),
     }
+}
+
+fn matching_transform_lockfile(options: &ResolveProjectsOptions) -> Value {
+    json!({
+        "lockfileVersion": "9.0",
+        "patchedDependencies": options.patched_dependencies,
+        "packageExtensionsChecksum": package_extensions_checksum(options),
+    })
+}
+
+fn package_extensions_checksum(options: &ResolveProjectsOptions) -> String {
+    let package_extensions = serde_json::to_value(
+        options.package_extensions.as_ref().expect("package extensions are configured"),
+    )
+    .expect("package extensions serialize");
+    hash_object_nullable_with_prefix(&package_extensions)
+        .expect("configured package extensions have a checksum")
+}
+
+async fn assert_transform_metadata_rejected(
+    options: ResolveProjectsOptions,
+    lockfile: Value,
+    expected_message: &str,
+) {
+    let Err(PnprClientError::Protocol(message)) = resolve_mock_frames(
+        options,
+        vec![json!({ "type": "done", "lockfile": lockfile })],
+        true,
+        |_| {},
+    )
+    .await
+    else {
+        panic!("expected a protocol error");
+    };
+    assert!(message.contains(expected_message), "got {message}");
+}
+
+async fn resolve_mock_frames(
+    options: ResolveProjectsOptions,
+    frames: Vec<Value>,
+    supports_project_transforms: bool,
+    on_package: impl FnMut(ResolvedPackage),
+) -> Result<ResolveOutcome, PnprClientError> {
+    let body = frames.into_iter().map(|frame| format!("{frame}\n")).collect::<Vec<_>>().concat();
+    let mut server = mockito::Server::new_async().await;
+    let mut resolve_mock = server.mock("POST", "/-/pnpr/v0/resolve").with_body(body);
+    if supports_project_transforms {
+        resolve_mock =
+            resolve_mock.with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION);
+    }
+    let resolve_mock = resolve_mock.create_async().await;
+
+    let result =
+        PnprClient::new(server.url()).resolve_projects_streaming(options, on_package).await;
+    resolve_mock.assert_async().await;
+    result
+}
+
+fn mock_package_frame() -> Value {
+    json!({
+        "type": "package",
+        "id": "acme@1.0.0",
+        "name": "acme",
+        "version": "1.0.0",
+        "integrity": "sha512-abc",
+        "tarball": "https://r.test/acme/-/acme-1.0.0.tgz",
+    })
 }
 
 #[test]

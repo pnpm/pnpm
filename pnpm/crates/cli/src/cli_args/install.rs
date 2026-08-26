@@ -916,6 +916,8 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         .map(serde_json::to_value)
         .transpose()
         .map_err(|err| miette::miette!("failed to serialize overrides: {err}"))?;
+    let patched_dependencies =
+        state.config.patched_dependency_hashes_in_config_order().map_err(miette::Report::new)?;
     let benchmark_registry_override =
         PnprBenchmarkRegistryOverride::from_env(&state.config.registry);
     let resolve_registry = benchmark_registry_override.as_ref().map_or_else(
@@ -1152,6 +1154,9 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         // route policy, so they stay out of the request body.
         authorization: state.config.auth_headers.for_url(pnpr_server),
         overrides,
+        patched_dependencies,
+        package_extensions: state.config.package_extensions.clone(),
+        allow_unused_patches: state.config.allow_unused_patches,
         catalogs,
         auto_install_peers: Some(state.config.auto_install_peers),
         dedupe_peers: Some(state.config.dedupe_peers),

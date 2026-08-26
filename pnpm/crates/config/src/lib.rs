@@ -28,8 +28,8 @@ use pipe_trait::Pipe;
 use pnpm_git_utils::{Host as GitHost, get_current_branch};
 use pnpm_lockfile::{Lockfile, RegistryOptions, WantedLockfileSelection};
 use pnpm_patching::{
-    CalcPatchHashError, PatchGroupRecord, ResolvePatchedDependenciesError, calc_patch_hashes,
-    resolve_and_group,
+    CalcPatchHashError, PatchGroupRecord, PatchInput, ResolvePatchedDependenciesError,
+    create_hex_hash_from_file, group_patched_dependencies, resolve_and_group,
 };
 use pnpm_store_dir::StoreDir;
 use pnpm_workspace_state::ConfigDependency;
@@ -1792,6 +1792,12 @@ pub struct Config {
     /// only.
     pub patched_dependencies: Option<IndexMap<String, String>>,
 
+    /// Precomputed `patchedDependencies` hashes supplied by a remote
+    /// resolver. Resolution only needs the hashes to key patched package
+    /// snapshots; the client retains the file paths and applies the patches
+    /// while materializing the returned lockfile.
+    pub patched_dependency_hashes_override: Option<IndexMap<String, String>>,
+
     /// Raw `patchesDir` setting used by `patch-commit` when writing
     /// generated patch files. `None` means the command default
     /// (`patches`) applies.
@@ -3069,6 +3075,12 @@ impl Config {
     pub fn resolved_patched_dependencies(
         &self,
     ) -> Result<Option<PatchGroupRecord>, ResolvePatchedDependenciesError> {
+        if let Some(hashes) = self.patched_dependency_hashes_override.as_ref() {
+            let groups = group_patched_dependencies(hashes.iter().map(|(key, hash)| {
+                (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
+            }))?;
+            return Ok((!groups.is_empty()).then_some(groups));
+        }
         let (Some(workspace_dir), Some(raw)) = (&self.workspace_dir, &self.patched_dependencies)
         else {
             return Ok(None);
@@ -3092,20 +3104,38 @@ impl Config {
     pub fn patched_dependency_hashes(
         &self,
     ) -> Result<Option<BTreeMap<String, String>>, CalcPatchHashError> {
+        Ok(self
+            .patched_dependency_hashes_in_config_order()?
+            .map(|hashes| hashes.into_iter().collect()))
+    }
+
+    /// Return patch hashes in configured selector order.
+    ///
+    /// Precomputed overrides avoid file reads. Without an override, each
+    /// configured patch file is hashed and any I/O or hashing error is
+    /// propagated. Returns `None` when no non-empty patch configuration is
+    /// available.
+    pub fn patched_dependency_hashes_in_config_order(
+        &self,
+    ) -> Result<Option<IndexMap<String, String>>, CalcPatchHashError> {
+        if let Some(hashes) = self.patched_dependency_hashes_override.as_ref() {
+            return Ok((!hashes.is_empty()).then(|| hashes.clone()));
+        }
         let (Some(workspace_dir), Some(raw)) = (&self.workspace_dir, &self.patched_dependencies)
         else {
             return Ok(None);
         };
-        let resolved = raw.iter().map(|(key, rel_or_abs)| {
+        let mut hashes = IndexMap::with_capacity(raw.len());
+        for (key, rel_or_abs) in raw {
             let candidate = Path::new(rel_or_abs);
             let path = if candidate.is_absolute() {
                 candidate.to_path_buf()
             } else {
                 workspace_dir.join(candidate)
             };
-            (key.clone(), path)
-        });
-        Ok(Some(calc_patch_hashes(resolved)?))
+            hashes.insert(key.clone(), create_hex_hash_from_file(&path)?);
+        }
+        Ok((!hashes.is_empty()).then_some(hashes))
     }
 
     /// Load the merged configuration for a CLI run.

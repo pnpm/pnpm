@@ -28,6 +28,10 @@ use std::{
     time::Duration,
 };
 
+const IS_POSITIVE_PATCH: &str = include_str!(
+    "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch"
+);
+
 /// Start an in-process pnpr with the fast-path endpoints on a detached
 /// thread, allowlisting `registry_url` as a public route so the client may
 /// resolve against it (off-allowlist registries are rejected at the request
@@ -354,6 +358,82 @@ fn install_via_pnpr_links_node_modules() {
     // The client store was populated by the frozen install fetching tarballs
     // directly from the registry after pnpr returned the lockfile.
     assert!(store_dir.join("v11/index.db").exists(), "client store index should exist");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn patched_dependencies_resolve_via_pnpr() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(workspace.join("patches/is-positive@1.0.0.patch"), IS_POSITIVE_PATCH)
+        .expect("write patch file");
+    crate::_utils::append_workspace_yaml_key(
+        &workspace,
+        "patchedDependencies",
+        "{ 'is-positive@1.0.0': patches/is-positive@1.0.0.patch }",
+    );
+
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+
+    let installed = fs::read_to_string(workspace.join("node_modules/is-positive/index.js"))
+        .expect("read installed package");
+    eprintln!("INSTALLED SOURCE:\n{installed}\n");
+    assert!(installed.contains("// patched"));
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    eprintln!("LOCKFILE:\n{lockfile}\n");
+    assert!(lockfile.contains("patchedDependencies:"));
+    assert!(lockfile.contains("patch_hash="));
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn package_extensions_resolve_via_pnpr() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    crate::_utils::append_workspace_yaml_key(
+        &workspace,
+        "packageExtensions",
+        "{ 'is-positive@1.0.0': { dependencies: { is-negative: 1.0.0 } } }",
+    );
+
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    eprintln!("LOCKFILE:\n{lockfile}\n");
+    assert!(lockfile.contains("packageExtensionsChecksum:"));
+    assert!(lockfile.contains("is-negative: 1.0.0"));
+    assert!(
+        workspace.join("node_modules/.pnpm/is-positive@1.0.0/node_modules/is-negative").exists(),
+    );
 
     drop((root, mock_instance));
 }

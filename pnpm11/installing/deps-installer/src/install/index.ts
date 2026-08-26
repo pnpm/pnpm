@@ -707,20 +707,7 @@ export async function mutateModules (
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
       : (resolvedPatchedDeps ? await calcPatchHashes(resolvedPatchedDeps) : {})
-    const patchGroupInput = resolvedPatchedDeps
-      ? Object.fromEntries(
-        Object.entries(patchedDependencies ?? {}).map(([key, hash]) => {
-          let patchFilePath: string | undefined = resolvedPatchedDeps[key]
-          if (!patchFilePath) {
-            const lastAt = key.lastIndexOf('@')
-            const pkgName = lastAt > 0 ? key.slice(0, lastAt) : key
-            patchFilePath = resolvedPatchedDeps[pkgName]
-          }
-          return [key, { hash, patchFilePath }]
-        })
-      )
-      : patchedDependencies
-    const patchGroups = patchGroupInput ? groupPatchedDependencies(patchGroupInput) : undefined
+    const patchGroups = groupPatchedDependenciesWithPaths(patchedDependencies, resolvedPatchedDeps)
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     // `uninstallSome` edits the manifests here, ahead of the fast-path
@@ -3077,6 +3064,16 @@ async function installViaPnprServer (
     const existingLockfile = await readWantedLockfileFile(lockfileDir, {
       ignoreIncompatible: true,
     }).catch(() => null)
+    const resolvedPatchedDependencies = resolvePatchedDependencies(opts.patchedDependencies, lockfileDir)
+    const patchedDependencies = opts.ignorePackageManifest
+      ? existingLockfile?.patchedDependencies
+      : resolvedPatchedDependencies == null
+        ? undefined
+        : await calcPatchHashes(resolvedPatchedDependencies)
+    const patchGroups = groupPatchedDependenciesWithPaths(
+      patchedDependencies,
+      resolvedPatchedDependencies
+    )
 
     logger.info({ message: 'Resolving dependencies via the pnpr server', prefix: rootDir })
 
@@ -3107,6 +3104,9 @@ async function installViaPnprServer (
       registries: toRegistryDeclarations(opts),
       authorization: pnprAuthorization,
       overrides: opts.overrides,
+      patchedDependencies,
+      packageExtensions: opts.packageExtensions,
+      allowUnusedPatches: opts.allowUnusedPatches,
       // The reconstructed workspace the server builds from this request has no
       // catalog sections, so forward the catalogs for the server to resolve
       // `catalog:` specifiers in both dependencies and overrides.
@@ -3196,6 +3196,7 @@ async function installViaPnprServer (
       ),
       hoistedDependencies: {},
       pendingBuilds: [] as string[],
+      patchedDependencies: patchGroups,
       skipped: new Set<DepPath>(),
       wantedLockfile: lockfile,
     }
@@ -3227,4 +3228,23 @@ async function installViaPnprServer (
     // pending writes on disk and diverge from lifecycle expectations.
     await opts.storeController.close()
   }
+}
+
+function groupPatchedDependenciesWithPaths (
+  patchedDependencies: Record<string, string> | undefined,
+  resolvedPatchedDependencies: Record<string, string> | undefined
+): PatchGroupRecord | undefined {
+  if (!patchedDependencies) return undefined
+  if (!resolvedPatchedDependencies) return groupPatchedDependencies(patchedDependencies)
+  return groupPatchedDependencies(Object.fromEntries(
+    Object.entries(patchedDependencies).map(([key, hash]) => {
+      let patchFilePath: string | undefined = resolvedPatchedDependencies[key]
+      if (!patchFilePath) {
+        const lastAt = key.lastIndexOf('@')
+        const pkgName = lastAt > 0 ? key.slice(0, lastAt) : key
+        patchFilePath = resolvedPatchedDependencies[pkgName]
+      }
+      return [key, { hash, patchFilePath }]
+    })
+  ))
 }

@@ -1,5 +1,7 @@
 import fs from 'node:fs'
 import http from 'node:http'
+import { createRequire } from 'node:module'
+import path from 'node:path'
 
 import { afterAll, beforeAll, expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
@@ -14,6 +16,7 @@ import { execPnpm } from '../utils/index.js'
 // preset) serves the resolver endpoint (/-/pnpr/v0/resolve) on the
 // registry-mock port, so it doubles as the pnpr server under test.
 const PNPR = `http://localhost:${REGISTRY_MOCK_PORT}`
+const IS_POSITIVE_PATCH = path.join(import.meta.dirname, '../../../installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch')
 
 let server: http.Server
 let serverPort: number
@@ -115,6 +118,42 @@ test('pnpm install resolves optionalDependencies via the pnpr server', async () 
   // The optional dependency must be forwarded to the server and resolved,
   // not silently dropped from the request.
   expect(fs.existsSync('node_modules/is-negative')).toBe(true)
+})
+
+test('pnpm install forwards patched dependencies and package extensions to pnpr', async () => {
+  prepareProject({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+  fs.mkdirSync('patches')
+  fs.copyFileSync(IS_POSITIVE_PATCH, 'patches/is-positive@1.0.0.patch')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    pnprServer: `http://localhost:${serverPort}`,
+    patchedDependencies: {
+      'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+    },
+    packageExtensions: {
+      'is-positive@1.0.0': {
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+  })
+
+  requestCount = 0
+
+  await execPnpm(['install'])
+
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
+  const lockfile = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
+  expect(lockfile).toContain('patchedDependencies:')
+  expect(lockfile).toContain('packageExtensionsChecksum:')
+  expect(lockfile).toContain('is-negative: 1.0.0')
+  const requireFromIsPositive = createRequire(path.join(fs.realpathSync('node_modules/is-positive'), 'index.js'))
+  expect(fs.existsSync(requireFromIsPositive.resolve('is-negative'))).toBe(true)
 })
 
 test('a second resolution forwards the existing lockfile to the pnpr server', async () => {
