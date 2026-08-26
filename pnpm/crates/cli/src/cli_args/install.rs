@@ -604,9 +604,10 @@ impl InstallArgs {
         let node_linker = node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
         let lockfile_path = state.lockfile_path();
 
-        // pnpr fast path: when a `pnprServer` URL is configured, offload
-        // resolution + fetching to it, then link `node_modules` from the
-        // server-produced lockfile via the normal frozen install.
+        // pnpr fast path: when a `pnprServer` URL is configured and the
+        // project uses supported settings, offload resolution + fetching to
+        // it, then link `node_modules` from the server-produced lockfile via
+        // the normal frozen install.
         if let Some(pnpr_server) = config.pnpr_server.as_deref() {
             // The pnpr path resolves and links through the server, so it
             // can't honor `--dry-run`'s no-write contract. Reject up front,
@@ -614,28 +615,30 @@ impl InstallArgs {
             if dry_run {
                 return Err(DryRunIncompatibleWithPnpr.into());
             }
-            return Box::pin(install_via_pnpr_inner::<Reporter>(
-                &state,
-                pnpr_server,
-                selection.as_ref(),
-                PnprLink {
-                    dependency_groups: dependency_options
-                        .dependency_groups(config.optional)
-                        .collect(),
-                    supported_architectures,
-                    node_linker,
-                    skip_runtimes,
-                    frozen_lockfile,
-                    prefer_frozen_lockfile: prefer_frozen_lockfile
-                        .unwrap_or(config.prefer_frozen_lockfile),
-                    lockfile_only,
-                    ignore_manifest_check,
-                    trust_lockfile,
-                    lockfile_path: Some(&lockfile_path),
-                    use_state_lockfile: true,
-                },
-            ))
-            .await;
+            if can_use_pnpr_for_settings(config) {
+                return Box::pin(install_via_pnpr_inner::<Reporter>(
+                    &state,
+                    pnpr_server,
+                    selection.as_ref(),
+                    PnprLink {
+                        dependency_groups: dependency_options
+                            .dependency_groups(config.optional)
+                            .collect(),
+                        supported_architectures,
+                        node_linker,
+                        skip_runtimes,
+                        frozen_lockfile,
+                        prefer_frozen_lockfile: prefer_frozen_lockfile
+                            .unwrap_or(config.prefer_frozen_lockfile),
+                        lockfile_only,
+                        ignore_manifest_check,
+                        trust_lockfile,
+                        lockfile_path: Some(&lockfile_path),
+                        use_state_lockfile: true,
+                    },
+                ))
+                .await;
+            }
         }
 
         let install = Install {
@@ -683,6 +686,11 @@ impl InstallArgs {
 
         Ok(())
     }
+}
+
+fn can_use_pnpr_for_settings(config: &pnpm_config::Config) -> bool {
+    config.package_extensions.as_ref().is_none_or(indexmap::IndexMap::is_empty)
+        && config.patched_dependencies.as_ref().is_none_or(indexmap::IndexMap::is_empty)
 }
 
 fn workspace_install_selection(

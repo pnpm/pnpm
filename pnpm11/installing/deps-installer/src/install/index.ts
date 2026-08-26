@@ -211,7 +211,7 @@ export async function install (
 
   // When a pnpr server is configured, use server-side resolution
   // instead of the normal resolution flow.
-  if (opts.pnprServer && !opts.updatePatches) {
+  if (opts.pnprServer && canUsePnprForSettings(opts) && !opts.updatePatches) {
     return installViaPnprServer(manifest, rootDir, opts)
   }
 
@@ -368,7 +368,7 @@ export async function mutateModules (
   // path supports `install`, `installSome` (pnpm add), and `uninstallSome`
   // (pnpm remove). Mutations that need full client-side resolution (update
   // flags) still fall through to the normal flow.
-  if (opts.pnprServer && canUsePnprForMutations(projects)) {
+  if (opts.pnprServer && canUsePnprForSettings(opts) && canUsePnprForMutations(projects)) {
     const pnprResult = await mutateModulesViaPnpr(projects, opts)
     if (pnprResult) {
       // This path materializes packages of its own, so it verifies the
@@ -2800,6 +2800,12 @@ function canUsePnprForMutations (projects: MutatedProject[]): boolean {
     const m = p as InstallDepsMutation | InstallSomeDepsMutation
     return !m.update && !m.updatePatches && !m.updateToLatest && m.updateMatching == null
   })
+}
+
+function canUsePnprForSettings (
+  opts: Pick<InstallOptions, 'packageExtensions' | 'patchedDependencies'>
+): boolean {
+  return isEmpty(opts.packageExtensions ?? {}) && isEmpty(opts.patchedDependencies ?? {})
 }
 
 interface PnprNewDep {

@@ -11,6 +11,19 @@ import { testDefaults } from '../utils/index.js'
 
 const originalCwd = process.cwd()
 const storeControllers: StoreController[] = []
+const pnprUnsupportedSettings: Array<[string, Partial<MutateModulesOptions>]> = [
+  ['patchedDependencies', {
+    allowUnusedPatches: true,
+    patchedDependencies: {
+      'unused@1.0.0': path.join(import.meta.dirname, '../fixtures/patch-pkg/is-positive@1.0.0.patch'),
+    },
+  }],
+  ['packageExtensions', {
+    packageExtensions: {
+      'unused@1.0.0': { dependencies: { 'is-positive': '1.0.0' } },
+    },
+  }],
+]
 const resolveViaPnprServer = jest.fn(async (
   options: ResolveViaPnprServerOptions
 ): Promise<ResolveViaPnprServerResult> => {
@@ -231,6 +244,31 @@ test('an updatePatches mutation uses client-side resolution instead of silently 
   })
 
   await mutateModules([{ mutation: 'install', rootDir, updatePatches: true }], options)
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+})
+
+test.each(pnprUnsupportedSettings)('install uses client-side resolution when %s is configured', async (_settingName, settings) => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir, settings)
+
+  await install(manifest, options)
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+})
+
+test.each(pnprUnsupportedSettings)('a mutation uses client-side resolution when %s is configured', async (_settingName, settings) => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir, {
+    ...settings,
+    allProjects: [{ buildIndex: 0, manifest, rootDir }],
+  })
+
+  await mutateModules([{ mutation: 'install', rootDir }], options)
 
   expect(resolveViaPnprServer).not.toHaveBeenCalled()
 })
