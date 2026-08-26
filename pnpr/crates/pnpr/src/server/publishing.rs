@@ -18,9 +18,10 @@ use crate::{
     },
     storage::{HostedPackumentVersion, PackumentWrite, TarballFinalize},
 };
-use pnpr_core::{
-    error::RegistryError, package_name::PackageName, policy::Identity, registry::Registry,
-};
+use pnpr_error::RegistryError;
+use pnpr_package_name::PackageName;
+use pnpr_policy::Identity;
+use pnpr_registry::Registry;
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, HostedOriginalRef, RegistrySource, WriteTarget,

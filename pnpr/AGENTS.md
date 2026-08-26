@@ -43,12 +43,10 @@ pnpr/
       src/
         lib.rs              -> library API
         main.rs             -> binary entry point (ships the `pnpr` binary)
-    core/          -> package "pnpr-core"
-      src/
-        error.rs            -> the error type every layer returns
-        package_name.rs     -> package-name parsing
-        registry.rs         -> the registry routing table
-        policy.rs           -> access policy for those routes
+    error/         -> package "pnpr-error"         (the error type every layer returns)
+    package-name/  -> package "pnpr-package-name"  (npm package-name parsing)
+    registry/      -> package "pnpr-registry"      (the registry routing table)
+    policy/        -> package "pnpr-policy"        (access policy for those routes)
     # further sibling crates land here, see "New registry-only crates" below
 ```
 
@@ -86,6 +84,19 @@ the root with the `pnpr-` prefix so other crates can use
 
 Use the `pnpr-` prefix exclusively for registry-only crates.
 Don't reach for `pnpm-` to name something new on the registry side.
+
+**Also add it to `deny.toml`.** The `pnpr*` crates are licensed under
+PolyForm Shield rather than the workspace's MIT, and cargo-deny scores that
+license text below its confidence threshold. A new crate therefore needs both
+an `licenses.exceptions` entry and a `[[licenses.clarify]]` block pinning
+`../../LICENSE.md` by hash — without them `Rust CI / Cargo Deny` fails the
+crate as `unlicensed`. That job is path-filtered on `Cargo.lock` and
+`deny.toml`, so it only runs on PRs that touch one of them; adding a crate
+always does.
+
+Name crates for what they hold, not for where they sit in the graph. The
+workspace has no `core`, `common`, `shared`, or `utils` crate, and shouldn't
+grow one: those names admit anything, so they collect everything.
 
 ## Dependencies
 

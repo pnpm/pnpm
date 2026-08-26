@@ -18,7 +18,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::registry::PackagePattern;
+use pnpr_registry::PackagePattern;
 
 /// A single token in an access list.
 #[derive(Debug, Clone, PartialEq, Eq)]

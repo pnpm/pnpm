@@ -61,7 +61,7 @@ use crate::{
     osv::OsvIndex,
     route::{Footprint, RouteContext, RouteHook},
 };
-use pnpr_core::policy::Identity;
+use pnpr_policy::Identity;
 
 use axum::{
     body::{Body, Bytes},

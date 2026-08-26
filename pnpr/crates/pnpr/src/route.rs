@@ -34,10 +34,8 @@ use sha2::{Digest, Sha256};
 use wax::{Glob, Program};
 
 use crate::config::{Config, PublicRoute, UpstreamConfig};
-use pnpr_core::{
-    policy::{AccessList, Identity, PackageRules},
-    registry::{ConcreteKind, Registries, Resolved},
-};
+use pnpr_policy::{AccessList, Identity, PackageRules};
+use pnpr_registry::{ConcreteKind, Registries, Resolved};
 
 /// The classification of a single fetch route.
 #[derive(Debug, Clone, PartialEq, Eq)]

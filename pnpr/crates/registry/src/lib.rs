@@ -25,8 +25,8 @@
 //! not concrete. The check is static because [`PackagePattern`]'s coverage
 //! relation is decidable for this deliberately small glob language.
 
-use crate::package_name::PackageName;
 use indexmap::IndexMap;
+use pnpr_package_name::PackageName;
 use std::fmt;
 
 /// A package-name pattern: one member of a concrete registry's declared
@@ -79,7 +79,7 @@ impl PackagePattern {
             if scope.contains('*') {
                 return Err(invalid());
             }
-            if !crate::package_name::is_safe_path_segment(scope) {
+            if !pnpr_package_name::is_safe_path_segment(scope) {
                 return Err(RegistryConfigError::ScopePatternNotAScope {
                     pattern: pattern.to_string(),
                 });

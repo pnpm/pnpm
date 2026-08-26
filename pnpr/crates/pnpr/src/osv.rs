@@ -15,7 +15,7 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 use crate::Config;
-use pnpr_core::error::RegistryError;
+use pnpr_error::RegistryError;
 
 const OSV_POLICY_KEY: &str = "osvNpmDatabase";
 

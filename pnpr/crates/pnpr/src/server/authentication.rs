@@ -11,10 +11,8 @@ use axum::{
 };
 
 use crate::auth::TokenRecord;
-use pnpr_core::{
-    error::RegistryError,
-    policy::{Identity, PackageRules},
-};
+use pnpr_error::RegistryError;
+use pnpr_policy::{Identity, PackageRules};
 
 use super::{AppState, PeerAddr, RegistrySource, single_authorization_header};
 

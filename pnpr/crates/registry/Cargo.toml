@@ -1,0 +1,20 @@
+[package]
+name                 = "pnpr-registry"
+version              = "0.0.1"
+description          = "The pnpr registry routing table: which registry serves which package pattern"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license-file         = "../../LICENSE.md"
+repository.workspace = true
+
+[dependencies]
+pnpr-error        = { workspace = true }
+pnpr-package-name = { workspace = true }
+indexmap          = { workspace = true }
+wax               = { workspace = true }
+
+[lints]
+workspace = true

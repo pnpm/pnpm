@@ -33,10 +33,8 @@ use crate::{
         TarballSlot, is_canonical_revision_ref_owner, unique_tmp_path,
     },
 };
-use pnpr_core::{
-    error::{RegistryError, Result},
-    package_name::PackageName,
-};
+use pnpr_error::{RegistryError, Result};
+use pnpr_package_name::PackageName;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -309,7 +307,7 @@ async fn roll_forward(storage: &Storage, dir: &Path, revision_ref_owner: &str) -
                     applied_revision_refs.entry(version).or_default().push(revision_ref);
                 }
                 Ok(HostedRevisionRefWrite::Committed) => {}
-                Err(pnpr_core::error::RegistryError::RevisionReferenceLimit { .. }) => {
+                Err(pnpr_error::RegistryError::RevisionReferenceLimit { .. }) => {
                     conflicted_versions.insert(version.clone());
                     if let Some(applied) = applied_revision_refs.remove(&version) {
                         for applied_ref in applied {

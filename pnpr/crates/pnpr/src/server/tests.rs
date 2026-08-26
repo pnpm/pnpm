@@ -15,10 +15,8 @@ use axum::{
     extract::ConnectInfo,
     http::{Method, Request, StatusCode, header},
 };
-use pnpr_core::{
-    error::{RegistryError, Result},
-    policy::{AccessList, PackageRule, PackageRules},
-};
+use pnpr_error::{RegistryError, Result};
+use pnpr_policy::{AccessList, PackageRule, PackageRules};
 use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     sync::Arc,
@@ -318,8 +316,8 @@ async fn team_tokens_reach_package_authorization() {
     let tmp = TempDir::new().unwrap();
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
-    use pnpr_core::policy::{AccessToken, Identity};
-    use pnpr_core::registry::PackagePattern;
+    use pnpr_policy::{AccessToken, Identity};
+    use pnpr_registry::PackagePattern;
     config.hosted.get_mut("local").unwrap().rules = PackageRules::new(
         vec![PackageRule {
             pattern: PackagePattern::parse("@team/*").unwrap(),

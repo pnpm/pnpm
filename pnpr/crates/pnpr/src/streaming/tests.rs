@@ -1,7 +1,7 @@
 use super::{TarballStreamError, integrity_checker, parse_integrity, stream_verified_to_cache};
 use crate::{config::HostedStoreConfig, storage::Storage};
 use futures_util::StreamExt;
-use pnpr_core::package_name::PackageName;
+use pnpr_package_name::PackageName;
 use ssri::{Algorithm, Integrity, IntegrityOpts};
 use std::{path::Path, sync::Arc, time::Duration};
 use tempfile::TempDir;

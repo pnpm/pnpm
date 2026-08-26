@@ -26,7 +26,7 @@ use super::{
 use crate::config::{LibsqlSettings, MaxUsers};
 use async_trait::async_trait;
 use libsql::{Builder, Connection, Database, Error as LibsqlError, Row, params};
-use pnpr_core::error::{RegistryError, Result};
+use pnpr_error::{RegistryError, Result};
 use std::{
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,

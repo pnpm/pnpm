@@ -22,7 +22,7 @@ use crate::{
     config::{Config as RegistryConfig, PublicRoute, UpstreamConfig},
     route::{Footprint, PrivateAccessDescriptor, RouteContext},
 };
-use pnpr_core::policy::{AccessList, Identity, PackageRule, PackageRules};
+use pnpr_policy::{AccessList, Identity, PackageRule, PackageRules};
 
 fn config_for_registry(registry: &str) -> PacquetConfig {
     let mut config = PacquetConfig::new();
@@ -114,7 +114,7 @@ fn private_hosted_footprint(registry: &str, package: &str) -> Footprint {
 /// whose `access` is `access`, so a test can rotate who may read a hosted
 /// package.
 fn set_local_hosted_rules(config: &mut RegistryConfig, pattern: &str, access: &str) {
-    use pnpr_core::registry::PackagePattern;
+    use pnpr_registry::PackagePattern;
     let rules = PackageRules::new(
         vec![PackageRule {
             pattern: PackagePattern::parse(pattern).expect("test pattern parses"),
@@ -542,8 +542,8 @@ fn revoked_alias_access_stops_matching_private_resolution_hits() {
 
 #[test]
 fn package_qualified_alias_descriptor_rechecks_upstream_rules_on_replay() {
-    use pnpr_core::policy::{PackageRule, PackageRules};
-    use pnpr_core::registry::PackagePattern;
+    use pnpr_policy::{PackageRule, PackageRules};
+    use pnpr_registry::PackagePattern;
 
     let cache = Mutex::new(HashMap::new());
     let key = "base".to_string();

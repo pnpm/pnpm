@@ -1,5 +1,5 @@
 use super::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
-use crate::registry::PackagePattern;
+use pnpr_registry::PackagePattern;
 
 fn list(token: &str) -> AccessList {
     AccessList::from_tokens([token])

@@ -1,7 +1,7 @@
 use super::{Body, ObjectStore, S3Settings, S3Store};
 use crate::storage::HostedRevisionRefWrite;
 use object_store::{ObjectStoreExt, PutPayload, memory::InMemory, path::Path as ObjectPath};
-use pnpr_core::package_name::PackageName;
+use pnpr_package_name::PackageName;
 use std::sync::Arc;
 use tempfile::tempdir;
 
@@ -295,7 +295,7 @@ async fn revision_ref_writes_enforce_the_read_bound() {
         .unwrap_err();
     assert!(matches!(
         err,
-        pnpr_core::error::RegistryError::RevisionReferenceLimit { limit }
+        pnpr_error::RegistryError::RevisionReferenceLimit { limit }
             if limit == crate::storage::MAX_HOSTED_REVISION_REFS
     ));
 
@@ -335,7 +335,7 @@ async fn concurrent_revision_ref_writes_cannot_exceed_the_limit() {
         match write.await.unwrap() {
             Ok(HostedRevisionRefWrite::Claimed) => written += 1,
             Ok(outcome) => panic!("unexpected revision-reference write outcome: {outcome:?}"),
-            Err(pnpr_core::error::RegistryError::RevisionReferenceLimit { .. }) => rejected += 1,
+            Err(pnpr_error::RegistryError::RevisionReferenceLimit { .. }) => rejected += 1,
             Err(err) => panic!("unexpected revision-reference write error: {err}"),
         }
     }

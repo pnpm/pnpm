@@ -8,7 +8,7 @@ use super::{
 };
 use crate::config::MaxUsers;
 use async_trait::async_trait;
-use pnpr_core::error::{RegistryError, Result};
+use pnpr_error::{RegistryError, Result};
 use std::{
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
@@ -189,7 +189,7 @@ pub(super) mod postgres {
     };
     use crate::config::{MaxUsers, SqlBackendSettings};
     use async_trait::async_trait;
-    use pnpr_core::error::{RegistryError, Result};
+    use pnpr_error::{RegistryError, Result};
     use sqlx::{PgPool, Row, postgres::PgPoolOptions};
     use std::time::Duration;
 
@@ -519,7 +519,7 @@ pub(super) mod mysql {
     };
     use crate::config::{MaxUsers, SqlBackendSettings};
     use async_trait::async_trait;
-    use pnpr_core::error::{RegistryError, Result};
+    use pnpr_error::{RegistryError, Result};
     use sqlx::{MySqlPool, Row, mysql::MySqlPoolOptions};
     use std::time::Duration;
 

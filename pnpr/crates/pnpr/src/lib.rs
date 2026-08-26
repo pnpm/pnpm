@@ -34,10 +34,10 @@ pub use config::{
     default_cache_dir,
 };
 pub use journal::recover_publish_journal;
-pub use pnpr_core::{
-    error::{RegistryError, Result},
-    policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules},
-    registry::{ConcreteKind, PackagePattern, Registries, Registry, RegistryConfigError, Resolved},
+pub use pnpr_error::{RegistryError, Result};
+pub use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
+pub use pnpr_registry::{
+    ConcreteKind, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
 };
 pub use server::{
     router, router_with_auth, serve, serve_listener, try_router, try_router_with_auth,

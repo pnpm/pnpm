@@ -9,7 +9,7 @@ use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 use super::{Footprint, PrivateAccessDescriptor, RouteClass, RouteContext, RouteHook};
 use crate::config::{Config, PublicRoute, UpstreamConfig};
-use pnpr_core::policy::{AccessList, Identity};
+use pnpr_policy::{AccessList, Identity};
 
 fn base_config() -> Config {
     Config::proxy("127.0.0.1:7677".parse::<SocketAddr>().unwrap(), PathBuf::from("/tmp/pnpr-route"))
@@ -280,8 +280,8 @@ fn upstream_with_access(registry: &str, access: &str) -> UpstreamConfig {
 
 #[test]
 fn upstream_per_package_rules_gate_alias_selection() {
-    use pnpr_core::policy::{PackageRule, PackageRules};
-    use pnpr_core::registry::PackagePattern;
+    use pnpr_policy::{PackageRule, PackageRules};
+    use pnpr_registry::PackagePattern;
 
     let mut config = base_config();
     let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
@@ -442,7 +442,7 @@ fn upstream_without_access_is_an_anonymous_route() {
 
 #[test]
 fn proxied_alias_accepts_team_member_identity() {
-    use pnpr_core::policy::{AccessList, AccessToken};
+    use pnpr_policy::{AccessList, AccessToken};
 
     let mut config = base_config();
     let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");

@@ -26,7 +26,7 @@ use super::{
     write_artifact_usage,
 };
 use crate::storage::unique_tmp_path;
-use pnpr_core::error::Result;
+use pnpr_error::Result;
 
 #[test]
 fn resolve_budget_bounds_combined_scanned_and_serialized_bytes() {

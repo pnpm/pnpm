@@ -11,7 +11,7 @@
 
 use crate::streaming::{integrity_checker, parse_integrity};
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64, read::DecoderReader};
-use pnpr_core::error::RegistryError;
+use pnpr_error::RegistryError;
 use serde_json::{Map, Value};
 use ssri::{Algorithm, IntegrityOpts};
 use std::{

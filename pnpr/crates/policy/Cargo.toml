@@ -1,0 +1,18 @@
+[package]
+name                 = "pnpr-policy"
+version              = "0.0.1"
+description          = "Access policy gating the pnpr registry routes"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license-file         = "../../LICENSE.md"
+repository.workspace = true
+
+[dependencies]
+pnpr-registry = { workspace = true }
+indexmap      = { workspace = true }
+
+[lints]
+workspace = true

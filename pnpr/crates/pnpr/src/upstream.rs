@@ -5,10 +5,8 @@ use pnpm_lockfile::{
     is_integrity_addressed_registry_tarball_url,
 };
 use pnpm_network::{ThrottledClient, read_limited_body};
-use pnpr_core::{
-    error::{RegistryError, Result},
-    package_name::PackageName,
-};
+use pnpr_error::{RegistryError, Result};
+use pnpr_package_name::PackageName;
 use reqwest::{
     StatusCode,
     header::{self, HeaderMap, HeaderValue},

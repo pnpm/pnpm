@@ -5,7 +5,8 @@ use super::{
 };
 use crate::config::UpstreamConfig;
 use chrono::{DateTime, TimeZone, Utc};
-use pnpr_core::{error::RegistryError, package_name::PackageName};
+use pnpr_error::RegistryError;
+use pnpr_package_name::PackageName;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use serde_json::json;
 use std::time::Duration;
@@ -663,7 +664,7 @@ fn breaking_upstream(url: String, max_fails: u32) -> Upstream {
             fail_timeout: Duration::from_mins(5),
             cache: true,
             access: None,
-            rules: pnpr_core::policy::PackageRules::default(),
+            rules: pnpr_policy::PackageRules::default(),
         },
     )
 }

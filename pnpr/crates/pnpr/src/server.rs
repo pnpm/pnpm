@@ -48,12 +48,10 @@ use chrono::Utc;
 use indexmap::IndexMap;
 use pnpm_crypto_hash::{integrity_addressed_tarball_integrity, integrity_addressed_tarball_path};
 use pnpm_lockfile::TarballRevision;
-use pnpr_core::{
-    error::RegistryError,
-    package_name::PackageName,
-    policy::Identity,
-    registry::{ConcreteKind, Registry, Resolved},
-};
+use pnpr_error::RegistryError;
+use pnpr_package_name::PackageName;
+use pnpr_policy::Identity;
+use pnpr_registry::{ConcreteKind, Registry, Resolved};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use ssri::Integrity;
@@ -201,7 +199,7 @@ pub fn router(config: Config) -> Router {
 /// Fallible counterpart to [`router`]: surfaces a missing/invalid OSV
 /// database (when `osv.enabled`) as an error instead of panicking, for
 /// embedders that build the router directly rather than via [`serve`].
-pub fn try_router(config: Config) -> pnpr_core::error::Result<Router> {
+pub fn try_router(config: Config) -> pnpr_error::Result<Router> {
     let max_users = config.auth.htpasswd.max_users;
     try_router_with_auth(config, AuthState::in_memory_with_max_users(max_users))
 }
@@ -218,10 +216,7 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
 }
 
 /// Fallible counterpart to [`router_with_auth`].
-pub fn try_router_with_auth(
-    mut config: Config,
-    auth: AuthState,
-) -> pnpr_core::error::Result<Router> {
+pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> pnpr_error::Result<Router> {
     // Enforce the "at least one surface enabled" invariant for embedders
     // that build and serve the router themselves rather than going through
     // `serve`/`serve_listener`.
@@ -235,9 +230,7 @@ pub fn try_router_with_auth(
 /// both mounted surfaces disabled rejected earlier, that means any
 /// enabled `osv` config now applies to the resolver, the registry, or
 /// both.
-fn load_active_osv_index(
-    config: &Config,
-) -> pnpr_core::error::Result<Option<Arc<crate::osv::OsvIndex>>> {
+fn load_active_osv_index(config: &Config) -> pnpr_error::Result<Option<Arc<crate::osv::OsvIndex>>> {
     if config.resolver.enabled || config.registry.enabled {
         crate::osv::load_osv_index(config)
     } else {
@@ -249,7 +242,7 @@ fn load_active_osv_index(
 /// needs publish-journal recovery; auth loads on every tier because the
 /// account endpoints (which mint and manage tokens) are always served,
 /// and both mounted surfaces consult caller identity.
-async fn load_startup_auth(config: &Config) -> pnpr_core::error::Result<AuthState> {
+async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     if config.registry.enabled {
         crate::journal::recover_publish_journal(config).await?;
     }
@@ -277,7 +270,7 @@ fn loggable_uri(uri: &axum::http::Uri) -> String {
 /// binding so a startup-time auth error surfaces before we accept any
 /// client connections. Registry startup additionally recovers the publish
 /// journal.
-pub async fn serve(mut config: Config) -> pnpr_core::error::Result<()> {
+pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // Enforce the "at least one surface" invariant here too, not only at
     // YAML load / CLI: embedders build `Config` programmatically and call
     // straight into `serve`, so a both-disabled config must fail loudly
@@ -319,7 +312,7 @@ fn log_enabled_surfaces(config: &Config) {
 pub async fn serve_listener(
     mut config: Config,
     listener: tokio::net::TcpListener,
-) -> pnpr_core::error::Result<()> {
+) -> pnpr_error::Result<()> {
     let listen = listener.local_addr()?;
     config.ensure_a_feature_is_enabled()?;
     config.ensure_valid_registry_graph()?;
@@ -1036,7 +1029,7 @@ async fn serve_tarball_via_upstream(
     let (filename, parsed_version) = match name.parse_tarball_name(filename) {
         Ok((canonical, version)) => (canonical, Some(version)),
         Err(err) => {
-            if !pnpr_core::package_name::is_safe_path_segment(filename) {
+            if !pnpr_package_name::is_safe_path_segment(filename) {
                 return err.into_response();
             }
             (filename.to_string(), None)
@@ -1480,7 +1473,7 @@ async fn cached_upstream_tarball(
 // --------------------------------------------------------------------
 // Registry dispatch. A `/~<name>/` request resolves the package to
 // exactly one concrete origin through the validated registry graph
-// ([`pnpr_core::registry`]) and serves it there — authoritatively. Every concrete
+// ([`pnpr_registry`]) and serves it there — authoritatively. Every concrete
 // registry's declared `patterns:` are enforced here, before storage or any
 // upstream is consulted, on the direct address and through a router alike; a
 // router selects the first source whose patterns claim the name. An unclaimed

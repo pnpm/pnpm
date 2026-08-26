@@ -2,7 +2,8 @@ use crate::storage::{HostedRevisionRefWrite, PackumentWrite};
 use async_trait::async_trait;
 use axum::body::Body;
 use object_store::UpdateVersion;
-use pnpr_core::{error::Result, package_name::PackageName};
+use pnpr_error::Result;
+use pnpr_package_name::PackageName;
 use std::{
     fmt::Debug,
     path::{Path, PathBuf},

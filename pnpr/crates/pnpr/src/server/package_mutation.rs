@@ -10,7 +10,9 @@ use crate::{
     storage::{PACKUMENT_WRITE_RETRIES, PackumentUpdate, PackumentWrite},
     upstream::tarball_basename,
 };
-use pnpr_core::{error::RegistryError, package_name::PackageName, policy::Identity};
+use pnpr_error::RegistryError;
+use pnpr_package_name::PackageName;
+use pnpr_policy::Identity;
 
 use super::{
     Action, AppState, RegistrySource, authorize, filter_osv_vulnerable_dist_tags, hosted_storage,
