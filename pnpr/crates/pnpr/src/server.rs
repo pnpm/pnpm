@@ -20,11 +20,6 @@ use self::{
     routing::router_with_auth_and_osv,
 };
 
-#[cfg(test)]
-use self::authentication::{
-    bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows, is_write_method,
-};
-
 use crate::{
     auth::{AuthState, UpsertOutcome, identify},
     config::{Config, HostedConfig},

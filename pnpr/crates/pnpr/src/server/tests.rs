@@ -1,6 +1,8 @@
 use super::{
     HostedRevisionDist, HostedRevisionRecord, PeerAddr, RevisionField, artifact_blob_response_body,
-    bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows, is_write_method,
+    authentication::{
+        bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows, is_write_method,
+    },
     original_integrity, router_with_auth, token_timestamp_millis,
 };
 use crate::{

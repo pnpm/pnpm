@@ -8,9 +8,6 @@ use self::upstream::{
     Interval, UpstreamAuthFile, UpstreamConfigFile, parse_interval, resolve_upstream_config,
 };
 
-#[cfg(test)]
-use self::upstream::{TokenEnv, UpstreamAuthType};
-
 use crate::{
     error::RegistryError,
     policy::{AccessList, AccessToken, PackageRule, PackageRules},

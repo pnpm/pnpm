@@ -1,8 +1,8 @@
 use super::{
     BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides, HostedStoreConfig,
-    Interval, LogFormat, LogLevel, Teams, TokenEnv, UpstreamAuthFile, UpstreamAuthType,
-    UpstreamConfig, UpstreamConfigFile, config_file_in, parse_interval, resolve_relative,
-    resolve_upstream_config,
+    Interval, LogFormat, LogLevel, Teams, UpstreamAuthFile, UpstreamConfig, UpstreamConfigFile,
+    config_file_in, parse_interval, resolve_relative, resolve_upstream_config,
+    upstream::{TokenEnv, UpstreamAuthType},
 };
 use crate::{error::RegistryError, policy::Identity};
 use indexmap::IndexMap;

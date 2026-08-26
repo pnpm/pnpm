@@ -97,12 +97,6 @@ use self::{
     },
 };
 
-#[cfg(test)]
-use self::{
-    cache::MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY,
-    wire::{is_osv_checkable_resolution, package_frame, tarball_url_version},
-};
-
 /// Per-server engine backing the pnpr install endpoint: it holds the
 /// store, cache, and HTTP client used to resolve a client's project. The
 /// store and cache dirs are fixed for the server's lifetime; the
