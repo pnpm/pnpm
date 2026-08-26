@@ -801,7 +801,7 @@ function createPackageTarball (manifest: { name: string, version: string }): Pro
   return new Promise((resolve, reject) => {
     const pack = tar.pack()
     const chunks: Buffer[] = []
-    pack.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
+    pack.on('data', (chunk) => chunks.push(Buffer.from(chunk as Uint8Array)))
     pack.on('error', reject)
     pack.on('end', () => resolve(Buffer.concat(chunks)))
     pack.entry({ name: 'package/package.json' }, JSON.stringify(manifest), (err?: Error | null) => {
