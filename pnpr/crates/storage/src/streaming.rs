@@ -9,7 +9,7 @@
 //!   temp file for mirror-less pass-through.
 //! * [`stream_file`] yields an already verified file to the response.
 
-use crate::storage::TarballWrite;
+use crate::TarballWrite;
 use axum::body::{Body, Bytes};
 use futures_util::{Stream, StreamExt, stream};
 use ssri::{Integrity, IntegrityChecker};

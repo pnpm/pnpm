@@ -49,6 +49,7 @@ pnpr/
     package-name/  -> package "pnpr-package-name"  (npm package-name parsing)
     registry/      -> package "pnpr-registry"      (the registry routing table)
     route/         -> package "pnpr-route"         (classifies a fetch route public or private)
+    storage/       -> package "pnpr-storage"       (the hosted store, proxy cache, and publish journal)
     upstream/      -> package "pnpr-upstream"      (the upstream registry proxy client)
     policy/        -> package "pnpr-policy"        (access policy for those routes)
     # further sibling crates land here, see "New registry-only crates" below

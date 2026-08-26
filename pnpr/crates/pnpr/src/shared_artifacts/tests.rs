@@ -25,8 +25,8 @@ use super::{
     reserve_storage_quota_with_locks_and_limits, stored_bytes, try_acquire_artifact_lock,
     write_artifact_usage,
 };
-use crate::storage::unique_tmp_path;
 use pnpr_error::Result;
+use pnpr_storage::unique_tmp_path;
 
 #[test]
 fn resolve_budget_bounds_combined_scanned_and_serialized_bytes() {

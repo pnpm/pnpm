@@ -102,6 +102,7 @@ pnpr-error        = { path = "pnpr/crates/error" }
 pnpr-package-name = { path = "pnpr/crates/package-name" }
 pnpr-policy       = { path = "pnpr/crates/policy" }
 pnpr-registry     = { path = "pnpr/crates/registry" }
+pnpr-storage      = { path = "pnpr/crates/storage" }
 pnpr-route        = { path = "pnpr/crates/route" }
 pnpr-upstream     = { path = "pnpr/crates/upstream" }
 pnpr-fixtures     = { path = "pnpr/crates/pnpr-fixtures" }

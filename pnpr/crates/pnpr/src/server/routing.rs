@@ -20,9 +20,9 @@ use tower_http::{
 };
 use tracing::Span;
 
-use crate::storage::Storage;
 use pnpr_auth::AuthState;
 use pnpr_config::Config;
+use pnpr_storage::Storage;
 use pnpr_upstream::Upstream;
 
 use super::{

@@ -110,6 +110,7 @@ exceptions = [
   { name = "pnpr-policy", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-registry", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-route", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-storage", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-upstream", allow = ["PolyForm-Noncommercial-1.0.0"] },
 ]
 
@@ -130,6 +131,11 @@ license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
 
 [[licenses.clarify]]
 name = "pnpr-route"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-storage"
 expression = "PolyForm-Noncommercial-1.0.0"
 license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
 
