@@ -6,8 +6,8 @@
 //! tarball, one packument write per package. A crash in the middle of
 //! those steps could leave some packages of a batch published and
 //! others not. The journal closes that window: before anything is
-//! promoted, the full intent — the merged packument bytes plus the
-//! locations of the staged tmp files — is persisted under
+//! promoted, the full intent — the merged packument bytes, revision
+//! references, and locations of the staged tmp files — is persisted under
 //! `.pnpr-journal/<txn>/` and sealed with a single atomic rename of the
 //! `commit` marker. [`recover_publish_journal`] runs at startup, before
 //! the server accepts requests: sealed transactions are rolled forward
@@ -77,6 +77,8 @@ struct ManifestPackage {
     /// packument bytes.
     packument_file: String,
     tarballs: Vec<ManifestTarball>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    revision_refs: Vec<JournaledRevisionRef>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -87,6 +89,14 @@ struct ManifestTarball {
     tmp_path: PathBuf,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JournaledRevisionRef {
+    pub filename: String,
+    pub digest: String,
+    pub ref_id: String,
+    pub bytes: Vec<u8>,
+}
+
 /// One package of a publish about to be committed, borrowed from the
 /// handler's staged state.
 pub struct JournaledPublish<'a> {
@@ -95,6 +105,7 @@ pub struct JournaledPublish<'a> {
     pub org: Option<&'a str>,
     pub packument: &'a [u8],
     pub slots: &'a [TarballSlot],
+    pub revision_refs: &'a [JournaledRevisionRef],
 }
 
 /// Handle to the journal directory of one [`Storage`].
@@ -138,6 +149,7 @@ impl PublishJournal {
                         tmp_path: slot.tmp_path.clone(),
                     })
                     .collect(),
+                revision_refs: package.revision_refs.to_vec(),
             });
         }
         write_synced(&dir.join(MANIFEST_FILE), &serde_json::to_vec_pretty(&manifest)?).await?;
@@ -264,6 +276,17 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
             serde_json::from_slice(&fs::read(dir.join(&package.packument_file)).await?)?;
         if !conflicted.is_empty() {
             drop_conflicted_versions(&mut journaled, &conflicted);
+        }
+        for revision_ref in &package.revision_refs {
+            if !conflicted.contains(revision_ref.filename.as_str()) {
+                store
+                    .write_hosted_revision_ref(
+                        &revision_ref.digest,
+                        &revision_ref.ref_id,
+                        &revision_ref.bytes,
+                    )
+                    .await?;
+            }
         }
         write_merged_packument(&store, &name, &journaled).await?;
     }

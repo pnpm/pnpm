@@ -1,5 +1,5 @@
 use super::{
-    JournaledPublish, MANIFEST_FILE, Manifest, cleanup_conflicted_tmp_paths,
+    JournaledPublish, JournaledRevisionRef, MANIFEST_FILE, Manifest, cleanup_conflicted_tmp_paths,
     drop_conflicted_versions, roll_forward, sync_dir,
 };
 use crate::{
@@ -7,6 +7,7 @@ use crate::{
     package_name::PackageName,
     storage::{Storage, TarballFinalize},
 };
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use object_store::{ObjectStore, memory::InMemory};
 use serde_json::json;
 use std::{collections::HashSet, sync::Arc};
@@ -122,6 +123,42 @@ async fn sync_dir_reports_success_for_a_directory() {
 }
 
 #[tokio::test]
+async fn roll_forward_persists_revision_references() {
+    let tmp = tempdir().unwrap();
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let storage = Storage::new(
+        &HostedStoreConfig::S3 { store: object_store, prefix: String::new() },
+        tmp.path().join("hosted"),
+        tmp.path().join("cache"),
+    );
+    let name = PackageName::parse("pkg").unwrap();
+    let packument = serde_json::to_vec(&json!({
+        "name": "pkg",
+        "versions": {},
+    }))
+    .unwrap();
+    let digest = URL_SAFE_NO_PAD.encode([7_u8; 64]);
+    let record = br#"{"package":"pkg","version":"1.0.0"}"#.to_vec();
+    let revision_refs = [JournaledRevisionRef {
+        filename: "pkg-1.0.0.tgz".to_string(),
+        digest: digest.clone(),
+        ref_id: "a".repeat(64),
+        bytes: record.clone(),
+    }];
+    let entries = [JournaledPublish {
+        name: &name,
+        org: None,
+        packument: &packument,
+        slots: &[],
+        revision_refs: &revision_refs,
+    }];
+
+    storage.publish_journal().seal(&entries).await.unwrap().roll_forward(&storage).await.unwrap();
+
+    assert_eq!(storage.read_hosted_revision_refs(&digest).await.unwrap(), vec![record]);
+}
+
+#[tokio::test]
 async fn roll_forward_preserves_tarball_conflict_across_a_later_package_failure() {
     let tmp = tempdir().unwrap();
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
@@ -166,8 +203,15 @@ async fn roll_forward_preserves_tarball_conflict_across_a_later_package_failure(
             org: None,
             packument: &conflicted_packument,
             slots: &conflicted_slots,
+            revision_refs: &[],
         },
-        JournaledPublish { name: &later_name, org: None, packument: b"not-json", slots: &[] },
+        JournaledPublish {
+            name: &later_name,
+            org: None,
+            packument: b"not-json",
+            slots: &[],
+            revision_refs: &[],
+        },
     ];
     let txn = storage.publish_journal().seal(&entries).await.unwrap();
     let txn_dir = txn.dir.clone();

@@ -2,7 +2,7 @@ use crate::{
     auth::{AuthState, TokenRecord, UpsertOutcome, identify},
     config::{Config, HostedConfig},
     error::RegistryError,
-    journal::JournaledPublish,
+    journal::{JournaledPublish, JournaledRevisionRef},
     package_name::PackageName,
     policy::{Identity, PackageRules},
     publish::{
@@ -3298,17 +3298,11 @@ struct StagedPublish {
     merged_bytes: Vec<u8>,
     base_version: Option<HostedPackumentVersion>,
     slots: Vec<crate::storage::TarballSlot>,
-    original_refs: Vec<StagedHostedOriginalRef>,
+    original_refs: Vec<JournaledRevisionRef>,
     /// Hosted-org storage namespace this publish targets, or `None` for the
     /// flat (path-less) hosted store. Threaded into the commit and journal so
     /// the write — and any crash-recovery roll-forward — lands in the right org.
     org: Option<String>,
-}
-
-struct StagedHostedOriginalRef {
-    digest: String,
-    ref_id: String,
-    bytes: Vec<u8>,
 }
 
 /// Merge the incoming packument with the on-disk / upstream state
@@ -3445,7 +3439,7 @@ async fn stage_publish(
 fn staged_hosted_original_ref(
     package: &PackageName,
     attachment: &PreparedAttachment,
-) -> Option<StagedHostedOriginalRef> {
+) -> Option<JournaledRevisionRef> {
     let integrity: Integrity = attachment.dist.get("integrity")?.as_str()?.parse().ok()?;
     let path = integrity_addressed_tarball_path(&integrity)?;
     let digest = path.strip_prefix("-/tarballs/sha512/")?.to_string();
@@ -3455,11 +3449,11 @@ fn staged_hosted_original_ref(
     };
     let bytes = serde_json::to_vec(&record).expect("hosted original reference serializes");
     let ref_id = create_hex_hash(&format!("{}\0{}", record.package, record.version));
-    Some(StagedHostedOriginalRef { digest, ref_id, bytes })
+    Some(JournaledRevisionRef { filename: attachment.canonical.clone(), digest, ref_id, bytes })
 }
 
 /// Make every staged publish visible. The full intent — merged
-/// packument bytes plus the staged tmp-file locations — is sealed into
+/// packument bytes, revision references, and staged tmp-file locations — is sealed into
 /// the commit journal first, so a crash or I/O failure mid-apply can
 /// never leave the batch partially published: startup recovery rolls
 /// a sealed transaction forward. If sealing itself fails, nothing was
@@ -3472,20 +3466,6 @@ async fn commit_publishes(
     state: &AppState,
     staged: Vec<StagedPublish>,
 ) -> Result<(), RegistryError> {
-    for stage in &staged {
-        let storage = hosted_storage(state, stage.org.as_deref());
-        for original in &stage.original_refs {
-            if let Err(err) = storage
-                .write_hosted_revision_ref(&original.digest, &original.ref_id, &original.bytes)
-                .await
-            {
-                for stage in staged {
-                    cleanup_tmp_slots(stage.slots).await;
-                }
-                return Err(err);
-            }
-        }
-    }
     let journal = state.inner.storage.publish_journal();
     let entries: Vec<JournaledPublish<'_>> = staged
         .iter()
@@ -3494,6 +3474,7 @@ async fn commit_publishes(
             org: stage.org.as_deref(),
             packument: &stage.merged_bytes,
             slots: &stage.slots,
+            revision_refs: &stage.original_refs,
         })
         .collect();
     let sealed = journal.seal(&entries).await;
@@ -3533,6 +3514,11 @@ async fn commit_publishes(
                         });
                     }
                 }
+            }
+            for original in stage.original_refs {
+                store
+                    .write_hosted_revision_ref(&original.digest, &original.ref_id, &original.bytes)
+                    .await?;
             }
             match store
                 .write_hosted_packument_if_current(
