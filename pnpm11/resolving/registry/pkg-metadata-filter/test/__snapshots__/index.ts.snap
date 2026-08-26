@@ -1,6 +1,6 @@
 // Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
-exports[`filterPkgMetadataByPublishDate 1`] = `
+exports[`filterPkgMetadata narrows versions and dist-tags by publish date 1`] = `
 {
   "dist-tags": {
     "latest": "3.0.0",
@@ -42,7 +42,7 @@ exports[`filterPkgMetadataByPublishDate 1`] = `
 }
 `;
 
-exports[`filterPkgMetadataByPublishDate 2`] = `
+exports[`filterPkgMetadata narrows versions and dist-tags by publish date 2`] = `
 {
   "dist-tags": {
     "latest": "2.9.9",
