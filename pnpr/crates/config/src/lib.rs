@@ -16,6 +16,7 @@ use reqwest::header::HeaderMap;
 use serde::Deserialize;
 use std::{
     collections::BTreeSet,
+    fmt,
     net::SocketAddr,
     path::{Path, PathBuf},
     sync::Arc,
@@ -250,7 +251,7 @@ pub struct OsvConfig {
 /// so an operator can keep secrets out of the config file. Whole-file
 /// `${ENV}` substitution still runs first, so inline `${...}` values
 /// work too.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct S3Settings {
     /// Bucket the hosted packages live in.
@@ -279,6 +280,26 @@ pub struct S3Settings {
     /// `http://`. Defaults to HTTPS-only.
     #[serde(default)]
     pub allow_http: Option<bool>,
+}
+
+/// Hand-written so the credential fields never render. `Debug` on this type
+/// is reachable from `Debug` on [`Config`], so a diagnostic dump of the whole
+/// configuration would otherwise carry the operator's S3 secret in plaintext.
+/// Same rule as [`RedactedHeaders`]: a credential must never reach a log line,
+/// span, or diagnostic dump.
+impl fmt::Debug for S3Settings {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("S3Settings")
+            .field("bucket", &self.bucket)
+            .field("region", &self.region)
+            .field("endpoint", &self.endpoint)
+            .field("prefix", &self.prefix)
+            .field("access_key_id", &self.access_key_id.as_ref().map(|_| "<redacted>"))
+            .field("secret_access_key", &self.secret_access_key.as_ref().map(|_| "<redacted>"))
+            .field("force_path_style", &self.force_path_style)
+            .field("allow_http", &self.allow_http)
+            .finish()
+    }
 }
 
 impl S3Settings {

@@ -1,7 +1,7 @@
 use super::{
     BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides, HostedStoreConfig,
-    Interval, LogFormat, LogLevel, Teams, UpstreamAuthFile, UpstreamConfig, UpstreamConfigFile,
-    config_file_in, parse_interval, resolve_relative, resolve_upstream_config,
+    Interval, LogFormat, LogLevel, S3Settings, Teams, UpstreamAuthFile, UpstreamConfig,
+    UpstreamConfigFile, config_file_in, parse_interval, resolve_relative, resolve_upstream_config,
     upstream::{TokenEnv, UpstreamAuthType},
 };
 use indexmap::IndexMap;
@@ -2329,4 +2329,27 @@ fn resolution_secret_uses_yaml_secret_then_falls_back_to_random() {
     // A too-short `secret:` is a config error rather than a weak HMAC key.
     let short = Config::from_yaml_str("secret: short", Path::new("/x"), listen(), None);
     assert!(matches!(short, Err(RegistryError::InvalidConfig { .. })));
+}
+
+/// `Debug` on [`S3Settings`] is reachable from `Debug` on the whole [`Config`],
+/// so a diagnostic dump must not carry the operator's S3 credentials.
+#[test]
+fn s3_settings_debug_redacts_credentials() {
+    let settings = S3Settings {
+        bucket: "packages".to_string(),
+        region: Some("auto".to_string()),
+        endpoint: None,
+        prefix: None,
+        access_key_id: Some("AKIAEXAMPLEKEYID".to_string()),
+        secret_access_key: Some("s3cr3t-do-not-log".to_string()),
+        force_path_style: None,
+        allow_http: None,
+    };
+
+    let rendered = format!("{settings:?}");
+    assert!(!rendered.contains("s3cr3t-do-not-log"), "secret leaked: {rendered}");
+    assert!(!rendered.contains("AKIAEXAMPLEKEYID"), "key id leaked: {rendered}");
+    assert!(rendered.contains("<redacted>"), "expected redaction marker: {rendered}");
+    // Non-secret fields still render, so the dump stays useful.
+    assert!(rendered.contains("packages"), "bucket should render: {rendered}");
 }
