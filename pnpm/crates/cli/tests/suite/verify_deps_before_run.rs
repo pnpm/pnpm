@@ -513,3 +513,86 @@ fn a_silent_exec_silences_the_spawned_install() {
 
     drop(root);
 }
+
+/// A two-project workspace whose projects each print a JSON line from a
+/// `hello` script, for the recursive gate scenarios.
+fn write_recursive_workspace(workspace: &Path) {
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - project-1\n  - project-2\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "verify-deps-workspace", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write the root package.json");
+    for name in ["project-1", "project-2"] {
+        let dir = workspace.join(name);
+        fs::create_dir_all(&dir).expect("create the project directory");
+        fs::write(
+            dir.join("package.json"),
+            json!({
+                "name": name,
+                "version": "0.0.0",
+                "scripts": { "hello": r#"echo '{"ok":true}'"# },
+            })
+            .to_string(),
+        )
+        .expect("write the project package.json");
+    }
+}
+
+/// The recursive `exec` path routes the gate's install the same way the
+/// single-project one does.
+#[cfg(unix)]
+#[test]
+fn a_recursive_exec_keeps_the_spawned_install_off_stdout() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_recursive_workspace(&workspace);
+
+    let output = pacquet
+        .with_args(["-r", "exec", "sh", "-c", r#"echo '{"ok":true}'"#])
+        .output()
+        .expect("spawn pacquet exec");
+    assert!(output.status.success(), "exec must succeed after the spawned install");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout, "{\"ok\":true}\n{\"ok\":true}\n", "only the command may write to stdout");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Done in"), "the spawned install must report on stderr:\n{stderr}");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--silent", "-r", "exec", "sh", "-c", "echo done"])
+        .output()
+        .expect("spawn pacquet exec");
+    assert!(output.status.success(), "a silent exec must succeed too");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "done\ndone\n");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.is_empty(), "a silent recursive exec must report nothing:\n{stderr}");
+
+    drop(root);
+}
+
+/// The recursive `run` path passes its reporter down to the gate as
+/// well, which the single-project one already did.
+#[cfg(unix)]
+#[test]
+fn a_recursive_run_keeps_the_spawned_install_off_stdout() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_recursive_workspace(&workspace);
+
+    let output = pacquet.with_args(["-r", "run", "hello"]).output().expect("spawn pacquet run");
+    assert!(output.status.success(), "run must succeed after the spawned install");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("Done in"), "the spawned install must not write to stdout:\n{stdout}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Done in"), "the spawned install must report on stderr:\n{stderr}");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--silent", "-r", "run", "hello"])
+        .output()
+        .expect("spawn pacquet run");
+    assert!(output.status.success(), "a silent run must succeed too");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "{\"ok\":true}\n{\"ok\":true}\n");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.is_empty(), "a silent recursive run must report nothing:\n{stderr}");
+
+    drop(root);
+}
