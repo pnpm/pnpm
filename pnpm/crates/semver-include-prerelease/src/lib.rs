@@ -17,12 +17,6 @@ use node_semver::{MAX_SAFE_INTEGER, Range, Version};
 ///
 /// [`Range::satisfies`] hardcodes the eligibility rule and exposes no
 /// options, so neither half can be reached through it.
-///
-/// Two shapes still answer differently from npm, both in the permissive
-/// direction: `~18`, `~18.x` and `~18.0` admit `18.0.0-rc.1` (npm lowers
-/// no tilde bound, however much the range leaves out), and `^0.1.0`
-/// rejects `0.1.0-rc.1` (npm lowers a caret bound below `1.0.0` even when
-/// the range spells every component out).
 pub struct IncludePrereleaseRange {
     /// The `||`-separated alternatives. A version satisfies the range
     /// when it satisfies every comparator of any one alternative; an
@@ -40,6 +34,13 @@ impl IncludePrereleaseRange {
         IncludePrereleaseRange { alternatives: range.split("||").filter_map(comparators).collect() }
     }
 
+    /// Whether `version` lies inside any one of the range's
+    /// `||`-separated alternatives.
+    ///
+    /// A prerelease is eligible wherever its own release would be, and
+    /// clears a lower bound npm synthesized for an omitted component
+    /// exactly when that release clears it — the two halves of
+    /// `includePrerelease` [`IncludePrereleaseRange`] describes.
     #[must_use]
     pub fn satisfies(&self, version: &Version) -> bool {
         // The eligibility rule `includePrerelease` drops only ever
