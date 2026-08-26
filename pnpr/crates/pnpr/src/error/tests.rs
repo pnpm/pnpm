@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use axum::http::StatusCode;
+use axum::{body::to_bytes, http::StatusCode, response::IntoResponse};
 use tokio::net::TcpListener;
 
 use super::RegistryError;
@@ -185,4 +185,14 @@ fn is_transient_upstream_error_only_for_availability_failures() {
     // A non-upstream error is never a transient availability failure.
     let config_error = RegistryError::InvalidConfig { reason: "x".to_string() };
     assert!(!config_error.is_transient_upstream_error());
+}
+
+/// Every masked-existence path answers through this variant, so its rendering
+/// is a wire contract: a bare `404 Not Found` that leaks nothing about why.
+#[tokio::test]
+async fn not_found_renders_as_a_bare_404() {
+    let response = RegistryError::NotFound.into_response();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(body.as_ref(), b"Not Found");
 }

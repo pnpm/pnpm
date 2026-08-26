@@ -7,7 +7,7 @@ use axum::{
     extract::{ConnectInfo, FromRequestParts, Request, State},
     http::{Method, request::Parts},
     middleware::Next,
-    response::Response,
+    response::{IntoResponse, Response},
 };
 
 use crate::{
@@ -16,7 +16,7 @@ use crate::{
     policy::{Identity, PackageRules},
 };
 
-use super::{AppState, PeerAddr, RegistrySource, error_response, single_authorization_header};
+use super::{AppState, PeerAddr, RegistrySource, single_authorization_header};
 
 /// What the caller is trying to do with a package. Drives which
 /// rule from the access policy applies.
@@ -56,9 +56,8 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
         // The middleware runs on every route, so the context is always
         // present; a miss means a wiring bug, surfaced as a 5xx.
         parts.extensions.get::<AuthedCaller>().cloned().ok_or_else(|| {
-            error_response(&RegistryError::Internal {
-                reason: "authentication middleware did not run".to_string(),
-            })
+            RegistryError::Internal { reason: "authentication middleware did not run".to_string() }
+                .into_response()
         })
     }
 }
@@ -86,14 +85,14 @@ pub(super) async fn authenticate(
     // `extensions_mut` call.
     let header = match single_authorization_header(request.headers()) {
         Ok(header) => header.map(str::to_owned),
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let method = request.method().clone();
     let peer = request.extensions().get::<ConnectInfo<PeerAddr>>().map(|info| info.0.0);
 
     let identity = match resolve_caller(&state, header.as_deref(), &method, peer).await {
         Ok(identity) => identity,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     request.extensions_mut().insert(AuthedCaller(identity));
     next.run(request).await

@@ -1,7 +1,7 @@
 use axum::{
     body::Body,
     http::{StatusCode, header},
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use serde_json::{Value, json};
 
@@ -15,8 +15,8 @@ use crate::{
 };
 
 use super::{
-    Action, AppState, RegistrySource, authorize, error_response, filter_osv_vulnerable_dist_tags,
-    hosted_storage, load_packument_for_read, not_found, resolve_write_target,
+    Action, AppState, RegistrySource, authorize, filter_osv_vulnerable_dist_tags, hosted_storage,
+    load_packument_for_read, not_found, resolve_write_target,
 };
 
 /// `PUT /:pkg/-rev/:rev` (path-less) or `PUT /~<name>/:pkg/-rev/:rev` —
@@ -37,23 +37,23 @@ pub(super) async fn update_packument(
 ) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let target = match resolve_write_target(state, identity, registry, &name) {
         Ok(target) => target,
-        Err(response) => return *response,
+        Err(err) => return err.into_response(),
     };
     let source = RegistrySource::Hosted(target.source.clone());
     for action in [Action::Publish, Action::Unpublish] {
         if let Err(err) = authorize(state, identity, &source, name.as_str(), action) {
-            return error_response(&err);
+            return err.into_response();
         }
     }
     let org = target.org;
     let storage = hosted_storage(state, Some(&org));
     let mut packument: Value = match serde_json::from_slice(body) {
         Ok(v) => v,
-        Err(err) => return error_response(&RegistryError::Json(err)),
+        Err(err) => return RegistryError::Json(err).into_response(),
     };
     // The write destination is the URL package name; a mismatched body name
     // would otherwise land under the URL package and persist an inconsistent
@@ -61,12 +61,13 @@ pub(super) async fn update_packument(
     if let Some(body_name) = packument.get("name").and_then(Value::as_str)
         && body_name != name.as_str()
     {
-        return error_response(&RegistryError::BadRequest {
+        return RegistryError::BadRequest {
             reason: format!(
                 "packument name {body_name:?} does not match the URL package {:?}",
                 name.as_str(),
             ),
-        });
+        }
+        .into_response();
     }
     if let Some(obj) = packument.as_object_mut() {
         obj.remove("_attachments");
@@ -80,25 +81,26 @@ pub(super) async fn update_packument(
     let hosted_packument = match storage.read_hosted_packument_for_update(&name).await {
         Ok(Some(packument)) => packument,
         Ok(None) => {
-            return error_response(&RegistryError::BadRequest {
+            return RegistryError::BadRequest {
                 reason: format!(
                     "cannot update {:?}: it has no published packument to unpublish from",
                     name.as_str(),
                 ),
-            });
+            }
+            .into_response();
         }
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let hosted: Value = match serde_json::from_slice(&hosted_packument.bytes) {
         Ok(value) => value,
-        Err(err) => return error_response(&RegistryError::Json(err)),
+        Err(err) => return RegistryError::Json(err).into_response(),
     };
     if let Some(err) = enforce_published_version_immutability(&hosted, &name, &mut packument) {
-        return error_response(&err);
+        return err.into_response();
     }
     let bytes = match serde_json::to_vec_pretty(&packument) {
         Ok(b) => b,
-        Err(err) => return error_response(&RegistryError::Json(err)),
+        Err(err) => return RegistryError::Json(err).into_response(),
     };
     match storage
         .write_hosted_packument_if_current(&name, &bytes, Some(&hosted_packument.version))
@@ -106,11 +108,10 @@ pub(super) async fn update_packument(
     {
         Ok(PackumentWrite::Written) => {}
         Ok(PackumentWrite::Conflict) => {
-            return error_response(&RegistryError::PackumentWriteConflict {
-                package: name.as_str().to_string(),
-            });
+            return RegistryError::PackumentWriteConflict { package: name.as_str().to_string() }
+                .into_response();
         }
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     }
     let body = json!({ "ok": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
@@ -267,11 +268,11 @@ pub(super) async fn delete_package(
 ) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let target = match resolve_write_target(state, identity, registry, &name) {
         Ok(target) => target,
-        Err(response) => return *response,
+        Err(err) => return err.into_response(),
     };
     if let Err(err) = authorize(
         state,
@@ -280,14 +281,14 @@ pub(super) async fn delete_package(
         name.as_str(),
         Action::Unpublish,
     ) {
-        return error_response(&err);
+        return err.into_response();
     }
     let org = target.org;
     // Serialize against same-package publishers so a delete can't race a
     // stage-and-commit and remove the package mid-write.
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
     if let Err(err) = hosted_storage(state, Some(&org)).remove_package(&name).await {
-        return error_response(&err);
+        return err.into_response();
     }
     let body = json!({ "ok": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
@@ -312,15 +313,15 @@ pub(super) async fn delete_tarball(
 ) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let canonical = match name.canonicalize_tarball_name(filename) {
         Ok(c) => c,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let target = match resolve_write_target(state, identity, registry, &name) {
         Ok(target) => target,
-        Err(response) => return *response,
+        Err(err) => return err.into_response(),
     };
     if let Err(err) = authorize(
         state,
@@ -329,14 +330,14 @@ pub(super) async fn delete_tarball(
         name.as_str(),
         Action::Unpublish,
     ) {
-        return error_response(&err);
+        return err.into_response();
     }
     let org = target.org;
     // Serialize against same-package publishers so a delete can't race a
     // stage-and-commit and remove a tarball mid-write.
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
     if let Err(err) = hosted_storage(state, Some(&org)).remove_tarball(&name, &canonical).await {
-        return error_response(&err);
+        return err.into_response();
     }
     let body = json!({ "ok": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
@@ -358,16 +359,16 @@ pub(super) async fn get_dist_tags(
 ) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let bytes = match load_packument_for_read(state, identity, registry, &name).await {
         Ok(Some(bytes)) => bytes,
         Ok(None) => return not_found(),
-        Err(response) => return *response,
+        Err(err) => return err.into_response(),
     };
     let packument: Value = match serde_json::from_slice(&bytes) {
         Ok(v) => v,
-        Err(err) => return error_response(&RegistryError::Json(err)),
+        Err(err) => return RegistryError::Json(err).into_response(),
     };
     let mut tags = packument.get("dist-tags").cloned().unwrap_or_else(|| json!({}));
     filter_osv_vulnerable_dist_tags(&mut tags, &packument, &name, state.inner.osv_index.as_ref());
@@ -436,14 +437,14 @@ where
 {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     // A dist-tag change is a write, so it routes to a hosted namespace like
     // a publish — a name routed to an upstream is rejected — and the
     // resolved registry's `publish` rule gates it.
     let target = match resolve_write_target(state, identity, registry, &name) {
         Ok(target) => target,
-        Err(response) => return *response,
+        Err(err) => return err.into_response(),
     };
     if let Err(err) = authorize(
         state,
@@ -452,7 +453,7 @@ where
         name.as_str(),
         Action::Publish,
     ) {
-        return error_response(&err);
+        return err.into_response();
     }
     let org = target.org;
     let storage = hosted_storage(state, Some(&org));
@@ -501,7 +502,7 @@ where
     match outcome {
         Ok(PackumentUpdate::Written) => {}
         Ok(PackumentUpdate::NotFound) => return not_found(),
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     }
     let body = json!({ "ok": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");

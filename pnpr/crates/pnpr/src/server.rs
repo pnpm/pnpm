@@ -580,7 +580,7 @@ async fn serve_registry_version_manifest(
 ) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let resolved_source = resolve_registry_source(state, registry, name.as_str());
     let bytes = match &resolved_source {
@@ -590,12 +590,12 @@ async fn serve_registry_version_manifest(
             if let Err(err) =
                 authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
             {
-                return error_response(&err);
+                return err.into_response();
             }
             match load_upstream_packument_for(state, identity, source, &name).await {
                 Ok(Some(bytes)) => bytes,
                 Ok(None) => return not_found(),
-                Err(response) => return *response,
+                Err(err) => return err.into_response(),
             }
         }
         RegistrySource::Hosted(source) => {
@@ -603,19 +603,19 @@ async fn serve_registry_version_manifest(
             // an explicit-rule 401/403 — see `serve_registry_packument`.
             let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
                 Ok(org) => org,
-                Err(response) => return *response,
+                Err(err) => return err.into_response(),
             };
             match state.inner.storage.for_hosted(&org).read_hosted_packument(&name).await {
                 Ok(Some(bytes)) => bytes,
                 Ok(None) => return not_found(),
-                Err(err) => return error_response(&err),
+                Err(err) => return err.into_response(),
             }
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => return not_found(),
     };
     let packument: Value = match serde_json::from_slice(&bytes) {
         Ok(v) => v,
-        Err(err) => return error_response(&RegistryError::Json(err)),
+        Err(err) => return RegistryError::Json(err).into_response(),
     };
     if let Some(osv_index) = state.inner.osv_index.as_ref() {
         let resolved = resolve_version_or_tag(&packument, version_or_tag);
@@ -642,7 +642,7 @@ async fn serve_registry_version_manifest(
     };
     match serde_json::to_vec(&manifest) {
         Ok(body) => packument_bytes_response(body, "application/json", None),
-        Err(err) => error_response(&RegistryError::Json(err)),
+        Err(err) => RegistryError::Json(err).into_response(),
     }
 }
 
@@ -665,9 +665,9 @@ fn authorized_upstream<'a>(
     state: &'a AppState,
     identity: &Identity,
     upstream: &str,
-) -> Result<&'a Upstream, Box<Response>> {
+) -> Result<&'a Upstream, RegistryError> {
     let Some(config) = state.inner.config.upstreams.get(upstream) else {
-        return Err(Box::new(not_found()));
+        return Err(RegistryError::NotFound);
     };
     // A private upstream registry gates by its `access:` list; a public registry
     // (no access) is reachable by anyone at its `/~<name>/` URL, its upstream
@@ -677,28 +677,28 @@ fn authorized_upstream<'a>(
     {
         let user = require_caller(identity, "upstream access")
             .unwrap_or_else(|_| "<anonymous>".to_string());
-        return Err(Box::new(error_response(&RegistryError::Forbidden {
+        return Err(RegistryError::Forbidden {
             user,
             action: "access",
             resource: format!("upstream {upstream:?}"),
-        })));
+        });
     }
-    state.inner.upstreams.get(upstream).ok_or_else(|| Box::new(not_found()))
+    state.inner.upstreams.get(upstream).ok_or_else(|| RegistryError::NotFound)
 }
 
 fn authorized_revision_upstream<'a>(
     state: &'a AppState,
     identity: &Identity,
     registry: &str,
-) -> Result<&'a Upstream, Box<Response>> {
+) -> Result<&'a Upstream, RegistryError> {
     if !matches!(state.inner.config.registries.get(registry), Some(Registry::Upstream { .. })) {
-        return Err(Box::new(not_found()));
+        return Err(RegistryError::NotFound);
     }
     let Some(config) = state.inner.config.upstreams.get(registry) else {
-        return Err(Box::new(not_found()));
+        return Err(RegistryError::NotFound);
     };
     if config.rules.refines_access() {
-        return Err(Box::new(not_found()));
+        return Err(RegistryError::NotFound);
     }
     authorized_upstream(state, identity, registry)
 }
@@ -913,13 +913,11 @@ async fn load_upstream_packument_for(
     identity: &Identity,
     upstream: &str,
     name: &PackageName,
-) -> Result<Option<Vec<u8>>, Box<Response>> {
+) -> Result<Option<Vec<u8>>, RegistryError> {
     let namespace = upstream_cache_namespace(state, upstream);
     let upstream = authorized_upstream(state, identity, upstream)?;
     let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
-    load_upstream_packument(state, &namespace, upstream, name, ttl)
-        .await
-        .map_err(|err| Box::new(error_response(&err)))
+    load_upstream_packument(state, &namespace, upstream, name, ttl).await
 }
 
 /// Load a package's packument bytes through the addressed `/~<name>/` (or,
@@ -933,7 +931,7 @@ async fn load_packument_for_read(
     identity: &Identity,
     registry: Option<&str>,
     name: &PackageName,
-) -> Result<Option<Vec<u8>>, Box<Response>> {
+) -> Result<Option<Vec<u8>>, RegistryError> {
     let target = match registry {
         Some(registry) => registry.to_string(),
         None => match default_registry_target(state) {
@@ -949,26 +947,16 @@ async fn load_packument_for_read(
     let resolved_source = resolve_registry_source(state, &target, name.as_str());
     match &resolved_source {
         RegistrySource::Upstream(source) => {
-            if let Err(err) =
-                authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
-            {
-                return Err(Box::new(error_response(&err)));
-            }
+            authorize(state, identity, &resolved_source, name.as_str(), Action::Access)?;
             load_upstream_packument_for(state, identity, source, name).await
         }
         RegistrySource::Hosted(source) => {
             let org = match hosted_gate(state, identity, source, name.as_str()) {
                 HostedGate::Allowed(org) => org,
                 HostedGate::MaskNotFound => return Ok(None),
-                HostedGate::Denied(err) => return Err(Box::new(error_response(&err))),
+                HostedGate::Denied(err) => return Err(err),
             };
-            state
-                .inner
-                .storage
-                .for_hosted(&org)
-                .read_hosted_packument(name)
-                .await
-                .map_err(|err| Box::new(error_response(&err)))
+            state.inner.storage.for_hosted(&org).read_hosted_packument(name).await
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
     }
@@ -986,7 +974,7 @@ async fn serve_packument_via_upstream(
     let bytes = match load_upstream_packument_for(state, identity, upstream, name).await {
         Ok(Some(bytes)) => bytes,
         Ok(None) => return not_found(),
-        Err(response) => return *response,
+        Err(err) => return err.into_response(),
     };
     match packument_response(
         name,
@@ -997,7 +985,7 @@ async fn serve_packument_via_upstream(
         wants_abbreviated(headers),
     ) {
         Ok(response) => response,
-        Err(err) => error_response(&err),
+        Err(err) => err.into_response(),
     }
 }
 
@@ -1016,7 +1004,7 @@ async fn serve_tarball_via_upstream(
 ) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     // A canonical `<basename>-<version>.tgz` (or the scoped wire form) is
     // normalized as usual. A non-canonical basename preserved verbatim from
@@ -1029,7 +1017,7 @@ async fn serve_tarball_via_upstream(
         Ok((canonical, version)) => (canonical, Some(version)),
         Err(err) => {
             if !crate::package_name::is_safe_path_segment(filename) {
-                return error_response(&err);
+                return err.into_response();
             }
             (filename.to_string(), None)
         }
@@ -1037,7 +1025,7 @@ async fn serve_tarball_via_upstream(
     let namespace = upstream_cache_namespace(state, upstream);
     let upstream = match authorized_upstream(state, identity, upstream) {
         Ok(upstream) => upstream,
-        Err(response) => return *response,
+        Err(err) => return err.into_response(),
     };
     // Pre-check OSV on the filename-derived version (when the name is
     // canonical) to fail fast; the authoritative check against the
@@ -1045,7 +1033,7 @@ async fn serve_tarball_via_upstream(
     if let Some(version) = &parsed_version
         && let Err(err) = ensure_osv_allowed(state, &name, version)
     {
-        return error_response(&err);
+        return err.into_response();
     }
     let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
     // Serve a cached hit before touching the packument: a cached entry was
@@ -1081,18 +1069,18 @@ async fn serve_tarball_via_upstream(
     {
         Ok(Some(bytes)) => bytes,
         Ok(None) => return not_found(),
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let TarballDist { version, integrity } =
         match expected_tarball_dist(&packument, &name, &filename) {
             Ok(Some(dist)) => dist,
             Ok(None) => return not_found(),
-            Err(err) => return error_response(&err),
+            Err(err) => return err.into_response(),
         };
     if parsed_version.as_deref() != Some(version.as_str())
         && let Err(err) = ensure_osv_allowed(state, &name, &version)
     {
-        return error_response(&err);
+        return err.into_response();
     }
     if upstream.caches()
         && state.inner.osv_index.is_some()
@@ -1110,12 +1098,12 @@ async fn serve_tarball_via_upstream(
     {
         Ok(FetchOutcome::Ok(response)) => response,
         Ok(FetchOutcome::NotFound) => return not_found(),
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let write =
         match state.inner.storage.open_upstream_tarball_tmp(&namespace, &name, &filename).await {
             Ok(write) => write,
-            Err(err) => return error_response(&err),
+            Err(err) => return err.into_response(),
         };
     if !upstream.caches() {
         // Fetch-through: verify and stream from the temp file, then remove it,
@@ -1131,7 +1119,7 @@ async fn serve_tarball_via_upstream(
             Ok((file, len, tmp_path)) => {
                 tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
             }
-            Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
+            Err(err) => tarball_stream_error(err, &name, &filename).into_response(),
         };
     }
     // Stream the download to the client while teeing it into the namespaced
@@ -1141,7 +1129,7 @@ async fn serve_tarball_via_upstream(
     // chunked and the client reads to EOF (then re-verifies the integrity).
     match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
         Ok(body) => tarball_response(body, None),
-        Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
+        Err(err) => tarball_stream_error(err, &name, &filename).into_response(),
     }
 }
 
@@ -1175,7 +1163,7 @@ async fn serve_upstream_revision_tarball(
 ) -> Response {
     let upstream = match authorized_revision_upstream(state, identity, registry) {
         Ok(upstream) => upstream,
-        Err(response) => return *response,
+        Err(err) => return err.into_response(),
     };
     let namespace = upstream_cache_namespace(state, registry);
     if upstream.caches() {
@@ -1197,12 +1185,12 @@ async fn serve_upstream_revision_tarball(
     let response = match upstream.fetch_revision_tarball_response(digest).await {
         Ok(FetchOutcome::Ok(response)) => response,
         Ok(FetchOutcome::NotFound) => return not_found(),
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let write =
         match state.inner.storage.open_upstream_revision_tarball_tmp(&namespace, digest).await {
             Ok(write) => write,
-            Err(err) => return error_response(&err),
+            Err(err) => return err.into_response(),
         };
     if !upstream.caches() {
         return match streaming::download_verified_to_temp(
@@ -1220,14 +1208,14 @@ async fn serve_upstream_revision_tarball(
                 integrity,
             ),
             Err(err) => {
-                error_response(&tarball_stream_error_for_package(err, "registry revision", digest))
+                tarball_stream_error_for_package(err, "registry revision", digest).into_response()
             }
         };
     }
     match streaming::stream_verified_to_cache(response, write, integrity, MAX_TARBALL_BYTES) {
         Ok(body) => revision_tarball_response(body, None, digest, integrity),
         Err(err) => {
-            error_response(&tarball_stream_error_for_package(err, "registry revision", digest))
+            tarball_stream_error_for_package(err, "registry revision", digest).into_response()
         }
     }
 }
@@ -1253,16 +1241,16 @@ async fn serve_hosted_revision_tarball(
         let storage = state.inner.storage.for_hosted(&hosted.org);
         let refs = match hosted_revision_refs(&storage, digest).await {
             Ok(refs) => refs,
-            Err(err) => return private_no_cache(error_response(&err)),
+            Err(err) => return private_no_cache(err.into_response()),
         };
         for original in refs {
             let package = match PackageName::parse(&original.package) {
                 Ok(package) => package,
-                Err(err) => return private_no_cache(error_response(&err)),
+                Err(err) => return private_no_cache(err.into_response()),
             };
             let filename = package.tarball_name_for_version(&original.version);
             if let Err(err) = package.canonicalize_tarball_name(&filename) {
-                return private_no_cache(error_response(&err));
+                return private_no_cache(err.into_response());
             }
             if !matches!(
                 resolve_registry_source(state, registry, package.as_str()),
@@ -1276,7 +1264,7 @@ async fn serve_hosted_revision_tarball(
             match hosted_original_is_current(&storage, &package, &original.version, digest).await {
                 Ok(true) => {}
                 Ok(false) => continue,
-                Err(err) => return private_no_cache(error_response(&err)),
+                Err(err) => return private_no_cache(err.into_response()),
             }
             if let Err(err) = ensure_osv_allowed(state, &package, &original.version) {
                 policy_error.get_or_insert(err);
@@ -1311,7 +1299,7 @@ async fn serve_hosted_revision_tarball(
         }
     }
     if let Some(err) = policy_error {
-        return private_no_cache(error_response(&err));
+        return private_no_cache(err.into_response());
     }
     private_no_cache(not_found())
 }
@@ -1372,7 +1360,7 @@ async fn open_hosted_revision_tarball(
     match storage.open_hosted_tarball(package, &filename).await {
         Ok(Some((body, len))) => revision_tarball_response(body, len, digest, integrity),
         Ok(None) => not_found(),
-        Err(err) => error_response(&err),
+        Err(err) => err.into_response(),
     }
 }
 
@@ -1587,7 +1575,7 @@ async fn serve_registry_packument(
 ) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     // `tarball_base` is the URL the *client* addressed (the path-less host or a
     // `/~<name>/`), not the resolved source's `/~<source>/`. The served
@@ -1604,7 +1592,7 @@ async fn serve_registry_packument(
             if let Err(err) =
                 authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
             {
-                return error_response(&err);
+                return err.into_response();
             }
             let revision_registry = revision_source_registry(state, registry, source);
             serve_packument_via_upstream(
@@ -1640,7 +1628,7 @@ async fn serve_registry_tarball(
 ) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let resolved_source = resolve_registry_source(state, registry, name.as_str());
     match &resolved_source {
@@ -1649,7 +1637,7 @@ async fn serve_registry_tarball(
             if let Err(err) =
                 authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
             {
-                return error_response(&err);
+                return err.into_response();
             }
             serve_tarball_via_upstream(state, identity, source, name.as_str(), filename).await
         }
@@ -1720,11 +1708,11 @@ fn hosted_read_namespace(
     identity: &Identity,
     source: &str,
     package: &str,
-) -> Result<String, Box<Response>> {
+) -> Result<String, RegistryError> {
     match hosted_gate(state, identity, source, package) {
         HostedGate::Allowed(org) => Ok(org),
-        HostedGate::MaskNotFound => Err(Box::new(not_found())),
-        HostedGate::Denied(err) => Err(Box::new(error_response(&err))),
+        HostedGate::MaskNotFound => Err(RegistryError::NotFound),
+        HostedGate::Denied(err) => Err(err),
     }
 }
 
@@ -1738,7 +1726,7 @@ async fn serve_hosted_packument(
 ) -> Response {
     let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
         Ok(org) => org,
-        Err(response) => return *response,
+        Err(err) => return err.into_response(),
     };
     // A hosted org has no upstream fallback: a package it does not host is a
     // definitive not-found. Reads come from the org's own storage namespace.
@@ -1752,10 +1740,10 @@ async fn serve_hosted_packument(
             wants_abbreviated(headers),
         ) {
             Ok(response) => response,
-            Err(err) => error_response(&err),
+            Err(err) => err.into_response(),
         },
         Ok(None) => not_found(),
-        Err(err) => error_response(&err),
+        Err(err) => err.into_response(),
     }
 }
 
@@ -1768,21 +1756,21 @@ async fn serve_hosted_tarball(
 ) -> Response {
     let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
         Ok(org) => org,
-        Err(response) => return *response,
+        Err(err) => return err.into_response(),
     };
     let (filename, name_version) = match name.parse_tarball_name(filename) {
         Ok(parsed) => parsed,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     if let Err(err) = ensure_osv_allowed(state, name, &name_version) {
-        return error_response(&err);
+        return err.into_response();
     }
     match state.inner.storage.for_hosted(&org).open_hosted_tarball(name, &filename).await {
         Ok(Some((body, len))) => tarball_response(body, len),
         Ok(None) => not_found(),
         Err(err) => {
             tracing::warn!(?err, package = %name.as_str(), %filename, "hosted tarball open failed");
-            error_response(&err)
+            err.into_response()
         }
     }
 }
@@ -1952,27 +1940,27 @@ async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
     // (`%2F` → `/`, `%40` → `@`, etc.), so we use `name` verbatim.
     let body: Value = match serde_json::from_slice(body) {
         Ok(v) => v,
-        Err(err) => return error_response(&RegistryError::Json(err)),
+        Err(err) => return RegistryError::Json(err).into_response(),
     };
     let body_name = body.get("name").and_then(Value::as_str).unwrap_or("");
     if body_name != name {
-        return error_response(&RegistryError::BadRequest {
+        return RegistryError::BadRequest {
             reason: format!("username in URL ({name:?}) does not match body ({body_name:?})"),
-        });
+        }
+        .into_response();
     }
     let Some(password) = body.get("password").and_then(Value::as_str) else {
-        return error_response(&RegistryError::BadRequest {
-            reason: "missing password".to_string(),
-        });
+        return RegistryError::BadRequest { reason: "missing password".to_string() }
+            .into_response();
     };
 
     let (outcome, username) = match state.inner.auth.users.add_or_login(name, password).await {
         Ok(o) => o,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let token = match state.inner.auth.tokens.issue(&username).await {
         Ok(t) => t,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let ok_msg = match outcome {
         UpsertOutcome::Created => format!("user '{username}' created"),
@@ -1997,7 +1985,7 @@ async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
 fn serve_whoami(identity: &Identity) -> Response {
     let username = match require_caller(identity, "user identity") {
         Ok(username) => username,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     json_response(StatusCode::OK, &json!({ "username": username }))
 }
@@ -2010,7 +1998,7 @@ fn serve_whoami(identity: &Identity) -> Response {
 fn serve_profile(identity: &Identity) -> Response {
     let username = match require_caller(identity, "user profile") {
         Ok(username) => username,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     json_response(
         StatusCode::OK,
@@ -2034,11 +2022,11 @@ fn serve_profile(identity: &Identity) -> Response {
 async fn list_tokens(state: &AppState, identity: &Identity) -> Response {
     let username = match require_caller(identity, "token list") {
         Ok(username) => username,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let tokens = match state.inner.auth.tokens.list_for_user(&username).await {
         Ok(tokens) => tokens,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let objects: Vec<Value> =
         tokens.into_iter().map(|(key, record)| token_response_object(&key, &record)).collect();
@@ -2053,23 +2041,22 @@ async fn list_tokens(state: &AppState, identity: &Identity) -> Response {
 async fn revoke_token_by_key(state: &AppState, identity: &Identity, key: &str) -> Response {
     let username = match require_caller(identity, "token revocation") {
         Ok(username) => username,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     match state.inner.auth.tokens.find_by_key(key).await {
-        Ok(Some(record)) if record.username != username => {
-            error_response(&RegistryError::Forbidden {
-                user: username,
-                action: "revoke",
-                resource: "this token".to_string(),
-            })
+        Ok(Some(record)) if record.username != username => RegistryError::Forbidden {
+            user: username,
+            action: "revoke",
+            resource: "this token".to_string(),
         }
+        .into_response(),
         Ok(Some(_)) => match state.inner.auth.tokens.revoke_by_key(key).await {
             Ok(Some(_)) => json_response(StatusCode::OK, &json!({ "ok": "token revoked" })),
             Ok(None) => not_found(),
-            Err(err) => error_response(&err),
+            Err(err) => err.into_response(),
         },
         Ok(None) => not_found(),
-        Err(err) => error_response(&err),
+        Err(err) => err.into_response(),
     }
 }
 
@@ -2081,24 +2068,25 @@ async fn revoke_token_by_key(state: &AppState, identity: &Identity, key: &str) -
 async fn logout(state: &AppState, identity: &Identity, raw_token: &str) -> Response {
     let username = match require_caller(identity, "logout") {
         Ok(username) => username,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let target_owner = match state.inner.auth.tokens.lookup(raw_token).await {
         Ok(Some(owner)) => owner,
         Ok(None) => return not_found(),
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     if target_owner != username {
-        return error_response(&RegistryError::Forbidden {
+        return RegistryError::Forbidden {
             user: username,
             action: "revoke",
             resource: "this token".to_string(),
-        });
+        }
+        .into_response();
     }
     match state.inner.auth.tokens.revoke_by_raw(raw_token).await {
         Ok(Some(_)) => json_response(StatusCode::OK, &json!({ "ok": true })),
         Ok(None) => not_found(),
-        Err(err) => error_response(&err),
+        Err(err) => err.into_response(),
     }
 }
 
@@ -2156,10 +2144,11 @@ async fn require_resolver_caller(
 ) -> Response {
     match caller_username(&state, request.headers()).await {
         Ok(Some(_username)) => next.run(request).await,
-        Ok(None) => error_response(&RegistryError::Unauthenticated {
-            resource: "dependency resolution".to_string(),
-        }),
-        Err(error) => error_response(&error),
+        Ok(None) => {
+            RegistryError::Unauthenticated { resource: "dependency resolution".to_string() }
+                .into_response()
+        }
+        Err(error) => error.into_response(),
     }
 }
 
@@ -2290,7 +2279,7 @@ async fn serve_search(
         };
         match crate::search::run_local_search(&storage, &text, size - objects.len(), keep).await {
             Ok(mut entries) => objects.append(&mut entries),
-            Err(err) => return error_response(&err),
+            Err(err) => return err.into_response(),
         }
     }
     result(objects)
@@ -2336,27 +2325,27 @@ fn team_registry<'a>(
     identity: &Identity,
     registry: Option<&str>,
     scope: &str,
-) -> Result<&'a HostedConfig, Box<Response>> {
+) -> Result<&'a HostedConfig, RegistryError> {
     let scope = scope.strip_prefix('@').unwrap_or(scope);
     if scope.is_empty() {
-        return Err(Box::new(not_found()));
+        return Err(RegistryError::NotFound);
     }
     let target = match registry {
         Some(registry) => registry.to_string(),
         None => match default_registry_target(state) {
             Some(target) => target,
-            None => return Err(Box::new(not_found())),
+            None => return Err(RegistryError::NotFound),
         },
     };
     let probe = format!("@{scope}/-");
     let RegistrySource::Hosted(source) = resolve_registry_source(state, &target, &probe) else {
-        return Err(Box::new(not_found()));
+        return Err(RegistryError::NotFound);
     };
     let Some(hosted) = state.inner.config.hosted.get(&source) else {
-        return Err(Box::new(not_found()));
+        return Err(RegistryError::NotFound);
     };
     if !hosted.rules.default_access().allows(identity) {
-        return Err(Box::new(not_found()));
+        return Err(RegistryError::NotFound);
     }
     Ok(hosted)
 }
@@ -2372,7 +2361,7 @@ fn get_org_teams(
 ) -> Response {
     let hosted = match team_registry(state, identity, registry, scope) {
         Ok(hosted) => hosted,
-        Err(response) => return *response,
+        Err(err) => return err.into_response(),
     };
     let teams: Vec<Value> = hosted.teams.keys().map(|name| json!({ "name": name })).collect();
     (StatusCode::OK, axum::Json(Value::Array(teams))).into_response()
@@ -2390,7 +2379,7 @@ fn get_team_members(
 ) -> Response {
     let hosted = match team_registry(state, identity, registry, scope) {
         Ok(hosted) => hosted,
-        Err(response) => return *response,
+        Err(err) => return err.into_response(),
     };
     let Some(members) = hosted.teams.get(team) else {
         return not_found();
@@ -2413,9 +2402,9 @@ fn reject_team_mutation(
     action: &'static str,
 ) -> Response {
     if let Err(response) = team_registry(state, identity, registry, scope) {
-        return *response;
+        return response.into_response();
     }
-    error_response(&RegistryError::TeamsConfigManaged { action })
+    RegistryError::TeamsConfigManaged { action }.into_response()
 }
 
 // --------------------------------------------------------------------
@@ -2433,14 +2422,12 @@ fn resolve_write_target(
     identity: &Identity,
     registry: Option<&str>,
     name: &PackageName,
-) -> Result<WriteTarget, Box<Response>> {
+) -> Result<WriteTarget, RegistryError> {
     match resolve_publish_target(state, identity, registry, name.as_str()) {
         PublishTarget::Hosted { source, org } => Ok(WriteTarget { source, org }),
-        PublishTarget::Reject(reason) => {
-            Err(Box::new(error_response(&RegistryError::BadRequest { reason })))
-        }
+        PublishTarget::Reject(reason) => Err(RegistryError::BadRequest { reason }),
         PublishTarget::Denied(response) => Err(response),
-        PublishTarget::NotFound => Err(Box::new(not_found())),
+        PublishTarget::NotFound => Err(RegistryError::NotFound),
     }
 }
 
@@ -2675,21 +2662,7 @@ fn revision_tarball_response(
 }
 
 fn not_found() -> Response {
-    (StatusCode::NOT_FOUND, "Not Found").into_response()
-}
-
-fn error_response(err: &RegistryError) -> Response {
-    let status = err.status_code();
-    let error_kind = err.log_kind();
-    if status.is_server_error() {
-        let err = err.log_message();
-        tracing::error!(%err, %error_kind, %status, "request failed");
-    } else if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
-        tracing::debug!(%err, %error_kind, %status, "request failed");
-    } else {
-        tracing::warn!(%err, %error_kind, %status, "request failed");
-    }
-    (status, err.public_message()).into_response()
+    RegistryError::NotFound.into_response()
 }
 
 async fn serve_ping(State(_state): State<AppState>) -> Response {
@@ -2761,11 +2734,11 @@ async fn serve_publish_artifact(
 ) -> Response {
     let username = match require_caller(&identity, "shared artifact publication") {
         Ok(username) => username,
-        Err(err) => return private_no_cache(error_response(&err)),
+        Err(err) => return private_no_cache(err.into_response()),
     };
     let request = match crate::shared_artifacts::parse_publish(&body) {
         Ok(request) => request,
-        Err(err) => return private_no_cache(error_response(&err)),
+        Err(err) => return private_no_cache(err.into_response()),
     };
     private_no_cache(
         match crate::shared_artifacts::publish(
@@ -2777,7 +2750,7 @@ async fn serve_publish_artifact(
         {
             Ok(true) => StatusCode::CREATED.into_response(),
             Ok(false) => StatusCode::OK.into_response(),
-            Err(err) => error_response(&err),
+            Err(err) => err.into_response(),
         },
     )
 }
@@ -2789,14 +2762,14 @@ async fn serve_resolve_artifacts(
 ) -> Response {
     let username = match require_caller(&identity, "shared artifact lookup") {
         Ok(username) => username,
-        Err(err) => return private_no_cache(error_response(&err)),
+        Err(err) => return private_no_cache(err.into_response()),
     };
     private_no_cache(
         match crate::shared_artifacts::resolve(&state.inner.config.cache_storage, &username, &body)
             .await
         {
             Ok(response) => (StatusCode::OK, axum::Json(response)).into_response(),
-            Err(err) => error_response(&err),
+            Err(err) => err.into_response(),
         },
     )
 }
@@ -2808,7 +2781,7 @@ async fn serve_artifact_blob(
 ) -> Response {
     let username = match require_caller(&identity, "shared artifact blob") {
         Ok(username) => username,
-        Err(err) => return private_no_cache(error_response(&err)),
+        Err(err) => return private_no_cache(err.into_response()),
     };
     let permit = Arc::clone(&state.inner.artifact_blob_verifications)
         .acquire_owned()
@@ -2826,7 +2799,7 @@ async fn serve_artifact_blob(
             .body(artifact_blob_response_body(file, permit))
             .expect("static artifact blob response always builds"),
         Ok(None) => private_no_cache(StatusCode::NOT_FOUND.into_response()),
-        Err(err) => private_no_cache(error_response(&err)),
+        Err(err) => private_no_cache(err.into_response()),
     }
 }
 

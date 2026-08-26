@@ -18,7 +18,7 @@ use axum::{
     body::Body,
     extract::{OriginalUri, Path, State},
     http::{StatusCode, header},
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
@@ -26,8 +26,8 @@ use serde_json::{Value, json};
 
 use super::{
     Action, AppState, AuthedCaller, Identity, RegistrySource, authorize, commit_publishes,
-    error_response, is_tilde_prefix, json_response, not_found, private_no_cache,
-    resolve_write_target, stage_publish, validate_publish_doc,
+    is_tilde_prefix, json_response, not_found, private_no_cache, resolve_write_target,
+    stage_publish, validate_publish_doc,
 };
 use crate::{
     error::RegistryError,
@@ -262,21 +262,22 @@ async fn serve_staged_publish(
 ) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(name) => name,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let incoming: Value = match serde_json::from_slice(body) {
         Ok(value) => value,
-        Err(err) => return error_response(&RegistryError::Json(err)),
+        Err(err) => return RegistryError::Json(err).into_response(),
     };
     let body_name = incoming.get("name").and_then(Value::as_str);
     if body_name.is_some_and(|body_name| body_name != name.as_str()) {
-        return error_response(&RegistryError::BadRequest {
+        return RegistryError::BadRequest {
             reason: format!(
                 "package in URL ({:?}) does not match body ({:?})",
                 name.as_str(),
                 body_name.unwrap_or(""),
             ),
-        });
+        }
+        .into_response();
     }
 
     // The same routing + `publish`-rule + attachment validation a direct
@@ -285,7 +286,7 @@ async fn serve_staged_publish(
     let (validated, _target) =
         match validate_publish_doc(state, identity, registry, name, incoming).await {
             Ok(validated) => validated,
-            Err(response) => return *response,
+            Err(err) => return err.into_response(),
         };
 
     let (version, dist) = validated.prepared.first().map_or((None, Value::Null), |attachment| {
@@ -318,12 +319,12 @@ async fn serve_staged_publish(
     // Body first, metadata last: a record whose metadata exists always has
     // its body. On a metadata failure the body is cleaned up best-effort.
     if let Err(err) = state.inner.storage.write_staged_body(&stage_id, body).await {
-        return error_response(&err);
+        return err.into_response();
     }
     let meta_bytes = serde_json::to_vec(&record).expect("a staged record serializes");
     if let Err(err) = state.inner.storage.write_staged_meta(&stage_id, &meta_bytes).await {
         let _ = state.inner.storage.remove_staged(&stage_id).await;
-        return error_response(&err);
+        return err.into_response();
     }
     json_response(StatusCode::CREATED, &json!({ "ok": true, "stageId": stage_id }))
 }
@@ -340,7 +341,7 @@ async fn serve_staged_list(
     let per_page = query.per_page.clamp(1, MAX_PER_PAGE);
     let ids = match state.inner.storage.list_staged_ids().await {
         Ok(ids) => ids,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let mut records: Vec<StagedRecord> = Vec::new();
     for stage_id in ids {
@@ -388,7 +389,7 @@ async fn serve_staged_view(
 ) -> Response {
     let record = match load_authorized_record(state, identity, registry, stage_id).await {
         Ok(record) => record,
-        Err(response) => return *response,
+        Err(err) => return err.into_response(),
     };
     json_response(StatusCode::OK, &record.metadata())
 }
@@ -402,14 +403,14 @@ async fn serve_staged_reject(
     stage_id: &str,
 ) -> Response {
     if let Err(response) = load_authorized_record(state, identity, registry, stage_id).await {
-        return *response;
+        return response.into_response();
     }
     match state.inner.storage.remove_staged(stage_id).await {
         Ok(_) => Response::builder()
             .status(StatusCode::NO_CONTENT)
             .body(Body::empty())
             .expect("static-shape response always builds"),
-        Err(err) => error_response(&err),
+        Err(err) => err.into_response(),
     }
 }
 
@@ -423,24 +424,25 @@ async fn serve_staged_approve(
 ) -> Response {
     let record = match load_authorized_record(state, identity, registry, stage_id).await {
         Ok(record) => record,
-        Err(response) => return *response,
+        Err(err) => return err.into_response(),
     };
     let body = match state.inner.storage.read_staged_body(stage_id).await {
         Ok(Some(body)) => body,
         Ok(None) => {
-            return error_response(&RegistryError::Io(std::io::Error::other(format!(
+            return RegistryError::Io(std::io::Error::other(format!(
                 "staged publish {stage_id} has no stored body",
-            ))));
+            )))
+            .into_response();
         }
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let incoming: Value = match serde_json::from_slice(&body) {
         Ok(value) => value,
-        Err(err) => return error_response(&RegistryError::Json(err)),
+        Err(err) => return RegistryError::Json(err).into_response(),
     };
     let name = match PackageName::parse(&record.package_name) {
         Ok(name) => name,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     // Re-validate against the registry state of *now*: rules may have
     // changed since staging, and the version may have been published in
@@ -450,16 +452,16 @@ async fn serve_staged_approve(
             .await
         {
             Ok(validated) => validated,
-            Err(response) => return *response,
+            Err(err) => return err.into_response(),
         };
 
     let _packument_guard = state.inner.package_locks.lock(validated.name.as_str()).await;
     let staged = match stage_publish(state, validated, &now_iso(), Some(&target.org)).await {
         Ok(staged) => staged,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     if let Err(err) = commit_publishes(state, vec![staged]).await {
-        return error_response(&err);
+        return err.into_response();
     }
     if let Err(err) = state.inner.storage.remove_staged(stage_id).await {
         // The publish is already committed and visible; a failed record
@@ -478,20 +480,20 @@ async fn serve_staged_tarball(
     stage_id: &str,
 ) -> Response {
     if let Err(response) = load_authorized_record(state, identity, registry, stage_id).await {
-        return *response;
+        return response.into_response();
     }
     let body = match state.inner.storage.read_staged_body(stage_id).await {
         Ok(Some(body)) => body,
         Ok(None) => return not_found(),
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let mut incoming: Value = match serde_json::from_slice(&body) {
         Ok(value) => value,
-        Err(err) => return error_response(&RegistryError::Json(err)),
+        Err(err) => return RegistryError::Json(err).into_response(),
     };
     let attachments = match extract_attachments(&mut incoming) {
         Ok(attachments) => attachments,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     let Some(attachment) = attachments.into_iter().next() else {
         return not_found();
@@ -499,10 +501,11 @@ async fn serve_staged_tarball(
     let bytes = match BASE64.decode(attachment.data.as_bytes()) {
         Ok(bytes) => bytes,
         Err(err) => {
-            return error_response(&RegistryError::InvalidAttachment {
+            return RegistryError::InvalidAttachment {
                 filename: attachment.filename,
                 reason: format!("invalid base64 data: {err}"),
-            });
+            }
+            .into_response();
         }
     };
     Response::builder()
@@ -525,14 +528,14 @@ async fn load_authorized_record(
     identity: &Identity,
     registry: Option<&str>,
     stage_id: &str,
-) -> Result<StagedRecord, Box<Response>> {
+) -> Result<StagedRecord, RegistryError> {
     let record = match read_staged_record(state, stage_id).await {
         Ok(Some(record)) => record,
-        Ok(None) => return Err(Box::new(not_found())),
-        Err(err) => return Err(Box::new(error_response(&err))),
+        Ok(None) => return Err(RegistryError::NotFound),
+        Err(err) => return Err(err),
     };
     if record.registry.as_deref() != registry {
-        return Err(Box::new(not_found()));
+        return Err(RegistryError::NotFound);
     }
     authorize_staged(state, identity, &record).await?;
     Ok(record)
@@ -544,9 +547,8 @@ async fn authorize_staged(
     state: &AppState,
     identity: &Identity,
     record: &StagedRecord,
-) -> Result<(), Box<Response>> {
-    let name =
-        PackageName::parse(&record.package_name).map_err(|err| Box::new(error_response(&err)))?;
+) -> Result<(), RegistryError> {
+    let name = PackageName::parse(&record.package_name)?;
     let target = resolve_write_target(state, identity, record.registry.as_deref(), &name)?;
     authorize(
         state,
@@ -555,7 +557,6 @@ async fn authorize_staged(
         name.as_str(),
         Action::Publish,
     )
-    .map_err(|err| Box::new(error_response(&err)))
 }
 
 async fn read_staged_record(
