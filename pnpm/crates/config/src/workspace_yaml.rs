@@ -143,15 +143,94 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 
 /// Organization-owned dependency build artifacts eligible for this workspace.
 ///
-/// `deny_unknown_fields` keeps the signing trust root out of the repository:
-/// a `trustedKeys` entry here is rejected rather than believed. Both fields
-/// are required so a mistyped section fails at parse time instead of
-/// silently resolving to an empty allowlist.
+/// `organization` and `packages` default to empty because one section is
+/// assembled from several sources: the repository names the eligible
+/// organization and packages while the machine supplies the trust root. The
+/// feature applies only once both halves are present.
+///
+/// [`SharedSideEffectsCacheSettings::trusted_keys`] and
+/// [`SharedSideEffectsCacheSettings::private_key`] are the signing trust root
+/// and travel with the machine, not the repository: loading a
+/// `pnpm-workspace.yaml` that sets either one fails with
+/// [`LoadWorkspaceYamlError::WorkspaceSharedSideEffectsTrust`], leaving the
+/// global config yaml and the environment.
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct SharedSideEffectsCacheSettings {
     pub organization: String,
     pub packages: Vec<String>,
+    /// Publish the lifecycle-script diff of every eligible package that is built.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publish: Option<bool>,
+    /// Identifies which of the consumer's trusted keys signed a published artifact.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub builder_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub architecture_baseline: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build_env: Option<BTreeMap<String, String>>,
+    /// Base64-encoded P-256 `SubjectPublicKeyInfo` DER, keyed by key id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trusted_keys: Option<BTreeMap<String, String>>,
+    /// Base64-encoded PKCS#8 P-256 private key used to sign published artifacts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub private_key: Option<String>,
+}
+
+impl SharedSideEffectsCacheSettings {
+    /// Overlay the fields `other` sets onto `self`, leaving the rest alone.
+    ///
+    /// A workspace declares eligibility while the machine holds the signing
+    /// trust root, so the two sources contribute different fields of one
+    /// section and the later one must not drop what the earlier one set.
+    pub(crate) fn overlay(&mut self, other: Self) {
+        let Self {
+            organization,
+            packages,
+            publish,
+            key_id,
+            builder_id,
+            image_digest,
+            architecture_baseline,
+            build_env,
+            trusted_keys,
+            private_key,
+        } = other;
+        if !organization.is_empty() {
+            self.organization = organization;
+        }
+        if !packages.is_empty() {
+            self.packages = packages;
+        }
+        if publish.is_some() {
+            self.publish = publish;
+        }
+        if key_id.is_some() {
+            self.key_id = key_id;
+        }
+        if builder_id.is_some() {
+            self.builder_id = builder_id;
+        }
+        if image_digest.is_some() {
+            self.image_digest = image_digest;
+        }
+        if architecture_baseline.is_some() {
+            self.architecture_baseline = architecture_baseline;
+        }
+        if build_env.is_some() {
+            self.build_env = build_env;
+        }
+        if trusted_keys.is_some() {
+            self.trusted_keys = trusted_keys;
+        }
+        if private_key.is_some() {
+            self.private_key = private_key;
+        }
+    }
 }
 
 /// Settings readable from `pnpm-workspace.yaml`.
@@ -1094,6 +1173,19 @@ pub enum LoadWorkspaceYamlError {
     )]
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_OVERRIDE_VERSION))]
     CannotResolveOverrideVersion { spec: String, dependency_name: String },
+
+    /// The signing trust root for shared side-effects artifacts appeared in a
+    /// committed file. Only the global config yaml and the environment may
+    /// carry it — see [`SharedSideEffectsCacheSettings`].
+    #[display("sharedSideEffectsCache.{field} cannot be set by a workspace ({})", path.display())]
+    #[diagnostic(
+        code(ERR_PNPM_WORKSPACE_SHARED_SIDE_EFFECTS_TRUST),
+        help(
+            "Set it in the global config file or in the environment instead of {}.",
+            path.display(),
+        )
+    )]
+    WorkspaceSharedSideEffectsTrust { path: PathBuf, field: &'static str },
 }
 
 impl WorkspaceSettings {
@@ -1321,7 +1413,6 @@ impl WorkspaceSettings {
         self.pnpmfile = None;
         self.config_dependencies = None;
         self.allow_builds = None;
-        self.shared_side_effects_cache = None;
         self.supported_architectures = None;
         self.ignored_optional_dependencies = None;
         self.overrides = None;
@@ -1350,10 +1441,34 @@ impl WorkspaceSettings {
         let mut settings: WorkspaceSettings = text
             .pipe_as_ref(serde_saphyr::from_str)
             .map_err(Box::new)
-            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })?;
+            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
+        settings.reject_repo_controlled_trust_material(&path)?;
         settings.collect_key_issues(&text);
         Ok(Some(settings))
+    }
+
+    /// Reject the shared side-effects signing trust root in a committed file.
+    ///
+    /// Checked after parsing rather than through `deny_unknown_fields` because
+    /// the same struct also parses the global config yaml, where these fields
+    /// are legitimate.
+    fn reject_repo_controlled_trust_material(
+        &self,
+        path: &Path,
+    ) -> Result<(), LoadWorkspaceYamlError> {
+        let Some(settings) = self.shared_side_effects_cache.as_ref() else { return Ok(()) };
+        let field = if settings.trusted_keys.is_some() {
+            "trustedKeys"
+        } else if settings.private_key.is_some() {
+            "privateKey"
+        } else {
+            return Ok(());
+        };
+        Err(LoadWorkspaceYamlError::WorkspaceSharedSideEffectsTrust {
+            path: path.to_path_buf(),
+            field,
+        })
     }
 
     /// Bucket the file's keys that set nothing into [`Self::key_issues`],
@@ -1731,7 +1846,7 @@ impl WorkspaceSettings {
             config.pnpr_server = Some(v);
         }
         if let Some(v) = self.shared_side_effects_cache {
-            config.shared_side_effects_cache = Some(v);
+            config.shared_side_effects_cache.get_or_insert_default().overlay(v);
         }
         if let Some(v) = self.named_registries {
             if declared_prefixes {

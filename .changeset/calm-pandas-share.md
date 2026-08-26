@@ -16,3 +16,5 @@
 ---
 
 Added an opt-in proof of concept that lets installs publish and reuse organization-scoped, signed shared side-effects artifacts through pnpr.
+
+Configure it with the `sharedSideEffectsCache` setting. A workspace names the eligible `organization` and `packages`; the signing trust root (`trustedKeys`, `privateKey`) is refused in `pnpm-workspace.yaml` and read from the global config file or the environment instead.

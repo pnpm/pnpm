@@ -65,16 +65,47 @@ sharedSideEffectsCache:
 
 `packages` is an independent eligibility allowlist. A package must also have
 `requiresBuild: true`, pass `allowBuilds`, and have a verified source integrity.
-Signing keys are deliberately not accepted from `pnpm-workspace.yaml`, because
-the repository being installed is not a trust root. Set the user-controlled
-`PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS` environment variable to a JSON
-object mapping key IDs to base64 P-256 public keys in DER encoding.
 `--ignore-scripts` disables remote reuse. An unavailable server, invalid
 signature, incompatible platform, or bad blob falls back to the ordinary local
 build. The PoC supports Linux glibc on x64 and arm64.
 
-Set these environment variables only on a trusted builder to publish the build
-diff produced by `pnpm install`:
+### Trust material
+
+`trustedKeys` and `privateKey` are the signing trust root, so
+`pnpm-workspace.yaml` may not set them: the repository being installed is not a
+trust root, and pnpm rejects the file with
+`ERR_PNPM_WORKSPACE_SHARED_SIDE_EFFECTS_TRUST` if it tries. They come from the
+global config file (`~/.config/pnpm/config.yaml`), which travels with the
+machine rather than the repository:
+
+```yaml
+sharedSideEffectsCache:
+  trustedKeys:
+    acme-2026: '<base64 P-256 SubjectPublicKeyInfo DER public key>'
+```
+
+Every field of the section is also settable from the environment, which wins
+over both files — the form a CI runner wants for material it must not commit:
+
+| Environment variable | Setting |
+| --- | --- |
+| `PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS` | `trustedKeys` (JSON object) |
+| `PNPM_SHARED_SIDE_EFFECTS_CACHE_PRIVATE_KEY` | `privateKey` |
+| `PNPM_SHARED_SIDE_EFFECTS_CACHE_PUBLISH` | `publish` |
+| `PNPM_SHARED_SIDE_EFFECTS_CACHE_KEY_ID` | `keyId` |
+| `PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILDER_ID` | `builderId` |
+| `PNPM_SHARED_SIDE_EFFECTS_CACHE_IMAGE_DIGEST` | `imageDigest` |
+| `PNPM_SHARED_SIDE_EFFECTS_CACHE_ARCHITECTURE_BASELINE` | `architectureBaseline` |
+| `PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILD_ENV` | `buildEnv` (JSON object) |
+
+The repository and the machine each contribute the half they own, so a
+workspace naming `organization` and `packages` keeps the trust material the
+global file or the environment supplied.
+
+### Publishing
+
+Turn publication on only for a trusted builder, so `pnpm install` uploads the
+build diff it produced:
 
 ```sh
 export PNPM_SHARED_SIDE_EFFECTS_CACHE_PUBLISH=true
@@ -83,11 +114,8 @@ export PNPM_SHARED_SIDE_EFFECTS_CACHE_PRIVATE_KEY='<base64 P-256 PKCS#8 DER priv
 export PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILDER_ID='ci/main/42'
 ```
 
-Optional provenance fields are
-`PNPM_SHARED_SIDE_EFFECTS_CACHE_IMAGE_DIGEST`,
-`PNPM_SHARED_SIDE_EFFECTS_CACHE_ARCHITECTURE_BASELINE`, and
-`PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILD_ENV` (a JSON object whose values are
-strings). Do not commit the private key.
+`imageDigest`, `architectureBaseline`, and `buildEnv` are optional provenance.
+Do not commit the private key.
 
 ### Local trial
 

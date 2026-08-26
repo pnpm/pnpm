@@ -66,6 +66,62 @@ pub use workspace_yaml::{
     workspace_root_or,
 };
 
+impl Config {
+    /// The environment is the last word on the shared side-effects cache: it is
+    /// where a CI runner injects the signing material that must not be
+    /// committed, and where a build job flips publication on for one
+    /// invocation.
+    ///
+    /// Read here rather than by the installer so the values reach it as
+    /// ordinary settings. A malformed JSON variable is dropped with a warning
+    /// rather than failing the install, matching how the feature degrades to a
+    /// local build on every other cache failure.
+    pub(crate) fn apply_shared_side_effects_cache_env<Sys: EnvVar>(&mut self) {
+        let mut settings = SharedSideEffectsCacheSettings::default();
+        let mut set_any = false;
+        if let Some(publish) = Sys::var("PNPM_SHARED_SIDE_EFFECTS_CACHE_PUBLISH") {
+            settings.publish = Some(publish == "true");
+            set_any = true;
+        }
+        for (field, variable) in [
+            (&mut settings.key_id, "PNPM_SHARED_SIDE_EFFECTS_CACHE_KEY_ID"),
+            (&mut settings.builder_id, "PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILDER_ID"),
+            (&mut settings.image_digest, "PNPM_SHARED_SIDE_EFFECTS_CACHE_IMAGE_DIGEST"),
+            (
+                &mut settings.architecture_baseline,
+                "PNPM_SHARED_SIDE_EFFECTS_CACHE_ARCHITECTURE_BASELINE",
+            ),
+            (&mut settings.private_key, "PNPM_SHARED_SIDE_EFFECTS_CACHE_PRIVATE_KEY"),
+        ] {
+            if let Some(value) = Sys::var(variable) {
+                *field = Some(value);
+                set_any = true;
+            }
+        }
+        for (field, variable) in [
+            (&mut settings.build_env, "PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILD_ENV"),
+            (&mut settings.trusted_keys, "PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS"),
+        ] {
+            let Some(value) = Sys::var(variable) else { continue };
+            match serde_json::from_str::<BTreeMap<String, String>>(&value) {
+                Ok(parsed) => {
+                    *field = Some(parsed);
+                    set_any = true;
+                }
+                Err(error) => tracing::warn!(
+                    target: "pacquet::config",
+                    variable,
+                    %error,
+                    "shared side-effects environment variable is not a string-valued JSON object",
+                ),
+            }
+        }
+        if set_any {
+            self.shared_side_effects_cache.get_or_insert_default().overlay(settings);
+        }
+    }
+}
+
 fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
     let ci = Sys::var("CI");
     if ci.as_deref() == Some("false") {
@@ -3588,6 +3644,7 @@ impl Config {
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
+        self.apply_shared_side_effects_cache_env::<Sys>();
         if let Some(configured_state_dir) =
             configured_state_dir.as_deref().filter(|value| !value.is_empty())
         {

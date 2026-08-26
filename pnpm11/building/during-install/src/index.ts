@@ -283,9 +283,9 @@ async function buildDependency<T extends string> (
     // sideEffectsCacheWrite off under frozenStore; this guards callers that
     // bypass it.
     const shouldPublishSharedSideEffects = hasSideEffects &&
-      process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_PUBLISH === 'true' &&
+      opts.sharedSideEffectsCache?.publish === true &&
       opts.pnprServer != null &&
-      opts.sharedSideEffectsCache?.packages.includes(depNode.name) === true &&
+      opts.sharedSideEffectsCache?.packages?.includes(depNode.name) === true &&
       depNode.resolution != null
     if ((isPatched || hasSideEffects) && (opts.sideEffectsCacheWrite || shouldPublishSharedSideEffects) && !opts.frozenStore) {
       try {

@@ -62,11 +62,12 @@ export function canApplySharedSideEffectsToInstall (
 ): boolean {
   return opts.pnprServer != null &&
     opts.settings != null &&
-    opts.settings.packages.length > 0 &&
+    opts.settings.organization != null &&
+    (opts.settings.packages?.length ?? 0) > 0 &&
+    Object.keys(opts.settings.trustedKeys ?? {}).length > 0 &&
     !opts.ignoreScripts &&
     currentLinuxGlibcPlatform(opts.nodeVersion) != null &&
-    opts.storeController.addFileToStore != null &&
-    process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS != null
+    opts.storeController.addFileToStore != null
 }
 
 export async function applySharedSideEffectsToInstall<T extends string> (
@@ -76,15 +77,11 @@ export async function applySharedSideEffectsToInstall<T extends string> (
   const platform = currentLinuxGlibcPlatform(opts.nodeVersion)
   const { pnprServer, settings } = opts
   if (platform == null || pnprServer == null || settings == null) return new Map()
-  let trustedKeys: Record<string, string>
-  try {
-    trustedKeys = trustedKeysFromEnvironment()
-  } catch (err: unknown) {
-    opts.warn?.(`Shared side-effects trusted keys are invalid: ${errorMessage(err)}`)
-    return new Map()
-  }
+  const trustedKeys = settings.trustedKeys ?? {}
   if (Object.keys(trustedKeys).length === 0) return new Map()
 
+  const { organization } = settings
+  if (organization == null) return new Map()
   const eligiblePackages = new Set(settings.packages)
   const allowedBuilds = new Set<string>()
   const grouped = new Map<string, {
@@ -133,7 +130,7 @@ export async function applySharedSideEffectsToInstall<T extends string> (
         key: inputKey,
         package: { name: node.name, version: node.version },
         sourceIntegrity,
-        owner: { type: 'organization', name: settings.organization },
+        owner: { type: 'organization', name: organization },
       },
       localCacheKey,
       nodes: [node],
@@ -237,14 +234,12 @@ export async function publishBuiltSharedSideEffects<T extends string> (
   opts: PublishBuiltSharedSideEffectsOptions<T>
 ): Promise<void> {
   if (
-    process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_PUBLISH !== 'true' ||
+    opts.settings?.publish !== true ||
     opts.pnprServer == null ||
-    opts.settings == null ||
-    !opts.settings.packages.includes(opts.name)
+    opts.settings.packages?.includes(opts.name) !== true
   ) return
-  const keyId = process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_KEY_ID
-  const privateKey = process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_PRIVATE_KEY
-  const builderId = process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILDER_ID
+  const { builderId, keyId, organization, privateKey } = opts.settings
+  if (organization == null) return
   const platform = currentLinuxGlibcPlatform(opts.nodeVersion)
   const sourceIntegrity = verifiedIntegrity(opts.resolution)
   if (keyId == null || privateKey == null || builderId == null || platform == null || sourceIntegrity == null) return
@@ -261,12 +256,12 @@ export async function publishBuiltSharedSideEffects<T extends string> (
     package: { name: opts.name, version: opts.version },
     sourceIntegrity,
     inputKey,
-    owner: { type: 'organization', name: opts.settings.organization },
+    owner: { type: 'organization', name: organization },
     builderId,
     builderProfile: {
-      imageDigest: process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_IMAGE_DIGEST,
-      architectureBaseline: process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_ARCHITECTURE_BASELINE ?? process.arch,
-      environment: parseBuilderEnvironment(process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILD_ENV),
+      imageDigest: opts.settings.imageDigest,
+      architectureBaseline: opts.settings.architectureBaseline ?? process.arch,
+      environment: opts.settings.buildEnv ?? {},
     },
     compatibility: {
       kind: 'tagged',
@@ -347,31 +342,6 @@ function verifiedIntegrity (resolution: LockfileResolution): string | undefined 
   return (value.type == null || value.type === 'binary') && typeof value.integrity === 'string'
     ? value.integrity
     : undefined
-}
-
-function parseBuilderEnvironment (value: string | undefined): Record<string, string> {
-  if (value == null) return {}
-  const parsed = JSON.parse(value) as unknown
-  if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILD_ENV must be a JSON object')
-  }
-  if (!Object.values(parsed).every(item => typeof item === 'string')) {
-    throw new Error('PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILD_ENV values must be strings')
-  }
-  return parsed as Record<string, string>
-}
-
-function trustedKeysFromEnvironment (): Record<string, string> {
-  const value = process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS
-  if (value == null) return {}
-  const parsed: unknown = JSON.parse(value)
-  if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS must be a JSON object')
-  }
-  if (!Object.values(parsed).every(key => typeof key === 'string')) {
-    throw new Error('PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS values must be strings')
-  }
-  return parsed as Record<string, string>
 }
 
 function errorMessage (err: unknown): string {

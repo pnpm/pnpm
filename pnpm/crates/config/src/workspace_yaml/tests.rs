@@ -988,31 +988,96 @@ sharedSideEffectsCache:
 }
 
 #[test]
-fn rejects_workspace_controlled_shared_side_effects_keys() {
-    let error = serde_saphyr::from_str::<WorkspaceSettings>(
+fn rejects_workspace_controlled_shared_side_effects_trust_material() {
+    for (trust_material, field) in [
+        ("trustedKeys:\n    acme-2026: repository-controlled-key", "trustedKeys"),
+        ("privateKey: repository-controlled-key", "privateKey"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+            format!(
+                "sharedSideEffectsCache:\n  organization: acme\n  packages:\n    - native-addon\n  {trust_material}\n",
+            ),
+        )
+        .unwrap();
+
+        let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+        assert!(error.to_string().contains(field), "{error}");
+    }
+}
+
+/// The environment holds the signing material a CI runner must not commit, so
+/// it is the last word on the section.
+#[test]
+fn shared_side_effects_cache_environment_overrides_the_files() {
+    struct Env;
+    impl crate::EnvVar for Env {
+        fn var(key: &str) -> Option<String> {
+            match key {
+                "PNPM_SHARED_SIDE_EFFECTS_CACHE_PUBLISH" => Some("true".to_string()),
+                "PNPM_SHARED_SIDE_EFFECTS_CACHE_KEY_ID" => Some("acme-2026".to_string()),
+                "PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS" => {
+                    Some(r#"{"acme-2026":"AA=="}"#.to_string())
+                }
+                _ => None,
+            }
+        }
+    }
+
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
         r"
 sharedSideEffectsCache:
   organization: acme
   packages:
     - native-addon
-  trustedKeys:
-    acme-2026: repository-controlled-key
+  keyId: from-the-file
 ",
     )
-    .unwrap_err();
-    assert!(error.to_string().contains("trustedKeys"));
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+    config.apply_shared_side_effects_cache_env::<Env>();
+
+    let shared = config.shared_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.organization, "acme");
+    assert_eq!(shared.packages, ["native-addon"]);
+    assert_eq!(shared.publish, Some(true));
+    assert_eq!(shared.key_id.as_deref(), Some("acme-2026"));
+    assert_eq!(shared.trusted_keys.expect("trusted keys").get("acme-2026").unwrap(), "AA==");
 }
 
+/// Each source contributes the half it owns, and the later one keeps what the
+/// earlier one set.
 #[test]
-fn rejects_incomplete_shared_side_effects_cache() {
-    let error = serde_saphyr::from_str::<WorkspaceSettings>(
+fn shared_side_effects_cache_sources_overlay_rather_than_replace() {
+    let global: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sharedSideEffectsCache:
+  trustedKeys:
+    acme-2026: AA==
+  privateKey: BB==
+",
+    )
+    .unwrap();
+    let workspace: WorkspaceSettings = serde_saphyr::from_str(
         r"
 sharedSideEffectsCache:
   organization: acme
+  packages:
+    - native-addon
 ",
     )
-    .unwrap_err();
-    assert!(error.to_string().contains("packages"), "{error}");
+    .unwrap();
+    let mut config = Config::new();
+    global.apply_to(&mut config, Path::new("/workspace"));
+    workspace.apply_to(&mut config, Path::new("/workspace"));
+
+    let shared = config.shared_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.organization, "acme");
+    assert_eq!(shared.packages, ["native-addon"]);
+    assert_eq!(shared.trusted_keys.expect("trusted keys").get("acme-2026").unwrap(), "AA==");
+    assert_eq!(shared.private_key.as_deref(), Some("BB=="));
 }
 
 /// pnpm scaffolds `allowBuilds` entries with a placeholder string for the

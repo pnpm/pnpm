@@ -108,22 +108,49 @@ test('getOptionsFromPnpmSettings() reads shared side-effects cache settings', ()
   })).toStrictEqual({ sharedSideEffectsCache })
 })
 
-test('getOptionsFromPnpmSettings() rejects workspace-controlled shared side-effects keys', () => {
+test.each(['trustedKeys', 'privateKey'])('getOptionsFromPnpmSettings() rejects a workspace-controlled shared side-effects %s', (trustKey) => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     sharedSideEffectsCache: {
       organization: 'acme',
       packages: ['native-addon'],
-      trustedKeys: { 'acme-2026': 'repository-controlled-key' },
+      [trustKey]: { 'acme-2026': 'repository-controlled-key' },
     },
   } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
     code: 'ERR_PNPM_WORKSPACE_SHARED_SIDE_EFFECTS_TRUST',
   }))
 })
 
+test('getOptionsFromPnpmSettings() accepts shared side-effects trust material on its own from a trusted source', () => {
+  const sharedSideEffectsCache = {
+    trustedKeys: { 'acme-2026': 'AA==' },
+    privateKey: 'AA==',
+  }
+  expect(getOptionsFromPnpmSettings(process.cwd(), { sharedSideEffectsCache }, {
+    trustedSource: true,
+  })).toStrictEqual({ sharedSideEffectsCache })
+})
+
+test('getOptionsFromPnpmSettings() reads the shared side-effects builder settings', () => {
+  const sharedSideEffectsCache = {
+    organization: 'acme',
+    packages: ['native-addon'],
+    publish: true,
+    keyId: 'acme-2026',
+    builderId: 'ci/main/42',
+    imageDigest: 'sha256:abc',
+    architectureBaseline: 'x64',
+    buildEnv: { CC: 'clang' },
+  }
+  expect(getOptionsFromPnpmSettings(process.cwd(), { sharedSideEffectsCache }))
+    .toStrictEqual({ sharedSideEffectsCache })
+})
+
 test.each([
   ['organization', { organization: 42, packages: [] }],
   ['packages', { organization: 'acme', packages: 'native-addon' }],
-  ['packages', { organization: 'acme' }],
+  ['publish', { organization: 'acme', packages: [], publish: 'yes' }],
+  ['buildEnv', { organization: 'acme', packages: [], buildEnv: { CC: 1 } }],
+  ['keyId', { organization: 'acme', packages: [], keyId: 7 }],
 ])('getOptionsFromPnpmSettings() rejects a malformed shared side-effects %s', (_field, sharedSideEffectsCache) => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     sharedSideEffectsCache,

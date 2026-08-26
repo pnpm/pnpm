@@ -62,7 +62,8 @@ pub(crate) async fn apply_shared_side_effects(
             return;
         }
     };
-    let Some(trusted_keys) = trusted_keys_from_environment() else { return };
+    let Some(trusted_keys) = decoded_trusted_keys(settings) else { return };
+    let Some(organization) = non_empty(&settings.organization) else { return };
 
     let eligible_packages: HashSet<String> = settings.packages.iter().cloned().collect();
     let roots: Vec<PackageKey> = in_lockfile_order(snapshots)
@@ -134,7 +135,7 @@ pub(crate) async fn apply_shared_side_effects(
                 version: package_version(&metadata_key, metadata.version.as_deref()),
             },
             source_integrity,
-            owner: OwnerScope::organization(settings.organization.clone()),
+            owner: OwnerScope::organization(organization.to_string()),
         };
         if let Some(group) = groups.get_mut(&input_key) {
             if group.candidate.package != candidate.package
@@ -255,20 +256,15 @@ pub(crate) async fn apply_shared_side_effects(
     }
 }
 
-fn trusted_keys_from_environment() -> Option<BTreeMap<String, Vec<u8>>> {
-    let value = std::env::var("PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS").ok()?;
-    let encoded = match serde_json::from_str::<BTreeMap<String, String>>(&value) {
-        Ok(keys) if !keys.is_empty() => keys,
-        Ok(_) => return None,
-        Err(error) => {
-            tracing::warn!(
-                target: "pacquet::install",
-                %error,
-                "PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS is not a string-valued JSON object",
-            );
-            return None;
-        }
-    };
+/// Decode the configured trust root, or `None` when it is absent or unusable.
+///
+/// A key pnpm cannot decode is a configuration mistake that would silently
+/// narrow what the install trusts, so the whole lookup is abandoned rather than
+/// run against a partial key set.
+fn decoded_trusted_keys(
+    settings: &pnpm_config::SharedSideEffectsCacheSettings,
+) -> Option<BTreeMap<String, Vec<u8>>> {
+    let encoded = settings.trusted_keys.as_ref().filter(|keys| !keys.is_empty())?;
     let mut trusted_keys = BTreeMap::new();
     for (key_id, public_key) in encoded {
         let public_key = match BASE64.decode(public_key) {
@@ -283,54 +279,45 @@ fn trusted_keys_from_environment() -> Option<BTreeMap<String, Vec<u8>>> {
                 return None;
             }
         };
-        trusted_keys.insert(key_id, public_key);
+        trusted_keys.insert(key_id.clone(), public_key);
     }
     Some(trusted_keys)
+}
+
+fn non_empty(value: &str) -> Option<&str> {
+    (!value.is_empty()).then_some(value)
 }
 
 pub(crate) fn shared_side_effects_publisher(
     config: &Config,
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
 ) -> Option<SharedSideEffectsPublisher> {
-    if std::env::var("PNPM_SHARED_SIDE_EFFECTS_CACHE_PUBLISH").as_deref() != Ok("true") {
-        return None;
-    }
     let server = config.pnpr_server.as_deref()?;
     let settings = config.shared_side_effects_cache.as_ref()?;
+    if settings.publish != Some(true) {
+        return None;
+    }
     let snapshots = snapshots?;
     let platform = linux_glibc_platform(snapshots)?;
-    let private_key = std::env::var("PNPM_SHARED_SIDE_EFFECTS_CACHE_PRIVATE_KEY")
-        .ok()
-        .and_then(|encoded| BASE64.decode(encoded).ok())?;
-    let key_id = std::env::var("PNPM_SHARED_SIDE_EFFECTS_CACHE_KEY_ID").ok()?;
-    let builder_id = std::env::var("PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILDER_ID").ok()?;
-    let environment = std::env::var("PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILD_ENV")
-        .ok()
-        .map(|value| serde_json::from_str::<BTreeMap<String, String>>(&value))
-        .transpose()
-        .map_err(|error| {
-            tracing::warn!(
-                target: "pacquet::install",
-                %error,
-                "PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILD_ENV is not a string-valued JSON object",
-            );
-        })
-        .ok()?
-        .unwrap_or_default();
+    let private_key = BASE64.decode(settings.private_key.as_ref()?).ok()?;
+    let key_id = settings.key_id.clone()?;
+    let builder_id = settings.builder_id.clone()?;
+    let organization = non_empty(&settings.organization)?.to_string();
+    let environment = settings.build_env.clone().unwrap_or_default();
     Some(SharedSideEffectsPublisher {
         authorization: config.auth_headers.for_url(server),
         builder_id,
         builder_profile: BuilderProfile {
-            image_digest: std::env::var("PNPM_SHARED_SIDE_EFFECTS_CACHE_IMAGE_DIGEST").ok(),
-            architecture_baseline: std::env::var(
-                "PNPM_SHARED_SIDE_EFFECTS_CACHE_ARCHITECTURE_BASELINE",
-            )
-            .unwrap_or_else(|_| pnpm_graph_hasher::host_arch().to_string()),
+            image_digest: settings.image_digest.clone(),
+            architecture_baseline: settings
+                .architecture_baseline
+                .clone()
+                .unwrap_or_else(|| pnpm_graph_hasher::host_arch().to_string()),
             environment,
         },
         client: PnprClient::new(server),
         key_id,
-        organization: settings.organization.clone(),
+        organization,
         packages: settings.packages.iter().cloned().collect(),
         platform,
         private_key,

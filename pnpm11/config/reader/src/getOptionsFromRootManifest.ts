@@ -43,6 +43,13 @@ export type OptionsFromRootManifest = {
 } & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'sharedSideEffectsCache' | 'updateConfig'>
 
 interface GetOptionsFromPnpmSettingsOptions {
+  /**
+   * The settings come from a file the repository does not control (the global
+   * config yaml), so they may carry the fields
+   * {@link SHARED_SIDE_EFFECTS_TRUST_KEYS} names. Defaults to `false`, which
+   * treats the source as repo-controlled.
+   */
+  trustedSource?: boolean
   manifest?: ProjectManifest
   expandRequestDestinationEnv?: boolean
 }
@@ -58,12 +65,12 @@ export function getOptionsFromPnpmSettings (
   pnpmSettings: PnpmSettings,
   manifestOrOpts?: ProjectManifest | GetOptionsFromPnpmSettingsOptions
 ): OptionsFromRootManifest {
-  if (pnpmSettings.sharedSideEffectsCache != null) {
-    assertValidSharedSideEffectsCache(pnpmSettings.sharedSideEffectsCache)
-  }
   const opts = isGetOptionsFromPnpmSettingsOptions(manifestOrOpts)
     ? manifestOrOpts
     : manifestOrOpts == null ? {} : { manifest: manifestOrOpts }
+  if (pnpmSettings.sharedSideEffectsCache != null) {
+    assertValidSharedSideEffectsCache(pnpmSettings.sharedSideEffectsCache, opts.trustedSource ?? false)
+  }
   const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings, {
     expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? false,
   })
@@ -96,24 +103,51 @@ export function getOptionsFromPnpmSettings (
   return settings
 }
 
-// The signing trust root stays outside the repository: a workspace may only
-// declare which organization and packages are eligible, never which keys are
-// believed. Both fields are consumed without further checks by the install-time
-// lookup, so a malformed section has to be rejected here rather than surface as
-// a type error deep inside the hydration path.
+/**
+ * The signing trust root stays outside the repository: a workspace may declare
+ * which organization, packages, and builder identity are eligible, never which
+ * keys are believed or which key signs. Those two travel with the machine, so
+ * they come from the global config yaml, the environment, or the command line
+ * — the same sources {@link SHARED_SIDE_EFFECTS_TRUST_KEYS} names.
+ *
+ * The rest of the section is consumed without further checks by the
+ * install-time lookup, so a malformed shape has to be rejected here rather than
+ * surface as a type error deep inside the hydration path.
+ */
 function assertValidSharedSideEffectsCache (
-  settings: NonNullable<PnpmSettings['sharedSideEffectsCache']>
+  settings: NonNullable<PnpmSettings['sharedSideEffectsCache']>,
+  trustedSource: boolean
 ): void {
   assertObjectSetting(settings, 'sharedSideEffectsCache')
-  if (Object.prototype.hasOwnProperty.call(settings, 'trustedKeys')) {
+  for (const trustKey of SHARED_SIDE_EFFECTS_TRUST_KEYS) {
+    if (trustedSource || !Object.prototype.hasOwnProperty.call(settings, trustKey)) continue
     throw new PnpmError(
       'WORKSPACE_SHARED_SIDE_EFFECTS_TRUST',
-      'sharedSideEffectsCache.trustedKeys cannot be set by a workspace; set PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS in the user environment'
+      `sharedSideEffectsCache.${trustKey} cannot be set by a workspace`,
+      { hint: `Set it in the global config file (pnpm config set --location=global sharedSideEffectsCache.${trustKey} ...) or in the environment instead.` }
     )
   }
-  assertString(settings.organization, 'sharedSideEffectsCache.organization')
-  assertStringArray(settings.packages, 'sharedSideEffectsCache.packages')
+  if (settings.organization != null) {
+    assertString(settings.organization, 'sharedSideEffectsCache.organization')
+  }
+  if (settings.packages != null) {
+    assertStringArray(settings.packages, 'sharedSideEffectsCache.packages')
+  }
+  assertOptionalBoolean(settings.publish, 'sharedSideEffectsCache.publish')
+  for (const field of ['keyId', 'builderId', 'imageDigest', 'architectureBaseline', 'privateKey'] as const) {
+    if (settings[field] == null) continue
+    assertString(settings[field], `sharedSideEffectsCache.${field}`)
+  }
+  if (settings.buildEnv != null) {
+    assertObjectSetting(settings.buildEnv, 'sharedSideEffectsCache.buildEnv')
+    for (const [name, value] of Object.entries(settings.buildEnv)) {
+      assertString(value, `sharedSideEffectsCache.buildEnv.${name}`)
+    }
+  }
 }
+
+/** Fields of `sharedSideEffectsCache` a committed file may not contribute. */
+export const SHARED_SIDE_EFFECTS_TRUST_KEYS = ['trustedKeys', 'privateKey'] as const
 
 const REGISTRY_SERVER_TYPES = new Set(['npm', 'artifactory'])
 
@@ -440,7 +474,7 @@ function translateVirtualStoreType (pnpmSettings: PnpmSettings, settings: Option
 function isGetOptionsFromPnpmSettingsOptions (
   value: ProjectManifest | GetOptionsFromPnpmSettingsOptions | undefined
 ): value is GetOptionsFromPnpmSettingsOptions {
-  return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value)
+  return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value || 'trustedSource' in value)
 }
 
 function assertValidOverrides (overrides: unknown): asserts overrides is Record<string, string> {
@@ -509,6 +543,11 @@ function assertStringArray (value: unknown, settingName: string): asserts value 
   if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
     throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be an array of strings, but got ${renderReceivedType(value)}`)
   }
+}
+
+function assertOptionalBoolean (value: unknown, settingName: string): void {
+  if (value == null) return
+  assertBoolean(value, settingName)
 }
 
 function assertBoolean (value: unknown, settingName: string): asserts value is boolean {

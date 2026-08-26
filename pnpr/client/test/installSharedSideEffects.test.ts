@@ -4,7 +4,7 @@ import { createServer } from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterEach, describe, expect, test } from '@jest/globals'
+import { describe, expect, test } from '@jest/globals'
 import type { DepsGraph } from '@pnpm/deps.graph-hasher'
 import type { LockfileResolution } from '@pnpm/lockfile.types'
 import {
@@ -27,22 +27,15 @@ const depPath = graphKey as DepPath
 const sourceIntegrity = `sha512-${createHash('sha512').update('source').digest('base64')}`
 const builtFile = Buffer.from('compiled native addon')
 const builtFileIntegrity = `sha512-${createHash('sha512').update(builtFile).digest('base64')}`
-const originalTrustedKeys = process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS
-
-afterEach(() => {
-  if (originalTrustedKeys == null) delete process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS
-  else process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS = originalTrustedKeys
-})
-
 describe('install shared side-effects', () => {
   test('hydrates the store and selects a verified remote build', async () => {
     const platform = currentLinuxGlibcPlatform()
     if (platform == null) return
 
     const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
-    process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS = JSON.stringify({
+    const trustedKeys = {
       'acme-2026': publicKey.export({ format: 'der', type: 'spki' }).toString('base64'),
-    })
+    }
     const requestedPaths: string[] = []
     const server = createServer((request, response) => {
       const chunks: Buffer[] = []
@@ -155,6 +148,7 @@ describe('install shared side-effects', () => {
         settings: {
           organization: 'acme',
           packages: [packageName],
+          trustedKeys,
         },
         sideEffectsCacheRead: false,
         storeController,
@@ -181,7 +175,6 @@ describe('install shared side-effects', () => {
   })
 
   test('does not contact pnpr when build policy denies the package', async () => {
-    process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS = JSON.stringify({ unused: 'AA==' })
     const files: PackageFilesResponse = {
       filesMap: new Map(),
       requiresBuild: true,
@@ -207,6 +200,7 @@ describe('install shared side-effects', () => {
       settings: {
         organization: 'acme',
         packages: [packageName],
+        trustedKeys: { unused: 'AA==' },
       },
       sideEffectsCacheRead: false,
       storeController: { addFileToStore: () => {
@@ -236,20 +230,6 @@ describe('install shared side-effects', () => {
     const temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-shared-side-effects-'))
     const builtFilePath = path.join(temporaryDirectory, 'addon.node')
     await fs.writeFile(builtFilePath, builtFile)
-    const environmentKeys = [
-      'PNPM_SHARED_SIDE_EFFECTS_CACHE_PUBLISH',
-      'PNPM_SHARED_SIDE_EFFECTS_CACHE_KEY_ID',
-      'PNPM_SHARED_SIDE_EFFECTS_CACHE_PRIVATE_KEY',
-      'PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILDER_ID',
-    ] as const
-    const originalEnvironment = Object.fromEntries(environmentKeys.map(key => [key, process.env[key]]))
-    process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_PUBLISH = 'true'
-    process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_KEY_ID = 'acme-2026'
-    process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_PRIVATE_KEY = privateKey
-      .export({ format: 'der', type: 'pkcs8' })
-      .toString('base64')
-    process.env.PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILDER_ID = 'ci/main/42'
-
     try {
       await publishBuiltSharedSideEffects({
         configByUri: {},
@@ -263,6 +243,10 @@ describe('install shared side-effects', () => {
         settings: {
           organization: 'acme',
           packages: [packageName],
+          publish: true,
+          keyId: 'acme-2026',
+          privateKey: privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64'),
+          builderId: 'ci/main/42',
         },
         upload: {
           filesMap: new Map([['build/addon.node', builtFilePath]]),
@@ -305,11 +289,6 @@ describe('install shared side-effects', () => {
         data: builtFile.toString('base64'),
       }])
     } finally {
-      for (const key of environmentKeys) {
-        const value = originalEnvironment[key]
-        if (value == null) delete process.env[key]
-        else process.env[key] = value
-      }
       await fs.rm(temporaryDirectory, { force: true, recursive: true })
       await new Promise<void>((resolve, reject) => server.close(error => error == null ? resolve() : reject(error)))
     }
