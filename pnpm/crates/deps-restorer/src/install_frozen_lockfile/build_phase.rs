@@ -268,9 +268,10 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         strict_dep_builds: config.strict_dep_builds,
     }));
 
-    // `virtual_store_only` links no bins at all, so there is nothing for
-    // the pass below to re-resolve. Dependency *build* scripts still ran
-    // above — only the linking stops, matching `pnpm fetch`.
+    // `virtual_store_only` links no importer bins, so there is nothing
+    // for the pass below to re-resolve. Dependency *build* scripts still
+    // ran above — only the importer-facing linking stops, matching
+    // `pnpm fetch`.
     if config.virtual_store_only {
         return Ok(build_output);
     }
