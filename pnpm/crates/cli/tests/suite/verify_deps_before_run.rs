@@ -43,6 +43,42 @@ fn write_manifest_with_dependency_groups(
         .expect("write package.json");
 }
 
+/// A two-project workspace whose projects each print a JSON line from a
+/// `hello` script, for the recursive gate scenarios.
+fn write_recursive_workspace(workspace: &Path) {
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - project-1\n  - project-2\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "verify-deps-workspace", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write the root package.json");
+    for name in ["project-1", "project-2"] {
+        let dir = workspace.join(name);
+        fs::create_dir_all(&dir).expect("create the project directory");
+        fs::write(
+            dir.join("package.json"),
+            json!({
+                "name": name,
+                "version": "0.0.0",
+                "scripts": { "hello": r#"echo '{"ok":true}'"# },
+            })
+            .to_string(),
+        )
+        .expect("write the project package.json");
+    }
+}
+
+/// Sorted so a test does not depend on the order two concurrent projects
+/// finish in.
+fn sorted_lines(stdout: &[u8]) -> Vec<String> {
+    let stdout = String::from_utf8_lossy(stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    let mut lines = stdout.trim().lines().map(str::to_string).collect::<Vec<_>>();
+    lines.sort();
+    lines
+}
+
 /// The default action is `install` (pnpm's
 /// `'verify-deps-before-run': 'install'`): a fresh project's first
 /// `run` spawns an install before executing the script.
@@ -514,32 +550,6 @@ fn a_silent_exec_silences_the_spawned_install() {
     drop(root);
 }
 
-/// A two-project workspace whose projects each print a JSON line from a
-/// `hello` script, for the recursive gate scenarios.
-fn write_recursive_workspace(workspace: &Path) {
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - project-1\n  - project-2\n")
-        .expect("write pnpm-workspace.yaml");
-    fs::write(
-        workspace.join("package.json"),
-        json!({ "name": "verify-deps-workspace", "version": "0.0.0" }).to_string(),
-    )
-    .expect("write the root package.json");
-    for name in ["project-1", "project-2"] {
-        let dir = workspace.join(name);
-        fs::create_dir_all(&dir).expect("create the project directory");
-        fs::write(
-            dir.join("package.json"),
-            json!({
-                "name": name,
-                "version": "0.0.0",
-                "scripts": { "hello": r#"echo '{"ok":true}'"# },
-            })
-            .to_string(),
-        )
-        .expect("write the project package.json");
-    }
-}
-
 /// The recursive `exec` path routes the gate's install the same way the
 /// single-project one does.
 #[cfg(unix)]
@@ -553,19 +563,33 @@ fn a_recursive_exec_keeps_the_spawned_install_off_stdout() {
         .output()
         .expect("spawn pacquet exec");
     assert!(output.status.success(), "exec must succeed after the spawned install");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(stdout, "{\"ok\":true}\n{\"ok\":true}\n", "only the command may write to stdout");
+    assert_eq!(
+        sorted_lines(&output.stdout),
+        [r#"{"ok":true}"#, r#"{"ok":true}"#],
+        "only the command may write to stdout",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Done in"), "the spawned install must report on stderr:\n{stderr}");
 
-    let output = pacquet_in(&workspace)
+    drop(root);
+}
+
+/// A silent recursive `exec` silences the install the gate spawns, the
+/// way the single-project one does.
+#[cfg(unix)]
+#[test]
+fn a_silent_recursive_exec_silences_the_spawned_install() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_recursive_workspace(&workspace);
+
+    let output = pacquet
         .with_args(["--silent", "-r", "exec", "sh", "-c", "echo done"])
         .output()
         .expect("spawn pacquet exec");
-    assert!(output.status.success(), "a silent exec must succeed too");
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "done\ndone\n");
+    assert!(output.status.success(), "exec must succeed after the spawned install");
+    assert_eq!(sorted_lines(&output.stdout), ["done", "done"]);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.is_empty(), "a silent recursive exec must report nothing:\n{stderr}");
+    assert!(stderr.is_empty(), "the spawned install must report nothing:\n{stderr}");
 
     drop(root);
 }
@@ -580,22 +604,31 @@ fn a_recursive_run_keeps_the_spawned_install_off_stdout() {
 
     let output = pacquet.with_args(["-r", "run", "hello"]).output().expect("spawn pacquet run");
     assert!(output.status.success(), "run must succeed after the spawned install");
-    let stdout = String::from_utf8_lossy(&output.stdout);
     assert_eq!(
-        stdout, "Scope: 2 of 3 workspace projects\n{\"ok\":true}\n{\"ok\":true}\n",
+        sorted_lines(&output.stdout),
+        ["Scope: 2 of 3 workspace projects", r#"{"ok":true}"#, r#"{"ok":true}"#],
         "stdout carries the scripts and `run`'s own scope line, nothing from the install",
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Done in"), "the spawned install must report on stderr:\n{stderr}");
 
-    let output = pacquet_in(&workspace)
-        .with_args(["--silent", "-r", "run", "hello"])
-        .output()
-        .expect("spawn pacquet run");
-    assert!(output.status.success(), "a silent run must succeed too");
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "{\"ok\":true}\n{\"ok\":true}\n");
+    drop(root);
+}
+
+/// A silent recursive `run` silences the install the gate spawns, and
+/// drops `run`'s own scope line with it.
+#[cfg(unix)]
+#[test]
+fn a_silent_recursive_run_silences_the_spawned_install() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_recursive_workspace(&workspace);
+
+    let output =
+        pacquet.with_args(["--silent", "-r", "run", "hello"]).output().expect("spawn pacquet run");
+    assert!(output.status.success(), "run must succeed after the spawned install");
+    assert_eq!(sorted_lines(&output.stdout), [r#"{"ok":true}"#, r#"{"ok":true}"#]);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.is_empty(), "a silent recursive run must report nothing:\n{stderr}");
+    assert!(stderr.is_empty(), "the spawned install must report nothing:\n{stderr}");
 
     drop(root);
 }
