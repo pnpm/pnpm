@@ -369,7 +369,10 @@ async fn blob_classification_waits_for_complete_rollback_and_preserves_required_
     let adoption = usage.pending.get(current_reservation).unwrap();
     assert_eq!(adoption.commit_file.as_deref(), Some(current_commit_file));
     assert_eq!(adoption.files.len(), 1);
-    assert_eq!(adoption.files[0].path, format!("owner/blobs/{first_blob}"));
+    assert_eq!(
+        Path::new(&adoption.files[0].path),
+        Path::new("owner").join("blobs").join(first_blob),
+    );
 }
 
 #[tokio::test]
