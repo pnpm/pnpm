@@ -34,6 +34,7 @@ const TYPED_WORKSPACE_MANIFEST_KEYS = [
   'peerDependencyRules',
   'pnprServer',
   'registries',
+  'remoteSideEffectsCache',
   'requiredScripts',
   'supportedArchitectures',
   'update',

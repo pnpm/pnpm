@@ -15,11 +15,13 @@ import type {
 } from '@pnpm/resolving.resolver-base'
 import type {
   FilesMap,
+  FileWriteResult,
   ImportPackageFunction,
   ImportPackageFunctionAsync,
   PackageFileInfo,
   PackageFilesResponse,
   ResolvedFrom,
+  SideEffectsDiff,
 } from '@pnpm/store.cafs-types'
 import type {
   AllowBuild,
@@ -31,7 +33,7 @@ import type {
   TrustPolicy,
 } from '@pnpm/types'
 
-export type { FilesMap, ImportPackageFunction, ImportPackageFunctionAsync, PackageFileInfo, PackageFilesResponse, ResolvedFrom }
+export type { FilesMap, ImportPackageFunction, ImportPackageFunctionAsync, PackageFileInfo, PackageFilesResponse, ResolvedFrom, SideEffectsDiff }
 
 export * from '@pnpm/resolving.resolver-base'
 export type { BundledManifest }
@@ -41,7 +43,12 @@ export interface UploadPkgToStoreOpts {
   sideEffectsCacheKey: string
 }
 
-export type UploadPkgToStore = (builtPkgLocation: string, opts: UploadPkgToStoreOpts) => Promise<void>
+export interface UploadPkgToStoreResult {
+  filesMap: FilesMap
+  sideEffects?: SideEffectsDiff
+}
+
+export type UploadPkgToStore = (builtPkgLocation: string, opts: UploadPkgToStoreOpts) => Promise<UploadPkgToStoreResult>
 
 export interface StoreController {
   requestPackage: RequestPackageFunction
@@ -51,6 +58,7 @@ export interface StoreController {
   close: () => Promise<void>
   prune: (removeAlienFiles?: boolean) => Promise<void>
   upload: UploadPkgToStore
+  addFileToStore?: (buffer: Buffer, mode: number) => FileWriteResult
   clearResolutionCache: () => void
 }
 

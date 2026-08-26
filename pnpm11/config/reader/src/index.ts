@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { stripVTControlCharacters } from 'node:util'
+import util, { stripVTControlCharacters } from 'node:util'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { createMatcher } from '@pnpm/config.matcher'
@@ -11,7 +11,7 @@ import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
 import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
 import { isCamelCase } from '@pnpm/text.naming-cases'
-import type { DevEngines, EngineDependency, ProjectManifest, VirtualStoreType } from '@pnpm/types'
+import type { DevEngines, EngineDependency, ProjectManifest, RemoteSideEffectsCacheSettings, VirtualStoreType } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { betterPathResolve } from 'better-path-resolve'
@@ -366,6 +366,7 @@ export async function getConfig (opts: {
       expandRequestDestinationEnv: true,
       projectManifest: undefined,
       skipSettings: GLOBAL_CONFIG_SKIPPED_KEYS,
+      trustedSource: true,
       workspaceDir: undefined,
       workspaceManifest: globalYamlConfig,
     })
@@ -909,6 +910,8 @@ export async function getConfig (opts: {
     applyRuntimeOnFailOverride(pnpmConfig.rootProjectManifest, pnpmConfig.runtimeOnFail)
   }
 
+  applyRemoteSideEffectsCacheEnv(pnpmConfig, env)
+
   const {
     hooks, finders,
     allProjects, selectedProjectsGraph, allProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs,
@@ -1295,6 +1298,66 @@ type ProjectManifestSkippedKey =
   | typeof CURRENT_RUN_LOCATION_KEYS[number]
   | typeof CREDENTIAL_KEYS[number]
 
+/**
+ * The environment is the last word on the remote side-effects cache: it is
+ * where a CI runner injects the signing material that must not be committed,
+ * and where a build job flips publication on for one invocation.
+ *
+ * These are read here rather than by their consumers so the values reach the
+ * installer as ordinary settings, and so `pnpm config list` can show them.
+ */
+function applyRemoteSideEffectsCacheEnv (
+  pnpmConfig: Config & ConfigContext,
+  env: NodeJS.ProcessEnv
+): void {
+  const settings: Partial<RemoteSideEffectsCacheSettings> = {}
+  if (env.PNPM_REMOTE_SIDE_EFFECTS_CACHE_PUBLISH != null) {
+    settings.publish = env.PNPM_REMOTE_SIDE_EFFECTS_CACHE_PUBLISH === 'true'
+  }
+  for (const [field, variable] of REMOTE_SIDE_EFFECTS_CACHE_ENV_STRINGS) {
+    const value = env[variable]
+    if (value != null) settings[field] = value
+  }
+  for (const [field, variable] of REMOTE_SIDE_EFFECTS_CACHE_ENV_JSON) {
+    const value = env[variable]
+    if (value == null) continue
+    settings[field] = parseStringValuedJsonObject(value, variable)
+  }
+  if (Object.keys(settings).length === 0) return
+  pnpmConfig.remoteSideEffectsCache = {
+    ...pnpmConfig.remoteSideEffectsCache,
+    ...settings,
+  } as RemoteSideEffectsCacheSettings
+  pnpmConfig.explicitlySetKeys.add('remoteSideEffectsCache')
+}
+
+const REMOTE_SIDE_EFFECTS_CACHE_ENV_STRINGS = [
+  ['keyId', 'PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID'],
+  ['builderId', 'PNPM_REMOTE_SIDE_EFFECTS_CACHE_BUILDER_ID'],
+  ['imageDigest', 'PNPM_REMOTE_SIDE_EFFECTS_CACHE_IMAGE_DIGEST'],
+  ['architectureBaseline', 'PNPM_REMOTE_SIDE_EFFECTS_CACHE_ARCHITECTURE_BASELINE'],
+  ['privateKey', 'PNPM_REMOTE_SIDE_EFFECTS_CACHE_PRIVATE_KEY'],
+] as const satisfies ReadonlyArray<[keyof RemoteSideEffectsCacheSettings, string]>
+
+const REMOTE_SIDE_EFFECTS_CACHE_ENV_JSON = [
+  ['buildEnv', 'PNPM_REMOTE_SIDE_EFFECTS_CACHE_BUILD_ENV'],
+  ['trustedKeys', 'PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS'],
+] as const satisfies ReadonlyArray<[keyof RemoteSideEffectsCacheSettings, string]>
+
+function parseStringValuedJsonObject (value: string, variable: string): Record<string, string> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch (err: unknown) {
+    throw new PnpmError('INVALID_REMOTE_SIDE_EFFECTS_ENV',
+      `${variable} is not valid JSON: ${util.types.isNativeError(err) ? err.message : String(err)}`)
+  }
+  if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed) || !Object.values(parsed).every((item) => typeof item === 'string')) {
+    throw new PnpmError('INVALID_REMOTE_SIDE_EFFECTS_ENV', `${variable} must be a JSON object with string values`)
+  }
+  return parsed as Record<string, string>
+}
+
 /** Every key a caller of {@link addSettingsFromWorkspaceManifestToConfig} may skip. */
 type SkippableKey =
   | ProjectManifestSkippedKey
@@ -1432,6 +1495,7 @@ function quoteAndSuggestCamelCase (keys: string[]): string {
 }
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
+  trustedSource,
   configFromCliOpts,
   expandRequestDestinationEnv,
   projectManifest,
@@ -1444,16 +1508,29 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   projectManifest: ProjectManifest | undefined
   /** Settings this manifest may not contribute, chosen by the caller. */
   skipSettings?: ReadonlySet<SkippableKey>
+  /** See {@link getOptionsFromPnpmSettings}. Only the global config yaml is trusted. */
+  trustedSource?: boolean
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
 }): void {
   const skipped: ReadonlySet<string> | undefined = skipSettings
-  const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
+  const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv, trustedSource }), configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
     if (CONFIG_CONTEXT_KEY_SET.has(key)) continue
     if (skipped?.has(key)) continue
 
+    if (key === 'remoteSideEffectsCache') {
+      // A workspace declares eligibility while the machine holds the signing
+      // trust root, so the two sources contribute different fields of one
+      // object and the later one must not drop what the earlier one set.
+      pnpmConfig.remoteSideEffectsCache = {
+        ...pnpmConfig.remoteSideEffectsCache,
+        ...value as RemoteSideEffectsCacheSettings,
+      }
+      pnpmConfig.explicitlySetKeys.add(key)
+      continue
+    }
     // @ts-expect-error
     pnpmConfig[key] = value
     pnpmConfig.explicitlySetKeys.add(key)

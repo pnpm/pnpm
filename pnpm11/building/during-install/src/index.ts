@@ -12,12 +12,16 @@ import { runPostinstallHooks } from '@pnpm/exec.lifecycle'
 import { logger } from '@pnpm/logger'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { publishBuiltSharedSideEffects } from '@pnpm/pnpr.client'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   DependencyManifest,
   DepPath,
   IgnoredBuilds,
+  RegistryConfig,
+  RemoteSideEffectsCacheSettings,
+  SupportedArchitectures,
 } from '@pnpm/types'
 import { hardLinkDir } from '@pnpm/worker'
 import pDefer, { type DeferredPromise } from 'p-defer'
@@ -54,6 +58,10 @@ export async function buildModules<T extends string> (
     hoistedLocations?: Record<string, string[]>
     enableGlobalVirtualStore?: boolean
     frozenStore?: boolean
+    configByUri?: Record<string, RegistryConfig>
+    pnprServer?: string
+    remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+    supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   if (!rootDepPaths.length) return {}
@@ -220,8 +228,12 @@ async function buildDependency<T extends string> (
     builtHoistedDeps?: Record<string, DeferredPromise<void>>
     enableGlobalVirtualStore?: boolean
     frozenStore?: boolean
+    configByUri?: Record<string, RegistryConfig>
     /** Resolved `engines.runtime` Node version — see [`buildModules`]. */
     nodeVersion?: string
+    pnprServer?: string
+    remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+    supportedArchitectures?: SupportedArchitectures
     warn: (message: string) => void
   }
 ): Promise<void> {
@@ -270,17 +282,38 @@ async function buildDependency<T extends string> (
     // lives in the store) cannot be written. extendInstallOptions already forces
     // sideEffectsCacheWrite off under frozenStore; this guards callers that
     // bypass it.
-    if ((isPatched || hasSideEffects) && opts.sideEffectsCacheWrite && !opts.frozenStore) {
+    const shouldPublishSharedSideEffects = hasSideEffects &&
+      opts.remoteSideEffectsCache?.publish === true &&
+      opts.pnprServer != null &&
+      opts.remoteSideEffectsCache?.packages?.includes(depNode.name) === true &&
+      depNode.resolution != null
+    if ((isPatched || hasSideEffects) && (opts.sideEffectsCacheWrite || shouldPublishSharedSideEffects) && !opts.frozenStore) {
       try {
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
           patchFileHash: depNode.patch?.hash,
           includeDepGraphHash: hasSideEffects,
           nodeVersion: opts.nodeVersion,
         })
-        await opts.storeController.upload(depNode.dir, {
+        const upload = await opts.storeController.upload(depNode.dir, {
           sideEffectsCacheKey,
           filesIndexFile: depNode.filesIndexFile,
         })
+        if (shouldPublishSharedSideEffects && depNode.resolution != null) {
+          await publishBuiltSharedSideEffects({
+            configByUri: opts.configByUri ?? {},
+            depsGraph: depGraph,
+            graphKey: depPath,
+            name: depNode.name,
+            nodeVersion: opts.nodeVersion,
+            patchFileHash: depNode.patch?.hash,
+            pnprServer: opts.pnprServer,
+            resolution: depNode.resolution,
+            settings: opts.remoteSideEffectsCache,
+            supportedArchitectures: opts.supportedArchitectures,
+            upload,
+            version: depNode.version,
+          })
+        }
       } catch (err: unknown) {
         assert(util.types.isNativeError(err))
         logger.warn({

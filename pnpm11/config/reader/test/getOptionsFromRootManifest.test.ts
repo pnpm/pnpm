@@ -1,7 +1,7 @@
 import util from 'node:util'
 
 import { afterEach, expect, test } from '@jest/globals'
-import type { PackageExtension } from '@pnpm/types'
+import type { PackageExtension, PnpmSettings } from '@pnpm/types'
 
 import { getOptionsFromPnpmSettings } from '../lib/getOptionsFromRootManifest.js'
 
@@ -96,6 +96,86 @@ test('getOptionsFromPnpmSettings() converts allowBuilds', () => {
       qar: 'warn',
     },
   })
+})
+
+test('getOptionsFromPnpmSettings() reads remote side-effects cache settings', () => {
+  const remoteSideEffectsCache = {
+    organization: 'acme',
+    packages: ['native-addon'],
+  }
+  expect(getOptionsFromPnpmSettings(process.cwd(), {
+    remoteSideEffectsCache,
+  })).toStrictEqual({ remoteSideEffectsCache })
+})
+
+// A repository that could set `publish` would turn a key the machine holds for
+// its own builds into a signing oracle, so every field but the two that declare
+// eligibility is refused.
+test.each([
+  ['trustedKeys', { 'acme-2026': 'repository-controlled-key' }],
+  ['privateKey', 'repository-controlled-key'],
+  ['publish', true],
+  ['keyId', 'acme-2026'],
+  ['builderId', 'ci/main/42'],
+  ['imageDigest', 'sha256:abc'],
+  ['architectureBaseline', 'x64'],
+  ['buildEnv', { CC: 'clang' }],
+])('getOptionsFromPnpmSettings() rejects a workspace-controlled remote side-effects %s', (field, value) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    remoteSideEffectsCache: {
+      organization: 'acme',
+      packages: ['native-addon'],
+      [field]: value,
+    },
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() accepts remote side-effects trust material on its own from a trusted source', () => {
+  const remoteSideEffectsCache = {
+    trustedKeys: { 'acme-2026': 'AA==' },
+    privateKey: 'AA==',
+  }
+  expect(getOptionsFromPnpmSettings(process.cwd(), { remoteSideEffectsCache }, {
+    trustedSource: true,
+  })).toStrictEqual({ remoteSideEffectsCache })
+})
+
+test('getOptionsFromPnpmSettings() reads the remote side-effects builder settings from a trusted source', () => {
+  const remoteSideEffectsCache = {
+    organization: 'acme',
+    packages: ['native-addon'],
+    publish: true,
+    keyId: 'acme-2026',
+    builderId: 'ci/main/42',
+    imageDigest: 'sha256:abc',
+    architectureBaseline: 'x64',
+    buildEnv: { CC: 'clang' },
+  }
+  expect(getOptionsFromPnpmSettings(process.cwd(), { remoteSideEffectsCache }, {
+    trustedSource: true,
+  })).toStrictEqual({ remoteSideEffectsCache })
+})
+
+test('getOptionsFromPnpmSettings() lets a workspace declare eligibility', () => {
+  const remoteSideEffectsCache = { organization: 'acme', packages: ['native-addon'] }
+  expect(getOptionsFromPnpmSettings(process.cwd(), { remoteSideEffectsCache }))
+    .toStrictEqual({ remoteSideEffectsCache })
+})
+
+test.each([
+  ['organization', { organization: 42, packages: [] }],
+  ['packages', { organization: 'acme', packages: 'native-addon' }],
+  ['publish', { organization: 'acme', packages: [], publish: 'yes' }],
+  ['buildEnv', { organization: 'acme', packages: [], buildEnv: { CC: 1 } }],
+  ['keyId', { organization: 'acme', packages: [], keyId: 7 }],
+])('getOptionsFromPnpmSettings() rejects a malformed remote side-effects %s', (_field, remoteSideEffectsCache) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    remoteSideEffectsCache,
+  } as unknown as PnpmSettings, { trustedSource: true })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+  }))
 })
 
 test('getOptionsFromPnpmSettings() rejects non-string overrides values', () => {

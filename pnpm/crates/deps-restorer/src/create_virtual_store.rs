@@ -480,7 +480,7 @@ impl CreateVirtualStore<'_> {
             warm,
             cold,
             package_manifests,
-            side_effects_maps_by_snapshot,
+            mut side_effects_maps_by_snapshot,
             mut requires_build_by_snapshot,
         } = partition::partition_snapshots(
             &snapshot_entries,
@@ -489,6 +489,21 @@ impl CreateVirtualStore<'_> {
             &marker_rebuilds,
             node_linker,
         );
+        if !config.side_effects_cache_read() {
+            side_effects_maps_by_snapshot.clear();
+        }
+        let shared_packages = config
+            .remote_side_effects_cache
+            .as_ref()
+            .map(|settings| settings.packages.iter().map(String::as_str).collect::<HashSet<_>>());
+        let mut shared_base_cas_paths = crate::shared_side_effects::BaseCasPaths::new();
+        if let Some(shared_packages) = &shared_packages {
+            for (snapshot_key, _, cas_paths, _, _) in &warm {
+                if shared_packages.contains(snapshot_key.name.to_string().as_str()) {
+                    shared_base_cas_paths.insert((*snapshot_key).clone(), (***cas_paths).clone());
+                }
+            }
+        }
 
         // Publish the cold-batch fetch plan for the concurrent
         // verification fan-out: every cold registry-resolved snapshot
@@ -767,6 +782,12 @@ impl CreateVirtualStore<'_> {
                 let Some(captured) = captured else { continue };
                 requires_build_by_snapshot
                     .insert((*captured.snapshot_key).clone(), captured.requires_build);
+                if shared_packages.as_ref().is_some_and(|packages| {
+                    packages.contains(captured.snapshot_key.name.to_string().as_str())
+                }) {
+                    shared_base_cas_paths
+                        .insert((*captured.snapshot_key).clone(), captured.cas_paths.clone());
+                }
                 if is_hoisted {
                     cold_cas_paths.push(captured);
                     continue;
@@ -818,6 +839,17 @@ impl CreateVirtualStore<'_> {
                 )?;
             }
         }
+
+        crate::shared_side_effects::apply_shared_side_effects(
+            config,
+            snapshots,
+            packages,
+            &requires_build_by_snapshot,
+            allow_build_policy,
+            &shared_base_cas_paths,
+            &mut side_effects_maps_by_snapshot,
+        )
+        .await;
 
         // Build the per-pkg CAS index when the install is targeting
         // the hoisted linker. Pacquet's fetcher and walker run

@@ -1,4 +1,5 @@
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
+import type { LockfileResolution } from '@pnpm/lockfile.types'
 import type { PatchInfo } from '@pnpm/patching.types'
 import type { PkgRequestFetchResult } from '@pnpm/store.controller-types'
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
@@ -24,6 +25,7 @@ export interface DependenciesGraphNode<T extends string> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   requiresBuild?: boolean | any // this is a dirty workaround added in https://github.com/pnpm/pnpm/pull/4898
   patch?: PatchInfo
+  resolution?: LockfileResolution
 }
 
 export type DependenciesGraph<T extends string> = Record<T, DependenciesGraphNode<T>>

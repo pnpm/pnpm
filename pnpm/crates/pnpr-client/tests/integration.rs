@@ -14,21 +14,31 @@
 //! access-bearing upstream the caller is authorized to use.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     net::{Ipv4Addr, SocketAddr},
+    sync::Arc,
     time::Duration,
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use p256::{
+    ecdsa::{SigningKey, signature::Signer as _},
+    pkcs8::EncodePublicKey as _,
+};
 use pnpm_config::RegistryDeclaration;
 use pnpm_pnpr_client::{
-    PnprClient, PnprClientError, ResolveOptions, ResolveProject, ResolveProjectsOptions,
-    VerifyLockfileOptions,
+    ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
+    ArtifactPayload, BuilderProfile, CompatibilityConstraints, OwnerScope, PackageIdentity,
+    PnprClient, PnprClientError, PublishArtifactRequest, ResolveArtifactsOptions, ResolveOptions,
+    ResolveProject, ResolveProjectsOptions, SignedArtifactEnvelope, VerifyLockfileOptions,
 };
 use pnpm_testing_utils::registry::TestRegistry;
+use sha2::{Digest as _, Sha512};
 use tempfile::TempDir;
 use tokio::{
     io::{AsyncReadExt as _, AsyncWriteExt as _},
     net::TcpListener,
+    sync::Barrier,
 };
 
 /// Start an in-process pnpr with the fast-path endpoints, allowlisting
@@ -38,7 +48,7 @@ use tokio::{
 /// caller (pnpr only honors `_authToken` on requests — the resolver
 /// endpoints reject Basic credentials), and the storage guard.
 async fn start_pnpr(registry_url: &str) -> (String, String, TempDir) {
-    start_pnpr_inner(None, Vec::new(), vec![registry_url.to_string()]).await
+    start_pnpr_inner(None, Vec::new(), vec![registry_url.to_string()], false).await
 }
 
 /// Like [`start_pnpr`] but registers operator-managed access-bearing
@@ -48,7 +58,7 @@ async fn start_pnpr(registry_url: &str) -> (String, String, TempDir) {
 async fn start_pnpr_with_upstreams(
     upstreams: Vec<(String, pnpr::UpstreamConfig)>,
 ) -> (String, String, TempDir) {
-    start_pnpr_inner(None, upstreams, Vec::new()).await
+    start_pnpr_inner(None, upstreams, Vec::new(), false).await
 }
 
 /// Like [`start_pnpr_with_upstreams`] but pins `public_url` so a lockfile
@@ -60,19 +70,21 @@ async fn start_pnpr_with_upstreams_at(
     public_url: &str,
     upstreams: Vec<(String, pnpr::UpstreamConfig)>,
 ) -> (String, String, TempDir) {
-    start_pnpr_inner(Some(public_url.to_string()), upstreams, Vec::new()).await
+    start_pnpr_inner(Some(public_url.to_string()), upstreams, Vec::new(), false).await
 }
 
 async fn start_pnpr_inner(
     public_url: Option<String>,
     upstreams: Vec<(String, pnpr::UpstreamConfig)>,
     public_registries: Vec<String>,
+    artifacts_enabled: bool,
 ) -> (String, String, TempDir) {
     let storage = TempDir::new().expect("pnpr storage tempdir");
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.expect("bind pnpr");
     let addr = listener.local_addr().expect("pnpr addr");
 
     let mut config = pnpr::Config::proxy(addr, storage.path().to_path_buf());
+    config.resolver.artifacts = artifacts_enabled;
     config.public_url = public_url.unwrap_or_else(|| format!("http://{addr}"));
     config.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
     for (name, upstream) in upstreams {
@@ -93,6 +105,10 @@ async fn start_pnpr_inner(
     let base_url = format!("http://{addr}/");
     let token = register_token(&base_url, "pnpr-client").await;
     (base_url, format!("Bearer {token}"), storage)
+}
+
+async fn start_pnpr_artifacts() -> (String, String, TempDir) {
+    start_pnpr_inner(None, Vec::new(), Vec::new(), true).await
 }
 
 /// An access-bearing upstream that serves `registry_url` with `token`, usable
@@ -231,6 +247,65 @@ fn options(
         trust_policy_exclude: None,
         trust_policy_ignore_after: None,
     }
+}
+
+fn signed_artifact_fixture() -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
+    signed_artifact_fixture_with_builder_id("ci/main/42")
+}
+
+fn signed_artifact_fixture_with_builder_id(
+    builder_id: &str,
+) -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
+    let blob = b"native-addon".to_vec();
+    let integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(&blob)));
+    let payload = ArtifactPayload {
+        kind: "dependency-side-effects:v1".to_string(),
+        package: PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
+        source_integrity: "sha512-source".to_string(),
+        input_key: "dependency-side-effects:v1:deps=abc".to_string(),
+        owner: OwnerScope::organization("pnpr-client"),
+        builder_id: builder_id.to_string(),
+        builder_profile: BuilderProfile {
+            image_digest: Some("sha256:image".to_string()),
+            architecture_baseline: "x86-64-v2".to_string(),
+            environment: BTreeMap::from([("CFLAGS".to_string(), "-O2".to_string())]),
+        },
+        compatibility: CompatibilityConstraints::Tagged {
+            tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
+        },
+        manifest: ArtifactManifest {
+            added: vec![ArtifactFile {
+                path: "build/addon.node".to_string(),
+                integrity: integrity.clone(),
+                mode: 0o755,
+                size: blob.len() as u64,
+            }],
+            deleted: vec!["src/intermediate.o".to_string()],
+        },
+    };
+    let payload_bytes = serde_json::to_vec(&payload).expect("serialize signed payload");
+    let private_key = SigningKey::from_slice(&[7; 32]).expect("fixture private key");
+    let signature: p256::ecdsa::Signature = private_key.sign(&payload_bytes);
+    let public_key = p256::PublicKey::from(private_key.verifying_key())
+        .to_public_key_der()
+        .expect("encode fixture public key")
+        .as_bytes()
+        .to_vec();
+    let envelope = SignedArtifactEnvelope {
+        algorithm: "ecdsa-p256-sha256".to_string(),
+        key_id: "acme-2026".to_string(),
+        payload: BASE64.encode(payload_bytes),
+        signature: BASE64.encode(signature.to_der().as_bytes()),
+    };
+    (
+        PublishArtifactRequest {
+            key: payload.input_key,
+            envelope,
+            blobs: vec![ArtifactBlobUpload { integrity, data: BASE64.encode(&blob) }],
+        },
+        public_key,
+        blob,
+    )
 }
 
 /// The request must identify the caller to pnpr (`Authorization`) but
@@ -738,6 +813,253 @@ async fn handshake_rejects_a_non_pnpr_server() {
     mock.assert_async().await;
 }
 
+#[tokio::test]
+async fn artifact_capability_is_disabled_by_default() {
+    let (pnpr_url, _pnpr_auth, _storage) =
+        start_pnpr_inner(None, Vec::new(), Vec::new(), false).await;
+    let client = PnprClient::new(pnpr_url);
+    client.handshake().await.expect("resolver capability");
+    let error = client
+        .handshake_artifacts()
+        .await
+        .expect_err("artifact capability must require an explicit opt-in");
+    assert!(error.to_string().contains("does not advertise shared artifact protocol"));
+}
+
+#[tokio::test]
+async fn artifact_handshake_requires_the_base_protocol() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/-/pnpr")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"pnpr":{"versions":[],"artifacts":[0]}}"#)
+        .create_async()
+        .await;
+
+    let error = PnprClient::new(server.url())
+        .handshake_artifacts()
+        .await
+        .expect_err("artifact capability cannot outlive its base protocol");
+    assert!(error.to_string().contains("speaks protocol versions []"));
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn publishes_resolves_and_verifies_an_organization_artifact() {
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
+    let client = PnprClient::new(pnpr_url);
+    client.handshake_artifacts().await.expect("artifact capability");
+
+    let (publish, public_key, expected_blob) = signed_artifact_fixture();
+    client.publish_artifact(&publish, Some(&pnpr_auth)).await.expect("publish signed artifact");
+
+    let candidate = ArtifactCandidate {
+        key: publish.key.clone(),
+        package: PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
+        source_integrity: "sha512-source".to_string(),
+        owner: OwnerScope::organization("pnpr-client"),
+    };
+    let untrusted_key = SigningKey::from_slice(&[8; 32]).expect("alternate fixture private key");
+    let untrusted_public_key = p256::PublicKey::from(untrusted_key.verifying_key())
+        .to_public_key_der()
+        .expect("encode alternate fixture public key")
+        .as_bytes()
+        .to_vec();
+    let untrusted = client
+        .resolve_artifacts(ResolveArtifactsOptions {
+            candidates: vec![candidate.clone()],
+            supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
+            eligible_packages: HashSet::from([candidate.package.name.clone()]),
+            allowed_builds: HashSet::from([candidate.package.name.clone()]),
+            ignore_scripts: false,
+            trusted_keys: BTreeMap::from([("acme-2026".to_string(), untrusted_public_key)]),
+            authorization: Some(pnpr_auth.clone()),
+        })
+        .await
+        .expect("an invalid signature is a cache miss");
+    assert!(untrusted.is_empty());
+
+    let mut mismatched_candidate = candidate.clone();
+    mismatched_candidate.package.version = "2.0.0".to_string();
+    let mismatched = client
+        .resolve_artifacts(ResolveArtifactsOptions {
+            candidates: vec![mismatched_candidate],
+            supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
+            eligible_packages: HashSet::from([candidate.package.name.clone()]),
+            allowed_builds: HashSet::from([candidate.package.name.clone()]),
+            ignore_scripts: false,
+            trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key.clone())]),
+            authorization: Some(pnpr_auth.clone()),
+        })
+        .await
+        .expect("a mismatched signed package identity is a cache miss");
+    assert!(mismatched.is_empty());
+
+    let selected = client
+        .resolve_artifacts(ResolveArtifactsOptions {
+            candidates: vec![candidate.clone()],
+            supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
+            eligible_packages: HashSet::from([candidate.package.name.clone()]),
+            allowed_builds: HashSet::from([candidate.package.name.clone()]),
+            ignore_scripts: false,
+            trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key)]),
+            authorization: Some(pnpr_auth.clone()),
+        })
+        .await
+        .expect("resolve signed artifact");
+    let artifact = selected.get(&publish.key).expect("trusted compatible variant selected");
+    assert_eq!(artifact.payload.owner, OwnerScope::organization("pnpr-client"));
+    assert_eq!(artifact.envelope_digest.len(), 64);
+
+    let bytes = client
+        .download_artifact_blob(
+            &ArtifactBlobRequest {
+                owner: candidate.owner,
+                integrity: artifact.payload.manifest.added[0].integrity.clone(),
+            },
+            Some(&pnpr_auth),
+        )
+        .await
+        .expect("download verified blob");
+    assert_eq!(bytes, expected_blob);
+}
+
+#[tokio::test]
+async fn artifact_lookup_preserves_script_eligibility_and_allow_build_policy() {
+    let (publish, public_key, _) = signed_artifact_fixture();
+    let candidate = ArtifactCandidate {
+        key: publish.key,
+        package: PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
+        source_integrity: "sha512-source".to_string(),
+        owner: OwnerScope::organization("pnpr-client"),
+    };
+    let supported_tags = vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()];
+    let trusted_keys = BTreeMap::from([("acme-2026".to_string(), public_key)]);
+    let client = PnprClient::new("http://127.0.0.1:9/");
+
+    for (ignore_scripts, eligible_packages, allowed_builds) in [
+        (
+            true,
+            HashSet::from([candidate.package.name.clone()]),
+            HashSet::from([candidate.package.name.clone()]),
+        ),
+        (false, HashSet::new(), HashSet::from([candidate.package.name.clone()])),
+        (false, HashSet::from([candidate.package.name.clone()]), HashSet::new()),
+    ] {
+        let selected = client
+            .resolve_artifacts(ResolveArtifactsOptions {
+                candidates: vec![candidate.clone()],
+                supported_tags: supported_tags.clone(),
+                eligible_packages,
+                allowed_builds,
+                ignore_scripts,
+                trusted_keys: trusted_keys.clone(),
+                authorization: None,
+            })
+            .await
+            .expect("a denied remote build must not contact pnpr");
+        assert!(selected.is_empty());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 16)]
+async fn concurrent_artifact_publications_respect_the_variant_limit() {
+    const PUBLICATIONS: usize = 16;
+
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
+    let barrier = Arc::new(Barrier::new(PUBLICATIONS + 1));
+    let mut publications = Vec::with_capacity(PUBLICATIONS);
+    for index in 0..PUBLICATIONS {
+        let barrier = Arc::clone(&barrier);
+        let pnpr_url = pnpr_url.clone();
+        let pnpr_auth = pnpr_auth.clone();
+        let (publish, _, _) =
+            signed_artifact_fixture_with_builder_id(&format!("ci/concurrent/{index}"));
+        publications.push(tokio::spawn(async move {
+            barrier.wait().await;
+            PnprClient::new(pnpr_url).publish_artifact(&publish, Some(&pnpr_auth)).await
+        }));
+    }
+    barrier.wait().await;
+
+    let mut accepted = 0;
+    let mut rejected = Vec::new();
+    for publication in publications {
+        match publication.await.expect("publication task") {
+            Ok(()) => accepted += 1,
+            Err(err) => rejected.push(err.to_string()),
+        }
+    }
+    assert_eq!(accepted, pnpm_shared_artifact_protocol::MAX_VARIANTS_PER_CANDIDATE);
+    assert_eq!(rejected.len(), PUBLICATIONS - accepted);
+    assert!(rejected.iter().all(|error| error.contains("variant limit")));
+}
+
+#[tokio::test]
+async fn artifact_blob_misses_and_errors_are_caller_scoped() {
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
+    let http = reqwest::Client::new();
+    let missing_integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(b"missing")));
+    let missing = http
+        .post(format!("{pnpr_url}-/pnpr/v0/artifacts/blob"))
+        .header(reqwest::header::AUTHORIZATION, &pnpr_auth)
+        .json(&ArtifactBlobRequest {
+            owner: OwnerScope::organization("pnpr-client"),
+            integrity: missing_integrity,
+        })
+        .send()
+        .await
+        .expect("missing blob response");
+    assert_eq!(missing.status(), reqwest::StatusCode::NOT_FOUND);
+    assert_eq!(missing.headers()[reqwest::header::CACHE_CONTROL], "private, no-store");
+    assert_eq!(missing.headers()[reqwest::header::VARY], "Authorization");
+
+    let invalid = http
+        .post(format!("{pnpr_url}-/pnpr/v0/artifacts/blob"))
+        .header(reqwest::header::AUTHORIZATION, &pnpr_auth)
+        .json(&serde_json::json!({
+            "owner": { "type": "organization", "name": "pnpr-client" },
+            "integrity": "not-an-integrity",
+        }))
+        .send()
+        .await
+        .expect("invalid blob response");
+    assert_eq!(invalid.status(), reqwest::StatusCode::BAD_REQUEST);
+    assert_eq!(invalid.headers()[reqwest::header::CACHE_CONTROL], "private, no-store");
+    assert_eq!(invalid.headers()[reqwest::header::VARY], "Authorization");
+}
+
+#[tokio::test]
+async fn organization_artifact_existence_is_not_exposed_to_another_owner() {
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
+    let client = PnprClient::new(pnpr_url);
+    let (publish, public_key, _) = signed_artifact_fixture();
+    client.publish_artifact(&publish, Some(&pnpr_auth)).await.expect("publish artifact");
+
+    let selected = client
+        .resolve_artifacts(ResolveArtifactsOptions {
+            candidates: vec![ArtifactCandidate {
+                key: publish.key,
+                package: PackageIdentity {
+                    name: "native-addon".to_string(),
+                    version: "1.0.0".to_string(),
+                },
+                source_integrity: "sha512-source".to_string(),
+                owner: OwnerScope::organization("another-owner"),
+            }],
+            supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
+            eligible_packages: HashSet::from(["native-addon".to_string()]),
+            allowed_builds: HashSet::from(["native-addon".to_string()]),
+            ignore_scripts: false,
+            trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key)]),
+            authorization: Some(pnpr_auth),
+        })
+        .await
+        .expect("cross-owner lookup is a masked miss");
+    assert!(selected.is_empty());
+}
+
 /// The client describes its registries to the server the way its own
 /// `registries` setting does, so a scope the client routes elsewhere resolves
 /// from that registry and not from the request's default one.
@@ -751,7 +1073,8 @@ async fn resolves_a_scope_from_the_registry_declared_for_it() {
     // for the scoped package is the failure this test is looking for.
     let dead_default = "http://127.0.0.1:9/";
     let (pnpr_url, pnpr_auth, _storage) =
-        start_pnpr_inner(None, Vec::new(), vec![registry.url(), dead_default.to_string()]).await;
+        start_pnpr_inner(None, Vec::new(), vec![registry.url(), dead_default.to_string()], false)
+            .await;
 
     let mut opts = options(dead_default, &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.registries = BTreeMap::from([(

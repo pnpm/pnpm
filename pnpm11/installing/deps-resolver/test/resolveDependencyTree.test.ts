@@ -536,7 +536,7 @@ function createStoreController (
     importPackage: async () => ({ isBuilt: false, importMethod: undefined }),
     close: async () => undefined,
     prune: async () => undefined,
-    upload: async () => undefined,
+    upload: async () => ({ filesMap: new Map() }),
     clearResolutionCache: () => undefined,
   }
 }

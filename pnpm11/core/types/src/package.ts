@@ -286,6 +286,7 @@ export interface PnpmSettings {
   httpsProxy?: string
   noProxy?: string | boolean
   pnprServer?: string
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
   versioning?: VersioningSettings
   /**
    * Where the virtual store lives, and therefore who shares it: one store
@@ -299,6 +300,37 @@ export interface PnpmSettings {
    * The boolean spelling of {@link PnpmSettings.virtualStoreType}.
    */
   enableGlobalVirtualStore?: boolean
+}
+
+/**
+ * Organization-owned dependency build artifacts eligible for this workspace.
+ *
+ * `trustedKeys` and `privateKey` are the signing trust root and must not come
+ * from a committed file: the config reader accepts them only from the global
+ * config yaml, the environment, and CLI flags, and rejects them in
+ * `pnpm-workspace.yaml`.
+ */
+export interface RemoteSideEffectsCacheSettings {
+  /**
+   * Both halves are optional because one section is assembled from several
+   * sources: the repository names the eligible organization and packages while
+   * the machine supplies the trust root. The feature applies only once both
+   * halves are present.
+   */
+  organization?: string
+  packages?: string[]
+  /** Publish the lifecycle-script diff of every eligible package that is built. */
+  publish?: boolean
+  /** Identifies which of the consumer's trusted keys signed a published artifact. */
+  keyId?: string
+  builderId?: string
+  imageDigest?: string
+  architectureBaseline?: string
+  buildEnv?: Record<string, string>
+  /** Base64-encoded P-256 SubjectPublicKeyInfo DER, keyed by key id. */
+  trustedKeys?: Record<string, string>
+  /** Base64-encoded PKCS#8 P-256 private key used to sign published artifacts. */
+  privateKey?: string
 }
 
 export type VirtualStoreType = 'global' | 'project'

@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../../pnpr/client"
+    },
+    {
       "path": "../../__utils__/assert-project"
     },
     {

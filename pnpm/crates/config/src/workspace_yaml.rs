@@ -141,6 +141,97 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
     allow_builds.into_iter().filter_map(|(pkg, value)| Some((pkg, value.decided()?))).collect()
 }
 
+/// Organization-owned dependency build artifacts eligible for this workspace.
+///
+/// `organization` and `packages` default to empty because one section is
+/// assembled from several sources: the repository names the eligible
+/// organization and packages while the machine supplies the trust root. The
+/// feature applies only once both halves are present.
+///
+/// Only `organization` and `packages` may come from a repository. Every other
+/// field describes the act of signing and travels with the machine: loading a
+/// `pnpm-workspace.yaml` that sets one fails with
+/// [`LoadWorkspaceYamlError::WorkspaceRemoteSideEffectsTrust`], leaving the
+/// global config yaml and the environment.
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct RemoteSideEffectsCacheSettings {
+    pub organization: String,
+    pub packages: Vec<String>,
+    /// Publish the lifecycle-script diff of every eligible package that is built.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publish: Option<bool>,
+    /// Identifies which of the consumer's trusted keys signed a published artifact.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub builder_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub architecture_baseline: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build_env: Option<BTreeMap<String, String>>,
+    /// Base64-encoded P-256 `SubjectPublicKeyInfo` DER, keyed by key id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trusted_keys: Option<BTreeMap<String, String>>,
+    /// Base64-encoded PKCS#8 P-256 private key used to sign published artifacts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub private_key: Option<String>,
+}
+
+impl RemoteSideEffectsCacheSettings {
+    /// Overlay the fields `other` sets onto `self`, leaving the rest alone.
+    ///
+    /// A workspace declares eligibility while the machine holds the signing
+    /// trust root, so the two sources contribute different fields of one
+    /// section and the later one must not drop what the earlier one set.
+    pub(crate) fn overlay(&mut self, other: Self) {
+        let Self {
+            organization,
+            packages,
+            publish,
+            key_id,
+            builder_id,
+            image_digest,
+            architecture_baseline,
+            build_env,
+            trusted_keys,
+            private_key,
+        } = other;
+        if !organization.is_empty() {
+            self.organization = organization;
+        }
+        if !packages.is_empty() {
+            self.packages = packages;
+        }
+        if publish.is_some() {
+            self.publish = publish;
+        }
+        if key_id.is_some() {
+            self.key_id = key_id;
+        }
+        if builder_id.is_some() {
+            self.builder_id = builder_id;
+        }
+        if image_digest.is_some() {
+            self.image_digest = image_digest;
+        }
+        if architecture_baseline.is_some() {
+            self.architecture_baseline = architecture_baseline;
+        }
+        if build_env.is_some() {
+            self.build_env = build_env;
+        }
+        if trusted_keys.is_some() {
+            self.trusted_keys = trusted_keys;
+        }
+        if private_key.is_some() {
+            self.private_key = private_key;
+        }
+    }
+}
+
 /// Settings readable from `pnpm-workspace.yaml`.
 ///
 /// pnpm 10+ moved the bulk of its configuration (`storeDir`, `registry`,
@@ -259,6 +350,7 @@ pub struct WorkspaceSettings {
     /// older `<scope>: <url>` shape and is read as one.
     pub registries: Option<BTreeMap<String, RegistryEntry>>,
     pub pnpr_server: Option<String>,
+    pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
     pub https_proxy: Option<String>,
     pub http_proxy: Option<String>,
     pub no_proxy: Option<serde_json::Value>,
@@ -1080,6 +1172,19 @@ pub enum LoadWorkspaceYamlError {
     )]
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_OVERRIDE_VERSION))]
     CannotResolveOverrideVersion { spec: String, dependency_name: String },
+
+    /// The signing trust root for remote side-effects artifacts appeared in a
+    /// committed file. Only the global config yaml and the environment may
+    /// carry it — see [`RemoteSideEffectsCacheSettings`].
+    #[display("remoteSideEffectsCache.{field} cannot be set by a workspace ({})", path.display())]
+    #[diagnostic(
+        code(ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST),
+        help(
+            "Set it in the global config file or in the environment instead of {}.",
+            path.display(),
+        )
+    )]
+    WorkspaceRemoteSideEffectsTrust { path: PathBuf, field: &'static str },
 }
 
 impl WorkspaceSettings {
@@ -1335,10 +1440,47 @@ impl WorkspaceSettings {
         let mut settings: WorkspaceSettings = text
             .pipe_as_ref(serde_saphyr::from_str)
             .map_err(Box::new)
-            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })?;
+            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
+        settings.reject_repo_controlled_trust_material(&path)?;
         settings.collect_key_issues(&text);
         Ok(Some(settings))
+    }
+
+    /// Reject every remote side-effects field a committed file may not set.
+    ///
+    /// A workspace declares which organization and packages are eligible and
+    /// nothing else: the rest describes the act of signing — which key signs,
+    /// what provenance the signature attests, and whether to publish at all —
+    /// so it belongs to the machine holding the key. Letting a repository set
+    /// `publish` would turn a key the machine holds for its own builds into a
+    /// signing oracle any clone could aim at a registry of its choosing.
+    ///
+    /// Checked after parsing rather than through `deny_unknown_fields` because
+    /// the same struct also parses the global config yaml, where every field is
+    /// legitimate.
+    fn reject_repo_controlled_trust_material(
+        &self,
+        path: &Path,
+    ) -> Result<(), LoadWorkspaceYamlError> {
+        let Some(settings) = self.remote_side_effects_cache.as_ref() else { return Ok(()) };
+        let machine_only = [
+            ("publish", settings.publish.is_some()),
+            ("keyId", settings.key_id.is_some()),
+            ("builderId", settings.builder_id.is_some()),
+            ("imageDigest", settings.image_digest.is_some()),
+            ("architectureBaseline", settings.architecture_baseline.is_some()),
+            ("buildEnv", settings.build_env.is_some()),
+            ("trustedKeys", settings.trusted_keys.is_some()),
+            ("privateKey", settings.private_key.is_some()),
+        ];
+        let Some((field, _)) = machine_only.into_iter().find(|(_, is_set)| *is_set) else {
+            return Ok(());
+        };
+        Err(LoadWorkspaceYamlError::WorkspaceRemoteSideEffectsTrust {
+            path: path.to_path_buf(),
+            field,
+        })
     }
 
     /// Bucket the file's keys that set nothing into [`Self::key_issues`],
@@ -1714,6 +1856,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);
+        }
+        if let Some(v) = self.remote_side_effects_cache {
+            config.remote_side_effects_cache.get_or_insert_default().overlay(v);
         }
         if let Some(v) = self.named_registries {
             if declared_prefixes {

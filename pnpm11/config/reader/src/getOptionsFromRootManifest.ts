@@ -40,9 +40,16 @@ export type OptionsFromRootManifest = {
   registriesByPrefix?: Record<string, string>
   registryOptionsByUrl?: Record<string, RegistryOptions>
   auditIgnorePrune?: boolean
-} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'updateConfig'>
+} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'remoteSideEffectsCache' | 'updateConfig'>
 
 interface GetOptionsFromPnpmSettingsOptions {
+  /**
+   * The settings come from a file the repository does not control (the global
+   * config yaml), so they may carry the fields
+   * {@link SHARED_SIDE_EFFECTS_TRUST_KEYS} names. Defaults to `false`, which
+   * treats the source as repo-controlled.
+   */
+  trustedSource?: boolean
   manifest?: ProjectManifest
   expandRequestDestinationEnv?: boolean
 }
@@ -61,6 +68,9 @@ export function getOptionsFromPnpmSettings (
   const opts = isGetOptionsFromPnpmSettingsOptions(manifestOrOpts)
     ? manifestOrOpts
     : manifestOrOpts == null ? {} : { manifest: manifestOrOpts }
+  if (pnpmSettings.remoteSideEffectsCache != null) {
+    assertValidSharedSideEffectsCache(pnpmSettings.remoteSideEffectsCache, opts.trustedSource ?? false)
+  }
   const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings, {
     expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? false,
   })
@@ -92,6 +102,63 @@ export function getOptionsFromPnpmSettings (
 
   return settings
 }
+
+/**
+ * The signing trust root stays outside the repository: a workspace declares
+ * which organization and packages are eligible and nothing else — see
+ * {@link WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS}. Letting it set `publish` would
+ * turn a key the machine holds for its own builds into a signing oracle any
+ * cloned repository could aim at a registry of its choosing.
+ *
+ * The rest of the section is consumed without further checks by the
+ * install-time lookup, so a malformed shape has to be rejected here rather than
+ * surface as a type error deep inside the hydration path.
+ */
+function assertValidSharedSideEffectsCache (
+  settings: NonNullable<PnpmSettings['remoteSideEffectsCache']>,
+  trustedSource: boolean
+): void {
+  assertObjectSetting(settings, 'remoteSideEffectsCache')
+  if (!trustedSource) {
+    const machineField = Object.keys(settings)
+      .find((field) => !WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS.has(field))
+    if (machineField != null) {
+      throw new PnpmError(
+        'WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST',
+        `remoteSideEffectsCache.${machineField} cannot be set by a workspace`,
+        { hint: `Set it in the global config file (pnpm config set --location=global remoteSideEffectsCache.${machineField} ...) or in the environment instead.` }
+      )
+    }
+  }
+  if (settings.organization != null) {
+    assertString(settings.organization, 'remoteSideEffectsCache.organization')
+  }
+  if (settings.packages != null) {
+    assertStringArray(settings.packages, 'remoteSideEffectsCache.packages')
+  }
+  assertOptionalBoolean(settings.publish, 'remoteSideEffectsCache.publish')
+  for (const field of ['keyId', 'builderId', 'imageDigest', 'architectureBaseline', 'privateKey'] as const) {
+    if (settings[field] == null) continue
+    assertString(settings[field], `remoteSideEffectsCache.${field}`)
+  }
+  if (settings.buildEnv != null) {
+    assertObjectSetting(settings.buildEnv, 'remoteSideEffectsCache.buildEnv')
+    for (const [name, value] of Object.entries(settings.buildEnv)) {
+      assertString(value, `remoteSideEffectsCache.buildEnv.${name}`)
+    }
+  }
+}
+
+/**
+ * The only fields of `remoteSideEffectsCache` a committed file may contribute.
+ *
+ * Everything else describes the act of signing — which key signs, what
+ * provenance the signature attests, and whether to publish at all — so it
+ * belongs to the machine holding the key. Listing what a repository may set,
+ * rather than what it may not, keeps a field added later machine-only until
+ * someone decides otherwise.
+ */
+const WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS: ReadonlySet<string> = new Set(['organization', 'packages'])
 
 const REGISTRY_SERVER_TYPES = new Set(['npm', 'artifactory'])
 
@@ -418,7 +485,7 @@ function translateVirtualStoreType (pnpmSettings: PnpmSettings, settings: Option
 function isGetOptionsFromPnpmSettingsOptions (
   value: ProjectManifest | GetOptionsFromPnpmSettingsOptions | undefined
 ): value is GetOptionsFromPnpmSettingsOptions {
-  return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value)
+  return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value || 'trustedSource' in value)
 }
 
 function assertValidOverrides (overrides: unknown): asserts overrides is Record<string, string> {
@@ -487,6 +554,11 @@ function assertStringArray (value: unknown, settingName: string): asserts value 
   if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
     throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be an array of strings, but got ${renderReceivedType(value)}`)
   }
+}
+
+function assertOptionalBoolean (value: unknown, settingName: string): void {
+  if (value == null) return
+  assertBoolean(value, settingName)
 }
 
 function assertBoolean (value: unknown, settingName: string): asserts value is boolean {

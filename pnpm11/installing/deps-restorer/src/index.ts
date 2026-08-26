@@ -63,6 +63,7 @@ import {
 } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { createRemoteSideEffectsRestorer } from '@pnpm/pnpr.client'
 import type {
   PackageFilesResponse,
   StoreController,
@@ -80,6 +81,7 @@ import {
   type ProjectRootDir,
   type RegistriesByScope,
   type RegistryConfig,
+  type RemoteSideEffectsCacheSettings,
   type SupportedArchitectures,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
@@ -164,6 +166,8 @@ export interface HeadlessOptions extends RegistryContext {
   storeController: StoreController
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+  pnprServer?: string
   symlink?: boolean
   disableRelinkLocalDirDeps?: boolean
   force: boolean
@@ -450,6 +454,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         lockfileDir: opts.lockfileDir,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
+        remoteSideEffectsCache: opts.remoteSideEffectsCache,
+        pnprServer: opts.pnprServer,
+        configByUri: opts.configByUri,
         supportedArchitectures: opts.supportedArchitectures,
       })
       stageLogger.debug({
@@ -490,6 +497,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           ignoreScripts: opts.ignoreScripts,
           lockfileDir: opts.lockfileDir,
           sideEffectsCacheRead: opts.sideEffectsCacheRead,
+          remoteSideEffectsCache: opts.remoteSideEffectsCache,
+          pnprServer: opts.pnprServer,
+          configByUri: opts.configByUri,
           storeDir: opts.storeDir,
           supportedArchitectures: opts.supportedArchitectures,
         }),
@@ -681,10 +691,14 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       scriptShell: opts.scriptShell,
       shellEmulator: opts.shellEmulator,
       sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
+      remoteSideEffectsCache: opts.remoteSideEffectsCache,
       storeController: opts.storeController,
+      supportedArchitectures: opts.supportedArchitectures,
       unsafePerm: opts.unsafePerm,
       userAgent: opts.userAgent,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
+      configByUri: opts.configByUri,
+      pnprServer: opts.pnprServer,
     })).ignoredBuilds
     if (opts.modulesFile?.ignoredBuilds?.size) {
       ignoredBuilds ??= new Set()
@@ -1015,6 +1029,9 @@ async function linkAllPkgs (
     ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
+    remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+    pnprServer?: string
+    configByUri: Record<string, RegistryConfig>
     storeDir: string
     supportedArchitectures?: SupportedArchitectures
   }
@@ -1035,6 +1052,20 @@ async function linkAllPkgs (
   // depPath off each node instead. Computed once outside the
   // per-node loop.
   const nodeVersion = findRuntimeNodeVersion(depNodes.map((node) => node.depPath))
+  const restorer = createRemoteSideEffectsRestorer({
+    allowBuild: opts.allowBuild,
+    configByUri: opts.configByUri,
+    depsGraph: opts.depGraph,
+    depsStateCache: opts.depsStateCache,
+    ignoreScripts: opts.ignoreScripts,
+    nodeVersion,
+    pnprServer: opts.pnprServer,
+    settings: opts.remoteSideEffectsCache,
+    sideEffectsCacheRead: opts.sideEffectsCacheRead,
+    storeController,
+    supportedArchitectures: opts.supportedArchitectures,
+    warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
+  })
   await Promise.all(
     depNodes.map(async (depNode) => {
       if (!depNode.fetching) return
@@ -1045,13 +1076,20 @@ async function linkAllPkgs (
         if (depNode.optional) return
         throw err
       }
-
       depNode.requiresBuild = filesResponse.requiresBuild
-      let sideEffectsCacheKey: string | undefined
-      if (opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
+      let sideEffectsCacheKey = await restorer?.restore({
+        graphKey: depNode.dir,
+        depPath: depNode.depPath,
+        files: filesResponse,
+        name: depNode.name,
+        patchFileHash: depNode.patch?.hash,
+        resolution: depNode.resolution,
+        version: depNode.version,
+      })
+      if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
         if (opts.allowBuild?.(depNode.depPath) === true) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
-            includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
+            includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
             nodeVersion,

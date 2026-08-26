@@ -29,6 +29,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     engine_name: Option<&str>,
     side_effects_cache: bool,
     side_effects_cache_write: bool,
+    shared_side_effects_publisher: Option<&crate::shared_side_effects::SharedSideEffectsPublisher>,
     store_dir: Option<&pnpm_store_dir::StoreDir>,
     store_index_writer: Option<&std::sync::Arc<pnpm_store_dir::StoreIndexWriter>>,
     dep_graph: Option<&HashMap<PackageKey, pnpm_graph_hasher::DepsGraphNode<PackageKey>>>,
@@ -471,20 +472,54 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     // upload doesn't fail the install: the next install re-runs the
     // build.
     if (is_patched || has_side_effects)
-        && side_effects_cache_write
         && !frozen_store
         && let Some(writer) = store_index_writer
         && let Some(store) = store_dir
         && let Some(cache_key) = cache_key.as_deref()
         && let Some(packages) = packages
         && let Some(metadata) = packages.get(&metadata_key)
+        && (side_effects_cache_write
+            || (has_side_effects
+                && shared_side_effects_publisher
+                    .is_some_and(|publisher| publisher.can_publish(&metadata_key, metadata))))
         && let Some(files_index_file) = store_index_key_for_resolution(
             &metadata.resolution,
             &metadata_key.pkg_id(),
             !ignore_scripts,
         )
-        && let Err(err) =
-            pnpm_store_dir::upload(store, &pkg_dir, &files_index_file, cache_key, writer)
+        && let Err(err) = (|| {
+            if let Some(publisher) = shared_side_effects_publisher {
+                let diff = pnpm_store_dir::upload_with_diff(
+                    store,
+                    &pkg_dir,
+                    &files_index_file,
+                    cache_key,
+                    writer,
+                )?;
+                if has_side_effects
+                    && let Some(diff) = diff
+                    && let Some(graph) = dep_graph
+                    && let Err(error) = publisher.publish(
+                        snapshot_key,
+                        metadata,
+                        graph,
+                        patch.map(|patch| patch.hash.as_str()),
+                        diff,
+                        store,
+                    )
+                {
+                    tracing::warn!(
+                        target: "pacquet::build",
+                        dep_path = %snapshot_key,
+                        %error,
+                        "remote side-effects publication failed; build proceeds",
+                    );
+                }
+                Ok(())
+            } else {
+                pnpm_store_dir::upload(store, &pkg_dir, &files_index_file, cache_key, writer)
+            }
+        })()
     {
         tracing::warn!(
             target: "pacquet::build",

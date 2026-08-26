@@ -205,6 +205,8 @@ pub struct BuildModules<'a> {
     /// directory and a queued mutation of the matching
     /// `PackageFilesIndex.sideEffects` row.
     pub side_effects_cache_write: bool,
+    pub shared_side_effects_publisher:
+        Option<&'a crate::shared_side_effects::SharedSideEffectsPublisher>,
     /// Store-dir handle for the WRITE path's `add_files_from_dir`
     /// call. `None` short-circuits the upload site entirely — used
     /// by unit tests that don't set up a CAFS.
@@ -370,6 +372,7 @@ impl BuildModules<'_> {
             engine_name,
             side_effects_cache,
             side_effects_cache_write,
+            shared_side_effects_publisher,
             store_dir,
             store_index_writer,
             patches,
@@ -443,7 +446,8 @@ impl BuildModules<'_> {
         let read_gate_active = side_effects_cache
             && engine_name.is_some()
             && side_effects_maps_by_snapshot.is_some_and(|map| !map.is_empty());
-        let write_gate_active = side_effects_cache_write
+        let write_gate_active = (side_effects_cache_write
+            || shared_side_effects_publisher.is_some())
             && !frozen_store
             && engine_name.is_some()
             && store_index_writer.is_some()
@@ -528,6 +532,7 @@ impl BuildModules<'_> {
                         engine_name,
                         side_effects_cache,
                         side_effects_cache_write,
+                        shared_side_effects_publisher,
                         store_dir,
                         store_index_writer,
                         dep_graph.as_ref(),

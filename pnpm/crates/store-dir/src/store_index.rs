@@ -86,6 +86,7 @@ enum WriteMsg {
         key: String,
         cache_key: String,
         current_files: HashMap<String, CafsFileInfo>,
+        response: Option<std::sync::mpsc::SyncSender<Option<SideEffectsDiff>>>,
     },
 }
 
@@ -258,21 +259,24 @@ fn apply_write_msg(
         WriteMsg::Replace { key, value } => {
             pending.insert(key, value);
         }
-        WriteMsg::SideEffectsUpload { key, cache_key, current_files } => {
-            let Some(row) = load_pending_row(index, pending, &key) else { return };
-            if row.algo != crate::upload::HASH_ALGORITHM {
-                tracing::warn!(
-                    target: "pacquet::store_index",
-                    key = %key,
-                    row_algo = %row.algo,
-                    "algo mismatch on base row; skip side-effects upload",
-                );
-                // Row stays in `pending` for the flush — only
-                // the side-effects mutation is suppressed.
-                return;
+        WriteMsg::SideEffectsUpload { key, cache_key, current_files, response } => {
+            let diff = load_pending_row(index, pending, &key).and_then(|row| {
+                if row.algo != crate::upload::HASH_ALGORITHM {
+                    tracing::warn!(
+                        target: "pacquet::store_index",
+                        key = %key,
+                        row_algo = %row.algo,
+                        "algo mismatch on base row; skip side-effects upload",
+                    );
+                    return None;
+                }
+                let diff = crate::upload::calculate_diff(&row.files, &current_files);
+                row.side_effects.get_or_insert_with(HashMap::new).insert(cache_key, diff.clone());
+                Some(diff)
+            });
+            if let Some(response) = response {
+                let _ = response.send(diff);
             }
-            let diff = crate::upload::calculate_diff(&row.files, &current_files);
-            row.side_effects.get_or_insert_with(HashMap::new).insert(cache_key, diff);
         }
     }
 }
@@ -345,7 +349,28 @@ impl StoreIndexWriter {
         cache_key: String,
         current_files: HashMap<String, CafsFileInfo>,
     ) {
-        self.send_msg(WriteMsg::SideEffectsUpload { key, cache_key, current_files });
+        self.send_msg(WriteMsg::SideEffectsUpload {
+            key,
+            cache_key,
+            current_files,
+            response: None,
+        });
+    }
+
+    pub fn queue_side_effects_upload_with_result(
+        &self,
+        key: String,
+        cache_key: String,
+        current_files: HashMap<String, CafsFileInfo>,
+    ) -> Option<SideEffectsDiff> {
+        let (response, result) = std::sync::mpsc::sync_channel(1);
+        self.send_msg(WriteMsg::SideEffectsUpload {
+            key,
+            cache_key,
+            current_files,
+            response: Some(response),
+        });
+        result.recv().ok().flatten()
     }
 
     fn send_msg(&self, msg: WriteMsg) {
@@ -1037,7 +1062,7 @@ pub struct PackageFilesIndex {
 
 /// Value of [`PackageFilesIndex::files`]. Matches pnpm v11's per-file
 /// metadata field-for-field so that the msgpack payload interops.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CafsFileInfo {
     /// Content-addressed digest of the file — raw hex (no `sha512-` prefix),
@@ -1084,7 +1109,7 @@ fn serialize_checked_at<Serializer: serde::Serializer>(
 /// the bespoke encoder in `msgpackr_records.rs` (it iterates the
 /// map in sorted-key order). The derived serde `Serialize` impl
 /// is unused on the write path.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SideEffectsDiff {
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -1,4 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { describe, expect, it } from '@jest/globals'
@@ -96,5 +97,31 @@ describe('store.importPackage()', () => {
     })
     expect(importMethod).toBe('copy')
     expect(typeof (await import(importTo)).default).toBe('function')
+  })
+})
+
+describe('store.addFileToStore', () => {
+  function packageStore (frozenStore: boolean) {
+    const tmp = temporaryDirectory()
+    const storeDir = path.join(tmp, 'store')
+    const storeIndex = new StoreIndex(storeDir)
+    fs.mkdirSync(path.join(storeDir, 'files'), { recursive: true })
+    return createPackageStore({} as never, {} as never, {
+      storeDir,
+      cacheDir: path.join(tmp, 'cache'),
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+      clearResolutionCache: () => {},
+      frozenStore,
+      storeIndex,
+    })
+  }
+
+  it('is offered by a writable store', () => {
+    expect(typeof packageStore(false).addFileToStore).toBe('function')
+  })
+
+  it('is withheld by a read-only store', () => {
+    expect(packageStore(true).addFileToStore).toBeUndefined()
   })
 })

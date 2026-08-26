@@ -1,7 +1,8 @@
 use super::{
     ConnectInfo, HostedRevisionDist, HostedRevisionRecord, PeerAddr, RevisionField,
-    bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows, is_write_method,
-    original_integrity, router_with_auth, token_timestamp_millis,
+    artifact_blob_response_body, bearer_credentials, canonical_ip, cidr_contains,
+    cidr_whitelist_allows, is_write_method, original_integrity, router_with_auth,
+    token_timestamp_millis,
 };
 use crate::{
     auth::{AuthState, TokenBackend, TokenRecord, UserStore},
@@ -19,7 +20,22 @@ use std::{
     sync::Arc,
 };
 use tempfile::TempDir;
+use tokio::{fs, sync::Semaphore};
 use tower::ServiceExt;
+
+#[tokio::test]
+async fn artifact_blob_response_releases_its_verification_slot_before_streaming() {
+    let storage = TempDir::new().unwrap();
+    let path = storage.path().join("blob");
+    fs::write(&path, [1, 2, 3]).await.unwrap();
+    let file = fs::File::open(path).await.unwrap();
+    let semaphore = Arc::new(Semaphore::new(1));
+    let permit = Arc::clone(&semaphore).acquire_owned().await.unwrap();
+    let body = artifact_blob_response_body(file, permit);
+    assert!(semaphore.try_acquire().is_ok());
+
+    assert_eq!(to_bytes(body, 3).await.unwrap(), &[1, 2, 3][..]);
+}
 
 #[test]
 fn token_timestamp_millis_saturates_before_i64_conversion() {

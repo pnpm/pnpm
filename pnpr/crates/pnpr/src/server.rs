@@ -48,6 +48,7 @@ use std::{
     sync::{Arc, LazyLock},
     time::Duration,
 };
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tower_http::{
     compression::{
         CompressionLayer,
@@ -84,6 +85,14 @@ const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
 /// buffer-and-parse amplifier.
 const MAX_LOGIN_BODY_BYTES: usize = 64 * 1024;
 
+/// The `PoC` accepts blobs inline on artifact publication. Keep the buffered
+/// request at the same ceiling as an npm package publish.
+const MAX_ARTIFACT_PUBLISH_BODY_BYTES: usize = MAX_PUBLISH_BODY_BYTES;
+const MAX_ARTIFACT_RESOLVE_BODY_BYTES: usize = 16 * 1024 * 1024;
+const MAX_ARTIFACT_BLOB_BODY_BYTES: usize = 8 * 1024;
+/// Bound concurrent verification scans without letting slow clients retain slots.
+const MAX_CONCURRENT_ARTIFACT_BLOB_VERIFICATIONS: usize = 4;
+
 #[derive(Clone)]
 struct AppState {
     inner: Arc<AppInner>,
@@ -105,8 +114,9 @@ struct AppInner {
     auth: AuthState,
     /// Serializes the read-modify-write packument flows per package so
     /// two concurrent writers to the same package on this instance can't
-    /// lose each other's changes. See [`PackageLocks`].
-    package_locks: PackageLocks,
+    /// lose each other's changes.
+    package_locks: StripedLocks,
+    artifact_blob_verifications: Arc<Semaphore>,
     /// Lazily-built engine backing the `/-/pnpr/v0/resolve` endpoint. Built on
     /// first such request so servers that never receive one pay nothing.
     resolver: std::sync::OnceLock<crate::resolver::Resolver>,
@@ -121,30 +131,20 @@ struct HostedOriginalRef {
     version: String,
 }
 
-/// Per-package serialization for the read-modify-write packument flows
-/// (publish, dist-tag changes, partial-unpublish). Without it, two
-/// concurrent publishes of the same package both read the old
-/// packument, merge their own version in, and write back — last writer
-/// wins and the other version is silently lost.
-///
-/// A fixed stripe set of mutexes keyed by a hash of the package name
-/// serializes writers to the same package while letting different
-/// packages proceed in parallel. The fixed count bounds memory (unlike
-/// a per-name map that grows with every package ever published); two
-/// packages that hash to the same stripe just serialize against each
-/// other, which is harmless.
+/// A fixed stripe set bounds lock memory while serializing writers for the
+/// same logical resource. Hash collisions only reduce concurrency.
 ///
 /// This guards concurrency **within one instance**. Across replicas
 /// sharing one hosted store, the same race needs a conditional write
 /// (S3 `If-Match` / `ETag`); that is the cross-replica half tracked in
 /// [pnpm/pnpm#12199](https://github.com/pnpm/pnpm/issues/12199).
-struct PackageLocks {
+struct StripedLocks {
     stripes: Box<[tokio::sync::Mutex<()>]>,
 }
 
-impl PackageLocks {
-    /// Number of stripes. 64 keeps false sharing between distinct
-    /// packages rare while staying tiny in memory.
+impl StripedLocks {
+    /// Number of stripes. 64 keeps false sharing between distinct resources
+    /// rare while staying tiny in memory.
     const STRIPES: usize = 64;
 
     fn new() -> Self {
@@ -152,10 +152,7 @@ impl PackageLocks {
         Self { stripes }
     }
 
-    /// Lock the stripe owning `name`, held until the returned guard is
-    /// dropped. Callers hold it across the whole read-modify-write so the
-    /// read and the write are atomic with respect to other same-package
-    /// writers.
+    /// Lock the stripe owning `name`, held until the returned guard is dropped.
     async fn lock(&self, name: &str) -> tokio::sync::MutexGuard<'_, ()> {
         self.stripes[self.stripe_index(name)].lock().await
     }
@@ -263,6 +260,7 @@ fn router_with_auth_and_osv(
         Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone());
     let registry_enabled = config.registry.enabled;
     let resolver_enabled = config.resolver.enabled;
+    let artifacts_enabled = config.resolver.artifacts;
     // Only the registry routes consult the upstreams, so a resolver-only
     // server builds none — skipping a `ThrottledClient` allocation per
     // configured upstream.
@@ -287,7 +285,10 @@ fn router_with_auth_and_osv(
             upstream_cache_namespaces,
             config,
             auth,
-            package_locks: PackageLocks::new(),
+            package_locks: StripedLocks::new(),
+            artifact_blob_verifications: Arc::new(Semaphore::new(
+                MAX_CONCURRENT_ARTIFACT_BLOB_VERIFICATIONS,
+            )),
             resolver: std::sync::OnceLock::new(),
             osv_index,
         }),
@@ -334,9 +335,9 @@ fn router_with_auth_and_osv(
     // The install-accelerator (resolver) surface, all under the reserved
     // `/-/pnpr` namespace. `/-/pnpr` is the capability handshake (404 on a
     // plain registry); `/-/pnpr/v0/resolve` and `/-/pnpr/v0/verify-lockfile`
-    // are the resolver endpoints. These resolve against the registries the
-    // *client* sends, so the accelerator works whether or not this process
-    // also fronts a registry.
+    // are the resolver endpoints. The opt-in `artifacts` sub-feature adds the
+    // signed shared-artifact publish, lookup, and blob endpoints. Resolution
+    // works whether or not this process also fronts a registry.
     //
     // When the resolver is disabled, only `/-/pnpr` gets a 404 stub: it is
     // the capability-probe path and overlaps the registry catch-all
@@ -363,6 +364,36 @@ fn router_with_auth_and_osv(
                     require_resolver_caller,
                 )),
             );
+        if artifacts_enabled {
+            router = router
+                .route(
+                    "/-/pnpr/v0/artifacts",
+                    put(serve_publish_artifact)
+                        .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_PUBLISH_BODY_BYTES))
+                        .route_layer(middleware::from_fn_with_state(
+                            state.clone(),
+                            require_resolver_caller,
+                        )),
+                )
+                .route(
+                    "/-/pnpr/v0/artifacts/resolve",
+                    post(serve_resolve_artifacts)
+                        .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_RESOLVE_BODY_BYTES))
+                        .route_layer(middleware::from_fn_with_state(
+                            state.clone(),
+                            require_resolver_caller,
+                        )),
+                )
+                .route(
+                    "/-/pnpr/v0/artifacts/blob",
+                    post(serve_artifact_blob)
+                        .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_BLOB_BODY_BYTES))
+                        .route_layer(middleware::from_fn_with_state(
+                            state.clone(),
+                            require_resolver_caller,
+                        )),
+                );
+        }
     } else {
         router = router.route("/-/pnpr", any(resolver_disabled));
     }
@@ -2915,13 +2946,11 @@ fn json_response(status: StatusCode, body: &Value) -> Response {
         .expect("static-shape response always builds")
 }
 
-/// Mark a response as caller-scoped and uncacheable. The auth
-/// endpoints (whoami, profile, token list/revoke, logout) return
-/// per-user data keyed on the `Authorization` header, so a shared
-/// HTTP cache that ignored `Vary` could happily hand one user's
-/// identity to another. Applied to *every* branch of those handlers
-/// — success and error alike — so an intermediary can't latch onto
-/// a 401 either.
+/// Mark a response as caller-scoped and uncacheable. Authenticated endpoints
+/// can return per-user data keyed on the `Authorization` header, so a shared
+/// HTTP cache that ignored `Vary` could hand one caller's data to another.
+/// Apply this to every response branch so intermediaries cannot cache errors
+/// either.
 fn private_no_cache(mut response: Response) -> Response {
     use axum::http::HeaderValue;
     let headers = response.headers_mut();
@@ -4857,8 +4886,19 @@ async fn serve_ping(State(_state): State<AppState>) -> Response {
 /// protocol. A plain npm registry has no such route and 404s, so a
 /// client can fail fast against a misconfigured server. `versions`
 /// lists the `/-/pnpr/vN/resolve` protocol versions this server speaks.
-async fn serve_pnpr_handshake() -> Response {
-    (StatusCode::OK, axum::Json(serde_json::json!({ "pnpr": { "versions": [0] } }))).into_response()
+async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
+    let artifacts =
+        state.inner.config.resolver.artifacts.then_some(0).into_iter().collect::<Vec<_>>();
+    (
+        StatusCode::OK,
+        axum::Json(serde_json::json!({
+            "pnpr": {
+                "versions": [0],
+                "artifacts": artifacts,
+            }
+        })),
+    )
+        .into_response()
 }
 
 /// 404 stub mounted on the resolver paths when the resolver feature is
@@ -4898,4 +4938,85 @@ async fn serve_verify_lockfile(
         state.inner.osv_index.clone(),
     );
     crate::resolver::handle_verify_lockfile(runtime, identity, body).await
+}
+
+async fn serve_publish_artifact(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    body: axum::body::Bytes,
+) -> Response {
+    let username = match require_caller(&identity, "shared artifact publication") {
+        Ok(username) => username,
+        Err(err) => return private_no_cache(error_response(&err)),
+    };
+    let request = match crate::shared_artifacts::parse_publish(&body) {
+        Ok(request) => request,
+        Err(err) => return private_no_cache(error_response(&err)),
+    };
+    private_no_cache(
+        match crate::shared_artifacts::publish(
+            &state.inner.config.cache_storage,
+            &username,
+            request,
+        )
+        .await
+        {
+            Ok(true) => StatusCode::CREATED.into_response(),
+            Ok(false) => StatusCode::OK.into_response(),
+            Err(err) => error_response(&err),
+        },
+    )
+}
+
+async fn serve_resolve_artifacts(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    body: axum::body::Bytes,
+) -> Response {
+    let username = match require_caller(&identity, "shared artifact lookup") {
+        Ok(username) => username,
+        Err(err) => return private_no_cache(error_response(&err)),
+    };
+    private_no_cache(
+        match crate::shared_artifacts::resolve(&state.inner.config.cache_storage, &username, &body)
+            .await
+        {
+            Ok(response) => (StatusCode::OK, axum::Json(response)).into_response(),
+            Err(err) => error_response(&err),
+        },
+    )
+}
+
+async fn serve_artifact_blob(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    body: axum::body::Bytes,
+) -> Response {
+    let username = match require_caller(&identity, "shared artifact blob") {
+        Ok(username) => username,
+        Err(err) => return private_no_cache(error_response(&err)),
+    };
+    let permit = Arc::clone(&state.inner.artifact_blob_verifications)
+        .acquire_owned()
+        .await
+        .expect("the artifact blob verification semaphore is never closed");
+    match crate::shared_artifacts::read_blob(&state.inner.config.cache_storage, &username, &body)
+        .await
+    {
+        Ok(Some((file, size))) => Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/octet-stream")
+            .header(header::CONTENT_LENGTH, size.to_string())
+            .header(header::CACHE_CONTROL, "private, max-age=31536000, immutable")
+            .header(header::VARY, "Authorization")
+            .body(artifact_blob_response_body(file, permit))
+            .expect("static artifact blob response always builds"),
+        Ok(None) => private_no_cache(StatusCode::NOT_FOUND.into_response()),
+        Err(err) => private_no_cache(error_response(&err)),
+    }
+}
+
+fn artifact_blob_response_body(file: tokio::fs::File, permit: OwnedSemaphorePermit) -> Body {
+    drop(permit);
+    streaming::stream_file(file)
 }

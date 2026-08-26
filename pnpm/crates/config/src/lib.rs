@@ -59,12 +59,68 @@ use crate::defaults::{
 };
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
-    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, UpdateConfig,
-    UpdateSettings, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings,
-    decided_allow_builds,
+    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting,
+    RemoteSideEffectsCacheSettings, UpdateConfig, UpdateSettings, WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
     registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
     workspace_root_or,
 };
+
+impl Config {
+    /// The environment is the last word on the remote side-effects cache: it is
+    /// where a CI runner injects the signing material that must not be
+    /// committed, and where a build job flips publication on for one
+    /// invocation.
+    ///
+    /// Read here rather than by the installer so the values reach it as
+    /// ordinary settings. A malformed JSON variable is dropped with a warning
+    /// rather than failing the install, matching how the feature degrades to a
+    /// local build on every other cache failure.
+    pub(crate) fn apply_remote_side_effects_cache_env<Sys: EnvVar>(&mut self) {
+        let mut settings = RemoteSideEffectsCacheSettings::default();
+        let mut set_any = false;
+        if let Some(publish) = Sys::var("PNPM_REMOTE_SIDE_EFFECTS_CACHE_PUBLISH") {
+            settings.publish = Some(publish == "true");
+            set_any = true;
+        }
+        for (field, variable) in [
+            (&mut settings.key_id, "PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID"),
+            (&mut settings.builder_id, "PNPM_REMOTE_SIDE_EFFECTS_CACHE_BUILDER_ID"),
+            (&mut settings.image_digest, "PNPM_REMOTE_SIDE_EFFECTS_CACHE_IMAGE_DIGEST"),
+            (
+                &mut settings.architecture_baseline,
+                "PNPM_REMOTE_SIDE_EFFECTS_CACHE_ARCHITECTURE_BASELINE",
+            ),
+            (&mut settings.private_key, "PNPM_REMOTE_SIDE_EFFECTS_CACHE_PRIVATE_KEY"),
+        ] {
+            if let Some(value) = Sys::var(variable) {
+                *field = Some(value);
+                set_any = true;
+            }
+        }
+        for (field, variable) in [
+            (&mut settings.build_env, "PNPM_REMOTE_SIDE_EFFECTS_CACHE_BUILD_ENV"),
+            (&mut settings.trusted_keys, "PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS"),
+        ] {
+            let Some(value) = Sys::var(variable) else { continue };
+            match serde_json::from_str::<BTreeMap<String, String>>(&value) {
+                Ok(parsed) => {
+                    *field = Some(parsed);
+                    set_any = true;
+                }
+                Err(error) => tracing::warn!(
+                    target: "pacquet::config",
+                    variable,
+                    %error,
+                    "remote side-effects environment variable is not a string-valued JSON object",
+                ),
+            }
+        }
+        if set_any {
+            self.remote_side_effects_cache.get_or_insert_default().overlay(settings);
+        }
+    }
+}
 
 fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
     let ci = Sys::var("CI");
@@ -1760,6 +1816,8 @@ pub struct Config {
     /// compute runs remotely, the result is materialized locally).
     /// `None` runs the normal local resolution flow.
     pub pnpr_server: Option<String>,
+
+    pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
 
     /// Path to the user-level `.npmrc` to read auth from, overriding the
     /// default `~/.npmrc`. The `npmrcAuthFile` setting (and the
@@ -3586,6 +3644,7 @@ impl Config {
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
+        self.apply_remote_side_effects_cache_env::<Sys>();
         if let Some(configured_state_dir) =
             configured_state_dir.as_deref().filter(|value| !value.is_empty())
         {
