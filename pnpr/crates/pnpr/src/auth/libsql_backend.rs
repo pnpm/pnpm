@@ -23,9 +23,9 @@ use super::{
     hash_bcrypt, mint_token, sha256_hex, token_timestamp_from_sql, unix_seconds, validate_username,
     verify_returning_user, with_auth_timeout,
 };
-use crate::config::{LibsqlSettings, MaxUsers};
 use async_trait::async_trait;
 use libsql::{Builder, Connection, Database, Error as LibsqlError, Row, params};
+use pnpr_config::{LibsqlSettings, MaxUsers};
 use pnpr_error::{RegistryError, Result};
 use std::{
     sync::atomic::{AtomicU64, Ordering},

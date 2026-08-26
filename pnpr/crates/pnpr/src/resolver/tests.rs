@@ -18,10 +18,8 @@ use super::{
     reject_inline_url_auth, reject_invalid_patch_hashes, reject_off_allowlist_fetches,
     resolution_cache_key, store_resolution,
 };
-use crate::{
-    config::{Config as RegistryConfig, PublicRoute, UpstreamConfig},
-    route::{Footprint, PrivateAccessDescriptor, RouteContext},
-};
+use crate::route::{Footprint, PrivateAccessDescriptor, RouteContext};
+use pnpr_config::{Config as RegistryConfig, PublicRoute, UpstreamConfig};
 use pnpr_policy::{AccessList, Identity, PackageRule, PackageRules};
 
 fn config_for_registry(registry: &str) -> PacquetConfig {

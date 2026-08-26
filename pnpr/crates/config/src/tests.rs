@@ -1,11 +1,13 @@
 use super::{
     BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides, HostedStoreConfig,
-    Interval, LogFormat, LogLevel, Teams, UpstreamAuthFile, UpstreamConfig, UpstreamConfigFile,
-    config_file_in, parse_interval, resolve_relative, resolve_upstream_config,
+    Interval, LogFormat, LogLevel, S3Settings, Teams, UpstreamAuthFile, UpstreamConfig,
+    UpstreamConfigFile, config_file_in, parse_interval, resolve_relative, resolve_upstream_config,
     upstream::{TokenEnv, UpstreamAuthType},
 };
 use indexmap::IndexMap;
+use object_store::{ClientConfigKey, aws::AmazonS3ConfigKey};
 use pnpm_env_replace::EnvVar;
+use pnpm_testing_utils::env_guard::EnvGuard;
 use pnpr_error::RegistryError;
 use pnpr_policy::Identity;
 use reqwest::header::AUTHORIZATION;
@@ -2329,4 +2331,95 @@ fn resolution_secret_uses_yaml_secret_then_falls_back_to_random() {
     // A too-short `secret:` is a config error rather than a weak HMAC key.
     let short = Config::from_yaml_str("secret: short", Path::new("/x"), listen(), None);
     assert!(matches!(short, Err(RegistryError::InvalidConfig { .. })));
+}
+
+/// `Debug` on [`S3Settings`] is reachable from `Debug` on the whole [`Config`],
+/// so a diagnostic dump must not carry the operator's S3 credentials.
+#[test]
+fn s3_settings_debug_redacts_credentials() {
+    let settings = S3Settings {
+        bucket: "packages".to_string(),
+        region: Some("auto".to_string()),
+        endpoint: None,
+        prefix: None,
+        access_key_id: Some("AKIAEXAMPLEKEYID".to_string()),
+        secret_access_key: Some("s3cr3t-do-not-log".to_string()),
+        force_path_style: None,
+        allow_http: None,
+    };
+
+    let rendered = format!("{settings:?}");
+    assert!(!rendered.contains("s3cr3t-do-not-log"), "secret leaked: {rendered}");
+    assert!(!rendered.contains("AKIAEXAMPLEKEYID"), "key id leaked: {rendered}");
+    assert!(rendered.contains("<redacted>"), "expected redaction marker: {rendered}");
+    // Non-secret fields still render, so the dump stays useful.
+    assert!(rendered.contains("packages"), "bucket should render: {rendered}");
+}
+
+fn s3_settings_for(endpoint: Option<&str>, allow_http: Option<bool>) -> S3Settings {
+    S3Settings {
+        bucket: "packages".to_string(),
+        region: None,
+        endpoint: endpoint.map(str::to_string),
+        prefix: None,
+        access_key_id: None,
+        secret_access_key: None,
+        force_path_style: None,
+        allow_http,
+    }
+}
+
+/// `AmazonS3Builder::from_env` imports `AWS_ENDPOINT_URL_S3` into the
+/// S3-specific key, which `object_store` resolves ahead of the plain `endpoint`
+/// whatever order they were set in. Writing the configured endpoint to the
+/// plain key would let that environment variable silently redirect every
+/// request, so the YAML must land on the S3-specific key.
+#[test]
+fn a_configured_endpoint_lands_on_the_key_that_wins() {
+    let builder = super::s3_builder(&s3_settings_for(Some("https://minio.corp.example"), None));
+    assert_eq!(
+        builder.get_config_value(&AmazonS3ConfigKey::S3Endpoint).as_deref(),
+        Some("https://minio.corp.example"),
+    );
+}
+
+/// `from_env` also honours `AWS_ALLOW_HTTP`. The `allowHttp` field documents a
+/// HTTPS-only default, so an absent setting has to say `false` rather than
+/// leave the environment free to downgrade the connection to plaintext. The
+/// variable is set here because that is the only state in which the two
+/// behaviours differ.
+#[test]
+fn an_absent_allow_http_pins_https_only() {
+    let _env = EnvGuard::snapshot(["AWS_ALLOW_HTTP"]);
+    // SAFETY: `EnvGuard` holds the process-wide env-mutation lock for the
+    // lifetime of `_env` and restores the variable on drop.
+    unsafe { std::env::set_var("AWS_ALLOW_HTTP", "true") };
+
+    let builder = super::s3_builder(&s3_settings_for(None, None));
+    assert_eq!(
+        builder.get_config_value(&AmazonS3ConfigKey::Client(ClientConfigKey::AllowHttp)).as_deref(),
+        Some("false"),
+    );
+}
+
+#[test]
+fn an_explicit_allow_http_is_honoured() {
+    let builder = super::s3_builder(&s3_settings_for(None, Some(true)));
+    assert_eq!(
+        builder.get_config_value(&AmazonS3ConfigKey::Client(ClientConfigKey::AllowHttp)).as_deref(),
+        Some("true"),
+    );
+}
+
+/// `endpoint` is operator-supplied, so it can carry `user:pass@` userinfo or a
+/// token query parameter. Masking only the key fields would leave that path
+/// open.
+#[test]
+fn s3_settings_debug_redacts_credentials_inside_the_endpoint() {
+    let mut settings = s3_settings_for(Some("https://minio:hunter2@minio.corp.example"), None);
+    settings.bucket = "packages".to_string();
+
+    let rendered = format!("{settings:?}");
+    assert!(!rendered.contains("hunter2"), "endpoint userinfo leaked: {rendered}");
+    assert!(rendered.contains("minio.corp.example"), "host should still render: {rendered}");
 }

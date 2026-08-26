@@ -2,12 +2,10 @@ use super::{
     JournaledPublish, JournaledRevisionRef, MANIFEST_FILE, Manifest, cleanup_conflicted_tmp_paths,
     drop_conflicted_versions, revision_ref_owner, roll_forward, sync_dir,
 };
-use crate::{
-    config::HostedStoreConfig,
-    storage::{HostedRevisionRefWrite, Storage, TarballFinalize},
-};
+use crate::storage::{HostedRevisionRefWrite, Storage, TarballFinalize};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use object_store::{ObjectStore, memory::InMemory};
+use pnpr_config::HostedStoreConfig;
 use pnpr_package_name::PackageName;
 use serde_json::json;
 use std::{collections::HashSet, sync::Arc};

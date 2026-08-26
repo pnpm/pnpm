@@ -22,7 +22,6 @@ use self::{
 
 use crate::{
     auth::{AuthState, UpsertOutcome, identify},
-    config::{Config, HostedConfig},
     publish::{iso_from_unix_millis, now_iso},
     storage::Storage,
     streaming,
@@ -48,6 +47,7 @@ use chrono::Utc;
 use indexmap::IndexMap;
 use pnpm_crypto_hash::{integrity_addressed_tarball_integrity, integrity_addressed_tarball_path};
 use pnpm_lockfile::TarballRevision;
+use pnpr_config::{Config, HostedConfig};
 use pnpr_error::RegistryError;
 use pnpr_package_name::PackageName;
 use pnpr_policy::Identity;

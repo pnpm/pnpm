@@ -8,7 +8,6 @@
 //! See <https://github.com/pnpm/pnpm> for the parent project.
 
 mod auth;
-mod config;
 mod journal;
 mod osv;
 mod publish;
@@ -26,14 +25,14 @@ pub use auth::{
     AuthState, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend, UserStore,
     identify,
 };
-pub use config::{
+pub use journal::recover_publish_journal;
+pub use pnpr_config::{
     AccessSpec, AuthConfig, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML,
     FeatureOverrides, HostedConfig, HostedStoreConfig, HtpasswdConfig, LibsqlSettings, LogConfig,
     LogFormat, LogLevel, MaxUsers, OsvConfig, PackageAccess, PublicRoute, RegistryFeature,
     ResolverFeature, RoutePolicy, SqlBackendSettings, Teams, TokensConfig, UpstreamConfig,
     default_cache_dir,
 };
-pub use journal::recover_publish_journal;
 pub use pnpr_error::{RegistryError, Result};
 pub use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
 pub use pnpr_registry::{

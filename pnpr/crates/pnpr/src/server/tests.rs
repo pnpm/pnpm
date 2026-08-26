@@ -5,16 +5,14 @@ use super::{
     },
     original_integrity, router_with_auth, token_timestamp_millis,
 };
-use crate::{
-    auth::{AuthState, TokenBackend, TokenRecord, UserStore},
-    config::Config,
-};
+use crate::auth::{AuthState, TokenBackend, TokenRecord, UserStore};
 use async_trait::async_trait;
 use axum::{
     body::{Body, to_bytes},
     extract::ConnectInfo,
     http::{Method, Request, StatusCode, header},
 };
+use pnpr_config::Config;
 use pnpr_error::{RegistryError, Result};
 use pnpr_policy::{AccessList, PackageRule, PackageRules};
 use std::{

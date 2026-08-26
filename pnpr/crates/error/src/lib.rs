@@ -392,7 +392,11 @@ impl RegistryError {
     }
 }
 
-fn redact_url_credentials(message: &str) -> String {
+/// Rewrite every URL in `message` so its `user:pass@` userinfo and any
+/// sensitive query parameter render as `<redacted>`. Shared with the config
+/// layer, whose operator-supplied endpoints can carry either.
+#[must_use]
+pub fn redact_url_credentials(message: &str) -> String {
     let mut redacted = String::with_capacity(message.len());
     let mut cursor = 0;
     while let Some(relative_scheme_end) = message[cursor..].find("://") {

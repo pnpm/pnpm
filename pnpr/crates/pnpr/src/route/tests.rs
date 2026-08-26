@@ -8,7 +8,7 @@ use pnpm_network::{MetadataCacheScope, UpstreamRouteHook};
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 use super::{Footprint, PrivateAccessDescriptor, RouteClass, RouteContext, RouteHook};
-use crate::config::{Config, PublicRoute, UpstreamConfig};
+use pnpr_config::{Config, PublicRoute, UpstreamConfig};
 use pnpr_policy::{AccessList, Identity};
 
 fn base_config() -> Config {
