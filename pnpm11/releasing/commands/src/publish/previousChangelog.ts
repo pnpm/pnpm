@@ -197,7 +197,7 @@ async function extractTarballEntry (tarballData: Buffer, entryName: string): Pro
         return
       }
       const chunks: Buffer[] = []
-      stream.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
+      stream.on('data', (chunk) => chunks.push(Buffer.from(chunk as Uint8Array)))
       stream.on('error', () => resolve(undefined))
       stream.on('end', () => {
         contents = Buffer.concat(chunks).toString('utf8')

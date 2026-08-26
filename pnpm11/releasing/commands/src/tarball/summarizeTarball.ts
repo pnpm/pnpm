@@ -47,7 +47,7 @@ export async function summarizeTarball (tarballData: Buffer): Promise<PublishSum
         }
       }
       if (header.name === 'package/package.json') {
-        stream.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
+        stream.on('data', (chunk) => chunks.push(Buffer.from(chunk as Uint8Array)))
       }
       stream.on('error', reject)
       stream.on('end', () => {
