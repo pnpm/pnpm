@@ -49,8 +49,7 @@ storage
 # ...but not pnpr's `storage` crate. The bare rule above is unanchored, so it
 # matches a directory of that name at any depth and would otherwise swallow
 # this source tree — silently, since `git add` skips ignored paths without
-# saying so. It already had to be excluded once when the module lived under
-# `pnpr/crates/pnpr/src/`; keep this in step if it ever moves again.
+# saying so. Keep this negation in step if the crate ever moves.
 !/pnpr/crates/storage/
 !/pnpr/crates/storage/**
 
