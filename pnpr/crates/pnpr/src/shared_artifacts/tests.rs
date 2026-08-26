@@ -19,9 +19,9 @@ use tokio::{fs, sync::Barrier, time::timeout};
 use super::{
     BLOB_LOCK_STRIPES, PendingUsageFile, PendingUsageLock, ResolveBudget, StorageQuotaReservation,
     acquire_artifact_lock, artifact_usage_path, blob_lock_key, blob_lock_path_for_key,
-    entry_lock_path, is_variant_file, load_artifact_usage, owner_dir, owner_lock_path,
-    owner_usage_key, pending_usage_file, publish, reconcile_storage_reservations,
-    reserve_storage_quota_with_locks_and_limits, stored_bytes,
+    entry_digest, entry_lock_path, is_variant_file, load_artifact_usage, owner_dir,
+    owner_lock_path, owner_usage_key, pending_usage_file, publish, reconcile_storage_reservations,
+    reserve_storage_quota_with_locks_and_limits, stored_bytes, try_acquire_artifact_lock,
 };
 use crate::{error::Result, storage::unique_tmp_path};
 
@@ -371,8 +371,69 @@ async fn an_entry_lock_does_not_block_another_entry() {
     assert!(published);
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_stalled_entry_does_not_block_an_unrelated_entry_for_the_same_owner() {
+    let storage = TempDir::new().unwrap();
+    let root = storage.path().join("shared-artifacts/v0");
+    let acme_dir = owner_dir(storage.path(), "acme", &OwnerScope::organization("acme")).unwrap();
+    let acme_owner = owner_usage_key(&acme_dir).unwrap();
+    let blocked = publication_request(
+        "acme",
+        "dependency-side-effects:v1:blocked",
+        "ci/blocked",
+        Some(b"blocked blob"),
+    );
+    let blocked_payload = blocked.validate().unwrap().payload;
+    let blocked_entry =
+        entry_digest(&blocked.key, &blocked_payload.package, &blocked_payload.source_integrity);
+    let blocked_blob = blob_id(&blocked.blobs[0].integrity).unwrap();
+    let blocked_blob_lock = blob_lock_key(&acme_owner, &blocked_blob);
+    let blob_blocker =
+        acquire_artifact_lock(blob_lock_path_for_key(&root, &blocked_blob_lock)).await.unwrap();
+    let cache_storage = storage.path().to_path_buf();
+    let blocked_publication =
+        tokio::spawn(async move { publish(&cache_storage, "acme", blocked).await });
+    timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            if try_acquire_artifact_lock(entry_lock_path(&root, &acme_owner, &blocked_entry))
+                .await
+                .unwrap()
+                .is_none()
+            {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the blocked publication must acquire only its entry lock before waiting");
+
+    let unrelated = (0_u64..)
+        .find_map(|index| {
+            let bytes = index.to_le_bytes();
+            let request = publication_request(
+                "acme",
+                "dependency-side-effects:v1:unrelated",
+                "ci/unrelated",
+                Some(&bytes),
+            );
+            let blob = blob_id(&request.blobs[0].integrity).unwrap();
+            (blob_lock_key(&acme_owner, &blob) != blocked_blob_lock).then_some(request)
+        })
+        .unwrap();
+    let published =
+        timeout(std::time::Duration::from_secs(5), publish(storage.path(), "acme", unrelated))
+            .await
+            .expect("an unrelated entry must not wait for the stalled publication")
+            .unwrap();
+    assert!(published);
+
+    drop(blob_blocker);
+    assert!(blocked_publication.await.unwrap().unwrap());
+}
+
 #[tokio::test]
-async fn rejected_missing_blobs_use_bounded_lock_files() {
+async fn rejected_missing_blobs_do_not_create_lock_files() {
     let storage = TempDir::new().unwrap();
     for index in 0..64_u64 {
         let bytes = index.to_le_bytes();
@@ -387,13 +448,7 @@ async fn rejected_missing_blobs_use_bounded_lock_files() {
     }
 
     let locks = storage.path().join("shared-artifacts/v0/.locks");
-    let mut blob_locks = fs::read_dir(locks.join("blobs")).await.unwrap();
-    let mut lock_count = 0;
-    while blob_locks.next_entry().await.unwrap().is_some() {
-        lock_count += 1;
-    }
-    assert!(lock_count <= BLOB_LOCK_STRIPES);
-    assert!(!fs::try_exists(locks.join("entries")).await.unwrap());
+    assert!(!fs::try_exists(locks).await.unwrap());
 }
 
 #[tokio::test]

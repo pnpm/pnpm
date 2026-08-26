@@ -53,7 +53,7 @@ struct PendingUsage {
     files: Vec<PendingUsageFile>,
 }
 
-#[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 enum PendingUsageLock {
     Entry { entry: String },
@@ -111,6 +111,11 @@ pub(crate) async fn publish(
     for blobs in required_by_lock.values() {
         for (integrity, id, size) in blobs {
             let Some(bytes) = uploads.get(*integrity) else {
+                if !fs::try_exists(blobs_dir.join(id)).await? {
+                    return Err(bad_request(format!(
+                        "signed manifest references blob {id} without uploading it",
+                    )));
+                }
                 continue;
             };
             if bytes.len() as u64 != *size {
@@ -125,21 +130,19 @@ pub(crate) async fn publish(
     }
 
     let reservation = reservation_id(&owner, &entry_digest, &envelope_digest);
-    let _owner_publication_lock =
-        acquire_artifact_lock(owner_lock_path(&artifact_root, &owner)).await?;
-    let locked_blob_locks = BTreeSet::new();
-    reconcile_storage_reservations(
-        &artifact_root,
-        &owner,
-        &PendingUsageLock::Owner,
-        &locked_blob_locks,
-    )
-    .await?;
+    let publication_lock = PendingUsageLock::Entry { entry: entry_digest.clone() };
+    let _entry_lock =
+        acquire_artifact_lock(entry_lock_path(&artifact_root, &owner, &entry_digest)).await?;
+    let locked_blob_locks: BTreeSet<String> = required_by_lock.keys().cloned().collect();
+    let mut blob_locks = Vec::with_capacity(locked_blob_locks.len());
+    for lock in &locked_blob_locks {
+        blob_locks.push(acquire_artifact_lock(blob_lock_path_for_key(&artifact_root, lock)).await?);
+    }
+    reconcile_storage_reservations(&artifact_root, &owner, &publication_lock, &locked_blob_locks)
+        .await?;
 
     let mut new_blobs = Vec::new();
-    for (lock, blobs) in required_by_lock {
-        let _blob_lock =
-            acquire_artifact_lock(blob_lock_path_for_key(&artifact_root, &lock)).await?;
+    for blobs in required_by_lock.into_values() {
         for (integrity, id, size) in blobs {
             let path = blobs_dir.join(&id);
             match uploads.remove(integrity) {
@@ -176,8 +179,6 @@ pub(crate) async fn publish(
     }
 
     let key_dir = owner_dir.join("entries").join(&entry_digest);
-    let _entry_lock =
-        acquire_artifact_lock(entry_lock_path(&artifact_root, &owner, &entry_digest)).await?;
     let variant_path = key_dir.join(format!("{envelope_digest}.json"));
     if fs::try_exists(&variant_path).await? {
         return Ok(false);
@@ -202,7 +203,7 @@ pub(crate) async fn publish(
         StorageQuotaReservation {
             id: &reservation,
             owner: &owner,
-            lock: PendingUsageLock::Owner,
+            lock: publication_lock.clone(),
             commit_file: Some(commit_file),
             locked_blob_locks: &locked_blob_locks,
             files: pending_files,
@@ -220,7 +221,7 @@ pub(crate) async fn publish(
         if let Err(rollback_error) = reconcile_storage_reservations(
             &artifact_root,
             &owner,
-            &PendingUsageLock::Owner,
+            &publication_lock,
             &locked_blob_locks,
         )
         .await
