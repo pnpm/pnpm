@@ -183,7 +183,7 @@ pub fn sequence_tasks(
         (options.emit)(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Warn,
             message: format!(
-                "The tasks form a dependency cycle and run in an arbitrary order relative to each other because ignoreWorkspaceCycles is set: {cycles}"
+                "The tasks form a dependency cycle and run in an arbitrary order relative to each other because ignoreWorkspaceCycles is set: {cycles}",
             ),
             prefix: options.workspace_dir.to_string_lossy().into_owned(),
         }));
