@@ -73,7 +73,7 @@ impl UpstreamConfig {
 
     /// Build a bare upstream with just a URL and headers, all tuning knobs
     /// at their verdaccio defaults. Used by the programmatic
-    /// [`Config::proxy`] constructor and tests.
+    /// [`super::Config::proxy`] constructor and tests.
     pub(crate) fn with_defaults(url: String, headers: HeaderMap) -> Self {
         Self {
             url,
@@ -120,7 +120,7 @@ impl fmt::Debug for RedactedHeaders<'_> {
 /// The serving knobs of an upstream registry, in verdaccio's upstream shape for
 /// the subset pnpr implements: `url`, an `auth:` block, and a free-form
 /// `headers:` map. Built from an `upstream:` registry entry
-/// ([`resolve_upstream_registry`]) and resolved into [`UpstreamConfig`] by
+/// ([`super::resolve_upstream_registry`]) and resolved into [`UpstreamConfig`] by
 /// [`resolve_upstream_config`].
 #[derive(Debug, Deserialize)]
 pub(super) struct UpstreamConfigFile {

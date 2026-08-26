@@ -24,7 +24,7 @@ pub(super) struct CachedResolution {
     descriptor_digest: Option<String>,
 }
 
-const MAX_RESOLUTION_CACHE_ENTRIES: usize = 1024;
+pub(super) const MAX_RESOLUTION_CACHE_ENTRIES: usize = 1024;
 pub(super) const MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY: usize = 8;
 
 pub(super) fn cached_resolution(

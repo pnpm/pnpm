@@ -75,7 +75,7 @@ const MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
 /// Cap publish bodies at 100 MiB. The default axum body limit is
 /// 2 MiB, far too small for a real package — npm itself caps publish
 /// at 100 MiB and verdaccio inherits that limit. We apply it via
-/// [`DefaultBodyLimit::max`] on the router rather than on each
+/// [`axum::extract::DefaultBodyLimit::max`] on the router rather than on each
 /// route, so future write endpoints inherit the same ceiling.
 const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
 

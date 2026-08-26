@@ -123,7 +123,7 @@ pub(super) async fn update_packument(
 
 /// Hold a published version's security-critical `dist` fields immutable across
 /// the partial-unpublish `PUT`, which otherwise persists the body verbatim.
-/// [`expected_tarball_dist`] resolves a tarball request to a version by
+/// [`super::expected_tarball_dist`] resolves a tarball request to a version by
 /// `dist.tarball` basename and verifies the bytes against that version's string
 /// `dist.integrity`, so letting either drift — while the bytes on disk stay put —
 /// breaks installs of that version (`EINTEGRITY`, or a 404/502 redirect).
@@ -232,7 +232,7 @@ fn enforce_published_version_immutability(
 }
 
 /// The tarball basename a version is actually served under, mirroring
-/// [`rewrite_tarball_urls`]: the `dist.tarball` URL's own basename when it has
+/// [`crate::upstream::rewrite_tarball_urls`]: the `dist.tarball` URL's own basename when it has
 /// one, otherwise the version-derived canonical name the rewrite falls back to.
 /// Returns `None` when the manifest carries no string `dist.tarball` to serve.
 fn served_tarball_basename(manifest: &Value, pkg: &PackageName) -> Option<String> {

@@ -234,7 +234,7 @@ impl Resolver {
 /// caller could exhaust memory by varying its registry/policy fields on
 /// every request. `1024` is far above the handful of distinct setups a
 /// real fleet produces (typically one), matching
-/// [`MAX_RESOLUTION_CACHE_ENTRIES`].
+/// [`cache::MAX_RESOLUTION_CACHE_ENTRIES`].
 const MAX_INTERNED_CONFIGS: usize = 1024;
 
 /// Returned (as a `503`) when [`MAX_INTERNED_CONFIGS`] is reached. The

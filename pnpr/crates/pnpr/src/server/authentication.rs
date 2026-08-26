@@ -216,7 +216,7 @@ pub(super) fn authorize(
 
 /// The raw credentials of an `Authorization: Bearer <token>` header, or
 /// `None` for any other scheme. The scheme is matched case-insensitively,
-/// matching [`identify`].
+/// matching [`crate::auth::identify`].
 pub(super) fn bearer_credentials(header_value: &str) -> Option<&str> {
     let (scheme, credentials) = header_value.trim().split_once(' ')?;
     scheme.eq_ignore_ascii_case("Bearer").then(|| credentials.trim())
