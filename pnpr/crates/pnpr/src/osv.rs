@@ -341,7 +341,7 @@ fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
             )));
         }
         digests.push(record_digest(&name, &bytes));
-        ingest_record_bytes(&mut packages, &bytes)?;
+        ingest_record_bytes(&mut packages, &name, &bytes)?;
     }
     Ok(OsvIndex { packages, fingerprint: combine_fingerprint(digests) })
 }
@@ -391,7 +391,7 @@ fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
         }
         let name = entry_path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
         digests.push(record_digest(name, &bytes));
-        ingest_record_bytes(&mut packages, &bytes)?;
+        ingest_record_bytes(&mut packages, name, &bytes)?;
     }
     Ok(OsvIndex { packages, fingerprint: combine_fingerprint(digests) })
 }
@@ -439,10 +439,11 @@ fn combine_fingerprint(mut digests: Vec<[u8; 32]>) -> String {
 
 fn ingest_record_bytes(
     packages: &mut HashMap<String, Vec<Advisory>>,
+    source: &str,
     bytes: &[u8],
 ) -> Result<(), RegistryError> {
     let record: OsvRecord = serde_json::from_slice(bytes)
-        .map_err(|err| invalid_config(format!("failed to parse OSV record: {err}")))?;
+        .map_err(|err| invalid_config(format!("failed to parse OSV record {source}: {err}")))?;
     // OSV sets `withdrawn` to a timestamp string only for withdrawn
     // records; a literal `null` is not a withdrawal, so don't drop the
     // advisory on it.
