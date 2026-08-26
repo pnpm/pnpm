@@ -1,11 +1,11 @@
 use super::{
     JournaledPublish, JournaledRevisionRef, MANIFEST_FILE, Manifest, cleanup_conflicted_tmp_paths,
-    drop_conflicted_versions, roll_forward, sync_dir,
+    drop_conflicted_versions, revision_ref_owner, roll_forward, sync_dir,
 };
 use crate::{
     config::HostedStoreConfig,
     package_name::PackageName,
-    storage::{Storage, TarballFinalize},
+    storage::{HostedRevisionRefWrite, Storage, TarballFinalize},
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use object_store::{ObjectStore, memory::InMemory};
@@ -156,7 +156,14 @@ async fn roll_forward_persists_revision_references() {
 
     storage.publish_journal().seal(&entries).await.unwrap().roll_forward(&storage).await.unwrap();
 
-    assert_eq!(storage.read_hosted_revision_refs(&digest).await.unwrap(), vec![record]);
+    assert_eq!(storage.read_hosted_revision_refs(&digest).await.unwrap(), vec![record.clone()]);
+    assert_eq!(
+        storage
+            .write_hosted_revision_ref(&digest, &"a".repeat(64), "later-owner", &record)
+            .await
+            .unwrap(),
+        HostedRevisionRefWrite::Committed,
+    );
 }
 
 #[tokio::test]
@@ -166,7 +173,10 @@ async fn roll_forward_drops_a_version_that_cannot_reserve_a_revision_reference()
         Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"));
     let digest = URL_SAFE_NO_PAD.encode([7_u8; 64]);
     for index in 0..crate::storage::MAX_HOSTED_REVISION_REFS {
-        storage.write_hosted_revision_ref(&digest, &format!("{index:064x}"), b"{}").await.unwrap();
+        storage
+            .write_hosted_revision_ref(&digest, &format!("{index:064x}"), "existing-owner", b"{}")
+            .await
+            .unwrap();
     }
     let name = PackageName::parse("pkg").unwrap();
     let packument = serde_json::to_vec(&json!({
@@ -209,15 +219,21 @@ async fn roll_forward_drops_a_version_that_cannot_reserve_a_revision_reference()
 }
 
 #[tokio::test]
-async fn roll_forward_removes_partial_revision_references_for_a_dropped_version() {
+async fn roll_forward_only_removes_transaction_owned_references_for_a_dropped_version() {
     let tmp = tempdir().unwrap();
     let storage =
         Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"));
-    let available_digest = URL_SAFE_NO_PAD.encode([6_u8; 64]);
+    let transaction_owned_digest = URL_SAFE_NO_PAD.encode([5_u8; 64]);
+    let previously_owned_digest = URL_SAFE_NO_PAD.encode([6_u8; 64]);
     let full_digest = URL_SAFE_NO_PAD.encode([7_u8; 64]);
     for index in 0..crate::storage::MAX_HOSTED_REVISION_REFS {
         storage
-            .write_hosted_revision_ref(&full_digest, &format!("{index:064x}"), b"{}")
+            .write_hosted_revision_ref(
+                &full_digest,
+                &format!("{index:064x}"),
+                "existing-owner",
+                b"{}",
+            )
             .await
             .unwrap();
     }
@@ -232,15 +248,21 @@ async fn roll_forward_removes_partial_revision_references_for_a_dropped_version(
     let revision_refs = [
         JournaledRevisionRef {
             filename: "pkg-1.0.0.tgz".to_string(),
-            digest: available_digest.clone(),
+            digest: transaction_owned_digest.clone(),
+            ref_id: ref_id.clone(),
+            bytes: record.clone(),
+        },
+        JournaledRevisionRef {
+            filename: "pkg-1.0.0.tgz".to_string(),
+            digest: previously_owned_digest.clone(),
             ref_id: ref_id.clone(),
             bytes: record.clone(),
         },
         JournaledRevisionRef {
             filename: "pkg-1.0.0.tgz".to_string(),
             digest: full_digest,
-            ref_id,
-            bytes: record,
+            ref_id: ref_id.clone(),
+            bytes: record.clone(),
         },
     ];
     let entries = [JournaledPublish {
@@ -251,11 +273,29 @@ async fn roll_forward_removes_partial_revision_references_for_a_dropped_version(
         revision_refs: &revision_refs,
     }];
 
-    storage.publish_journal().seal(&entries).await.unwrap().roll_forward(&storage).await.unwrap();
+    let txn = storage.publish_journal().seal(&entries).await.unwrap();
+    let revision_ref_owner = txn.revision_ref_owner().to_string();
+    storage
+        .write_hosted_revision_ref(&transaction_owned_digest, &ref_id, &revision_ref_owner, &record)
+        .await
+        .unwrap();
+    storage
+        .write_hosted_revision_ref(&previously_owned_digest, &ref_id, "previous-owner", &record)
+        .await
+        .unwrap();
+    storage
+        .commit_hosted_revision_ref(&previously_owned_digest, &ref_id, "previous-owner")
+        .await
+        .unwrap();
+    txn.roll_forward(&storage).await.unwrap();
 
     assert_eq!(
-        storage.read_hosted_revision_refs(&available_digest).await.unwrap(),
+        storage.read_hosted_revision_refs(&transaction_owned_digest).await.unwrap(),
         Vec::<Vec<u8>>::new(),
+    );
+    assert_eq!(
+        storage.read_hosted_revision_refs(&previously_owned_digest).await.unwrap(),
+        vec![record],
     );
     let hosted = storage.read_hosted_packument(&name).await.unwrap().unwrap();
     let hosted: serde_json::Value = serde_json::from_slice(&hosted).unwrap();
@@ -344,7 +384,7 @@ async fn roll_forward_preserves_tarball_conflict_across_a_later_package_failure(
         .await
         .unwrap();
 
-    roll_forward(&storage, &txn_dir).await.unwrap();
+    roll_forward(&storage, &txn_dir, revision_ref_owner(&txn_dir).unwrap()).await.unwrap();
 
     let conflicted_hosted = storage.read_hosted_packument(&conflicted_name).await.unwrap().unwrap();
     let conflicted_hosted: serde_json::Value = serde_json::from_slice(&conflicted_hosted).unwrap();

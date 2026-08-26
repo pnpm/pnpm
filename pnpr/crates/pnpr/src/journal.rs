@@ -27,11 +27,12 @@
 
 use crate::{
     config::Config,
-    error::Result,
+    error::{RegistryError, Result},
     package_name::PackageName,
     publish::{merge_manifest, now_iso},
     storage::{
-        RECOVERY_PACKUMENT_WRITE_RETRIES, Storage, TarballFinalize, TarballSlot, unique_tmp_path,
+        HostedRevisionRefWrite, RECOVERY_PACKUMENT_WRITE_RETRIES, Storage, TarballFinalize,
+        TarballSlot, is_canonical_revision_ref_owner, unique_tmp_path,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -118,6 +119,7 @@ pub struct PublishJournal {
 /// startup recovery to (idempotently) re-apply.
 pub struct SealedTxn {
     dir: PathBuf,
+    revision_ref_owner: String,
 }
 
 impl PublishJournal {
@@ -130,7 +132,8 @@ impl PublishJournal {
     /// committed: either the caller applies it now, or startup
     /// recovery does.
     pub async fn seal(&self, packages: &[JournaledPublish<'_>]) -> Result<SealedTxn> {
-        let dir = self.root.join(txn_id());
+        let revision_ref_owner = txn_id();
+        let dir = self.root.join(&revision_ref_owner);
         fs::create_dir_all(&dir).await?;
         let mut manifest = Manifest { packages: Vec::with_capacity(packages.len()) };
         for (index, package) in packages.iter().enumerate() {
@@ -161,7 +164,7 @@ impl PublishJournal {
         write_synced(&marker_tmp, b"").await?;
         fs::rename(&marker_tmp, &marker).await?;
         let _ = sync_dir(&dir).await;
-        Ok(SealedTxn { dir })
+        Ok(SealedTxn { dir, revision_ref_owner })
     }
 
     /// Roll every journal entry to a consistent state: sealed
@@ -188,7 +191,8 @@ impl PublishJournal {
             // rollback, which would delete an already-committed publish.
             // Abort recovery so startup fails loudly instead.
             if fs::try_exists(dir.join(COMMIT_MARKER)).await? {
-                roll_forward(storage, &dir).await?;
+                let revision_ref_owner = revision_ref_owner(&dir)?;
+                roll_forward(storage, &dir, revision_ref_owner).await?;
                 tracing::info!(txn = %dir.display(), "rolled publish journal entry forward");
             } else {
                 roll_back(&dir).await;
@@ -200,6 +204,10 @@ impl PublishJournal {
 }
 
 impl SealedTxn {
+    pub(crate) fn revision_ref_owner(&self) -> &str {
+        &self.revision_ref_owner
+    }
+
     /// Apply the sealed transaction now, completing any apply steps that
     /// have not run yet, and remove the journal entry. This is the same
     /// idempotent roll-forward startup recovery performs; commit calls it
@@ -207,7 +215,7 @@ impl SealedTxn {
     /// server never leaves a sealed batch partially visible until the
     /// next restart.
     pub async fn roll_forward(self, storage: &Storage) -> Result<()> {
-        roll_forward(storage, &self.dir).await
+        roll_forward(storage, &self.dir, &self.revision_ref_owner).await
     }
 
     /// Remove the journal entry once the publish is fully applied.
@@ -232,7 +240,7 @@ pub async fn recover_publish_journal(config: &Config) -> Result<()> {
 /// run before the crash: a tmp file that's gone was already promoted,
 /// and the packument is re-merged into the current on-disk state
 /// instead of overwriting it.
-async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
+async fn roll_forward(storage: &Storage, dir: &Path, revision_ref_owner: &str) -> Result<()> {
     let manifest: Manifest = serde_json::from_slice(&fs::read(dir.join(MANIFEST_FILE)).await?)?;
     let mut conflicted_tmp_paths = Vec::new();
     for package in &manifest.packages {
@@ -290,13 +298,15 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
                 .write_hosted_revision_ref(
                     &revision_ref.digest,
                     &revision_ref.ref_id,
+                    revision_ref_owner,
                     &revision_ref.bytes,
                 )
                 .await
             {
-                Ok(()) => {
+                Ok(HostedRevisionRefWrite::Claimed | HostedRevisionRefWrite::AlreadyClaimed) => {
                     applied_revision_refs.entry(version).or_default().push(revision_ref);
                 }
+                Ok(HostedRevisionRefWrite::Committed) => {}
                 Err(crate::error::RegistryError::RevisionReferenceLimit { .. }) => {
                     conflicted_versions.insert(version.clone());
                     if let Some(applied) = applied_revision_refs.remove(&version) {
@@ -305,6 +315,7 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
                                 .remove_hosted_revision_ref(
                                     &applied_ref.digest,
                                     &applied_ref.ref_id,
+                                    revision_ref_owner,
                                 )
                                 .await?;
                         }
@@ -317,6 +328,15 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
             drop_conflicted_versions(&mut journaled, &conflicted_versions);
         }
         write_merged_packument(&store, &name, &journaled).await?;
+        for revision_ref in applied_revision_refs.into_values().flatten() {
+            store
+                .commit_hosted_revision_ref(
+                    &revision_ref.digest,
+                    &revision_ref.ref_id,
+                    revision_ref_owner,
+                )
+                .await?;
+        }
     }
     // Remove the journal before cleaning conflicted tmp files so an interruption
     // cannot leave a retry that has lost the evidence needed to detect conflict.
@@ -415,6 +435,20 @@ fn txn_id() -> String {
         SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
     let counter = TXN_COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("{millis:016}-{}-{counter}", std::process::id())
+}
+
+fn revision_ref_owner(dir: &Path) -> Result<&str> {
+    let owner =
+        dir.file_name().and_then(|name| name.to_str()).ok_or_else(|| RegistryError::Internal {
+            reason: format!("publish journal path has no transaction id: {}", dir.display()),
+        })?;
+    if is_canonical_revision_ref_owner(owner) {
+        Ok(owner)
+    } else {
+        Err(RegistryError::Internal {
+            reason: format!("publish journal transaction id is invalid: {}", dir.display()),
+        })
+    }
 }
 
 async fn write_synced(path: &Path, bytes: &[u8]) -> Result<()> {

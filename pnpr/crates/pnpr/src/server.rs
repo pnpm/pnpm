@@ -3484,6 +3484,7 @@ async fn commit_publishes(
             return Err(err);
         }
     };
+    let revision_ref_owner = txn.revision_ref_owner().to_string();
     // Past the seal the transaction is committed: the apply below is pure
     // roll-forward, and failures must NOT clean up the staged files. If
     // the apply fails partway, complete it immediately via the same
@@ -3511,9 +3512,14 @@ async fn commit_publishes(
                     }
                 }
             }
-            for original in stage.original_refs {
+            for original in &stage.original_refs {
                 store
-                    .write_hosted_revision_ref(&original.digest, &original.ref_id, &original.bytes)
+                    .write_hosted_revision_ref(
+                        &original.digest,
+                        &original.ref_id,
+                        &revision_ref_owner,
+                        &original.bytes,
+                    )
                     .await?;
             }
             match store
@@ -3524,7 +3530,17 @@ async fn commit_publishes(
                 )
                 .await?
             {
-                PackumentWrite::Written => {}
+                PackumentWrite::Written => {
+                    for original in &stage.original_refs {
+                        store
+                            .commit_hosted_revision_ref(
+                                &original.digest,
+                                &original.ref_id,
+                                &revision_ref_owner,
+                            )
+                            .await?;
+                    }
+                }
                 // Tarballs are already promoted at this point. A conflict means
                 // another replica advanced the packument since staging, so the
                 // base version is stale. Surfacing it drops into the seal's
