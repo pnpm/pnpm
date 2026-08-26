@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import http from 'node:http'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { afterAll, beforeAll, expect, test } from '@jest/globals'
@@ -151,6 +152,8 @@ test('pnpm install forwards patched dependencies and package extensions to pnpr'
   expect(lockfile).toContain('patchedDependencies:')
   expect(lockfile).toContain('packageExtensionsChecksum:')
   expect(lockfile).toContain('is-negative: 1.0.0')
+  const requireFromIsPositive = createRequire(path.join(fs.realpathSync('node_modules/is-positive'), 'index.js'))
+  expect(fs.existsSync(requireFromIsPositive.resolve('is-negative'))).toBe(true)
 })
 
 test('a second resolution forwards the existing lockfile to the pnpr server', async () => {
