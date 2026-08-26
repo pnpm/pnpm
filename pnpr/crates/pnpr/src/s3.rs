@@ -409,6 +409,13 @@ impl S3Store {
                 Err(err) => return Err(err.into()),
             }
         }
+        if let Some((mut index, _)) = self.read_revision_ref_index(digest).await? {
+            if index.contains(ref_id) {
+                self.write_revision_ref_bytes(digest, ref_id, bytes).await?;
+                return Ok(());
+            }
+            index.insert(ref_id)?;
+        }
         Err(RegistryError::RevisionReferenceWriteConflict { digest: digest.to_string() })
     }
 
