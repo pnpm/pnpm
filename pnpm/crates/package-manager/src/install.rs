@@ -1102,8 +1102,6 @@ where
     }
 }
 
-/// Mark every `workspace:` dependency for injection into a self-contained
-/// legacy deploy.
 pub fn apply_deploy_manifest_hook(manifest: &mut serde_json::Value) {
     let names = ["optionalDependencies", "dependencies", "devDependencies"]
         .into_iter()
