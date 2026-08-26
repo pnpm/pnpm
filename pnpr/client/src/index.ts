@@ -1,11 +1,12 @@
 export {
-  applySharedSideEffectsToInstall,
-  canApplySharedSideEffectsToInstall,
+  canRestoreRemoteSideEffects,
+  createRemoteSideEffectsRestorer,
   publishBuiltSharedSideEffects,
   type PublishBuiltSharedSideEffectsOptions,
-  type SharedSideEffectsInstallNode,
-  type SharedSideEffectsInstallOptions,
-  type SharedSideEffectsInstallPrerequisites,
+  type RemoteSideEffectsInstallNode,
+  type RemoteSideEffectsPrerequisites,
+  type RemoteSideEffectsRestorer,
+  type RemoteSideEffectsRestorerOptions,
 } from './installSharedSideEffects.js'
 export { type ResponseMetadata } from './protocol.js'
 export { type PnprProject, resolveViaPnprServer, type ResolveViaPnprServerOptions, type ResolveViaPnprServerResult } from './resolveViaPnprServer.js'

@@ -23,7 +23,7 @@ import {
   resolveSharedSideEffects,
 } from './sharedSideEffects.js'
 
-export interface SharedSideEffectsInstallNode<T extends string> {
+export interface RemoteSideEffectsInstallNode<T extends string> {
   graphKey: T
   depPath: DepPath
   files: PackageFilesResponse
@@ -33,14 +33,13 @@ export interface SharedSideEffectsInstallNode<T extends string> {
   version: string
 }
 
-export interface SharedSideEffectsInstallOptions<T extends string> {
+export interface RemoteSideEffectsRestorerOptions<T extends string> {
   allowBuild?: AllowBuild
   configByUri: Record<string, RegistryConfig>
   depsGraph: DepsGraph<T>
   depsStateCache: DepsStateCache
   ignoreScripts: boolean
   nodeVersion?: string
-  nodes: Array<SharedSideEffectsInstallNode<T>>
   pnprServer?: string
   settings?: RemoteSideEffectsCacheSettings
   sideEffectsCacheRead: boolean
@@ -49,7 +48,7 @@ export interface SharedSideEffectsInstallOptions<T extends string> {
   warn?: (message: string) => void
 }
 
-export interface SharedSideEffectsInstallPrerequisites {
+export interface RemoteSideEffectsPrerequisites {
   ignoreScripts: boolean
   nodeVersion?: string
   pnprServer?: string
@@ -57,9 +56,40 @@ export interface SharedSideEffectsInstallPrerequisites {
   storeController: StoreController
 }
 
-export function canApplySharedSideEffectsToInstall (
-  opts: SharedSideEffectsInstallPrerequisites
-): boolean {
+export interface RemoteSideEffectsRestorer<T extends string> {
+  /**
+   * Install pnpr's verified build of `node`, when it has one, into that node's
+   * own `sideEffectsMaps` and return the key it was stored under. `undefined`
+   * means the package has to be built locally, for any reason.
+   *
+   * Called once per package as its files arrive, so linking one package never
+   * waits on an unrelated fetch. Calls raised close together still leave as a
+   * single lookup request.
+   */
+  restore: (node: RemoteSideEffectsInstallNode<T>) => Promise<string | undefined>
+}
+
+/**
+ * How long the first queued candidate waits for company before its lookup
+ * leaves. Long enough to gather the packages whose fetches land together,
+ * short enough that a lone candidate is not what holds up an install.
+ */
+const LOOKUP_BATCH_WINDOW = 20
+
+/** Well under the protocol's candidate ceiling, so a batch is never refused. */
+const MAX_LOOKUP_BATCH = 512
+
+interface RestoredArtifact {
+  added: Map<string, string>
+  deleted: string[]
+}
+
+interface QueuedLookup {
+  candidate: ArtifactCandidate
+  resolve: (artifact: RestoredArtifact | undefined) => void
+}
+
+export function canRestoreRemoteSideEffects (opts: RemoteSideEffectsPrerequisites): boolean {
   return opts.pnprServer != null &&
     opts.settings != null &&
     opts.settings.organization != null &&
@@ -70,111 +100,161 @@ export function canApplySharedSideEffectsToInstall (
     opts.storeController.addFileToStore != null
 }
 
-export async function applySharedSideEffectsToInstall<T extends string> (
-  opts: SharedSideEffectsInstallOptions<T>
-): Promise<Map<T, string>> {
-  if (!canApplySharedSideEffectsToInstall(opts)) return new Map()
+export function createRemoteSideEffectsRestorer<T extends string> (
+  opts: RemoteSideEffectsRestorerOptions<T>
+): RemoteSideEffectsRestorer<T> | undefined {
+  if (!canRestoreRemoteSideEffects(opts)) return undefined
   const platform = currentLinuxGlibcPlatform(opts.nodeVersion)
   const { pnprServer, settings } = opts
-  if (platform == null || pnprServer == null || settings == null) return new Map()
+  const organization = settings?.organization
+  if (platform == null || pnprServer == null || settings == null || organization == null) return undefined
+  const registryUrl = pnprServer
+  const ownerName = organization
+  let supportedTags: string[]
+  try {
+    supportedTags = linuxGlibcSupportedTags(platform)
+  } catch (err: unknown) {
+    opts.warn?.(`Remote side-effects platform is unsupported: ${errorMessage(err)}`)
+    return undefined
+  }
   const trustedKeys = settings.trustedKeys ?? {}
-  if (Object.keys(trustedKeys).length === 0) return new Map()
-
-  const { organization } = settings
-  if (organization == null) return new Map()
   const eligiblePackages = new Set(settings.packages)
-  const allowedBuilds = new Set<string>()
-  const grouped = new Map<string, {
-    candidate: ArtifactCandidate
-    localCacheKey: string
-    nodes: Array<SharedSideEffectsInstallNode<T>>
-  }>()
+  const authorization = createGetAuthHeaderByURI(opts.configByUri)(registryUrl)
+  const artifactLimit = pLimit(4)
+  const downloadLimit = pLimit(16)
+  // Restorer-lifetime, so one blob shared by several artifacts is fetched and
+  // stored once however the batches happen to fall.
+  const storedBlobs = new Map<string, Promise<string>>()
+  const identityByInputKey = new Map<string, string>()
   const collisions = new Set<string>()
-  for (const node of opts.nodes) {
-    if (!node.files.requiresBuild || !eligiblePackages.has(node.name)) continue
-    if (opts.allowBuild?.(node.depPath) !== true) continue
+  const lookups = new Map<string, Promise<RestoredArtifact | undefined>>()
+  let queued: QueuedLookup[] = []
+  let flushTimer: NodeJS.Timeout | undefined
+  let supported: Promise<boolean> | undefined
+
+  return { restore }
+
+  async function restore (node: RemoteSideEffectsInstallNode<T>): Promise<string | undefined> {
+    if (node.files.requiresBuild !== true || !eligiblePackages.has(node.name)) return undefined
+    if (opts.allowBuild?.(node.depPath) !== true) return undefined
     const sourceIntegrity = verifiedIntegrity(node.resolution)
-    if (sourceIntegrity == null) continue
-    allowedBuilds.add(node.name)
+    if (sourceIntegrity == null) return undefined
     const inputKey = calcDepStateInputKey({
       depsGraph: opts.depsGraph,
       depPath: node.graphKey,
       patchFileHash: node.patchFileHash,
       supportedArchitectures: opts.supportedArchitectures,
     })
+    if (collisions.has(inputKey)) return undefined
+    const identity = `${node.name}\0${node.version}\0${sourceIntegrity}`
+    const knownIdentity = identityByInputKey.get(inputKey)
+    if (knownIdentity == null) {
+      identityByInputKey.set(inputKey, identity)
+    } else if (knownIdentity !== identity) {
+      // Two different packages hashing to one input key would make the cache
+      // ambiguous. The signed payload is bound to a single package identity so
+      // nothing incorrect can be restored, but stop trusting the key.
+      opts.warn?.(`Remote side-effects input key collision for ${node.name}@${node.version}; building locally`)
+      collisions.add(inputKey)
+      lookups.delete(inputKey)
+      return undefined
+    }
     const localCacheKey = calcDepState(opts.depsGraph, opts.depsStateCache, node.graphKey, {
       includeDepGraphHash: true,
       patchFileHash: node.patchFileHash,
       supportedArchitectures: opts.supportedArchitectures,
       nodeVersion: opts.nodeVersion,
     })
-    if (opts.sideEffectsCacheRead && node.files.sideEffectsMaps?.has(localCacheKey) === true) continue
-    if (collisions.has(inputKey)) continue
-    const existing = grouped.get(inputKey)
-    if (existing != null) {
-      if (
-        existing.candidate.package.name !== node.name ||
-        existing.candidate.package.version !== node.version ||
-        existing.candidate.sourceIntegrity !== sourceIntegrity
-      ) {
-        opts.warn?.(`Remote side-effects input key collision for ${node.name}@${node.version}; building locally`)
-        grouped.delete(inputKey)
-        collisions.add(inputKey)
-        continue
-      }
-      existing.nodes.push(node)
-      continue
-    }
-    grouped.set(inputKey, {
-      candidate: {
+    if (opts.sideEffectsCacheRead && node.files.sideEffectsMaps?.has(localCacheKey) === true) return undefined
+
+    let lookup = lookups.get(inputKey)
+    if (lookup == null) {
+      lookup = enqueue({
         key: inputKey,
         package: { name: node.name, version: node.version },
         sourceIntegrity,
-        owner: { type: 'organization', name: organization },
-      },
-      localCacheKey,
-      nodes: [node],
+        owner: { type: 'organization', name: ownerName },
+      })
+      lookups.set(inputKey, lookup)
+    }
+    const artifact = await lookup
+    if (artifact == null) return undefined
+    node.files.sideEffectsMaps ??= new Map()
+    node.files.sideEffectsMaps.set(localCacheKey, artifact)
+    return localCacheKey
+  }
+
+  async function enqueue (candidate: ArtifactCandidate): Promise<RestoredArtifact | undefined> {
+    let resolve!: (artifact: RestoredArtifact | undefined) => void
+    const promise = new Promise<RestoredArtifact | undefined>((settle) => {
+      resolve = settle
     })
-  }
-  if (grouped.size === 0) return new Map()
-
-  const authorization = createGetAuthHeaderByURI(opts.configByUri)(pnprServer)
-  try {
-    if (!await pnprSupportsSharedSideEffects({
-      registryUrl: pnprServer,
-      authorization,
-    })) return new Map()
-  } catch (err: unknown) {
-    opts.warn?.(`Remote side-effects cache handshake failed: ${errorMessage(err)}`)
-    return new Map()
+    queued.push({ candidate, resolve })
+    if (queued.length >= MAX_LOOKUP_BATCH) {
+      flushNow()
+    } else if (flushTimer == null) {
+      flushTimer = setTimeout(flushNow, LOOKUP_BATCH_WINDOW)
+      flushTimer.unref?.()
+    }
+    return promise
   }
 
-  let resolved
-  try {
-    resolved = await resolveSharedSideEffects({
-      registryUrl: pnprServer,
-      authorization,
-      candidates: Array.from(grouped.values(), ({ candidate }) => candidate),
-      supportedTags: linuxGlibcSupportedTags(platform),
-      policy: {
-        ignoreScripts: false,
-        eligiblePackages,
-        allowedBuilds,
-      },
-      trustedKeys,
-    })
-  } catch (err: unknown) {
-    opts.warn?.(`Remote side-effects cache lookup failed: ${errorMessage(err)}`)
-    return new Map()
+  function flushNow (): void {
+    if (flushTimer != null) {
+      clearTimeout(flushTimer)
+      flushTimer = undefined
+    }
+    const batch = queued
+    queued = []
+    if (batch.length > 0) void lookupBatch(batch)
   }
 
-  const hits = new Map<T, string>()
-  const artifactLimit = pLimit(4)
-  const downloadLimit = pLimit(16)
-  const storedBlobs = new Map<string, Promise<string>>()
-  await Promise.all(Array.from(resolved, ([inputKey, artifact]) => artifactLimit(async () => {
-    const group = grouped.get(inputKey)
-    if (group == null) return
+  async function lookupBatch (batch: QueuedLookup[]): Promise<void> {
+    supported ??= (async () => {
+      try {
+        return await pnprSupportsSharedSideEffects({ registryUrl, authorization })
+      } catch (err: unknown) {
+        opts.warn?.(`Remote side-effects cache handshake failed: ${errorMessage(err)}`)
+        return false
+      }
+    })()
+    if (!await supported) {
+      for (const { resolve } of batch) resolve(undefined)
+      return
+    }
+    let resolved
+    try {
+      resolved = await resolveSharedSideEffects({
+        registryUrl,
+        authorization,
+        candidates: batch.map(({ candidate }) => candidate),
+        supportedTags,
+        policy: {
+          ignoreScripts: false,
+          eligiblePackages,
+          allowedBuilds: new Set(batch.map(({ candidate }) => candidate.package.name)),
+        },
+        trustedKeys,
+      })
+    } catch (err: unknown) {
+      opts.warn?.(`Remote side-effects cache lookup failed: ${errorMessage(err)}`)
+      for (const { resolve } of batch) resolve(undefined)
+      return
+    }
+    await Promise.all(batch.map(async ({ candidate, resolve }) => {
+      const artifact = resolved.get(candidate.key)
+      if (artifact == null) {
+        resolve(undefined)
+        return
+      }
+      resolve(await artifactLimit(async () => hydrate(artifact, candidate)))
+    }))
+  }
+
+  async function hydrate (
+    artifact: { payload: ArtifactPayload },
+    candidate: ArtifactCandidate
+  ): Promise<RestoredArtifact | undefined> {
     try {
       const added = new Map(await Promise.all(artifact.payload.manifest.added.map(async (file) => {
         const storedKey = `${file.integrity}\0${file.mode}`
@@ -182,7 +262,7 @@ export async function applySharedSideEffectsToInstall<T extends string> (
         if (stored == null) {
           stored = (async () => {
             const bytes = await downloadLimit(async () => downloadSharedArtifactBlob({
-              registryUrl: pnprServer,
+              registryUrl,
               authorization,
               request: {
                 owner: artifact.payload.owner,
@@ -200,19 +280,12 @@ export async function applySharedSideEffectsToInstall<T extends string> (
           throw err
         }
       })))
-      for (const node of group.nodes) {
-        node.files.sideEffectsMaps ??= new Map()
-        node.files.sideEffectsMaps.set(group.localCacheKey, {
-          added,
-          deleted: artifact.payload.manifest.deleted,
-        })
-        hits.set(node.graphKey, group.localCacheKey)
-      }
+      return { added, deleted: artifact.payload.manifest.deleted }
     } catch (err: unknown) {
-      opts.warn?.(`Remote side-effects artifact for ${group.candidate.package.name}@${group.candidate.package.version} was rejected: ${errorMessage(err)}`)
+      opts.warn?.(`Remote side-effects artifact for ${candidate.package.name}@${candidate.package.version} was rejected: ${errorMessage(err)}`)
+      return undefined
     }
-  })))
-  return hits
+  }
 }
 
 export interface PublishBuiltSharedSideEffectsOptions<T extends string> {

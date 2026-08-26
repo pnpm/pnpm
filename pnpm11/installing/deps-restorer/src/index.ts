@@ -63,7 +63,7 @@ import {
 } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
-import { applySharedSideEffectsToInstall, canApplySharedSideEffectsToInstall } from '@pnpm/pnpr.client'
+import { createRemoteSideEffectsRestorer } from '@pnpm/pnpr.client'
 import type {
   PackageFilesResponse,
   StoreController,
@@ -1052,41 +1052,32 @@ async function linkAllPkgs (
   // depPath off each node instead. Computed once outside the
   // per-node loop.
   const nodeVersion = findRuntimeNodeVersion(depNodes.map((node) => node.depPath))
-  const filesResponses = new Map<string, PackageFilesResponse>()
-  let remoteHits = new Map<string, string>()
-  if (canApplySharedSideEffectsToInstall({
+  const restorer = createRemoteSideEffectsRestorer({
+    allowBuild: opts.allowBuild,
+    configByUri: opts.configByUri,
+    depsGraph: opts.depGraph,
+    depsStateCache: opts.depsStateCache,
     ignoreScripts: opts.ignoreScripts,
     nodeVersion,
     pnprServer: opts.pnprServer,
     settings: opts.remoteSideEffectsCache,
+    sideEffectsCacheRead: opts.sideEffectsCacheRead,
     storeController,
-  })) {
-    const fetched = (await Promise.all(
-      depNodes.map(async (depNode) => {
-        if (!depNode.fetching) return
-        let filesResponse!: PackageFilesResponse
-        try {
-          filesResponse = (await depNode.fetching()).files
-        } catch (err: any) { // eslint-disable-line
-          if (depNode.optional) return
-          throw err
-        }
-
-        depNode.requiresBuild = filesResponse.requiresBuild
-        return { depNode, filesResponse }
-      })
-    )).filter((entry): entry is NonNullable<typeof entry> => entry != null)
-    for (const { depNode, filesResponse } of fetched) {
-      filesResponses.set(depNode.dir, filesResponse)
-    }
-    remoteHits = await applySharedSideEffectsToInstall({
-      allowBuild: opts.allowBuild,
-      configByUri: opts.configByUri,
-      depsGraph: opts.depGraph,
-      depsStateCache: opts.depsStateCache,
-      ignoreScripts: opts.ignoreScripts,
-      nodeVersion,
-      nodes: fetched.map(({ depNode, filesResponse }) => ({
+    supportedArchitectures: opts.supportedArchitectures,
+    warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
+  })
+  await Promise.all(
+    depNodes.map(async (depNode) => {
+      if (!depNode.fetching) return
+      let filesResponse!: PackageFilesResponse
+      try {
+        filesResponse = (await depNode.fetching()).files
+      } catch (err: any) { // eslint-disable-line
+        if (depNode.optional) return
+        throw err
+      }
+      depNode.requiresBuild = filesResponse.requiresBuild
+      let sideEffectsCacheKey = await restorer?.restore({
         graphKey: depNode.dir,
         depPath: depNode.depPath,
         files: filesResponse,
@@ -1094,32 +1085,8 @@ async function linkAllPkgs (
         patchFileHash: depNode.patch?.hash,
         resolution: depNode.resolution,
         version: depNode.version,
-      })),
-      pnprServer: opts.pnprServer,
-      settings: opts.remoteSideEffectsCache,
-      sideEffectsCacheRead: opts.sideEffectsCacheRead,
-      storeController,
-      supportedArchitectures: opts.supportedArchitectures,
-      warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
-    })
-  }
-  await Promise.all(
-    depNodes.map(async (depNode) => {
-      if (!depNode.fetching) return
-      let filesResponse = filesResponses.get(depNode.dir)
-      if (filesResponse == null) {
-        try {
-          filesResponse = (await depNode.fetching()).files
-        } catch (err: any) { // eslint-disable-line
-          if (depNode.optional) return
-          throw err
-        }
-      }
-      depNode.requiresBuild = filesResponse.requiresBuild
-      let sideEffectsCacheKey: string | undefined
-      if (remoteHits.has(depNode.dir)) {
-        sideEffectsCacheKey = remoteHits.get(depNode.dir)
-      } else if (opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
+      })
+      if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
         if (opts.allowBuild?.(depNode.depPath) === true) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,

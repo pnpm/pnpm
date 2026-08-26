@@ -3,13 +3,14 @@ import fs from 'node:fs/promises'
 import { createServer } from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 
 import { describe, expect, test } from '@jest/globals'
 import type { DepsGraph } from '@pnpm/deps.graph-hasher'
 import type { LockfileResolution } from '@pnpm/lockfile.types'
 import {
-  applySharedSideEffectsToInstall,
   type ArtifactPayload,
+  createRemoteSideEffectsRestorer,
   createSignedArtifactEnvelope,
   linuxGlibcCompatibilityTag,
   type LinuxGlibcPlatform,
@@ -51,42 +52,41 @@ describe('install remote side-effects', () => {
           const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
             candidates: Array<Pick<ArtifactPayload, 'inputKey' | 'package' | 'sourceIntegrity' | 'owner'> & { key: string }>
           }
-          const candidate = body.candidates[0]
-          const payload: ArtifactPayload = {
-            kind: 'dependency-side-effects:v1',
-            package: candidate.package,
-            sourceIntegrity: candidate.sourceIntegrity,
-            inputKey: candidate.key,
-            owner: candidate.owner,
-            builderId: 'ci/main/42',
-            builderProfile: {
-              architectureBaseline: process.arch,
-              environment: {},
-            },
-            compatibility: {
-              kind: 'tagged',
-              tags: [linuxGlibcCompatibilityTag(platform)],
-            },
-            manifest: {
-              added: [
-                {
-                  path: 'build/addon.node',
-                  integrity: builtFileIntegrity,
-                  mode: 0o755,
-                  size: builtFile.byteLength,
-                },
-                {
-                  path: 'build/addon-copy.node',
-                  integrity: builtFileIntegrity,
-                  mode: 0o755,
-                  size: builtFile.byteLength,
-                },
-              ],
-              deleted: ['src/intermediate.o'],
-            },
-          }
-          response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({
-            artifacts: [{
+          const envelopes = body.candidates.map((candidate) => {
+            const payload: ArtifactPayload = {
+              kind: 'dependency-side-effects:v1',
+              package: candidate.package,
+              sourceIntegrity: candidate.sourceIntegrity,
+              inputKey: candidate.key,
+              owner: candidate.owner,
+              builderId: 'ci/main/42',
+              builderProfile: {
+                architectureBaseline: process.arch,
+                environment: {},
+              },
+              compatibility: {
+                kind: 'tagged',
+                tags: [linuxGlibcCompatibilityTag(platform)],
+              },
+              manifest: {
+                added: [
+                  {
+                    path: 'build/addon.node',
+                    integrity: builtFileIntegrity,
+                    mode: 0o755,
+                    size: builtFile.byteLength,
+                  },
+                  {
+                    path: 'build/addon-copy.node',
+                    integrity: builtFileIntegrity,
+                    mode: 0o755,
+                    size: builtFile.byteLength,
+                  },
+                ],
+                deleted: ['src/intermediate.o'],
+              },
+            }
+            return {
               key: candidate.key,
               variants: [{
                 envelope: createSignedArtifactEnvelope(payload, {
@@ -94,8 +94,10 @@ describe('install remote side-effects', () => {
                   privateKey,
                 }),
               }],
-            }],
-          }))
+            }
+          })
+          response.writeHead(200, { 'content-type': 'application/json' })
+            .end(JSON.stringify({ artifacts: envelopes }))
           return
         }
         if (request.url === '/-/pnpr/v0/artifacts/blob') {
@@ -130,20 +132,12 @@ describe('install remote side-effects', () => {
     }
 
     try {
-      const hits = await applySharedSideEffectsToInstall({
+      const restorer = createRemoteSideEffectsRestorer({
         allowBuild: candidate => candidate === depPath,
         configByUri: {},
         depsGraph,
         depsStateCache: {},
         ignoreScripts: false,
-        nodes: [{
-          graphKey,
-          depPath,
-          files,
-          name: packageName,
-          resolution: { integrity: sourceIntegrity } as LockfileResolution,
-          version: packageVersion,
-        }],
         pnprServer,
         settings: {
           organization: 'acme',
@@ -153,8 +147,15 @@ describe('install remote side-effects', () => {
         sideEffectsCacheRead: false,
         storeController,
       })
+      const cacheKey = await restorer?.restore({
+        graphKey,
+        depPath,
+        files,
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })
 
-      const cacheKey = hits.get(graphKey)
       expect(cacheKey).toBeDefined()
       expect(files.sideEffectsMaps?.get(cacheKey!)).toEqual({
         added: new Map([
@@ -169,6 +170,56 @@ describe('install remote side-effects', () => {
         '/-/pnpr/v0/artifacts/resolve',
         '/-/pnpr/v0/artifacts/blob',
       ])
+
+      // Restoring is per package so one package never waits on another's
+      // fetch, but packages restored together still share a lookup request.
+      const secondGraphKey = `${graphKey}-second`
+      const secondFiles: PackageFilesResponse = {
+        filesMap: new Map(),
+        requiresBuild: true,
+        resolvedFrom: 'remote',
+      }
+      const batching = createRemoteSideEffectsRestorer<string>({
+        allowBuild: () => true,
+        configByUri: {},
+        depsGraph: {
+          ...depsGraph,
+          [secondGraphKey]: { children: {}, fullPkgId: secondGraphKey },
+        } as DepsGraph<string>,
+        depsStateCache: {},
+        ignoreScripts: false,
+        pnprServer,
+        settings: {
+          organization: 'acme',
+          packages: [packageName, `${packageName}-second`],
+          trustedKeys,
+        },
+        sideEffectsCacheRead: false,
+        storeController,
+      })
+      requestedPaths.length = 0
+      const first = batching?.restore({
+        graphKey,
+        depPath,
+        files: { ...files, sideEffectsMaps: undefined },
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })
+      // Arrive a tick apart, as two packages whose fetches land at slightly
+      // different times do: only the batching window can still join them.
+      await delay(5)
+      const second = batching?.restore({
+        graphKey: secondGraphKey,
+        depPath: `${depPath}-second` as DepPath,
+        files: secondFiles,
+        name: `${packageName}-second`,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })
+      const restored = await Promise.all([first, second])
+      expect(restored.every((key) => key != null)).toBe(true)
+      expect(requestedPaths.filter((path) => path === '/-/pnpr/v0/artifacts/resolve')).toHaveLength(1)
     } finally {
       await new Promise<void>((resolve, reject) => server.close(error => error == null ? resolve() : reject(error)))
     }
@@ -180,7 +231,7 @@ describe('install remote side-effects', () => {
       requiresBuild: true,
       resolvedFrom: 'remote',
     }
-    await expect(applySharedSideEffectsToInstall({
+    const restorer = createRemoteSideEffectsRestorer({
       allowBuild: () => false,
       configByUri: {},
       depsGraph: {
@@ -188,14 +239,6 @@ describe('install remote side-effects', () => {
       },
       depsStateCache: {},
       ignoreScripts: false,
-      nodes: [{
-        graphKey,
-        depPath,
-        files,
-        name: packageName,
-        resolution: { integrity: sourceIntegrity } as LockfileResolution,
-        version: packageVersion,
-      }],
       pnprServer: 'file:///must-not-be-opened',
       settings: {
         organization: 'acme',
@@ -206,7 +249,15 @@ describe('install remote side-effects', () => {
       storeController: { addFileToStore: () => {
         throw new Error('unexpected')
       } } as unknown as StoreController,
-    })).resolves.toEqual(new Map())
+    })
+    await expect(restorer?.restore({
+      graphKey,
+      depPath,
+      files,
+      name: packageName,
+      resolution: { integrity: sourceIntegrity } as LockfileResolution,
+      version: packageVersion,
+    })).resolves.toBeUndefined()
   })
 
   test('publishes a signed build diff produced by install', async () => {
