@@ -128,8 +128,11 @@ fn recursive_exec_no_sort_reverse_and_resume_transform_workspace_order() {
         .assert()
         .success();
 
+    // `--no-sort` disregards ordering entirely, so there is no graph for
+    // `--reverse` to turn around or for `--resume-from` to skip the
+    // anchor's dependencies in — both are no-ops, exactly as in pnpm.
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
-    assert_eq!(order, "m-middle\na-last\n");
+    assert_eq!(order, "a-last\nm-middle\nz-first\n");
 
     drop(root);
 }
@@ -642,6 +645,115 @@ fn legacy_dir_filtering_leaves_the_generated_root_inclusion_alone() {
         !workspace.join("project-1/ran.txt").exists(),
         "--workspace-root selects the root alone, not the projects below it",
     );
+
+    drop(root);
+}
+
+/// Write projects with explicit manifests (workspace dependencies and
+/// all), for the graph-shaped scenarios below.
+fn write_workspace_manifests(workspace: &Path, manifests: &[(&str, Value)]) {
+    let packages = manifests.iter().map(|(name, _)| format!("  - {name}")).collect::<Vec<_>>();
+    let workspace_yaml = format!("packages:\n{}\n", packages.join("\n"));
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml)
+        .expect("write pnpm-workspace.yaml");
+    for (name, manifest) in manifests {
+        let dir = workspace.join(name);
+        fs::create_dir_all(&dir).expect("create project dir");
+        fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
+    }
+}
+
+/// The failure that blocked the dependent is already counted; the skipped
+/// dependent must not turn one failure into two.
+#[test]
+fn recursive_exec_no_bail_skips_dependents_of_a_failed_command() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_manifests(
+        &workspace,
+        &[
+            (
+                "project-a",
+                json!({
+                    "name": "project-a",
+                    "version": "1.0.0",
+                    "dependencies": { "project-b": "workspace:*" },
+                }),
+            ),
+            ("project-b", json!({ "name": "project-b", "version": "1.0.0" })),
+            ("project-c", json!({ "name": "project-c", "version": "1.0.0" })),
+        ],
+    );
+
+    let output = pacquet
+        .with_args([
+            "--no-bail",
+            "-r",
+            "exec",
+            "--report-summary",
+            "-c",
+            r#"[ "$(basename "$PWD")" != project-b ] && echo "$(basename "$PWD")" >> ../order.log"#,
+        ])
+        .output()
+        .expect("run recursive exec");
+    assert!(!output.status.success(), "the failed project must fail the run");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("failed in 1 packages"), "one failure, not two: {stderr}");
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "project-c\n");
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(statuses.get("project-a").map(String::as_str), Some("skipped"));
+    assert_eq!(statuses.get("project-b").map(String::as_str), Some("failure"));
+    assert_eq!(statuses.get("project-c").map(String::as_str), Some("passed"));
+
+    drop(root);
+}
+
+/// Only the anchor's transitive dependencies are skipped; a project
+/// unrelated to the anchor still runs.
+#[test]
+fn recursive_exec_resume_from_skips_only_the_anchors_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_manifests(
+        &workspace,
+        &[
+            ("project-1", json!({ "name": "project-1", "version": "1.0.0" })),
+            (
+                "project-2",
+                json!({
+                    "name": "project-2",
+                    "version": "1.0.0",
+                    "dependencies": { "project-1": "workspace:*" },
+                }),
+            ),
+            (
+                "project-3",
+                json!({
+                    "name": "project-3",
+                    "version": "1.0.0",
+                    "dependencies": { "project-1": "workspace:*" },
+                }),
+            ),
+            ("project-4", json!({ "name": "project-4", "version": "1.0.0" })),
+        ],
+    );
+
+    pacquet
+        .with_args([
+            "--workspace-concurrency=1",
+            "--resume-from=project-3",
+            "-r",
+            "exec",
+            "-c",
+            r#"echo "$(basename "$PWD")" >> ../order.log"#,
+        ])
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    let mut lines: Vec<&str> = order.lines().collect();
+    lines.sort_unstable();
+    assert_eq!(lines, ["project-2", "project-3", "project-4"]);
 
     drop(root);
 }

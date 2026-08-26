@@ -2875,3 +2875,74 @@ fn load_at_ignores_keys_nested_under_a_setting() {
 
     assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
 }
+
+#[test]
+fn parses_a_valid_tasks_section_and_applies_it() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        concat!(
+            "packages:\n  - packages/*\n",
+            "tasks:\n",
+            "  build:\n    dependsOn: ['^build']\n",
+            "  test:\n    dependsOn: ['build']\n",
+            "  lint: {}\n",
+        ),
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+    assert!(settings.key_issues.is_empty());
+
+    let mut config = Config::default();
+    settings.apply_to(&mut config, dir.path());
+    assert_eq!(
+        config.tasks.get("build").unwrap().depends_on.as_deref(),
+        Some(&["^build".to_string()][..]),
+    );
+    assert_eq!(
+        config.tasks.get("test").unwrap().depends_on.as_deref(),
+        Some(&["build".to_string()][..]),
+    );
+    // `lint: {}` declares an explicitly empty dependency list — a different
+    // statement from omitting the entry.
+    assert_eq!(config.tasks.get("lint").unwrap().depends_on, None);
+}
+
+#[test]
+fn rejects_an_unknown_task_setting_field() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    dependson: ['^build']\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+    dbg!(&error);
+    assert!(matches!(
+        error,
+        LoadWorkspaceYamlError::UnknownTaskSettingField { ref task, ref field }
+            if task == "build" && field == "dependson"
+    ));
+}
+
+#[test]
+fn rejects_a_depends_on_entry_with_no_task_name() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    dependsOn: ['^']\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+    dbg!(&error);
+    assert!(matches!(
+        error,
+        LoadWorkspaceYamlError::EmptyTaskDependsOnEntry { ref task, ref entry }
+            if task == "build" && entry == "^"
+    ));
+}

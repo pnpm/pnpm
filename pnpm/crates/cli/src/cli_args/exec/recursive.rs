@@ -1,23 +1,28 @@
 //! Recursive `pacquet exec` — run a command across the `--filter`-selected
-//! workspace projects, in topological order.
+//! workspace projects, scheduled over the project dependency graph.
 //!
 //! Reuses the shared graph / summary machinery in
-//! [`crate::cli_args::recursive`].
+//! [`crate::cli_args::recursive`] and the task scheduler in
+//! [`crate::cli_args::task_graph`].
 //!
-//! `config.filter` / `config.filter_prod` (`--filter` / `--filter-prod`,
-//! include and exclude selectors) narrow the selected set via
-//! [`select_recursive_projects`]; the selection is then sorted
-//! topologically by default, or kept in workspace order under `--no-sort`,
-//! reversed under `--reverse`, and run with `workspaceConcurrency` operations
-//! in flight within each dependency-independent chunk.
+//! `exec` runs one command per project, so its task graph is one task per
+//! selected project over the project dependency edges: it gets the
+//! dependency-order scheduling, while `tasks` declarations — which name
+//! scripts — do not apply to it. `--no-sort` drops the ordering,
+//! `--reverse` runs the reverse graph, and `--parallel` starts every
+//! project concurrently.
 
-use super::{
-    ExecArgs, ExecError, prepare_command, read_package_name, spawn_async_in_dir, spawn_in_dir,
-};
-use crate::cli_args::recursive::{
-    AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-    get_resumed_package_chunks, run_workspace_chunk, select_recursive_projects,
-    sort_filtered_projects, write_recursive_summary,
+use super::{ExecArgs, ExecError, prepare_command, read_package_name, spawn_in_dir};
+use crate::cli_args::{
+    recursive::{
+        AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
+        filtered_projects_dependencies, find_resume_root, select_recursive_projects,
+        write_recursive_summary,
+    },
+    task_graph::{
+        ScheduleTasksOptions, TaskCompletion, TaskGraph, TaskKey, TaskNode, resume_task_graph_from,
+        reverse_task_graph, schedule_tasks, sequence_tasks,
+    },
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -27,6 +32,7 @@ use pnpm_executor::ScriptOutput;
 use pnpm_reporter::LogEvent;
 use std::{
     path::{Path, PathBuf},
+    sync::Mutex,
     time::Instant,
 };
 
@@ -61,7 +67,7 @@ struct ProjectExecution {
 }
 
 /// Run `args.command` across the `--filter`-selected workspace projects,
-/// sorted topologically. `dir` is the canonicalized working directory; the
+/// in dependency order. `dir` is the canonicalized working directory; the
 /// workspace root (and the directory the summary is written to) is
 /// `config.workspace_dir`, falling back to `dir` when no
 /// `pnpm-workspace.yaml` exists.
@@ -97,84 +103,119 @@ pub async fn exec_recursive(
         return Ok(());
     }
 
-    let mut chunks = if args.sort {
-        sort_filtered_projects(
+    let command_name = &args.command[0];
+    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = if args.sort {
+        filtered_projects_dependencies(
             graph,
             selection.full_graph(),
             selection.prod_all.as_ref(),
             &selection.prod_only_selected,
         )
     } else {
-        graph.keys().cloned().map(|root| vec![root]).collect()
+        graph.keys().cloned().map(|root| (root, Vec::new())).collect()
     };
+    let mut task_graph: TaskGraph = project_dependencies
+        .iter()
+        .map(|(project, dependencies)| {
+            let key = TaskKey { project: project.clone(), task_name: command_name.clone() };
+            let node = TaskNode {
+                project: project.clone(),
+                task_name: command_name.clone(),
+                scripts: vec![command_name.clone()],
+                requested: true,
+                dependencies: dependencies
+                    .iter()
+                    .map(|dependency| TaskKey {
+                        project: dependency.clone(),
+                        task_name: command_name.clone(),
+                    })
+                    .collect(),
+            };
+            (key, node)
+        })
+        .collect();
     if args.reverse {
-        chunks.reverse();
+        task_graph = reverse_task_graph(&task_graph);
     }
     if let Some(resume_from) = &args.resume_from {
-        chunks = get_resumed_package_chunks(resume_from, chunks, graph)?;
+        let anchor = find_resume_root(resume_from, graph)?;
+        task_graph = resume_task_graph_from(task_graph, &anchor, command_name);
     }
-    if !args.sort {
-        chunks = vec![chunks.into_iter().flatten().collect()];
-    }
+    // Also the cycle check: a cyclic graph cannot be scheduled, and the
+    // previous silent behaviour of running a cyclic workspace in whatever
+    // order the sorter picked produced runs that succeeded or failed by
+    // luck.
+    sequence_tasks(&task_graph, workspace_root)?;
 
     let bail = !args.no_bail;
-    let mut result: IndexMap<PathBuf, ExecutionStatus> =
-        chunks.iter().flatten().map(|root| (root.clone(), ExecutionStatus::queued())).collect();
+    let concurrency = if args.parallel {
+        task_graph.len()
+    } else {
+        usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1)
+    };
+    let result: Mutex<IndexMap<String, ExecutionStatus>> = Mutex::new(
+        task_graph
+            .values()
+            .map(|node| (node.project.to_string_lossy().into_owned(), ExecutionStatus::queued()))
+            .collect(),
+    );
+    let first_failure: Mutex<Option<String>> = Mutex::new(None);
 
-    for chunk in &chunks {
-        let concurrency = if args.parallel {
-            chunk.len().max(1)
-        } else {
-            usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1)
-        };
-        let batch_size = if bail { concurrency } else { chunk.len().max(1) };
-        for batch in chunk.chunks(batch_size) {
-            for root in batch {
-                result[root].status = Status::Running;
+    let run_task = |node: &TaskNode| -> TaskCompletion {
+        let root = node.project.as_path();
+        let prefix = root.to_string_lossy().into_owned();
+        result.lock().expect("summary lock is not poisoned")[&prefix].status = Status::Running;
+        let start = Instant::now();
+        let dep_path = project_dep_path(root, dir, show_prefix);
+        let output = project_output(dep_path.as_deref(), emit);
+        let outcome = spawn_in_dir(&command, root, config, args.shell_mode, output);
+        let execution = project_execution(start, outcome);
+        let mut result = result.lock().expect("summary lock is not poisoned");
+        let entry = &mut result[&prefix];
+        entry.duration = Some(execution.duration);
+        match execution.message {
+            None => {
+                entry.status = Status::Passed;
+                TaskCompletion::Passed
             }
-            let executions = if args.parallel {
-                futures_util::future::join_all(batch.iter().map(|root| async {
-                    let start = Instant::now();
-                    let dep_path = project_dep_path(root, dir, show_prefix);
-                    let output = project_output(dep_path.as_deref(), emit);
-                    let outcome =
-                        spawn_async_in_dir(&command, root, config, args.shell_mode, output).await;
-                    project_execution(start, outcome)
-                }))
-                .await
-            } else {
-                run_workspace_chunk(batch, config.workspace_concurrency, |root| {
-                    let start = Instant::now();
-                    let dep_path = project_dep_path(root, dir, show_prefix);
-                    let output = project_output(dep_path.as_deref(), emit);
-                    let outcome = spawn_in_dir(&command, root, config, args.shell_mode, output);
-                    project_execution(start, outcome)
-                })?
-            };
-            let mut first_failure = None;
-            for (root, execution) in batch.iter().zip(executions) {
-                let prefix = root.to_string_lossy().into_owned();
-                let entry = &mut result[root];
-                entry.duration = Some(execution.duration);
-                match execution.message {
-                    None => entry.status = Status::Passed,
-                    Some(message) => {
-                        entry.status = Status::Failure;
-                        entry.message = Some(message);
-                        entry.prefix = Some(prefix.clone());
-                        if first_failure.is_none() {
-                            first_failure = Some(prefix);
-                        }
-                    }
+            Some(message) => {
+                entry.status = Status::Failure;
+                entry.message = Some(message);
+                entry.prefix = Some(prefix.clone());
+                drop(result);
+                let mut first_failure =
+                    first_failure.lock().expect("first-failure slot lock is not poisoned");
+                if first_failure.is_none() {
+                    *first_failure = Some(prefix);
                 }
-            }
-            if bail && let Some(prefix) = first_failure {
-                if args.report_summary {
-                    write_recursive_summary(workspace_root, &result)?;
-                }
-                return Err(RecursiveExecError::RecursiveExecFirstFail { prefix }.into());
+                TaskCompletion::Failed
             }
         }
+    };
+    let on_task_skipped = |node: &TaskNode| {
+        result.lock().expect("summary lock is not poisoned")
+            [&node.project.to_string_lossy().into_owned()]
+            .status = Status::Skipped;
+    };
+    schedule_tasks(
+        &task_graph,
+        &ScheduleTasksOptions {
+            concurrency,
+            bail,
+            run_task: &run_task,
+            on_task_skipped: &on_task_skipped,
+        },
+    );
+
+    let result = result.into_inner().expect("summary lock is not poisoned");
+    if bail
+        && let Some(prefix) =
+            first_failure.into_inner().expect("first-failure slot lock is not poisoned")
+    {
+        if args.report_summary {
+            write_recursive_summary(workspace_root, &result)?;
+        }
+        return Err(RecursiveExecError::RecursiveExecFirstFail { prefix }.into());
     }
 
     if args.report_summary {

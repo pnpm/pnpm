@@ -1,25 +1,33 @@
 //! Recursive `pacquet run` — run a package script across the
-//! `--filter`-selected workspace projects, in topological order.
+//! `--filter`-selected workspace projects, scheduled over the task graph.
 //!
 //! `config.filter` / `config.filter_prod` (`--filter` / `--filter-prod`,
 //! include and exclude selectors) narrow the selected set via
-//! [`select_recursive_projects`]; the selection is then sorted
-//! topologically by default, or kept in workspace order under `--no-sort`,
-//! and reversed under `--reverse`. `--parallel` starts every selected
-//! project concurrently; otherwise `workspaceConcurrency` bounds the work
-//! within each dependency-independent chunk.
-//! The main-dispatch auto-exclusion of the workspace root is applied via
-//! [`AutoExcludeRoot::Enabled`].
+//! [`select_recursive_projects`]; a task graph is then built over the
+//! selection — the invocation's script in every project, plus what the
+//! workspace's `tasks` declarations pull in — and dispatched in dependency
+//! order under `workspaceConcurrency`, with no barrier between
+//! dependency-independent tasks. `--no-sort` drops the ordering entirely,
+//! `--reverse` runs the reverse graph, and `--parallel` starts every task
+//! concurrently. The main-dispatch auto-exclusion of the workspace root is
+//! applied via [`AutoExcludeRoot::Enabled`].
 
 use super::{RunArgs, RunContext, ScriptSelector, render_project_commands, run_stages};
-use crate::cli_args::recursive::{
-    AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-    get_resumed_package_chunks, run_workspace_chunk, select_recursive_projects,
-    sort_filtered_projects, write_recursive_summary,
+use crate::cli_args::{
+    recursive::{
+        AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
+        filtered_projects_dependencies, find_resume_root, select_recursive_projects,
+        write_recursive_summary,
+    },
+    task_graph::{
+        BuildTaskGraphOptions, ScheduleTasksOptions, TaskCompletion, TaskGraph, TaskNode,
+        build_task_graph, is_serial_task_graph, render_task_graph_dry_run, resume_task_graph_from,
+        reverse_task_graph, schedule_tasks, sequence_tasks, task_graph_to_json, task_summary_key,
+    },
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
-use miette::{Diagnostic, IntoDiagnostic, WrapErr};
+use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_executor::ScriptOutput;
 use pnpm_package_manager::{
@@ -33,6 +41,10 @@ use std::{
     collections::HashMap,
     env,
     path::{Path, PathBuf},
+    sync::{
+        Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Instant,
 };
 
@@ -76,9 +88,9 @@ pub enum RecursiveRunError {
 }
 
 /// Run `args.command` across the `--filter`-selected workspace projects,
-/// sorted topologically. `dir` is the canonicalized working directory; the
-/// workspace root (and the directory the summary is written to) is
-/// `config.workspace_dir`, falling back to `dir` when no
+/// in task-graph dependency order. `dir` is the canonicalized working
+/// directory; the workspace root (and the directory the summary is written
+/// to) is `config.workspace_dir`, falling back to `dir` when no
 /// `pnpm-workspace.yaml` exists.
 pub fn run_recursive(
     args: &RunArgs,
@@ -132,32 +144,64 @@ pub fn run_recursive(
         return Ok(());
     }
 
-    let mut chunks = if args.sort {
-        sort_filtered_projects(
-            graph,
-            selection.full_graph(),
-            selection.prod_all.as_ref(),
-            &selection.prod_only_selected,
-        )
-    } else {
-        graph.keys().cloned().map(|root| vec![root]).collect()
-    };
-    if args.reverse {
-        chunks.reverse();
-    }
-    if let Some(resume_from) = &args.resume_from {
-        chunks = get_resumed_package_chunks(resume_from, chunks, graph)?;
-    }
-    if !args.sort {
-        chunks = vec![chunks.into_iter().flatten().collect()];
+    // Compiled once for the whole run, not per project or task.
+    let selector = ScriptSelector::new(script_name)?;
+    let task_graph = build_run_task_graph(script_name, &selector, args, config, graph, &selection)?;
+    // Also the cycle check: tasks may declare dependencies on each other
+    // now, and a cyclic graph cannot be scheduled — the previous silent
+    // behaviour of running a cyclic workspace in whatever order the sorter
+    // picked produced runs that succeeded or failed by luck.
+    let sequenced_tasks = sequence_tasks(&task_graph, workspace_root)?;
+
+    if args.dry_run {
+        if args.json {
+            let document = task_graph_to_json(&task_graph, workspace_root);
+            println!("{}", serde_json::to_string_pretty(&document).into_diagnostic()?);
+        } else {
+            println!(
+                "{}",
+                render_task_graph_dry_run(&task_graph, &sequenced_tasks, workspace_root)
+            );
+        }
+        return Ok(());
     }
 
-    // Compiled once for the whole run, not per project.
-    let selector = ScriptSelector::new(script_name)?;
+    // Hidden scripts (names starting with `.`) can only be invoked from
+    // within another script, detected by an inherited
+    // `npm_lifecycle_event`. Checked only for the tasks the invocation
+    // named: a `dependsOn` declaration naming a hidden script is a
+    // deliberate reference, like a call from another script.
+    if env::var_os("npm_lifecycle_event").is_none() {
+        for node in task_graph.values().filter(|node| node.requested) {
+            if let Some(script) = node.scripts.iter().find(|script| script.starts_with('.')) {
+                return Err(super::RunError::HiddenScript { script: script.clone() }.into());
+            }
+        }
+    }
+
     let bail = !args.no_bail;
-    let mut result: IndexMap<PathBuf, ExecutionStatus> =
-        chunks.iter().flatten().map(|root| (root.clone(), ExecutionStatus::queued())).collect();
-    let mut has_command = 0_usize;
+    let concurrency = if args.parallel {
+        task_graph.len()
+    } else if args.sequential {
+        1
+    } else {
+        usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1)
+    };
+    // pnpm pipes unless the output cannot interleave: `--stream` off, and
+    // either one task at a time or a graph that forces the scripts to run
+    // one after another.
+    let inherit_output =
+        !config.stream && (concurrency == 1 || is_serial_task_graph(&task_graph, &sequenced_tasks));
+
+    let result: Mutex<IndexMap<String, ExecutionStatus>> = Mutex::new(
+        task_graph
+            .values()
+            .map(|node| (task_summary_key(node), ExecutionStatus::queued()))
+            .collect(),
+    );
+    let has_command = AtomicUsize::new(0);
+    let first_failure: Mutex<Option<String>> = Mutex::new(None);
+    let abort: Mutex<Option<miette::Report>> = Mutex::new(None);
 
     // Compute the shared lifecycle env once. Each project adds loader
     // options for its own root before reusing that environment across
@@ -165,102 +209,78 @@ pub fn run_recursive(
     let init_cwd = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
     let extra_env: HashMap<String, String> = config.extra_env_with_node_options();
 
-    if args.parallel {
-        let roots = chunks.iter().flatten().collect::<Vec<_>>();
-        let executions = std::thread::scope(|scope| -> miette::Result<Vec<_>> {
-            let handles = roots
-                .iter()
-                .map(|root| {
-                    std::thread::Builder::new()
-                        .spawn_scoped(scope, || {
-                            run_project(RunProjectOptions {
-                                root,
-                                graph,
-                                selector: &selector,
-                                args,
-                                init_cwd: &init_cwd,
-                                config,
-                                extra_env: &extra_env,
-                                bail,
-                                silent,
-                                emit,
-                            })
-                        })
-                        .into_diagnostic()
-                        .wrap_err_with(|| {
-                            format!("failed to start parallel script runner for {}", root.display())
-                        })
-                })
-                .collect::<miette::Result<Vec<_>>>()?;
-            handles
-                .into_iter()
-                .map(|handle| {
-                    handle.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))
-                })
-                .collect::<miette::Result<Vec<_>>>()
-        })?;
-        for (root, execution) in roots.into_iter().zip(executions) {
-            has_command += execution.has_command;
-            result.insert(root.clone(), execution.status);
-        }
-        if bail
-            && let Some((root, _)) =
-                result.iter().find(|(_, execution)| execution.status == Status::Failure)
-        {
-            if args.report_summary {
-                write_recursive_summary(workspace_root, &result)?;
-            }
-            return Err(RecursiveRunError::RecursiveRunFirstFail {
-                prefix: root.to_string_lossy().into_owned(),
-            }
-            .into());
-        }
-    } else {
-        for chunk in &chunks {
-            let concurrency =
-                usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1);
-            let batch_size = if bail { concurrency } else { chunk.len().max(1) };
-            for batch in chunk.chunks(batch_size) {
-                let executions =
-                    run_workspace_chunk(batch, config.workspace_concurrency, |root| {
-                        run_project(RunProjectOptions {
-                            root,
-                            graph,
-                            selector: &selector,
-                            args,
-                            init_cwd: &init_cwd,
-                            config,
-                            extra_env: &extra_env,
-                            bail,
-                            silent,
-                            emit,
-                        })
-                    })?;
-                let mut first_failure = None;
-                for (root, execution) in batch.iter().zip(executions) {
-                    let execution = execution?;
-                    has_command += execution.has_command;
-                    let failed = execution.status.status == Status::Failure;
-                    result.insert(root.clone(), execution.status);
-                    if failed && first_failure.is_none() {
-                        first_failure = Some(root.to_string_lossy().into_owned());
-                    }
+    let run_task = |node: &TaskNode| -> TaskCompletion {
+        let execution = match run_project(RunProjectOptions {
+            node,
+            graph,
+            args,
+            init_cwd: &init_cwd,
+            config,
+            extra_env: &extra_env,
+            bail,
+            silent,
+            inherit_output,
+            emit,
+        }) {
+            Ok(execution) => execution,
+            Err(error) => {
+                let mut abort = abort.lock().expect("abort slot lock is not poisoned");
+                if abort.is_none() {
+                    *abort = Some(error);
                 }
-                if bail && let Some(prefix) = first_failure {
-                    if args.report_summary {
-                        write_recursive_summary(workspace_root, &result)?;
-                    }
-                    return Err(RecursiveRunError::RecursiveRunFirstFail { prefix }.into());
-                }
+                return TaskCompletion::Aborted;
             }
+        };
+        if node.requested {
+            has_command.fetch_add(execution.has_command, Ordering::Relaxed);
         }
+        let failed = execution.status.status == Status::Failure;
+        result.lock().expect("summary lock is not poisoned")[&task_summary_key(node)] =
+            execution.status;
+        if failed {
+            let mut first_failure =
+                first_failure.lock().expect("first-failure slot lock is not poisoned");
+            if first_failure.is_none() {
+                *first_failure = Some(node.project.to_string_lossy().into_owned());
+            }
+            TaskCompletion::Failed
+        } else {
+            TaskCompletion::Passed
+        }
+    };
+    let on_task_skipped = |node: &TaskNode| {
+        result.lock().expect("summary lock is not poisoned")[&task_summary_key(node)].status =
+            Status::Skipped;
+    };
+    schedule_tasks(
+        &task_graph,
+        &ScheduleTasksOptions {
+            concurrency,
+            bail,
+            run_task: &run_task,
+            on_task_skipped: &on_task_skipped,
+        },
+    );
+
+    if let Some(error) = abort.into_inner().expect("abort slot lock is not poisoned") {
+        return Err(error);
+    }
+    let result = result.into_inner().expect("summary lock is not poisoned");
+    if bail
+        && let Some(prefix) =
+            first_failure.into_inner().expect("first-failure slot lock is not poisoned")
+    {
+        if args.report_summary {
+            write_recursive_summary(workspace_root, &result)?;
+        }
+        return Err(RecursiveRunError::RecursiveRunFirstFail { prefix }.into());
     }
 
     // `test` is exempt because `pnpm test` falls back to a default and
     // should not error on a workspace with no `test` script; otherwise a
     // recursive run that matched nothing is a user error, unless
     // `--if-present` opted out of it.
-    if script_name != "test" && has_command == 0 && !args.if_present {
+    if script_name != "test" && has_command.load(Ordering::Relaxed) == 0 && !args.if_present {
         let script_name = script_name.to_string();
         return Err(if graph.len() == projects.len() {
             RecursiveRunError::NoScript { script_name }
@@ -281,6 +301,58 @@ pub fn run_recursive(
     Ok(())
 }
 
+/// The task graph of this invocation: `script_name` in every selected
+/// project plus what the `tasks` declarations pull in, with `--reverse`
+/// and `--resume-from` already applied.
+///
+/// `--no-sort` keeps its meaning of disregarding ordering entirely: tasks
+/// get no edges, and the `tasks` declarations do not apply.
+fn build_run_task_graph(
+    script_name: &str,
+    selector: &ScriptSelector<'_>,
+    args: &RunArgs,
+    config: &Config,
+    graph: &ProjectGraph<GraphPkg<'_>>,
+    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+) -> miette::Result<TaskGraph> {
+    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = if args.sort {
+        filtered_projects_dependencies(
+            graph,
+            selection.full_graph(),
+            selection.prod_all.as_ref(),
+            &selection.prod_only_selected,
+        )
+    } else {
+        graph.keys().cloned().map(|root| (root, Vec::new())).collect()
+    };
+    let select_scripts = |project: &Path, task_name: &str| -> Vec<String> {
+        let manifest = graph[project].package.project.manifest.value();
+        if task_name == script_name {
+            return selector.select(manifest);
+        }
+        // A task name `dependsOn` pulled in; a selector it cannot compile
+        // reads as a plain name that matches nothing, like pnpm's.
+        match ScriptSelector::new(task_name) {
+            Ok(selector) => selector.select(manifest),
+            Err(_) => Vec::new(),
+        }
+    };
+    let mut task_graph = build_task_graph(&BuildTaskGraphOptions {
+        project_dependencies: &project_dependencies,
+        select_scripts,
+        task_name: script_name,
+        tasks: (args.sort && !config.tasks.is_empty()).then_some(&config.tasks),
+    });
+    if args.reverse {
+        task_graph = reverse_task_graph(&task_graph);
+    }
+    if let Some(resume_from) = &args.resume_from {
+        let anchor = find_resume_root(resume_from, graph)?;
+        task_graph = resume_task_graph_from(task_graph, &anchor, script_name);
+    }
+    Ok(task_graph)
+}
+
 struct ProjectExecution {
     status: ExecutionStatus,
     has_command: usize,
@@ -288,38 +360,33 @@ struct ProjectExecution {
 
 #[derive(Clone, Copy)]
 struct RunProjectOptions<'a, 'project> {
-    root: &'a Path,
+    node: &'a TaskNode,
     graph: &'a ProjectGraph<GraphPkg<'project>>,
-    selector: &'a ScriptSelector<'a>,
     args: &'a RunArgs,
     init_cwd: &'a Path,
     config: &'a Config,
     extra_env: &'a HashMap<String, String>,
     bail: bool,
     silent: bool,
+    inherit_output: bool,
     emit: fn(&LogEvent),
 }
 
 fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExecution> {
     let RunProjectOptions {
-        root,
+        node,
         graph,
-        selector,
         args,
         init_cwd,
         config,
         extra_env,
         bail,
         silent,
+        inherit_output,
         emit,
     } = options;
+    let root = node.project.as_path();
     let manifest = &graph[root].package.project.manifest;
-    let specified = selector.select(manifest.value());
-    if specified.is_empty() {
-        let mut status = ExecutionStatus::queued();
-        status.status = Status::Skipped;
-        return Ok(ProjectExecution { status, has_command: 0 });
-    }
     let mut extra_env = extra_env.clone();
     if let Some(pnp_path) = pnp_path_for_execution(config, root) {
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
@@ -340,7 +407,7 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
     let root_str = root.to_string_lossy().into_owned();
     let mut execution = ProjectExecution { status: ExecutionStatus::queued(), has_command: 0 };
     let mut project_failed = false;
-    for selected in &specified {
+    for selected in &node.scripts {
         let Some(script) = manifest.script(selected, true)? else {
             continue;
         };
@@ -351,9 +418,6 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
             && env::var_os("PNPM_SCRIPT_SRC_DIR").is_some_and(|src_dir| Path::new(&src_dir) == root)
         {
             continue;
-        }
-        if selected.starts_with('.') && env::var_os("npm_lifecycle_event").is_none() {
-            return Err(super::RunError::HiddenScript { script: selected.clone() }.into());
         }
 
         if !project_failed {
@@ -368,18 +432,10 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
             config,
             extra_env: &extra_env,
             silent,
-            sequential: args.sequential,
-            // pnpm pipes unless the output cannot interleave —
-            // `!stream && (workspaceConcurrency === 1 || a single
-            // project)`. pacquet runs sequentially or fully in parallel
-            // (and `--parallel` implies `--stream`), so sequential is
-            // pnpm's concurrency-of-one case and `--stream` alone
-            // decides. Porting bounded `--workspace-concurrency`
-            // (pnpm/pnpm#14101) has to widen this.
-            output: if config.stream {
-                ScriptOutput::Streamed { dep_path: &root_str, emit }
-            } else {
+            output: if inherit_output {
                 ScriptOutput::Inherit
+            } else {
+                ScriptOutput::Streamed { dep_path: &root_str, emit }
             },
         };
         let status = run_stages(&ctx, selected, script, args.script_args())?;

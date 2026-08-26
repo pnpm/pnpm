@@ -30,6 +30,8 @@ impl ScriptShortcutArgs {
             reverse: false,
             parallel: false,
             sequential: false,
+            dry_run: false,
+            json: false,
         }
     }
 

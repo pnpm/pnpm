@@ -236,6 +236,28 @@ export interface UpdateSettings {
   githubActionsServer?: string
 }
 
+/**
+ * The task declarations of a workspace, keyed by task name. A task name is a
+ * script name: `pnpm -r run <name>` runs the task named `<name>` in every
+ * selected project.
+ */
+export interface WorkspaceTasks {
+  [taskName: string]: WorkspaceTaskSettings
+}
+
+export interface WorkspaceTaskSettings {
+  /**
+   * The tasks that must complete before this one may start. A `^name` entry
+   * names the task in each of the project's workspace dependencies; a bare
+   * `name` entry names the task in the same project.
+   *
+   * A task with no declaration behaves as `dependsOn: ['^<its own name>']`.
+   * An entry with `dependsOn` omitted declares an empty dependency list — the
+   * task depends on nothing and may start immediately.
+   */
+  dependsOn?: string[]
+}
+
 export interface PnpmSettings {
   npmrcAuthFile?: string
   /**
@@ -300,6 +322,7 @@ export interface PnpmSettings {
    * The boolean spelling of {@link PnpmSettings.virtualStoreType}.
    */
   enableGlobalVirtualStore?: boolean
+  tasks?: WorkspaceTasks
 }
 
 /**

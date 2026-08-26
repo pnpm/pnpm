@@ -103,6 +103,8 @@ pub(super) fn fallback<'a>(
         reverse: false,
         parallel: false,
         sequential: false,
+        dry_run: false,
+        json: false,
     };
     let config = (ctx.config)()?;
     let args = with_recursive_run_options(ctx, args, config);

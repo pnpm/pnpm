@@ -302,6 +302,8 @@ pub(super) fn install_test<'a>(
         reverse: false,
         parallel: ctx.recursive_parallel,
         sequential: false,
+        dry_run: false,
+        json: false,
     };
 
     let install_future = install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)?;

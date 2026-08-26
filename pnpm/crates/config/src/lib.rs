@@ -60,8 +60,8 @@ use crate::defaults::{
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
     PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting,
-    RemoteSideEffectsCacheSettings, UpdateConfig, UpdateSettings, WORKSPACE_MANIFEST_FILENAME,
-    WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
+    RemoteSideEffectsCacheSettings, TaskSettings, UpdateConfig, UpdateSettings,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
     registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
     workspace_root_or,
 };
@@ -2419,6 +2419,12 @@ pub struct Config {
     /// patterns the command skips, and whether GitHub Actions should be
     /// updated.
     pub update_config: workspace_yaml::UpdateConfig,
+
+    /// `tasks` from `pnpm-workspace.yaml`: the workspace's task
+    /// declarations, consumed by the recursive `run` task scheduler. See
+    /// [`workspace_yaml::TaskSettings`]. Empty when the workspace declares
+    /// none.
+    pub tasks: IndexMap<String, workspace_yaml::TaskSettings>,
 
     /// `peerDependencyRules` from `pnpm-workspace.yaml`: customizations
     /// applied when reporting peer-dependency issues. See

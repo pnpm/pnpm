@@ -44,6 +44,7 @@
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/deps.status": "workspace:*",
     "@pnpm/engine.runtime.commands": "workspace:*",
     "@pnpm/error": "workspace:*",
