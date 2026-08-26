@@ -43,10 +43,13 @@ pnpr/
       src/
         lib.rs              -> library API
         main.rs             -> binary entry point (ships the `pnpr` binary)
+    auth/          -> package "pnpr-auth"          (user and token stores)
     config/        -> package "pnpr-config"        (the YAML config: parsing and validation)
     error/         -> package "pnpr-error"         (the error type every layer returns)
     package-name/  -> package "pnpr-package-name"  (npm package-name parsing)
     registry/      -> package "pnpr-registry"      (the registry routing table)
+    route/         -> package "pnpr-route"         (classifies a fetch route public or private)
+    upstream/      -> package "pnpr-upstream"      (the upstream registry proxy client)
     policy/        -> package "pnpr-policy"        (access policy for those routes)
     # further sibling crates land here, see "New registry-only crates" below
 ```

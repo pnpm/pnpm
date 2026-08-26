@@ -14,13 +14,11 @@ use pnpm_package_manager::{ResolvedPackageHint, tarball_url_and_integrity};
 use pnpm_resolving_npm_resolver::ObservedDistStats;
 use pnpm_resolving_resolver_base::PackageVersionGuard;
 
-use crate::{
-    osv::{OsvIndex, format_advisory_ids},
-    route::{RouteClass, RouteContext, sanitize_registry_tarball_url, strip_url_credentials},
-    upstream::tarball_basename,
-};
+use crate::osv::{OsvIndex, format_advisory_ids};
 use pnpr_package_name::PackageName;
 use pnpr_policy::Identity;
+use pnpr_route::{RouteClass, RouteContext, sanitize_registry_tarball_url, strip_url_credentials};
+use pnpr_upstream::tarball_basename;
 
 #[derive(Clone)]
 pub(super) struct TarballRouter {

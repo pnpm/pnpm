@@ -198,6 +198,7 @@ impl Upstream {
     /// resolved [`UpstreamConfig`], baking in the per-upstream
     /// `timeout`/`maxage`/`cache` knobs and arming the
     /// `max_fails`/`fail_timeout` circuit breaker.
+    #[must_use]
     pub fn new(name: &str, config: &UpstreamConfig) -> Self {
         Self {
             client: Arc::new(ThrottledClient::new_for_installs()),
@@ -213,6 +214,7 @@ impl Upstream {
 
     /// Per-upstream packument freshness window (`maxage`), or `None` to
     /// defer to the global [`pnpr_config::Config::packument_ttl`].
+    #[must_use]
     pub fn maxage(&self) -> Option<Duration> {
         self.maxage
     }
@@ -220,6 +222,7 @@ impl Upstream {
     /// Whether tarballs from this upstream should be written to the local
     /// mirror (`cache: true`). When `false` the caller streams the body
     /// straight through without caching it.
+    #[must_use]
     pub fn caches(&self) -> bool {
         self.cache
     }
@@ -541,6 +544,7 @@ fn rewrite_upstream_revision_tarball_urls(
 /// must derive it identically — including for query-bearing URLs (signed
 /// CDN links), where the query is not part of the route path a client
 /// later requests. Returns `None` for a URL whose path ends in `/`.
+#[must_use]
 pub fn tarball_basename(url: &str) -> Option<&str> {
     let path = url.split(['?', '#']).next().unwrap_or(url);
     path.rsplit('/').next().filter(|segment| !segment.is_empty())
@@ -551,6 +555,7 @@ pub fn tarball_basename(url: &str) -> Option<&str> {
 /// `dist-tags[tag]` first, otherwise it's taken as a literal version.
 /// Returns the version's manifest *with* the `dist.tarball` rewritten
 /// to point at this server.
+#[must_use]
 pub fn extract_version_manifest(
     packument: &Value,
     pkg: &PackageName,
@@ -561,6 +566,7 @@ pub fn extract_version_manifest(
 }
 
 /// Extract a version manifest while preserving valid upstream revision routes.
+#[must_use]
 pub fn extract_upstream_version_manifest(
     packument: &Value,
     pkg: &PackageName,
@@ -724,7 +730,7 @@ fn trim_dist_fields(version: &mut serde_json::Map<String, Value>) {
 /// every character dropped is a byte off the wire.
 ///
 /// Both reduced forms stay parseable by pnpm (`new Date`) and pacquet
-/// ([`pnpm_resolving_resolver_base::parse_packument_timestamp`]).
+/// (`pnpm_resolving_resolver_base::parse_packument_timestamp`).
 /// Values are rounded *up* (see [`coarsen_timestamp`]) so the
 /// maturity- and trust-checks that read them stay fail-safe.
 /// Non-timestamp entries (the reserved `unpublished` object) and any

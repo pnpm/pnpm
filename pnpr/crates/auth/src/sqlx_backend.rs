@@ -15,7 +15,7 @@ use std::{
 };
 
 #[derive(Debug)]
-pub(in crate::auth) struct SqlAuth<Db> {
+pub(crate) struct SqlAuth<Db> {
     db: Db,
     secret: [u8; 32],
     counter: AtomicU64,
@@ -194,14 +194,14 @@ pub(super) mod postgres {
     use std::time::Duration;
 
     #[derive(Debug)]
-    pub(in crate::auth) struct PostgresDatabase {
+    pub(crate) struct PostgresDatabase {
         pool: PgPool,
     }
 
-    pub(in crate::auth) type PostgresAuth = SqlAuth<PostgresDatabase>;
+    pub(crate) type PostgresAuth = SqlAuth<PostgresDatabase>;
 
     impl SqlAuth<PostgresDatabase> {
-        pub(in crate::auth) async fn connect(
+        pub(crate) async fn connect(
             settings: &SqlBackendSettings,
             max_users: MaxUsers,
         ) -> Result<Self> {
@@ -524,14 +524,14 @@ pub(super) mod mysql {
     use std::time::Duration;
 
     #[derive(Debug)]
-    pub(in crate::auth) struct MysqlDatabase {
+    pub(crate) struct MysqlDatabase {
         pool: MySqlPool,
     }
 
-    pub(in crate::auth) type MysqlAuth = SqlAuth<MysqlDatabase>;
+    pub(crate) type MysqlAuth = SqlAuth<MysqlDatabase>;
 
     impl SqlAuth<MysqlDatabase> {
-        pub(in crate::auth) async fn connect(
+        pub(crate) async fn connect(
             settings: &SqlBackendSettings,
             max_users: MaxUsers,
         ) -> Result<Self> {

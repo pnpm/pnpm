@@ -21,15 +21,9 @@ use self::{
 };
 
 use crate::{
-    auth::{AuthState, UpsertOutcome, identify},
     publish::{iso_from_unix_millis, now_iso},
     storage::Storage,
     streaming,
-    upstream::{
-        CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
-        extract_upstream_version_manifest, extract_version_manifest, rewrite_tarball_urls,
-        rewrite_upstream_tarball_urls, tarball_basename,
-    },
 };
 use axum::{
     Router,
@@ -47,11 +41,17 @@ use chrono::Utc;
 use indexmap::IndexMap;
 use pnpm_crypto_hash::{integrity_addressed_tarball_integrity, integrity_addressed_tarball_path};
 use pnpm_lockfile::TarballRevision;
+use pnpr_auth::{AuthState, UpsertOutcome, identify};
 use pnpr_config::{Config, HostedConfig};
 use pnpr_error::RegistryError;
 use pnpr_package_name::PackageName;
 use pnpr_policy::Identity;
 use pnpr_registry::{ConcreteKind, Registry, Resolved};
+use pnpr_upstream::{
+    CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
+    extract_upstream_version_manifest, extract_version_manifest, rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls, tarball_basename,
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use ssri::Integrity;
@@ -777,18 +777,18 @@ fn compute_upstream_cache_namespace(config: &Config, upstream: &str) -> String {
         // the URL or rotating a credential carried in a custom header moves
         // the private cache to a fresh namespace. The NUL separator keeps
         // `(url, headers)` pairs unambiguous — a URL cannot contain NUL.
-        let epoch = crate::route::credential_digest(&format!(
+        let epoch = pnpr_route::credential_digest(&format!(
             "{url}\0{}",
-            crate::route::headers_credential_digest(&upstream_config.headers),
+            pnpr_route::headers_credential_digest(&upstream_config.headers),
         ));
         let digest =
-            crate::route::upstream_cache_digest(upstream, epoch, &config.resolution_cache_secret);
+            pnpr_route::upstream_cache_digest(upstream, epoch, &config.resolution_cache_secret);
         return format!("~upstreams/{digest}");
     }
     // Public registry: a stable, secret-free namespace keyed by the registry name
     // and its origin URL (hashed so a path-unsafe value can't escape the
     // cache root).
-    format!("~public/{}", crate::route::credential_digest(&format!("{upstream}\0{url}")))
+    format!("~public/{}", pnpr_route::credential_digest(&format!("{upstream}\0{url}")))
 }
 
 /// Await `fut`, emitting its duration as a `pnpr::serve_timing` debug event
@@ -2103,7 +2103,7 @@ async fn logout(state: &AppState, identity: &Identity, raw_token: &str) -> Respo
     }
 }
 
-fn token_response_object(key: &str, record: &crate::auth::TokenRecord) -> Value {
+fn token_response_object(key: &str, record: &pnpr_auth::TokenRecord) -> Value {
     let preview: String = key.chars().take(6).collect();
     let created = token_timestamp_iso(record.created_at);
     let updated = token_timestamp_iso(record.last_used_at);

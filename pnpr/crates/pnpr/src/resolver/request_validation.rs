@@ -1,7 +1,7 @@
 use axum::{http::StatusCode, response::Response};
 use pnpm_lockfile::LockfileResolution;
 
-use crate::route::RouteContext;
+use pnpr_route::RouteContext;
 
 use super::{json_error, protocol::ResolveRequest};
 
@@ -201,7 +201,7 @@ pub(super) fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Respons
             }
         }
     }
-    let inline = specs.iter().any(|spec| crate::route::url_has_inline_credentials(spec))
+    let inline = specs.iter().any(|spec| pnpr_route::url_has_inline_credentials(spec))
         || request.overrides.as_ref().is_some_and(overrides_have_inline_url_auth);
     inline.then(|| {
         json_error(
@@ -234,7 +234,7 @@ fn extend_package_extension_specs<'a>(request: &'a ResolveRequest, specs: &mut V
 /// a URL carrying inline credentials.
 fn overrides_have_inline_url_auth(value: &serde_json::Value) -> bool {
     match value {
-        serde_json::Value::String(spec) => crate::route::url_has_inline_credentials(spec),
+        serde_json::Value::String(spec) => pnpr_route::url_has_inline_credentials(spec),
         serde_json::Value::Array(items) => items.iter().any(overrides_have_inline_url_auth),
         serde_json::Value::Object(map) => map.values().any(overrides_have_inline_url_auth),
         _ => false,
