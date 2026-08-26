@@ -50,10 +50,7 @@ mod verdict_cache;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{
-        Arc, LazyLock, Mutex, OnceLock,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, LazyLock, Mutex, OnceLock},
     time::{Duration, Instant},
 };
 
@@ -541,7 +538,6 @@ pub(crate) async fn handle_resolve(
         tx: tx.clone(),
         package_version_guard: package_version_guard.clone(),
         tarball_router: tarball_router.clone(),
-        announce_project_transform_support: AtomicBool::new(true),
     });
     let client = Arc::clone(&runtime.client);
     let cache = Arc::clone(&runtime.resolution_cache);
@@ -1024,29 +1020,23 @@ fn upstream_endpoint_tarball_url(
 /// server's gzip [`CompressionLayer`](crate::server) so frames flush to
 /// the client incrementally rather than being buffered by the encoder.
 const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson";
+const PROJECT_TRANSFORMS_HEADER: &str = "pnpr-project-transforms";
+const PROJECT_TRANSFORMS_VERSION: &str = "1";
 
 /// [`ResolutionObserver`](pnpm_package_manager::ResolutionObserver)
 /// that turns each resolved tarball into a `package` NDJSON frame and
 /// pushes it down the response channel. `on_resolved` is best-effort: a
 /// closed channel (client hung up) or a serialization failure drops the
-/// frame silently — the resolve still runs to completion server-side. The
-/// first frame advertises project-transform support so current clients can
-/// prefetch immediately while clients talking to an older server buffer until
-/// the terminal lockfile confirms its transform metadata.
+/// frame silently — the resolve still runs to completion server-side.
 struct StreamObserver {
     tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
     package_version_guard: Option<Arc<dyn PackageVersionGuard>>,
     tarball_router: TarballRouter,
-    announce_project_transform_support: AtomicBool,
 }
 
 impl pnpm_package_manager::ResolutionObserver for StreamObserver {
     fn on_resolved(&self, hint: pnpm_package_manager::ResolvedPackageHint<'_>) {
-        let announces_support =
-            self.announce_project_transform_support.swap(false, Ordering::Relaxed);
-        if let Ok(line) =
-            ndjson_line(&package_frame(&self.tarball_router, &hint, announces_support))
-        {
+        if let Ok(line) = ndjson_line(&package_frame(&self.tarball_router, &hint)) {
             let _ = self.tx.send(line);
         }
     }
@@ -1056,14 +1046,8 @@ impl pnpm_package_manager::ResolutionObserver for StreamObserver {
     }
 }
 
-/// One `package` NDJSON frame. Optional fields are omitted (not null), and the
-/// project-transform capability is emitted only once per response. Older
-/// clients ignore the additive capability field.
-fn package_frame(
-    router: &TarballRouter,
-    hint: &ResolvedPackageHint<'_>,
-    announces_project_transform_support: bool,
-) -> serde_json::Value {
+/// One `package` NDJSON frame. Optional fields are omitted (not null).
+fn package_frame(router: &TarballRouter, hint: &ResolvedPackageHint<'_>) -> serde_json::Value {
     // A registry-resolved package's `tarball_url` is the packument's
     // `dist.tarball`, which a split-domain registry hosts on a different origin
     // — route it by the registry, not the tarball host, so a private package
@@ -1081,9 +1065,6 @@ fn package_frame(
         "integrity": hint.integrity,
         "tarball": tarball_url,
     });
-    if announces_project_transform_support {
-        frame["supportsProjectTransforms"] = serde_json::Value::Bool(true);
-    }
     if let Some(size) = hint.unpacked_size {
         frame["unpackedSize"] = serde_json::Value::from(size);
     }
@@ -1173,7 +1154,6 @@ fn frozen_package_frames(
                 // no-op on an already-routed URL.
                 from_registry: false,
             },
-            frames.is_empty(),
         );
         if let Ok(line) = ndjson_line(&frame) {
             frames.push(line);
@@ -1356,6 +1336,7 @@ fn ndjson_single_frame(frame: &[u8]) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
+        .header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .body(Body::from(frame.to_vec()))
         .expect("binary response is always valid")
 }
@@ -1367,6 +1348,7 @@ fn ndjson_frames(frames: &[Vec<u8>]) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
+        .header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .body(Body::from(frames.concat()))
         .expect("binary response is always valid")
 }
@@ -1381,6 +1363,7 @@ fn ndjson_stream_response(rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>) -> 
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
+        .header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .body(Body::from_stream(stream))
         .expect("streaming response is always valid")
 }

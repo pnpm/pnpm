@@ -7,8 +7,9 @@ use pnpm_lockfile::TarballRevision;
 use serde_json::{Value, json};
 
 use super::{
-    Frame, PnprClient, PnprClientError, ResolveOutcome, ResolveProject, ResolveProjectsOptions,
-    ResolvedPackage, VerifyError, build_verify_error, parse_frame,
+    Frame, PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION, PnprClient, PnprClientError,
+    ResolveOutcome, ResolveProject, ResolveProjectsOptions, ResolvedPackage, VerifyError,
+    build_verify_error, parse_frame,
 };
 
 /// The request body is the whole contract with the server: a field the
@@ -42,6 +43,7 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
             "trustPolicyIgnoreAfter": 43200,
             "trustLockfile": true,
         })))
+        .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile })))
         .create_async()
         .await;
@@ -95,30 +97,33 @@ async fn rejects_a_server_that_omits_or_changes_package_extension_metadata() {
 }
 
 #[tokio::test]
-async fn buffers_old_server_packages_until_transform_metadata_is_validated() {
+async fn rejects_an_old_server_before_consuming_package_frames() {
     let frames = vec![
-        mock_package_frame(false),
+        mock_package_frame(),
         json!({
             "type": "done",
             "lockfile": { "lockfileVersion": "9.0" },
         }),
     ];
     let mut prefetched = Vec::new();
-    let result = resolve_mock_frames(resolve_projects_options(), frames, |package| {
+    let result = resolve_mock_frames(resolve_projects_options(), frames, false, |package| {
         prefetched.push(package.id);
     })
     .await;
 
-    assert!(matches!(result, Err(PnprClientError::Protocol(_))));
+    let Err(PnprClientError::Protocol(message)) = result else {
+        panic!("expected a protocol error");
+    };
+    assert!(message.contains("does not advertise project-transform support"));
     assert!(prefetched.is_empty(), "an old server must not trigger prefetches");
 }
 
 #[tokio::test]
-async fn a_support_signal_preserves_streaming_prefetch() {
+async fn a_project_transform_header_preserves_streaming_prefetch() {
     let frames =
-        vec![mock_package_frame(true), json!({ "type": "error", "message": "resolution stopped" })];
+        vec![mock_package_frame(), json!({ "type": "error", "message": "resolution stopped" })];
     let mut prefetched = Vec::new();
-    let result = resolve_mock_frames(resolve_projects_options(), frames, |package| {
+    let result = resolve_mock_frames(resolve_projects_options(), frames, true, |package| {
         prefetched.push(package.id);
     })
     .await;
@@ -197,9 +202,13 @@ async fn assert_transform_metadata_rejected(
     lockfile: Value,
     expected_message: &str,
 ) {
-    let Err(PnprClientError::Protocol(message)) =
-        resolve_mock_frames(options, vec![json!({ "type": "done", "lockfile": lockfile })], |_| {})
-            .await
+    let Err(PnprClientError::Protocol(message)) = resolve_mock_frames(
+        options,
+        vec![json!({ "type": "done", "lockfile": lockfile })],
+        true,
+        |_| {},
+    )
+    .await
     else {
         panic!("expected a protocol error");
     };
@@ -209,12 +218,17 @@ async fn assert_transform_metadata_rejected(
 async fn resolve_mock_frames(
     options: ResolveProjectsOptions,
     frames: Vec<Value>,
+    supports_project_transforms: bool,
     on_package: impl FnMut(ResolvedPackage),
 ) -> Result<ResolveOutcome, PnprClientError> {
     let body = frames.into_iter().map(|frame| format!("{frame}\n")).collect::<Vec<_>>().concat();
     let mut server = mockito::Server::new_async().await;
-    let resolve_mock =
-        server.mock("POST", "/-/pnpr/v0/resolve").with_body(body).create_async().await;
+    let mut resolve_mock = server.mock("POST", "/-/pnpr/v0/resolve").with_body(body);
+    if supports_project_transforms {
+        resolve_mock =
+            resolve_mock.with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION);
+    }
+    let resolve_mock = resolve_mock.create_async().await;
 
     let result =
         PnprClient::new(server.url()).resolve_projects_streaming(options, on_package).await;
@@ -222,19 +236,15 @@ async fn resolve_mock_frames(
     result
 }
 
-fn mock_package_frame(supports_project_transforms: bool) -> Value {
-    let mut frame = json!({
+fn mock_package_frame() -> Value {
+    json!({
         "type": "package",
         "id": "acme@1.0.0",
         "name": "acme",
         "version": "1.0.0",
         "integrity": "sha512-abc",
         "tarball": "https://r.test/acme/-/acme-1.0.0.tgz",
-    });
-    if supports_project_transforms {
-        frame["supportsProjectTransforms"] = json!(true);
-    }
-    frame
+    })
 }
 
 #[test]
@@ -266,7 +276,7 @@ fn tarball_mismatch_maps_to_the_generic_envelope() {
 
 #[test]
 fn a_package_frame_parses_its_fetch_hint() {
-    let line = br#"{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz","unpackedSize":123456,"fileCount":42,"revision":3,"supportsProjectTransforms":true}"#;
+    let line = br#"{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz","unpackedSize":123456,"fileCount":42,"revision":3}"#;
     let Frame::Package {
         id,
         name,
@@ -276,7 +286,6 @@ fn a_package_frame_parses_its_fetch_hint() {
         unpacked_size,
         file_count,
         revision,
-        supports_project_transforms,
     } = parse_frame(line).expect("frame parses")
     else {
         panic!("expected a package frame");
@@ -289,7 +298,6 @@ fn a_package_frame_parses_its_fetch_hint() {
     assert_eq!(unpacked_size, Some(123456));
     assert_eq!(file_count, Some(42));
     assert_eq!(revision, Some(TarballRevision::try_from(3).unwrap()));
-    assert!(supports_project_transforms);
 }
 
 #[test]

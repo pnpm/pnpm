@@ -330,6 +330,10 @@ async fn authenticated_resolve_preserves_git_dependencies() {
         .oneshot(git_resolve_request(&repo_url, Some(&format!("Bearer {token}"))))
         .await
         .unwrap();
+    assert_eq!(
+        response.headers().get("pnpr-project-transforms").and_then(|value| value.to_str().ok()),
+        Some("1"),
+    );
     let (status, body) = drain_resolve_response(response).await;
 
     assert_eq!(status, StatusCode::OK);

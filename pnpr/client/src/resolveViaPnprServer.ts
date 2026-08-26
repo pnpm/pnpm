@@ -137,7 +137,7 @@ interface Violation { name: string, version: string, code: string, reason: strin
  * `violations`) closes the response.
  */
 type ResolveFrame =
-  | { type: 'package', id: string, name: string, version: string, integrity: string, tarball: string, supportsProjectTransforms?: boolean }
+  | { type: 'package', id: string, name: string, version: string, integrity: string, tarball: string }
   | { type: 'done', lockfile: LockfileFile, stats: ResponseMetadata['stats'] }
   | { type: 'error', message: string }
   | { type: 'violations', violations: Violation[] }

@@ -524,17 +524,27 @@ impl PnprClient {
             )));
         }
 
-        // Consume the NDJSON stream line by line. A current server marks its
-        // first package frame as transform-aware, preserving resolution/fetch
-        // overlap. When transforms were requested from an older server, hold
-        // package frames until the terminal lockfile proves it applied them,
-        // so an incompatible response cannot trigger useless prefetches.
+        if project_transforms_requested
+            && response
+                .headers()
+                .get(PROJECT_TRANSFORMS_HEADER)
+                .and_then(|value| value.to_str().ok())
+                != Some(PROJECT_TRANSFORMS_VERSION)
+        {
+            return Err(PnprClientError::Protocol(
+                "pnpr server /-/pnpr/v0/resolve does not advertise project-transform support"
+                    .to_string(),
+            ));
+        }
+
+        // Consume the NDJSON stream line by line. The response header above
+        // proves transform support before any package frame is consumed, so
+        // current servers preserve resolution/fetch overlap while older
+        // servers fail without triggering downloads or buffering hints.
         // reqwest's `gzip` feature transparently inflates the byte stream if a
         // proxy compressed it, so the frames arrive as plain JSON lines.
         let mut stream = response.bytes_stream();
         let mut buf: Vec<u8> = Vec::new();
-        let mut server_supports_project_transforms = false;
-        let mut pending_packages = Vec::new();
         while let Some(chunk) = stream.next().await {
             buf.extend_from_slice(&chunk?);
             while let Some(newline) = buf.iter().position(|&byte| byte == b'\n') {
@@ -553,9 +563,8 @@ impl PnprClient {
                         unpacked_size,
                         file_count,
                         revision,
-                        supports_project_transforms,
                     } => {
-                        let package = ResolvedPackage {
+                        on_package(ResolvedPackage {
                             id,
                             name,
                             version,
@@ -564,18 +573,7 @@ impl PnprClient {
                             unpacked_size,
                             file_count,
                             revision,
-                        };
-                        if supports_project_transforms {
-                            server_supports_project_transforms = true;
-                            for pending in pending_packages.drain(..) {
-                                on_package(pending);
-                            }
-                        }
-                        if project_transforms_requested && !server_supports_project_transforms {
-                            pending_packages.push(package);
-                        } else {
-                            on_package(package);
-                        }
+                        });
                     }
                     Frame::Done { lockfile, stats } => {
                         if let Some(unexpected) = lockfile
@@ -588,9 +586,6 @@ impl PnprClient {
                             )));
                         }
                         assert_transform_metadata(&lockfile, &opts)?;
-                        for pending in pending_packages {
-                            on_package(pending);
-                        }
                         return Ok(ResolveOutcome { lockfile: *lockfile, stats });
                     }
                     Frame::Error { message } => return Err(PnprClientError::Server(message)),
@@ -610,6 +605,9 @@ fn has_project_transforms(opts: &ResolveProjectsOptions) -> bool {
     opts.patched_dependencies.as_ref().is_some_and(|patches| !patches.is_empty())
         || opts.package_extensions.as_ref().is_some_and(|extensions| !extensions.is_empty())
 }
+
+const PROJECT_TRANSFORMS_HEADER: &str = "pnpr-project-transforms";
+const PROJECT_TRANSFORMS_VERSION: &str = "1";
 
 fn assert_transform_metadata(
     lockfile: &Lockfile,
@@ -676,8 +674,6 @@ enum Frame {
         file_count: Option<usize>,
         #[serde(default)]
         revision: Option<TarballRevision>,
-        #[serde(rename = "supportsProjectTransforms", default)]
-        supports_project_transforms: bool,
     },
     /// Boxed: the lockfile dwarfs the other variants, so keeping it
     /// behind a pointer keeps the enum small.
