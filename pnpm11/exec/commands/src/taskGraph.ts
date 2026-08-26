@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import { PnpmError } from '@pnpm/error'
+import { globalWarn } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { PackageScripts, ProjectRootDir, ProjectsGraph, WorkspaceTasks } from '@pnpm/types'
 
@@ -109,13 +110,25 @@ function taskDependsOn (tasks: WorkspaceTasks | undefined, taskName: string): st
   return [`^${taskName}`]
 }
 
+export interface SequenceTasksOptions {
+  workspaceDir: string
+  /**
+   * The `ignoreWorkspaceCycles` setting: the workspace has declared its
+   * cycles deliberate, so a cyclic task graph is downgraded from an error
+   * to a warning, the edges among a cycle's members are dropped, and the
+   * members run in an arbitrary order relative to each other.
+   */
+  ignoreCycles?: boolean
+}
+
 /**
  * Topologically sequences the task graph into ready-together groups —
  * dependencies always in an earlier group — throwing when the tasks form a
- * cycle. Detection is scoped to this graph: a cycle among tasks the filter
- * did not select cannot fail the run.
+ * cycle (unless `ignoreCycles` tolerates it, which mutates the graph's
+ * edges acyclic). Detection is scoped to this graph: a cycle among tasks
+ * the filter did not select cannot fail the run.
  */
-export function sequenceTasks (graph: TaskGraph, workspaceDir: string): TaskKey[][] {
+export function sequenceTasks (graph: TaskGraph, opts: SequenceTasksOptions): TaskKey[][] {
   const edges = new Map<TaskKey, TaskKey[]>()
   for (const [key, node] of graph) {
     edges.set(key, node.dependencies)
@@ -123,11 +136,37 @@ export function sequenceTasks (graph: TaskGraph, workspaceDir: string): TaskKey[
   const result = graphSequencer(edges, [...graph.keys()])
   if (result.cycles.length > 0) {
     const cycles = result.cycles.map((cycle) =>
-      [...cycle, cycle[0]].map((key) => formatTask(graph.get(key)!, workspaceDir)).join(' → ')
-    )
-    throw new PnpmError('TASK_CYCLE', `The tasks form a dependency cycle: ${cycles.join('; ')}`)
+      [...cycle, cycle[0]].map((key) => formatTask(graph.get(key)!, opts.workspaceDir)).join(' → ')
+    ).join('; ')
+    if (!opts.ignoreCycles) {
+      throw new PnpmError('TASK_CYCLE', `The tasks form a dependency cycle: ${cycles}`, {
+        hint: 'If the cycles are deliberate, set ignoreWorkspaceCycles to true to run their tasks in an arbitrary order.',
+      })
+    }
+    globalWarn(`The tasks form a dependency cycle and run in an arbitrary order relative to each other because ignoreWorkspaceCycles is set: ${cycles}`)
+    dropCyclicDependencies(graph, result.chunks)
   }
   return result.chunks
+}
+
+/**
+ * Keeps only the dependencies the group assignment proved acyclic: an edge
+ * into the same group is part of a cycle (an acyclic edge always crosses
+ * into an earlier group), so a cycle's members end up running concurrently,
+ * ordered against everything outside the cycle but not each other.
+ */
+function dropCyclicDependencies (graph: TaskGraph, groups: TaskKey[][]): void {
+  const groupIndex = new Map<TaskKey, number>()
+  for (const [index, group] of groups.entries()) {
+    for (const key of group) {
+      groupIndex.set(key, index)
+    }
+  }
+  for (const [key, node] of graph) {
+    node.dependencies = node.dependencies.filter(
+      (dependency) => groupIndex.get(dependency)! < groupIndex.get(key)!
+    )
+  }
 }
 
 export function formatTask (node: TaskNode, workspaceDir: string): string {

@@ -20,9 +20,10 @@ use crate::cli_args::{
         write_recursive_summary,
     },
     task_graph::{
-        BuildTaskGraphOptions, ScheduleTasksOptions, TaskCompletion, TaskGraph, TaskNode,
-        build_task_graph, is_serial_task_graph, render_task_graph_dry_run, resume_task_graph_from,
-        reverse_task_graph, schedule_tasks, sequence_tasks, task_graph_to_json, task_summary_key,
+        BuildTaskGraphOptions, ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion,
+        TaskGraph, TaskNode, build_task_graph, is_serial_task_graph, render_task_graph_dry_run,
+        resume_task_graph_from, reverse_task_graph, schedule_tasks, sequence_tasks,
+        task_graph_to_json, task_summary_key,
     },
 };
 use derive_more::{Display, Error};
@@ -34,7 +35,7 @@ use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
     pnp_path_for_execution,
 };
-use pnpm_reporter::{LogEvent, LogLevel, ScopeLog};
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, ScopeLog};
 use pnpm_workspace::GraphPkg;
 use pnpm_workspace_projects_graph::ProjectGraph;
 use std::{
@@ -146,10 +147,18 @@ pub fn run_recursive(
 
     // Compiled once for the whole run, not per project or task.
     let selector = ScriptSelector::new(script_name)?;
-    let task_graph = build_run_task_graph(script_name, &selector, args, config, graph, &selection)?;
+    let mut task_graph =
+        build_run_task_graph(script_name, &selector, args, config, graph, &selection, emit)?;
     // Also the cycle check: a cyclic graph cannot be scheduled, and
     // sequenced into an arbitrary order it would succeed or fail by luck.
-    let sequenced_tasks = sequence_tasks(&task_graph, workspace_root)?;
+    let sequenced_tasks = sequence_tasks(
+        &mut task_graph,
+        &SequenceTasksOptions {
+            workspace_dir: workspace_root,
+            ignore_cycles: config.ignore_workspace_cycles,
+            emit,
+        },
+    )?;
 
     if args.dry_run {
         if args.json {
@@ -175,6 +184,16 @@ pub fn run_recursive(
                 return Err(super::RunError::HiddenScript { script: script.clone() }.into());
             }
         }
+    }
+
+    // Before anything is dispatched: when no selected project has the
+    // script, the run is a user error, and the tasks `dependsOn` pulled in
+    // must not have run their side effects by the time it is reported.
+    if script_name != "test"
+        && !args.if_present
+        && task_graph.values().all(|node| !node.requested || node.scripts.is_empty())
+    {
+        return Err(no_requested_script_error(script_name, graph.len() == projects.len()).into());
     }
 
     let bail = !args.no_bail;
@@ -287,13 +306,7 @@ pub fn run_recursive(
         && failures == 0
         && !args.if_present
     {
-        let script_name = script_name.to_string();
-        return Err(if graph.len() == projects.len() {
-            RecursiveRunError::NoScript { script_name }
-        } else {
-            RecursiveRunError::NoSelectedScript { script_name }
-        }
-        .into());
+        return Err(no_requested_script_error(script_name, graph.len() == projects.len()).into());
     }
 
     if args.report_summary {
@@ -312,6 +325,15 @@ pub fn run_recursive(
 ///
 /// `--no-sort` keeps its meaning of disregarding ordering entirely: tasks
 /// get no edges, and the `tasks` declarations do not apply.
+fn no_requested_script_error(script_name: &str, all_packages_selected: bool) -> RecursiveRunError {
+    let script_name = script_name.to_string();
+    if all_packages_selected {
+        RecursiveRunError::NoScript { script_name }
+    } else {
+        RecursiveRunError::NoSelectedScript { script_name }
+    }
+}
+
 fn build_run_task_graph(
     script_name: &str,
     selector: &ScriptSelector<'_>,
@@ -319,6 +341,7 @@ fn build_run_task_graph(
     config: &Config,
     graph: &ProjectGraph<GraphPkg<'_>>,
     selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+    emit: fn(&LogEvent),
 ) -> miette::Result<TaskGraph> {
     let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = if args.sort {
         filtered_projects_dependencies(
@@ -328,6 +351,18 @@ fn build_run_task_graph(
             &selection.prod_only_selected,
         )
     } else {
+        if !config.tasks.is_empty() {
+            emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Warn,
+                message: "The tasks declarations in pnpm-workspace.yaml are ignored because sorting is disabled (--no-sort or --parallel)".to_string(),
+                prefix: config
+                    .workspace_dir
+                    .as_deref()
+                    .unwrap_or_else(|| Path::new("."))
+                    .to_string_lossy()
+                    .into_owned(),
+            }));
+        }
         graph.keys().cloned().map(|root| (root, Vec::new())).collect()
     };
     let select_scripts = |project: &Path, task_name: &str| -> Vec<String> {

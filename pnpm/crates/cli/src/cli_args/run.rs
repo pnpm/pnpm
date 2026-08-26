@@ -290,7 +290,11 @@ impl RunArgs {
         dir: &Path,
         reporter: ReporterType,
     ) -> miette::Result<()> {
-        super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
+        // A dry run prints what would execute and runs nothing, so it must
+        // not let the dependency verification trigger an install either.
+        if !self.dry_run {
+            super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
+        }
         recursive::run_recursive(
             self,
             config,

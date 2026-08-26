@@ -12,6 +12,7 @@ use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_config::TaskSettings;
 use pnpm_package_manager::graph_sequencer;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
 use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
@@ -54,7 +55,12 @@ pub type TaskGraph = IndexMap<TaskKey, TaskNode>;
 /// luck.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("The tasks form a dependency cycle: {cycles}")]
-#[diagnostic(code(ERR_PNPM_TASK_CYCLE))]
+#[diagnostic(
+    code(ERR_PNPM_TASK_CYCLE),
+    help(
+        "If the cycles are deliberate, set ignoreWorkspaceCycles to true to run their tasks in an arbitrary order."
+    )
+)]
 pub struct TaskCycle {
     #[error(not(source))]
     pub cycles: String,
@@ -134,13 +140,24 @@ where
     graph
 }
 
+pub struct SequenceTasksOptions<'a> {
+    pub workspace_dir: &'a Path,
+    /// The `ignoreWorkspaceCycles` setting: the workspace has declared its
+    /// cycles deliberate, so a cyclic task graph is downgraded from an
+    /// error to a warning, the edges among a cycle's members are dropped,
+    /// and the members run in an arbitrary order relative to each other.
+    pub ignore_cycles: bool,
+    pub emit: fn(&LogEvent),
+}
+
 /// Topologically sequence the task graph into ready-together groups —
 /// dependencies always in an earlier group — erroring when the tasks form
-/// a cycle. Detection is scoped to this graph: a cycle among tasks the
-/// filter did not select cannot fail the run.
+/// a cycle (unless `ignore_cycles` tolerates it, which rewrites the
+/// graph's edges acyclic). Detection is scoped to this graph: a cycle
+/// among tasks the filter did not select cannot fail the run.
 pub fn sequence_tasks(
-    graph: &TaskGraph,
-    workspace_dir: &Path,
+    graph: &mut TaskGraph,
+    options: &SequenceTasksOptions<'_>,
 ) -> Result<Vec<Vec<TaskKey>>, TaskCycle> {
     let edges: HashMap<TaskKey, Vec<TaskKey>> =
         graph.iter().map(|(key, node)| (key.clone(), node.dependencies.clone())).collect();
@@ -154,15 +171,54 @@ pub fn sequence_tasks(
                 cycle
                     .iter()
                     .chain(cycle.first())
-                    .map(|key| format_task(key, workspace_dir))
+                    .map(|key| format_task(key, options.workspace_dir))
                     .collect::<Vec<_>>()
                     .join(" → ")
             })
             .collect::<Vec<_>>()
             .join("; ");
-        return Err(TaskCycle { cycles });
+        if !options.ignore_cycles {
+            return Err(TaskCycle { cycles });
+        }
+        (options.emit)(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
+            message: format!(
+                "The tasks form a dependency cycle and run in an arbitrary order relative to each other because ignoreWorkspaceCycles is set: {cycles}"
+            ),
+            prefix: options.workspace_dir.to_string_lossy().into_owned(),
+        }));
+        drop_cyclic_dependencies(graph, &result.chunks);
     }
     Ok(result.chunks)
+}
+
+/// Keep only the dependencies the group assignment proved acyclic: an edge
+/// into the same group is part of a cycle (an acyclic edge always crosses
+/// into an earlier group), so a cycle's members end up running
+/// concurrently, ordered against everything outside the cycle but not each
+/// other.
+fn drop_cyclic_dependencies(graph: &mut TaskGraph, groups: &[Vec<TaskKey>]) {
+    let group_index: HashMap<&TaskKey, usize> = groups
+        .iter()
+        .enumerate()
+        .flat_map(|(index, group)| group.iter().map(move |key| (key, index)))
+        .collect();
+    let filtered: Vec<(TaskKey, Vec<TaskKey>)> = graph
+        .iter()
+        .map(|(key, node)| {
+            (
+                key.clone(),
+                node.dependencies
+                    .iter()
+                    .filter(|dependency| group_index[*dependency] < group_index[key])
+                    .cloned()
+                    .collect(),
+            )
+        })
+        .collect();
+    for (key, dependencies) in filtered {
+        graph[&key].dependencies = dependencies;
+    }
 }
 
 /// `<workspace-relative dir>#<task name>`, with forward slashes on every
@@ -172,7 +228,12 @@ pub fn format_task(key: &TaskKey, workspace_dir: &Path) -> String {
 }
 
 fn relative_project_dir(project: &Path, workspace_dir: &Path) -> String {
-    let relative = pathdiff::diff_paths(project, workspace_dir).unwrap_or_default();
+    let relative = pnpm_fs::relative_path(workspace_dir, project);
+    if relative == project {
+        // The two could not be related (a different drive); the absolute
+        // path is the only faithful rendering.
+        return relative.to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/");
+    }
     if relative.as_os_str().is_empty() {
         return ".".to_string();
     }
@@ -467,66 +528,98 @@ where
         }
     };
 
-    let workers = options.concurrency.max(1).min(graph.len());
+    // Pass-through tasks are settled inline by whichever worker pops them,
+    // so only tasks with scripts need a worker of their own.
+    let script_tasks = graph.values().filter(|node| !node.scripts.is_empty()).count();
+    let workers = options.concurrency.max(1).min(script_tasks.max(1));
     std::thread::scope(|scope| {
         for _ in 0..workers {
-            scope.spawn(|| {
-                let mut guard = state.lock().expect("task scheduler state lock is not poisoned");
-                loop {
-                    if guard.stop_dispatch {
-                        if guard.in_flight == 0 {
-                            progress.notify_all();
-                            return;
+            std::thread::Builder::new()
+                .spawn_scoped(scope, || {
+                    let mut guard =
+                        state.lock().expect("task scheduler state lock is not poisoned");
+                    loop {
+                        if guard.stop_dispatch {
+                            if guard.in_flight == 0 {
+                                progress.notify_all();
+                                return;
+                            }
+                            guard = progress
+                                .wait(guard)
+                                .expect("task scheduler state lock is not poisoned");
+                            continue;
                         }
-                        guard = progress
-                            .wait(guard)
-                            .expect("task scheduler state lock is not poisoned");
-                        continue;
-                    }
-                    let Some(index) = guard.ready.pop_front() else {
-                        if guard.unsettled == 0 {
+                        let Some(index) = guard.ready.pop_front() else {
+                            if guard.unsettled == 0 {
+                                progress.notify_all();
+                                return;
+                            }
+                            guard = progress
+                                .wait(guard)
+                                .expect("task scheduler state lock is not poisoned");
+                            continue;
+                        };
+                        let node = &graph[index];
+                        if node.scripts.is_empty() {
+                            (options.on_task_skipped)(node);
+                            complete(&mut guard, index);
                             progress.notify_all();
-                            return;
+                            continue;
                         }
-                        guard = progress
-                            .wait(guard)
-                            .expect("task scheduler state lock is not poisoned");
-                        continue;
-                    };
-                    let node = &graph[index];
-                    if node.scripts.is_empty() {
-                        (options.on_task_skipped)(node);
-                        complete(&mut guard, index);
-                        progress.notify_all();
-                        continue;
-                    }
-                    guard.in_flight += 1;
-                    drop(guard);
-                    let completion = (options.run_task)(node);
-                    guard = state.lock().expect("task scheduler state lock is not poisoned");
-                    guard.in_flight -= 1;
-                    match completion {
-                        TaskCompletion::Passed => complete(&mut guard, index),
-                        TaskCompletion::Failed => {
-                            guard.settled[index] = true;
-                            guard.unsettled -= 1;
-                            if options.bail {
+                        guard.in_flight += 1;
+                        drop(guard);
+                        // A panic in `run_task` must not strand the other
+                        // workers: without this guard they would wait forever
+                        // on a Condvar nobody signals, and `thread::scope`
+                        // would never finish joining them.
+                        let panic_guard = AbortOnUnwind { state: &state, progress: &progress };
+                        let completion = (options.run_task)(node);
+                        drop(panic_guard);
+                        guard = state.lock().expect("task scheduler state lock is not poisoned");
+                        guard.in_flight -= 1;
+                        match completion {
+                            TaskCompletion::Passed => complete(&mut guard, index),
+                            TaskCompletion::Failed => {
+                                guard.settled[index] = true;
+                                guard.unsettled -= 1;
+                                if options.bail {
+                                    guard.stop_dispatch = true;
+                                } else {
+                                    block(&mut guard, index);
+                                }
+                            }
+                            TaskCompletion::Aborted => {
+                                guard.settled[index] = true;
+                                guard.unsettled -= 1;
                                 guard.stop_dispatch = true;
-                            } else {
-                                block(&mut guard, index);
                             }
                         }
-                        TaskCompletion::Aborted => {
-                            guard.settled[index] = true;
-                            guard.unsettled -= 1;
-                            guard.stop_dispatch = true;
-                        }
+                        progress.notify_all();
                     }
-                    progress.notify_all();
-                }
-            });
+                })
+                .expect("failed to start a task scheduler worker");
         }
     });
+}
+
+/// Settles a panicking worker's in-flight slot and stops dispatch, so the
+/// panic propagates out of `thread::scope` instead of deadlocking it.
+struct AbortOnUnwind<'a> {
+    state: &'a Mutex<SchedulerState>,
+    progress: &'a Condvar,
+}
+
+impl Drop for AbortOnUnwind<'_> {
+    fn drop(&mut self) {
+        if !std::thread::panicking() {
+            return;
+        }
+        if let Ok(mut state) = self.state.lock() {
+            state.in_flight -= 1;
+            state.stop_dispatch = true;
+        }
+        self.progress.notify_all();
+    }
 }
 
 #[cfg(test)]

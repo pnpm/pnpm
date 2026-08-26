@@ -1,10 +1,11 @@
 use super::{
-    BuildTaskGraphOptions, ScheduleTasksOptions, TaskCompletion, TaskGraph, TaskKey,
-    build_task_graph, is_serial_task_graph, render_task_graph_dry_run, resume_task_graph_from,
-    reverse_task_graph, schedule_tasks, sequence_tasks, task_graph_to_json,
+    BuildTaskGraphOptions, ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion, TaskCycle,
+    TaskGraph, TaskKey, build_task_graph, is_serial_task_graph, render_task_graph_dry_run,
+    resume_task_graph_from, reverse_task_graph, schedule_tasks, sequence_tasks, task_graph_to_json,
 };
 use indexmap::IndexMap;
 use pnpm_config::TaskSettings;
+use pnpm_reporter::LogEvent;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -19,6 +20,19 @@ fn dir(name: &str) -> PathBuf {
 
 fn key(name: &str, task_name: &str) -> TaskKey {
     TaskKey { project: dir(name), task_name: task_name.to_string() }
+}
+
+fn drop_event(_: &LogEvent) {}
+
+fn sequence(graph: &mut TaskGraph) -> Result<Vec<Vec<TaskKey>>, TaskCycle> {
+    sequence_tasks(
+        graph,
+        &SequenceTasksOptions {
+            workspace_dir: Path::new(WORKSPACE_DIR),
+            ignore_cycles: false,
+            emit: drop_event,
+        },
+    )
 }
 
 struct FakeProject {
@@ -118,7 +132,7 @@ fn explicitly_empty_depends_on_means_the_task_depends_on_nothing() {
 
 #[test]
 fn project_without_the_script_becomes_a_pass_through_node_that_keeps_the_chain() {
-    let graph = build_graph(
+    let mut graph = build_graph(
         &[
             ("a", project(&["b"], &["build"])),
             ("b", project(&["c"], &[])),
@@ -133,7 +147,7 @@ fn project_without_the_script_becomes_a_pass_through_node_that_keeps_the_chain()
     assert_eq!(pass_through.dependencies, vec![key("c", "build")]);
     assert_eq!(graph[&key("a", "build")].dependencies, vec![key("b", "build")]);
 
-    let groups = sequence_tasks(&graph, Path::new(WORKSPACE_DIR)).unwrap();
+    let groups = sequence(&mut graph).unwrap();
     assert_eq!(
         groups,
         vec![vec![key("c", "build")], vec![key("b", "build")], vec![key("a", "build")]],
@@ -142,12 +156,12 @@ fn project_without_the_script_becomes_a_pass_through_node_that_keeps_the_chain()
 
 #[test]
 fn task_cycle_is_an_error_naming_the_participating_tasks() {
-    let graph = build_graph(
+    let mut graph = build_graph(
         &[("a", project(&["b"], &["build"])), ("b", project(&["a"], &["build"]))],
         "build",
         None,
     );
-    let error = sequence_tasks(&graph, Path::new(WORKSPACE_DIR)).unwrap_err();
+    let error = sequence(&mut graph).unwrap_err();
     dbg!(&error.cycles);
     assert!(error.cycles.contains("a#build"));
     assert!(error.cycles.contains("b#build"));
@@ -156,8 +170,8 @@ fn task_cycle_is_an_error_naming_the_participating_tasks() {
 #[test]
 fn task_depending_on_itself_is_an_error() {
     let settings = tasks(&[("build", Some(&["build"]))]);
-    let graph = build_graph(&[("a", project(&[], &["build"]))], "build", Some(&settings));
-    assert!(sequence_tasks(&graph, Path::new(WORKSPACE_DIR)).is_err());
+    let mut graph = build_graph(&[("a", project(&[], &["build"]))], "build", Some(&settings));
+    assert!(sequence(&mut graph).is_err());
 }
 
 #[test]
@@ -197,7 +211,7 @@ fn resume_drops_only_the_anchors_transitive_dependencies() {
 
 #[test]
 fn is_serial_tells_a_chain_from_a_graph_with_independent_tasks() {
-    let chain = build_graph(
+    let mut chain = build_graph(
         &[
             ("a", project(&["b"], &["build"])),
             ("b", project(&["c"], &["build"])),
@@ -206,10 +220,10 @@ fn is_serial_tells_a_chain_from_a_graph_with_independent_tasks() {
         "build",
         None,
     );
-    let sequenced = sequence_tasks(&chain, Path::new(WORKSPACE_DIR)).unwrap();
+    let sequenced = sequence(&mut chain).unwrap();
     assert!(is_serial_task_graph(&chain, &sequenced));
 
-    let diamond = build_graph(
+    let mut diamond = build_graph(
         &[
             ("a", project(&["b", "c"], &["build"])),
             ("b", project(&["d"], &["build"])),
@@ -219,13 +233,13 @@ fn is_serial_tells_a_chain_from_a_graph_with_independent_tasks() {
         "build",
         None,
     );
-    let sequenced = sequence_tasks(&diamond, Path::new(WORKSPACE_DIR)).unwrap();
+    let sequenced = sequence(&mut diamond).unwrap();
     assert!(!is_serial_task_graph(&diamond, &sequenced));
 }
 
 #[test]
 fn is_serial_sees_through_pass_through_tasks() {
-    let graph = build_graph(
+    let mut graph = build_graph(
         &[
             ("a", project(&["b"], &["build"])),
             ("b", project(&["c"], &[])),
@@ -234,7 +248,7 @@ fn is_serial_sees_through_pass_through_tasks() {
         "build",
         None,
     );
-    let sequenced = sequence_tasks(&graph, Path::new(WORKSPACE_DIR)).unwrap();
+    let sequenced = sequence(&mut graph).unwrap();
     assert!(is_serial_task_graph(&graph, &sequenced));
 }
 
@@ -268,7 +282,7 @@ fn json_document_emits_sorted_nodes_and_edges_with_a_missing_script_flag() {
 
 #[test]
 fn dry_run_rendering_prints_one_stable_linearization() {
-    let graph = build_graph(
+    let mut graph = build_graph(
         &[
             ("c", project(&["b"], &["build"])),
             ("b", project(&["a"], &[])),
@@ -277,7 +291,7 @@ fn dry_run_rendering_prints_one_stable_linearization() {
         "build",
         None,
     );
-    let sequenced = sequence_tasks(&graph, Path::new(WORKSPACE_DIR)).unwrap();
+    let sequenced = sequence(&mut graph).unwrap();
     assert_eq!(
         render_task_graph_dry_run(&graph, &sequenced, Path::new(WORKSPACE_DIR)),
         "a#build\nb#build (skipped: no such script)\nc#build",
@@ -387,4 +401,61 @@ fn scheduler_with_bail_dispatches_nothing_after_a_failure() {
         },
     );
     assert_eq!(ran.into_inner().unwrap(), vec![dir("a").to_string_lossy().into_owned()]);
+}
+
+#[test]
+fn ignored_cycles_are_downgraded_and_their_edges_dropped() {
+    let mut graph = build_graph(
+        &[
+            ("a", project(&["b"], &["build"])),
+            ("b", project(&["a"], &["build"])),
+            ("c", project(&["a"], &["build"])),
+        ],
+        "build",
+        None,
+    );
+    let groups = sequence_tasks(
+        &mut graph,
+        &SequenceTasksOptions {
+            workspace_dir: Path::new(WORKSPACE_DIR),
+            ignore_cycles: true,
+            emit: drop_event,
+        },
+    )
+    .unwrap();
+    dbg!(&groups);
+    // The cycle members lost their mutual edges and may run concurrently;
+    // the task outside the cycle still waits for its dependency.
+    assert!(graph[&key("a", "build")].dependencies.is_empty());
+    assert!(graph[&key("b", "build")].dependencies.is_empty());
+    assert_eq!(graph[&key("c", "build")].dependencies, vec![key("a", "build")]);
+}
+
+#[test]
+fn scheduler_propagates_a_run_task_panic_instead_of_hanging() {
+    let graph = build_graph(
+        &[
+            ("a", project(&[], &["build"])),
+            ("b", project(&[], &["build"])),
+            ("c", project(&[], &["build"])),
+        ],
+        "build",
+        None,
+    );
+    let result = std::panic::catch_unwind(|| {
+        schedule_tasks(
+            &graph,
+            &ScheduleTasksOptions {
+                concurrency: 3,
+                bail: true,
+                run_task: &|node| {
+                    assert!(node.project != dir("a"), "boom");
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                    TaskCompletion::Passed
+                },
+                on_task_skipped: &|_| {},
+            },
+        );
+    });
+    assert!(result.is_err(), "the worker panic must reach the caller");
 }

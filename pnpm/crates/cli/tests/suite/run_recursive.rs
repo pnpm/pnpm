@@ -2837,3 +2837,78 @@ fn failed_upstream_task_is_reported_as_the_failure_not_a_missing_script() {
 
     drop(root);
 }
+
+/// When no selected project has the requested script, the run errors
+/// before the tasks `dependsOn` pulled in get to run their side effects.
+#[test]
+fn missing_requested_script_errors_before_upstream_tasks_run() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-a",
+            json!({
+                "name": "project-a",
+                "version": "1.0.0",
+                "scripts": { "codegen": "echo codegen >> ../order.log" },
+            }),
+        )],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-a\ntasks:\n  build:\n    dependsOn: ['codegen']\n",
+    )
+    .expect("write workspace settings");
+
+    let output = pacquet.with_args(["-r", "run", "build"]).output().expect("run recursive script");
+    assert!(!output.status.success(), "a script nothing declares must fail the run");
+    assert!(String::from_utf8_lossy(&output.stderr).contains("RECURSIVE_RUN_NO_SCRIPT"));
+    assert!(!workspace.join("order.log").exists(), "the pulled-in task must not have run");
+
+    drop(root);
+}
+
+/// `ignoreWorkspaceCycles: true` downgrades the task-cycle error to a
+/// warning: the cycle's members run in an arbitrary order relative to each
+/// other and the run completes.
+#[test]
+fn ignore_workspace_cycles_downgrades_the_task_cycle_error_to_a_warning() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let cyclic = |name: &str, dependency: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "dependencies": { dependency: "workspace:*" },
+            "scripts": { "build": format!("echo {name} >> ../order.log") },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[
+            ("project-a", cyclic("project-a", "project-b")),
+            ("project-b", cyclic("project-b", "project-a")),
+        ],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-a\n  - project-b\nignoreWorkspaceCycles: true\n",
+    )
+    .expect("write workspace settings");
+
+    let output = pacquet
+        .with_args(["--workspace-concurrency=1", "-r", "run", "build"])
+        .output()
+        .expect("run recursive script");
+    assert!(output.status.success(), "the tolerated cycle must not fail the run: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("[WARN] The tasks form a dependency cycle"),
+        "the tolerated cycle must still be reported: {stdout}",
+    );
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    let mut lines: Vec<&str> = order.lines().collect();
+    lines.sort_unstable();
+    assert_eq!(lines, ["project-a", "project-b"], "both cycle members must run");
+
+    drop(root);
+}

@@ -20,8 +20,8 @@ use crate::cli_args::{
         write_recursive_summary,
     },
     task_graph::{
-        ScheduleTasksOptions, TaskCompletion, TaskGraph, TaskKey, TaskNode, resume_task_graph_from,
-        reverse_task_graph, schedule_tasks, sequence_tasks,
+        ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion, TaskGraph, TaskKey, TaskNode,
+        resume_task_graph_from, reverse_task_graph, schedule_tasks, sequence_tasks,
     },
 };
 use derive_more::{Display, Error};
@@ -143,7 +143,14 @@ pub async fn exec_recursive(
     }
     // Also the cycle check: a cyclic graph cannot be scheduled, and
     // sequenced into an arbitrary order it would succeed or fail by luck.
-    sequence_tasks(&task_graph, workspace_root)?;
+    sequence_tasks(
+        &mut task_graph,
+        &SequenceTasksOptions {
+            workspace_dir: workspace_root,
+            ignore_cycles: config.ignore_workspace_cycles,
+            emit,
+        },
+    )?;
 
     let bail = !args.no_bail;
     let concurrency = if args.parallel {

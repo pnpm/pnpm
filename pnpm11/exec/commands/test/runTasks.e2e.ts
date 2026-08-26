@@ -463,6 +463,77 @@ test('--dry-run outside a recursive run is an error', async () => {
   expect(err.code).toBe('ERR_PNPM_DRY_RUN_NOT_RECURSIVE')
 })
 
+test('ignoreWorkspaceCycles downgrades the task-cycle error to a warning', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      dependencies: {
+        'project-b': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('project-a'),
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+      dependencies: {
+        'project-a': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('project-b'),
+      },
+    },
+  ])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    ignoreWorkspaceCycles: true,
+    recursive: true,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  expect([...server.getLines()].sort()).toStrictEqual(['project-a', 'project-b'])
+})
+
+test('a missing requested script errors before upstream tasks run', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      scripts: {
+        codegen: server.sendLineScript('codegen'),
+      },
+    },
+  ])
+
+  let err!: PnpmError
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+      dir: process.cwd(),
+      recursive: true,
+      tasks: {
+        build: { dependsOn: ['codegen'] },
+      },
+      workspaceDir: process.cwd(),
+    }, ['build'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
+  expect(server.getLines()).toStrictEqual([])
+})
+
 test('a failed upstream task is reported as the failure, not as a missing script', async () => {
   preparePackages([
     {

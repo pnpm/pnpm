@@ -230,7 +230,9 @@ export async function handler (
     })
   }
 
-  if (opts.verifyDepsBeforeRun) {
+  // A dry run prints what would execute and runs nothing, so it must not
+  // let the dependency verification trigger an install either.
+  if (opts.verifyDepsBeforeRun && !opts.dryRun) {
     await runDepsStatusCheck(opts)
   }
 

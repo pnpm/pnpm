@@ -72,7 +72,7 @@ test('a project without the script becomes a pass-through node that keeps the ch
   expect(passThrough.dependencies).toStrictEqual([taskKey(dir('c'), 'build')])
   expect(graph.get(taskKey(dir('a'), 'build'))!.dependencies).toStrictEqual([taskKey(dir('b'), 'build')])
 
-  const groups = sequenceTasks(graph, WORKSPACE_DIR)
+  const groups = sequenceTasks(graph, { workspaceDir: WORKSPACE_DIR })
   expect(groups).toStrictEqual([
     [taskKey(dir('c'), 'build')],
     [taskKey(dir('b'), 'build')],
@@ -85,7 +85,7 @@ test('a task cycle is an error naming the participating tasks', () => {
     sequenceTasks(buildGraph({
       a: { dependencies: ['b'], scripts: ['build', 'test'] },
       b: { dependencies: ['a'], scripts: ['build'] },
-    }, 'build'), WORKSPACE_DIR)
+    }, 'build'), { workspaceDir: WORKSPACE_DIR })
   }).toThrow(expect.objectContaining({
     code: 'ERR_PNPM_TASK_CYCLE',
     message: expect.stringMatching(/a#build.*b#build.*a#build|b#build.*a#build.*b#build/),
@@ -98,7 +98,7 @@ test('a task depending on itself is an error', () => {
       a: { scripts: ['build'] },
     }, 'build', {
       build: { dependsOn: ['build'] },
-    }), WORKSPACE_DIR)
+    }), { workspaceDir: WORKSPACE_DIR })
   }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_TASK_CYCLE' }))
 })
 
@@ -108,7 +108,7 @@ test('a cycle among unselected projects cannot fail the run', () => {
   const graph = buildGraph({
     a: { scripts: ['build'] },
   }, 'build')
-  expect(() => sequenceTasks(graph, WORKSPACE_DIR)).not.toThrow()
+  expect(() => sequenceTasks(graph, { workspaceDir: WORKSPACE_DIR })).not.toThrow()
 })
 
 test('reverseTaskGraph runs dependents before dependencies', () => {
@@ -166,7 +166,7 @@ test('isSerialTaskGraph tells a chain from a graph with independent tasks', () =
     b: { dependencies: ['c'], scripts: ['build'] },
     c: { scripts: ['build'] },
   }, 'build')
-  expect(isSerialTaskGraph(chain, sequenceTasks(chain, WORKSPACE_DIR))).toBe(true)
+  expect(isSerialTaskGraph(chain, sequenceTasks(chain, { workspaceDir: WORKSPACE_DIR }))).toBe(true)
 
   const diamond = buildGraph({
     a: { dependencies: ['b', 'c'], scripts: ['build'] },
@@ -174,7 +174,7 @@ test('isSerialTaskGraph tells a chain from a graph with independent tasks', () =
     c: { dependencies: ['d'], scripts: ['build'] },
     d: { scripts: ['build'] },
   }, 'build')
-  expect(isSerialTaskGraph(diamond, sequenceTasks(diamond, WORKSPACE_DIR))).toBe(false)
+  expect(isSerialTaskGraph(diamond, sequenceTasks(diamond, { workspaceDir: WORKSPACE_DIR }))).toBe(false)
 })
 
 test('isSerialTaskGraph sees through pass-through tasks', () => {
@@ -183,7 +183,7 @@ test('isSerialTaskGraph sees through pass-through tasks', () => {
     b: { dependencies: ['c'] },
     c: { scripts: ['build'] },
   }, 'build')
-  expect(isSerialTaskGraph(graph, sequenceTasks(graph, WORKSPACE_DIR))).toBe(true)
+  expect(isSerialTaskGraph(graph, sequenceTasks(graph, { workspaceDir: WORKSPACE_DIR }))).toBe(true)
 })
 
 test('taskGraphToJson emits sorted nodes and edges with a missing-script flag', () => {
@@ -217,11 +217,38 @@ test('renderTaskGraphDryRun prints one stable linearization', () => {
     a: { scripts: ['build'] },
   }, 'build')
 
-  expect(renderTaskGraphDryRun(graph, sequenceTasks(graph, WORKSPACE_DIR), WORKSPACE_DIR)).toBe([
+  expect(renderTaskGraphDryRun(graph, sequenceTasks(graph, { workspaceDir: WORKSPACE_DIR }), WORKSPACE_DIR)).toBe([
     'a#build',
     'b#build (skipped: no such script)',
     'c#build',
   ].join('\n'))
+})
+
+test('a script named like an Object prototype member gets the default dependsOn', () => {
+  for (const name of ['constructor', 'toString', '__proto__']) {
+    const graph = buildGraph({
+      a: { dependencies: ['b'], scripts: [name] },
+      b: { scripts: [name] },
+    }, name, {
+      build: { dependsOn: ['^build'] },
+    })
+    expect(graph.get(taskKey(dir('a'), name))!.dependencies).toStrictEqual([taskKey(dir('b'), name)])
+  }
+})
+
+test('ignored cycles are downgraded and their edges dropped', () => {
+  const graph = buildGraph({
+    a: { dependencies: ['b'], scripts: ['build'] },
+    b: { dependencies: ['a'], scripts: ['build'] },
+    c: { dependencies: ['a'], scripts: ['build'] },
+  }, 'build')
+
+  expect(() => sequenceTasks(graph, { workspaceDir: WORKSPACE_DIR, ignoreCycles: true })).not.toThrow()
+  // The cycle members lost their mutual edges and may run concurrently; the
+  // task outside the cycle still waits for its dependency.
+  expect(graph.get(taskKey(dir('a'), 'build'))!.dependencies).toStrictEqual([])
+  expect(graph.get(taskKey(dir('b'), 'build'))!.dependencies).toStrictEqual([])
+  expect(graph.get(taskKey(dir('c'), 'build'))!.dependencies).toStrictEqual([taskKey(dir('a'), 'build')])
 })
 
 function dir (name: string): ProjectRootDir {
@@ -257,15 +284,3 @@ function buildGraph (
     tasks,
   })
 }
-
-test('a script named like an Object prototype member gets the default dependsOn', () => {
-  for (const name of ['constructor', 'toString', '__proto__']) {
-    const graph = buildGraph({
-      a: { dependencies: ['b'], scripts: [name] },
-      b: { scripts: [name] },
-    }, name, {
-      build: { dependsOn: ['^build'] },
-    })
-    expect(graph.get(taskKey(dir('a'), name))!.dependencies).toStrictEqual([taskKey(dir('b'), name)])
-  }
-})

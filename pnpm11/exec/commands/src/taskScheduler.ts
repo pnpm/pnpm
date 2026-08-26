@@ -1,14 +1,25 @@
 import type { TaskGraph, TaskKey, TaskNode } from './taskGraph.js'
 
+/** How the scheduler saw one task end. */
+export type TaskCompletion =
+  | 'passed'
+  | 'failed'
+  /**
+   * The task's work errored before it could run — an infrastructure
+   * failure, not a script failure. Stops dispatch like a bail; the caller
+   * holds the error and rethrows it after the scheduler settles.
+   */
+  | 'aborted'
+
 export interface ScheduleTasksOptions {
   /** When `true`, the first failure stops further dispatch; tasks already running finish. */
   bail: boolean
   /**
-   * Runs one task's work and resolves with whether it passed. Never rejects:
-   * the caller records its own failure details and answers `false`. Not
-   * called for pass-through tasks (no scripts to run).
+   * Runs one task's work and resolves with how it ended. Never rejects:
+   * the caller records its own failure details. Not called for
+   * pass-through tasks (no scripts to run).
    */
-  runTask: (node: TaskNode, key: TaskKey) => Promise<boolean>
+  runTask: (node: TaskNode, key: TaskKey) => Promise<TaskCompletion>
   /**
    * A task that runs nothing: a pass-through with no such script, or —
    * without `--bail` — a task some dependency of which did not pass. Both are
@@ -21,7 +32,7 @@ export interface ScheduleTasksOptions {
  * Dispatches every task whose dependencies have all completed successfully,
  * in dependency order and nothing else — concurrency among ready tasks is the
  * caller's to limit inside `runTask`. Resolves once no task can make further
- * progress: all settled, or — under `bail` after a failure — all in-flight
+ * progress: all settled, or — after a bail or an abort — all in-flight
  * work finished. Tasks never dispatched are left untouched, so their
  * caller-side status stays whatever "queued" is.
  *
@@ -81,12 +92,23 @@ export async function scheduleTasks (graph: TaskGraph, opts: ScheduleTasksOption
         }
       }
     }
-    const fail = (key: TaskKey): void => {
-      unsettled--
-      if (opts.bail) {
-        stopDispatch = true
-      } else {
-        block(key)
+    const settle = (key: TaskKey, completion: TaskCompletion): void => {
+      switch (completion) {
+        case 'passed':
+          complete(key)
+          break
+        case 'failed':
+          unsettled--
+          if (opts.bail) {
+            stopDispatch = true
+          } else {
+            block(key)
+          }
+          break
+        case 'aborted':
+          unsettled--
+          stopDispatch = true
+          break
       }
     }
     // An explicit queue rather than recursion: a workspace-long chain of
@@ -107,19 +129,15 @@ export async function scheduleTasks (graph: TaskGraph, opts: ScheduleTasksOption
           continue
         }
         inFlight++
-        opts.runTask(node, key).then((passed) => {
+        opts.runTask(node, key).then((completion) => {
           inFlight--
-          if (passed) {
-            complete(key)
-          } else {
-            fail(key)
-          }
+          settle(key, completion)
           pump()
         }, () => {
-          // runTask's contract is to never reject; nothing sane can be done
-          // with a rejection here beyond treating it as the failure it is.
+          // runTask's contract is to never reject; a rejection is an
+          // infrastructure failure whose details only the caller can hold.
           inFlight--
-          fail(key)
+          settle(key, 'aborted')
           pump()
         })
       }

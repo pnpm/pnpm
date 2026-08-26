@@ -11,6 +11,7 @@ import {
   type RunLifecycleHookOptions,
 } from '@pnpm/exec.lifecycle'
 import { groupStart } from '@pnpm/log.group'
+import { globalWarn } from '@pnpm/logger'
 import type { PackageScripts, ProjectRootDir } from '@pnpm/types'
 import { filteredProjectsDependencies } from '@pnpm/workspace.projects-sorter'
 import pLimit from 'p-limit'
@@ -32,7 +33,7 @@ import {
   taskGraphToJson,
   type TaskNode,
 } from './taskGraph.js'
-import { scheduleTasks } from './taskScheduler.js'
+import { scheduleTasks, type TaskCompletion } from './taskScheduler.js'
 
 export type RecursiveRunOpts = Pick<Config,
 | 'bin'
@@ -50,7 +51,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'nodeExperimentalPackageMap'
 | 'modulesDir'
 > & Pick<ConfigContext, 'rootProjectManifest' | 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
-Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'dryRun' | 'reporter' | 'reverse' | 'sort' | 'tasks' | 'workspaceConcurrency'>> &
+Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'dryRun' | 'ignoreWorkspaceCycles' | 'reporter' | 'reverse' | 'sort' | 'tasks' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
   json?: boolean
@@ -74,7 +75,10 @@ export async function runRecursive (
   const taskGraph = buildRunTaskGraph(scriptName, opts)
   // Also the cycle check: a cyclic graph cannot be scheduled, and sequenced
   // into an arbitrary order it would succeed or fail by luck.
-  const sequencedTasks = sequenceTasks(taskGraph, opts.workspaceDir)
+  const sequencedTasks = sequenceTasks(taskGraph, {
+    workspaceDir: opts.workspaceDir,
+    ignoreCycles: opts.ignoreWorkspaceCycles,
+  })
 
   if (opts.dryRun) {
     return opts.json
@@ -104,6 +108,13 @@ export async function runRecursive (
     }
   }
 
+  // Before anything is dispatched: when no selected project has the script,
+  // the run is a user error, and the tasks `dependsOn` pulled in must not
+  // have run their side effects by the time it is reported.
+  if (scriptName !== 'test' && !opts.ifPresent && [...taskGraph.values()].every((node) => !node.requested || node.scripts.length === 0)) {
+    throw noRequestedScriptError(scriptName, opts)
+  }
+
   const limitRun = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   const stdio =
     !opts.stream &&
@@ -121,8 +132,20 @@ export async function runRecursive (
   }
   let hasCommand = 0
   let firstError: Error | undefined
+  let abortError: unknown
 
-  const runTask = async (node: TaskNode): Promise<boolean> => {
+  const runTask = async (node: TaskNode): Promise<TaskCompletion> => {
+    try {
+      return await runTaskScripts(node)
+    } catch (err: unknown) {
+      // An error the per-script handling could not absorb is an
+      // infrastructure failure: hold it for rethrow and stop the run.
+      abortError ??= err
+      return 'aborted'
+    }
+  }
+
+  const runTaskScripts = async (node: TaskNode): Promise<TaskCompletion> => {
     const pkg = opts.selectedProjectsGraph[node.project]
     const summaryKey = taskSummaryKey(node)
     // A RegExp selector can match several scripts in one task, but the
@@ -224,7 +247,7 @@ export async function runRecursive (
           }
         }
       })))
-    return !taskFailed
+    return taskFailed ? 'failed' : 'passed'
   }
 
   await scheduleTasks(taskGraph, {
@@ -235,6 +258,9 @@ export async function runRecursive (
     },
   })
 
+  if (abortError !== undefined) {
+    throw abortError
+  }
   if (firstError != null) {
     if (opts.reportSummary) {
       await writeRecursiveSummary({
@@ -250,12 +276,7 @@ export async function runRecursive (
   // must report that failure, not claim the script does not exist.
   const hasFailures = Object.values(result).some(({ status }) => status === 'failure')
   if (scriptName !== 'test' && !hasCommand && !hasFailures && !opts.ifPresent) {
-    const allPackagesAreSelected = Object.keys(opts.selectedProjectsGraph).length === opts.allProjects.length
-    if (allPackagesAreSelected) {
-      throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)
-    } else {
-      throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the selected packages has a "${scriptName}" script`)
-    }
+    throw noRequestedScriptError(scriptName, opts)
   }
   if (opts.reportSummary) {
     await writeRecursiveSummary({
@@ -279,6 +300,9 @@ function buildRunTaskGraph (scriptName: string, opts: RecursiveRunOpts): TaskGra
   const projectDependencies = opts.sort
     ? filteredProjectsDependencies(opts)
     : new Map((Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort().map((project) => [project, [] as ProjectRootDir[]]))
+  if (!opts.sort && opts.tasks != null && Object.keys(opts.tasks).length > 0) {
+    globalWarn('The tasks declarations in pnpm-workspace.yaml are ignored because sorting is disabled (--no-sort or --parallel)')
+  }
   let taskGraph = buildTaskGraph({
     projectDependencies,
     scriptsByProject: (project) => opts.selectedProjectsGraph[project].package.manifest.scripts ?? {},
@@ -305,6 +329,13 @@ function buildRunTaskGraph (scriptName: string, opts: RecursiveRunOpts): TaskGra
  * consumers of `pnpm-exec-summary.json` read — and only tasks `dependsOn`
  * pulled in qualify it with the task name.
  */
+function noRequestedScriptError (scriptName: string, opts: RecursiveRunOpts): PnpmError {
+  const allPackagesAreSelected = Object.keys(opts.selectedProjectsGraph).length === opts.allProjects.length
+  return allPackagesAreSelected
+    ? new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)
+    : new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the selected packages has a "${scriptName}" script`)
+}
+
 function taskSummaryKey (node: TaskNode): string {
   return node.requested ? node.project : `${node.project}#${node.taskName}`
 }

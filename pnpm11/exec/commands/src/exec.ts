@@ -38,7 +38,7 @@ import {
   taskKey,
   type TaskNode,
 } from './taskGraph.js'
-import { scheduleTasks } from './taskScheduler.js'
+import { scheduleTasks, type TaskCompletion } from './taskScheduler.js'
 import { trackedExeca } from './trackedExeca.js'
 
 export const shorthands: Record<string, string | string[]> = {
@@ -147,7 +147,7 @@ export type ExecOpts = Required<Pick<ConfigContext, 'selectedProjectsGraph'>> & 
 | 'userAgent'
 | 'verifyDepsBeforeRun'
 | 'workspaceDir'
-> & Pick<ConfigContext, 'cliOptions' | 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & CheckDepsStatusOptions
+> & Pick<Config, 'ignoreWorkspaceCycles'> & Pick<ConfigContext, 'cliOptions' | 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & CheckDepsStatusOptions
 
 export async function handler (
   opts: ExecOpts,
@@ -227,7 +227,10 @@ export async function handler (
 
   // Also the cycle check: a cyclic graph cannot be scheduled, and sequenced
   // into an arbitrary order it would succeed or fail by luck.
-  sequenceTasks(taskGraph, opts.workspaceDir ?? opts.dir)
+  sequenceTasks(taskGraph, {
+    workspaceDir: opts.workspaceDir ?? opts.dir,
+    ignoreCycles: opts.ignoreWorkspaceCycles,
+  })
 
   const result: RecursiveSummary = {}
   for (const node of taskGraph.values()) {
@@ -240,19 +243,31 @@ export async function handler (
 
   let exitCode = 0
   let firstError: Error | undefined
+  let abortError: unknown
   const prependPaths = [
     './node_modules/.bin',
     ...(opts.extraBinPaths ?? []),
   ]
   const reporterShowPrefix = opts.recursive && opts.reporterHidePrefix === false
 
-  const runTask = async (node: TaskNode): Promise<boolean> =>
-    limitRun(async () => {
+  const runTask = async (node: TaskNode): Promise<TaskCompletion> => {
+    try {
+      return await runCommandTask(node)
+    } catch (err: unknown) {
+      // An error the per-project handling could not absorb is an
+      // infrastructure failure: hold it for rethrow and stop the run.
+      abortError ??= err
+      return 'aborted'
+    }
+  }
+
+  const runCommandTask = async (node: TaskNode): Promise<TaskCompletion> =>
+    limitRun(async (): Promise<TaskCompletion> => {
       // Under --bail a failure stops dispatch, but a task already queued
       // behind the concurrency limit has been dispatched in name only —
       // starting it now would grow the failed run. It stays 'queued'.
       if (opts.bail && firstError != null) {
-        return true
+        return 'passed'
       }
       const prefix = node.project
       result[prefix].status = 'running'
@@ -359,7 +374,7 @@ export async function handler (
         }
         result[prefix].status = 'passed'
         result[prefix].duration = getExecutionDuration(startTime)
-        return true
+        return 'passed'
       } catch (err: any) { // eslint-disable-line
         if (isErrorCommandNotFound(params[0], err, prefix, prependPaths)) {
           err.message = `Command "${params[0]}" not found`
@@ -371,7 +386,7 @@ export async function handler (
           })
         } else if (!opts.recursive && typeof err.exitCode === 'number') {
           exitCode = err.exitCode
-          return true
+          return 'passed'
         }
         logger.info(err)
 
@@ -390,7 +405,7 @@ export async function handler (
           err['prefix'] = prefix
           firstError = err
         }
-        return false
+        return 'failed'
       }
     })
 
@@ -402,6 +417,9 @@ export async function handler (
     },
   })
 
+  if (abortError !== undefined) {
+    throw abortError
+  }
   if (firstError != null) {
     if (opts.reportSummary) {
       await writeRecursiveSummary({
