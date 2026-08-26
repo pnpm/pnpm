@@ -17,12 +17,13 @@ use tempfile::TempDir;
 use tokio::{fs, sync::Barrier, time::timeout};
 
 use super::{
-    ArtifactUsage, BLOB_LOCK_STRIPES, PendingUsage, PendingUsageFile, PendingUsageLock,
-    ResolveBudget, StorageQuotaReservation, acquire_artifact_lock, artifact_usage_path,
-    blob_lock_key, blob_lock_path_for_key, entry_digest, entry_lock_path, is_variant_file,
-    load_artifact_usage, owner_dir, owner_lock_path, owner_usage_key, pending_usage_file, publish,
-    reconcile_storage_reservations, reserve_storage_quota_with_locks_and_limits, stored_bytes,
-    try_acquire_artifact_lock, write_artifact_usage,
+    ArtifactRecoveryLocks, ArtifactUsage, BLOB_LOCK_STRIPES, PendingUsage, PendingUsageFile,
+    PendingUsageLock, ResolveBudget, StorageQuotaReservation, acquire_artifact_lock,
+    artifact_usage_path, blob_lock_key, blob_lock_path_for_key, entry_digest, entry_lock_path,
+    is_variant_file, load_artifact_usage, owner_dir, owner_lock_path, owner_usage_key,
+    pending_usage_file, publish, reconcile_storage_reservations,
+    reserve_storage_quota_with_locks_and_limits, stored_bytes, try_acquire_artifact_lock,
+    write_artifact_usage,
 };
 use crate::{error::Result, storage::unique_tmp_path};
 
@@ -212,13 +213,17 @@ async fn an_incomplete_publication_removes_its_blobs_and_releases_all_quota() {
     .await
     .unwrap();
     let _owner_lock = acquire_artifact_lock(owner_lock_path(&root, "owner")).await.unwrap();
+    let empty = BTreeSet::new();
 
     reconcile_storage_reservations(
         &root,
-        "owner",
-        &PendingUsageLock::Entry { entry: "current".to_string() },
-        true,
-        &BTreeSet::new(),
+        &ArtifactRecoveryLocks {
+            owner: "owner",
+            publication: &PendingUsageLock::Entry { entry: "current".to_string() },
+            owner_locked: true,
+            blob_locks: &empty,
+            preserved_blob_ids: &empty,
+        },
     )
     .await
     .unwrap();
@@ -284,7 +289,7 @@ async fn active_blob_writes_are_not_cleaned_up_by_reconciliation() {
 }
 
 #[tokio::test]
-async fn blob_classification_waits_for_a_complete_stale_transaction_rollback() {
+async fn blob_classification_waits_for_complete_rollback_and_preserves_required_blobs() {
     let storage = TempDir::new().unwrap();
     let root = storage.path().join("shared-artifacts/v0");
     let owner = "owner";
@@ -334,26 +339,80 @@ async fn blob_classification_waits_for_a_complete_stale_transaction_rollback() {
     let second_blob_guard =
         acquire_artifact_lock(blob_lock_path_for_key(&root, &second_lock)).await.unwrap();
     let locked_blob_locks = BTreeSet::from([first_lock]);
+    let preserved_blob_ids = BTreeSet::from([first_blob.to_string()]);
+    let recovery_locks = ArtifactRecoveryLocks {
+        owner,
+        publication: &current_lock,
+        owner_locked: false,
+        blob_locks: &locked_blob_locks,
+        preserved_blob_ids: &preserved_blob_ids,
+    };
 
-    assert!(
-        !reconcile_storage_reservations(&root, owner, &current_lock, false, &locked_blob_locks,)
-            .await
-            .unwrap(),
-    );
+    assert!(!reconcile_storage_reservations(&root, &recovery_locks).await.unwrap());
     assert!(fs::try_exists(&first_path).await.unwrap());
     assert!(fs::try_exists(&second_path).await.unwrap());
     assert!(load_artifact_usage(&root).await.unwrap().pending.contains_key("crashed"));
 
     drop(second_blob_guard);
-    assert!(
-        reconcile_storage_reservations(&root, owner, &current_lock, false, &locked_blob_locks,)
-            .await
-            .unwrap(),
-    );
-    assert!(!fs::try_exists(first_path).await.unwrap());
+    assert!(reconcile_storage_reservations(&root, &recovery_locks).await.unwrap());
+    assert!(fs::try_exists(first_path).await.unwrap());
     assert!(!fs::try_exists(second_path).await.unwrap());
     let usage = load_artifact_usage(&root).await.unwrap();
-    assert_eq!(usage.global_bytes, 0);
+    assert_eq!(usage.global_bytes, 5);
+    assert_eq!(usage.owner_bytes.get(owner), Some(&5));
+    assert!(usage.pending.is_empty());
+}
+
+#[tokio::test]
+async fn publication_reuses_a_blob_preserved_from_a_stale_transaction() {
+    let storage = TempDir::new().unwrap();
+    let root = storage.path().join("shared-artifacts/v0");
+    let artifact_owner =
+        owner_dir(storage.path(), "acme", &OwnerScope::organization("acme")).unwrap();
+    let owner = owner_usage_key(&artifact_owner).unwrap();
+    let blob_bytes = b"recovered shared blob";
+    let mut request = publication_request(
+        "acme",
+        "dependency-side-effects:v1:recovered",
+        "ci/recovered",
+        Some(blob_bytes),
+    );
+    let blob = blob_id(&request.blobs[0].integrity).unwrap();
+    request.blobs.clear();
+    let blob_path = artifact_owner.join("blobs").join(&blob);
+    fs::create_dir_all(blob_path.parent().unwrap()).await.unwrap();
+    fs::write(&blob_path, blob_bytes).await.unwrap();
+    let variant_path = artifact_owner.join("entries/crashed/variant.json");
+    let variant_file = pending_usage_file(&root, &variant_path, 1).unwrap();
+    let commit_file = variant_file.path.clone();
+    write_artifact_usage(
+        &root,
+        &ArtifactUsage {
+            global_bytes: blob_bytes.len() as u64 + 1,
+            owner_bytes: BTreeMap::from([(owner.clone(), blob_bytes.len() as u64 + 1)]),
+            pending: BTreeMap::from([(
+                "crashed".to_string(),
+                PendingUsage {
+                    owner: owner.clone(),
+                    lock: PendingUsageLock::Entry { entry: "crashed".to_string() },
+                    commit_file: Some(commit_file),
+                    files: vec![
+                        pending_usage_file(&root, &blob_path, blob_bytes.len() as u64).unwrap(),
+                        variant_file,
+                    ],
+                },
+            )]),
+        },
+    )
+    .await
+    .unwrap();
+
+    assert!(publish(storage.path(), "acme", request).await.unwrap());
+    assert_eq!(fs::read(blob_path).await.unwrap(), blob_bytes);
+    let usage = load_artifact_usage(&root).await.unwrap();
+    let actual_bytes = stored_bytes(&artifact_owner, None).await.unwrap();
+    assert_eq!(usage.global_bytes, actual_bytes);
+    assert_eq!(usage.owner_bytes.get(&owner), Some(&actual_bytes));
     assert!(usage.pending.is_empty());
 }
 

@@ -47,7 +47,7 @@ struct ArtifactUsage {
 struct PendingUsage {
     owner: String,
     lock: PendingUsageLock,
-    /// Recovery keeps every reserved file only when this file was committed.
+    /// Recovery treats the reservation as committed when this file has its reserved size.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     commit_file: Option<String>,
     files: Vec<PendingUsageFile>,
@@ -86,6 +86,14 @@ struct StorageQuotaReservation<'a> {
 struct PendingUsageReconciliation {
     usage_changed: bool,
     blocked_locked_blobs: bool,
+}
+
+struct ArtifactRecoveryLocks<'a> {
+    owner: &'a str,
+    publication: &'a PendingUsageLock,
+    owner_locked: bool,
+    blob_locks: &'a BTreeSet<String>,
+    preserved_blob_ids: &'a BTreeSet<String>,
 }
 
 pub(crate) fn parse_publish(body: &[u8]) -> Result<PublishArtifactRequest> {
@@ -140,6 +148,8 @@ pub(crate) async fn publish(
     let _entry_lock =
         acquire_artifact_lock(entry_lock_path(&artifact_root, &owner, &entry_digest)).await?;
     let locked_blob_locks: BTreeSet<String> = required_by_lock.keys().cloned().collect();
+    let preserved_blob_ids: BTreeSet<String> =
+        required_by_lock.values().flatten().map(|(_, id, _)| id.clone()).collect();
     let _blob_locks = loop {
         let owner_recovery_lock =
             acquire_artifact_lock(owner_lock_path(&artifact_root, &owner)).await?;
@@ -157,10 +167,13 @@ pub(crate) async fn publish(
         if acquired_all_blob_locks
             && reconcile_storage_reservations(
                 &artifact_root,
-                &owner,
-                &publication_lock,
-                true,
-                &locked_blob_locks,
+                &ArtifactRecoveryLocks {
+                    owner: &owner,
+                    publication: &publication_lock,
+                    owner_locked: true,
+                    blob_locks: &locked_blob_locks,
+                    preserved_blob_ids: &preserved_blob_ids,
+                },
             )
             .await?
         {
@@ -250,10 +263,13 @@ pub(crate) async fn publish(
     if let Err(error) = write_result {
         if let Err(rollback_error) = reconcile_storage_reservations(
             &artifact_root,
-            &owner,
-            &publication_lock,
-            false,
-            &locked_blob_locks,
+            &ArtifactRecoveryLocks {
+                owner: &owner,
+                publication: &publication_lock,
+                owner_locked: false,
+                blob_locks: &locked_blob_locks,
+                preserved_blob_ids: &BTreeSet::new(),
+            },
         )
         .await
         {
@@ -290,13 +306,17 @@ async fn reserve_storage_quota_with_locks_and_limits(
 ) -> Result<()> {
     let _usage_lock = acquire_artifact_lock(usage_lock_path(artifact_root)).await?;
     let mut usage = load_artifact_usage(artifact_root).await?;
+    let preserved_blob_ids = BTreeSet::new();
     let reconciliation = reconcile_pending_usage(
         artifact_root,
         &mut usage,
-        reservation.owner,
-        &reservation.lock,
-        false,
-        reservation.locked_blob_locks,
+        &ArtifactRecoveryLocks {
+            owner: reservation.owner,
+            publication: &reservation.lock,
+            owner_locked: false,
+            blob_locks: reservation.locked_blob_locks,
+            preserved_blob_ids: &preserved_blob_ids,
+        },
     )
     .await?;
     if reconciliation.usage_changed {
@@ -352,22 +372,11 @@ async fn clear_storage_reservation(artifact_root: &Path, reservation: &str) -> R
 
 async fn reconcile_storage_reservations(
     artifact_root: &Path,
-    owner: &str,
-    held_lock: &PendingUsageLock,
-    owner_locked: bool,
-    locked_blob_locks: &BTreeSet<String>,
+    recovery_locks: &ArtifactRecoveryLocks<'_>,
 ) -> Result<bool> {
     let _usage_lock = acquire_artifact_lock(usage_lock_path(artifact_root)).await?;
     let mut usage = load_artifact_usage(artifact_root).await?;
-    let reconciliation = reconcile_pending_usage(
-        artifact_root,
-        &mut usage,
-        owner,
-        held_lock,
-        owner_locked,
-        locked_blob_locks,
-    )
-    .await?;
+    let reconciliation = reconcile_pending_usage(artifact_root, &mut usage, recovery_locks).await?;
     if reconciliation.usage_changed {
         write_artifact_usage(artifact_root, &usage).await?;
     }
@@ -409,10 +418,7 @@ async fn scan_artifact_usage(artifact_root: &Path) -> Result<ArtifactUsage> {
 async fn reconcile_pending_usage(
     artifact_root: &Path,
     usage: &mut ArtifactUsage,
-    locked_owner: &str,
-    held_lock: &PendingUsageLock,
-    owner_locked: bool,
-    locked_blob_locks: &BTreeSet<String>,
+    recovery_locks: &ArtifactRecoveryLocks<'_>,
 ) -> Result<PendingUsageReconciliation> {
     let reservations: Vec<String> = usage.pending.keys().cloned().collect();
     let mut reconciliation = PendingUsageReconciliation::default();
@@ -422,10 +428,10 @@ async fn reconcile_pending_usage(
         })?;
         let pending_blob_locks = pending_blob_lock_keys(pending)?;
         let shares_locked_blobs =
-            pending_blob_locks.iter().any(|lock| locked_blob_locks.contains(lock));
-        let caller_holds_lock = pending.owner == locked_owner
-            && (&pending.lock == held_lock
-                || owner_locked && matches!(&pending.lock, PendingUsageLock::Owner));
+            pending_blob_locks.iter().any(|lock| recovery_locks.blob_locks.contains(lock));
+        let caller_holds_lock = pending.owner == recovery_locks.owner
+            && (&pending.lock == recovery_locks.publication
+                || recovery_locks.owner_locked && matches!(&pending.lock, PendingUsageLock::Owner));
         let _publication_lock = if caller_holds_lock {
             None
         } else {
@@ -443,7 +449,7 @@ async fn reconcile_pending_usage(
         };
         let mut blob_locks = Vec::new();
         for lock in pending_blob_locks {
-            if locked_blob_locks.contains(&lock) {
+            if recovery_locks.blob_locks.contains(&lock) {
                 continue;
             }
             let Some(blob_lock) =
@@ -482,6 +488,19 @@ async fn reconcile_pending_usage(
             let path = artifact_root.join(relative_path);
             remove_atomic_write_temps(&path).await?;
             if !committed {
+                let preserved = pending.owner == recovery_locks.owner
+                    && pending_blob_id(&pending.owner, &file)?
+                        .is_some_and(|blob| recovery_locks.preserved_blob_ids.contains(blob));
+                if preserved {
+                    match fs::metadata(&path).await {
+                        Ok(metadata) if metadata.is_file() && metadata.len() == file.size => {
+                            continue;
+                        }
+                        Ok(_) => {}
+                        Err(error) if error.kind() == ErrorKind::NotFound => {}
+                        Err(error) => return Err(error.into()),
+                    }
+                }
                 match fs::remove_file(path).await {
                     Ok(()) => {}
                     Err(error) if error.kind() == ErrorKind::NotFound => {}
@@ -521,24 +540,29 @@ fn release_reserved_bytes(usage: &mut ArtifactUsage, owner: &str, bytes: u64) ->
 fn pending_blob_lock_keys(pending: &PendingUsage) -> Result<BTreeSet<String>> {
     let mut lock_keys = BTreeSet::new();
     for file in &pending.files {
-        let mut components = pending_usage_path(&file.path)?.components();
-        let (Some(Component::Normal(owner)), Some(Component::Normal(kind))) =
-            (components.next(), components.next())
-        else {
-            continue;
-        };
-        if owner != pending.owner.as_str() || kind != "blobs" {
-            continue;
+        if let Some(blob) = pending_blob_id(&pending.owner, file)? {
+            lock_keys.insert(blob_lock_key(&pending.owner, blob));
         }
-        let (Some(Component::Normal(blob)), None) = (components.next(), components.next()) else {
-            continue;
-        };
-        let blob = blob.to_str().ok_or_else(|| RegistryError::Internal {
-            reason: "shared artifact usage state contains an invalid blob path".to_string(),
-        })?;
-        lock_keys.insert(blob_lock_key(&pending.owner, blob));
     }
     Ok(lock_keys)
+}
+
+fn pending_blob_id<'a>(owner: &str, file: &'a PendingUsageFile) -> Result<Option<&'a str>> {
+    let mut components = pending_usage_path(&file.path)?.components();
+    let (Some(Component::Normal(file_owner)), Some(Component::Normal(kind))) =
+        (components.next(), components.next())
+    else {
+        return Ok(None);
+    };
+    if file_owner != owner || kind != "blobs" {
+        return Ok(None);
+    }
+    let (Some(Component::Normal(blob)), None) = (components.next(), components.next()) else {
+        return Ok(None);
+    };
+    blob.to_str().map(Some).ok_or_else(|| RegistryError::Internal {
+        reason: "shared artifact usage state contains an invalid blob path".to_string(),
+    })
 }
 
 fn pending_usage_path(path: &str) -> Result<&Path> {
