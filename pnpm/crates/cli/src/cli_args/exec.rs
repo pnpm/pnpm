@@ -99,6 +99,9 @@ impl ExecArgs {
     /// On a non-zero child exit code this terminates the process with the
     /// same code via [`std::process::exit`], matching pnpm's exec, which
     /// returns `{ exitCode }` and lets the CLI exit with it.
+    ///
+    /// `silent` reaches the verify-deps gate, so a silent `exec` also
+    /// silences the install the gate may spawn.
     pub fn run(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
         let command = prepare_command(self.command)?;
         super::verify_deps::verify_deps_before_run(dir, config, silent)?;
