@@ -7,8 +7,8 @@ use pnpm_lockfile::TarballRevision;
 use serde_json::{Value, json};
 
 use super::{
-    Frame, PnprClient, PnprClientError, ResolveProject, ResolveProjectsOptions, VerifyError,
-    build_verify_error, parse_frame,
+    Frame, PnprClient, PnprClientError, ResolveOutcome, ResolveProject, ResolveProjectsOptions,
+    ResolvedPackage, VerifyError, build_verify_error, parse_frame,
 };
 
 /// The request body is the whole contract with the server: a field the
@@ -94,6 +94,39 @@ async fn rejects_a_server_that_omits_or_changes_package_extension_metadata() {
     }
 }
 
+#[tokio::test]
+async fn buffers_old_server_packages_until_transform_metadata_is_validated() {
+    let frames = vec![
+        mock_package_frame(false),
+        json!({
+            "type": "done",
+            "lockfile": { "lockfileVersion": "9.0" },
+        }),
+    ];
+    let mut prefetched = Vec::new();
+    let result = resolve_mock_frames(resolve_projects_options(), frames, |package| {
+        prefetched.push(package.id);
+    })
+    .await;
+
+    assert!(matches!(result, Err(PnprClientError::Protocol(_))));
+    assert!(prefetched.is_empty(), "an old server must not trigger prefetches");
+}
+
+#[tokio::test]
+async fn a_support_signal_preserves_streaming_prefetch() {
+    let frames =
+        vec![mock_package_frame(true), json!({ "type": "error", "message": "resolution stopped" })];
+    let mut prefetched = Vec::new();
+    let result = resolve_mock_frames(resolve_projects_options(), frames, |package| {
+        prefetched.push(package.id);
+    })
+    .await;
+
+    assert!(matches!(result, Err(PnprClientError::Server(_))));
+    assert_eq!(prefetched, ["acme@1.0.0"]);
+}
+
 fn resolve_projects_options() -> ResolveProjectsOptions {
     ResolveProjectsOptions {
         projects: vec![ResolveProject {
@@ -164,20 +197,44 @@ async fn assert_transform_metadata_rejected(
     lockfile: Value,
     expected_message: &str,
 ) {
-    let mut server = mockito::Server::new_async().await;
-    let resolve_mock = server
-        .mock("POST", "/-/pnpr/v0/resolve")
-        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": lockfile })))
-        .create_async()
-        .await;
-
     let Err(PnprClientError::Protocol(message)) =
-        PnprClient::new(server.url()).resolve_projects(options).await
+        resolve_mock_frames(options, vec![json!({ "type": "done", "lockfile": lockfile })], |_| {})
+            .await
     else {
         panic!("expected a protocol error");
     };
     assert!(message.contains(expected_message), "got {message}");
+}
+
+async fn resolve_mock_frames(
+    options: ResolveProjectsOptions,
+    frames: Vec<Value>,
+    on_package: impl FnMut(ResolvedPackage),
+) -> Result<ResolveOutcome, PnprClientError> {
+    let body = frames.into_iter().map(|frame| format!("{frame}\n")).collect::<Vec<_>>().concat();
+    let mut server = mockito::Server::new_async().await;
+    let resolve_mock =
+        server.mock("POST", "/-/pnpr/v0/resolve").with_body(body).create_async().await;
+
+    let result =
+        PnprClient::new(server.url()).resolve_projects_streaming(options, on_package).await;
     resolve_mock.assert_async().await;
+    result
+}
+
+fn mock_package_frame(supports_project_transforms: bool) -> Value {
+    let mut frame = json!({
+        "type": "package",
+        "id": "acme@1.0.0",
+        "name": "acme",
+        "version": "1.0.0",
+        "integrity": "sha512-abc",
+        "tarball": "https://r.test/acme/-/acme-1.0.0.tgz",
+    });
+    if supports_project_transforms {
+        frame["supportsProjectTransforms"] = json!(true);
+    }
+    frame
 }
 
 #[test]
@@ -209,7 +266,7 @@ fn tarball_mismatch_maps_to_the_generic_envelope() {
 
 #[test]
 fn a_package_frame_parses_its_fetch_hint() {
-    let line = br#"{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz","unpackedSize":123456,"fileCount":42,"revision":3}"#;
+    let line = br#"{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz","unpackedSize":123456,"fileCount":42,"revision":3,"supportsProjectTransforms":true}"#;
     let Frame::Package {
         id,
         name,
@@ -219,6 +276,7 @@ fn a_package_frame_parses_its_fetch_hint() {
         unpacked_size,
         file_count,
         revision,
+        supports_project_transforms,
     } = parse_frame(line).expect("frame parses")
     else {
         panic!("expected a package frame");
@@ -231,6 +289,7 @@ fn a_package_frame_parses_its_fetch_hint() {
     assert_eq!(unpacked_size, Some(123456));
     assert_eq!(file_count, Some(42));
     assert_eq!(revision, Some(TarballRevision::try_from(3).unwrap()));
+    assert!(supports_project_transforms);
 }
 
 #[test]

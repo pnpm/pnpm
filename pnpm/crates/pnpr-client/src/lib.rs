@@ -484,6 +484,7 @@ impl PnprClient {
             .map(|project| project.dir.clone())
             .chain(opts.lockfile.iter().flat_map(|lockfile| lockfile.importers.keys().cloned()))
             .collect();
+        let project_transforms_requested = has_project_transforms(&opts);
         let request = serde_json::json!({
             "projects": opts.projects,
             "registry": opts.registry,
@@ -523,13 +524,17 @@ impl PnprClient {
             )));
         }
 
-        // Consume the NDJSON stream line by line. `package` frames feed
-        // `on_package` as they arrive (overlapping the server's
-        // resolution); the first terminal frame ends the loop. reqwest's
-        // `gzip` feature transparently inflates the byte stream if a
+        // Consume the NDJSON stream line by line. A current server marks its
+        // first package frame as transform-aware, preserving resolution/fetch
+        // overlap. When transforms were requested from an older server, hold
+        // package frames until the terminal lockfile proves it applied them,
+        // so an incompatible response cannot trigger useless prefetches.
+        // reqwest's `gzip` feature transparently inflates the byte stream if a
         // proxy compressed it, so the frames arrive as plain JSON lines.
         let mut stream = response.bytes_stream();
         let mut buf: Vec<u8> = Vec::new();
+        let mut server_supports_project_transforms = false;
+        let mut pending_packages = Vec::new();
         while let Some(chunk) = stream.next().await {
             buf.extend_from_slice(&chunk?);
             while let Some(newline) = buf.iter().position(|&byte| byte == b'\n') {
@@ -548,8 +553,9 @@ impl PnprClient {
                         unpacked_size,
                         file_count,
                         revision,
+                        supports_project_transforms,
                     } => {
-                        on_package(ResolvedPackage {
+                        let package = ResolvedPackage {
                             id,
                             name,
                             version,
@@ -558,7 +564,18 @@ impl PnprClient {
                             unpacked_size,
                             file_count,
                             revision,
-                        });
+                        };
+                        if supports_project_transforms {
+                            server_supports_project_transforms = true;
+                            for pending in pending_packages.drain(..) {
+                                on_package(pending);
+                            }
+                        }
+                        if project_transforms_requested && !server_supports_project_transforms {
+                            pending_packages.push(package);
+                        } else {
+                            on_package(package);
+                        }
                     }
                     Frame::Done { lockfile, stats } => {
                         if let Some(unexpected) = lockfile
@@ -571,6 +588,9 @@ impl PnprClient {
                             )));
                         }
                         assert_transform_metadata(&lockfile, &opts)?;
+                        for pending in pending_packages {
+                            on_package(pending);
+                        }
                         return Ok(ResolveOutcome { lockfile: *lockfile, stats });
                     }
                     Frame::Error { message } => return Err(PnprClientError::Server(message)),
@@ -584,6 +604,11 @@ impl PnprClient {
             "/-/pnpr/v0/resolve stream ended without a terminal frame".to_string(),
         ))
     }
+}
+
+fn has_project_transforms(opts: &ResolveProjectsOptions) -> bool {
+    opts.patched_dependencies.as_ref().is_some_and(|patches| !patches.is_empty())
+        || opts.package_extensions.as_ref().is_some_and(|extensions| !extensions.is_empty())
 }
 
 fn assert_transform_metadata(
@@ -651,6 +676,8 @@ enum Frame {
         file_count: Option<usize>,
         #[serde(default)]
         revision: Option<TarballRevision>,
+        #[serde(rename = "supportsProjectTransforms", default)]
+        supports_project_transforms: bool,
     },
     /// Boxed: the lockfile dwarfs the other variants, so keeping it
     /// behind a pointer keeps the enum small.

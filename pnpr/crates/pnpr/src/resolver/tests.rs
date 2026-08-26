@@ -968,6 +968,7 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
         tx,
         package_version_guard: Some(Arc::new(AllowAllVersions)),
         tarball_router: tarball_router(&registry, Identity::Anonymous),
+        announce_project_transform_support: std::sync::atomic::AtomicBool::new(true),
     };
 
     let hint = |unpacked_size, file_count, revision| ResolvedPackageHint {
@@ -989,12 +990,14 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
     assert_eq!(sized["unpackedSize"], serde_json::json!(123_456));
     assert_eq!(sized["fileCount"], serde_json::json!(42));
     assert_eq!(sized["revision"], serde_json::json!(3));
+    assert_eq!(sized["supportsProjectTransforms"], serde_json::json!(true));
 
     let unsized_frame: serde_json::Value =
         serde_json::from_slice(&rx.try_recv().expect("unsized frame sent")).unwrap();
     assert!(unsized_frame.get("unpackedSize").is_none());
     assert!(unsized_frame.get("fileCount").is_none());
     assert!(unsized_frame.get("revision").is_none());
+    assert!(unsized_frame.get("supportsProjectTransforms").is_none());
     assert_eq!(unsized_frame["tarball"], serde_json::json!("https://r.test/acme/-/acme-1.0.0.tgz"));
 }
 
@@ -1021,6 +1024,7 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
             revision: Some(3),
             from_registry: false,
         },
+        false,
     );
     let tarball = frame["tarball"].as_str().expect("tarball URL");
 
@@ -1056,6 +1060,7 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
             revision: None,
             from_registry: true,
         },
+        false,
     );
     let tarball = frame["tarball"].as_str().expect("tarball URL");
 
@@ -1087,6 +1092,7 @@ fn package_frame_strips_signed_token_from_public_registry_tarball() {
             revision: None,
             from_registry: true,
         },
+        false,
     );
     let tarball = frame["tarball"].as_str().expect("tarball URL");
 
@@ -1139,6 +1145,7 @@ fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
     );
     assert_eq!(frame["unpackedSize"], serde_json::json!(123_456));
     assert_eq!(frame["fileCount"], serde_json::json!(42));
+    assert_eq!(frame["supportsProjectTransforms"], serde_json::json!(true));
 }
 
 #[test]

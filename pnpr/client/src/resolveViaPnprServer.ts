@@ -5,6 +5,7 @@ import { gunzip } from 'node:zlib'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
+import { PnpmError } from '@pnpm/error'
 import { convertToLockfileObject } from '@pnpm/lockfile.fs'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import type { PackageExtension, RegistryDeclaration, TrustPolicy } from '@pnpm/types'
@@ -136,7 +137,7 @@ interface Violation { name: string, version: string, code: string, reason: strin
  * `violations`) closes the response.
  */
 type ResolveFrame =
-  | { type: 'package', id: string, name: string, version: string, integrity: string, tarball: string }
+  | { type: 'package', id: string, name: string, version: string, integrity: string, tarball: string, supportsProjectTransforms?: boolean }
   | { type: 'done', lockfile: LockfileFile, stats: ResponseMetadata['stats'] }
   | { type: 'error', message: string }
   | { type: 'violations', violations: Violation[] }
@@ -225,12 +226,12 @@ function assertTransformMetadata (
 ): void {
   const expectedPatches = opts.patchedDependencies
   if (expectedPatches != null && Object.keys(expectedPatches).length > 0 && !equalStringRecords(lockfile.patchedDependencies, expectedPatches)) {
-    throw new Error('pnpr server /-/pnpr/v0/resolve returned patchedDependencies that do not match the request; the server may not support project transforms')
+    throw new PnpmError('PNPR_TRANSFORM_METADATA_MISMATCH', 'pnpr server /-/pnpr/v0/resolve returned patchedDependencies that do not match the request; the server may not support project transforms')
   }
 
   const expectedExtensionsChecksum = hashObjectNullableWithPrefix(opts.packageExtensions)
   if (expectedExtensionsChecksum != null && lockfile.packageExtensionsChecksum !== expectedExtensionsChecksum) {
-    throw new Error('pnpr server /-/pnpr/v0/resolve returned packageExtensionsChecksum that does not match the request; the server may not support project transforms')
+    throw new PnpmError('PNPR_TRANSFORM_METADATA_MISMATCH', 'pnpr server /-/pnpr/v0/resolve returned packageExtensionsChecksum that does not match the request; the server may not support project transforms')
   }
 }
 

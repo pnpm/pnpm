@@ -118,7 +118,10 @@ test.each([
     lockfileVersion: '9.0',
     importers: { '.': {} },
     ...(patchedDependencies == null ? {} : { patchedDependencies }),
-  })).rejects.toThrow('returned patchedDependencies that do not match the request')
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_PNPR_TRANSFORM_METADATA_MISMATCH',
+    message: expect.stringContaining('returned patchedDependencies that do not match the request'),
+  })
 })
 
 test.each([
@@ -134,7 +137,10 @@ test.each([
     lockfileVersion: '9.0',
     importers: { '.': {} },
     ...(packageExtensionsChecksum == null ? {} : { packageExtensionsChecksum }),
-  })).rejects.toThrow('returned packageExtensionsChecksum that does not match the request')
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_PNPR_TRANSFORM_METADATA_MISMATCH',
+    message: expect.stringContaining('returned packageExtensionsChecksum that does not match the request'),
+  })
 })
 
 async function captureResolveRequest (

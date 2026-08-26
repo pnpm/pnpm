@@ -10337,6 +10337,9 @@ importers:
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../pnpm11/crypto/object-hasher
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../pnpm11/core/error
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../pnpm11/lockfile/fs
