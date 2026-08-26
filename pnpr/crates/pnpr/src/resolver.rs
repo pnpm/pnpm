@@ -57,10 +57,10 @@ use std::{
 };
 
 use crate::{
-    config::Config as RegistryConfig,
     osv::OsvIndex,
     route::{Footprint, RouteContext, RouteHook},
 };
+use pnpr_config::Config as RegistryConfig;
 use pnpr_policy::Identity;
 
 use axum::{

@@ -1,10 +1,10 @@
-use crate::config::{RedactedHeaders, UpstreamConfig};
 use chrono::{DateTime, Timelike, Utc};
 use pnpm_lockfile::{
     MAX_TARBALL_REVISION, TarballRevision, integrity_addressed_registry_tarball_url,
     is_integrity_addressed_registry_tarball_url,
 };
 use pnpm_network::{ThrottledClient, read_limited_body};
+use pnpr_config::{RedactedHeaders, UpstreamConfig};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::PackageName;
 use reqwest::{
@@ -43,7 +43,7 @@ pub struct Upstream {
     /// Per-request deadline (verdaccio's `timeout`).
     timeout: Duration,
     /// Per-upstream packument freshness window (verdaccio's `maxage`), or
-    /// `None` to defer to the global [`crate::config::Config::packument_ttl`].
+    /// `None` to defer to the global [`pnpr_config::Config::packument_ttl`].
     maxage: Option<Duration>,
     /// Whether tarballs from this upstream are written to the local mirror
     /// (verdaccio's `cache`).
@@ -212,7 +212,7 @@ impl Upstream {
     }
 
     /// Per-upstream packument freshness window (`maxage`), or `None` to
-    /// defer to the global [`crate::config::Config::packument_ttl`].
+    /// defer to the global [`pnpr_config::Config::packument_ttl`].
     pub fn maxage(&self) -> Option<Duration> {
         self.maxage
     }

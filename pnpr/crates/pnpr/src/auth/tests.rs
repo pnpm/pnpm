@@ -3,7 +3,7 @@ use super::{
     UserStore, identify, parse_htpasswd, sha256_hex, token_timestamp_from_sql,
     token_timestamp_to_sql, validate_username,
 };
-use crate::config::MaxUsers;
+use pnpr_config::MaxUsers;
 use std::sync::Arc;
 use tokio::sync::Barrier;
 

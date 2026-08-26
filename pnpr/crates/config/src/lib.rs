@@ -1,16 +1,13 @@
 mod upstream;
 
-pub use self::upstream::UpstreamConfig;
-
-pub(crate) use self::upstream::RedactedHeaders;
+pub use self::upstream::{RedactedHeaders, UpstreamConfig};
 
 use self::upstream::{
     Interval, UpstreamAuthFile, UpstreamConfigFile, parse_interval, resolve_upstream_config,
 };
 
-use crate::s3::{S3Settings, build_s3_store};
 use indexmap::IndexMap;
-use object_store::ObjectStore;
+use object_store::{ObjectStore, aws::AmazonS3Builder};
 use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
 use pnpr_error::RegistryError;
 use pnpr_policy::{AccessList, AccessToken, PackageRule, PackageRules};
@@ -245,6 +242,87 @@ pub struct FeatureOverrides {
 pub struct OsvConfig {
     pub enabled: bool,
     pub path: Option<PathBuf>,
+}
+
+/// The YAML `s3:` block. Selects the object-store hosted backend.
+/// Credentials fall back to the standard AWS environment variables
+/// (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`) when not set here,
+/// so an operator can keep secrets out of the config file. Whole-file
+/// `${ENV}` substitution still runs first, so inline `${...}` values
+/// work too.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct S3Settings {
+    /// Bucket the hosted packages live in.
+    pub bucket: String,
+    /// Region. AWS S3 needs a real region; Cloudflare R2 uses `auto`.
+    #[serde(default)]
+    pub region: Option<String>,
+    /// Custom endpoint for S3-compatible providers. Omit for AWS S3;
+    /// for R2 this is `https://<account-id>.r2.cloudflarestorage.com`.
+    #[serde(default)]
+    pub endpoint: Option<String>,
+    /// Key prefix every object is stored under (e.g. `packages`).
+    /// Lets one bucket hold more than just the hosted store.
+    #[serde(default)]
+    pub prefix: Option<String>,
+    #[serde(default)]
+    pub access_key_id: Option<String>,
+    #[serde(default)]
+    pub secret_access_key: Option<String>,
+    /// Force path-style addressing (`endpoint/bucket/key`) instead of
+    /// virtual-hosted (`bucket.endpoint/key`). `MinIO` typically needs
+    /// this; AWS and R2 work with the default.
+    #[serde(default)]
+    pub force_path_style: Option<bool>,
+    /// Allow plain-HTTP endpoints — needed for a local `MinIO` over
+    /// `http://`. Defaults to HTTPS-only.
+    #[serde(default)]
+    pub allow_http: Option<bool>,
+}
+
+impl S3Settings {
+    /// The configured key prefix, normalized to either `""` or a value
+    /// ending in `/` so it can be string-concatenated onto object keys.
+    pub fn normalized_prefix(&self) -> String {
+        match self.prefix.as_deref().map(str::trim).filter(|text| !text.is_empty()) {
+            None => String::new(),
+            Some(prefix) => {
+                let trimmed = prefix.trim_matches('/');
+                if trimmed.is_empty() { String::new() } else { format!("{trimmed}/") }
+            }
+        }
+    }
+}
+
+/// Build the object-store client from the YAML `s3:` settings. The
+/// builder seeds from the AWS environment first so env credentials
+/// work out of the box, then the explicit YAML values override.
+/// Failures here are config errors surfaced at startup, not over HTTP.
+pub fn build_s3_store(settings: &S3Settings) -> pnpr_error::Result<Arc<dyn ObjectStore>> {
+    let mut builder = AmazonS3Builder::from_env().with_bucket_name(&settings.bucket);
+    if let Some(region) = &settings.region {
+        builder = builder.with_region(region);
+    }
+    if let Some(endpoint) = &settings.endpoint {
+        builder = builder.with_endpoint(endpoint);
+    }
+    if let Some(key) = &settings.access_key_id {
+        builder = builder.with_access_key_id(key);
+    }
+    if let Some(secret) = &settings.secret_access_key {
+        builder = builder.with_secret_access_key(secret);
+    }
+    if let Some(force_path_style) = settings.force_path_style {
+        builder = builder.with_virtual_hosted_style_request(!force_path_style);
+    }
+    if let Some(allow_http) = settings.allow_http {
+        builder = builder.with_allow_http(allow_http);
+    }
+    let store = builder.build().map_err(|err| pnpr_error::RegistryError::InvalidConfig {
+        reason: format!("invalid s3 config: {err}"),
+    })?;
+    Ok(Arc::new(store))
 }
 
 /// The resolved hosted-store backend. The object-store client is built

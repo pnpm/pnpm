@@ -3,8 +3,8 @@ use super::{
     Upstream, abbreviate_packument, extract_version_manifest, rewrite_tarball_urls,
     rewrite_upstream_tarball_urls, tarball_basename,
 };
-use crate::config::UpstreamConfig;
 use chrono::{DateTime, TimeZone, Utc};
+use pnpr_config::UpstreamConfig;
 use pnpr_error::RegistryError;
 use pnpr_package_name::PackageName;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};

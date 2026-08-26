@@ -26,13 +26,13 @@
 //! failed apply and the restart.
 
 use crate::{
-    config::Config,
     publish::{merge_manifest, now_iso},
     storage::{
         HostedRevisionRefWrite, RECOVERY_PACKUMENT_WRITE_RETRIES, Storage, TarballFinalize,
         TarballSlot, is_canonical_revision_ref_owner, unique_tmp_path,
     },
 };
+use pnpr_config::Config;
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::PackageName;
 use serde::{Deserialize, Serialize};

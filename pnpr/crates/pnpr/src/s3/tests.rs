@@ -1,6 +1,7 @@
-use super::{Body, ObjectStore, S3Settings, S3Store};
+use super::{Body, ObjectStore, S3Store};
 use crate::storage::HostedRevisionRefWrite;
 use object_store::{ObjectStoreExt, PutPayload, memory::InMemory, path::Path as ObjectPath};
+use pnpr_config::S3Settings;
 use pnpr_package_name::PackageName;
 use std::sync::Arc;
 use tempfile::tempdir;

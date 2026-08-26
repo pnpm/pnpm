@@ -72,7 +72,8 @@ impl UpstreamConfig {
     /// Build a bare upstream with just a URL and headers, all tuning knobs
     /// at their verdaccio defaults. Used by the programmatic
     /// [`super::Config::proxy`] constructor and tests.
-    pub(crate) fn with_defaults(url: String, headers: HeaderMap) -> Self {
+    #[must_use]
+    pub fn with_defaults(url: String, headers: HeaderMap) -> Self {
         Self {
             url,
             headers,
@@ -107,7 +108,7 @@ impl fmt::Debug for UpstreamConfig {
 /// redacted. Upstream headers carry credentials (an `Authorization`, or
 /// an API key in a custom header), and those must never reach a log
 /// line, span, or diagnostic dump.
-pub(crate) struct RedactedHeaders<'a>(pub(crate) &'a HeaderMap);
+pub struct RedactedHeaders<'a>(pub &'a HeaderMap);
 
 impl fmt::Debug for RedactedHeaders<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

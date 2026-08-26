@@ -43,6 +43,7 @@ pnpr/
       src/
         lib.rs              -> library API
         main.rs             -> binary entry point (ships the `pnpr` binary)
+    config/        -> package "pnpr-config"        (the YAML config: parsing and validation)
     error/         -> package "pnpr-error"         (the error type every layer returns)
     package-name/  -> package "pnpr-package-name"  (npm package-name parsing)
     registry/      -> package "pnpr-registry"      (the registry routing table)

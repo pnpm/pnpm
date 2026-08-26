@@ -96,6 +96,7 @@ pnpm-registry-mock = { path = "pnpm/tasks/registry-mock" }
 
 # Registry (sibling project — pnpm-compatible registry server)
 pnpr              = { path = "pnpr/crates/pnpr" }
+pnpr-config       = { path = "pnpr/crates/config" }
 pnpr-error        = { path = "pnpr/crates/error" }
 pnpr-package-name = { path = "pnpr/crates/package-name" }
 pnpr-policy       = { path = "pnpr/crates/policy" }
