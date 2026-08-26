@@ -1,6 +1,4 @@
-use super::{
-    dispatch::RunCtx, recursive::discover_workspace_projects, reporter::ReporterType, run::RunArgs,
-};
+use super::{dispatch::RunCtx, recursive::discover_workspace_projects, run::RunArgs};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
@@ -63,7 +61,7 @@ impl CleanArgs {
                 parallel: false,
                 sequential: false,
             }
-            .run(ctx.dir, config, matches!(ctx.reporter, ReporterType::Silent));
+            .run(ctx.dir, config, ctx.reporter);
         }
         // Inside a workspace subdirectory, a `<command_name>` script at the
         // workspace root must be run from the root rather than shadowed by

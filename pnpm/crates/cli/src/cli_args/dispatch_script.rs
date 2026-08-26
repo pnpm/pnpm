@@ -3,7 +3,6 @@ use super::{
     exec::ExecArgs,
     init::InitArgs,
     pkg::PkgArgs,
-    reporter::{ReporterType, reporter_emit},
     restart::RestartArgs,
     run::RunArgs,
     script_shortcut::ScriptShortcutArgs,
@@ -83,14 +82,9 @@ pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<Command
     let config = (ctx.config)()?;
     let args = with_recursive_run_options(ctx, args, config);
     if ctx.recursive {
-        args.run_recursive(
-            config,
-            ctx.dir,
-            reporter_emit(ctx.reporter),
-            matches!(ctx.reporter, ReporterType::Ndjson | ReporterType::Silent),
-        )?;
+        args.run_recursive(config, ctx.dir, ctx.reporter)?;
     } else {
-        args.run(ctx.dir, config, matches!(ctx.reporter, ReporterType::Silent))?;
+        args.run(ctx.dir, config, ctx.reporter)?;
     }
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
@@ -113,14 +107,9 @@ pub(super) fn fallback<'a>(
     let config = (ctx.config)()?;
     let args = with_recursive_run_options(ctx, args, config);
     if ctx.recursive {
-        args.run_recursive(
-            config,
-            ctx.dir,
-            reporter_emit(ctx.reporter),
-            matches!(ctx.reporter, ReporterType::Ndjson | ReporterType::Silent),
-        )?;
+        args.run_recursive(config, ctx.dir, ctx.reporter)?;
     } else {
-        args.run_fallback(ctx.dir, config, matches!(ctx.reporter, ReporterType::Silent))?;
+        args.run_fallback(ctx.dir, config, ctx.reporter)?;
     }
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
@@ -130,10 +119,10 @@ pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<Comma
     let args = with_recursive_exec_options(ctx, args, config);
     if ctx.recursive {
         let dir = ctx.dir;
-        let emit = reporter_emit(ctx.reporter);
-        Ok(Box::pin(async move { args.run_recursive(config, dir, emit).await }))
+        let reporter = ctx.reporter;
+        Ok(Box::pin(async move { args.run_recursive(config, dir, reporter).await }))
     } else {
-        args.run(ctx.dir, config)?;
+        args.run(ctx.dir, config, ctx.reporter)?;
         Ok(Box::pin(std::future::ready(Ok(()))))
     }
 }
@@ -173,13 +162,7 @@ pub(super) fn stop<'a>(
     if ctx.recursive {
         run(ctx, args.into_run_args("stop", ctx.if_present))
     } else {
-        args.run(
-            "stop",
-            ctx.if_present,
-            ctx.dir,
-            (ctx.config)()?,
-            matches!(ctx.reporter, ReporterType::Silent),
-        )?;
+        args.run("stop", ctx.if_present, ctx.dir, (ctx.config)()?, ctx.reporter)?;
         Ok(Box::pin(std::future::ready(Ok(()))))
     }
 }
@@ -189,6 +172,6 @@ pub(super) fn restart<'a>(
     mut args: RestartArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     args.if_present |= ctx.if_present;
-    args.run(ctx.dir, (ctx.config)()?, matches!(ctx.reporter, ReporterType::Silent))?;
+    args.run(ctx.dir, (ctx.config)()?, ctx.reporter)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }

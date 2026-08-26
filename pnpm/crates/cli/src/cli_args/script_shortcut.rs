@@ -1,4 +1,4 @@
-use super::run::RunArgs;
+use super::{reporter::ReporterType, run::RunArgs};
 use clap::Args;
 
 /// The arguments of a command that stands for one named script —
@@ -39,9 +39,9 @@ impl ScriptShortcutArgs {
         if_present: bool,
         dir: &std::path::Path,
         config: &pnpm_config::Config,
-        silent: bool,
+        reporter: ReporterType,
     ) -> miette::Result<()> {
-        self.into_run_args(script_name, if_present).run(dir, config, silent)
+        self.into_run_args(script_name, if_present).run(dir, config, reporter)
     }
 }
 

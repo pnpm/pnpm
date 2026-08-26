@@ -1,4 +1,7 @@
-use super::exec::ExecArgs;
+use super::{
+    exec::ExecArgs,
+    reporter::{ReporterType, reporter_emit},
+};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -10,7 +13,6 @@ use pnpm_package_manager::{
     pnp_path_for_execution,
 };
 use pnpm_package_manifest::PackageManifest;
-use pnpm_reporter::LogEvent;
 use pnpm_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
 use regex::Regex;
 use serde_json::Value;
@@ -144,25 +146,31 @@ impl RunArgs {
     /// The `resume_from` / `report_summary` / `no_bail` fields are only
     /// meaningful for the recursive path (see [`Self::run_recursive`])
     /// and are ignored here.
-    pub fn run(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
-        self.run_inner(dir, config, silent, false)
+    pub fn run(self, dir: &Path, config: &Config, reporter: ReporterType) -> miette::Result<()> {
+        self.run_inner(dir, config, reporter, false)
     }
 
-    pub fn run_fallback(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
-        self.run_inner(dir, config, silent, true)
+    pub fn run_fallback(
+        self,
+        dir: &Path,
+        config: &Config,
+        reporter: ReporterType,
+    ) -> miette::Result<()> {
+        self.run_inner(dir, config, reporter, true)
     }
 
     fn run_inner(
         self,
         dir: &Path,
         config: &Config,
-        silent: bool,
+        reporter: ReporterType,
         fallback_to_exec: bool,
     ) -> miette::Result<()> {
         // Before the manifest is read, so a mistyped command in a
         // directory without a project skips the check instead of
         // spawning a doomed install (see check_deps_status_before_run_at).
-        super::verify_deps::verify_deps_before_run(dir, config, silent)?;
+        super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
+        let silent = matches!(reporter, ReporterType::Silent);
         let RunArgs { script, if_present, sequential, .. } = self;
         let Some((script_name, args)) = script.split_first() else {
             let manifest = read_project_manifest_only(dir).map_err(RunError::Manifest)?;
@@ -174,7 +182,7 @@ impl RunArgs {
             Err(ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
                 if fallback_to_exec =>
             {
-                return exec_fallback(script_name, args, dir, config);
+                return exec_fallback(script_name, args, dir, config, reporter);
             }
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
@@ -193,7 +201,7 @@ impl RunArgs {
                 return Ok(());
             }
             if fallback_to_exec {
-                return exec_fallback(script_name, args, dir, config);
+                return exec_fallback(script_name, args, dir, config, reporter);
             }
             return Err(RunError::NoScript {
                 script: script_name.clone(),
@@ -256,11 +264,16 @@ impl RunArgs {
         &self,
         config: &Config,
         dir: &Path,
-        emit: fn(&LogEvent),
-        silent: bool,
+        reporter: ReporterType,
     ) -> miette::Result<()> {
-        super::verify_deps::verify_deps_before_run(dir, config, false)?;
-        recursive::run_recursive(self, config, dir, emit, silent)
+        super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
+        recursive::run_recursive(
+            self,
+            config,
+            dir,
+            reporter_emit(reporter),
+            matches!(reporter, ReporterType::Ndjson | ReporterType::Silent),
+        )
     }
 }
 
@@ -269,6 +282,7 @@ fn exec_fallback(
     args: &[String],
     dir: &Path,
     config: &Config,
+    reporter: ReporterType,
 ) -> miette::Result<()> {
     ExecArgs {
         command: RunArgs::script(script_name, args.iter().cloned()),
@@ -280,7 +294,7 @@ fn exec_fallback(
         reverse: false,
         parallel: false,
     }
-    .run(dir, config)
+    .run(dir, config, reporter)
 }
 
 /// Shared inputs for running a script, threaded through

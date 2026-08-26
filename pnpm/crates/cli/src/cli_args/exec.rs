@@ -10,12 +10,13 @@ use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
     pnp_path_for_execution,
 };
-use pnpm_reporter::LogEvent;
 use pnpm_workspace::safe_read_project_manifest_only;
 use std::{
     path::Path,
     process::{Command, ExitStatus, Stdio},
 };
+
+use super::reporter::{ReporterType, reporter_emit};
 
 /// Run a shell command in the context of a project.
 ///
@@ -99,9 +100,9 @@ impl ExecArgs {
     /// On a non-zero child exit code this terminates the process with the
     /// same code via [`std::process::exit`], matching pnpm's exec, which
     /// returns `{ exitCode }` and lets the CLI exit with it.
-    pub fn run(self, dir: &Path, config: &Config) -> miette::Result<()> {
+    pub fn run(self, dir: &Path, config: &Config, reporter: ReporterType) -> miette::Result<()> {
         let command = prepare_command(self.command)?;
-        super::verify_deps::verify_deps_before_run(dir, config, false)?;
+        super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
         let status = spawn_in_dir(&command, dir, config, self.shell_mode, ScriptOutput::Inherit)?;
         if !status.success() {
             // Propagate the child's exit code. A signal-terminated child
@@ -118,10 +119,10 @@ impl ExecArgs {
         &self,
         config: &Config,
         dir: &Path,
-        emit: fn(&LogEvent),
+        reporter: ReporterType,
     ) -> miette::Result<()> {
-        super::verify_deps::verify_deps_before_run(dir, config, false)?;
-        recursive::exec_recursive(self, config, dir, emit).await
+        super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
+        recursive::exec_recursive(self, config, dir, reporter_emit(reporter)).await
     }
 }
 
