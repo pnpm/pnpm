@@ -98,6 +98,9 @@ pub struct ResolveOptions {
     /// `preferFrozenLockfile`. `Some(false)` forces the server to
     /// re-resolve; `None` lets it default to reuse.
     pub prefer_frozen_lockfile: Option<bool>,
+    /// Refresh registry artifacts while retaining every locked package
+    /// version.
+    pub update_patches: bool,
     /// `ignoreManifestCheck`: skip the manifest ↔ lockfile freshness
     /// comparison during the frozen resolve.
     pub ignore_manifest_check: bool,
@@ -154,6 +157,7 @@ pub struct ResolveProjectsOptions {
     pub lockfile: Option<Lockfile>,
     pub frozen_lockfile: bool,
     pub prefer_frozen_lockfile: Option<bool>,
+    pub update_patches: bool,
     pub ignore_manifest_check: bool,
     pub trust_lockfile: bool,
     /// See [`ResolveOptions::resolution_mode`].
@@ -191,6 +195,7 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
             lockfile: opts.lockfile,
             frozen_lockfile: opts.frozen_lockfile,
             prefer_frozen_lockfile: opts.prefer_frozen_lockfile,
+            update_patches: opts.update_patches,
             ignore_manifest_check: opts.ignore_manifest_check,
             trust_lockfile: opts.trust_lockfile,
             resolution_mode: opts.resolution_mode,
@@ -500,6 +505,7 @@ impl PnprClient {
             "lockfile": opts.lockfile,
             "frozenLockfile": opts.frozen_lockfile,
             "preferFrozenLockfile": opts.prefer_frozen_lockfile,
+            "updatePatches": opts.update_patches,
             "ignoreManifestCheck": opts.ignore_manifest_check,
             "trustLockfile": opts.trust_lockfile,
             "resolutionMode": opts.resolution_mode,

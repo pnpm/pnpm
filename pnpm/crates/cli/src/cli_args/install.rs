@@ -628,6 +628,7 @@ impl InstallArgs {
                     frozen_lockfile,
                     prefer_frozen_lockfile: prefer_frozen_lockfile
                         .unwrap_or(config.prefer_frozen_lockfile),
+                    update_patches: false,
                     lockfile_only,
                     ignore_manifest_check,
                     trust_lockfile,
@@ -717,6 +718,10 @@ pub(crate) struct PnprLink<'a> {
     /// sending the raw CLI override — keeps a yaml `preferFrozenLockfile:
     /// false` honored on the pnpr path without `--no-prefer-frozen-lockfile`.
     pub(crate) prefer_frozen_lockfile: bool,
+    /// Refresh registry artifacts while retaining every locked package
+    /// version. This disables the exchange-free satisfied-lockfile path and
+    /// is forwarded to `/-/pnpr/v0/resolve`.
+    pub(crate) update_patches: bool,
     /// `--lockfile-only`. Forwarded to `/-/pnpr/v0/resolve` so the server
     /// resolves only — returning the lockfile without fetching files —
     /// after which [`install_via_pnpr`] writes the lockfile and skips
@@ -821,6 +826,15 @@ pub(crate) async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     Box::pin(install_via_pnpr_inner::<Reporter>(state, pnpr_server, None, link)).await
 }
 
+pub(crate) async fn install_selected_via_pnpr<Reporter: self::Reporter + 'static>(
+    state: &State,
+    pnpr_server: &str,
+    selection: &InstallFamilySelection,
+    link: PnprLink<'_>,
+) -> miette::Result<()> {
+    Box::pin(install_via_pnpr_inner::<Reporter>(state, pnpr_server, Some(selection), link)).await
+}
+
 async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     state: &State,
     pnpr_server: &str,
@@ -892,6 +906,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     // selection too — every project — and skips the server like any
     // single-project one.
     let satisfied_without_server = !link.frozen_lockfile
+        && !link.update_patches
         && !link.lockfile_only
         && link.prefer_frozen_lockfile
         && !partial_selection
@@ -1164,6 +1179,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         lockfile: previous_wanted.cloned(),
         frozen_lockfile: link.frozen_lockfile,
         prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
+        update_patches: link.update_patches,
         ignore_manifest_check: link.ignore_manifest_check,
         trust_lockfile: link.trust_lockfile,
         resolution_mode: state.config.resolution_mode,

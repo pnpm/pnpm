@@ -11,6 +11,7 @@ interface CapturedResolveRequest {
   patchedDependencies?: Record<string, string>
   packageExtensions?: Record<string, unknown>
   allowUnusedPatches?: boolean
+  updatePatches?: boolean
 }
 
 const resolverSettingNames = ['autoInstallPeers', 'dedupePeers', 'excludeLinksFromLockfile'] as const
@@ -141,6 +142,18 @@ test.each([
     code: 'ERR_PNPM_PNPR_TRANSFORM_METADATA_MISMATCH',
     message: expect.stringContaining('returned packageExtensionsChecksum that does not match the request'),
   })
+})
+
+test.each([true, false])('serializes updatePatches %s', async (updatePatches) => {
+  const request = await captureResolveRequest({ dependencies: {}, updatePatches })
+
+  expect(request).toMatchObject({ updatePatches })
+})
+
+test('omits updatePatches when the caller has none', async () => {
+  const request = await captureResolveRequest({ dependencies: {} })
+
+  expect(Object.hasOwn(request, 'updatePatches')).toBe(false)
 })
 
 async function captureResolveRequest (

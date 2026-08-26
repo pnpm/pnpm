@@ -235,7 +235,7 @@ test('pnpr runs under trustPolicy instead of refusing the install', async () => 
   expect(resolveViaPnprServer).toHaveBeenCalledTimes(1)
 })
 
-test('updatePatches uses client-side resolution instead of silently delegating to pnpr', async () => {
+test('updatePatches is delegated to pnpr', async () => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir
   const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
@@ -243,15 +243,36 @@ test('updatePatches uses client-side resolution instead of silently delegating t
 
   await install(manifest, { ...options, updatePatches: true })
 
-  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
+    updatePatches: true,
+  }))
 })
 
-test('an updatePatches mutation uses client-side resolution instead of silently delegating to pnpr', async () => {
+test('a complete updatePatches mutation is delegated to pnpr', async () => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir
   const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
   const options = createOptions(workspaceRoot, rootDir, {
     allProjects: [{ buildIndex: 0, manifest, rootDir }],
+  })
+
+  await mutateModules([{ mutation: 'install', rootDir, updatePatches: true }], options)
+
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
+    updatePatches: true,
+  }))
+})
+
+test('a partial updatePatches mutation stays on the client', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const otherRootDir = path.join(workspaceRoot, 'other') as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir, {
+    allProjects: [
+      { buildIndex: 0, manifest, rootDir },
+      { buildIndex: 1, manifest: { name: 'other', version: '1.0.0' }, rootDir: otherRootDir },
+    ],
   })
 
   await mutateModules([{ mutation: 'install', rootDir, updatePatches: true }], options)

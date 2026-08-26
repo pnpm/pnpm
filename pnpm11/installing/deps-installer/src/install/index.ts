@@ -211,7 +211,7 @@ export async function install (
 
   // When a pnpr server is configured, use server-side resolution
   // instead of the normal resolution flow.
-  if (opts.pnprServer && !opts.updatePatches) {
+  if (opts.pnprServer) {
     return installViaPnprServer(manifest, rootDir, opts)
   }
 
@@ -365,10 +365,11 @@ export async function mutateModules (
   const verifiedFileIntegrityBaseline = verifiedFileIntegritySnapshot()
 
   // When a pnpr server is configured, use server-side resolution. The pnpr server
-  // path supports `install`, `installSome` (pnpm add), and `uninstallSome`
-  // (pnpm remove). Mutations that need full client-side resolution (update
-  // flags) still fall through to the normal flow.
-  if (opts.pnprServer && canUsePnprForMutations(projects)) {
+  // path supports `install`, `installSome` (pnpm add), `uninstallSome`
+  // (pnpm remove), and complete-project revision refreshes. Mutations that
+  // need other client-side update behavior still fall through to the normal
+  // flow.
+  if (opts.pnprServer && canUsePnprForMutations(projects, opts.allProjects)) {
     const pnprResult = await mutateModulesViaPnpr(projects, opts)
     if (pnprResult) {
       // This path materializes packages of its own, so it verifies the
@@ -2775,17 +2776,34 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
 /**
  * Whether the pnpr server path can handle this batch of mutations. The pnpr server flow
  * supports installing the manifest as-is (`install`), adding new deps
- * (`installSome`), and removing deps (`uninstallSome`). It cannot model the
- * client-side update-flag behavior (`update`/`updateMatching`/`updateToLatest`)
- * yet, so those still go through the normal client-side resolver.
+ * (`installSome`), removing deps (`uninstallSome`), and refreshing registry
+ * revisions for a complete project set. Other client-side update behavior
+ * (`update`/`updateMatching`/`updateToLatest`) still uses the local resolver.
  */
-function canUsePnprForMutations (projects: MutatedProject[]): boolean {
+function canUsePnprForMutations (
+  projects: MutatedProject[],
+  allProjects: MutateModulesOptions['allProjects']
+): boolean {
   if (projects.length === 0) return false
+  const refreshesRevisions = projects.some(project =>
+    (project.mutation === 'install' || project.mutation === 'installSome') && project.updatePatches === true
+  )
+  if (refreshesRevisions) {
+    if (allProjects == null || projects.length !== allProjects.length) return false
+    const mutatedRootDirs = new Set(projects.map(project => project.rootDir))
+    if (!allProjects.every(project => mutatedRootDirs.has(project.rootDir))) return false
+    return projects.every(project =>
+      project.mutation === 'install' &&
+      project.updatePatches === true &&
+      !project.updateToLatest &&
+      project.updateMatching == null
+    )
+  }
   return projects.every((p) => {
     if (p.mutation === 'uninstallSome') return true
     if (p.mutation !== 'install' && p.mutation !== 'installSome') return false
     const m = p as InstallDepsMutation | InstallSomeDepsMutation
-    return !m.update && !m.updatePatches && !m.updateToLatest && m.updateMatching == null
+    return !m.update && !m.updateToLatest && m.updateMatching == null
   })
 }
 
@@ -2992,7 +3010,12 @@ async function mutateModulesViaPnpr (
   const result = await installViaPnprServer(
     pnprProjects[0].manifest,
     pnprProjects[0].rootDir,
-    opts,
+    {
+      ...opts,
+      updatePatches: projects.every(project =>
+        project.mutation === 'install' && project.updatePatches === true
+      ),
+    },
     pnprProjects.map((p) => ({ rootDir: p.rootDir, manifest: p.manifest }))
   )
 
@@ -3127,6 +3150,7 @@ async function installViaPnprServer (
       // lockfile it promises to leave alone.
       frozenLockfile: opts.frozenLockfile === true || (opts.frozenLockfileIfExists === true && existingLockfile != null),
       preferFrozenLockfile: opts.preferFrozenLockfile,
+      updatePatches: opts.updatePatches,
       lockfile: existingLockfile ?? undefined,
     })
 

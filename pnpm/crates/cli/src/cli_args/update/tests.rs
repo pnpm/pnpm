@@ -131,6 +131,15 @@ fn ignore_pnpmfile_flag_applies_to_config() {
 }
 
 #[test]
+fn pnpr_server_flag_applies_to_config() {
+    let mut config = Config::default();
+
+    update_args(&["--pnpr-server", "https://pnpr.example.test/"]).apply_cli_config(&mut config);
+
+    assert_eq!(config.pnpr_server.as_deref(), Some("https://pnpr.example.test/"));
+}
+
+#[test]
 fn patches_is_a_selectorless_update_mode() {
     let patches = update_args(&["--patches"]);
     assert!(patches.patches);

@@ -42,6 +42,7 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
             "trustPolicyExclude": ["legacy-pkg"],
             "trustPolicyIgnoreAfter": 43200,
             "trustLockfile": true,
+            "updatePatches": true,
         })))
         .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile })))
@@ -168,6 +169,7 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
         lockfile: None,
         frozen_lockfile: false,
         prefer_frozen_lockfile: None,
+        update_patches: true,
         ignore_manifest_check: false,
         trust_lockfile: true,
         resolution_mode: ResolutionMode::TimeBased,
