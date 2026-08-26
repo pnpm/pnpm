@@ -108,12 +108,24 @@ test('getOptionsFromPnpmSettings() reads shared side-effects cache settings', ()
   })).toStrictEqual({ sharedSideEffectsCache })
 })
 
-test.each(['trustedKeys', 'privateKey'])('getOptionsFromPnpmSettings() rejects a workspace-controlled shared side-effects %s', (trustKey) => {
+// A repository that could set `publish` would turn a key the machine holds for
+// its own builds into a signing oracle, so every field but the two that declare
+// eligibility is refused.
+test.each([
+  ['trustedKeys', { 'acme-2026': 'repository-controlled-key' }],
+  ['privateKey', 'repository-controlled-key'],
+  ['publish', true],
+  ['keyId', 'acme-2026'],
+  ['builderId', 'ci/main/42'],
+  ['imageDigest', 'sha256:abc'],
+  ['architectureBaseline', 'x64'],
+  ['buildEnv', { CC: 'clang' }],
+])('getOptionsFromPnpmSettings() rejects a workspace-controlled shared side-effects %s', (field, value) => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     sharedSideEffectsCache: {
       organization: 'acme',
       packages: ['native-addon'],
-      [trustKey]: { 'acme-2026': 'repository-controlled-key' },
+      [field]: value,
     },
   } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
     code: 'ERR_PNPM_WORKSPACE_SHARED_SIDE_EFFECTS_TRUST',
@@ -130,7 +142,7 @@ test('getOptionsFromPnpmSettings() accepts shared side-effects trust material on
   })).toStrictEqual({ sharedSideEffectsCache })
 })
 
-test('getOptionsFromPnpmSettings() reads the shared side-effects builder settings', () => {
+test('getOptionsFromPnpmSettings() reads the shared side-effects builder settings from a trusted source', () => {
   const sharedSideEffectsCache = {
     organization: 'acme',
     packages: ['native-addon'],
@@ -141,6 +153,13 @@ test('getOptionsFromPnpmSettings() reads the shared side-effects builder setting
     architectureBaseline: 'x64',
     buildEnv: { CC: 'clang' },
   }
+  expect(getOptionsFromPnpmSettings(process.cwd(), { sharedSideEffectsCache }, {
+    trustedSource: true,
+  })).toStrictEqual({ sharedSideEffectsCache })
+})
+
+test('getOptionsFromPnpmSettings() lets a workspace declare eligibility', () => {
+  const sharedSideEffectsCache = { organization: 'acme', packages: ['native-addon'] }
   expect(getOptionsFromPnpmSettings(process.cwd(), { sharedSideEffectsCache }))
     .toStrictEqual({ sharedSideEffectsCache })
 })
@@ -154,7 +173,7 @@ test.each([
 ])('getOptionsFromPnpmSettings() rejects a malformed shared side-effects %s', (_field, sharedSideEffectsCache) => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     sharedSideEffectsCache,
-  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+  } as unknown as PnpmSettings, { trustedSource: true })).toThrow(expect.objectContaining({
     code: 'ERR_PNPM_INVALID_SETTING',
   }))
 })

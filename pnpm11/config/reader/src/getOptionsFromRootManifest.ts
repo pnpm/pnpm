@@ -104,11 +104,11 @@ export function getOptionsFromPnpmSettings (
 }
 
 /**
- * The signing trust root stays outside the repository: a workspace may declare
- * which organization, packages, and builder identity are eligible, never which
- * keys are believed or which key signs. Those two travel with the machine, so
- * they come from the global config yaml, the environment, or the command line
- * — the same sources {@link SHARED_SIDE_EFFECTS_TRUST_KEYS} names.
+ * The signing trust root stays outside the repository: a workspace declares
+ * which organization and packages are eligible and nothing else — see
+ * {@link WORKSPACE_SHARED_SIDE_EFFECTS_FIELDS}. Letting it set `publish` would
+ * turn a key the machine holds for its own builds into a signing oracle any
+ * cloned repository could aim at a registry of its choosing.
  *
  * The rest of the section is consumed without further checks by the
  * install-time lookup, so a malformed shape has to be rejected here rather than
@@ -119,13 +119,16 @@ function assertValidSharedSideEffectsCache (
   trustedSource: boolean
 ): void {
   assertObjectSetting(settings, 'sharedSideEffectsCache')
-  for (const trustKey of SHARED_SIDE_EFFECTS_TRUST_KEYS) {
-    if (trustedSource || !Object.prototype.hasOwnProperty.call(settings, trustKey)) continue
-    throw new PnpmError(
-      'WORKSPACE_SHARED_SIDE_EFFECTS_TRUST',
-      `sharedSideEffectsCache.${trustKey} cannot be set by a workspace`,
-      { hint: `Set it in the global config file (pnpm config set --location=global sharedSideEffectsCache.${trustKey} ...) or in the environment instead.` }
-    )
+  if (!trustedSource) {
+    const machineField = Object.keys(settings)
+      .find((field) => !WORKSPACE_SHARED_SIDE_EFFECTS_FIELDS.has(field))
+    if (machineField != null) {
+      throw new PnpmError(
+        'WORKSPACE_SHARED_SIDE_EFFECTS_TRUST',
+        `sharedSideEffectsCache.${machineField} cannot be set by a workspace`,
+        { hint: `Set it in the global config file (pnpm config set --location=global sharedSideEffectsCache.${machineField} ...) or in the environment instead.` }
+      )
+    }
   }
   if (settings.organization != null) {
     assertString(settings.organization, 'sharedSideEffectsCache.organization')
@@ -146,8 +149,16 @@ function assertValidSharedSideEffectsCache (
   }
 }
 
-/** Fields of `sharedSideEffectsCache` a committed file may not contribute. */
-export const SHARED_SIDE_EFFECTS_TRUST_KEYS = ['trustedKeys', 'privateKey'] as const
+/**
+ * The only fields of `sharedSideEffectsCache` a committed file may contribute.
+ *
+ * Everything else describes the act of signing — which key signs, what
+ * provenance the signature attests, and whether to publish at all — so it
+ * belongs to the machine holding the key. Listing what a repository may set,
+ * rather than what it may not, keeps a field added later machine-only until
+ * someone decides otherwise.
+ */
+const WORKSPACE_SHARED_SIDE_EFFECTS_FIELDS: ReadonlySet<string> = new Set(['organization', 'packages'])
 
 const REGISTRY_SERVER_TYPES = new Set(['npm', 'artifactory'])
 

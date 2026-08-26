@@ -987,11 +987,20 @@ sharedSideEffectsCache:
     assert_eq!(shared.packages, ["native-addon"]);
 }
 
+/// A repository that could set `publish` would turn a key the machine holds for
+/// its own builds into a signing oracle, so every field but the two that
+/// declare eligibility is refused.
 #[test]
 fn rejects_workspace_controlled_shared_side_effects_trust_material() {
     for (trust_material, field) in [
         ("trustedKeys:\n    acme-2026: repository-controlled-key", "trustedKeys"),
         ("privateKey: repository-controlled-key", "privateKey"),
+        ("publish: true", "publish"),
+        ("keyId: acme-2026", "keyId"),
+        ("builderId: ci/main/42", "builderId"),
+        ("imageDigest: sha256:abc", "imageDigest"),
+        ("architectureBaseline: x64", "architectureBaseline"),
+        ("buildEnv:\n    CC: clang", "buildEnv"),
     ] {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
@@ -1005,6 +1014,35 @@ fn rejects_workspace_controlled_shared_side_effects_trust_material() {
         let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
         assert!(error.to_string().contains(field), "{error}");
     }
+}
+
+/// The machine keeps the publication switch a repository may not touch.
+#[test]
+fn a_workspace_declaring_eligibility_keeps_the_machines_publication_settings() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "sharedSideEffectsCache:\n  organization: acme\n  packages:\n    - native-addon\n",
+    )
+    .unwrap();
+    let global: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sharedSideEffectsCache:
+  publish: true
+  keyId: acme-2026
+",
+    )
+    .unwrap();
+
+    let mut config = Config::new();
+    global.apply_to(&mut config, Path::new("/workspace"));
+    WorkspaceSettings::load_at(dir.path()).unwrap().unwrap().apply_to(&mut config, dir.path());
+
+    let shared = config.shared_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.organization, "acme");
+    assert_eq!(shared.packages, ["native-addon"]);
+    assert_eq!(shared.publish, Some(true));
+    assert_eq!(shared.key_id.as_deref(), Some("acme-2026"));
 }
 
 /// The environment holds the signing material a CI runner must not commit, so

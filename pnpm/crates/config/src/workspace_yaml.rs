@@ -148,10 +148,9 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 /// organization and packages while the machine supplies the trust root. The
 /// feature applies only once both halves are present.
 ///
-/// [`SharedSideEffectsCacheSettings::trusted_keys`] and
-/// [`SharedSideEffectsCacheSettings::private_key`] are the signing trust root
-/// and travel with the machine, not the repository: loading a
-/// `pnpm-workspace.yaml` that sets either one fails with
+/// Only `organization` and `packages` may come from a repository. Every other
+/// field describes the act of signing and travels with the machine: loading a
+/// `pnpm-workspace.yaml` that sets one fails with
 /// [`LoadWorkspaceYamlError::WorkspaceSharedSideEffectsTrust`], leaving the
 /// global config yaml and the environment.
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
@@ -1448,21 +1447,34 @@ impl WorkspaceSettings {
         Ok(Some(settings))
     }
 
-    /// Reject the shared side-effects signing trust root in a committed file.
+    /// Reject every shared side-effects field a committed file may not set.
+    ///
+    /// A workspace declares which organization and packages are eligible and
+    /// nothing else: the rest describes the act of signing — which key signs,
+    /// what provenance the signature attests, and whether to publish at all —
+    /// so it belongs to the machine holding the key. Letting a repository set
+    /// `publish` would turn a key the machine holds for its own builds into a
+    /// signing oracle any clone could aim at a registry of its choosing.
     ///
     /// Checked after parsing rather than through `deny_unknown_fields` because
-    /// the same struct also parses the global config yaml, where these fields
-    /// are legitimate.
+    /// the same struct also parses the global config yaml, where every field is
+    /// legitimate.
     fn reject_repo_controlled_trust_material(
         &self,
         path: &Path,
     ) -> Result<(), LoadWorkspaceYamlError> {
         let Some(settings) = self.shared_side_effects_cache.as_ref() else { return Ok(()) };
-        let field = if settings.trusted_keys.is_some() {
-            "trustedKeys"
-        } else if settings.private_key.is_some() {
-            "privateKey"
-        } else {
+        let machine_only = [
+            ("publish", settings.publish.is_some()),
+            ("keyId", settings.key_id.is_some()),
+            ("builderId", settings.builder_id.is_some()),
+            ("imageDigest", settings.image_digest.is_some()),
+            ("architectureBaseline", settings.architecture_baseline.is_some()),
+            ("buildEnv", settings.build_env.is_some()),
+            ("trustedKeys", settings.trusted_keys.is_some()),
+            ("privateKey", settings.private_key.is_some()),
+        ];
+        let Some((field, _)) = machine_only.into_iter().find(|(_, is_set)| *is_set) else {
             return Ok(());
         };
         Err(LoadWorkspaceYamlError::WorkspaceSharedSideEffectsTrust {
