@@ -7,7 +7,10 @@ use self::upstream::{
 };
 
 use indexmap::IndexMap;
-use object_store::{ObjectStore, aws::AmazonS3Builder};
+use object_store::{
+    ObjectStore,
+    aws::{AmazonS3Builder, AmazonS3ConfigKey},
+};
 use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
 use pnpr_error::RegistryError;
 use pnpr_policy::{AccessList, AccessToken, PackageRule, PackageRules};
@@ -321,12 +324,26 @@ impl S3Settings {
 /// work out of the box, then the explicit YAML values override.
 /// Failures here are config errors surfaced at startup, not over HTTP.
 pub fn build_s3_store(settings: &S3Settings) -> pnpr_error::Result<Arc<dyn ObjectStore>> {
+    let store = s3_builder(settings).build().map_err(|err| {
+        pnpr_error::RegistryError::InvalidConfig { reason: format!("invalid s3 config: {err}") }
+    })?;
+    Ok(Arc::new(store))
+}
+
+/// The configured builder, split out so tests can assert which keys the YAML
+/// settled without opening a connection.
+fn s3_builder(settings: &S3Settings) -> AmazonS3Builder {
     let mut builder = AmazonS3Builder::from_env().with_bucket_name(&settings.bucket);
     if let Some(region) = &settings.region {
         builder = builder.with_region(region);
     }
     if let Some(endpoint) = &settings.endpoint {
-        builder = builder.with_endpoint(endpoint);
+        // Set the S3-specific key, not `with_endpoint`: `from_env` above imports
+        // `AWS_ENDPOINT_URL_S3` into `s3_endpoint`, which object_store resolves
+        // ahead of `endpoint` regardless of the order they were set. Writing the
+        // plain endpoint would leave a stray environment variable silently
+        // redirecting every request away from the configured bucket host.
+        builder = builder.with_config(AmazonS3ConfigKey::S3Endpoint, endpoint);
     }
     if let Some(key) = &settings.access_key_id {
         builder = builder.with_access_key_id(key);
@@ -337,13 +354,11 @@ pub fn build_s3_store(settings: &S3Settings) -> pnpr_error::Result<Arc<dyn Objec
     if let Some(force_path_style) = settings.force_path_style {
         builder = builder.with_virtual_hosted_style_request(!force_path_style);
     }
-    if let Some(allow_http) = settings.allow_http {
-        builder = builder.with_allow_http(allow_http);
-    }
-    let store = builder.build().map_err(|err| pnpr_error::RegistryError::InvalidConfig {
-        reason: format!("invalid s3 config: {err}"),
-    })?;
-    Ok(Arc::new(store))
+    // Always decide this here rather than only when the YAML sets it: `from_env`
+    // honours `AWS_ALLOW_HTTP`, so leaving it alone would let the environment
+    // downgrade the connection to plaintext behind an operator who never asked
+    // for it. The documented default is HTTPS-only, so make it so.
+    builder.with_allow_http(settings.allow_http.unwrap_or(false))
 }
 
 /// The resolved hosted-store backend. The object-store client is built

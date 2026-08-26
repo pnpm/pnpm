@@ -6038,6 +6038,7 @@ dependencies = [
  "object_store",
  "pnpm-config-dir",
  "pnpm-env-replace",
+ "pnpm-testing-utils",
  "pnpr-error",
  "pnpr-package-name",
  "pnpr-policy",

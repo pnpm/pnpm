@@ -5,7 +5,9 @@ use super::{
     upstream::{TokenEnv, UpstreamAuthType},
 };
 use indexmap::IndexMap;
+use object_store::{ClientConfigKey, aws::AmazonS3ConfigKey};
 use pnpm_env_replace::EnvVar;
+use pnpm_testing_utils::env_guard::EnvGuard;
 use pnpr_error::RegistryError;
 use pnpr_policy::Identity;
 use reqwest::header::AUTHORIZATION;
@@ -2352,4 +2354,59 @@ fn s3_settings_debug_redacts_credentials() {
     assert!(rendered.contains("<redacted>"), "expected redaction marker: {rendered}");
     // Non-secret fields still render, so the dump stays useful.
     assert!(rendered.contains("packages"), "bucket should render: {rendered}");
+}
+
+fn s3_settings_for(endpoint: Option<&str>, allow_http: Option<bool>) -> S3Settings {
+    S3Settings {
+        bucket: "packages".to_string(),
+        region: None,
+        endpoint: endpoint.map(str::to_string),
+        prefix: None,
+        access_key_id: None,
+        secret_access_key: None,
+        force_path_style: None,
+        allow_http,
+    }
+}
+
+/// `AmazonS3Builder::from_env` imports `AWS_ENDPOINT_URL_S3` into the
+/// S3-specific key, which `object_store` resolves ahead of the plain `endpoint`
+/// whatever order they were set in. Writing the configured endpoint to the
+/// plain key would let that environment variable silently redirect every
+/// request, so the YAML must land on the S3-specific key.
+#[test]
+fn a_configured_endpoint_lands_on_the_key_that_wins() {
+    let builder = super::s3_builder(&s3_settings_for(Some("https://minio.corp.example"), None));
+    assert_eq!(
+        builder.get_config_value(&AmazonS3ConfigKey::S3Endpoint).as_deref(),
+        Some("https://minio.corp.example"),
+    );
+}
+
+/// `from_env` also honours `AWS_ALLOW_HTTP`. The `allowHttp` field documents a
+/// HTTPS-only default, so an absent setting has to say `false` rather than
+/// leave the environment free to downgrade the connection to plaintext. The
+/// variable is set here because that is the only state in which the two
+/// behaviours differ.
+#[test]
+fn an_absent_allow_http_pins_https_only() {
+    let _env = EnvGuard::snapshot(["AWS_ALLOW_HTTP"]);
+    // SAFETY: `EnvGuard` holds the process-wide env-mutation lock for the
+    // lifetime of `_env` and restores the variable on drop.
+    unsafe { std::env::set_var("AWS_ALLOW_HTTP", "true") };
+
+    let builder = super::s3_builder(&s3_settings_for(None, None));
+    assert_eq!(
+        builder.get_config_value(&AmazonS3ConfigKey::Client(ClientConfigKey::AllowHttp)).as_deref(),
+        Some("false"),
+    );
+}
+
+#[test]
+fn an_explicit_allow_http_is_honoured() {
+    let builder = super::s3_builder(&s3_settings_for(None, Some(true)));
+    assert_eq!(
+        builder.get_config_value(&AmazonS3ConfigKey::Client(ClientConfigKey::AllowHttp)).as_deref(),
+        Some("true"),
+    );
 }
