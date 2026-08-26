@@ -482,6 +482,51 @@ async fn rejected_adoption_reclaims_the_preserved_blob_and_quota() {
     assert_eq!(fs::read(artifact_usage_path(&root)).await.unwrap(), usage_before);
 }
 
+/// Rollback reclaims what the failed publication itself stored, never a blob a
+/// committed artifact still depends on. A publication that finds its blob
+/// already on disk does not reserve it, so the failure has nothing to undo.
+#[tokio::test]
+async fn a_failed_publication_keeps_a_blob_a_committed_artifact_references() {
+    let storage = TempDir::new().unwrap();
+    let shared_bytes = b"shared addon";
+    assert!(
+        publish(
+            storage.path(),
+            "acme",
+            publication_with_blob("dependency-side-effects:v1:deps=committed", "ci/committed"),
+        )
+        .await
+        .unwrap(),
+    );
+    let artifact_owner =
+        owner_dir(storage.path(), "acme", &OwnerScope::organization("acme")).unwrap();
+    let blob = blob_id(&format!("sha512-{}", BASE64.encode(Sha512::digest(shared_bytes)))).unwrap();
+    let blob_path = artifact_owner.join("blobs").join(&blob);
+    assert!(fs::try_exists(&blob_path).await.unwrap());
+
+    // Fill a second entry to its variant limit so the next publication for it
+    // is rejected after the shared blob has already been accounted for.
+    let rejected_key = "dependency-side-effects:v1:deps=rejected";
+    for index in 0..MAX_VARIANTS_PER_CANDIDATE {
+        assert!(
+            publish(
+                storage.path(),
+                "acme",
+                publication_with_blob(rejected_key, &format!("ci/accepted/{index}")),
+            )
+            .await
+            .unwrap(),
+        );
+    }
+    let error = publish(storage.path(), "acme", publication_with_blob(rejected_key, "ci/rejected"))
+        .await
+        .unwrap_err();
+
+    assert!(error.to_string().contains("variant limit"), "{error}");
+    assert!(fs::try_exists(&blob_path).await.unwrap(), "the committed artifact lost its blob");
+    assert_eq!(fs::read(&blob_path).await.unwrap(), shared_bytes);
+}
+
 #[tokio::test]
 async fn active_entry_reservations_are_not_reconciled() {
     let storage = TempDir::new().unwrap();
