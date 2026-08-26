@@ -194,8 +194,7 @@ impl UpdateArgs {
         let workspace_root = self.check_workspace_option(state.config.workspace_dir.as_deref())?;
         let include_direct = self.dependency_options.include_direct();
         let update_actions = self.should_update_github_actions(state.config, &include_direct);
-        if self.patches
-            && !update_actions
+        if self.can_delegate_patch_refresh(update_actions)
             && let Some(pnpr_server) = state.config.pnpr_server.as_deref()
         {
             let lockfile_path = state.lockfile_path();
@@ -325,8 +324,7 @@ impl UpdateArgs {
         let workspace_root = self.check_workspace_option(state.config.workspace_dir.as_deref())?;
         let include_direct = self.dependency_options.include_direct();
         let update_actions = self.should_update_github_actions(state.config, &include_direct);
-        if self.patches
-            && !update_actions
+        if self.can_delegate_patch_refresh(update_actions)
             && let Some(pnpr_server) = state.config.pnpr_server.as_deref()
         {
             let lockfile_path = state.lockfile_path();
@@ -515,6 +513,10 @@ impl UpdateArgs {
             return Err(PatchesWithSelectorError.into());
         }
         Ok(())
+    }
+
+    fn can_delegate_patch_refresh(&self, update_actions: bool) -> bool {
+        self.patches && self.depth.is_none() && !update_actions
     }
 
     fn pnpr_patch_link<'path>(

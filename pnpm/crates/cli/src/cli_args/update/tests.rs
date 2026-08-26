@@ -159,3 +159,10 @@ fn patches_is_a_selectorless_update_mode() {
         );
     }
 }
+
+#[test]
+fn patch_refresh_with_a_depth_limit_stays_on_the_client() {
+    assert!(update_args(&["--patches"]).can_delegate_patch_refresh(false));
+    assert!(!update_args(&["--patches", "--depth", "0"]).can_delegate_patch_refresh(false));
+    assert!(!update_args(&["--patches"]).can_delegate_patch_refresh(true));
+}

@@ -369,7 +369,7 @@ export async function mutateModules (
   // (pnpm remove), and complete-project revision refreshes. Mutations that
   // need other client-side update behavior still fall through to the normal
   // flow.
-  if (opts.pnprServer && canUsePnprForMutations(projects, opts.allProjects)) {
+  if (opts.pnprServer && canUsePnprForMutations(projects, opts)) {
     const pnprResult = await mutateModulesViaPnpr(projects, opts)
     if (pnprResult) {
       // This path materializes packages of its own, so it verifies the
@@ -2782,13 +2782,17 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
  */
 function canUsePnprForMutations (
   projects: MutatedProject[],
-  allProjects: MutateModulesOptions['allProjects']
+  opts: Pick<MutateModulesOptions, 'allProjects' | 'depth'>
 ): boolean {
   if (projects.length === 0) return false
   const refreshesRevisions = projects.some(project =>
     (project.mutation === 'install' || project.mutation === 'installSome') && project.updatePatches === true
   )
   if (refreshesRevisions) {
+    if (opts.depth !== Infinity && projects.some(project =>
+      project.mutation !== 'uninstallSome' && project.update === true
+    )) return false
+    const { allProjects } = opts
     if (allProjects == null || projects.length !== allProjects.length) return false
     const mutatedRootDirs = new Set(projects.map(project => project.rootDir))
     if (!allProjects.every(project => mutatedRootDirs.has(project.rootDir))) return false

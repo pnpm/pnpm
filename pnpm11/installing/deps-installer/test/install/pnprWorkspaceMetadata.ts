@@ -263,6 +263,20 @@ test('a complete updatePatches mutation is delegated to pnpr', async () => {
   }))
 })
 
+test('an updatePatches mutation with a depth limit stays on the client', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir, {
+    allProjects: [{ buildIndex: 0, manifest, rootDir }],
+    depth: 0,
+  })
+
+  await mutateModules([{ mutation: 'install', rootDir, update: true, updatePatches: true }], options)
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+})
+
 test('a partial updatePatches mutation stays on the client', async () => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir
