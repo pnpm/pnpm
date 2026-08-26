@@ -319,14 +319,9 @@ pub(super) fn install_test<'a>(
         run_args.sort = cfg.sort;
         run_args.reverse = cfg.reverse;
         if recursive {
-            run_args.run_recursive(
-                cfg,
-                dir,
-                reporter_emit(reporter),
-                matches!(reporter, ReporterType::Ndjson | ReporterType::Silent),
-            )?;
+            run_args.run_recursive(cfg, dir, reporter)?;
         } else {
-            run_args.run(dir, cfg, matches!(reporter, ReporterType::Silent))?;
+            run_args.run(dir, cfg, reporter)?;
         }
 
         Ok(())

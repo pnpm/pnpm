@@ -510,6 +510,35 @@ fn exec_keeps_verifier_output_out_of_child_stdout() {
 }
 
 #[test]
+fn ndjson_exec_keeps_verifier_output_machine_readable() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &workspace.join("marker.txt"));
+
+    let output = pacquet
+        .with_args([
+            "--reporter=ndjson",
+            "exec",
+            "node",
+            "-e",
+            r#"process.stdout.write(JSON.stringify({workspace:"test"}))"#,
+        ])
+        .output()
+        .expect("spawn ndjson pacquet exec");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n");
+    assert!(output.status.success(), "ndjson exec failed");
+    assert_eq!(stdout, r#"{"workspace":"test"}"#);
+    assert!(!stderr.is_empty(), "the verifier install must report NDJSON events");
+    for line in stderr.lines() {
+        serde_json::from_str::<serde_json::Value>(line)
+            .unwrap_or_else(|err| panic!("invalid NDJSON line {line:?}: {err}"));
+    }
+
+    drop(root);
+}
+
+#[test]
 fn silent_exec_suppresses_verifier_output() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace, &workspace.join("marker.txt"));
