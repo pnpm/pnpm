@@ -12,7 +12,7 @@ use object_store::{
     aws::{AmazonS3Builder, AmazonS3ConfigKey},
 };
 use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
-use pnpr_error::RegistryError;
+use pnpr_error::{RegistryError, redact_url_credentials};
 use pnpr_policy::{AccessList, AccessToken, PackageRule, PackageRules};
 use pnpr_registry::{PackagePattern, Registries, Registry, RegistryConfigError};
 use reqwest::header::HeaderMap;
@@ -285,17 +285,19 @@ pub struct S3Settings {
     pub allow_http: Option<bool>,
 }
 
-/// Hand-written so the credential fields never render. `Debug` on this type
-/// is reachable from `Debug` on [`Config`], so a diagnostic dump of the whole
-/// configuration would otherwise carry the operator's S3 secret in plaintext.
-/// Same rule as [`RedactedHeaders`]: a credential must never reach a log line,
-/// span, or diagnostic dump.
+/// Hand-written so no credential renders. `Debug` on this type is reachable
+/// from `Debug` on [`Config`], so a diagnostic dump of the whole configuration
+/// would otherwise carry the operator's S3 secret in plaintext. The key fields
+/// are masked outright; `endpoint` is operator-supplied and can carry
+/// `user:pass@` userinfo or a token query parameter, so it goes through the
+/// same redaction the error type uses. Same rule as [`RedactedHeaders`]: a
+/// credential must never reach a log line, span, or diagnostic dump.
 impl fmt::Debug for S3Settings {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("S3Settings")
             .field("bucket", &self.bucket)
             .field("region", &self.region)
-            .field("endpoint", &self.endpoint)
+            .field("endpoint", &self.endpoint.as_deref().map(redact_url_credentials))
             .field("prefix", &self.prefix)
             .field("access_key_id", &self.access_key_id.as_ref().map(|_| "<redacted>"))
             .field("secret_access_key", &self.secret_access_key.as_ref().map(|_| "<redacted>"))

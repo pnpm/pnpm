@@ -2410,3 +2410,16 @@ fn an_explicit_allow_http_is_honoured() {
         Some("true"),
     );
 }
+
+/// `endpoint` is operator-supplied, so it can carry `user:pass@` userinfo or a
+/// token query parameter. Masking only the key fields would leave that path
+/// open.
+#[test]
+fn s3_settings_debug_redacts_credentials_inside_the_endpoint() {
+    let mut settings = s3_settings_for(Some("https://minio:hunter2@minio.corp.example"), None);
+    settings.bucket = "packages".to_string();
+
+    let rendered = format!("{settings:?}");
+    assert!(!rendered.contains("hunter2"), "endpoint userinfo leaked: {rendered}");
+    assert!(rendered.contains("minio.corp.example"), "host should still render: {rendered}");
+}
