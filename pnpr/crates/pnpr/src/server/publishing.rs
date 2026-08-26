@@ -4,7 +4,7 @@ use axum::{
     body::Body,
     extract::State,
     http::{StatusCode, header},
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use pnpm_crypto_hash::{create_hex_hash, integrity_addressed_tarball_path};
 use serde_json::{Value, json};
@@ -25,8 +25,8 @@ use crate::{
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, HostedOriginalRef, RegistrySource, WriteTarget,
-    authorize, authorized_upstream, default_registry_target, error_response, hosted_gate,
-    hosted_storage, resolve_registry_source, resolve_write_target,
+    authorize, authorized_upstream, default_registry_target, hosted_gate, hosted_storage,
+    resolve_registry_source, resolve_write_target,
 };
 
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
@@ -40,7 +40,7 @@ pub(super) enum PublishTarget {
     /// The resolved upstream registry denies this caller; answer with the
     /// same response its reads give (a 403), before any rejection that would
     /// narrate routing config.
-    Denied(Box<Response>),
+    Denied(RegistryError),
     /// The addressed registry or route does not exist (or the path-less base has
     /// no default target).
     NotFound,
@@ -77,7 +77,7 @@ pub(super) fn resolve_publish_target(
             match hosted_gate(state, identity, &registry, package) {
                 HostedGate::Allowed(org) => PublishTarget::Hosted { source: registry, org },
                 HostedGate::MaskNotFound => PublishTarget::NotFound,
-                HostedGate::Denied(err) => PublishTarget::Denied(Box::new(error_response(&err))),
+                HostedGate::Denied(err) => PublishTarget::Denied(err),
             }
         }
         // A write can never land on an upstream — but the upstream's `access:`
@@ -153,12 +153,12 @@ pub(super) async fn publish_package(
 ) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
 
     let incoming: Value = match serde_json::from_slice(&body) {
         Ok(v) => v,
-        Err(err) => return error_response(&RegistryError::Json(err)),
+        Err(err) => return RegistryError::Json(err).into_response(),
     };
 
     // Reject a publish whose body name disagrees with the URL.
@@ -167,13 +167,14 @@ pub(super) async fn publish_package(
     // package.json with another package's manifest.
     let body_name = incoming.get("name").and_then(Value::as_str);
     if body_name.is_some_and(|body_name| body_name != name.as_str()) {
-        return error_response(&RegistryError::BadRequest {
+        return RegistryError::BadRequest {
             reason: format!(
                 "package in URL ({:?}) does not match body ({:?})",
                 name.as_str(),
                 body_name.unwrap_or(""),
             ),
-        });
+        }
+        .into_response();
     }
 
     // Routing, masking, and the publish rule all run inside
@@ -182,7 +183,7 @@ pub(super) async fn publish_package(
     let (validated, target) =
         match validate_publish_doc(state, identity, registry, name, incoming).await {
             Ok(validated) => validated,
-            Err(response) => return *response,
+            Err(err) => return err.into_response(),
         };
 
     // Serialize the read-merge-write against other writers of this same
@@ -193,10 +194,10 @@ pub(super) async fn publish_package(
 
     let staged = match stage_publish(state, validated, &now_iso(), Some(&target.org)).await {
         Ok(staged) => staged,
-        Err(err) => return error_response(&err),
+        Err(err) => return err.into_response(),
     };
     if let Err(err) = commit_publishes(state, vec![staged]).await {
-        return error_response(&err);
+        return err.into_response();
     }
     publish_created_response()
 }
@@ -220,35 +221,35 @@ pub(super) async fn serve_batch_publish(
 ) -> Response {
     let incoming: Value = match serde_json::from_slice(&body) {
         Ok(v) => v,
-        Err(err) => return error_response(&RegistryError::Json(err)),
+        Err(err) => return RegistryError::Json(err).into_response(),
     };
     let Value::Object(mut incoming) = incoming else {
-        return error_response(&RegistryError::BadRequest {
-            reason: "body must be a JSON object".to_string(),
-        });
+        return RegistryError::BadRequest { reason: "body must be a JSON object".to_string() }
+            .into_response();
     };
     let Some(Value::Array(docs)) = incoming.remove("packages") else {
-        return error_response(&RegistryError::BadRequest {
+        return RegistryError::BadRequest {
             reason: "body must have a `packages` array".to_string(),
-        });
+        }
+        .into_response();
     };
     if docs.is_empty() {
-        return error_response(&RegistryError::BadRequest {
-            reason: "`packages` must not be empty".to_string(),
-        });
+        return RegistryError::BadRequest { reason: "`packages` must not be empty".to_string() }
+            .into_response();
     }
 
     let mut validated = Vec::with_capacity(docs.len());
     let mut seen_names = std::collections::BTreeSet::new();
     for doc in docs {
         let Some(doc_name) = doc.get("name").and_then(Value::as_str) else {
-            return error_response(&RegistryError::BadRequest {
+            return RegistryError::BadRequest {
                 reason: "every entry in `packages` must have a string `name`".to_string(),
-            });
+            }
+            .into_response();
         };
         let name = match PackageName::parse(doc_name) {
             Ok(name) => name,
-            Err(err) => return error_response(&err),
+            Err(err) => return err.into_response(),
         };
         // One packument read-merge-write per package: with the same
         // package twice in a batch, the second entry's merge would
@@ -256,16 +257,17 @@ pub(super) async fn serve_batch_publish(
         // multiple versions of one package as several `versions`
         // entries in a single document instead.
         if !seen_names.insert(name.as_str().to_string()) {
-            return error_response(&RegistryError::BadRequest {
+            return RegistryError::BadRequest {
                 reason: format!("duplicate package {:?} in `packages`", name.as_str()),
-            });
+            }
+            .into_response();
         }
         // The batch endpoint is path-less, so each package routes via the
         // default target; validation resolves that route and checks the
         // resolved hosted registry's publish rule per document.
         match validate_publish_doc(&state, &identity, None, name, doc).await {
             Ok(doc) => validated.push(doc),
-            Err(response) => return *response,
+            Err(err) => return err.into_response(),
         }
     }
 
@@ -286,12 +288,12 @@ pub(super) async fn serve_batch_publish(
                 for stage in staged {
                     cleanup_tmp_slots(stage.slots).await;
                 }
-                return error_response(&err);
+                return err.into_response();
             }
         }
     }
     if let Err(err) = commit_publishes(&state, staged).await {
-        return error_response(&err);
+        return err.into_response();
     }
     publish_created_response()
 }
@@ -327,8 +329,8 @@ pub(super) async fn validate_publish_doc(
     identity: &Identity,
     registry: Option<&str>,
     name: PackageName,
-    incoming: Value,
-) -> Result<(ValidatedPublish, WriteTarget), Box<Response>> {
+    mut incoming: Value,
+) -> Result<(ValidatedPublish, WriteTarget), RegistryError> {
     // Route the write to its hosted registry first (masking a denied caller
     // as not-found, rejecting an upstream target), then check that
     // registry's `publish` rule for this package — so routing failures
@@ -340,22 +342,8 @@ pub(super) async fn validate_publish_doc(
         &RegistrySource::Hosted(target.source.clone()),
         name.as_str(),
         Action::Publish,
-    )
-    .map_err(|err| Box::new(error_response(&err)))?;
+    )?;
 
-    let (validated, target) = validate_publish_attachments(name, incoming, target)
-        .map_err(|err| Box::new(error_response(&err)))?;
-    Ok((validated, target))
-}
-
-/// The attachment half of [`validate_publish_doc`], split out so the
-/// routing/authorization half above can use `?` on `Box<Response>` while
-/// this half keeps plain [`RegistryError`]s.
-fn validate_publish_attachments(
-    name: PackageName,
-    mut incoming: Value,
-    target: WriteTarget,
-) -> Result<(ValidatedPublish, WriteTarget), RegistryError> {
     let attachments = extract_attachments(&mut incoming)?;
 
     // Resolve each attachment's canonical disk filename + matching

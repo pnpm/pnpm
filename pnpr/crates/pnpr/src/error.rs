@@ -1,4 +1,7 @@
-use axum::http::StatusCode;
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 use derive_more::{Display, Error, From};
 
 #[derive(Debug, Display, Error, From)]
@@ -111,6 +114,13 @@ pub enum RegistryError {
         #[error(not(source))]
         reason: String,
     },
+
+    /// Nothing is served at the addressed route: an unknown package,
+    /// registry, or revision, or a private one masked as absent so the
+    /// 404 cannot be used to probe for its existence. Carries no detail
+    /// for that reason.
+    #[display("Not Found")]
+    NotFound,
 
     /// A publish targeted a `name@version` that is already hosted.
     /// Published versions are immutable; npm and verdaccio both answer a
@@ -263,6 +273,7 @@ impl RegistryError {
             RegistryError::InvalidPackageName { .. } => "invalid_package_name",
             RegistryError::InvalidTarballName { .. } => "invalid_tarball_name",
             RegistryError::InvalidConfig { .. } => "invalid_config",
+            RegistryError::NotFound => "not_found",
             RegistryError::Unauthenticated { .. } => "unauthenticated",
             RegistryError::Forbidden { .. } => "forbidden",
             RegistryError::TeamsConfigManaged { .. } => "teams_config_managed",
@@ -351,6 +362,7 @@ impl RegistryError {
             | RegistryError::PackumentWriteConflict { .. }
             | RegistryError::RevisionReferenceLimit { .. }
             | RegistryError::RevisionReferenceWriteConflict { .. } => StatusCode::CONFLICT,
+            RegistryError::NotFound => StatusCode::NOT_FOUND,
             RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
             RegistryError::Forbidden { .. } => StatusCode::FORBIDDEN,
             RegistryError::TeamsConfigManaged { .. } => StatusCode::FORBIDDEN,
@@ -579,6 +591,29 @@ fn is_sensitive_query_key(key: &str) -> bool {
             | "accesstoken"
             | "apikey",
     )
+}
+
+/// Only server faults need [`Self::log_message`]'s redaction: every variant
+/// that can embed a request URL — and so a credential — is one. The 401 / 403 /
+/// 404 tier drops to `debug` so a probing or unauthorized client cannot flood
+/// the log with warnings.
+impl IntoResponse for RegistryError {
+    fn into_response(self) -> Response {
+        let status = self.status_code();
+        let error_kind = self.log_kind();
+        if status.is_server_error() {
+            let err = self.log_message();
+            tracing::error!(%err, %error_kind, %status, "request failed");
+        } else if matches!(
+            status,
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN | StatusCode::NOT_FOUND,
+        ) {
+            tracing::debug!(err = %self, %error_kind, %status, "request failed");
+        } else {
+            tracing::warn!(err = %self, %error_kind, %status, "request failed");
+        }
+        (status, self.public_message()).into_response()
+    }
 }
 
 pub type Result<Value, Error = RegistryError> = std::result::Result<Value, Error>;
