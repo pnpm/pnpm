@@ -77,6 +77,30 @@ fn verifies_the_exact_signed_payload_bytes() {
     assert!(envelope.verify(other_public_key.as_bytes()).is_err());
 }
 
+/// An oversized envelope must be refused from its encoded length, before the
+/// decoder allocates the bytes it describes.
+#[test]
+fn rejects_oversized_envelope_fields_without_decoding_them() {
+    let oversized_payload = SignedArtifactEnvelope {
+        algorithm: SIGNATURE_ALGORITHM.to_string(),
+        key_id: "acme-2026".to_string(),
+        payload: "A".repeat(crate::MAX_ENCODED_SIGNED_PAYLOAD_SIZE + 1),
+        signature: BASE64.encode([0; 8]),
+    };
+    let error = oversized_payload.decode_payload().unwrap_err().to_string();
+    assert!(error.contains("signed payload exceeds"), "{error}");
+
+    let payload_bytes = serde_json::to_vec(&payload(integrity(b"addon"))).unwrap();
+    let oversized_signature = SignedArtifactEnvelope {
+        algorithm: SIGNATURE_ALGORITHM.to_string(),
+        key_id: "acme-2026".to_string(),
+        payload: BASE64.encode(&payload_bytes),
+        signature: "A".repeat(crate::MAX_ENCODED_SIGNATURE_SIZE + 1),
+    };
+    let error = oversized_signature.digest().unwrap_err().to_string();
+    assert!(error.contains("DER-encoded P-256 signature"), "{error}");
+}
+
 #[test]
 fn signs_a_payload_that_the_verifier_accepts() {
     let secret_key = SecretKey::from_slice(&[7; 32]).unwrap();

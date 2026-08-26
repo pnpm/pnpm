@@ -355,6 +355,46 @@ describe('signed shared artifacts', () => {
       await new Promise<void>((resolve, reject) => server.close(error => error == null ? resolve() : reject(error)))
     }
   })
+
+  test('an over-limit content-length rejects instead of hanging until the request timeout', async () => {
+    const server = createServer((request, response) => {
+      request.resume()
+      request.on('end', () => {
+        // Claim far more than the blob endpoint's ceiling without sending it,
+        // so only the declared length can reject the request.
+        response.writeHead(200, {
+          'content-type': 'application/octet-stream',
+          'content-length': String(1024 ** 4),
+        })
+        response.flushHeaders()
+      })
+    })
+    const registryUrl = await listen(server)
+    try {
+      await expect(downloadSharedArtifactBlob({
+        registryUrl,
+        request: { owner: payload().owner, integrity },
+      })).rejects.toThrow(/exceeds/)
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close(error => error == null ? resolve() : reject(error)))
+    }
+  })
+
+  test('rejects an envelope whose encoded fields exceed their limits', () => {
+    expect(() => verifySignedArtifactEnvelope({
+      algorithm: 'ecdsa-p256-sha256',
+      keyId: 'acme-2026',
+      payload: 'A'.repeat(Math.ceil((2 * 1024 * 1024) / 3) * 4 + 1),
+      signature: 'AAAAAAAA',
+    }, 'unused')).toThrow(/payload exceeds/)
+    expect(() => verifySignedArtifactEnvelope({
+      algorithm: 'ecdsa-p256-sha256',
+      keyId: 'acme-2026',
+      payload: Buffer.from(JSON.stringify(payload())).toString('base64'),
+      signature: 'A'.repeat(Math.ceil(72 / 3) * 4 + 1),
+    }, 'unused')).toThrow(/canonical P-256 DER/)
+  })
 })
 
 async function listen (server: ReturnType<typeof createServer>): Promise<string> {

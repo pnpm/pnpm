@@ -17,6 +17,12 @@ const MAX_SIGNED_PAYLOAD_SIZE = 2 * 1024 * 1024
 const MAX_LOOKUP_RESPONSE_SIZE = 16 * 1024 * 1024
 const MAX_PUBLISH_REQUEST_SIZE = 100 * 1024 * 1024
 const MAX_BASE64_BLOB_LENGTH = Math.ceil(MAX_FILE_SIZE / 3) * 4
+const MAX_BASE64_SIGNED_PAYLOAD_LENGTH = Math.ceil(MAX_SIGNED_PAYLOAD_SIZE / 3) * 4
+/**
+ * A canonical DER-encoded P-256 signature is a SEQUENCE of two INTEGERs of at
+ * most 33 content bytes each, so it never exceeds 72 bytes.
+ */
+const MAX_BASE64_SIGNATURE_LENGTH = Math.ceil(72 / 3) * 4
 const REQUEST_TIMEOUT = 600_000
 
 export type OwnerScope =
@@ -384,9 +390,15 @@ function decodeEnvelope (envelope: SignedArtifactEnvelope): {
     throw new Error(`Unsupported shared artifact signature algorithm ${JSON.stringify(envelope.algorithm)}`)
   }
   validateScalar('key id', envelope.keyId, 256)
+  if (typeof envelope.payload !== 'string' || envelope.payload.length > MAX_BASE64_SIGNED_PAYLOAD_LENGTH) {
+    throw new Error(`Signed artifact payload exceeds ${MAX_SIGNED_PAYLOAD_SIZE} bytes`)
+  }
   const payloadBytes = decodeBase64('signed payload', envelope.payload)
   if (payloadBytes.byteLength > MAX_SIGNED_PAYLOAD_SIZE) {
     throw new Error(`Signed artifact payload exceeds ${MAX_SIGNED_PAYLOAD_SIZE} bytes`)
+  }
+  if (typeof envelope.signature !== 'string' || envelope.signature.length > MAX_BASE64_SIGNATURE_LENGTH) {
+    throw new Error('Shared artifact signature is not canonical P-256 DER')
   }
   const signatureBytes = decodeBase64('signature', envelope.signature)
   validateP256DerSignature(signatureBytes)

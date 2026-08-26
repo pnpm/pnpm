@@ -29,6 +29,11 @@ pub const MAX_FILE_SIZE: u64 = 64 * 1024 * 1024;
 pub const MAX_ARTIFACT_SIZE: u64 = 64 * 1024 * 1024;
 pub const MAX_ENCODED_FILE_SIZE: usize = (MAX_FILE_SIZE as usize).div_ceil(3) * 4;
 pub const MAX_SIGNED_PAYLOAD_SIZE: usize = 2 * 1024 * 1024;
+/// A canonical DER-encoded P-256 signature is a SEQUENCE of two INTEGERs of at
+/// most 33 content bytes each, so it never exceeds 72 bytes.
+pub const MAX_SIGNATURE_SIZE: usize = 72;
+pub const MAX_ENCODED_SIGNED_PAYLOAD_SIZE: usize = MAX_SIGNED_PAYLOAD_SIZE.div_ceil(3) * 4;
+pub const MAX_ENCODED_SIGNATURE_SIZE: usize = MAX_SIGNATURE_SIZE.div_ceil(3) * 4;
 pub const MAX_RESOLVE_RESPONSE_SIZE: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Display, Error)]
@@ -237,6 +242,11 @@ impl SignedArtifactEnvelope {
             )));
         }
         validate_scalar("key id", &self.key_id, 256)?;
+        if self.payload.len() > MAX_ENCODED_SIGNED_PAYLOAD_SIZE {
+            return Err(ArtifactProtocolError::InvalidEnvelope(format!(
+                "signed payload exceeds {MAX_SIGNED_PAYLOAD_SIZE} bytes",
+            )));
+        }
         let payload_bytes = BASE64.decode(&self.payload).map_err(|_| {
             ArtifactProtocolError::InvalidEnvelope("payload is not valid base64".to_string())
         })?;
@@ -284,6 +294,11 @@ impl SignedArtifactEnvelope {
     }
 
     fn decode_signature(&self) -> Result<(Signature, Vec<u8>), ArtifactProtocolError> {
+        if self.signature.len() > MAX_ENCODED_SIGNATURE_SIZE {
+            return Err(ArtifactProtocolError::InvalidEnvelope(
+                "signature is not a DER-encoded P-256 signature".to_string(),
+            ));
+        }
         let signature_bytes = BASE64.decode(&self.signature).map_err(|_| {
             ArtifactProtocolError::InvalidEnvelope("signature is not valid base64".to_string())
         })?;
