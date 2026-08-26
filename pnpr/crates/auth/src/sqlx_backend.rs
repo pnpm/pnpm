@@ -492,7 +492,10 @@ pub(super) mod postgres {
 
     fn token_record_from_offset(row: &sqlx::postgres::PgRow, offset: usize) -> Result<TokenRecord> {
         let cidr_json: String = row.try_get(offset + 4)?;
-        let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json).unwrap_or_default();
+        let cidr_whitelist: Vec<String> =
+            serde_json::from_str(&cidr_json).map_err(|err| RegistryError::Internal {
+                reason: format!("a token has an unreadable cidr_whitelist: {err}"),
+            })?;
         let readonly: i16 = row.try_get(offset + 3)?;
         Ok(TokenRecord {
             username: row.try_get(offset)?,
@@ -839,7 +842,10 @@ pub(super) mod mysql {
 
     fn token_record_from_offset(row: &sqlx::mysql::MySqlRow, offset: usize) -> Result<TokenRecord> {
         let cidr_json: String = row.try_get(offset + 4)?;
-        let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json).unwrap_or_default();
+        let cidr_whitelist: Vec<String> =
+            serde_json::from_str(&cidr_json).map_err(|err| RegistryError::Internal {
+                reason: format!("a token has an unreadable cidr_whitelist: {err}"),
+            })?;
         let readonly: i16 = row.try_get(offset + 3)?;
         Ok(TokenRecord {
             username: row.try_get(offset)?,
