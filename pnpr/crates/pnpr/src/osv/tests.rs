@@ -1,4 +1,8 @@
-use std::{fs, sync::Arc};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use pnpm_resolving_resolver_base::{PackageVersionGuard, PackageVersionGuardDecision};
 
@@ -192,6 +196,50 @@ fn loads_zip_archive_and_fingerprints_it() {
 
     let index = OsvIndex::load_from_path(&zip_path).expect("load zip index");
     assert_eq!(index.vulnerability_ids("zipped", "1.0.0"), vec!["GHSA-zip"]);
+    assert!(index.can_trust_policy(&index.policy()));
+    assert!(!index.can_trust_policy(&serde_json::Map::new()));
+}
+
+/// The fingerprint sorts per-record digests, so the same records in a
+/// different archive order produce the same fingerprint and a cached verdict
+/// stays trusted. A record's digest covers its *name* as well as its bytes,
+/// so this holds for reordering only — moving a record to a different entry
+/// name is a different database.
+#[test]
+fn fingerprint_ignores_the_order_records_appear_in() {
+    fn zip_with(dir: &Path, file: &str, entries: [(&str, &str); 2]) -> PathBuf {
+        use std::io::Write;
+
+        let zip_path = dir.join(file);
+        let mut writer = zip::ZipWriter::new(fs::File::create(&zip_path).expect("create zip"));
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        for (name, body) in entries {
+            writer.start_file(name, options).expect("start file");
+            writer.write_all(body.as_bytes()).expect("write entry");
+        }
+        writer.finish().expect("finish zip");
+        zip_path
+    }
+
+    let record_a = r#"{"id":"GHSA-a","affected":[{"package":{"ecosystem":"npm","name":"a"},"versions":["1.0.0"]}]}"#;
+    let record_b = r#"{"id":"GHSA-b","affected":[{"package":{"ecosystem":"npm","name":"b"},"versions":["1.0.0"]}]}"#;
+    let entry_a = ("GHSA-a.json", record_a);
+    let entry_b = ("GHSA-b.json", record_b);
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let forward = zip_with(dir.path(), "forward.zip", [entry_a, entry_b]);
+    let reversed = zip_with(dir.path(), "reversed.zip", [entry_b, entry_a]);
+
+    let forward = OsvIndex::load_from_path(&forward).expect("load forward");
+    let reversed = OsvIndex::load_from_path(&reversed).expect("load reversed");
+    assert!(forward.can_trust_policy(&reversed.policy()));
+
+    // Renaming an entry changes what the database *is*, so the fingerprint
+    // must move with it and invalidate the cached verdict.
+    let renamed = zip_with(dir.path(), "renamed.zip", [("GHSA-c.json", record_a), entry_b]);
+    let renamed = OsvIndex::load_from_path(&renamed).expect("load renamed");
+    assert!(!forward.can_trust_policy(&renamed.policy()));
 }
 
 #[cfg(unix)]

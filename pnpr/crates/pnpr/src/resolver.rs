@@ -43,7 +43,6 @@
 //! fail closed.
 
 mod cache;
-pub(crate) mod osv;
 mod protocol;
 mod request_validation;
 mod resolve;
@@ -59,6 +58,7 @@ use std::{
 
 use crate::{
     config::Config as RegistryConfig,
+    osv::OsvIndex,
     policy::Identity,
     route::{Footprint, RouteContext, RouteHook},
 };
@@ -79,8 +79,6 @@ use pnpm_resolving_npm_resolver::{
 };
 use pnpm_resolving_resolver_base::{PackageVersionGuard, ResolutionVerifier};
 use pnpm_store_dir::StoreDir;
-
-pub(crate) use self::osv::{OsvIndex, format_advisory_ids, load_osv_index};
 
 use self::{
     cache::{CachedResolution, cached_resolution, resolution_cache_key, store_resolution},

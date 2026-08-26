@@ -43,7 +43,7 @@ use super::{
 pub(super) fn router_with_auth_and_osv(
     config: Config,
     auth: AuthState,
-    osv_index: Option<Arc<crate::resolver::OsvIndex>>,
+    osv_index: Option<Arc<crate::osv::OsvIndex>>,
 ) -> Router {
     let storage =
         Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone());
