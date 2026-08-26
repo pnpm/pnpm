@@ -90,7 +90,9 @@ pub(crate) fn verify_deps_before_run(
 
 /// Re-run the kind of install the workspace state recorded, in-place
 /// and with inherited stdio, the way pnpm's `runDepsStatusCheck` spawns
-/// `pnpm install` through `runPnpmCli`. The spawned install never
+/// `pnpm install` through `runPnpmCli`. `--use-stderr` keeps its
+/// reporter off the inherited stdout, which belongs to the script or
+/// command the gate is about to run. The spawned install never
 /// re-enters this gate: only `run` / `exec` consult it. Its up-to-date
 /// shortcuts are bypassed because the pre-run check has already decided
 /// that an install is required.
@@ -99,7 +101,7 @@ fn spawn_install(dir: &Path, install_args: &[String], silent: bool) -> miette::R
     let exe = std::env::current_exe().into_diagnostic()?;
     let mut command = Command::new(exe);
     command
-        .args(["install", "--verify-deps-before-run-install"])
+        .args(["install", "--verify-deps-before-run-install", "--use-stderr"])
         .args(install_args)
         .current_dir(dir);
     if silent {

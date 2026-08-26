@@ -154,25 +154,25 @@ fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
         .with_args(["run", "hello"])
         .output()
         .expect("run script after lockfile regeneration");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    eprintln!("STDOUT:\n{stdout}\n");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}\n");
     assert!(output.status.success(), "the script must run successfully");
     assert!(
-        stdout.contains("Lockfile is up to date, resolution step is skipped"),
-        "the verifier install must reuse the regenerated lockfile:\n{stdout}",
+        stderr.contains("Lockfile is up to date, resolution step is skipped"),
+        "the verifier install must reuse the regenerated lockfile:\n{stderr}",
     );
-    let policy_verdict = stdout
+    let policy_verdict = stderr
         .find("Lockfile passes supply-chain policies")
         .expect("the verifier must report its lockfile policy verdict");
-    let frozen_install = stdout
+    let frozen_install = stderr
         .find("Lockfile is up to date, resolution step is skipped")
         .expect("the verifier must report the frozen install");
-    let up_to_date = stdout
+    let up_to_date = stderr
         .find("Already up to date")
         .expect("the verifier must report that no packages changed");
     assert!(
         policy_verdict < frozen_install && frozen_install < up_to_date,
-        "the verifier messages must match pnpm's order:\n{stdout}",
+        "the verifier messages must match pnpm's order:\n{stderr}",
     );
     assert_eq!(
         fs::read_to_string(workspace.join("pnpm-lock.yaml"))
@@ -469,6 +469,47 @@ fn exec_runs_the_gate_too() {
         .with_args(["--config.verify-deps-before-run=error", "exec", "true"])
         .assert()
         .success();
+
+    drop(root);
+}
+
+/// The install the gate spawns writes its report to stderr, so `exec`
+/// hands stdout to the executed command alone and machine-readable
+/// output survives a pipe
+/// ([pnpm/pnpm#14197](https://github.com/pnpm/pnpm/issues/14197)).
+#[cfg(unix)]
+#[test]
+fn the_spawned_install_keeps_exec_stdout_for_the_command() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &workspace.join("marker.txt"));
+
+    let output = pacquet
+        .with_args(["exec", "sh", "-c", r#"echo '{"ok":true}'"#])
+        .output()
+        .expect("spawn pacquet exec");
+    assert!(output.status.success(), "exec must succeed after the spawned install");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout, "{\"ok\":true}\n", "the spawned install must not write to stdout");
+
+    drop(root);
+}
+
+/// A silent `exec` passes its reporter down to the install the gate
+/// spawns, so nothing is reported at all.
+#[cfg(unix)]
+#[test]
+fn a_silent_exec_silences_the_spawned_install() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &workspace.join("marker.txt"));
+
+    let output = pacquet
+        .with_args(["--silent", "exec", "sh", "-c", "echo done"])
+        .output()
+        .expect("spawn pacquet exec");
+    assert!(output.status.success(), "exec must succeed after the spawned install");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "done\n");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.is_empty(), "the spawned install must report nothing:\n{stderr}");
 
     drop(root);
 }

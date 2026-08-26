@@ -99,9 +99,9 @@ impl ExecArgs {
     /// On a non-zero child exit code this terminates the process with the
     /// same code via [`std::process::exit`], matching pnpm's exec, which
     /// returns `{ exitCode }` and lets the CLI exit with it.
-    pub fn run(self, dir: &Path, config: &Config) -> miette::Result<()> {
+    pub fn run(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
         let command = prepare_command(self.command)?;
-        super::verify_deps::verify_deps_before_run(dir, config, false)?;
+        super::verify_deps::verify_deps_before_run(dir, config, silent)?;
         let status = spawn_in_dir(&command, dir, config, self.shell_mode, ScriptOutput::Inherit)?;
         if !status.success() {
             // Propagate the child's exit code. A signal-terminated child
@@ -119,8 +119,9 @@ impl ExecArgs {
         config: &Config,
         dir: &Path,
         emit: fn(&LogEvent),
+        silent: bool,
     ) -> miette::Result<()> {
-        super::verify_deps::verify_deps_before_run(dir, config, false)?;
+        super::verify_deps::verify_deps_before_run(dir, config, silent)?;
         recursive::exec_recursive(self, config, dir, emit).await
     }
 }
