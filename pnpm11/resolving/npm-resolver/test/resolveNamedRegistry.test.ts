@@ -4,12 +4,16 @@ import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
-import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
+import {
+  createNpmResolver,
+} from '@pnpm/resolving.npm-resolver'
+import { EXISTING_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { RegistriesByScope } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
+import { getPkgMirrorPath, prepareJsonForDisk, saveMeta } from '../src/pickPackage.js'
 import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -113,6 +117,39 @@ test('resolveFromNamedRegistry() reaches the public registry through the built-i
     registryName: 'npmjs',
     id: '@acme/private@npmjs:2.1.0',
   })
+})
+
+test('resolveFromNamedRegistry() revalidates cached ranges under trust downgrade protection', async () => {
+  interceptGhAcmePrivate()
+  const cacheDir = temporaryDirectory()
+  await saveMeta(
+    getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, GH_REGISTRY, '@acme/private'),
+    prepareJsonForDisk(ghAcmePrivateMeta, undefined)
+  )
+  const fetchedUrls: string[] = []
+  const countingFetch: typeof fetch = async (url, opts) => {
+    fetchedUrls.push(url.toString())
+    return fetch(url, opts)
+  }
+  const { resolveFromNamedRegistry } = createNpmResolver(countingFetch, () => undefined, {
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+
+  await resolveFromNamedRegistry(
+    { alias: '@acme/private', bareSpecifier: 'gh:^2.0.0' },
+    {
+      preferredVersions: {
+        '@acme/private': {
+          '2.1.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+        },
+      },
+      trustPolicy: 'no-downgrade',
+    }
+  )
+
+  expect(fetchedUrls).toEqual(['https://npm.pkg.github.com/@acme%2Fprivate'])
 })
 
 test('resolveFromNamedRegistry() lets a proxying org override the built-in npmjs alias', async () => {

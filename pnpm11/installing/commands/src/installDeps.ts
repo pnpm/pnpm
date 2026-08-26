@@ -22,7 +22,7 @@ import {
 } from '@pnpm/installing.deps-installer'
 import { writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { globalInfo, globalWarn, logger } from '@pnpm/logger'
+import { globalInfo, logger } from '@pnpm/logger'
 import { applyRuntimeOnFailOverride, filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
@@ -48,9 +48,9 @@ import { setupPolicyHandlers } from './policyHandlers.js'
 import {
   type CommandFullName,
   createMatcher,
+  failOnVersionsOfIndirectUpdateSpecs,
   makeIgnorePatterns,
   matchDependencies,
-  parseUpdateParam,
   recursive,
   type RecursiveOptions,
   type UpdateDepsMatcher,
@@ -161,6 +161,7 @@ export type InstallDepsOptions = Pick<Config,
    */
   lockfileCheck?: (prev: LockfileObject, next: LockfileObject) => void
   update?: boolean
+  updatePatches?: boolean
   updateToLatest?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest?: boolean
@@ -392,7 +393,13 @@ export async function installDeps (
       // Don't update package.json in this case, and limit updates to only matching dependencies
       updatePackageManifest = false
       updateMatching = (pkgName: string) => updateMatch!(pkgName) != null
-      warnAboutIgnoredVersionsOfIndirectUpdateSpecs(updateSpecs)
+    }
+    // At `--depth 0` an indirect dependency is never traversed, so a selector
+    // that names one is simply out of scope rather than a version pnpm has
+    // nowhere to record. `--latest` rejects every versioned selector on its
+    // own, direct or not, and has to report that first.
+    if (!opts.latest && (opts.depth ?? Infinity) > 0) {
+      failOnVersionsOfIndirectUpdateSpecs(updateSpecs, [manifest], includeDirect)
     }
   }
 
@@ -432,6 +439,7 @@ export async function installDeps (
           updatedCatalogs,
           catalogPrune: opts.catalogPrune,
           resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
+          minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
           allProjects: opts.allProjects,
           ...policyUpdates,
         }),
@@ -469,6 +477,7 @@ export async function installDeps (
           updatedCatalogs,
           catalogPrune: opts.catalogPrune,
           resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
+          minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
           allProjects,
           ...policyUpdates,
         }),
@@ -594,25 +603,6 @@ function getVulnerabilityPenalty (severity: VulnerabilitySeverity): number {
     case 'critical': return -4000
       // Treat unrecognized severity as the lowest severity
     default: return -1100
-  }
-}
-
-/**
- * `pnpm update <dep>@<version>` where `<dep>` matches only transitive
- * dependencies has no manifest entry to write the version into, and an
- * update resolves the target the same way a fresh install would — which a
- * command-line version cannot influence. Tell the user the version part is
- * ignored, and that an override is the mechanism that does pin a
- * transitive dependency. The recommended override is scoped to the
- * dependents' declared range so it cannot violate any consumer's range;
- * the range itself is not known at this layer (it lives in the dependents'
- * manifests), hence the placeholder.
- */
-function warnAboutIgnoredVersionsOfIndirectUpdateSpecs (updateSpecs: string[]): void {
-  for (const spec of updateSpecs) {
-    const { pattern, versionSpec } = parseUpdateParam(spec)
-    if (versionSpec == null) continue
-    globalWarn(`"${pattern}" is not a direct dependency, so the requested version "${versionSpec}" is ignored — "${pattern}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare to pnpm-workspace.yaml, e.g.: overrides: { "${pattern}@<declared range>": "${versionSpec}" }`)
   }
 }
 

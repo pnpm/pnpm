@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use derive_more::Display;
 use serde_json::Value;
 use std::sync::Arc;
+use tokio::sync::{mpsc, oneshot};
 
 pub mod custom_fetcher_adapter;
 pub mod custom_resolver_adapter;
@@ -10,6 +11,25 @@ pub mod node_runtime;
 pub mod worker;
 
 pub use worker::LogFn;
+
+/// A native operation requested by a JavaScript custom fetcher.
+pub struct FetcherCallback {
+    pub method: FetcherMethod,
+    pub resolution: Value,
+    pub options: Value,
+    pub response: oneshot::Sender<Result<Value, Value>>,
+}
+
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FetcherMethod {
+    CafsInfo,
+    TempDir,
+    LocalTarball,
+    RemoteTarball,
+}
+
+pub type FetcherCallbackSender = mpsc::UnboundedSender<FetcherCallback>;
 
 /// Represents the results of a `readPackage` hook.
 pub type ReadPackageResult = Arc<Value>;
@@ -29,6 +49,7 @@ pub enum HookError {
 }
 
 /// Context provided to pnpmfile hooks.
+#[derive(Clone)]
 pub struct HookContext {
     pub log: Arc<dyn Fn(String) + Send + Sync>,
     /// Lockfile-root-relative directory of the resolution, set when the
@@ -43,12 +64,14 @@ pub struct HookContext {
 }
 
 /// Logger for preResolution hook (info/warn methods).
+#[derive(Clone)]
 pub struct PreResolutionHookLogger {
     pub info: Arc<dyn Fn(String) + Send + Sync>,
     pub warn: Arc<dyn Fn(String) + Send + Sync>,
 }
 
 /// Context provided to preResolution hooks.
+#[derive(Clone)]
 pub struct PreResolutionHookContext {
     pub wanted_lockfile: Value,
     pub current_lockfile: Value,
@@ -126,6 +149,11 @@ pub trait PnpmfileHooks: Send + Sync {
     /// `filterLog` hook: determines if a log message should be emitted.
     async fn filter_log(&self, log: Value, ctx: HookContext) -> bool;
 
+    /// Whether this pnpmfile exports a callable `filterLog` hook.
+    async fn has_filter_log(&self) -> bool {
+        false
+    }
+
     /// Compute the `pnpmfileChecksum` recorded in `pnpm-lock.yaml`, or
     /// `None` when this hook set defines no `hooks` object.
     ///
@@ -177,15 +205,12 @@ pub trait PnpmfileHooks: Send + Sync {
 /// A custom fetcher exported from a pnpmfile's `fetchers` array.
 ///
 /// Custom fetchers are consulted before the built-in fetchers. If `can_fetch`
-/// returns `true`, `fetch` is called. Currently only delegation is supported:
-/// the fetcher returns `{ "delegate": <LockfileResolution> }` to rewrite the
-/// resolution and fall through to the built-in fetch path.
+/// returns `true`, `fetch` is called with the possibly modified resolution.
 ///
 /// The pnpmfile hook is invoked with the same positional arguments as the
 /// TypeScript CLI's `CustomFetcher.fetch(cafs, resolution, opts, fetchers)`
-/// (`pnpm11/hooks/types/src/index.ts`); `cafs` and `fetchers` are `null`
-/// placeholders because they cannot cross the worker IPC boundary, which is
-/// how a portable fetcher knows to delegate instead of fetching directly.
+/// (`pnpm11/hooks/types/src/index.ts`). During installation, built-in tarball
+/// fetches cross the worker IPC boundary and finish before the callback returns.
 #[async_trait]
 pub trait CustomFetcher: Send + Sync {
     fn has_can_fetch(&self) -> bool {
@@ -199,19 +224,36 @@ pub trait CustomFetcher: Send + Sync {
     /// Determines whether this fetcher handles the given package.
     async fn can_fetch(&self, pkg_id: &str, resolution: Value) -> Result<bool, HookError>;
 
+    /// Preserve changes a JavaScript `canFetch` hook makes to its resolution.
+    async fn can_fetch_with_resolution(
+        &self,
+        pkg_id: &str,
+        resolution: Value,
+    ) -> Result<(bool, Value), HookError> {
+        let can_fetch = self.can_fetch(pkg_id, resolution.clone()).await?;
+        Ok((can_fetch, resolution))
+    }
+
     /// Calls the fetcher hook. The returned JSON envelope is interpreted by the
     /// installer:
     ///
     /// - `{ "delegate": <resolution> }` — rewrites the lockfile resolution and
     ///   falls through to the built-in fetch path for the rewritten value.
-    /// - Any other shape fails the install (`custom_fetcher_failed`): a fetcher
-    ///   that claims a package via [`CustomFetcher::can_fetch`] must delegate,
-    ///   because direct content fetch isn't supported yet.
-    ///
-    /// The built-in fetch path runs with the original resolution unchanged
-    /// only when no fetcher claims the package.
+    /// - A built-in fetch result containing `filesMap` is reused directly.
+    /// - Any other shape fails the install (`custom_fetcher_failed`).
     async fn fetch(&self, pkg_id: &str, resolution: Value, opts: Value)
     -> Result<Value, HookError>;
+
+    /// Run a fetch with native callbacks supplied by the installer.
+    async fn fetch_with_callbacks(
+        &self,
+        pkg_id: &str,
+        resolution: Value,
+        opts: Value,
+        _callbacks: FetcherCallbackSender,
+    ) -> Result<Value, HookError> {
+        self.fetch(pkg_id, resolution, opts).await
+    }
 }
 
 /// A custom resolver exported from a pnpmfile. The pnpmfile interface's

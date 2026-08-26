@@ -15,8 +15,8 @@ pub(crate) mod verify_engine;
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_cmd_shim::{Host as CmdShimHost, link_bins_of_packages_with_excludes};
-use pnpm_config::{Config, PNPM_VERSION};
+use pnpm_cmd_shim::{Host as CmdShimHost, LinkBinsOptions, link_bins_of_packages_with_excludes};
+use pnpm_config::{Config, PNPM_VERSION, standalone_install_command};
 use pnpm_env_installer::pnpm_engine_packages;
 use pnpm_fs::force_symlink_dir;
 use pnpm_global::{
@@ -49,9 +49,12 @@ fn major_upgrade_hint(target_major: u64) -> Option<&'static str> {
 /// `ERR_PNPM_PNPM_...`.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub(crate) enum SelfUpdateError {
-    #[display("You should update pnpm with corepack")]
-    #[diagnostic(code(ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK))]
-    CantSelfUpdateInCorepack,
+    #[display("pnpm cannot update itself when it is executed by Corepack")]
+    #[diagnostic(
+        code(ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK),
+        help("Install pnpm with the standalone script instead: {install_command}")
+    )]
+    CantSelfUpdateInCorepack { install_command: &'static str },
 
     #[display(r#"Cannot find "{specifier}" version of pnpm"#)]
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_PNPM))]
@@ -170,7 +173,10 @@ fn enforce_resolution_policy(
 /// `.npmrc` / workspace config can't mask the corepack refusal.
 pub(crate) fn reject_if_corepack() -> miette::Result<()> {
     if is_executed_by_corepack() {
-        return Err(SelfUpdateError::CantSelfUpdateInCorepack.into());
+        return Err(SelfUpdateError::CantSelfUpdateInCorepack {
+            install_command: standalone_install_command(),
+        }
+        .into());
     }
     Ok(())
 }
@@ -473,18 +479,18 @@ fn package_manager_pin_specifier(
 }
 
 /// Returns the updated `devEngines.packageManager` version constraint.
-/// A constraint that still satisfies the new version is left as-is (the
+/// Exact pins and simple ranges (`^`, `~`) are rewritten to the new version
+/// while keeping the operator, matching `pnpm update` / `pnpm runtime set`.
+/// Complex ranges that still satisfy the new version are left as-is (the
 /// lockfile pins the exact version); otherwise the new version is written
-/// with the constraint's pinning style, falling back to a caret range.
+/// as a caret range.
 fn update_version_constraint(current: Option<&str>, new_version: &str) -> String {
     let Some(current) = current else {
         return new_version.to_string();
     };
-    if range_satisfies(current, new_version) {
-        return current.to_string();
-    }
     match infer_range_spec_style(current) {
         Some(pinned) => format!("{}{new_version}", pinned.range_prefix()),
+        None if range_satisfies(current, new_version) => current.to_string(),
         None => format!("^{new_version}"),
     }
 }
@@ -520,13 +526,19 @@ fn link_into_global_bin(
 ) -> miette::Result<()> {
     let global_bin = config.global_bin.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
     let global_pkg_dir = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
+    let _global_bin_lock = super::global_bin_lock::acquire_global_bin_lock(&global_bin)?;
 
     refresh_global_shim_dispatcher(&global_bin, installed, version)?;
 
     let pkgs = read_installed_packages(&installed.install_dir);
-    link_bins_of_packages_with_excludes::<CmdShimHost>(&pkgs, &global_bin, &HashSet::new(), &[])
-        .map_err(miette::Report::new)
-        .wrap_err("link the updated pnpm bins")?;
+    link_bins_of_packages_with_excludes::<CmdShimHost>(
+        &pkgs,
+        &global_bin,
+        &HashSet::new(),
+        &LinkBinsOptions::default(),
+    )
+    .map_err(miette::Report::new)
+    .wrap_err("link the updated pnpm bins")?;
 
     let aliases = vec![installed.package_name.to_string()];
     let cache_hash = create_global_cache_key(&aliases, &registries_for_cache_key(config));
@@ -590,7 +602,7 @@ fn coerce_major(version: &str) -> Option<u64> {
     node_semver::Version::parse(version).ok().map(|version| version.major)
 }
 
-fn version_lt(left: &str, right: &str) -> bool {
+pub(super) fn version_lt(left: &str, right: &str) -> bool {
     match (node_semver::Version::parse(left), node_semver::Version::parse(right)) {
         (Ok(left), Ok(right)) => left < right,
         _ => false,

@@ -1,7 +1,6 @@
 //! The machine-local trust registry and its terminal prompt.
 
 use super::Candidate;
-use pnpm_config::{Host, default_state_dir};
 use pnpm_fs::lexical_normalize;
 use serde_json::{Value, json};
 use std::{io::IsTerminal, path::Path};
@@ -16,7 +15,7 @@ pub(super) const AUTO_TRUST_ENV: &str = "PNPM_AUTO_APPROVE_PROJECT_BINS_FOR_TEST
 /// so a concurrent append can only make the dispatcher ask again.
 pub(super) const TRUST_FILE_NAME: &str = "global-bin-trust.jsonl";
 
-pub(super) fn is_trusted(candidate: &Candidate, name: &str) -> bool {
+pub(super) fn is_trusted(candidate: &Candidate, name: &str, state_dir: &Path) -> bool {
     // Debug builds only: the e2e suite spawns real (debug) binaries, and
     // a release binary must not carry an environment backdoor around the
     // trust gate.
@@ -26,7 +25,7 @@ pub(super) fn is_trusted(candidate: &Candidate, name: &str) -> bool {
     let project_dir = candidate.project_dir();
     let candidate_id = candidate.identity();
     let project_key = lexical_normalize(project_dir).display().to_string();
-    let trust_file = default_state_dir::<Host>().map(|dir| dir.join(TRUST_FILE_NAME));
+    let trust_file = (!state_dir.as_os_str().is_empty()).then(|| state_dir.join(TRUST_FILE_NAME));
     if let Some(trust_file) = &trust_file
         && let Some(allow) = read_trust_decision(trust_file, &project_key, candidate_id)
     {

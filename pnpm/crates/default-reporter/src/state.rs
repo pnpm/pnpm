@@ -17,12 +17,17 @@ use pnpm_reporter::{
     InstallingConfigDepsStatus, LifecycleMessage, LifecycleStdio, LockfileVerificationMessage,
     LogEvent, LogLevel, PackageImportMethod, PackageManifestMessage, ProgressMessage, RemovedRoot,
     RequestRetryLog, ScopeLog, SkippedOptionalDependencyLog, SkippedOptionalPackage, Stage,
-    StatsMessage,
+    StatsMessage, UpdateCheckLog,
 };
 use serde_json::Value;
 
+use pnpm_config::{
+    matcher::{Matcher, create_matcher},
+    standalone_install_command,
+};
+
 use crate::{
-    SummaryScope,
+    MaxLogLevel, SummaryScope,
     colors::Colors,
     format::{
         contains_path, cut_line, format_prefix, format_prefix_no_trim, highlight_last_folder,
@@ -41,7 +46,7 @@ pub enum Output {
 }
 
 /// Rendering settings that cannot be recovered from the event stream.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct ReporterOptions {
     /// Emit each update as a new line instead of replacing the current frame.
     pub append_only: bool,
@@ -58,6 +63,40 @@ pub struct ReporterOptions {
     pub reports_scope: bool,
     /// Whether direct dependency warnings use workspace-relative prefixes.
     pub is_recursive: bool,
+    /// Verbosity ceiling from pnpm's `--loglevel` setting.
+    pub max_log_level: MaxLogLevel,
+    /// Keep lifecycle script output in its collapsed block instead of
+    /// streaming each line, even in append-only mode. pnpm's
+    /// `hideLifecycleOutput`, which the TypeScript reporter applies by
+    /// forcing the lifecycle stream's own `appendOnly` off.
+    pub hide_lifecycle_output: bool,
+    /// Stream lifecycle script output line by line even when the rest of
+    /// the frame renders in place. pnpm's `streamLifecycleOutput`, which
+    /// its reporter implements by turning on the lifecycle stream's own
+    /// `appendOnly`.
+    pub stream_lifecycle_output: bool,
+    /// Hold each script's streamed lines until it exits, then print the
+    /// whole run as one block. pnpm's `aggregateOutput`.
+    pub aggregate_output: bool,
+    /// Drop the project prefix from streamed script output lines. pnpm's
+    /// `hideLifecyclePrefix` — the `$ <script>` and `Done` / `Failed`
+    /// lines keep theirs.
+    pub hide_lifecycle_prefix: bool,
+    /// Replaces the second line of the ignored-builds box — the one that
+    /// tells the user how to approve a build. pnpm's
+    /// `approveBuildsInstructionText`, for embedders whose users approve
+    /// builds through the embedder's own configuration rather than
+    /// `pnpm approve-builds`.
+    pub ignored_builds_instruction_text: Option<String>,
+    /// Package-name patterns whose *linked* entries are left out of the
+    /// packages-diff summary — an entry is linked when it carries a
+    /// `from`, i.e. it is symlinked in rather than materialized from the
+    /// store. The Rust counterpart of the TypeScript reporter's
+    /// `filterPkgsDiff` callback: an embedder that links its own runtime
+    /// into every project (Bit's core aspects) silences that noise
+    /// without silencing the same packages when they are really
+    /// installed.
+    pub hide_linked_pkgs_diff: Vec<String>,
 }
 
 impl Default for ReporterOptions {
@@ -69,6 +108,13 @@ impl Default for ReporterOptions {
             summary_scope: SummaryScope::CurrentPrefix,
             reports_scope: false,
             is_recursive: false,
+            max_log_level: MaxLogLevel::Info,
+            hide_lifecycle_output: false,
+            stream_lifecycle_output: false,
+            aggregate_output: false,
+            hide_lifecycle_prefix: false,
+            ignored_builds_instruction_text: None,
+            hide_linked_pkgs_diff: Vec::new(),
         }
     }
 }
@@ -241,8 +287,17 @@ pub struct ReporterState {
     width: usize,
     colors: Colors,
     append_only: bool,
+    hide_lifecycle_output: bool,
+    stream_lifecycle_output: bool,
+    aggregate_output: bool,
+    hide_lifecycle_prefix: bool,
+    ignored_builds_instruction_text: Option<String>,
+    /// Compiled [`ReporterOptions::hide_linked_pkgs_diff`]. Never matches
+    /// when no patterns were configured.
+    hidden_linked_pkgs: Matcher,
     hide_added_pkgs_progress: bool,
     hide_progress_prefix: bool,
+    max_log_level: MaxLogLevel,
     frame: Frame,
     last_frame: Option<String>,
 
@@ -269,6 +324,9 @@ pub struct ReporterState {
     scope_slot: BlockSlot,
 
     lifecycle: HashMap<String, LifecycleEntry>,
+    /// Events withheld under [`ReporterOptions::aggregate_output`], keyed
+    /// the same way [`Self::lifecycle`] is.
+    lifecycle_buffers: HashMap<String, Vec<LifecycleMessage>>,
     lifecycle_slots: HashMap<String, BlockSlot>,
     lifecycle_colors: HashMap<String, usize>,
     color_wheel: usize,
@@ -285,6 +343,8 @@ pub struct ReporterState {
 
     deprecated_subdeps: Vec<DeprecationLog>,
     deprecated_slot: BlockSlot,
+
+    reported_peer_dependency_issues: bool,
 }
 
 const MAX_SHOWN_WARNINGS: usize = 5;
@@ -342,6 +402,13 @@ impl ReporterState {
             summary_scope,
             reports_scope,
             is_recursive,
+            max_log_level,
+            hide_lifecycle_output,
+            stream_lifecycle_output,
+            aggregate_output,
+            hide_lifecycle_prefix,
+            ignored_builds_instruction_text,
+            hide_linked_pkgs_diff,
         } = options;
         let mut diff = HashMap::new();
         for kind in SUMMARY_ORDER {
@@ -354,6 +421,7 @@ impl ReporterState {
             append_only,
             hide_added_pkgs_progress,
             hide_progress_prefix,
+            max_log_level,
             frame: Frame::new(append_only),
             last_frame: None,
             progress: HashMap::new(),
@@ -374,6 +442,7 @@ impl ReporterState {
             is_recursive,
             scope_slot: BlockSlot::default(),
             lifecycle: HashMap::new(),
+            lifecycle_buffers: HashMap::new(),
             lifecycle_slots: HashMap::new(),
             lifecycle_colors: HashMap::new(),
             color_wheel: 0,
@@ -386,10 +455,20 @@ impl ReporterState {
             collapsed_warn_slot: BlockSlot::default(),
             deprecated_subdeps: Vec::new(),
             deprecated_slot: BlockSlot::default(),
+            reported_peer_dependency_issues: false,
+            hide_lifecycle_output,
+            stream_lifecycle_output,
+            aggregate_output,
+            hide_lifecycle_prefix,
+            ignored_builds_instruction_text,
+            hidden_linked_pkgs: create_matcher(&hide_linked_pkgs_diff),
         }
     }
 
     pub fn handle(&mut self, event: &LogEvent) -> Output {
+        if !self.level_permits(event) {
+            return Output::None;
+        }
         if matches!(event, LogEvent::Summary(_) | LogEvent::ExecutionTime(_)) {
             self.flush_pending_lockfile_message();
         }
@@ -411,6 +490,7 @@ impl ReporterState {
             LogEvent::Summary(log) => self.on_summary(&log.prefix),
             LogEvent::Lifecycle(log) => self.on_lifecycle(&log.message),
             LogEvent::IgnoredScripts(log) => self.on_ignored_scripts(log),
+            LogEvent::UpdateCheck(log) => self.on_update_check(log),
             LogEvent::SkippedOptionalDependency(log) => self.on_skipped_optional(log),
             LogEvent::InstallingConfigDeps(log) => self.on_config_deps(log),
             LogEvent::LockfileVerification(log) => self.on_lockfile_verification(&log.message),
@@ -424,6 +504,7 @@ impl ReporterState {
             LogEvent::ExecutionTime(log) => self.on_execution_time(log),
             LogEvent::Hook(log) => self.on_hook(log),
             LogEvent::Deprecation(log) => self.on_deprecation(log),
+            LogEvent::PeerDependencyIssues(_) => self.on_peer_dependency_issues(),
             // Debug-only / non-rendered channels in pnpm's default reporter.
             LogEvent::BrokenModules(_) => {}
         }
@@ -440,6 +521,25 @@ impl ReporterState {
             self.flush_pending_lockfile_message();
         }
         self.finish()
+    }
+
+    /// Which events render at the configured `--loglevel`, mirroring the
+    /// tiers in `@pnpm/cli.default-reporter`'s `reporterForClient`: the
+    /// request-retry and deprecation streams need `warn`, the visual
+    /// streams (progress, stats, lifecycle, summary, `Done in ...`) need
+    /// `info`, and the `pnpm` / `pnpm:global` misc streams filter per
+    /// message level in [`Self::on_pnpm`], so errors always pass.
+    /// Dedupe-check issues always pass too — upstream reports them as an
+    /// error-level log (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in
+    /// `reportError.ts`).
+    fn level_permits(&self, event: &LogEvent) -> bool {
+        match event {
+            LogEvent::Pnpm(_) | LogEvent::Global(_) | LogEvent::DedupeCheck(_) => true,
+            LogEvent::RequestRetry(_)
+            | LogEvent::Deprecation(_)
+            | LogEvent::PeerDependencyIssues(_) => self.max_log_level >= MaxLogLevel::Warn,
+            _ => self.max_log_level >= MaxLogLevel::Info,
+        }
     }
 
     fn finish(&mut self) -> Output {
@@ -828,7 +928,11 @@ impl ReporterState {
             if bucket.is_empty() {
                 continue;
             }
-            let mut diffs: Vec<&PackageDiff> = bucket.values().collect();
+            let mut diffs: Vec<&PackageDiff> =
+                bucket.values().filter(|diff| !self.is_hidden_linked(diff)).collect();
+            if diffs.is_empty() {
+                continue;
+            }
             diffs.sort_by(|a, b| {
                 a.name.cmp(&b.name).then(u8::from(a.added).cmp(&u8::from(b.added)))
             });
@@ -840,6 +944,14 @@ impl ReporterState {
             msg.push('\n');
         }
         msg
+    }
+
+    /// Whether this summary entry is a linked instance of a package the
+    /// embedder asked to keep out of the summary. Only linked entries are
+    /// hidden: the same package really installed from the registry is a
+    /// change worth reporting.
+    fn is_hidden_linked(&self, pkg: &PackageDiff) -> bool {
+        pkg.from.is_some() && self.hidden_linked_pkgs.matches(&pkg.name)
     }
 
     fn diff_line(&self, pkg: &PackageDiff) -> String {
@@ -879,8 +991,8 @@ impl ReporterState {
     // --- lifecycle --------------------------------------------------------
 
     fn on_lifecycle(&mut self, message: &LifecycleMessage) {
-        if self.append_only {
-            let msg = self.stream_lifecycle(message);
+        if (self.append_only || self.stream_lifecycle_output) && !self.hide_lifecycle_output {
+            let Some(msg) = self.streamed_lifecycle_block(message) else { return };
             let mut slot = BlockSlot::default();
             self.frame.emit(&mut slot, msg, false);
             return;
@@ -999,6 +1111,30 @@ impl ReporterState {
         format!("{label}, failed in {time}\n{}", self.render_script(key, message))
     }
 
+    /// The streamed rendering of one lifecycle event, or `None` when
+    /// [`ReporterOptions::aggregate_output`] is withholding it until the
+    /// script exits. The whole run is then returned as one block, so a
+    /// concurrent sibling's lines cannot interleave with it.
+    fn streamed_lifecycle_block(&mut self, message: &LifecycleMessage) -> Option<String> {
+        if !self.aggregate_output {
+            return Some(self.stream_lifecycle(message));
+        }
+        let (stage, dep_path, _) = lifecycle_ids(message);
+        let key = format!("{stage}:{dep_path}");
+        // Format on flush rather than on arrival so the prefix color
+        // wheel advances in the order the blocks are printed.
+        if !matches!(message, LifecycleMessage::Exit { .. }) {
+            self.lifecycle_buffers.entry(key).or_default().push(message.clone());
+            return None;
+        }
+        let mut lines = Vec::new();
+        for buffered in self.lifecycle_buffers.remove(&key).unwrap_or_default() {
+            lines.push(self.stream_lifecycle(&buffered));
+        }
+        lines.push(self.stream_lifecycle(message));
+        Some(lines.join("\n"))
+    }
+
     fn stream_lifecycle(&mut self, message: &LifecycleMessage) -> String {
         let (stage, _dep_path, wd) = lifecycle_ids(message);
         let prefix = self.lifecycle_prefix(wd, stage);
@@ -1016,7 +1152,7 @@ impl ReporterState {
                     LifecycleStdio::Stderr => self.colors.grey(line),
                     LifecycleStdio::Stdout => line.clone(),
                 };
-                format!("{prefix}: {line}")
+                if self.hide_lifecycle_prefix { line } else { format!("{prefix}: {line}") }
             }
         }
     }
@@ -1062,8 +1198,26 @@ impl ReporterState {
             return;
         }
         let list = log.package_names.join(", ");
+        let instruction = self.ignored_builds_instruction_text.as_deref().unwrap_or(
+            r#"Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts."#,
+        );
+        self.push_block(format!("Ignored build scripts: {list}.\n{instruction}"));
+    }
+
+    /// pnpm's `reportUpdateCheck`: tell the user a newer pnpm exists and
+    /// how to get it. Silent unless the resolved `latest` really is newer
+    /// than the running version.
+    fn on_update_check(&mut self, log: &UpdateCheckLog) {
+        if !is_strictly_newer(&log.latest_version, &log.current_version) {
+            return;
+        }
         self.push_block(format!(
-            "Ignored build scripts: {list}.\nRun \"pnpm approve-builds\" to pick which dependencies should be allowed to run scripts.",
+            "Update available! {current} \u{2192} {latest}.\n{changelog} https://pnpm.io/v/{version}\nTo update, run: {command}",
+            current = self.colors.red(&log.current_version),
+            latest = self.colors.green(&log.latest_version),
+            changelog = self.colors.magenta("Changelog:"),
+            version = log.latest_version,
+            command = self.colors.magenta(&update_command(detect_install_source())),
         ));
     }
 
@@ -1153,10 +1307,14 @@ impl ReporterState {
 
     fn on_pnpm(&mut self, level: LogLevel, message: &str, prefix: &str) {
         match level {
-            LogLevel::Debug => {}
-            LogLevel::Warn => self.push_warning(message),
+            LogLevel::Debug if self.max_log_level >= MaxLogLevel::Debug => {
+                self.push_block(message.to_string());
+            }
+            LogLevel::Warn if self.max_log_level >= MaxLogLevel::Warn => {
+                self.push_warning(message);
+            }
             LogLevel::Error => self.push_block(message.to_string()),
-            LogLevel::Info => {
+            LogLevel::Info if self.max_log_level >= MaxLogLevel::Info => {
                 if prefix.is_empty() || prefix == self.cwd {
                     if message == "Lockfile is up to date, resolution step is skipped" {
                         self.pending_lockfile_message = Some(message.to_string());
@@ -1165,6 +1323,7 @@ impl ReporterState {
                     }
                 }
             }
+            LogLevel::Debug | LogLevel::Warn | LogLevel::Info => {}
         }
     }
 
@@ -1274,6 +1433,19 @@ impl ReporterState {
             let zoomed = zoom_out(&self.cwd, &log.prefix, &msg);
             self.push_block(zoomed);
         }
+    }
+
+    /// Mirrors pnpm's `reportPeerDependencyIssues`: the detail lives in
+    /// the event payload, and the terminal gets one line naming the
+    /// command that prints it. Upstream `take(1)`s the stream, so a
+    /// recursive run that installs several projects still warns once.
+    fn on_peer_dependency_issues(&mut self) {
+        if std::mem::replace(&mut self.reported_peer_dependency_issues, true) {
+            return;
+        }
+        self.push_warning(
+            r#"Issues with peer dependencies found. Run "pnpm peers check" to list them."#,
+        );
     }
 
     /// A warning, honoring pnpm's "only show the first
@@ -1391,6 +1563,41 @@ fn cached_verdict(verified_at: Option<&str>, now: DateTime<Utc>) -> String {
             format!("verified {} ago", pretty_ms_compact(elapsed_ms.unsigned_abs().into()))
         }
         None => "previously verified".to_string(),
+    }
+}
+
+/// Where the running pnpm came from, which is what decides how to update
+/// it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PnpmInstallSource {
+    Corepack,
+    PnpmHome,
+    Elsewhere,
+}
+
+fn detect_install_source() -> PnpmInstallSource {
+    if std::env::var_os("COREPACK_ROOT").is_some() {
+        PnpmInstallSource::Corepack
+    } else if std::env::var_os("PNPM_HOME").is_some_and(|home| !home.is_empty()) {
+        PnpmInstallSource::PnpmHome
+    } else {
+        PnpmInstallSource::Elsewhere
+    }
+}
+
+/// pnpm's `renderUpdateCommand`: the command that updates the pnpm the
+/// user is running.
+fn update_command(source: PnpmInstallSource) -> String {
+    match source {
+        PnpmInstallSource::PnpmHome => "pnpm self-update".to_string(),
+        // `self-update` replaces the pnpm that `PNPM_HOME` manages. Corepack
+        // refuses it outright, and an install another package manager owns is
+        // resolved from that manager's bin directory rather than pnpm's home,
+        // so a self-update would land beside the executable in use instead of
+        // replacing it. The installer is the command that updates either one.
+        PnpmInstallSource::Corepack | PnpmInstallSource::Elsewhere => {
+            standalone_install_command().to_string()
+        }
     }
 }
 

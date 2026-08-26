@@ -1,11 +1,12 @@
 use crate::{
-    DIRECT_GROUPS, Install, InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy,
+    Install, InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy,
     WorkspaceInstallSelection,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, prune_minimum_release_age_excludes, write_workspace_catalogs,
+        WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
-    emit_initial_package_manifest, package_manifest_prefix, selected_project_indices,
+    emit_initial_package_manifest, included_direct_groups, package_manifest_prefix,
+    selected_project_indices,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -114,7 +115,7 @@ impl Remove<'_> {
             // `pnpm remove`'s `include` defaults to every dependency
             // group (`production`/`dev`/`optional` !== false), so the
             // re-resolve walks all three.
-            dependency_groups: DIRECT_GROUPS,
+            dependency_groups: included_direct_groups(config.optional),
             frozen_lockfile: false,
             // The manifest was just edited, but the drift is exactly the
             // deleted importer edges, which the removal handler of the
@@ -161,8 +162,7 @@ impl Remove<'_> {
         write_workspace_catalogs(config, None, &Catalogs::new(), manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
 
-        prune_minimum_release_age_excludes(config, None, manifest)
-            .map_err(RemoveError::WriteWorkspaceManifest)?;
+        post_install_prune(config, None, manifest).map_err(RemoveError::WriteWorkspaceManifest)?;
 
         Ok(())
     }
@@ -173,6 +173,7 @@ impl Remove<'_> {
         ordered_groups: &[Vec<std::path::PathBuf>],
         ordered_dirs: &[std::path::PathBuf],
         selected_dirs: &HashSet<std::path::PathBuf>,
+        install_dirs: &HashSet<std::path::PathBuf>,
         active_manifest_is_standin: bool,
     ) -> Result<(), RemoveError> {
         let Remove {
@@ -214,7 +215,7 @@ impl Remove<'_> {
             emit_initial_manifest: false,
             lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
-            dependency_groups: DIRECT_GROUPS,
+            dependency_groups: included_direct_groups(config.optional),
             frozen_lockfile: false,
             prefer_frozen_lockfile: None,
             ignore_manifest_check: false,
@@ -245,6 +246,7 @@ impl Remove<'_> {
             ordered_groups,
             ordered_dirs,
             selected_dirs,
+            install_dirs,
             active_manifest_is_standin,
         })
         .await
@@ -255,7 +257,7 @@ impl Remove<'_> {
         write_workspace_catalogs_selected(config, &workspace_root, &Catalogs::new(), projects)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
 
-        prune_minimum_release_age_excludes(config, Some(&workspace_root), manifest)
+        post_install_prune(config, Some(&workspace_root), manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
         Ok(())
     }

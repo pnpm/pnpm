@@ -1,7 +1,8 @@
 use super::{
-    KeptRangeVerdict, apply_bumped_manifest_specs, is_workspace_local_path_specifier,
-    judge_against_kept_range, parse_update_param, persist_selected_manifests,
-    prepare_selected_manifests, selected_project_indices,
+    KeptRangeVerdict, UpdateError, apply_bumped_manifest_specs, expand_update_selectors,
+    insert_update_target, is_workspace_local_path_specifier, judge_against_kept_range,
+    parse_update_param, persist_selected_manifests, prepare_selected_manifests,
+    reject_versions_of_indirect_update_specs, selected_project_indices, update_target_name,
 };
 use pnpm_config::{CatalogMode, Config};
 use pnpm_network::ThrottledClient;
@@ -59,6 +60,44 @@ fn negated_unscoped_pattern_without_version() {
     let parsed = parse_update_param("!foo");
     assert_eq!(parsed.pattern, "!foo");
     assert_eq!(parsed.version, None);
+}
+
+#[test]
+fn an_npm_alias_selector_targets_the_aliased_package_name() {
+    let selectors = vec![parse_update_param("alias@npm:@scope/real@^1.0.0")];
+    assert_eq!(update_target_name(&selectors, "alias"), "@scope/real");
+}
+
+#[test]
+fn a_jsr_alias_selector_targets_the_npm_package_name_it_installs() {
+    let selectors = vec![parse_update_param("bar-from-jsr@jsr:@pnpm-e2e/bar@^1.0.0")];
+    assert_eq!(update_target_name(&selectors, "bar-from-jsr"), "@jsr/pnpm-e2e__bar");
+}
+
+#[test]
+fn a_versioned_selector_without_an_alias_targets_the_name_it_names() {
+    let selectors = vec![parse_update_param("foo@^1.0.0")];
+    assert_eq!(update_target_name(&selectors, "foo"), "foo");
+}
+
+#[test]
+fn an_npm_selector_carrying_only_a_range_keeps_the_alias() {
+    let selectors = vec![parse_update_param("foo@npm:^1.0.0")];
+    assert_eq!(update_target_name(&selectors, "foo"), "foo");
+}
+
+#[test]
+fn a_bare_selector_targets_the_name_it_names() {
+    let selectors = vec![parse_update_param("foo")];
+    assert_eq!(update_target_name(&selectors, "foo"), "foo");
+}
+
+#[test]
+fn a_wildcard_selector_does_not_shadow_an_alias_selector_that_also_matches() {
+    let selectors =
+        vec![parse_update_param("*"), parse_update_param("alias@npm:@scope/real@^1.0.0")];
+    assert_eq!(update_target_name(&selectors, "alias"), "@scope/real");
+    assert_eq!(update_target_name(&selectors, "other"), "other");
 }
 
 #[test]
@@ -318,8 +357,11 @@ async fn selected_update_depth_zero_skips_projects_without_a_matching_dependency
     assert_eq!(prepared.persist_indices, vec![1]);
 }
 
+/// A recursive `--latest` that matches no project's dependencies at
+/// `--depth 0` fails, where the single-project one quietly returns: with
+/// no project left to mutate there is nothing for the run to have meant.
 #[tokio::test]
-async fn selected_update_latest_depth_zero_is_noop_when_no_project_matches() {
+async fn selected_update_latest_depth_zero_errors_when_no_project_matches() {
     let dir = tempdir().expect("create tempdir");
     let mut projects = [project_without_foo(dir.path(), "a"), project_without_foo(dir.path(), "b")];
     let selected_indices = [0, 1];
@@ -343,11 +385,12 @@ async fn selected_update_latest_depth_zero_is_noop_when_no_project_matches() {
         false,
         None,
     )
-    .await
-    .expect("unmatched latest update is a no-op");
+    .await;
 
-    assert!(!prepared.any_work);
-    assert!(prepared.persist_indices.is_empty());
+    assert!(
+        matches!(prepared, Err(UpdateError::NoPackageInDependencies)),
+        "an unmatched depth-0 selector must fail, whatever the preparation returned",
+    );
 }
 
 // No resolver in the latest-capable chain claims any of these, so none of
@@ -515,5 +558,128 @@ fn only_a_requested_version_gets_a_verdict() {
             matches!(judge_against_kept_range(requested, kept), KeptRangeVerdict::Undecided),
             "{requested:?} against {kept:?} should be undecided",
         );
+    }
+}
+
+/// The update targets `selectors` produce for the lockfile name `name`,
+/// rendered as `(covers 1.x, covers 2.x)` — the shape the reuse walk asks
+/// [`UpdateTargets::covers`] for.
+fn covers(selectors: &[&str], name: &str, versions: &[&str]) -> Vec<bool> {
+    let parsed = selectors.iter().map(|selector| parse_update_param(selector)).collect::<Vec<_>>();
+    let expanded = expand_update_selectors(&parsed);
+    let mut targets = pnpm_resolving_deps_resolver::UpdateTargets::default();
+    insert_update_target(&mut targets, &expanded, name);
+    versions
+        .iter()
+        .map(|version| targets.covers(name, Some(&version.parse().expect("parse version"))))
+        .collect()
+}
+
+#[test]
+fn a_pinned_selector_targets_only_its_version_line() {
+    assert_eq!(
+        covers(&["js-yaml@3.15.1"], "js-yaml", &["3.15.0", "3.15.1", "4.3.0"]),
+        [true, true, false],
+    );
+}
+
+#[test]
+fn a_pinned_zero_x_selector_targets_only_its_minor_line() {
+    assert_eq!(covers(&["foo@0.2.5"], "foo", &["0.2.1", "0.3.0", "1.0.0"]), [true, false, false]);
+}
+
+#[test]
+fn a_selector_that_names_no_single_version_targets_every_line() {
+    for selector in ["foo", "foo@^3.15.1", "foo@latest"] {
+        assert_eq!(covers(&[selector], "foo", &["3.15.0", "4.3.0"]), [true, true], "{selector}");
+    }
+}
+
+#[test]
+fn every_selector_that_claims_a_name_widens_its_lines() {
+    assert_eq!(
+        covers(&["foo@1.0.0", "foo@2.0.0"], "foo", &["1.5.0", "2.5.0", "3.0.0"]),
+        [true, true, false],
+    );
+}
+
+#[test]
+fn an_alias_selector_scopes_the_aliased_package_by_version_line() {
+    // `expand_update_selectors` turns `alias@npm:foo@100.1.0` into a
+    // selector for `foo` on the 100.x line, which is the name the resolver
+    // resolves the edge under.
+    assert_eq!(covers(&["alias@npm:foo@100.1.0"], "foo", &["100.0.0", "101.0.0"]), [true, false]);
+}
+
+#[test]
+fn expands_an_alias_selector_to_the_aliased_package() {
+    let parsed = [parse_update_param("alias@npm:foo@100.1.0")];
+    let expanded = expand_update_selectors(&parsed);
+
+    assert_eq!(expanded.len(), 2);
+    assert_eq!(expanded[1].pattern, "foo");
+    assert_eq!(expanded[1].version.as_deref(), Some("100.1.0"));
+}
+
+#[test]
+fn keeps_a_negated_alias_selector_negated() {
+    let parsed = [parse_update_param("!alias@npm:foo@100.1.0")];
+    let expanded = expand_update_selectors(&parsed);
+
+    assert_eq!(expanded[1].pattern, "!foo");
+}
+
+/// Run the indirect-version check over `selectors` against a single manifest
+/// declaring `foo` directly.
+fn reject_indirect(selectors: &[&str]) -> Result<(), super::UpdateError> {
+    let dir = tempdir().expect("create temp dir");
+    let package_json = dir.path().join("package.json");
+    std::fs::write(
+        &package_json,
+        json!({ "name": "a", "dependencies": { "foo": "^1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    let manifest = PackageManifest::from_path(package_json).expect("read package.json");
+    let parsed = selectors.iter().map(|input| parse_update_param(input)).collect::<Vec<_>>();
+    reject_versions_of_indirect_update_specs::<SilentReporter>(
+        &parsed,
+        &[&manifest],
+        &[DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        "prefix",
+    )
+}
+
+#[test]
+fn an_exact_version_nothing_declares_directly_is_rejected() {
+    let err = reject_indirect(&["bar@1.2.3"]).expect_err("bar is not a direct dependency");
+    let rendered = err.to_string();
+    assert!(rendered.contains(r#""bar" (requested "1.2.3")"#), "{rendered}");
+}
+
+#[test]
+fn a_version_any_manifest_declares_directly_is_accepted() {
+    reject_indirect(&["foo@1.2.3"]).expect("foo is a direct dependency");
+}
+
+#[test]
+fn a_negated_selector_is_not_judged() {
+    // `!bar` excludes a name; the version on it requests nothing. Checked with
+    // no manifests too: with one, the "everything but bar" matcher happens to
+    // match some other direct dependency and hides the misclassification.
+    reject_indirect(&["!bar@1.2.3"]).expect("a negated selector requests no version");
+    let parsed = [parse_update_param("!bar@1.2.3")];
+    reject_versions_of_indirect_update_specs::<SilentReporter>(
+        &parsed,
+        &[],
+        &[DependencyGroup::Prod],
+        "prefix",
+    )
+    .expect("a negated selector requests no version");
+}
+
+#[test]
+fn a_range_or_a_tag_is_not_rejected() {
+    for selector in ["bar@^1.2.3", "bar@latest"] {
+        reject_indirect(&[selector]).unwrap_or_else(|err| panic!("{selector}: {err}"));
     }
 }

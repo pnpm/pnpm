@@ -26,6 +26,7 @@ fn result_with_manifest(name: &str, manifest: serde_json::Value) -> ResolveResul
         resolution: LockfileResolution::Tarball(TarballResolution {
             integrity: None,
             tarball: "https://registry.example/not-compatible.tgz".to_string(),
+            revision: None,
             git_hosted: None,
             path: None,
         }),
@@ -52,6 +53,7 @@ fn alias_tarball_result(alias: &str, manifest: serde_json::Value) -> ResolveResu
         resolution: LockfileResolution::Tarball(TarballResolution {
             integrity: None,
             tarball: "https://registry.example/not-compatible.tgz".to_string(),
+            revision: None,
             git_hosted: None,
             path: None,
         }),
@@ -72,6 +74,7 @@ fn anonymous_tarball_result(manifest: serde_json::Value) -> ResolveResult {
         resolution: LockfileResolution::Tarball(TarballResolution {
             integrity: None,
             tarball: "https://registry.example/not-compatible.tgz".to_string(),
+            revision: None,
             git_hosted: None,
             path: None,
         }),
@@ -138,6 +141,7 @@ fn resolver_with_prefetch(
             supported_architectures: None,
             progress_reported: &SharedReportedProgressKeys::default(),
             prefetch_downloads,
+            custom_fetcher_session: None,
         },
     )
 }
@@ -254,6 +258,7 @@ async fn resolve_populates_integrity_before_skipping_optional_prefetch() {
     result.resolution = LockfileResolution::Tarball(TarballResolution {
         integrity: None,
         tarball: tarball_url,
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -314,6 +319,7 @@ fn integrity_pinned_result(tarball_url: &str) -> ResolveResult {
     result.resolution = LockfileResolution::Tarball(TarballResolution {
         integrity: Some("sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==".parse().unwrap()),
         tarball: tarball_url.to_string(),
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -337,6 +343,7 @@ async fn populates_integrity_with_prefetching_off() {
     result.resolution = LockfileResolution::Tarball(TarballResolution {
         integrity: None,
         tarball: format!("{}{tarball_path}", server.url()),
+        revision: None,
         git_hosted: None,
         path: None,
     });

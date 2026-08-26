@@ -1,7 +1,8 @@
 //! Ports `pnpm11/pnpm/test/packageManagerCheck.test.ts`.
 
+use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use std::{
     fs,
     path::Path,
@@ -206,6 +207,42 @@ fn a_command_outside_the_install_family_records_the_pinned_package_manager() {
     pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
 
     let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
+
+    assert_success(&output);
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the written lockfile");
+    assert_contains(&lockfile, "packageManagerDependencies:");
+    assert_contains(&lockfile, &format!("pnpm@{}", pnpm_config::PNPM_VERSION));
+    drop((root, npmrc_info));
+}
+
+/// Adding a pnpm pin to a project whose dependencies are already installed
+/// must still record it. The up-to-date fast path returns before the install
+/// pipeline that writes the entry, so a plain install kept reporting success
+/// while every `--frozen-lockfile` run failed on the entry it never wrote.
+#[test]
+fn adding_a_pin_to_an_up_to_date_project_records_the_package_manager() {
+    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+    );
+    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+    assert_success(&run(pacquet, root.path(), &["install"]));
+
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "dependencies": { "@pnpm.e2e/foo": "100.0.0" },
+            "devEngines": {
+                "packageManager": { "name": "pnpm", "version": pnpm_config::PNPM_VERSION },
+            },
+        }),
+    );
+    let mut pinned = pacquet_at(&workspace);
+    pinned.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+    let output = run(pinned, root.path(), &["install"]);
 
     assert_success(&output);
     let lockfile =
@@ -556,6 +593,15 @@ fn a_failing_runtime_check_does_not_block_the_version_output() {
 const EXEC_NODE_VERSION: [&str; 4] =
     ["--config.verify-deps-before-run=false", "exec", "node", "--version"];
 
+/// A second command for a test that runs pacquet twice; the first one
+/// [`CommandTempCwd::init`] hands out is consumed by [`run`].
+fn pacquet_at(workspace: &Path) -> Command {
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .without_ambient_pnpm_config()
+}
+
 fn run(command: Command, root: &Path, args: &[&str]) -> Output {
     let mut command = command;
     command.env("PNPM_HOME", root.join("pnpm-home"));
@@ -763,10 +809,10 @@ fn a_manifest_that_is_not_an_object_fails_instead_of_panicking() {
 
 /// Yarn is started from a project pin by corepack, which reads only
 /// `packageManager` and only accepts an exact version there — so a Yarn
-/// pin is resolved and written the way `corepack use` writes it, down to
-/// the integrity corepack verifies the Classic tarball with.
+/// pin is resolved to one, and carries nothing else: the release corepack
+/// downloads is corepack's to verify, not pnpm's to pin.
 #[test]
-fn a_yarn_pin_is_recorded_the_way_corepack_writes_it() {
+fn a_yarn_pin_is_recorded_as_the_exact_version_corepack_requires() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(
         &workspace,
@@ -779,13 +825,11 @@ fn a_yarn_pin_is_recorded_the_way_corepack_writes_it() {
     let manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
     let pin = manifest["packageManager"].as_str().expect("a recorded package manager");
-    let (version, integrity) = pin
-        .strip_prefix("yarn@")
-        .and_then(|reference| reference.split_once('+'))
-        .unwrap_or_else(|| panic!("expected an exact version with an integrity, got {pin}"));
-    let version = node_semver::Version::parse(version).expect("an exact version");
+    let reference =
+        pin.strip_prefix("yarn@").unwrap_or_else(|| panic!("expected a Yarn pin, got {pin}"));
+    let version = node_semver::Version::parse(reference).expect("an exact version");
     assert_eq!(version.major, 1, "{pin}");
-    assert!(integrity.starts_with("sha512."), "{pin}");
+    assert!(!reference.contains('+'), "{pin}");
     assert_eq!(manifest.get("devEngines"), None, "{manifest}");
 }
 

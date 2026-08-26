@@ -67,6 +67,7 @@ fn synthetic_metadata(
         resolution: LockfileResolution::Tarball(TarballResolution {
             integrity: None,
             tarball: "https://example.test/pkg.tgz".to_string(),
+            revision: None,
             git_hosted: None,
             path: None,
         }),

@@ -256,6 +256,7 @@ export async function handler (
   await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
     catalogPrune: opts.catalogPrune,
     resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, mutationResult.newLockfile),
+    minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
     allProjects: updatedProjects,
   })
 }

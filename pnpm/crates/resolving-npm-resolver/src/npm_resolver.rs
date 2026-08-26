@@ -23,12 +23,17 @@
 //!   store. Pacquet today goes through the picker unconditionally;
 //!   adding the fast path is a separate item.
 
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{borrow::Cow, collections::HashMap, path::PathBuf, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use node_semver::Version;
-use pnpm_config::{NeedsFullMetadataFor, TrustPolicy, version_policy::PackageVersionPolicy};
-use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+use pnpm_config::{
+    DEFAULT_JSR_REGISTRY, NeedsFullMetadataFor, TrustPolicy, version_policy::PackageVersionPolicy,
+};
+use pnpm_lockfile::{
+    LockfileResolution, PkgName, PkgNameVer, TarballResolution, TarballRevision,
+    is_integrity_addressed_registry_tarball_url,
+};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
 use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
 use pnpm_resolving_resolver_base::{
@@ -40,13 +45,19 @@ use pnpm_resolving_resolver_base::{
 use ssri::{Algorithm, Integrity};
 
 use crate::{
-    errors::{AllVersionsBlockedError, GuardRepickLimitError, InvalidTarballIntegrityError},
+    errors::{
+        AllVersionsBlockedError, GuardRepickLimitError, InvalidRevisionSpecifierError,
+        InvalidTarballIntegrityError, InvalidTarballRevisionMetadataError,
+        MalformedRevisionHistoryError, NoMatchingRevisionError,
+    },
     named_registry::pick_registry_for_package,
     parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
     pick_package::{
         PackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions, pick_package,
     },
-    pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
+    pick_package_from_meta::{
+        RegistryPackageSpec, RegistryPackageSpecType, RegistryRevisionSelector,
+    },
     registry_url::to_registry_url,
     resolve_from_workspace::{
         ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, SavedSpecifierOptions,
@@ -56,12 +67,6 @@ use crate::{
     trust_checks::{TrustCheckOptions, fail_if_trust_downgraded},
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
-
-/// Default `@jsr` registry URL. The `registries` map always populates
-/// `@jsr`, so the dispatcher can read it unconditionally; this constant
-/// is the fallback for pacquet callers that haven't routed the `@jsr`
-/// entry through their `registries` map yet.
-const DEFAULT_JSR_REGISTRY: &str = "https://npm.jsr.io/";
 
 /// Provenance tag for [`ResolveResult::resolved_via`] when the picker
 /// drove a JSR-prefixed specifier through the `@jsr` registry.
@@ -215,10 +220,16 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 _ => return Ok(None),
             },
         };
+        validate_revision_selector(&spec)?;
 
         let optional = wanted_dependency.optional.unwrap_or(false);
-        let workspace_packages_active = opts
-            .always_try_workspace_packages
+        let can_keep_workspace_resolution = opts
+            .current_pkg
+            .as_ref()
+            .is_none_or(|current| matches!(current.resolution, LockfileResolution::Directory(_)));
+        let workspace_packages_active = (spec.revision.is_none()
+            && opts.always_try_workspace_packages
+            && (opts.update != UpdateBehavior::Patches || can_keep_workspace_resolution))
             .then_some(opts.workspace_packages.as_ref())
             .flatten();
 
@@ -226,6 +237,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         // this fast path — the TypeScript counterpart
         // (`pnpm11/resolving/npm-resolver/src/index.ts`) documents why.
         if opts.prefer_workspace_packages
+            && spec.revision.is_none()
             && opts.trust_policy != Some(TrustPolicy::NoDowngrade)
             && !opts.update_checksums
             && !opts.inject_workspace_packages
@@ -285,9 +297,10 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             }
         };
 
-        fail_if_trust_downgraded_for_pick(opts, &picked)?;
+        fail_if_trust_downgraded_for_pick(opts, &picked, self.ignore_missing_time_field)?;
 
-        if let Some(workspace_packages) = workspace_packages_active
+        if spec.revision.is_none()
+            && let Some(workspace_packages) = workspace_packages_active
             && let Some(mut result) = try_workspace_shadow(
                 workspace_packages,
                 &spec,
@@ -316,16 +329,26 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
-            calculated_specifier: calc_specifier_from(wanted_dependency, opts, &spec).map(
-                |(bare_specifier, default_pin)| {
-                    crate::calc_specifier(
-                        bare_specifier,
-                        wanted_dependency.alias.as_deref(),
-                        &picked.version,
-                        default_pin,
-                    )
-                },
-            ),
+            calculated_specifier: revision_specifier(
+                wanted_dependency,
+                opts,
+                &spec,
+                None,
+                &spec.name,
+                &picked.version.version,
+            )
+            .or_else(|| {
+                calc_specifier_from(wanted_dependency, opts, &spec).map(
+                    |(bare_specifier, default_pin)| {
+                        crate::calc_specifier(
+                            bare_specifier,
+                            wanted_dependency.alias.as_deref(),
+                            &picked.version,
+                            default_pin,
+                        )
+                    },
+                )
+            }),
         })?;
 
         Ok(Some(result))
@@ -355,6 +378,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let Some(jsr_spec) = jsr_spec else {
             return Ok(None);
         };
+        validate_revision_selector(&jsr_spec.spec)?;
 
         let registry = self.registries.get("@jsr").map_or(DEFAULT_JSR_REGISTRY, String::as_str);
 
@@ -381,18 +405,28 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             // The entry stays a JSR dependency, so it round-trips under
             // the `jsr:` protocol rather than as the npm-shaped range
             // `calc_specifier` would build.
-            calculated_specifier: calc_specifier_from(wanted_dependency, opts, &jsr_spec.spec).map(
-                |(bare_specifier, default_pin)| {
-                    crate::calc_prefixed_specifier(
-                        "jsr:",
-                        &jsr_spec.jsr_pkg_name,
-                        bare_specifier,
-                        wanted_dependency.alias.as_deref(),
-                        &picked.version,
-                        default_pin,
-                    )
-                },
-            ),
+            calculated_specifier: revision_specifier(
+                wanted_dependency,
+                opts,
+                &jsr_spec.spec,
+                Some("jsr:"),
+                &jsr_spec.jsr_pkg_name,
+                &picked.version.version,
+            )
+            .or_else(|| {
+                calc_specifier_from(wanted_dependency, opts, &jsr_spec.spec).map(
+                    |(bare_specifier, default_pin)| {
+                        crate::calc_prefixed_specifier(
+                            "jsr:",
+                            &jsr_spec.jsr_pkg_name,
+                            bare_specifier,
+                            wanted_dependency.alias.as_deref(),
+                            &picked.version,
+                            default_pin,
+                        )
+                    },
+                )
+            }),
         })?;
 
         Ok(Some(result))
@@ -439,6 +473,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 dry_run: opts.dry_run,
                 optional,
                 update_checksums: opts.update_checksums,
+                trust_policy: opts.trust_policy,
                 package_version_guard: opts.package_version_guard.as_ref(),
             },
         )
@@ -615,6 +650,7 @@ fn default_tag_spec(alias: &str, default_tag: &str) -> RegistryPackageSpec {
         name: alias.to_string(),
         fetch_spec: default_tag.to_string(),
         spec_type: RegistryPackageSpecType::Tag,
+        revision: None,
         normalized_bare_specifier: None,
     }
 }
@@ -647,6 +683,7 @@ pub(crate) struct PickFromRegistryOptions<'a> {
     pub dry_run: bool,
     pub optional: bool,
     pub update_checksums: bool,
+    pub trust_policy: Option<TrustPolicy>,
     pub package_version_guard:
         Option<&'a Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
 }
@@ -673,6 +710,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             dry_run: opts.dry_run,
             optional: opts.optional,
             update_checksums: opts.update_checksums,
+            trust_policy: opts.trust_policy,
             blocked_versions: (!blocked_versions.is_empty()).then_some(&blocked_versions),
         };
         let pick_result = pick_package(ctx, opts.spec, &pick_opts)
@@ -837,6 +875,8 @@ pub(crate) fn build_resolve_result(
         picked_manifest_cache,
         calculated_specifier,
     } = args;
+    let picked = select_package_revision(picked, spec, registry)?;
+    let picked = picked.as_ref();
     let pkg_name =
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
     let version_str = picked.version.to_string();
@@ -855,9 +895,38 @@ pub(crate) fn build_resolve_result(
     // mixing the two shapes would force a Registry → URL
     // reconstruction with no payoff: at resolve time we already have
     // the URL the install path needs.
+    let integrity = dist_integrity(&picked.dist)?;
+    let revision = picked
+        .dist
+        .revision
+        .as_ref()
+        .map(|revision| {
+            revision
+                .as_u64()
+                .ok_or_else(|| "the revision is not a positive safe integer".to_string())
+                .and_then(|revision| {
+                    TarballRevision::try_from(revision).map_err(|error| error.to_string())
+                })
+        })
+        .transpose()
+        .map_err(|reason| {
+            Box::new(InvalidTarballRevisionMetadataError::new(&picked.dist.tarball, reason))
+                as ResolveError
+        })?;
+    if revision.is_some()
+        && !integrity.as_ref().is_some_and(|integrity| {
+            is_integrity_addressed_registry_tarball_url(&picked.dist.tarball, integrity, registry)
+        })
+    {
+        return Err(Box::new(InvalidTarballRevisionMetadataError::new(
+            &picked.dist.tarball,
+            "the URL does not match its complete sha512 integrity and registry",
+        )));
+    }
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: picked.dist.tarball.clone(),
-        integrity: dist_integrity(&picked.dist)?,
+        integrity,
+        revision,
         git_hosted: None,
         path: None,
     });
@@ -872,7 +941,11 @@ pub(crate) fn build_resolve_result(
     // the first registry's manifest — wrong dependency graph,
     // wrong peers, wrong lockfile metadata. Matches `meta_cache`'s
     // `{registry}\x00{name}` scoping shape.
-    let manifest_cache_key = format!("{registry}\x00{}@{version_str}", picked.name);
+    let manifest_cache_key = format!(
+        "{registry}\x00{}@{version_str}+r{}",
+        picked.name,
+        revision.map_or(0, TarballRevision::get),
+    );
     let manifest = if let Some(cached) = picked_manifest_cache.get(&manifest_cache_key) {
         Some(Arc::clone(cached.value()))
     } else {
@@ -901,6 +974,203 @@ pub(crate) fn build_resolve_result(
         normalized_bare_specifier: spec.normalized_bare_specifier.clone().or(calculated_specifier),
         alias: alias.map(str::to_string),
         policy_violation,
+    })
+}
+
+fn select_package_revision<'a>(
+    picked: &'a PackageVersion,
+    spec: &RegistryPackageSpec,
+    registry: &str,
+) -> Result<Cow<'a, PackageVersion>, ResolveError> {
+    validate_current_package_revision(picked, registry)?;
+    let Some(selector) = spec.revision.as_ref() else {
+        return Ok(Cow::Borrowed(picked));
+    };
+    let requested = match selector {
+        RegistryRevisionSelector::Valid(revision) => *revision,
+        RegistryRevisionSelector::Invalid(specifier) => {
+            return Err(Box::new(InvalidRevisionSpecifierError { specifier: specifier.clone() }));
+        }
+    };
+    let version = picked.version.to_string();
+    if picked.dist.revisions.is_none() {
+        if requested == 0 && picked.dist.revision.is_none() {
+            return Ok(Cow::Borrowed(picked));
+        }
+        return Err(Box::new(NoMatchingRevisionError {
+            name: picked.name.clone(),
+            version,
+            revision: requested,
+        }));
+    }
+    let Some(record) = package_revision_record(picked, requested, registry)? else {
+        return Err(Box::new(NoMatchingRevisionError {
+            name: picked.name.clone(),
+            version,
+            revision: requested,
+        }));
+    };
+
+    let mut selected =
+        serde_json::to_value(picked).map_err(|error| Box::new(error) as ResolveError)?;
+    let selected_object = selected.as_object_mut().expect("PackageVersion serializes as an object");
+    const REVISION_MANIFEST_FIELDS: [&str; 12] = [
+        "dependencies",
+        "optionalDependencies",
+        "peerDependencies",
+        "peerDependenciesMeta",
+        "bundledDependencies",
+        "bundleDependencies",
+        "bin",
+        "engines",
+        "os",
+        "cpu",
+        "libc",
+        "hasInstallScript",
+    ];
+    for field in REVISION_MANIFEST_FIELDS {
+        selected_object.remove(field);
+    }
+    for field in REVISION_MANIFEST_FIELDS {
+        if let Some(value) = record.manifest.get(field) {
+            selected_object.insert(field.to_string(), value.clone());
+        }
+    }
+    let dist = selected_object
+        .get_mut("dist")
+        .and_then(serde_json::Value::as_object_mut)
+        .expect("PackageVersion.dist serializes as an object");
+    dist.insert(
+        "integrity".to_string(),
+        serde_json::Value::String(record.integrity_text.to_string()),
+    );
+    dist.insert("tarball".to_string(), serde_json::Value::String(record.tarball.to_string()));
+    dist.remove("shasum");
+    if requested == 0 {
+        dist.remove("revision");
+    } else {
+        dist.insert("revision".to_string(), serde_json::Value::Number(requested.into()));
+    }
+    serde_json::from_value(selected)
+        .map(Cow::Owned)
+        .map_err(|error| malformed_revision_history(picked, error.to_string()))
+}
+
+pub(crate) fn validate_revision_selector(spec: &RegistryPackageSpec) -> Result<(), ResolveError> {
+    let Some(RegistryRevisionSelector::Invalid(specifier)) = spec.revision.as_ref() else {
+        return Ok(());
+    };
+    Err(Box::new(InvalidRevisionSpecifierError { specifier: specifier.clone() }))
+}
+
+struct ValidatedPackageRevision<'a> {
+    integrity: Integrity,
+    integrity_text: &'a str,
+    tarball: &'a str,
+    manifest: &'a serde_json::Map<String, serde_json::Value>,
+}
+
+fn package_revision_record<'a>(
+    picked: &'a PackageVersion,
+    requested: u64,
+    registry: &str,
+) -> Result<Option<ValidatedPackageRevision<'a>>, ResolveError> {
+    let Some(revisions) = picked.dist.revisions.as_ref() else { return Ok(None) };
+    let Some(revisions) = revisions.as_array() else {
+        return Err(malformed_revision_history(picked, "the revisions field is not an array"));
+    };
+    let matches: Vec<&serde_json::Value> = revisions
+        .iter()
+        .filter(|entry| {
+            entry.get("revision").and_then(serde_json::Value::as_u64) == Some(requested)
+        })
+        .collect();
+    if matches.is_empty() {
+        return Ok(None);
+    }
+    if matches.len() != 1 {
+        return Err(malformed_revision_history(
+            picked,
+            format!("revision {requested} is advertised more than once"),
+        ));
+    }
+    if requested > pnpm_lockfile::MAX_TARBALL_REVISION {
+        return Err(malformed_revision_history(
+            picked,
+            "a revision is not a canonical safe integer",
+        ));
+    }
+    let record = matches[0];
+    let integrity_text =
+        record.get("integrity").and_then(serde_json::Value::as_str).ok_or_else(|| {
+            malformed_revision_history(picked, format!("revision {requested} has no integrity"))
+        })?;
+    let integrity = integrity_text.parse::<Integrity>().map_err(|_| {
+        malformed_revision_history(picked, format!("revision {requested} has invalid integrity"))
+    })?;
+    let tarball = record.get("tarball").and_then(serde_json::Value::as_str).ok_or_else(|| {
+        malformed_revision_history(picked, format!("revision {requested} has no tarball URL"))
+    })?;
+    if !is_integrity_addressed_registry_tarball_url(tarball, &integrity, registry) {
+        return Err(malformed_revision_history(
+            picked,
+            format!("revision {requested} is not addressed by its complete sha512 integrity"),
+        ));
+    }
+    let manifest =
+        record.get("manifest").and_then(serde_json::Value::as_object).ok_or_else(|| {
+            malformed_revision_history(
+                picked,
+                format!("revision {requested} has an invalid manifest"),
+            )
+        })?;
+    Ok(Some(ValidatedPackageRevision { integrity, integrity_text, tarball, manifest }))
+}
+
+fn validate_current_package_revision(
+    picked: &PackageVersion,
+    registry: &str,
+) -> Result<(), ResolveError> {
+    let Some(raw_revision) = picked.dist.revision.as_ref() else { return Ok(()) };
+    let revision = raw_revision
+        .as_u64()
+        .and_then(|revision| TarballRevision::try_from(revision).ok())
+        .map(TarballRevision::get)
+        .ok_or_else(|| {
+            malformed_revision_history(
+                picked,
+                format!("current revision {raw_revision} is not a canonical positive safe integer"),
+            )
+        })?;
+    let record = package_revision_record(picked, revision, registry)?.ok_or_else(|| {
+        malformed_revision_history(
+            picked,
+            format!("current revision {revision} has no history entry"),
+        )
+    })?;
+    if picked.dist.integrity.as_ref() != Some(&record.integrity)
+        || !same_registry_artifact_url(&picked.dist.tarball, record.tarball)
+    {
+        return Err(malformed_revision_history(
+            picked,
+            format!("revision {revision} does not match the current artifact"),
+        ));
+    }
+    Ok(())
+}
+
+fn same_registry_artifact_url(left: &str, right: &str) -> bool {
+    match (reqwest::Url::parse(left), reqwest::Url::parse(right)) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => left == right,
+    }
+}
+
+fn malformed_revision_history(picked: &PackageVersion, reason: impl Into<String>) -> ResolveError {
+    Box::new(MalformedRevisionHistoryError {
+        name: picked.name.clone(),
+        version: picked.version.to_string(),
+        reason: reason.into(),
     })
 }
 
@@ -940,6 +1210,31 @@ pub(crate) fn calc_specifier_from<'a>(
     Some((bare_specifier, opts.range_spec_style.unwrap_or(RangeSpecStyle::Major)))
 }
 
+pub(crate) fn revision_specifier(
+    wanted_dependency: &WantedDependency,
+    opts: &ResolveOptions,
+    spec: &RegistryPackageSpec,
+    prefix: Option<&str>,
+    package_name: &str,
+    version: &Version,
+) -> Option<String> {
+    if !opts.calc_specifier || spec.normalized_bare_specifier.is_some() {
+        return None;
+    }
+    let RegistryRevisionSelector::Valid(revision) = spec.revision.as_ref()? else {
+        return None;
+    };
+    let target = format!("{version}+r{revision}");
+    let alias_matches =
+        wanted_dependency.alias.as_deref().is_none_or(|alias| alias == package_name);
+    match prefix {
+        Some(prefix) if alias_matches => Some(format!("{prefix}{target}")),
+        Some(prefix) => Some(format!("{prefix}{package_name}@{target}")),
+        None if alias_matches => Some(target),
+        None => Some(format!("npm:{package_name}@{target}")),
+    }
+}
+
 /// Resolver-time `trustPolicy='no-downgrade'` check on a fresh pick.
 /// No-op unless the policy is `NoDowngrade`. When active, runs
 /// [`fail_if_trust_downgraded`] against the picked version using the
@@ -949,6 +1244,7 @@ pub(crate) fn calc_specifier_from<'a>(
 fn fail_if_trust_downgraded_for_pick(
     opts: &ResolveOptions,
     picked: &PickedFromRegistry,
+    ignore_missing_time_field: bool,
 ) -> Result<(), ResolveError> {
     if opts.trust_policy != Some(TrustPolicy::NoDowngrade) {
         return Ok(());
@@ -957,6 +1253,7 @@ fn fail_if_trust_downgraded_for_pick(
         trust_policy_exclude: opts.trust_policy_exclude.as_ref(),
         trust_policy_ignore_after_minutes: opts.trust_policy_ignore_after,
         now: None,
+        ignore_missing_time_field,
     };
     fail_if_trust_downgraded(&picked.meta, &picked.version.version.to_string(), &trust_opts)
         .map_err(|err| Box::new(err) as ResolveError)

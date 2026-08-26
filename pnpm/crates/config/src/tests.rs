@@ -1,8 +1,9 @@
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
-    NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, default_ci, fs,
+    NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, WorkspaceSettings,
+    default_ci, fs,
 };
-use crate::defaults::default_store_dir;
+use crate::defaults::{default_state_dir, default_store_dir};
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::env_guard::EnvGuard;
 use pretty_assertions::assert_eq;
@@ -286,7 +287,76 @@ pub fn have_default_values() {
     // behaviour of `default_store_dir` is exercised with fake-`Sys`
     // structs in `defaults::tests`.
     assert_eq!(value.store_dir, default_store_dir::<Host>());
+    assert_eq!(value.state_dir, default_state_dir::<Host>().unwrap_or_default());
     assert_eq!(value.registry, "https://registry.npmjs.org/");
+}
+
+#[test]
+fn package_lock_is_the_lockfile_fallback() {
+    let package_lock_only = tempdir().unwrap();
+    fs::write(package_lock_only.path().join("pnpm-workspace.yaml"), "packageLock: false\n")
+        .unwrap();
+    let config = Config::new()
+        .current::<HostNoHome>(package_lock_only.path())
+        .expect("packageLock config loads");
+    assert!(!config.package_lock);
+    assert!(!config.lockfile);
+
+    let explicit_lockfile = tempdir().unwrap();
+    fs::write(
+        explicit_lockfile.path().join("pnpm-workspace.yaml"),
+        "packageLock: false\nlockfile: true\n",
+    )
+    .unwrap();
+    let config = Config::new()
+        .current::<HostNoHome>(explicit_lockfile.path())
+        .expect("lockfile config loads");
+    assert!(!config.package_lock);
+    assert!(config.lockfile);
+}
+
+#[test]
+pub fn state_dir_uses_only_trusted_config_sources() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    let state_root = xdg.path().join("state");
+    let resolved_state_root = dunce::canonicalize(xdg.path()).unwrap().join("state");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), "stateDir: from-global\n")
+        .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "stateDir: from-project\n")
+        .expect("write workspace yaml");
+
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("XDG_STATE_HOME", state_root.to_str().unwrap()),
+    ]);
+    let config = load_with_fake_env(project.path());
+    assert_eq!(config.state_dir, resolved_state_root.join("from-global"));
+    assert_eq!(config.workspace_key_issues.refused, ["stateDir"]);
+
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("XDG_STATE_HOME", state_root.to_str().unwrap()),
+        ("PNPM_CONFIG_STATE_DIR", "from-env"),
+    ]);
+    let config = load_with_fake_env(project.path());
+    assert_eq!(config.state_dir, resolved_state_root.join("from-env"));
+    assert_eq!(
+        config.explicit_settings.get("stateDir"),
+        Some(&serde_json::Value::String("from-env".to_string())),
+    );
+
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("XDG_STATE_HOME", state_root.to_str().unwrap()),
+        ("PNPM_CONFIG_STATE_DIR", "../outside"),
+    ]);
+    let config = load_with_fake_env(project.path());
+    assert!(config.state_dir.as_os_str().is_empty());
 }
 
 #[test]
@@ -303,8 +373,27 @@ pub fn network_settings_defaults_match_pnpm() {
     let value = Config::new();
     assert_eq!(value.network_concurrency, pnpm_network::default_network_concurrency());
     assert_eq!(value.fetch_timeout, 60_000);
+    assert_eq!(value.fetch_warn_timeout_ms, 10_000);
+    assert_eq!(value.fetch_min_speed_ki_bps, 50);
     assert!(value.user_agent.starts_with("pnpm/"), "user-agent: {:?}", value.user_agent);
     assert_eq!(value.npmrc_auth_file, None);
+}
+
+#[test]
+pub fn network_settings_maps_custom_config_values() {
+    let mut config = Config::new();
+    config.network_concurrency = 8;
+    config.fetch_timeout = 120_000;
+    config.fetch_warn_timeout_ms = 2_345;
+    config.fetch_min_speed_ki_bps = 12;
+    config.user_agent = "pnpm-test".to_string();
+
+    let settings = config.network_settings();
+    assert_eq!(settings.network_concurrency, 8);
+    assert_eq!(settings.fetch_timeout, std::time::Duration::from_mins(2));
+    assert_eq!(settings.fetch_warn_timeout, std::time::Duration::from_millis(2_345));
+    assert_eq!(settings.fetch_min_speed_ki_bps, 12);
+    assert_eq!(settings.user_agent, "pnpm-test");
 }
 
 #[test]
@@ -2002,8 +2091,8 @@ pub fn pnpm_workspace_yaml_registry_overrides_npmrc_registry() {
     assert_eq!(config.registry, "https://from-yaml.test/");
 }
 
-/// See [`crate::WorkspaceSettings::clear_repo_scope`] for why a
-/// repository-committed file must not be able to choose the login scope.
+/// See [`crate::refused_keys`] for why a repository-committed file must not be
+/// able to choose the login scope.
 #[test]
 pub fn pnpm_workspace_yaml_cannot_supply_the_login_scope() {
     let tmp = tempdir().unwrap();
@@ -2011,7 +2100,7 @@ pub fn pnpm_workspace_yaml_cannot_supply_the_login_scope() {
         .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert_eq!(config.scope, None);
-    assert_eq!(config.config_warnings, vec![crate::IGNORED_SCOPE_WARNING.to_owned()]);
+    assert_eq!(config.workspace_key_issues.refused, vec!["scope".to_owned()]);
 }
 
 #[test]
@@ -2184,6 +2273,25 @@ pub fn explicit_settings_report_the_spelling_that_won() {
     }
 }
 
+/// `audit.level` supersedes the deprecated `auditLevel` spelling, and
+/// `pnpm config get audit-level` reads the explicit-settings record — so the
+/// record has to carry the level under the deprecated name too, whichever
+/// spelling the file was written in.
+#[test]
+pub fn explicit_settings_mirror_audit_level_from_the_audit_section() {
+    for yaml in ["audit:\n  level: high\n", "audit:\n  level: high\nauditLevel: low\n"] {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
+            .expect("write to pnpm-workspace.yaml");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        assert_eq!(
+            config.explicit_settings.get("auditLevel").and_then(serde_json::Value::as_str),
+            Some("high"),
+            "yaml: {yaml}",
+        );
+    }
+}
+
 #[test]
 pub fn gvs_disabled_keeps_project_local_virtual_store() {
     let tmp = tempdir().unwrap();
@@ -2242,6 +2350,112 @@ pub fn gvs_disabled_or_extend_node_path_off_injects_no_resolution_env() {
         assert_eq!(config.extra_env.get("NODE_PATH"), None, "yaml: {yaml}");
         assert_eq!(config.extra_env.get("NODE_OPTIONS"), None, "yaml: {yaml}");
     }
+}
+
+#[test]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
+pub fn prefer_symlinked_executables_exports_the_virtual_store_node_path() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "preferSymlinkedExecutables: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(
+        config.extra_env.get("NODE_PATH"),
+        Some(&tmp.path().join("node_modules/.pnpm/node_modules").display().to_string()),
+    );
+}
+
+/// Run from a workspace package, `NODE_PATH` must point at the
+/// workspace root's virtual store — the one that exists — not at the
+/// package directory's (pnpm/pnpm#13912).
+#[test]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
+pub fn prefer_symlinked_executables_node_path_anchors_at_the_workspace_root() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\npreferSymlinkedExecutables: true\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let pkg_dir = tmp.path().join("packages/app");
+    fs::create_dir_all(&pkg_dir).expect("create workspace package dir");
+    let config = Config::new().current::<HostNoHome>(&pkg_dir).expect("yaml is valid");
+    assert_eq!(
+        config.extra_env.get("NODE_PATH"),
+        Some(&tmp.path().join("node_modules/.pnpm/node_modules").display().to_string()),
+    );
+}
+
+#[test]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
+pub fn prefer_symlinked_executables_respects_an_explicit_virtual_store_dir() {
+    let tmp = tempdir().unwrap();
+    let virtual_store_dir = tmp.path().join("foo/bar");
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        format!(
+            "virtualStoreDir: {}\npreferSymlinkedExecutables: true\n",
+            virtual_store_dir.display(),
+        ),
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(
+        config.extra_env.get("NODE_PATH"),
+        Some(&virtual_store_dir.join("node_modules").display().to_string()),
+    );
+}
+
+/// The hoisted `nodeLinker` turns the setting on unless the user
+/// configured it — but, like pnpm, the derived `true` exports no
+/// `NODE_PATH`: pnpm computes `extraEnv` before its `nodeLinker`
+/// switch, and the hoisted layout has no hidden store to expose.
+#[test]
+pub fn hoisted_node_linker_defaults_prefer_symlinked_executables_on() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.prefer_symlinked_executables, Some(true));
+    assert_eq!(config.extra_env.get("NODE_PATH"), None);
+
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "nodeLinker: hoisted\npreferSymlinkedExecutables: false\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.prefer_symlinked_executables, Some(false));
+    assert_eq!(config.extra_env.get("NODE_PATH"), None);
+}
+
+/// The CLI's `--config.node-linker` override re-runs the derivation
+/// after [`Config::current`], and it must track the *final* linker: a
+/// `true` derived for the yaml-selected hoisted linker is dropped when
+/// the override selects another linker (pnpm merges CLI options before
+/// its `nodeLinker` switch), while a user-configured value survives.
+#[test]
+pub fn rederiving_prefer_symlinked_executables_follows_a_node_linker_override() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write to pnpm-workspace.yaml");
+    let mut config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.prefer_symlinked_executables, Some(true));
+    config.node_linker = crate::NodeLinker::Isolated;
+    config.apply_prefer_symlinked_executables_derivation();
+    assert_eq!(config.prefer_symlinked_executables, None);
+
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "nodeLinker: hoisted\npreferSymlinkedExecutables: true\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let mut config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    config.node_linker = crate::NodeLinker::Isolated;
+    config.apply_prefer_symlinked_executables_derivation();
+    assert_eq!(config.prefer_symlinked_executables, Some(true));
 }
 
 #[test]
@@ -2768,6 +2982,45 @@ pub fn pnpm_config_env_var_overrides_workspace_yaml() {
 }
 
 #[test]
+pub fn materialization_env_vars_override_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "virtualStoreOnly: false\nenableModulesDir: true\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    struct HostWithMaterializationEnv;
+    impl EnvVar for HostWithMaterializationEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_VIRTUAL_STORE_ONLY" => Some("true".to_owned()),
+                "PNPM_CONFIG_ENABLE_MODULES_DIR" => Some("false".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithMaterializationEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithMaterializationEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithMaterializationEnv);
+    host_current_dir!(HostWithMaterializationEnv);
+
+    let config = Config::new().current::<HostWithMaterializationEnv>(tmp.path()).expect("loads");
+    assert!(config.virtual_store_only);
+    assert!(!config.enable_modules_dir);
+    assert_eq!(config.hoist_pattern, Some(vec![]));
+    assert_eq!(config.public_hoist_pattern, Some(vec![]));
+}
+
+#[test]
 pub fn self_update_config_ignores_a_workspace_manifest_that_raises_the_cutoff() {
     let tmp = tempdir().unwrap();
     fs::write(
@@ -3077,6 +3330,105 @@ pub fn engine_strict_node_version_and_max_sockets_from_workspace_yaml() {
     assert_eq!(config.max_sockets, Some(5));
 }
 
+/// npm spells the setting `maxsockets`; pnpm reads either spelling, so a
+/// config carried over from npm keeps working.
+#[test]
+pub fn max_sockets_accepts_npms_lowercase_spelling() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "maxsockets: 7\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.max_sockets, Some(7));
+}
+
+/// One file may carry both spellings — the canonical one wins, and the
+/// pair is not a duplicate key that fails the whole parse.
+#[test]
+pub fn max_sockets_takes_the_canonical_spelling_when_a_file_has_both() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "maxSockets: 5\nmaxsockets: 7\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.max_sockets, Some(5));
+}
+
+/// The environment is a later layer than the file, so npm's spelling there
+/// still wins over the canonical spelling in `pnpm-workspace.yaml`.
+#[test]
+pub fn max_sockets_from_the_environment_wins_over_the_workspace_yaml() {
+    fake_env!(load_with_fake_env);
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "maxSockets: 4\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    set_fake_env(&[("PNPM_CONFIG_MAXSOCKETS", "8")]);
+    assert_eq!(load_with_fake_env(tmp.path()).max_sockets, Some(8));
+}
+
+#[test]
+pub fn max_sockets_accepts_both_spellings_from_the_environment() {
+    fake_env!(load_with_fake_env);
+    let tmp = tempdir().unwrap();
+
+    set_fake_env(&[("PNPM_CONFIG_MAXSOCKETS", "7")]);
+    assert_eq!(load_with_fake_env(tmp.path()).max_sockets, Some(7));
+
+    // The pnpm spelling wins over npm's when a shell exports both.
+    set_fake_env(&[("PNPM_CONFIG_MAXSOCKETS", "7"), ("PNPM_CONFIG_MAX_SOCKETS", "9")]);
+    assert_eq!(load_with_fake_env(tmp.path()).max_sockets, Some(9));
+}
+
+#[test]
+pub fn update_notifier_and_legacy_dir_filtering_default_and_come_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    assert!(config.update_notifier);
+    assert!(!config.legacy_dir_filtering);
+
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "updateNotifier: false\nlegacyDirFiltering: true\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(!config.update_notifier);
+    assert!(config.legacy_dir_filtering);
+}
+
+#[test]
+pub fn init_settings_come_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    assert_eq!(config.init_author_name, None);
+    assert_eq!(config.init_license, None);
+    assert_eq!(config.init_version, None);
+
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "initAuthorName: pnpm\ninitAuthorEmail: xxxxxx@pnpm.com\ninitAuthorUrl: https://www.github.com/pnpm\ninitLicense: MIT\ninitVersion: 2.0.0\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.init_author_name.as_deref(), Some("pnpm"));
+    assert_eq!(config.init_author_email.as_deref(), Some("xxxxxx@pnpm.com"));
+    assert_eq!(config.init_author_url.as_deref(), Some("https://www.github.com/pnpm"));
+    assert_eq!(config.init_license.as_deref(), Some("MIT"));
+    assert_eq!(config.init_version.as_deref(), Some("2.0.0"));
+}
+
+#[test]
+pub fn node_version_from_pnpm_config_env_overrides_workspace_yaml() {
+    fake_env!(load_with_fake_env);
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "nodeVersion: 18.20.4\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    set_fake_env(&[("PNPM_CONFIG_NODE_VERSION", "20.0.0")]);
+    let config = load_with_fake_env(tmp.path());
+
+    assert_eq!(config.node_version.as_deref(), Some("20.0.0"));
+}
+
 #[test]
 pub fn catalog_prune_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
@@ -3164,6 +3516,70 @@ pub fn virtual_store_dir_max_length_env_var_overrides_yaml() {
         config.virtual_store_dir_max_length, 50,
         "env var must win over pnpm-workspace.yaml",
     );
+}
+
+/// `lockfileDir` moves the paths pnpm resolves against it: the root
+/// `node_modules` and the virtual store follow the pin, and the config
+/// root the install reads its root manifest and pnpmfile from becomes the
+/// pin rather than the workspace root.
+#[test]
+pub fn lockfile_dir_from_workspace_yaml_moves_the_paths_anchored_on_it() {
+    let tmp = tempdir().unwrap();
+    let workspace = tmp.path().join("workspace");
+    fs::create_dir(&workspace).expect("create the workspace dir");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "lockfileDir: ..
+",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    let config = Config::new().current::<HostNoHome>(&workspace).expect("yaml is valid");
+
+    assert_eq!(config.lockfile_dir.as_deref(), Some(tmp.path()));
+    assert_eq!(config.lockfile_dir_for(&workspace), tmp.path());
+    assert_eq!(config.root_project_manifest_dir(&workspace), tmp.path());
+    assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
+    assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules").join(".pnpm"));
+}
+
+/// `PNPM_CONFIG_LOCKFILE_DIR` overrides the yaml setting, and a relative
+/// value resolves against the directory the config was loaded for.
+#[test]
+pub fn lockfile_dir_env_var_overrides_yaml() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "lockfileDir: from-yaml
+",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    struct HostWithLockfileDirEnv;
+    impl EnvVar for HostWithLockfileDirEnv {
+        fn var(name: &str) -> Option<String> {
+            if name == "PNPM_CONFIG_LOCKFILE_DIR" {
+                return Some("from-env".to_owned());
+            }
+            safe_host_var(name)
+        }
+    }
+    impl EnvVarOs for HostWithLockfileDirEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithLockfileDirEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithLockfileDirEnv);
+    host_current_dir!(HostWithLockfileDirEnv);
+
+    let config = Config::new().current::<HostWithLockfileDirEnv>(tmp.path()).expect("loads");
+    assert_eq!(config.lockfile_dir.as_deref(), Some(tmp.path().join("from-env").as_path()));
+    assert_eq!(config.modules_dir, tmp.path().join("from-env").join("node_modules"));
 }
 
 #[test]
@@ -3516,4 +3932,324 @@ pub fn extra_bin_paths_lists_workspace_root_bin_only_inside_a_workspace() {
         .expect("write pnpm-workspace.yaml");
     let config = load_with_fake_env(project.path());
     assert_eq!(config.extra_bin_paths, vec![project.path().join("node_modules").join(".bin")]);
+}
+
+/// A key spelled in kebab-case in the global `config.yaml` is read by
+/// nothing, since only camelCase reaches the settings, so it is reported
+/// naming the spelling that works.
+#[test]
+pub fn global_config_yaml_kebab_case_key_is_reported() {
+    let config_dir = tempdir().expect("config tempdir");
+    let config_file = config_dir.path().join("config.yaml");
+    fs::write(&config_file, "store-dir: /kebab-store\nstoreDir: /camel-store\n")
+        .expect("write global config.yaml");
+
+    let warnings = capture_warnings(|| {
+        let settings = WorkspaceSettings::load_global(config_dir.path())
+            .expect("load global config.yaml")
+            .expect("global config.yaml is present");
+        assert_eq!(settings.store_dir.as_deref(), Some("/camel-store"));
+    });
+
+    assert_eq!(
+        warnings,
+        [format!(
+            r#"The following settings in the global config file ("{}") were ignored because they are not written in camelCase: "store-dir" (use "storeDir")."#,
+            config_file.display(),
+        )],
+    );
+}
+
+/// A workspace-only setting and a key that is no setting at all are both
+/// dropped from the global `config.yaml`, so both are reported.
+#[test]
+pub fn global_config_yaml_keys_it_cannot_set_are_reported() {
+    let config_dir = tempdir().expect("config tempdir");
+    let config_file = config_dir.path().join("config.yaml");
+    fs::write(&config_file, "nodeLinker: hoisted\npackages:\n  - lib/*\n")
+        .expect("write global config.yaml");
+
+    let warnings = capture_warnings(|| {
+        let settings = WorkspaceSettings::load_global(config_dir.path())
+            .expect("load global config.yaml")
+            .expect("global config.yaml is present");
+        assert_eq!(settings.node_linker, None);
+    });
+
+    assert_eq!(
+        warnings,
+        [format!(
+            r#"The following settings cannot be set in the global config file ("{}") and were ignored: "nodeLinker", "packages". Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
+            config_file.display(),
+        )],
+    );
+}
+
+/// A key no configuration file may set is reported with the route pnpm
+/// offers for it, not with the move-to-workspace advice.
+#[test]
+pub fn global_config_yaml_keys_settable_nowhere_are_reported_with_their_route() {
+    let config_dir = tempdir().expect("config tempdir");
+    let config_file = config_dir.path().join("config.yaml");
+    fs::write(&config_file, "configDir: /elsewhere\nbin: /usr/local/bin\ndir: /work\n")
+        .expect("write global config.yaml");
+
+    let warnings = capture_warnings(|| {
+        WorkspaceSettings::load_global(config_dir.path())
+            .expect("load global config.yaml")
+            .expect("global config.yaml is present");
+    });
+
+    assert_eq!(
+        warnings,
+        [format!(
+            r#"The following settings cannot be set in the global config file ("{}") and were ignored: "configDir" (This is not a pnpm setting), "bin" (Set it for the machine instead: pnpm config set --global global-bin-dir), "dir" (Pass --dir on the command line instead)."#,
+            config_file.display(),
+        )],
+    );
+}
+
+/// A key that names no setting of any supported pnpm gets the
+/// "not recognized by this version" warning — with the closest real setting
+/// when the key looks like a typo of one — instead of the move-to-workspace
+/// advice, which would send the user to a file that ignores it too.
+#[test]
+pub fn global_config_yaml_unrecognized_keys_are_reported_with_a_suggestion() {
+    let config_dir = tempdir().expect("config tempdir");
+    let config_file = config_dir.path().join("config.yaml");
+    fs::write(&config_file, "minimumReleaseAg: 100\nzzzNotASettingZzz: true\n")
+        .expect("write global config.yaml");
+
+    let warnings = capture_warnings(|| {
+        WorkspaceSettings::load_global(config_dir.path())
+            .expect("load global config.yaml")
+            .expect("global config.yaml is present");
+    });
+
+    assert_eq!(
+        warnings,
+        [format!(
+            r#"The following settings in the global config file ("{}") are not recognized by this version of pnpm and were ignored: "minimumReleaseAg" (did you mean "minimumReleaseAge"?), "zzzNotASettingZzz"."#,
+            config_file.display(),
+        )],
+    );
+}
+
+/// A `$schema` key is an editor's schema association, not a setting.
+#[test]
+pub fn global_config_yaml_schema_directive_is_silent() {
+    let config_dir = tempdir().expect("config tempdir");
+    fs::write(
+        config_dir.path().join("config.yaml"),
+        "$schema: https://json.schemastore.org/pnpm-workspace.json\n",
+    )
+    .expect("write global config.yaml");
+
+    let warnings = capture_warnings(|| {
+        WorkspaceSettings::load_global(config_dir.path())
+            .expect("load global config.yaml")
+            .expect("global config.yaml is present");
+    });
+
+    assert_eq!(warnings, Vec::<String>::new());
+}
+
+/// A dropped key pnpm honors in this file gets no warning; the rationale
+/// lives on `warn_about_dropped_keys`.
+#[test]
+pub fn global_config_yaml_key_pnpm_honors_stays_silent() {
+    let config_dir = tempdir().expect("config tempdir");
+    let config_file = config_dir.path().join("config.yaml");
+    fs::write(&config_file, "globalBinDir: /usr/local/pnpm-bin\n")
+        .expect("write global config.yaml");
+
+    let warnings = capture_warnings(|| {
+        WorkspaceSettings::load_global(config_dir.path())
+            .expect("load global config.yaml")
+            .expect("global config.yaml is present");
+    });
+
+    assert_eq!(warnings, Vec::<String>::new());
+}
+
+/// An explicit null sets nothing, so it is not reported. A file carrying
+/// every kind of dropped key gets all three warnings, in pnpm's order.
+#[test]
+pub fn global_config_yaml_null_key_is_silent_and_the_warnings_are_ordered() {
+    let config_dir = tempdir().expect("config tempdir");
+    let config_file = config_dir.path().join("config.yaml");
+    fs::write(
+        &config_file,
+        "scriptShell: null\nstore-dir: /kebab-store\nzzzNotASettingZzz: true\nconfigDir: /elsewhere\nnodeLinker: hoisted\n",
+    )
+    .expect("write global config.yaml");
+
+    let warnings = capture_warnings(|| {
+        WorkspaceSettings::load_global(config_dir.path())
+            .expect("load global config.yaml")
+            .expect("global config.yaml is present");
+    });
+
+    assert_eq!(
+        warnings,
+        [
+            format!(
+                r#"The following settings cannot be set in the global config file ("{}") and were ignored: "nodeLinker". Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
+                config_file.display(),
+            ),
+            format!(
+                r#"The following settings in the global config file ("{}") are not recognized by this version of pnpm and were ignored: "zzzNotASettingZzz"."#,
+                config_file.display(),
+            ),
+            format!(
+                r#"The following settings cannot be set in the global config file ("{}") and were ignored: "configDir" (This is not a pnpm setting)."#,
+                config_file.display(),
+            ),
+            format!(
+                r#"The following settings in the global config file ("{}") were ignored because they are not written in camelCase: "store-dir" (use "storeDir")."#,
+                config_file.display(),
+            ),
+        ],
+    );
+}
+
+/// A scratch git repository whose branch the per-branch lockfile
+/// derivation reads: a `.git/HEAD` is all `get_current_branch` needs, so
+/// the fixture is a directory rather than a real `git init`.
+fn repo_on_branch(head: &str) -> tempfile::TempDir {
+    let dir = tempdir().unwrap();
+    fs::create_dir(dir.path().join(".git")).unwrap();
+    fs::write(dir.path().join(".git/HEAD"), head).unwrap();
+    dir
+}
+
+/// The derivation reads the branch from the process's working directory,
+/// so a test that wants a specific branch has to answer
+/// [`GetCurrentDir`] with its own fixture rather than the real cwd.
+macro_rules! host_in_repo {
+    ($name:ident) => {
+        struct $name;
+        impl EnvVar for $name {
+            fn var(name: &str) -> Option<String> {
+                safe_host_var(name)
+            }
+        }
+        impl EnvVarOs for $name {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for $name {
+            fn home_dir() -> Option<PathBuf> {
+                None
+            }
+        }
+        inert_link_probe!($name);
+        impl GetCurrentDir for $name {
+            fn current_dir() -> io::Result<PathBuf> {
+                REPO_DIR.get().cloned().ok_or_else(|| io::Error::other("no repo fixture"))
+            }
+        }
+    };
+}
+
+#[test]
+pub fn git_branch_lockfile_names_the_lockfile_after_the_current_branch() {
+    let repo = repo_on_branch("ref: refs/heads/feat/Login\n");
+    fs::write(repo.path().join("pnpm-workspace.yaml"), "gitBranchLockfile: true\n").unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostOnBranch);
+
+    let config = Config::new().current::<HostOnBranch>(repo.path()).expect("yaml is valid");
+    assert!(config.use_git_branch_lockfile);
+    assert_eq!(config.git_branch_lockfile_name.as_deref(), Some("pnpm-lock.feat!login.yaml"));
+    assert_eq!(config.wanted_lockfile_name(), "pnpm-lock.feat!login.yaml");
+}
+
+/// Merging collapses the per-branch lockfiles into the shared one, so the
+/// install has to be reading and writing `pnpm-lock.yaml` while it does.
+#[test]
+pub fn merging_puts_the_install_back_on_the_shared_lockfile() {
+    let repo = repo_on_branch("ref: refs/heads/main\n");
+    fs::write(
+        repo.path().join("pnpm-workspace.yaml"),
+        "gitBranchLockfile: true\nmergeGitBranchLockfiles: true\n",
+    )
+    .unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostMerging);
+
+    let config = Config::new().current::<HostMerging>(repo.path()).expect("yaml is valid");
+    assert!(config.merge_git_branch_lockfiles);
+    assert_eq!(config.git_branch_lockfile_name.as_deref(), Some("pnpm-lock.main.yaml"));
+    assert_eq!(config.wanted_lockfile_name(), "pnpm-lock.yaml");
+}
+
+#[test]
+pub fn the_branch_pattern_decides_merging_for_the_current_branch() {
+    let repo = repo_on_branch("ref: refs/heads/release/1.0.0\n");
+    fs::write(
+        repo.path().join("pnpm-workspace.yaml"),
+        "mergeGitBranchLockfilesBranchPattern:\n  - main\n  - release/*\n",
+    )
+    .unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostOnRelease);
+
+    let config = Config::new().current::<HostOnRelease>(repo.path()).expect("yaml is valid");
+    assert!(config.merge_git_branch_lockfiles);
+}
+
+#[test]
+pub fn the_branch_pattern_leaves_an_unmatched_branch_alone() {
+    let repo = repo_on_branch("ref: refs/heads/develop\n");
+    fs::write(
+        repo.path().join("pnpm-workspace.yaml"),
+        "mergeGitBranchLockfilesBranchPattern:\n  - main\n  - release/*\n",
+    )
+    .unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostOnDevelop);
+
+    let config = Config::new().current::<HostOnDevelop>(repo.path()).expect("yaml is valid");
+    assert!(!config.merge_git_branch_lockfiles);
+}
+
+/// pnpm consults the pattern only when `mergeGitBranchLockfiles` is not
+/// set outright, so an explicit `false` survives a matching branch.
+#[test]
+pub fn an_explicit_merge_setting_wins_over_the_branch_pattern() {
+    let repo = repo_on_branch("ref: refs/heads/main\n");
+    fs::write(
+        repo.path().join("pnpm-workspace.yaml"),
+        "mergeGitBranchLockfiles: false\nmergeGitBranchLockfilesBranchPattern:\n  - main\n",
+    )
+    .unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostExplicitlyNotMerging);
+
+    let config =
+        Config::new().current::<HostExplicitlyNotMerging>(repo.path()).expect("yaml is valid");
+    assert!(!config.merge_git_branch_lockfiles);
+}
+
+/// A detached HEAD has no branch to name a lockfile after, so the install
+/// stays on `pnpm-lock.yaml` rather than inventing one.
+#[test]
+pub fn a_detached_head_leaves_the_install_on_the_shared_lockfile() {
+    let repo = repo_on_branch("0123456789abcdef0123456789abcdef01234567\n");
+    fs::write(repo.path().join("pnpm-workspace.yaml"), "gitBranchLockfile: true\n").unwrap();
+    static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    host_in_repo!(HostDetached);
+
+    let config = Config::new().current::<HostDetached>(repo.path()).expect("yaml is valid");
+    assert!(config.use_git_branch_lockfile);
+    assert_eq!(config.git_branch_lockfile_name, None);
+    assert_eq!(config.wanted_lockfile_name(), "pnpm-lock.yaml");
 }

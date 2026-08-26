@@ -33,9 +33,8 @@ use pnpm_config::{PackageExtension, PeerDependencyMeta};
 use std::{collections::BTreeMap, sync::LazyLock};
 
 // `pnpm_compat_package_extensions.json` holds pnpm-specific entries not in
-// `@yarnpkg/extensions`: the original three from the TypeScript CLI's
-// `pnpmCompatPackageExtensions`, plus phantom-dependency findings detected
-// by static analysis of published npm packages.
+// `@yarnpkg/extensions`. It must stay identical to the TypeScript CLI's
+// `pnpmCompatPackageExtensions`.
 static COMPAT_PACKAGE_EXTENSIONS: LazyLock<IndexMap<String, PackageExtension>> =
     LazyLock::new(|| {
         let mut extensions = IndexMap::new();

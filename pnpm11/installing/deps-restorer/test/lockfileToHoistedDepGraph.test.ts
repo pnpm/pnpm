@@ -82,3 +82,109 @@ test('lockfileToHoistedDepGraph does not create a file outside node_modules for 
   ).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
   expect(fs.existsSync(escaped)).toBe(false)
 })
+
+// Two peer variants of one version collapse onto a single hoister node
+// keyed by the first depPath seen for the version, so the walk never
+// records a location under the other variant's depPath. An edge declared
+// against that variant — here `c`'s dependency on `b` — still has to
+// resolve to the copy the surviving node produced, or `b` drops out of
+// `c`'s children and off `c`'s `node_modules/.bin`.
+test('lockfileToHoistedDepGraph wires an edge declared against a collapsed peer variant', async () => {
+  const dir = tempDir(false)
+  const opts = hoistedOpts(dir)
+  opts.storeController = {
+    fetchPackage: () => ({ filesIndexFile: '' }),
+    getFilesIndexFilePath: () => ({ filesIndexFile: '' }),
+  } as unknown as typeof opts.storeController
+
+  const { graph } = await lockfileToHoistedDepGraph(peerVariantLockfile(), null, opts)
+
+  const modulesDir = path.join(dir, 'node_modules')
+  expect(graph[path.join(modulesDir, 'c')].children.b).toBe(path.join(modulesDir, 'b'))
+})
+
+function peerVariantLockfile (): LockfileObject {
+  return {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        dependencies: {
+          b: '1.0.0(peer@2.0.0)',
+          c: '1.0.0',
+          peer: '2.0.0',
+        },
+        specifiers: { b: '1.0.0', c: '1.0.0', peer: '2.0.0' },
+      },
+    },
+    packages: {
+      'b@1.0.0(peer@2.0.0)': {
+        resolution: { integrity: 'sha512-deadbeef' },
+        dependencies: { peer: '2.0.0' },
+      },
+      'b@1.0.0(peer@3.0.0)': {
+        resolution: { integrity: 'sha512-deadbeef' },
+        dependencies: { peer: '3.0.0' },
+      },
+      'c@1.0.0': {
+        resolution: { integrity: 'sha512-deadbeef' },
+        dependencies: { b: '1.0.0(peer@3.0.0)' },
+      },
+      'peer@2.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
+      'peer@3.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
+    },
+  } as unknown as LockfileObject
+}
+
+// Peer variants of an injected directory dependency are exempt from the
+// collapse (see `getHoisterPkgId`), so the walk has to keep a location
+// per variant, where every collapsed package funnels into one.
+test('lockfileToHoistedDepGraph keeps file-dep peer variants apart', async () => {
+  const dir = tempDir(false)
+  const opts = hoistedOpts(dir)
+  opts.storeController = {
+    fetchPackage: () => ({ filesIndexFile: '' }),
+    getFilesIndexFilePath: () => ({ filesIndexFile: '' }),
+  } as unknown as typeof opts.storeController
+
+  const { graph } = await lockfileToHoistedDepGraph(fileVariantLockfile(), null, opts)
+
+  const compDirs = Object.keys(graph).filter((dir) => path.basename(dir) === 'comp')
+  expect(compDirs).toHaveLength(2)
+  const peerVersionByVariant = Object.fromEntries(compDirs.map((dir) => {
+    const variant = graph[dir].depPath
+    const peerDir = graph[dir].children.peer
+    return [variant, graph[peerDir].depPath]
+  }))
+  expect(peerVersionByVariant).toStrictEqual({
+    'comp@file:comp(peer@1.0.0)': 'peer@1.0.0',
+    'comp@file:comp(peer@2.0.0)': 'peer@2.0.0',
+  })
+})
+
+function fileVariantLockfile (): LockfileObject {
+  const importer = (peerVersion: string) => ({
+    dependencies: {
+      comp: `file:comp(peer@${peerVersion})`,
+      peer: peerVersion,
+    },
+    specifiers: { comp: 'workspace:*', peer: peerVersion },
+  })
+  const compVariant = (peerVersion: string) => ({
+    resolution: { directory: 'comp', type: 'directory' },
+    dependencies: { peer: peerVersion },
+  })
+  return {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': { specifiers: {} },
+      'node_modules/.bit_roots/r1': importer('1.0.0'),
+      'node_modules/.bit_roots/r2': importer('2.0.0'),
+    },
+    packages: {
+      'comp@file:comp(peer@1.0.0)': compVariant('1.0.0'),
+      'comp@file:comp(peer@2.0.0)': compVariant('2.0.0'),
+      'peer@1.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
+      'peer@2.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
+    },
+  } as unknown as LockfileObject
+}

@@ -71,7 +71,7 @@ pub(crate) fn settings_match(
 /// they all match. `ignored_workspace_state_settings` lets callers skip
 /// keys such as `dev` / `optional` / `production`: `pnpm run` / `pnpm
 /// exec` always execute with the default dependency groups, so those
-/// never match the state written by a `--production` / `--no-optional`
+/// never match the state written by a `--prod` / `--no-optional`
 /// install (pnpm's `ignoredWorkspaceStateSettings`).
 pub(crate) fn first_setting_drift(
     state: &WorkspaceState,

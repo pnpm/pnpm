@@ -164,7 +164,7 @@ function isBulkResponseShape (body: unknown): body is BulkAdvisoriesResponse {
   )
 }
 
-function satisfiesSafe (version: string, range: string): boolean {
+export function satisfiesSafe (version: string, range: string): boolean {
   try {
     return semver.satisfies(version, range, { includePrerelease: true, loose: true })
   } catch {

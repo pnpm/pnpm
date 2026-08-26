@@ -228,7 +228,8 @@ impl DlxArgs {
         if package.is_empty()
             && let Some((name, version_spec)) = parse_runtime_spec(bin_command)
         {
-            return run_runtime(name, version_spec, bin_command, args, &spawn).await;
+            return run_runtime(&config.state_dir, name, version_spec, bin_command, args, &spawn)
+                .await;
         }
 
         // `pkgs = package ?? [command]`. With `--package`, the command
@@ -367,6 +368,9 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // rather than `None`, which walks up from the cache dir and can
     // adopt a stray `pnpm-workspace.yaml` above it (pnpm/pnpm#13697).
     config.workspace_dir = Some(prepare_dir.to_path_buf());
+    // Same reasoning for a pinned `lockfileDir`: it names the caller's
+    // lockfile, which the throwaway install must not touch.
+    config.lockfile_dir = None;
     // The caller's patches never apply to the throwaway install (pnpm's
     // dlx installs the package unpatched too). Their paths are relative
     // to the caller's workspace root, which the anchor above replaced, so
@@ -555,6 +559,7 @@ fn parse_runtime_spec(command: &str) -> Option<(&str, &str)> {
 /// Materialize `name` at `version_spec` and run it, the runtime half of
 /// [`run_package_manager`].
 async fn run_runtime(
+    state_dir: &Path,
     name: &str,
     version_spec: &str,
     command: &str,
@@ -562,7 +567,8 @@ async fn run_runtime(
     spawn: &DlxSpawn<'_>,
 ) -> miette::Result<()> {
     let executable =
-        Box::pin(materialize_runtime(name.to_string(), version_spec.to_string())).await?;
+        Box::pin(materialize_runtime(state_dir, name.to_string(), version_spec.to_string()))
+            .await?;
     let bin_dirs: Vec<PathBuf> = executable.parent().map(Path::to_path_buf).into_iter().collect();
     run_bin(DlxProgram::Provisioned { command, executable: &executable }, args, bin_dirs, spawn)
 }

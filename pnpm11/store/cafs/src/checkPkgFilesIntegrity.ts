@@ -53,6 +53,8 @@ export interface VerifyResult {
 export interface PackageFilesIndex {
   manifest?: BundledManifest
   requiresBuild?: boolean
+  /** Whether preparing a git package required lifecycle scripts before these files were stored. */
+  requiresPrepare?: boolean
   algo: string
   files: PackageFiles
   sideEffects?: SideEffects

@@ -20,6 +20,7 @@ fn violation(name: &str, version: &str, code: &'static str) -> ResolutionPolicyV
             integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
                 .parse::<Integrity>()
                 .expect("valid integrity"),
+            revision: None,
         }),
         code,
         reason: format!("{name}@{version} is too new"),

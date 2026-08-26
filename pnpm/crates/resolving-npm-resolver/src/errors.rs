@@ -205,6 +205,52 @@ pub struct InvalidTarballIntegrityError {
     pub shasum: String,
 }
 
+/// Raised when a registry marks a tarball as a replacement revision but its
+/// revision number or integrity-addressed URL violates the metadata contract.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Tarball \"{tarball}\" has invalid revision metadata: {reason}")]
+#[diagnostic(code(ERR_PNPM_MALFORMED_METADATA))]
+pub struct InvalidTarballRevisionMetadataError {
+    #[error(not(source))]
+    pub tarball: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Invalid registry revision in version specifier \"{specifier}\"")]
+#[diagnostic(code(ERR_PNPM_INVALID_REVISION_SPEC))]
+pub struct InvalidRevisionSpecifierError {
+    #[error(not(source))]
+    pub specifier: String,
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("No revision {revision} is advertised for {name}@{version}")]
+#[diagnostic(code(ERR_PNPM_NO_MATCHING_REVISION))]
+pub struct NoMatchingRevisionError {
+    #[error(not(source))]
+    pub name: String,
+    pub version: String,
+    pub revision: u64,
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("The revision history for {name}@{version} is invalid: {reason}.")]
+#[diagnostic(code(ERR_PNPM_MALFORMED_METADATA))]
+pub struct MalformedRevisionHistoryError {
+    #[error(not(source))]
+    pub name: String,
+    pub version: String,
+    pub reason: String,
+}
+
+impl InvalidTarballRevisionMetadataError {
+    #[must_use]
+    pub fn new(tarball: &str, reason: impl Into<String>) -> Self {
+        Self { tarball: redact_and_sanitize(tarball), reason: reason.into() }
+    }
+}
+
 impl InvalidTarballIntegrityError {
     #[must_use]
     pub fn new(tarball: &str, shasum: &str) -> Self {

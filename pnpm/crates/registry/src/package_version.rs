@@ -4,10 +4,7 @@ use pipe_trait::Pipe;
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    NetworkError, PackageTag, RangeSpecStyle, RegistryError,
-    package_distribution::PackageDistribution,
-};
+use crate::{NetworkError, PackageTag, RegistryError, package_distribution::PackageDistribution};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -298,14 +295,6 @@ impl PackageVersion {
         dependencies
             .chain(peer_dependencies)
             .map(|(name, version)| (name.as_str(), version.as_str()))
-    }
-
-    #[must_use]
-    pub fn serialize(&self, range_spec_style: RangeSpecStyle) -> String {
-        if !self.version.pre_release.is_empty() {
-            return self.version.to_string();
-        }
-        format!("{0}{1}", range_spec_style.range_prefix(), self.version)
     }
 }
 

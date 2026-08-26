@@ -257,6 +257,180 @@ test('config get with scoped registry returns the merged value from pnpm-workspa
   expect(getOutputString(getResult)).toBe('https://from-workspace-yaml.example.com/')
 })
 
+test('config get registries returns the registries the CLI resolves from', async () => {
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    registriesByScope: {
+      default: 'https://registry.example.com/',
+      '@jsr': 'https://npm.jsr.io/',
+      '@corp': 'https://work.example.com/',
+    },
+    registriesByPrefix: {
+      work: 'https://work.example.com/',
+    },
+    registryOptionsByUrl: {
+      'https://work.example.com/': { serverType: 'artifactory' },
+    },
+  }), ['get', 'registries'])
+
+  expect(JSON.parse(getOutputString(getResult))).toStrictEqual({
+    'https://npm.jsr.io/': { scopes: ['@jsr'] },
+    'https://npm.pkg.github.com/': { prefix: 'gh' },
+    'https://registry.example.com/': { scopes: ['@'] },
+    'https://registry.npmjs.org/': { prefix: 'npmjs' },
+    'https://work.example.com/': {
+      serverType: 'artifactory',
+      scopes: ['@corp'],
+      prefix: 'work',
+    },
+  })
+})
+
+test('config list re-joins the registry lookups under `registries`', async () => {
+  const listResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    registriesByScope: {
+      default: 'https://registry.example.com/',
+    },
+    registryOptionsByUrl: {
+      'https://registry.example.com/': { supportsTimeField: true },
+    },
+  }), ['list'])
+
+  const record = JSON.parse(getOutputString(listResult))
+  expect(record.registries).toStrictEqual({
+    'https://npm.jsr.io/': { scopes: ['@jsr'] },
+    'https://npm.pkg.github.com/': { prefix: 'gh' },
+    'https://registry.example.com/': {
+      supportsTimeField: true,
+      scopes: ['@'],
+    },
+    'https://registry.npmjs.org/': { prefix: 'npmjs' },
+  })
+  expect(record).not.toHaveProperty('registriesByScope')
+  expect(record).not.toHaveProperty('registryOptionsByUrl')
+  // The npm-compat row agrees with the resolved view.
+  expect(record.registry).toBe('https://registry.example.com/')
+})
+
+test('config get registry and @jsr:registry answer the merged routes', async () => {
+  const baseOpts = {
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {
+      registry: 'https://from-npmrc.example.com/',
+    },
+    registriesByScope: {
+      default: 'https://from-workspace-yaml.example.com/',
+      '@jsr': 'https://npm.jsr.io/',
+    },
+  }
+
+  // The resolved default — wherever it was routed from — wins over a raw
+  // `.npmrc` row, so `get` and `list` cannot contradict the `registries`
+  // view.
+  const registryResult = await config.handler(createConfigCommandOpts(baseOpts), ['get', 'registry'])
+  expect(getOutputString(registryResult)).toBe('https://from-workspace-yaml.example.com/')
+  const jsrResult = await config.handler(createConfigCommandOpts(baseOpts), ['get', '@jsr:registry'])
+  expect(getOutputString(jsrResult)).toBe('https://npm.jsr.io/')
+  const listResult = await config.handler(createConfigCommandOpts(baseOpts), ['list'])
+  const record = JSON.parse(getOutputString(listResult))
+  expect(record.registry).toBe('https://from-workspace-yaml.example.com/')
+  expect(record['@jsr:registry']).toBe('https://npm.jsr.io/')
+})
+
+test('config get audit-level still answers the deprecated types key', async () => {
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    auditLevel: 'high',
+  }), ['get', 'audit-level'])
+  expect(getOutputString(getResult)).toBe('high')
+})
+
+test('config get catalogs prints the resolved catalog set, whichever spelling declared it', async () => {
+  // The reader merges the singular `catalog` block into `catalogs` as its
+  // `default` entry; the record shows that merged set, named catalogs
+  // preserved.
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    catalog: { react: '^19.0.0' },
+    catalogs: { default: { react: '^19.0.0' }, react17: { react: '^17.0.0' } },
+  }), ['get', 'catalogs'])
+  expect(JSON.parse(getOutputString(getResult))).toStrictEqual({
+    default: { react: '^19.0.0' },
+    react17: { react: '^17.0.0' },
+  })
+
+  // A catalogs map holding no catalog reads as unset.
+  const emptyResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    catalogs: { default: undefined },
+  }), ['get', 'catalogs'])
+  expect(getOutputString(emptyResult)).toBe('undefined')
+})
+
+test('config get update and audit return the settings the CLI acts on, under the documented names', async () => {
+  const baseOpts = {
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {},
+    updateConfig: {
+      ignoreDependencies: ['webpack'],
+      changeset: true,
+    },
+    auditConfig: {
+      ignoreGhsas: ['GHSA-xxxx-yyyy-zzzz'],
+    },
+    auditLevel: 'high',
+  }
+
+  const updateResult = await config.handler(createConfigCommandOpts(baseOpts), ['get', 'update'])
+  expect(JSON.parse(getOutputString(updateResult))).toStrictEqual({
+    ignoreDeps: ['webpack'],
+    changeset: true,
+  })
+
+  const auditResult = await config.handler(createConfigCommandOpts(baseOpts), ['get', 'audit'])
+  expect(JSON.parse(getOutputString(auditResult))).toStrictEqual({
+    level: 'high',
+    ignore: ['GHSA-xxxx-yyyy-zzzz'],
+  })
+
+  // The deprecated internal spellings are no longer part of the record.
+  const deprecatedResults = await Promise.all(['updateConfig', 'auditConfig'].map(
+    async (deprecatedKey) => config.handler(createConfigCommandOpts(baseOpts), ['get', deprecatedKey])
+  ))
+  for (const result of deprecatedResults) {
+    expect(getOutputString(result)).toBe('undefined')
+  }
+  const listResult = await config.handler(createConfigCommandOpts(baseOpts), ['list'])
+  expect(JSON.parse(getOutputString(listResult))).not.toHaveProperty('auditLevel')
+})
+
 test('config get with scoped registry key that does not exist', async () => {
   const getResult = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),

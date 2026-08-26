@@ -144,9 +144,13 @@ fn a_workspace_yaml_scope_is_ignored_and_reported_on_stderr() {
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     assert!(output.status.success(), "`pacquet login` must still succeed; stderr:\n{stderr}");
     assert_eq!(
-        stderr.matches(pnpm_config::IGNORED_SCOPE_WARNING).count(),
+        stderr
+            .matches(
+                r#"were ignored: "scope" (Set it for the machine instead: pnpm config set --global scope)."#
+            )
+            .count(),
         1,
-        "stderr must carry the ignored-scope warning verbatim, exactly once; got:\n{stderr}",
+        "stderr must name the dropped scope and where it belongs, exactly once; got:\n{stderr}",
     );
     let auth_ini = std::fs::read_to_string(root.path().join("pnpm").join("auth.ini"))
         .expect("login writes auth.ini");

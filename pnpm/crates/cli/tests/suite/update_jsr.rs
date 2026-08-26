@@ -133,3 +133,37 @@ fn update_latest_bumps_an_aliased_jsr_dependency() {
 
     drop((root, anchor));
 }
+
+/// A versioned `jsr:` selector targets the npm package the alias installs
+/// (`@jsr/<scope>__<name>`), not the alias it is written at. Update targets
+/// are keyed by the resolved package name, so keying them by the alias
+/// leaves the locked resolution in place.
+#[test]
+fn update_jsr_alias_selector_targets_the_aliased_package() {
+    let (root, workspace, anchor) = setup();
+
+    // Pin the aliased package at 1.0.0 through an exact entry naming the
+    // npm package the alias installs, then drop that entry so the alias is
+    // the only thing holding it — its ^1.0.0 range a fresh resolve answers
+    // with 1.1.0.
+    write_manifest(
+        &workspace,
+        r#"{ "bar-from-jsr": "jsr:@pnpm-e2e/bar@^1.0.0", "@jsr/pnpm-e2e__bar": "1.0.0" }"#,
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+    assert_eq!(
+        lockfile_entry(&workspace, "bar-from-jsr"),
+        Some(("jsr:@pnpm-e2e/bar@^1.0.0".to_string(), "@jsr/pnpm-e2e__bar@1.0.0".to_string())),
+    );
+    write_manifest(&workspace, r#"{ "bar-from-jsr": "jsr:@pnpm-e2e/bar@^1.0.0" }"#);
+
+    pacquet(&workspace, ["update", "bar-from-jsr@jsr:@pnpm-e2e/bar@^1.0.0"]).assert().success();
+
+    assert_eq!(
+        lockfile_entry(&workspace, "bar-from-jsr"),
+        Some(("jsr:@pnpm-e2e/bar@^1.0.0".to_string(), "@jsr/pnpm-e2e__bar@1.1.0".to_string())),
+        "the selector should have withheld the aliased package's pin",
+    );
+
+    drop((root, anchor));
+}

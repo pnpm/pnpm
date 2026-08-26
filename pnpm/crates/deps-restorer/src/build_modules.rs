@@ -238,6 +238,10 @@ pub struct BuildModules<'a> {
     /// configures a shell gets it for build scripts too, not only for
     /// `pnpm run`. `None` selects the platform default.
     pub script_shell: Option<&'a Path>,
+    /// Mirrors `config.shell_emulator`. Threaded through to
+    /// [`RunPostinstallHooks::shell_emulator`], so build scripts run
+    /// under the built-in shell wherever `pnpm run` would.
+    pub shell_emulator: bool,
     pub extra_env: &'a HashMap<String, String>,
     /// Mirrors `config.user_agent`, stamped into each build script's
     /// `npm_config_user_agent`.
@@ -371,6 +375,7 @@ impl BuildModules<'_> {
             patches,
             scripts_prepend_node_path,
             script_shell,
+            shell_emulator,
             extra_env,
             user_agent,
             unsafe_perm,
@@ -537,6 +542,7 @@ impl BuildModules<'_> {
                         user_agent,
                         scripts_prepend_node_path,
                         script_shell,
+                        shell_emulator,
                         unsafe_perm,
                         frozen_store,
                         ignore_scripts,
@@ -559,7 +565,7 @@ impl BuildModules<'_> {
             ignored_builds.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
         Ok(BuildModulesOutput {
             ignored_builds: ignored_builds.into_iter().collect(),
-            deferred_builds: deferred_builds(&requires_build_map, ignore_scripts),
+            deferred_builds: deferred_builds(requires_build_map.iter(), ignore_scripts),
         })
     }
 }
@@ -567,18 +573,18 @@ impl BuildModules<'_> {
 /// The snapshots `--ignore-scripts` kept from building, sorted for a
 /// stable `.modules.yaml`.
 ///
-/// Every `requires_build` snapshot qualifies, not just the ones this
-/// install newly materialized: a build stays owed until something
-/// actually runs it, and only `pnpm rebuild` clears the record.
-fn deferred_builds(
-    requires_build_map: &HashMap<PackageKey, bool>,
+/// The caller supplies the snapshots in scope. Normal build-module runs
+/// pass every snapshot they inspected; the `ignoreScripts`
+/// fast path passes only entries newly materialized by this install.
+pub(crate) fn deferred_builds<'a>(
+    requires_build: impl IntoIterator<Item = (&'a PackageKey, &'a bool)>,
     ignore_scripts: bool,
 ) -> Vec<String> {
     if !ignore_scripts {
         return Vec::new();
     }
-    let mut deferred: Vec<String> = requires_build_map
-        .iter()
+    let mut deferred: Vec<String> = requires_build
+        .into_iter()
         .filter(|&(_, &requires_build)| requires_build)
         .map(|(key, _)| key.to_string())
         .collect();

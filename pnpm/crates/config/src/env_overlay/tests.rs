@@ -1,7 +1,7 @@
 use super::{WorkspaceSettings, parse_json_or_string, parse_tri_array};
 use crate::{
-    NodeLinker, NodePackageMapType, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy,
-    VirtualStoreType, api::EnvVar,
+    ColorMode, NodeLinker, NodePackageMapType, SaveWorkspaceProtocol, ScriptsPrependNodePath,
+    TrustPolicy, VirtualStoreType, api::EnvVar,
 };
 use pretty_assertions::assert_eq;
 
@@ -15,6 +15,63 @@ fn bool_env_var_only_accepts_lowercase_true_false() {
     }
     let settings = WorkspaceSettings::from_pnpm_config_env::<EnvBadBool>();
     assert_eq!(settings.enable_global_virtual_store, None);
+}
+
+#[test]
+fn materialization_settings_read_from_the_environment() {
+    struct EnvMaterialization;
+    impl EnvVar for EnvMaterialization {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_VIRTUAL_STORE_ONLY" => Some("true".to_owned()),
+                "PNPM_CONFIG_ENABLE_MODULES_DIR" => Some("false".to_owned()),
+                _ => None,
+            }
+        }
+    }
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvMaterialization>();
+    assert_eq!(settings.virtual_store_only, Some(true));
+    assert_eq!(settings.enable_modules_dir, Some(false));
+}
+
+#[test]
+fn parity_settings_read_from_the_environment() {
+    struct EnvParity;
+    impl EnvVar for EnvParity {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_BAIL"
+                | "PNPM_CONFIG_OPTIONAL"
+                | "PNPM_CONFIG_PACKAGE_LOCK"
+                | "PNPM_CONFIG_RECURSIVE_INSTALL"
+                | "PNPM_CONFIG_SORT" => Some("false".to_owned()),
+                "PNPM_CONFIG_EMBED_README"
+                | "PNPM_CONFIG_IGNORE_WORKSPACE_ROOT_CHECK"
+                | "PNPM_CONFIG_PENDING"
+                | "PNPM_CONFIG_REVERSE"
+                | "PNPM_CONFIG_SHELL_EMULATOR"
+                | "PNPM_CONFIG_SKIP_MANIFEST_OBFUSCATION"
+                | "PNPM_CONFIG_USE_BETA_CLI" => Some("true".to_owned()),
+                "PNPM_CONFIG_COLOR" => Some("always".to_owned()),
+                _ => None,
+            }
+        }
+    }
+
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvParity>();
+    assert_eq!(settings.bail, Some(false));
+    assert_eq!(settings.color, Some(ColorMode::Always));
+    assert_eq!(settings.embed_readme, Some(true));
+    assert_eq!(settings.ignore_workspace_root_check, Some(true));
+    assert_eq!(settings.optional, Some(false));
+    assert_eq!(settings.package_lock, Some(false));
+    assert_eq!(settings.pending, Some(true));
+    assert_eq!(settings.recursive_install, Some(false));
+    assert_eq!(settings.reverse, Some(true));
+    assert_eq!(settings.shell_emulator, Some(true));
+    assert_eq!(settings.skip_manifest_obfuscation, Some(true));
+    assert_eq!(settings.sort, Some(false));
+    assert_eq!(settings.use_beta_cli, Some(true));
 }
 
 /// An exported-but-empty `PNPM_CONFIG_STORE_DIR=` shouldn't clobber
@@ -134,6 +191,8 @@ fn network_settings_parse_from_env() {
             match name {
                 "PNPM_CONFIG_NETWORK_CONCURRENCY" => Some("12".to_owned()),
                 "PNPM_CONFIG_FETCH_TIMEOUT" => Some("90000".to_owned()),
+                "PNPM_CONFIG_FETCH_WARN_TIMEOUT_MS" => Some("15000".to_owned()),
+                "PNPM_CONFIG_FETCH_MIN_SPEED_KI_BPS" => Some("75".to_owned()),
                 "PNPM_CONFIG_USER_AGENT" => Some("custom-ua/1.0".to_owned()),
                 _ => None,
             }
@@ -142,6 +201,8 @@ fn network_settings_parse_from_env() {
     let settings = WorkspaceSettings::from_pnpm_config_env::<EnvNetwork>();
     assert_eq!(settings.network_concurrency, Some(12));
     assert_eq!(settings.fetch_timeout, Some(90_000));
+    assert_eq!(settings.fetch_warn_timeout_ms, Some(15_000));
+    assert_eq!(settings.fetch_min_speed_ki_bps, Some(75));
     assert_eq!(settings.user_agent.as_deref(), Some("custom-ua/1.0"));
 }
 

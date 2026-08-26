@@ -1,8 +1,7 @@
-use super::{take_unemitted, unmatched_registry_options_warning};
+use super::unmatched_registry_options_warning;
 use pnpm_config::Config;
 use pnpm_lockfile::{RegistryOptions, RegistryServerType};
 use pretty_assertions::assert_eq;
-use std::collections::HashSet;
 
 fn config_with(registries: &[(&str, &str)], registry_options_by_url: &[&str]) -> Config {
     let mut config = Config::new();
@@ -78,19 +77,52 @@ fn redacts_credentials_in_the_warning() {
     assert!(received.contains("npm.example.com"), "the host is still named: {received}");
 }
 
-#[test]
-fn a_repeated_config_load_reports_each_warning_once() {
-    let mut emitted = HashSet::new();
+mod workspace_key_issues {
+    use super::super::{
+        non_camel_case_workspace_keys_warning, refused_workspace_keys_warning,
+        report_workspace_key_issues,
+    };
+    use pnpm_config::WorkspaceKeyIssues;
+    use pretty_assertions::assert_eq;
 
-    let mut first = Config { config_warnings: vec![warn("a"), warn("b")], ..Config::new() };
-    assert_eq!(take_unemitted(&mut emitted, &mut first), vec![warn("a"), warn("b")]);
-    assert!(first.config_warnings.is_empty(), "the drained config keeps no warnings");
+    #[test]
+    fn refused_keys_name_where_each_belongs() {
+        assert_eq!(
+            refused_workspace_keys_warning(&["configDir".to_string(), "bin".to_string()]),
+            "The following settings cannot be set in a project's pnpm-workspace.yaml and were \
+             ignored: \"configDir\" (This is not a pnpm setting), \"bin\" (Set it for the machine \
+             instead: pnpm config set --global global-bin-dir).",
+        );
+    }
 
-    let mut reload =
-        Config { config_warnings: vec![warn("a"), warn("b"), warn("c")], ..Config::new() };
-    assert_eq!(take_unemitted(&mut emitted, &mut reload), vec![warn("c")]);
-}
+    #[test]
+    fn non_camel_case_keys_name_the_spelling_that_works() {
+        assert_eq!(
+            non_camel_case_workspace_keys_warning(&["store-dir".to_string()]),
+            "The following settings in pnpm-workspace.yaml were ignored because they are not \
+             written in camelCase: \"store-dir\" (use \"storeDir\").",
+        );
+    }
 
-fn warn(id: &str) -> String {
-    format!("warning {id}")
+    #[test]
+    fn unrecognized_keys_error_only_when_strict() {
+        let issues = WorkspaceKeyIssues {
+            unrecognized: vec!["minimumReleaseAg".to_string()],
+            ..WorkspaceKeyIssues::default()
+        };
+        report_workspace_key_issues(&issues, false).expect("a warning, not an error");
+        let error =
+            report_workspace_key_issues(&issues, true).expect_err("strict must fail").to_string();
+        assert_eq!(
+            error,
+            "The following settings in pnpm-workspace.yaml are not recognized by this version of \
+             pnpm: \"minimumReleaseAg\" (did you mean \"minimumReleaseAge\"?).",
+        );
+    }
+
+    #[test]
+    fn a_clean_file_reports_nothing_even_when_strict() {
+        report_workspace_key_issues(&WorkspaceKeyIssues::default(), true)
+            .expect("nothing to report");
+    }
 }

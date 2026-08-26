@@ -10,6 +10,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_crypto_hash::integrity_addressed_tarball_path;
 use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
@@ -19,6 +20,7 @@ use pnpr::TokenBackend;
 use std::{
     fmt::Write as _,
     fs,
+    io::Write as _,
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     path::Path,
     process::Command,
@@ -74,6 +76,42 @@ fn start_pnpr(registry_url: &str) -> (String, String) {
     (format!("http://{addr}/"), token)
 }
 
+fn start_pnpr_registry(upstream_url: &str) -> String {
+    let upstream_url = upstream_url.to_string();
+    let storage = tempfile::tempdir().expect("pnpr storage").keep();
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind pnpr");
+    listener.set_nonblocking(true).expect("set pnpr listener non-blocking");
+    let addr = listener.local_addr().expect("pnpr addr");
+
+    thread::Builder::new()
+        .name("pnpr-registry".to_string())
+        .spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("pnpr runtime");
+            runtime.block_on(async move {
+                let mut config = pnpr::Config::proxy(addr, storage);
+                config.public_url = format!("http://{addr}");
+                config.upstreams.get_mut("npmjs").unwrap().url = upstream_url;
+                config.registries = pnpr::Registries::new(
+                    std::iter::once((
+                        "npmjs".to_string(),
+                        pnpr::Registry::Upstream { patterns: Vec::new() },
+                    ))
+                    .collect(),
+                    Some("npmjs".to_string()),
+                );
+                let listener = tokio::net::TcpListener::from_std(listener).expect("tokio listener");
+                let _ = pnpr::serve_listener(config, listener).await;
+            });
+        })
+        .expect("spawn pnpr registry thread");
+
+    wait_until_ready(addr);
+    format!("http://{addr}")
+}
+
 fn configure_pnpr_auth(npmrc_path: &std::path::Path, pnpr_url: &str, token: &str) {
     let authority =
         pnpr_url.strip_prefix("http://").expect("test pnpr URL uses http").trim_end_matches('/');
@@ -114,6 +152,175 @@ fn point_npmrc_registry_at(npmrc_path: &Path, registry_url: &str) {
         .collect::<Vec<_>>()
         .join("\n");
     fs::write(npmrc_path, npmrc).expect("rewrite .npmrc");
+}
+
+fn revision_fixture_tarball() -> Vec<u8> {
+    revision_fixture_tarball_with_value("revision")
+}
+
+fn revision_fixture_tarball_with_value(value: &str) -> Vec<u8> {
+    let manifest = br#"{"name":"revision-pkg","version":"1.0.0","main":"index.js"}"#;
+    let source = format!("module.exports = '{value}'\n");
+    let mut tar = tar::Builder::new(Vec::new());
+    for (path, body) in
+        [("package/package.json", manifest.as_slice()), ("package/index.js", source.as_bytes())]
+    {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(body.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        tar.append_data(&mut header, path, body).expect("append package file");
+    }
+    let tar = tar.into_inner().expect("finish package tar");
+    let mut gzip = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    gzip.write_all(&tar).expect("compress package tar");
+    gzip.finish().expect("finish package tarball")
+}
+
+fn revision_packument(
+    upstream: &mockito::Server,
+    tarball: &[u8],
+    revision: u64,
+    history: &[(&ssri::Integrity, u64)],
+) -> (ssri::Integrity, serde_json::Value) {
+    let integrity =
+        ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512).chain(tarball).result();
+    let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
+    let revisions = history
+        .iter()
+        .map(|(integrity, revision)| {
+            let path = integrity_addressed_tarball_path(integrity).unwrap();
+            serde_json::json!({
+                "revision": revision,
+                "integrity": integrity.to_string(),
+                "tarball": format!("{}/{}", upstream.url(), path),
+                "manifest": {},
+            })
+        })
+        .chain(std::iter::once(serde_json::json!({
+            "revision": revision,
+            "integrity": integrity.to_string(),
+            "tarball": format!("{}/{}", upstream.url(), revision_path),
+            "manifest": {},
+        })))
+        .collect::<Vec<_>>();
+    let packument = serde_json::json!({
+        "name": "revision-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": {
+            "name": "revision-pkg",
+            "version": "1.0.0",
+            "dist": {
+                "tarball": format!("{}/{}", upstream.url(), revision_path),
+                "integrity": integrity.to_string(),
+                "revision": revision,
+                "revisions": revisions,
+            },
+        } },
+    });
+    (integrity, packument)
+}
+
+#[test]
+fn revision_install_and_frozen_reinstall_work_through_pnpr() {
+    let mut upstream = mockito::Server::new();
+    let tarball = revision_fixture_tarball();
+    let (integrity, packument) = revision_packument(&upstream, &tarball, 2, &[]);
+    let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
+    let packument_mock =
+        upstream.mock("GET", "/revision-pkg").with_body(packument.to_string()).expect(1).create();
+    let tarball_mock = upstream
+        .mock("GET", format!("/{revision_path}").as_str())
+        .with_body(&tarball)
+        .expect(1)
+        .create();
+    let registry = start_pnpr_registry(&upstream.url());
+
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
+    point_npmrc_registry_at(&npmrc_path, &registry);
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "revision-pkg": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+    assert!(workspace.join("node_modules/revision-pkg/index.js").exists());
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(lockfile.contains("revision: 2"), "{lockfile}");
+    assert!(!lockfile.contains("tarball:"), "{lockfile}");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    fs::remove_dir_all(&store_dir).expect("remove client store");
+    pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    assert!(workspace.join("node_modules/revision-pkg/index.js").exists());
+
+    packument_mock.assert();
+    tarball_mock.assert();
+    drop((root, mock_instance));
+}
+
+#[test]
+fn update_patches_refreshes_a_pnpr_revision_without_changing_the_version() {
+    let first_tarball = revision_fixture_tarball_with_value("revision one");
+    let second_tarball = revision_fixture_tarball_with_value("revision two");
+
+    let mut first_upstream = mockito::Server::new();
+    let (first_integrity, first_packument) =
+        revision_packument(&first_upstream, &first_tarball, 1, &[]);
+    let first_path = integrity_addressed_tarball_path(&first_integrity).unwrap();
+    first_upstream.mock("GET", "/revision-pkg").with_body(first_packument.to_string()).create();
+    first_upstream
+        .mock("GET", format!("/{first_path}").as_str())
+        .with_body(&first_tarball)
+        .expect(1)
+        .create();
+    let first_registry = start_pnpr_registry(&first_upstream.url());
+
+    let mut second_upstream = mockito::Server::new();
+    let (second_integrity, second_packument) =
+        revision_packument(&second_upstream, &second_tarball, 2, &[(&first_integrity, 1)]);
+    let second_path = integrity_addressed_tarball_path(&second_integrity).unwrap();
+    second_upstream.mock("GET", "/revision-pkg").with_body(second_packument.to_string()).create();
+    second_upstream
+        .mock("GET", format!("/{second_path}").as_str())
+        .with_body(&second_tarball)
+        .expect(1)
+        .create();
+    let second_registry = start_pnpr_registry(&second_upstream.url());
+
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    point_npmrc_registry_at(&npmrc_path, &first_registry);
+    let manifest = serde_json::json!({ "dependencies": { "revision-pkg": "^1.0.0" } });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+    let initial = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(initial.contains("revision: 1"), "{initial}");
+
+    point_npmrc_registry_at(&npmrc_path, &second_registry);
+    pacquet_at(&workspace).with_args(["update", "--patches"]).assert().success();
+
+    let refreshed = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(refreshed.contains("revision: 2"), "{refreshed}");
+    assert!(!refreshed.contains("revision: 1"), "{refreshed}");
+    assert!(refreshed.contains("revision-pkg@1.0.0"), "{refreshed}");
+    let saved_manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(workspace.join("package.json")).expect("read package.json"),
+    )
+    .expect("parse package.json");
+    assert_eq!(saved_manifest, manifest);
+    assert_eq!(
+        fs::read_to_string(workspace.join("node_modules/revision-pkg/index.js"))
+            .expect("read installed source"),
+        "module.exports = 'revision two'\n",
+    );
+
+    drop((root, mock_instance));
 }
 
 #[test]
@@ -484,6 +691,7 @@ const WORKSPACE_DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const WORKSPACE_HELLO: &str = "@pnpm.e2e/hello-world-js-bin";
 const WORKSPACE_HELLO_PARENT: &str = "@pnpm.e2e/hello-world-js-bin-parent";
 const WORKSPACE_PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
+const WORKSPACE_ROOT_DEP: &str = "@foo/no-deps";
 const MISSING_PEERS_PARENT: &str = "@pnpm.e2e/abc-parent-with-missing-peers";
 
 fn configure_workspace(workspace: &Path) {
@@ -635,6 +843,37 @@ fn workspace_install_via_pnpr_resolves_catalog_references() {
     drop((root, mock_instance));
 }
 
+/// The importer ids the server request carries, and the ones the
+/// filtered-lockfile merge keys on, are relative to the lockfile — which
+/// `lockfileDir` can pin outside the workspace. Deriving them from the
+/// workspace root instead leaves the two sides naming different projects.
+#[test]
+fn workspace_install_via_pnpr_names_importers_relative_to_a_pinned_lockfile_dir() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    configure_workspace(&workspace);
+    crate::_utils::append_workspace_yaml_key(&workspace, "lockfileDir", "..");
+    write_workspace_project(&workspace, "app", "app", (WORKSPACE_HELLO, "1.0.0"));
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+
+    let wanted = read_workspace_lockfile(root.path());
+    assert_eq!(
+        wanted.importers.keys().cloned().collect::<std::collections::BTreeSet<_>>(),
+        std::collections::BTreeSet::from(["workspace/packages/app".to_string()]),
+    );
+    assert!(workspace_has_link(&workspace, "app", WORKSPACE_HELLO));
+
+    drop(mock_instance);
+}
+
 #[test]
 fn standard_workspace_install_via_pnpr_from_root_resolves_every_real_importer() {
     assert_standard_workspace_pnpr_from(None);
@@ -719,6 +958,16 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
     configure_workspace(&workspace);
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "workspace-root",
+            "version": "1.0.0",
+            "private": true,
+        })
+        .to_string(),
+    )
+    .expect("write workspace root manifest");
     write_workspace_project(&workspace, "selected", "selected", (WORKSPACE_HELLO, "0.0.0"));
     write_workspace_project(&workspace, "unselected", "unselected", (WORKSPACE_PARENT, "100.0.0"));
     pacquet_at(&workspace)
@@ -730,6 +979,18 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
     let prior_unselected = workspace_importer(&before, "packages/unselected").clone();
     let prior_parent = workspace_snapshot_entries(&before, WORKSPACE_PARENT);
     let prior_child = workspace_snapshot_entries(&before, WORKSPACE_DEP);
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "workspace-root",
+            "version": "1.0.0",
+            "private": true,
+            "dependencies": { WORKSPACE_ROOT_DEP: "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("add workspace root dependency");
+    let root_manifest = fs::read(workspace.join("package.json")).expect("read root manifest");
     replace_workspace_dependency(&workspace, "selected", (WORKSPACE_HELLO, "1.0.0"));
     replace_workspace_dependency(&workspace, "unselected", (WORKSPACE_HELLO_PARENT, "1.0.0"));
     let unselected_manifest =
@@ -759,12 +1020,21 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
     assert_eq!(workspace_snapshot_entries(&after, WORKSPACE_DEP), prior_child);
     assert!(workspace_snapshot_entries(&after, WORKSPACE_HELLO_PARENT).is_empty());
     assert_eq!(workspace_importer_version(&after, "packages/selected", WORKSPACE_HELLO), "1.0.0");
-    assert!(!after.importers.contains_key("."));
+    assert_eq!(workspace_importer_version(&after, ".", WORKSPACE_ROOT_DEP), "1.0.0");
+    assert_eq!(
+        fs::read(workspace.join("package.json")).expect("read root manifest"),
+        root_manifest,
+    );
 
     if lockfile_only {
         assert!(!workspace.join("node_modules").exists());
         assert!(!store_dir.join("v11/index.db").exists());
     } else {
+        assert!(
+            is_symlink_or_junction(&workspace.join("node_modules").join(WORKSPACE_ROOT_DEP))
+                .unwrap_or(false),
+            "workspace root dependency must be linked",
+        );
         assert!(workspace_has_link(&workspace, "selected", WORKSPACE_HELLO));
         assert!(!workspace.join("packages/unselected/node_modules").exists());
         assert!(workspace_slot(&workspace, WORKSPACE_HELLO, "1.0.0").exists());
@@ -774,7 +1044,7 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
         let current = read_workspace_current_lockfile(&workspace);
         assert_eq!(
             current.importers.keys().cloned().collect::<std::collections::BTreeSet<_>>(),
-            std::collections::BTreeSet::from(["packages/selected".to_string()]),
+            std::collections::BTreeSet::from([".".to_string(), "packages/selected".to_string()]),
         );
     }
 
@@ -782,12 +1052,12 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
 }
 
 #[test]
-fn filtered_workspace_install_via_pnpr_materializes_only_selected_closure() {
+fn filtered_workspace_install_via_pnpr_materializes_the_root_and_selected_closure() {
     assert_filtered_workspace_pnpr(false);
 }
 
 #[test]
-fn filtered_workspace_pnpr_lockfile_only_merges_prior_wanted_without_root_importer() {
+fn filtered_workspace_pnpr_lockfile_only_merges_the_root_and_selected_importers() {
     assert_filtered_workspace_pnpr(true);
 }
 

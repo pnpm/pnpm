@@ -777,7 +777,7 @@ fn dependencies_meta_equal(
 /// fold in `satisfiesPackageManifest`: peers already declared in a
 /// regular field keep that field's specifier, so only the peer-only
 /// entries are surfaced here.
-fn auto_installed_peer_deps(
+pub(crate) fn auto_installed_peer_deps(
     manifest: &PackageManifest,
     auto_install_peers: bool,
 ) -> BTreeMap<&str, &str> {

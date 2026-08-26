@@ -11,7 +11,17 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pnpm-resolving-resolver-base = { workspace = true }
+pnpm-config                       = { workspace = true }
+pnpm-engine-pm-yarn-resolver      = { workspace = true }
+pnpm-engine-runtime-bun-resolver  = { workspace = true }
+pnpm-engine-runtime-deno-resolver = { workspace = true }
+pnpm-engine-runtime-node-resolver = { workspace = true }
+pnpm-network                      = { workspace = true }
+pnpm-resolving-git-resolver       = { workspace = true }
+pnpm-resolving-local-resolver     = { workspace = true }
+pnpm-resolving-npm-resolver       = { workspace = true }
+pnpm-resolving-resolver-base      = { workspace = true }
+pnpm-resolving-tarball-resolver   = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }

@@ -38,6 +38,7 @@ fn empty_lockfile() -> Lockfile {
         packages: None,
         snapshots: None,
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 
@@ -487,6 +488,7 @@ fn resolution_kind_names_non_patchable_resolution_shapes() {
     let tarball = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
         integrity: Some("sha512-aGVsbG8=".parse().expect("integrity")),
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -494,6 +496,7 @@ fn resolution_kind_names_non_patchable_resolution_shapes() {
 
     let registry = LockfileResolution::Registry(RegistryResolution {
         integrity: "sha512-aGVsbG8=".parse().expect("integrity"),
+        revision: None,
     });
     assert_eq!(resolution_kind(&registry), "registry");
 

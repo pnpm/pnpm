@@ -42,7 +42,6 @@ fn make_package(name: &str, versions: &[&str], dist_tags: &[(&str, &str)]) -> Pa
         etag: None,
         homepage: None,
         mutex: std::sync::Arc::default(),
-        release_age_upgrade_checked: false,
         derived: DerivedPackuments::default(),
     }
 }

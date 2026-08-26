@@ -183,7 +183,7 @@ export function shouldFetchFullMetadata (
   return fullMetadataPolicy(opts, opts.registrySupportsTimeField ?? false)
 }
 
-type FullMetadataPolicyOptions = Pick<CreateNewStoreControllerOptions,
+export type FullMetadataPolicyOptions = Pick<CreateNewStoreControllerOptions,
 | 'fetchFullMetadata'
 | 'registrySupportsTimeField'
 | 'resolutionMode'

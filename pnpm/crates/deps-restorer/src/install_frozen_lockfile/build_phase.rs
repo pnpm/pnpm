@@ -3,12 +3,15 @@
 use super::{
     AllowBuildPolicy, Arc, AtomicU8, BuildModules, BuildModulesError, Config, DependencyGroup,
     Diagnostic, Display, Error, ExecScriptsPrependNodePath, ExtendedPatchInfo, HashMap,
-    IgnoredScriptsLog, LinkBinsError, Lockfile, LogEvent, LogLevel, OsStr, PackageKey,
-    PackageMetadata, PatchKeyConflictError, Path, PathBuf, ProjectSnapshot, Reporter,
+    IgnoredScriptsLog, LinkBinsError, LinkBinsOptions, Lockfile, LogEvent, LogLevel, OsStr,
+    PackageKey, PackageMetadata, PatchKeyConflictError, Path, PathBuf, ProjectSnapshot, Reporter,
     ResolvePatchedDependenciesError, SkippedSnapshots, SnapshotEntry, StoreIndexWriter,
     VirtualStoreLayout, direct_dep_names_for_importer, get_patch_info, importer_root_dir,
     link_top_level_bins,
 };
+
+#[cfg(test)]
+mod tests;
 
 /// Error type of [`run_build_phase`] and [`resolve_snapshot_patches`].
 ///
@@ -121,6 +124,10 @@ pub struct BuildPhaseInputs<'a> {
     pub allow_build_policy: &'a AllowBuildPolicy,
     pub side_effects_maps_by_snapshot: &'a crate::SideEffectsMapsBySnapshot,
     pub requires_build_by_snapshot: &'a crate::RequiresBuildBySnapshot,
+    /// Snapshot keys materialized by this install. Under
+    /// `ignoreScripts`, only these can add new `pendingBuilds`; the
+    /// install orchestrator separately carries forward existing entries.
+    pub materialized_snapshots: &'a [PackageKey],
     pub engine_name: Option<&'a str>,
     pub extra_env: &'a HashMap<String, String>,
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
@@ -136,9 +143,9 @@ pub struct BuildPhaseInputs<'a> {
     /// `approve-builds`; `None` for a normal install. See
     /// [`crate::RebuildOptions`].
     pub rebuild: Option<&'a crate::RebuildOptions>,
-    /// [`crate::shim_extra_node_paths`] output, for the post-build
+    /// [`crate::shim_link_options`] output, for the post-build
     /// top-level bin pass.
-    pub extra_node_paths: &'a [String],
+    pub link_options: &'a LinkBinsOptions,
 }
 
 /// Run dependency lifecycle scripts, report ignored builds, and
@@ -167,6 +174,7 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         allow_build_policy,
         side_effects_maps_by_snapshot,
         requires_build_by_snapshot,
+        materialized_snapshots,
         engine_name,
         extra_env,
         store_index_writer,
@@ -176,7 +184,7 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         publicly_hoisted_for_post_build,
         logged_methods,
         rebuild,
-        extra_node_paths,
+        link_options,
     } = inputs;
 
     let patches = resolve_snapshot_patches(config, patch_groups, snapshots)?;
@@ -195,39 +203,55 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     // Under isolated, the directories live under the virtual-store slot
     // layout; under hoisted, they live at the project-tree paths the
     // walker assigned — threaded in via `pkg_roots_by_key`.
-    let build_output = BuildModules {
-        layout,
-        modules_dir: &config.modules_dir,
-        lockfile_dir: workspace_root,
-        snapshots,
-        packages,
-        importers,
-        allow_build_policy,
-        side_effects_maps_by_snapshot: Some(side_effects_maps_by_snapshot),
-        requires_build_by_snapshot: Some(requires_build_by_snapshot),
-        engine_name,
-        side_effects_cache: config.side_effects_cache_read(),
-        side_effects_cache_write: config.side_effects_cache_write(),
-        store_dir: Some(&config.store_dir),
-        store_index_writer: Some(store_index_writer),
-        patches: patches.as_ref(),
-        scripts_prepend_node_path,
-        script_shell: config.script_shell.as_deref().map(Path::new),
-        extra_env,
-        user_agent: &config.user_agent,
-        unsafe_perm: config.unsafe_perm,
-        child_concurrency: config.child_concurrency,
-        skipped,
-        pkg_roots_by_key: hoisted_pkg_roots_by_key,
-        gather_ancestor_bin_paths: is_hoisted,
-        frozen_store: config.frozen_store,
-        ignore_scripts: config.ignore_scripts,
-        import_method: config.package_import_method,
-        logged_methods,
-        rebuild,
-    }
-    .run::<Reporter>()
-    .map_err(BuildPhaseError::BuildModules)?;
+    let can_defer_without_build_modules = config.ignore_scripts
+        && rebuild.is_none()
+        && patches.as_ref().is_none_or(HashMap::is_empty)
+        && (!config.side_effects_cache_read() || side_effects_maps_by_snapshot.is_empty());
+    let build_output = if can_defer_without_build_modules {
+        let newly_deferred = materialized_snapshots
+            .iter()
+            .filter(|snapshot_key| !skipped.contains(snapshot_key))
+            .filter_map(|snapshot_key| requires_build_by_snapshot.get_key_value(snapshot_key));
+        crate::BuildModulesOutput {
+            ignored_builds: Vec::new(),
+            deferred_builds: crate::build_modules::deferred_builds(newly_deferred, true),
+        }
+    } else {
+        BuildModules {
+            layout,
+            modules_dir: &config.modules_dir,
+            lockfile_dir: workspace_root,
+            snapshots,
+            packages,
+            importers,
+            allow_build_policy,
+            side_effects_maps_by_snapshot: Some(side_effects_maps_by_snapshot),
+            requires_build_by_snapshot: Some(requires_build_by_snapshot),
+            engine_name,
+            side_effects_cache: config.side_effects_cache_read(),
+            side_effects_cache_write: config.side_effects_cache_write(),
+            store_dir: Some(&config.store_dir),
+            store_index_writer: Some(store_index_writer),
+            patches: patches.as_ref(),
+            scripts_prepend_node_path,
+            script_shell: config.script_shell.as_deref().map(Path::new),
+            shell_emulator: config.shell_emulator,
+            extra_env,
+            user_agent: &config.user_agent,
+            unsafe_perm: config.unsafe_perm,
+            child_concurrency: config.child_concurrency,
+            skipped,
+            pkg_roots_by_key: hoisted_pkg_roots_by_key,
+            gather_ancestor_bin_paths: is_hoisted,
+            frozen_store: config.frozen_store,
+            ignore_scripts: config.ignore_scripts,
+            import_method: config.package_import_method,
+            logged_methods,
+            rebuild,
+        }
+        .run::<Reporter>()
+        .map_err(BuildPhaseError::BuildModules)?
+    };
 
     // Always emit the `pnpm:ignored-scripts` event with the package
     // names, unconditionally, so structured / NDJSON consumers always
@@ -244,9 +268,10 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         strict_dep_builds: config.strict_dep_builds,
     }));
 
-    // `virtual_store_only` links no bins at all, so there is nothing for
-    // the pass below to re-resolve. Dependency *build* scripts still ran
-    // above — only the linking stops, matching `pnpm fetch`.
+    // `virtual_store_only` links no importer bins, so there is nothing
+    // for the pass below to re-resolve. Dependency *build* scripts still
+    // ran above — only the importer-facing linking stops, matching
+    // `pnpm fetch`.
     if config.virtual_store_only {
         return Ok(build_output);
     }
@@ -277,7 +302,7 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         } else {
             &[]
         };
-        link_top_level_bins(&modules_dir, &direct_names, hoisted_names, extra_node_paths)
+        link_top_level_bins(&modules_dir, &direct_names, hoisted_names, link_options)
             .map_err(BuildPhaseError::TopLevelBinLink)?;
     }
 

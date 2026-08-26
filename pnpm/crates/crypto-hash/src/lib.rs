@@ -7,9 +7,47 @@
 //! one place avoids duplicating the sha2 dependency in every consumer
 //! (lockfile, registry, store-dir).
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine as _,
+    engine::general_purpose::{STANDARD as BASE64, URL_SAFE_NO_PAD},
+};
 use sha2::{Digest, Sha256};
+use ssri::{Algorithm, Integrity};
 use std::{io, path::Path};
+
+/// Build the registry-relative path for a complete, canonical sha512 SRI.
+///
+/// Integrity-addressed registry tarballs accept exactly one sha512 hash. The
+/// digest must decode to all 64 bytes and round-trip through canonical padded
+/// base64 before it is rendered as unpadded base64url in the request path.
+#[must_use]
+pub fn integrity_addressed_tarball_path(integrity: &Integrity) -> Option<String> {
+    let [hash] = integrity.hashes.as_slice() else { return None };
+    if hash.algorithm != Algorithm::Sha512 {
+        return None;
+    }
+    if hash.digest.len() != 88 {
+        return None;
+    }
+    let digest = BASE64.decode(&hash.digest).ok()?;
+    if digest.len() != 64 || BASE64.encode(&digest) != hash.digest {
+        return None;
+    }
+    Some(format!("-/tarballs/sha512/{}", URL_SAFE_NO_PAD.encode(digest)))
+}
+
+/// Parse the digest segment of an integrity-addressed sha512 tarball path.
+#[must_use]
+pub fn integrity_addressed_tarball_integrity(digest: &str) -> Option<Integrity> {
+    if digest.len() != 86 {
+        return None;
+    }
+    let bytes = URL_SAFE_NO_PAD.decode(digest).ok()?;
+    if bytes.len() != 64 || URL_SAFE_NO_PAD.encode(&bytes) != digest {
+        return None;
+    }
+    format!("sha512-{}", BASE64.encode(bytes)).parse().ok()
+}
 
 /// Compute the `sha256-<base64>` digest of `input`.
 ///

@@ -1,6 +1,7 @@
 import util from 'node:util'
 
 import { checkbox, input, Separator } from '@inquirer/prompts'
+import { interactivePromptPageSize } from '@pnpm/cli.utils'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
@@ -173,6 +174,7 @@ async function promptForPackages (
   return checkbox<string>({
     message: 'Which packages does this change affect?',
     choices,
+    pageSize: interactivePromptPageSize(),
     required: true,
   })
 }
@@ -237,6 +239,7 @@ async function promptBumpTypes (pkgRefs: string[]): Promise<Record<string, Inten
     const chosen = new Set(await checkbox<string>({
       message: `Which packages should have a ${bumpType} bump?`,
       choices: remaining.map((ref) => ({ value: ref })),
+      pageSize: interactivePromptPageSize(),
     }))
     for (const ref of chosen) bumpByRef.set(ref, bumpType)
     remaining = remaining.filter((ref) => !chosen.has(ref))

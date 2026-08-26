@@ -141,7 +141,8 @@ test('fetch a package from Git that has a prepare script', async () => {
   const fetch = createGitFetcher({
     storeIndex: createStoreIndex(storeDir),
   }).git
-  const { filesMap } = await fetch(
+  const pkgResolutionId = 'git+https://github.com/pnpm/test-git-fetch.git#8b333f12d5357f4f25a654c305c826294cb073bf&path:packages/test-git-fetch'
+  const { filesMap, requiresPrepare } = await fetch(
     createCafsStore(storeDir),
     {
       commit: '8b333f12d5357f4f25a654c305c826294cb073bf',
@@ -149,11 +150,13 @@ test('fetch a package from Git that has a prepare script', async () => {
       type: 'git',
     },
     {
-      allowBuild: (depPath) => depPath.startsWith('test-git-fetch@'),
+      allowBuild: (depPath) => depPath === `test-git-fetch@${pkgResolutionId}`,
       filesIndexFile: path.join(storeDir, 'index.json'),
+      pkgResolutionId,
     }
   )
   expect(filesMap.has('dist/index.js')).toBeTruthy()
+  expect(requiresPrepare).toBe(true)
 })
 
 // Test case for https://github.com/pnpm/pnpm/issues/1866

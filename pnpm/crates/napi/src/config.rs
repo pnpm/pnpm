@@ -52,11 +52,26 @@ pub struct ConfigOverlay {
     pub registries: Option<BTreeMap<String, String>>,
     pub proxy: Option<ProxyConfig>,
     pub tls: Option<TlsConfig>,
+    /// `pnpmHomeDir` — the home directory the default store location is
+    /// resolved under when no config source sets `storeDir` (mirrors the
+    /// `pnpmHomeDir` input of pnpm's `getStorePath`). An explicit
+    /// [`Self::store_dir`] or a cascade-configured `storeDir` wins.
+    pub pnpm_home_dir: Option<PathBuf>,
     pub node_linker: Option<NodeLinker>,
     /// `linkWorkspacePackages` — whether a bare-semver dependency may resolve
     /// to a workspace package by name. `Off` (the default) matches only
     /// `workspace:`-prefixed ranges.
     pub link_workspace_packages: Option<LinkWorkspacePackages>,
+    /// `virtualStoreOnly` — populate the virtual store but perform no
+    /// post-import linking (importer symlinks, `.bin` entries, hoisting,
+    /// project lifecycle scripts). The binding sets it for
+    /// `ignorePackageManifest` installs — pnpm `fetch` semantics.
+    pub virtual_store_only: Option<bool>,
+    /// `enableModulesDir` — pnpm's setting for suppressing the
+    /// `node_modules` directory. The binding forces it on for
+    /// `ignorePackageManifest` installs, which need `node_modules/.pnpm`
+    /// even when an ambient config source disables the modules dir.
+    pub enable_modules_dir: Option<bool>,
     pub package_import_method: Option<PackageImportMethod>,
     pub virtual_store_dir_max_length: Option<u64>,
     pub enable_global_virtual_store: Option<bool>,
@@ -94,6 +109,12 @@ pub struct ConfigOverlay {
     pub fetch_retry_mintimeout: Option<u64>,
     pub fetch_retry_maxtimeout: Option<u64>,
     pub fetch_timeout: Option<u64>,
+    /// Slow metadata-request threshold in milliseconds. [`None`] keeps the
+    /// value resolved by [`Config::current`].
+    pub fetch_warn_timeout_ms: Option<u64>,
+    /// Minimum average tarball speed in KiB/s. [`None`] keeps the value
+    /// resolved by [`Config::current`].
+    pub fetch_min_speed_ki_bps: Option<u64>,
     pub user_agent: Option<String>,
     /// When `false` (the embedder default), an install that blocks dependency
     /// build scripts reports them via `depsRequiringBuild` instead of failing
@@ -254,6 +275,10 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     let mut config = Config::default().current::<Host>(dir)?;
     if let Some(store_dir) = &overlay.store_dir {
         config.store_dir = StoreDir::new(store_dir.clone());
+    } else if let Some(pnpm_home_dir) = &overlay.pnpm_home_dir
+        && !config.explicit_settings.contains_key("storeDir")
+    {
+        config.resolve_store_dir_from_home::<Host>(pnpm_home_dir, dir);
     }
     if let Some(cache_dir) = &overlay.cache_dir {
         config.cache_dir.clone_from(cache_dir);
@@ -281,6 +306,12 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     }
     if let Some(link_workspace_packages) = overlay.link_workspace_packages {
         config.link_workspace_packages = link_workspace_packages;
+    }
+    if let Some(value) = overlay.virtual_store_only {
+        config.virtual_store_only = value;
+    }
+    if let Some(value) = overlay.enable_modules_dir {
+        config.enable_modules_dir = value;
     }
     if let Some(method) = overlay.package_import_method {
         config.package_import_method = method;
@@ -384,6 +415,12 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     if let Some(value) = overlay.fetch_timeout {
         config.fetch_timeout = value;
     }
+    if let Some(value) = overlay.fetch_warn_timeout_ms {
+        config.fetch_warn_timeout_ms = value;
+    }
+    if let Some(value) = overlay.fetch_min_speed_ki_bps {
+        config.fetch_min_speed_ki_bps = value;
+    }
     if let Some(user_agent) = &overlay.user_agent {
         config.user_agent.clone_from(user_agent);
     }
@@ -432,10 +469,17 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
             &overlay_default_registry(overlay),
         )));
     }
+    // An overlay hoist pattern must not undo the empty-pattern derivation a
+    // `virtualStoreOnly` install records in `.modules.yaml`, so re-derive
+    // after every pattern-touching field above has been applied.
+    config.apply_virtual_store_only_derivation();
     // Overlay fields may invalidate the path derived by `Config::current`.
     if let Some(global_virtual_store_dir) = &overlay.global_virtual_store_dir {
         config.global_virtual_store_dir.clone_from(global_virtual_store_dir);
-    } else if overlay.enable_global_virtual_store.is_some() || overlay.store_dir.is_some() {
+    } else if overlay.enable_global_virtual_store.is_some()
+        || overlay.store_dir.is_some()
+        || overlay.pnpm_home_dir.is_some()
+    {
         let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
         let global_virtual_store_dir_explicit =
             config.explicit_settings.contains_key("globalVirtualStoreDir");

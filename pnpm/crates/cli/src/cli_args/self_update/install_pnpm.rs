@@ -191,15 +191,25 @@ fn reuse_cached_engine(install_dir: &Path, package: PnpmPackageToInstall, versio
     !package.links_native_binary || link_exe_platform_binary(install_dir, package.name).is_ok()
 }
 
-/// Fail for versions whose `@pnpm/exe` shipped platform packages with no binary,
-/// so it cannot run. Matched by version, not package: the pin is shared but the
-/// wrapper is not, so a developer on the JS `pnpm` — which does run at these
-/// versions — would otherwise pin one and break every teammate on `@pnpm/exe`.
+/// Whether `version` can be installed at all. False for versions whose
+/// `@pnpm/exe` shipped platform packages with no binary, so it cannot run.
+/// Matched by version, not package: the pin is shared but the wrapper is not,
+/// so a developer on the JS `pnpm` — which does run at these versions — would
+/// otherwise pin one and break every teammate on `@pnpm/exe`.
+///
+/// For callers that pick a version rather than being handed one, and so can
+/// choose another instead of failing; [`assert_release_is_installable`] is the
+/// failing form.
+pub(crate) fn is_release_installable(version: &str) -> bool {
+    !matches!(version, "11.12.0" | "11.13.0")
+}
+
+/// Fail for a version [`is_release_installable`] rejects.
 pub(crate) fn assert_release_is_installable(version: &str) -> miette::Result<()> {
-    if matches!(version, "11.12.0" | "11.13.0") {
-        return Err(SelfUpdateError::BrokenPnpmRelease { version: version.to_string() }.into());
+    if is_release_installable(version) {
+        return Ok(());
     }
-    Ok(())
+    Err(SelfUpdateError::BrokenPnpmRelease { version: version.to_string() }.into())
 }
 
 pub(crate) fn pnpm_package_to_install(pnpm_version: &str) -> PnpmPackageToInstall {

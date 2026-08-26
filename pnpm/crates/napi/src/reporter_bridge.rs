@@ -23,6 +23,8 @@ use napi::{
 };
 use pnpm_reporter::{LogEvent, Reporter, StatsMessage};
 
+use crate::native_reporter::NativeRenderer;
+
 /// A JS `(event: object) => void` callback. `CalleeHandled = false` so the JS
 /// side is invoked with just the event (no leading error argument); the return
 /// value is discarded ([`UnknownReturnValue`]). Non-blocking; errors in the JS
@@ -51,6 +53,33 @@ pub fn set_global_log_sink(sink: LogSink) -> Option<LogSink> {
 /// Clear the global log sink after an engine call completes.
 pub fn clear_global_log_sink() {
     if let Ok(mut guard) = sink_slot().write() {
+        *guard = None;
+    }
+}
+
+/// Process-global renderer, installed only while an engine call asked for
+/// pnpm's own terminal output. A `Mutex` rather than an `RwLock` because
+/// folding an event mutates the renderer; engine calls are serialized
+/// behind [`crate::install::engine_call_lock`], so the only contention is
+/// between the worker threads of one call, which is what the reporter
+/// state needs serialized anyway.
+fn renderer_slot() -> &'static Mutex<Option<NativeRenderer>> {
+    static SLOT: OnceLock<Mutex<Option<NativeRenderer>>> = OnceLock::new();
+    SLOT.get_or_init(|| Mutex::new(None))
+}
+
+/// Install `renderer` as the global renderer for one engine call,
+/// returning the one it replaced.
+pub fn set_global_renderer(renderer: NativeRenderer) -> Option<NativeRenderer> {
+    match renderer_slot().lock() {
+        Ok(mut guard) => guard.replace(renderer),
+        Err(_) => None,
+    }
+}
+
+/// Clear the global renderer after an engine call completes.
+pub fn clear_global_renderer() {
+    if let Ok(mut guard) = renderer_slot().lock() {
         *guard = None;
     }
 }
@@ -98,14 +127,25 @@ pub fn take_stats() -> InstallStats {
 pub struct EngineCallGuard {
     prev_sink: Option<LogSink>,
     installed: bool,
+    prev_renderer: Option<NativeRenderer>,
+    renderer_installed: bool,
 }
 
 impl EngineCallGuard {
     pub fn new(sink: Option<LogSink>) -> Self {
-        match sink {
-            Some(sink) => Self { prev_sink: set_global_log_sink(sink), installed: true },
-            None => Self { prev_sink: None, installed: false },
-        }
+        Self::with_renderer(sink, None)
+    }
+
+    pub fn with_renderer(sink: Option<LogSink>, renderer: Option<NativeRenderer>) -> Self {
+        let (prev_sink, installed) = match sink {
+            Some(sink) => (set_global_log_sink(sink), true),
+            None => (None, false),
+        };
+        let (prev_renderer, renderer_installed) = match renderer {
+            Some(renderer) => (set_global_renderer(renderer), true),
+            None => (None, false),
+        };
+        Self { prev_sink, installed, prev_renderer, renderer_installed }
     }
 }
 
@@ -117,6 +157,14 @@ impl Drop for EngineCallGuard {
                     set_global_log_sink(prev);
                 }
                 None => clear_global_log_sink(),
+            }
+        }
+        if self.renderer_installed {
+            match self.prev_renderer.take() {
+                Some(prev) => {
+                    set_global_renderer(prev);
+                }
+                None => clear_global_renderer(),
             }
         }
         let _ = take_stats();
@@ -148,6 +196,7 @@ pub struct NodeBridgeReporter;
 impl Reporter for NodeBridgeReporter {
     fn emit(event: &LogEvent) {
         accumulate_stats(event);
+        render_natively(event);
         // Serialize outside the lock; drop the event on any failure.
         let Ok(value) = serde_json::to_value(event) else { return };
         let Ok(guard) = sink_slot().read() else { return };
@@ -156,6 +205,17 @@ impl Reporter for NodeBridgeReporter {
             // event rather than blocking a rayon/tokio worker.
             sink.call(value, ThreadsafeFunctionCallMode::NonBlocking);
         }
+    }
+}
+
+/// Fold the event into the installed renderer, if the call asked for
+/// pnpm's own output. A poisoned lock (a panic while rendering) silently
+/// stops the output rather than propagating: the reporter contract is that
+/// a reporter problem can never fail an install.
+fn render_natively(event: &LogEvent) {
+    let Ok(mut guard) = renderer_slot().lock() else { return };
+    if let Some(renderer) = guard.as_mut() {
+        renderer.handle(event);
     }
 }
 

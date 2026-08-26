@@ -905,7 +905,7 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
         tarball_router: tarball_router(&registry, Identity::Anonymous),
     };
 
-    let hint = |unpacked_size, file_count| ResolvedPackageHint {
+    let hint = |unpacked_size, file_count, revision| ResolvedPackageHint {
         id: "acme@1.0.0",
         name: "acme",
         version: "1.0.0",
@@ -913,20 +913,23 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
         tarball_url: "https://r.test/acme/-/acme-1.0.0.tgz",
         unpacked_size,
         file_count,
+        revision,
         from_registry: false,
     };
-    observer.on_resolved(hint(Some(123_456), Some(42)));
-    observer.on_resolved(hint(None, None));
+    observer.on_resolved(hint(Some(123_456), Some(42), Some(3)));
+    observer.on_resolved(hint(None, None, None));
 
     let sized: serde_json::Value =
         serde_json::from_slice(&rx.try_recv().expect("sized frame sent")).unwrap();
     assert_eq!(sized["unpackedSize"], serde_json::json!(123_456));
     assert_eq!(sized["fileCount"], serde_json::json!(42));
+    assert_eq!(sized["revision"], serde_json::json!(3));
 
     let unsized_frame: serde_json::Value =
         serde_json::from_slice(&rx.try_recv().expect("unsized frame sent")).unwrap();
     assert!(unsized_frame.get("unpackedSize").is_none());
     assert!(unsized_frame.get("fileCount").is_none());
+    assert!(unsized_frame.get("revision").is_none());
     assert_eq!(unsized_frame["tarball"], serde_json::json!("https://r.test/acme/-/acme-1.0.0.tgz"));
 }
 
@@ -950,6 +953,7 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
             tarball_url: "https://npm.corp.example/acme/-/acme-1.0.0.tgz",
             unpacked_size: None,
             file_count: None,
+            revision: Some(3),
             from_registry: false,
         },
     );
@@ -957,6 +961,7 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
 
     assert!(tarball.contains("/~corp/acme/-/acme-1.0.0.tgz"));
     assert!(!tarball.contains("npm.corp.example"));
+    assert!(frame.get("revision").is_none());
 }
 
 #[test]
@@ -983,6 +988,7 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
             tarball_url: "https://cdn.split-domain.example/acme-1.0.0.tgz",
             unpacked_size: None,
             file_count: None,
+            revision: None,
             from_registry: true,
         },
     );
@@ -1013,6 +1019,7 @@ fn package_frame_strips_signed_token_from_public_registry_tarball() {
             tarball_url: "https://registry.npmjs.org/acme/-/acme-1.0.0.tgz?token=secret",
             unpacked_size: None,
             file_count: None,
+            revision: None,
             from_registry: true,
         },
     );
@@ -1103,6 +1110,7 @@ fn osv_checkable_tarball_does_not_trust_git_hosted_flag_or_strict_url_parsing() 
         LockfileResolution::Tarball(TarballResolution {
             tarball: url.to_string(),
             integrity: None,
+            revision: None,
             git_hosted,
             path: None,
         })

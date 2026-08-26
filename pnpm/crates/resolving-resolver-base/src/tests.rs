@@ -12,6 +12,7 @@ fn fake_resolution() -> LockfileResolution {
         integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
             .parse::<Integrity>()
             .expect("parse fake integrity"),
+        revision: None,
     })
 }
 

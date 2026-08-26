@@ -66,8 +66,9 @@ pub(crate) use settings::{
     recorded_supported_architectures_match, settings_match,
 };
 pub(crate) use timestamps::{
-    FileMtime, file_mtime, file_mtime_from_metadata, lockfile_modified_since, modified_at_or_after,
-    mtime_ms, validation_baseline_ms, wanted_lockfile_modified,
+    FileMtime, file_mtime, file_mtime_from_metadata, filesystem_now_ms, lockfile_modified_since,
+    modified_at_or_after, mtime_ms, refreshed_validation_baseline_ms, validation_baseline_ms,
+    wanted_lockfile_modified,
 };
 
 use std::{
@@ -178,12 +179,28 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
         return Decision::Skipped { reason: "optimistic_repeat_install disabled" };
     }
 
+    // The merge has to run, and it rewrites the wanted lockfile and
+    // deletes the per-branch ones — neither of which any fast path does.
+    if config.merge_git_branch_lockfiles {
+        return Decision::Skipped { reason: "the git branch lockfiles have to be merged" };
+    }
+
     // No workspace state means no previous install has completed
     // (or the file was deleted) — there's no `lastValidatedTimestamp`
     // to compare against.
     let Ok(Some(state)) = load_workspace_state(workspace_root) else {
         return Decision::Skipped { reason: "no workspace state on disk" };
     };
+
+    // A filtered install refreshes `lastValidatedTimestamp` while
+    // materializing only the projects it selected, so its state cannot
+    // prove anything about the rest of the workspace: an unselected
+    // project's manifest edit is already older than the recorded
+    // timestamp. Every install must re-validate once against a state a
+    // filtered install wrote — pnpm's `ignoreFilteredInstallCache`.
+    if state.filtered_install {
+        return Decision::Skipped { reason: "the previous install was filtered" };
+    }
 
     if first_lockfile_requiring_conflict_safe_install(check, state.last_validated_timestamp)
         .is_some()
@@ -241,7 +258,7 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     // overrides yet, so check the install-time `config.modules_dir`
     // for the root + `<project_root>/node_modules` for siblings,
     // matching the `isolated`-linker default.
-    if !modules_dirs_present(config, project_manifests) {
+    if !modules_dirs_present(config, node_linker, project_manifests) {
         return Decision::Skipped {
             reason: "project has dependencies but no node_modules directory",
         };
@@ -263,8 +280,17 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     // scan `continue`s on ENOENT, and the missing lockfile is restored
     // from the current one rather than failing). The mtime side of that
     // probe is handled by `wanted_lockfile_modified` below.
+    // The current lockfile is not a stand-in for a missing *branch*
+    // lockfile: it records what the previous branch's install
+    // materialized, and pnpm refuses the substitution for the same
+    // reason.
+    if config.use_git_branch_lockfile
+        && !workspace_root.join(config.wanted_lockfile_name()).exists()
+    {
+        return Decision::Skipped { reason: "the branch lockfile is missing" };
+    }
     if !is_workspace_install
-        && !workspace_root.join(Lockfile::FILE_NAME).exists()
+        && !workspace_root.join(config.wanted_lockfile_name()).exists()
         && !current_lockfile_file_has_content(&config.virtual_store_dir)
     {
         return Decision::Skipped { reason: "wanted lockfile missing" };
@@ -311,7 +337,7 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     // lockfile's mtime before the manifest-mtime exit so a lockfile
     // modification is not missed.
     let lockfile_modified =
-        wanted_lockfile_modified(workspace_root, state.last_validated_timestamp);
+        wanted_lockfile_modified(workspace_root, config, state.last_validated_timestamp);
 
     match current_lockfile_unusable_with_non_empty_wanted(check) {
         Ok(true) => return Decision::Skipped { reason: "current lockfile missing" },
@@ -334,6 +360,8 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     // than just the modified ones.
     let projects_to_check: Vec<&ManifestStat<'_>> =
         if lockfile_modified { manifest_stats.iter().collect() } else { modified };
+    let filesystem_now =
+        if is_workspace_install { filesystem_now_ms(workspace_root) } else { None };
     match modified_manifests_match_lockfile(check, &state, &projects_to_check, config.dedupe_peers)
     {
         Ok(loaded_current) => {
@@ -353,7 +381,7 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
                 // `filtered_install` forward: clearing it would claim every
                 // importer is materialized when a filtered install left the
                 // unselected ones untouched.
-                let new_state = crate::install::build_workspace_state::<Host>(
+                let mut new_state = crate::install::build_workspace_state::<Host>(
                     workspace_root,
                     config,
                     node_linker,
@@ -362,6 +390,10 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
                     catalogs,
                     project_manifests,
                     state.filtered_install,
+                );
+                new_state.last_validated_timestamp = refreshed_validation_baseline_ms(
+                    new_state.last_validated_timestamp,
+                    filesystem_now,
                 );
                 if let Err(error) = update_workspace_state(workspace_root, &new_state) {
                     tracing::warn!(
@@ -402,8 +434,8 @@ fn regenerate_wanted_lockfile_if_missing(
         return Ok(());
     };
     current
-        .save_to_path(&check.workspace_root.join(Lockfile::FILE_NAME))
-        .map_err(|_| "failed to regenerate pnpm-lock.yaml from the current lockfile")
+        .save_to_path(&check.workspace_root.join(check.config.wanted_lockfile_name()))
+        .map_err(|_| "failed to regenerate the wanted lockfile from the current lockfile")
 }
 
 impl<'a> LinkedPackagesContext<'a> {
@@ -488,9 +520,10 @@ fn project_structure_matches(
 
 fn modules_dirs_present(
     config: &Config,
+    node_linker: NodeLinker,
     project_manifests: &[(PathBuf, &PackageManifest)],
 ) -> bool {
-    first_project_missing_modules_dir(config, project_manifests).is_none()
+    first_project_missing_modules_dir(config, node_linker, project_manifests).is_none()
 }
 
 /// The id (`name` field, falling back to the root dir) of the first
@@ -498,8 +531,11 @@ fn modules_dirs_present(
 /// `None` when every project with dependencies has one.
 fn first_project_missing_modules_dir(
     config: &Config,
+    node_linker: NodeLinker,
     project_manifests: &[(PathBuf, &PackageManifest)],
 ) -> Option<String> {
+    let root_modules_dir_exists = config.modules_dir.exists();
+
     project_manifests.iter().find_map(|(root_dir, manifest)| {
         if !manifest_has_runtime_deps(manifest) {
             return None;
@@ -508,18 +544,21 @@ fn first_project_missing_modules_dir(
         // their own `<root>/node_modules`. Matches the isolated-linker
         // default — `config.modules_dir` is `<workspace_root>/node_modules`
         // unless the user overrode it explicitly.
-        let modules_dir = if *root_dir == workspace_dir_of(config, root_dir) {
-            config.modules_dir.clone()
-        } else {
-            root_dir.join("node_modules")
+        let modules_dir_exists = match node_linker {
+            NodeLinker::Hoisted => root_modules_dir_exists,
+            NodeLinker::Isolated | NodeLinker::Pnp => {
+                if *root_dir == workspace_dir_of(config, root_dir) {
+                    root_modules_dir_exists
+                } else {
+                    root_dir.join("node_modules").exists()
+                }
+            }
         };
-        if modules_dir.exists() {
-            return None;
-        }
-        Some(
+
+        (!modules_dir_exists).then(|| {
             manifest_string_field(manifest, "name")
-                .unwrap_or_else(|| root_dir.to_string_lossy().into_owned()),
-        )
+                .unwrap_or_else(|| root_dir.to_string_lossy().into_owned())
+        })
     })
 }
 
@@ -576,9 +615,9 @@ pub(crate) fn current_pnpmfiles(workspace_root: &Path, config: &Config) -> Vec<S
     if config.ignore_pnpmfile {
         return Vec::new();
     }
-    pnpm_hooks::finder::find_pnpmfile(workspace_root)
-        .map(|path| path.to_string_lossy().into_owned())
+    pnpm_hooks::finder::find_pnpmfiles(workspace_root, crate::pnpmfile_selection(config))
         .into_iter()
+        .map(|path| path.to_string_lossy().into_owned())
         .collect()
 }
 

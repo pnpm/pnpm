@@ -414,15 +414,21 @@ fn rewrite_lockfile(
             pick_registry_for_package(context.registries, &old_key.name.to_string(), None);
         let metadata = package_metadata(
             &replacement.manifest,
-            replacement.resolution.to_lockfile_form(
-                &old_key.name.to_string(),
-                &new_key.suffix.version().to_string(),
-                LockfileFormOptions {
-                    registry: &registry,
-                    server_type: registry_server_type(context.registry_options_by_url, &registry),
-                    include_tarball_url: context.lockfile_include_tarball_url,
-                },
-            ),
+            replacement
+                .resolution
+                .to_lockfile_form(
+                    &old_key.name.to_string(),
+                    &new_key.suffix.version().to_string(),
+                    LockfileFormOptions {
+                        registry: &registry,
+                        server_type: registry_server_type(
+                            context.registry_options_by_url,
+                            &registry,
+                        ),
+                        include_tarball_url: context.lockfile_include_tarball_url,
+                    },
+                )
+                .ok()?,
         );
         if let Some(existing) = packages.get(&metadata_key)
             && existing != &metadata

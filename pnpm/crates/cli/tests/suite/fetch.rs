@@ -209,3 +209,55 @@ fn fetch_under_pnp_does_not_write_the_loader() {
 
     drop((root, mock_instance, store_dir));
 }
+
+/// A dependency's lifecycle script resolves a sibling dependency's bin
+/// through the per-slot `node_modules/.bin` the virtual store carries.
+/// `fetch` runs those scripts, so it has to write those links even
+/// though it materializes nothing importer-facing
+/// ([pnpm/pnpm#14174](https://github.com/pnpm/pnpm/issues/14174)).
+///
+/// `@pnpm.e2e/pre-and-postinstall-scripts-example`'s postinstall opens
+/// with `hello-world-js-bin`, the bin of its own dependency, and only
+/// then writes its marker file.
+#[test]
+fn fetch_runs_a_build_script_that_calls_a_sibling_dependency_bin() {
+    const BUILT_DEP: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_manifest = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&workspace_manifest).expect("read pnpm-workspace.yaml");
+    let yaml = format!("{yaml}allowBuilds:\n  '{BUILT_DEP}': true\n");
+    fs::write(&workspace_manifest, yaml).expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { BUILT_DEP: "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+
+    // The Docker "fetcher stage" shape the report used: the lockfile and
+    // the workspace manifest, with no project manifest to import from.
+    fs::remove_file(workspace.join("package.json")).expect("remove package.json");
+
+    pacquet_at(&workspace).with_arg("fetch").assert().success();
+
+    let pkg_dir = workspace
+        .join("node_modules/.pnpm")
+        .join(format!("{}@1.0.0", BUILT_DEP.replace('/', "+")))
+        .join("node_modules")
+        .join(BUILT_DEP);
+    assert!(
+        pkg_dir.join("node_modules/.bin/hello-world-js-bin").exists(),
+        "fetch must link the built package's dependency bins next to it",
+    );
+    assert!(
+        pkg_dir.join("generated-by-postinstall.js").exists(),
+        "the postinstall script must have run to completion",
+    );
+
+    drop((root, mock_instance));
+}

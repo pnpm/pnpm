@@ -1,5 +1,6 @@
 use crate::{
-    CasPathsByPkgId, InstallPackageBySnapshot, InstallPackageBySnapshotError, SkippedSnapshots,
+    CasPathsByPkgId, CustomFetcherSession, InstallPackageBySnapshot, InstallPackageBySnapshotError,
+    SkippedSnapshots,
     install_package_by_snapshot::{runtime_platform_selector, unverified_fetch_is_allowed},
     store_index_key_for_resolution,
     store_init::init_store_dir_best_effort,
@@ -9,7 +10,7 @@ use futures_util::{StreamExt, stream::FuturesUnordered};
 use miette::Diagnostic;
 use pnpm_config::{Config, NodeLinker, PackageImportMethod};
 use pnpm_deps_path::get_pkg_id_with_patch_hash;
-use pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker;
+use pnpm_git_fetcher::{GitFetcherError, assert_package_build_allowed};
 use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, PkgNameVerPeer,
     PlatformSelector, SnapshotEntry, select_platform_variant,
@@ -21,9 +22,13 @@ use pnpm_package_manifest::{
 use pnpm_reporter::{
     LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog, StatsMessage,
 };
-use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
-use pnpm_tarball::{MemCache, SharedReportedProgressKeys, prefetch_cas_paths};
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter,
+    store_index_key,
+};
+use pnpm_tarball::{MemCache, PrefetchResult, SharedReportedProgressKeys, prefetch_cas_paths};
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
@@ -72,6 +77,12 @@ pub type SideEffectsMapsBySnapshot =
 /// avoid re-inspecting every package directory after materialization.
 pub type RequiresBuildBySnapshot = HashMap<PackageKey, bool>;
 
+/// Store handles that a fresh resolution and dependency materialization share.
+pub struct CreateVirtualStoreStoreContext<'a> {
+    pub index: Option<&'a SharedReadonlyStoreIndex>,
+    pub verified_files_cache: &'a SharedVerifiedFilesCache,
+}
+
 /// A snapshot paired with the store-index cache key it is looked up
 /// by. `None` for a resolution that never goes through the CAFS
 /// (directory and git), which therefore has no row to prefetch.
@@ -92,6 +103,11 @@ pub struct CreateVirtualStoreOutput {
     pub package_manifests: PackageManifests,
     pub side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot,
     pub requires_build_by_snapshot: RequiresBuildBySnapshot,
+    /// Snapshot keys whose package directories this run materialized.
+    /// The build phase uses this list to record only newly deferred
+    /// builds under `ignoreScripts`; earlier debt is retained from
+    /// `.modules.yaml` by the install orchestrator.
+    pub materialized_snapshots: Vec<PackageKey>,
     pub fetch_failed: HashSet<PackageKey>,
     /// Per-package CAS index, populated only when
     /// [`CreateVirtualStore::node_linker`] is
@@ -135,6 +151,7 @@ pub struct CreateVirtualStore<'a> {
     /// download path's `InstallPackageBySnapshot` and also reused by
     /// `BuildModules` for the side-effects-cache WRITE path.
     pub store_index_writer: &'a std::sync::Arc<StoreIndexWriter>,
+    pub store_context: Option<CreateVirtualStoreStoreContext<'a>>,
     /// `allowBuilds` gate, shared with `BuildModules`. The cold-batch
     /// path threads this into the git fetcher so `preparePackage` can
     /// reject `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` for packages that aren't
@@ -185,7 +202,7 @@ pub struct CreateVirtualStore<'a> {
     pub tarball_mem_cache: Option<&'a std::sync::Arc<MemCache>>,
     /// Custom fetchers from the pnpmfile. Consulted per snapshot
     /// before the built-in resolution-type dispatch.
-    pub custom_fetcher_picker: Option<&'a Arc<CustomFetcherPicker>>,
+    pub custom_fetcher_session: Option<&'a Arc<CustomFetcherSession>>,
     /// Fetch-evidence cell filled right after the warm/cold partition
     /// with the cold registry-resolved snapshots this run downloads —
     /// see [`pnpm_resolving_resolver_base::PlannedCanonicalFetches`].
@@ -252,6 +269,7 @@ impl CreateVirtualStore<'_> {
             logged_methods,
             requester,
             store_index_writer,
+            store_context,
             allow_build_policy,
             skipped,
             include_optional_dependencies,
@@ -260,7 +278,7 @@ impl CreateVirtualStore<'_> {
             node_linker,
             progress_reported,
             tarball_mem_cache,
-            custom_fetcher_picker,
+            custom_fetcher_session,
             planned_canonical_fetches,
             #[cfg(test)]
             link_concurrency_probe,
@@ -277,6 +295,7 @@ impl CreateVirtualStore<'_> {
                 package_manifests: PackageManifests::new(),
                 side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot::new(),
                 requires_build_by_snapshot: RequiresBuildBySnapshot::new(),
+                materialized_snapshots: Vec::new(),
                 fetch_failed: HashSet::new(),
                 cas_paths_by_pkg_id: is_hoisted.then(CasPathsByPkgId::new),
             });
@@ -313,7 +332,7 @@ impl CreateVirtualStore<'_> {
         // policy shared with `install_without_lockfile.rs`. Skipped under
         // `frozenStore`: the store is read-only and complete, so no
         // directory creation is attempted under its root.
-        if !config.frozen_store {
+        if store_context.is_none() && !config.frozen_store {
             init_store_dir_best_effort(store_dir).await;
         }
 
@@ -329,7 +348,10 @@ impl CreateVirtualStore<'_> {
                 None
             };
 
-        let store_index = StoreIndex::open_shared(store_dir, config.frozen_store).await;
+        let store_index = match store_context.as_ref().and_then(|context| context.index) {
+            Some(index) => Some(Arc::clone(index)),
+            None => StoreIndex::open_shared(store_dir, config.frozen_store).await,
+        };
         let store_index_ref = store_index.as_ref();
 
         // The batched store-index writer is owned by the caller
@@ -347,7 +369,10 @@ impl CreateVirtualStore<'_> {
         // gets the same handle. A CAFS path verified on snapshot A
         // populates the set so snapshot B's verify pass skips the stat
         // / re-hash cost.
-        let verified_files_cache = SharedVerifiedFilesCache::default();
+        let verified_files_cache = store_context
+            .map_or_else(SharedVerifiedFilesCache::default, |context| {
+                Arc::clone(context.verified_files_cache)
+            });
 
         // Batch every cache lookup the per-snapshot futures would otherwise
         // each fan into `tokio::task::spawn_blocking`. With 1352 snapshots
@@ -384,9 +409,10 @@ impl CreateVirtualStore<'_> {
         // doesn't redo identical SELECT + integrity-check work for
         // every peer variant.
         let snapshot_plan::SnapshotPlan {
-            survivors: snapshot_entries,
+            survivors: mut snapshot_entries,
             skipped_entries,
             marker_rebuilds,
+            has_git_hosted_survivor,
         } = snapshot_plan::plan_snapshots::<Reporter>(&snapshot_plan::SnapshotPlanInputs {
             snapshots,
             packages,
@@ -396,10 +422,13 @@ impl CreateVirtualStore<'_> {
             allow_build_policy,
             skipped,
             link_dependencies: !is_hoisted && config.symlink,
+            is_hoisted,
             include_optional_dependencies,
             ignore_scripts: config.ignore_scripts,
             runtime_platform_selector: &runtime_platform_selector,
         })?;
+        let materialized_snapshots =
+            snapshot_entries.iter().map(|(snapshot_key, _, _)| (*snapshot_key).clone()).collect();
 
         // `pnpm:stats added` fires one event per project once the
         // orchestrator has decided how many packages will land in the
@@ -439,6 +468,14 @@ impl CreateVirtualStore<'_> {
             SharedVerifiedFilesCache::clone(&verified_files_cache),
         )
         .await;
+        enforce_cached_git_prepare_policy(
+            &mut snapshot_entries,
+            packages,
+            &prefetch,
+            allow_build_policy,
+            config.ignore_scripts,
+            has_git_hosted_survivor,
+        )?;
         let partition::Partition {
             warm,
             cold,
@@ -466,7 +503,10 @@ impl CreateVirtualStore<'_> {
             for (snapshot_key, _snapshot) in &cold {
                 let metadata_key = snapshot_key.without_peer();
                 let Some(metadata) = packages.get(&metadata_key) else { continue };
-                if !matches!(metadata.resolution, LockfileResolution::Registry(_))
+                // A custom fetcher can replace the canonical download, so
+                // its result cannot establish registry-side existence.
+                if custom_fetcher_session.is_some()
+                    || !matches!(metadata.resolution, LockfileResolution::Registry(_))
                     || metadata.resolution.checkable_integrity().is_none()
                 {
                     continue;
@@ -557,6 +597,11 @@ impl CreateVirtualStore<'_> {
                         // directory resolution, so a warm slot's source
                         // is immutable by construction.
                         source_is_mutable: false,
+                        force_import: package_content_changed(
+                            current_packages,
+                            packages,
+                            snapshot_key,
+                        ),
                         needs_build_marker_source: needs_build_marker
                             .then_some(
                                 needs_build_marker_source
@@ -641,7 +686,7 @@ impl CreateVirtualStore<'_> {
                         runtime_platform_selector: runtime_platform_selector_ref,
                         workspace_root,
                         node_linker,
-                        custom_fetcher_picker,
+                        custom_fetcher_session,
                         // The slot link is deferred to the parallel pass
                         // below so it doesn't serialize inside this
                         // cooperative `try_join_all` task.
@@ -664,6 +709,11 @@ impl CreateVirtualStore<'_> {
                                     cas_paths,
                                     requires_build,
                                     source_is_mutable,
+                                    force_import: package_content_changed(
+                                        current_packages,
+                                        packages,
+                                        snapshot_key,
+                                    ),
                                 }),
                             ))
                         }
@@ -818,6 +868,7 @@ impl CreateVirtualStore<'_> {
             package_manifests,
             side_effects_maps_by_snapshot,
             requires_build_by_snapshot,
+            materialized_snapshots,
             fetch_failed,
             cas_paths_by_pkg_id,
         })
@@ -864,6 +915,78 @@ fn removed_child_aliases(
     removed
 }
 
+fn enforce_cached_git_prepare_policy(
+    snapshots: &mut [SnapshotWithCacheKey<'_>],
+    packages: &HashMap<PackageKey, PackageMetadata>,
+    prefetch: &PrefetchResult,
+    allow_build_policy: &crate::AllowBuildPolicy,
+    ignore_scripts: bool,
+    has_git_hosted_survivor: bool,
+) -> Result<(), CreateVirtualStoreError> {
+    if ignore_scripts || !has_git_hosted_survivor {
+        return Ok(());
+    }
+    for (snapshot_key, _snapshot, cache_key) in snapshots {
+        let Some(key) = cache_key.as_deref() else { continue };
+        let Some(cas_paths) = prefetch.cas_paths.get(key) else { continue };
+        let metadata_key = snapshot_key.without_peer();
+        let metadata = packages.get(&metadata_key).ok_or_else(|| {
+            CreateVirtualStoreError::MissingPackageMetadata {
+                snapshot_key: snapshot_key.to_string(),
+                metadata_key: metadata_key.to_string(),
+            }
+        })?;
+        if !is_git_hosted_resolution(&metadata.resolution) {
+            continue;
+        }
+        if prefetch.requires_prepare.get(key) == Some(&false) {
+            continue;
+        }
+        let manifest = if let Some(manifest) = prefetch.manifests.get(key) {
+            Cow::Borrowed(manifest.as_ref())
+        } else {
+            let Some(package_json) = cas_paths.get("package.json") else {
+                *cache_key = None;
+                continue;
+            };
+            let Ok(contents) = fs::read_to_string(package_json) else {
+                *cache_key = None;
+                continue;
+            };
+            let Ok(manifest) = parse_manifest(&contents) else {
+                *cache_key = None;
+                continue;
+            };
+            Cow::Owned(manifest)
+        };
+        let package_id = metadata_key.pkg_id();
+        let name = manifest.get("name").and_then(serde_json::Value::as_str).unwrap_or("");
+        let dep_path = format!("{name}@{package_id}");
+        if allow_build_policy.check(&dep_path) == Some(true) {
+            continue;
+        }
+        if !prefetch.requires_prepare.contains_key(key) {
+            *cache_key = None;
+            continue;
+        }
+        let allow_build = |dep_path: &str| allow_build_policy.check(dep_path).unwrap_or(false);
+        assert_package_build_allowed(&allow_build, &package_id, &manifest).map_err(|error| {
+            CreateVirtualStoreError::InstallPackageBySnapshot(
+                InstallPackageBySnapshotError::GitFetch(GitFetcherError::Prepare(error)),
+            )
+        })?;
+    }
+    Ok(())
+}
+
+fn is_git_hosted_resolution(resolution: &LockfileResolution) -> bool {
+    match resolution {
+        LockfileResolution::Git(_) => true,
+        LockfileResolution::Tarball(tarball) => tarball.is_git_hosted(),
+        _ => false,
+    }
+}
+
 fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
     if files_include_install_scripts(cas_paths.keys()) {
         return true;
@@ -907,6 +1030,7 @@ struct ColdCapture<'a> {
     cas_paths: HashMap<String, PathBuf>,
     requires_build: bool,
     source_is_mutable: bool,
+    force_import: bool,
 }
 
 struct SlotLink<'a> {
@@ -915,6 +1039,7 @@ struct SlotLink<'a> {
     cas_paths: &'a HashMap<String, PathBuf>,
     warm_cache_key: Option<&'a str>,
     source_is_mutable: bool,
+    force_import: bool,
     needs_build_marker_source: Option<&'a Path>,
     /// Child aliases dropped since the previous install, threaded into
     /// [`crate::CreateVirtualDirBySnapshot::removed_aliases`] so their
@@ -1015,6 +1140,7 @@ fn link_cold_chunk<Reporter: self::Reporter>(
             cas_paths: &capture.cas_paths,
             warm_cache_key: None,
             source_is_mutable: capture.source_is_mutable,
+            force_import: capture.force_import,
             needs_build_marker_source: snapshot_needs_build_marker(
                 capture.snapshot_key,
                 capture.requires_build,
@@ -1090,6 +1216,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
                 package_key: slot.snapshot_key,
                 snapshot: slot.snapshot,
                 source_is_mutable: slot.source_is_mutable,
+                force_import: slot.force_import,
                 include_optional_dependencies,
                 symlink,
                 skipped,
@@ -1149,7 +1276,7 @@ fn snapshot_cache_key(
     packages: &HashMap<PackageKey, PackageMetadata>,
     ignore_scripts: bool,
     runtime_platform_selector: &PlatformSelector,
-) -> Result<Option<String>, CreateVirtualStoreError> {
+) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
     let metadata_key = snapshot_key.without_peer();
     let metadata = packages.get(&metadata_key).ok_or_else(|| {
         CreateVirtualStoreError::MissingPackageMetadata {
@@ -1168,7 +1295,7 @@ fn snapshot_cache_key(
             // skip that refusal — pnpm likewise asserts fetchability
             // before it consults the store.
             if t.integrity.is_none() && !unverified_fetch_is_allowed(&t.tarball) {
-                return Ok(None);
+                return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
             }
             // Git-hosted tarballs land in the CAS via
             // `pnpm_git_fetcher::GitHostedTarballFetcher`, which
@@ -1180,11 +1307,19 @@ fn snapshot_cache_key(
             // `built` tracks `!ignore_scripts` in lock-step with the
             // dispatcher's write key, so the prefetch and the write
             // address the same slot.
-            Ok(store_index_key_for_resolution(&metadata.resolution, &pkg_id, !ignore_scripts))
+            Ok(SnapshotCacheKey {
+                value: store_index_key_for_resolution(
+                    &metadata.resolution,
+                    &pkg_id,
+                    !ignore_scripts,
+                ),
+                is_git_hosted: t.is_git_hosted(),
+            })
         }
-        LockfileResolution::Registry(r) => {
-            Ok(Some(store_index_key(&r.integrity.to_string(), &pkg_id)))
-        }
+        LockfileResolution::Registry(r) => Ok(SnapshotCacheKey {
+            value: Some(store_index_key(&r.integrity.to_string(), &pkg_id)),
+            is_git_hosted: false,
+        }),
         LockfileResolution::Directory(_) => {
             // Directory resolutions are injected workspace deps and
             // bypass the CAFS entirely (the directory-fetcher returns
@@ -1195,7 +1330,7 @@ fn snapshot_cache_key(
             // changed since the last install). Returning `Ok(None)`
             // routes the snapshot
             // through the cold path which runs the fetcher.
-            Ok(None)
+            Ok(SnapshotCacheKey { value: None, is_git_hosted: false })
         }
         LockfileResolution::Git(_) => {
             // `Git` resolutions land in CAS via
@@ -1208,7 +1343,14 @@ fn snapshot_cache_key(
             // whether the snapshot is already in `index.db`. `built`
             // tracks `!ignore_scripts` to match the dispatcher's
             // write key.
-            Ok(store_index_key_for_resolution(&metadata.resolution, &pkg_id, !ignore_scripts))
+            Ok(SnapshotCacheKey {
+                value: store_index_key_for_resolution(
+                    &metadata.resolution,
+                    &pkg_id,
+                    !ignore_scripts,
+                ),
+                is_git_hosted: true,
+            })
         }
         // Runtime artifacts (Node.js / Bun / Deno): the per-archive
         // integrity is the warm-cache key, same shape as the
@@ -1217,9 +1359,10 @@ fn snapshot_cache_key(
         // path's variant selector + binary fetcher writes the row
         // under this key when it succeeds, so a re-install hits
         // here instead of cold-fetching the runtime archive again.
-        LockfileResolution::Binary(binary) => {
-            Ok(Some(store_index_key(&binary.integrity.to_string(), &pkg_id)))
-        }
+        LockfileResolution::Binary(binary) => Ok(SnapshotCacheKey {
+            value: Some(store_index_key(&binary.integrity.to_string(), &pkg_id)),
+            is_git_hosted: false,
+        }),
         // `Variations` is a meta-shape: its integrity lives on the
         // *picked* variant, not the wrapper. Run the same host-
         // matching selector the cold path runs so the warm key
@@ -1233,26 +1376,32 @@ fn snapshot_cache_key(
             let Some(variant) =
                 select_platform_variant(&variations.variants, runtime_platform_selector)
             else {
-                return Ok(None);
+                return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
             };
             match &variant.resolution {
-                LockfileResolution::Binary(binary) => {
-                    Ok(Some(store_index_key(&binary.integrity.to_string(), &pkg_id)))
-                }
+                LockfileResolution::Binary(binary) => Ok(SnapshotCacheKey {
+                    value: Some(store_index_key(&binary.integrity.to_string(), &pkg_id)),
+                    is_git_hosted: false,
+                }),
                 // Non-`Binary` variant (corrupt lockfile, or a
                 // future shape pacquet doesn't recognise). The
                 // cold path raises the typed
                 // `VariantHasNonBinaryResolution` error; we just
                 // skip the warm key.
-                _ => Ok(None),
+                _ => Ok(SnapshotCacheKey { value: None, is_git_hosted: false }),
             }
         }
         // Custom resolutions have no built-in warm-cache key — the
         // cold path consults the pnpmfile custom fetchers, and the
         // delegated resolution (unknowable here) determines the row
         // that gets written.
-        LockfileResolution::Custom(_) => Ok(None),
+        LockfileResolution::Custom(_) => Ok(SnapshotCacheKey { value: None, is_git_hosted: false }),
     }
+}
+
+struct SnapshotCacheKey {
+    value: Option<String>,
+    is_git_hosted: bool,
 }
 
 /// Two snapshots agree on dependency wiring when both their
@@ -1282,6 +1431,16 @@ fn integrity_equal(current: Option<&PackageMetadata>, wanted: Option<&PackageMet
     let current_integrity = current.and_then(|meta| meta.resolution.integrity());
     let wanted_integrity = wanted.and_then(|meta| meta.resolution.integrity());
     current_integrity == wanted_integrity
+}
+
+fn package_content_changed(
+    current_packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    wanted_packages: &HashMap<PackageKey, PackageMetadata>,
+    snapshot_key: &PackageKey,
+) -> bool {
+    let current = current_packages.and_then(|packages| packages.get(&snapshot_key.without_peer()));
+    let wanted = wanted_packages.get(&snapshot_key.without_peer());
+    current.is_some() && !integrity_equal(current, wanted)
 }
 
 /// True for the [`InstallPackageBySnapshotError`] variants pacquet

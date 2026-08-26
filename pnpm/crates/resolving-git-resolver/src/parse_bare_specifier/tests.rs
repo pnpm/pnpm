@@ -121,6 +121,43 @@ fn finalize_hosted_auth_url_kept_verbatim_without_archive_eligibility() {
     assert!(spec.hosted.is_none(), "credentialed URL must never resolve to a host archive");
 }
 
+// [pnpm/pnpm#13999](https://github.com/pnpm/pnpm/issues/13999). Each row
+// is `(input, normalized_bare_specifier, git_committish, git_range)`.
+#[test]
+fn every_representation_of_a_hosted_specifier_keeps_its_committish() {
+    const SHA: &str = "0123456789abcdef0123456789abcdef01234567";
+    let auth_url = |committish: &str| {
+        format!("git+https://token:x-oauth-basic@github.com/foo/bar.git#{committish}")
+    };
+    let cases: [(String, String, Option<&str>, Option<&str>); 7] = [
+        ("foo/bar#develop".into(), "github:foo/bar#develop".into(), Some("develop"), None),
+        ("foo/bar#v1.0.0".into(), "github:foo/bar#v1.0.0".into(), Some("v1.0.0"), None),
+        (
+            "foo/bar#semver:^1.0.0".into(),
+            "github:foo/bar#semver:^1.0.0".into(),
+            None,
+            Some("^1.0.0"),
+        ),
+        (format!("foo/bar#{SHA}"), format!("github:foo/bar#{SHA}"), Some(SHA), None),
+        (auth_url("develop"), auth_url("develop"), Some("develop"), None),
+        (auth_url(SHA), auth_url(SHA), Some(SHA), None),
+        (auth_url("semver:^1.0.0"), auth_url("semver:^1.0.0"), None, Some("^1.0.0")),
+    ];
+    for (input, expected_specifier, expected_committish, expected_range) in &cases {
+        let spec = parse_bare_specifier(input).expect("hosted").finalize();
+        assert!(!spec.fetch_spec.contains('#'), "ls-remote target keeps a committish: {input}");
+        assert_eq!(
+            (
+                spec.normalized_bare_specifier.as_str(),
+                spec.git_committish.as_deref(),
+                spec.git_range.as_deref(),
+            ),
+            (expected_specifier.as_str(), *expected_committish, *expected_range),
+            "input: {input}",
+        );
+    }
+}
+
 // Ported `parsePref.test.ts` SCP-style URL repair cases. Each row
 // is `(input, expected_fetch_spec)`.
 #[test]

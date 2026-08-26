@@ -4,8 +4,8 @@ use futures_util::StreamExt as _;
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{
-    NetworkSettings, RedirectGuard, RetryOpts, ThrottledClient, encode_uri_component,
-    redact_and_sanitize, send_with_retry,
+    RedirectGuard, RetryOpts, ThrottledClient, encode_uri_component, redact_and_sanitize,
+    send_with_retry,
 };
 use reqwest::{Response, StatusCode};
 use std::{collections::HashMap, sync::Arc, time::Duration};
@@ -800,11 +800,7 @@ fn build_http_client(
         &config.proxy,
         &config.tls,
         &config.tls_by_uri,
-        &NetworkSettings {
-            network_concurrency: config.network_concurrency,
-            fetch_timeout: Duration::from_millis(config.fetch_timeout),
-            user_agent: config.user_agent.clone(),
-        },
+        &config.network_settings(),
         redirect_guard,
     )
     .into_diagnostic()

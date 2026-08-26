@@ -23,7 +23,7 @@ use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{RegistryDeclaration, ResolutionMode, TrustPolicy};
-use pnpm_lockfile::Lockfile;
+use pnpm_lockfile::{Lockfile, TarballRevision};
 use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
 use reqwest::Client;
 
@@ -278,6 +278,9 @@ pub struct ResolvedPackage {
     /// published one. The per-file term of the download priority's
     /// pipeline-work estimate.
     pub file_count: Option<usize>,
+    /// Registry artifact revision, when the server resolved an immutable
+    /// integrity-addressed artifact.
+    pub revision: Option<TarballRevision>,
 }
 
 #[derive(Debug, Display, Error, From)]
@@ -526,6 +529,7 @@ impl PnprClient {
                         tarball,
                         unpacked_size,
                         file_count,
+                        revision,
                     } => {
                         on_package(ResolvedPackage {
                             id,
@@ -535,6 +539,7 @@ impl PnprClient {
                             tarball,
                             unpacked_size,
                             file_count,
+                            revision,
                         });
                     }
                     Frame::Done { lockfile, stats } => {
@@ -586,6 +591,8 @@ enum Frame {
         unpacked_size: Option<usize>,
         #[serde(rename = "fileCount", default)]
         file_count: Option<usize>,
+        #[serde(default)]
+        revision: Option<TarballRevision>,
     },
     /// Boxed: the lockfile dwarfs the other variants, so keeping it
     /// behind a pointer keeps the enum small.

@@ -269,6 +269,7 @@ impl TarballResolver {
             resolution: LockfileResolution::Tarball(TarballResolution {
                 tarball: resolved_url,
                 integrity,
+                revision: None,
                 git_hosted: None,
                 path: None,
             }),

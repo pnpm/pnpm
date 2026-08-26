@@ -36,7 +36,8 @@ use node_semver::{Range, Version};
 use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
 use pnpm_registry::{DerivedPackuments, Package, PackageVersion, PackageVersions};
 use pnpm_resolving_resolver_base::{
-    VersionSelectorEntry, VersionSelectorType, VersionSelectors, parse_packument_timestamp,
+    EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
+    parse_packument_timestamp,
 };
 
 /// Discriminator for [`RegistryPackageSpec::spec_type`]: the
@@ -51,6 +52,12 @@ pub enum RegistryPackageSpecType {
     Range,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RegistryRevisionSelector {
+    Valid(u64),
+    Invalid(String),
+}
+
 /// Parsed registry spec produced by the bare-specifier parser. The
 /// picker (and the cache+fetch wrapper above it) consume this shape;
 /// the parser that produces it lives in its own module.
@@ -59,6 +66,7 @@ pub struct RegistryPackageSpec {
     pub name: String,
     pub fetch_spec: String,
     pub spec_type: RegistryPackageSpecType,
+    pub revision: Option<RegistryRevisionSelector>,
     /// Echo of the original bare specifier when the spec came from a
     /// tarball-URL parse. The resolver writes this back into
     /// `ResolveResult.normalized_bare_specifier`; the picker itself
@@ -73,6 +81,7 @@ impl RegistryPackageSpec {
             name: name.into(),
             fetch_spec: "latest".to_string(),
             spec_type: RegistryPackageSpecType::Tag,
+            revision: None,
             normalized_bare_specifier: None,
         }
     }
@@ -256,7 +265,6 @@ fn without_version(meta: &Package, version: &str) -> Package {
         etag: meta.etag.clone(),
         homepage: meta.homepage.clone(),
         mutex: Arc::default(),
-        release_age_upgrade_checked: false,
         derived: DerivedPackuments::default(),
     }
 }
@@ -357,6 +365,97 @@ pub fn pick_lowest_version_by_version_range(
         return parsed.first().map(|(_, raw)| (*raw).to_string());
     }
     min_satisfying(&all_versions, opts.version_range)
+}
+
+/// Returns the cached version only when lockfile preferences prove
+/// that no version missing from the packument could tie or outrank it.
+#[must_use]
+pub fn pick_stable_cached_range_version(
+    meta: &Package,
+    version_range: &str,
+    preferred_version_selectors: Option<&VersionSelectors>,
+) -> Option<String> {
+    let dominant = dominant_lockfile_version(version_range, preferred_version_selectors)?;
+    if !meta.versions.contains_key(&dominant) {
+        return None;
+    }
+    let picked = pick_version_by_version_range(&PickVersionByVersionRangeOptions {
+        meta,
+        version_range,
+        preferred_version_selectors,
+        published_by: None,
+    })?;
+    (picked == dominant).then_some(dominant)
+}
+
+pub(crate) fn dominant_lockfile_version(
+    version_range: &str,
+    preferred_version_selectors: Option<&VersionSelectors>,
+) -> Option<String> {
+    let selectors = preferred_version_selectors?;
+    let mut lockfile_version: Option<String> = None;
+    for (selector, entry) in selectors {
+        if selector == version_range {
+            continue;
+        }
+        let (selector_type, weight) = selector_info(entry);
+        if weight == 0 {
+            return None;
+        }
+        if selector_type == VersionSelectorType::Version
+            && weight >= EXISTING_VERSION_SELECTOR_WEIGHT
+            && semver_satisfies_loose(selector, version_range)
+        {
+            if lockfile_version.is_some() {
+                return None;
+            }
+            lockfile_version = Some(selector.clone());
+        }
+    }
+    let lockfile_version = lockfile_version?;
+
+    // Every range and movable tag may apply to an unseen version, while an
+    // out-of-range high-weight exact selector is discarded by max/min
+    // satisfying. Zero cannot participate because the prioritizer uses it as
+    // its replaceable seed sentinel rather than an accumulated weight.
+    let mut guaranteed_lockfile_weight: u64 = 0;
+    let mut maximum_other_version_weight: u64 = 0;
+    for (selector, entry) in selectors {
+        if selector == version_range {
+            continue;
+        }
+        let (selector_type, weight) = selector_info(entry);
+        let weight = u64::from(weight);
+        match selector_type {
+            VersionSelectorType::Version => {
+                if selector == &lockfile_version {
+                    guaranteed_lockfile_weight = guaranteed_lockfile_weight.checked_add(weight)?;
+                } else if weight < u64::from(EXISTING_VERSION_SELECTOR_WEIGHT)
+                    && semver_satisfies_loose(selector, version_range)
+                {
+                    maximum_other_version_weight =
+                        maximum_other_version_weight.checked_add(weight)?;
+                }
+            }
+            VersionSelectorType::Range => {
+                if semver_satisfies_loose(&lockfile_version, selector) {
+                    guaranteed_lockfile_weight = guaranteed_lockfile_weight.checked_add(weight)?;
+                }
+                maximum_other_version_weight = maximum_other_version_weight.checked_add(weight)?;
+            }
+            VersionSelectorType::Tag => {
+                maximum_other_version_weight = maximum_other_version_weight.checked_add(weight)?;
+            }
+        }
+    }
+    (guaranteed_lockfile_weight > maximum_other_version_weight).then_some(lockfile_version)
+}
+
+fn selector_info(entry: &VersionSelectorEntry) -> (VersionSelectorType, u32) {
+    match entry {
+        VersionSelectorEntry::Plain(selector_type) => (*selector_type, 1),
+        VersionSelectorEntry::Weighted(weighted) => (weighted.selector_type, weighted.weight),
+    }
 }
 
 /// What the `publishedBy` cutoff leaves visible, as computed by
@@ -510,7 +609,6 @@ fn filter_pkg_metadata_versions_with_dist_tag_bound(
         etag: meta.etag.clone(),
         homepage: meta.homepage.clone(),
         mutex: std::sync::Arc::clone(&meta.mutex),
-        release_age_upgrade_checked: false,
         derived: DerivedPackuments::default(),
     }
 }
@@ -605,12 +703,7 @@ fn prioritize_preferred_versions(
             if preferred_selector == version_range {
                 continue;
             }
-            let (selector_type, weight) = match entry {
-                VersionSelectorEntry::Plain(selector_type) => (*selector_type, 1),
-                VersionSelectorEntry::Weighted(weighted) => {
-                    (weighted.selector_type, weighted.weight)
-                }
-            };
+            let (selector_type, weight) = selector_info(entry);
             match selector_type {
                 VersionSelectorType::Tag => {
                     if let Some(version) = meta.dist_tag(preferred_selector) {

@@ -55,8 +55,17 @@ pub async fn wanted_lockfile_satisfies_workspace(
     let Ok(workspace_dir_opt) = configured_or_discovered_workspace_dir(config, manifest_dir) else {
         return false;
     };
-    let workspace_root = workspace_dir_opt.unwrap_or_else(|| manifest_dir.to_path_buf());
-    if !config.ignore_pnpmfile && pnpm_hooks::finder::find_pnpmfile(&workspace_root).is_some() {
+    let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
+    // The importer ids below name projects relative to the directory the
+    // lockfile sits in, which `lockfileDir` can move away from the
+    // workspace root — deriving them from the workspace instead would
+    // classify every importer the lockfile records as missing.
+    let lockfile_root =
+        super::lockfile_root_for(config, workspace_dir_opt.as_deref(), manifest_dir);
+    if !config.ignore_pnpmfile
+        && !pnpm_hooks::finder::find_pnpmfiles(&workspace_root, crate::pnpmfile_selection(config))
+            .is_empty()
+    {
         return false;
     }
     let Ok(workspace_manifest) = pnpm_workspace::read_workspace_manifest(&workspace_root) else {
@@ -67,12 +76,11 @@ pub async fn wanted_lockfile_satisfies_workspace(
     else {
         return false;
     };
-    let project_manifests =
-        build_project_manifests_list(&workspace_root, manifest, workspace_projects.as_deref());
+    let project_manifests = build_project_manifests_list(manifest, workspace_projects.as_deref());
     let manifest_freshness_inputs: Vec<(String, &PackageManifest)> = project_manifests
         .iter()
         .map(|(project_dir, manifest)| {
-            (pnpm_workspace::importer_id_from_root_dir(&workspace_root, project_dir), *manifest)
+            (pnpm_workspace::importer_id_from_root_dir(&lockfile_root, project_dir), *manifest)
         })
         .collect();
     check_lockfile_freshness(

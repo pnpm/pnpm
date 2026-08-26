@@ -1,6 +1,6 @@
 use super::{
     VerifiedFileIntegrity, VerifiedFilesCache, build_file_maps_from_index,
-    check_pkg_files_integrity,
+    check_pkg_files_integrity, package_dir_matches_index,
 };
 use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreDir};
 use pretty_assertions::assert_eq;
@@ -38,6 +38,7 @@ fn index_with(algo: &str, info: Vec<(&str, CafsFileInfo)>) -> PackageFilesIndex 
     PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: algo.to_string(),
         files: info.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
         side_effects: None,
@@ -390,6 +391,7 @@ fn side_effects_overlay_adds_and_drops_correctly() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".into(),
         files: HashMap::from([
             ("a.js".to_string(), info(&base_digest, 4, 0o644, None)),
@@ -419,6 +421,7 @@ fn side_effects_overlay_added_shadows_base_on_collision() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".into(),
         files: HashMap::from([("collide.js".to_string(), info(&base_digest, 4, 0o644, None))]),
         side_effects: Some(side_effects),
@@ -468,6 +471,7 @@ fn side_effects_overlay_malformed_added_digest_drops_cache_key_entry() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".into(),
         files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
         side_effects: Some(side_effects),
@@ -517,6 +521,7 @@ fn side_effects_overlay_unsafe_added_path_drops_cache_key_entry() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".into(),
         files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
         side_effects: Some(side_effects),
@@ -554,6 +559,7 @@ fn side_effects_overlay_keys_are_independent() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".into(),
         files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
         side_effects: Some(side_effects),
@@ -566,4 +572,61 @@ fn side_effects_overlay_keys_are_independent() {
     assert!(k2.contains_key("b.js") && !k2.contains_key("a.js"), "k2: {k2:?}");
     assert!(k1.contains_key("base.js"));
     assert!(k2.contains_key("base.js"));
+}
+
+/// A one-file index whose single entry is recorded under `path`.
+fn index_with_one_file(path: &str, content: &[u8]) -> PackageFilesIndex {
+    PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        requires_prepare: None,
+        algo: "sha512".to_string(),
+        files: HashMap::from([(
+            path.to_string(),
+            CafsFileInfo {
+                digest: sha512_hex(content),
+                mode: 0o644,
+                size: content.len() as u64,
+                checked_at: None,
+            },
+        )]),
+        side_effects: None,
+    }
+}
+
+#[test]
+fn a_package_matches_its_index_while_its_files_are_untouched() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+    fs::write(package.join("index.js"), b"module.exports = 1\n").unwrap();
+
+    let index = index_with_one_file("index.js", b"module.exports = 1\n");
+    assert!(package_dir_matches_index(&package, &index));
+
+    fs::write(package.join("index.js"), b"module.exports = 2\n").unwrap();
+    assert!(!package_dir_matches_index(&package, &index));
+
+    fs::remove_file(package.join("index.js")).unwrap();
+    assert!(!package_dir_matches_index(&package, &index), "a missing file counts as mutated");
+}
+
+/// Archive extraction rejects a leading separator and `..`, but a recorded
+/// path still has to be treated as untrusted here: `Path::join` discards
+/// its base for an absolute or drive-prefixed argument, which would point
+/// the hash outside the package.
+#[test]
+fn a_recorded_path_that_is_not_a_plain_relative_path_never_matches() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+    let outside = dir.path().join("outside.txt");
+    fs::write(&outside, b"secret\n").unwrap();
+
+    for escape in ["../outside.txt", "/etc/passwd", r"C:\Windows\System32\drivers\etc\hosts"] {
+        assert!(
+            !package_dir_matches_index(&package, &index_with_one_file(escape, b"secret\n")),
+            "{escape} must not be joined onto the package directory",
+        );
+    }
 }

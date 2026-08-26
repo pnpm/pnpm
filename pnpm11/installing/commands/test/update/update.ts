@@ -10,6 +10,21 @@ import { loadJsonFileSync } from 'load-json-file'
 
 import { DEFAULT_OPTS } from '../utils/index.js'
 
+test.each([
+  { dependencies: ['is-positive'], options: { patches: true } },
+  { dependencies: [], options: { latest: true, patches: true } },
+  { dependencies: [], options: { interactive: true, patches: true } },
+  { dependencies: [], options: { global: true, patches: true } },
+])('update --patches rejects selector-based update modes', async ({ dependencies, options }) => {
+  await expect(update.handler({
+    ...DEFAULT_OPTS,
+    ...options,
+    dir: process.cwd(),
+  }, dependencies)).rejects.toMatchObject({
+    code: 'ERR_PNPM_PATCHES_WITH_SELECTOR',
+  })
+})
+
 test('update with "*" pattern', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '2.0.0', distTag: 'latest' })
@@ -139,7 +154,7 @@ test('update transitive dependency when mixed with a direct dependency selector'
   expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeTruthy()
 })
 
-test('update of a transitive dependency ignores the requested version and resolves like a fresh install', async () => {
+test('update of a transitive dependency rejects the requested version', async () => {
   // @pnpm.e2e/pkg-with-good-optional depends on @pnpm.e2e/dep-of-pkg-with-1-dep via "*".
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
@@ -156,26 +171,78 @@ test('update of a transitive dependency ignores the requested version and resolv
 
   expect(project.readLockfile().packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeTruthy()
 
-  // The update requests 100.1.0, but a transitive dependency has no manifest
-  // entry to carry a version, and updates resolve the target the way a fresh
-  // install would — so the requested version is ignored (with a warning
-  // recommending an override) and the "*" range resolves to the new latest.
+  let err!: PnpmError
+  try {
+    await update.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }, ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  } catch (_err: unknown) {
+    err = _err as PnpmError
+  }
+
+  expect(err.code).toBe('ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP')
+  expect(err.hint).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@<declared range>: 100.1.0')
+  // Nothing was resolved, so the lockfile still holds what the install wrote.
+  expect(project.readLockfile().packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeTruthy()
+})
+
+test('update --depth 0 leaves an indirect selector out of scope', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '100.0.0',
+      '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  // One selector matches a direct dependency and one only a transitive copy.
+  // At depth 0 the transitive one is never traversed, so it is out of scope
+  // rather than a version pnpm has nowhere to record.
+  await update.handler({
+    ...DEFAULT_OPTS,
+    depth: 0,
+    dir: process.cwd(),
+  }, ['@pnpm.e2e/foo@100.0.0', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+  expect(project.readLockfile().packages['@pnpm.e2e/foo@100.0.0']).toBeTruthy()
+})
+
+test('update of a transitive dependency without a version resolves like a fresh install', async () => {
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' })
 
   await update.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-  }, ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  }, ['@pnpm.e2e/dep-of-pkg-with-1-dep'])
 
   const lockfile = project.readLockfile()
 
   expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0']).toBeTruthy()
   expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeFalsy()
-  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeFalsy()
 })
 
 test('update with a version on a crafted package name does not pollute Object.prototype', async () => {
-  const project = prepare({
+  prepare({
     dependencies: {
       '@pnpm.e2e/foo': '1.0.0',
     },
@@ -186,13 +253,20 @@ test('update with a version on a crafted package name does not pollute Object.pr
     dir: process.cwd(),
   })
 
-  await update.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-  }, ['__proto__@1.0.0'])
+  let err!: PnpmError
+  try {
+    await update.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }, ['__proto__@1.0.0'])
+  } catch (_err: unknown) {
+    err = _err as PnpmError
+  }
 
+  // `__proto__` names no direct dependency, so the version is rejected — and
+  // reporting that must not write through the prototype on the way out.
+  expect(err.code).toBe('ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP')
   expect(({} as Record<string, unknown>)['1.0.0']).toBeUndefined()
-  expect(project.readLockfile().packages['@pnpm.e2e/foo@1.0.0']).toBeTruthy()
 })
 
 test('update: fail when both "latest" and "workspace" are true', async () => {

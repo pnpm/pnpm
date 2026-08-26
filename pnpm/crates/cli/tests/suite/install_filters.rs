@@ -42,6 +42,13 @@ fn assert_stage_once(records: &[Value]) {
     assert_eq!(importing_started_count(records), 1, "one install pipeline must import once");
 }
 
+fn reports_up_to_date(records: &[Value]) -> bool {
+    records.iter().any(|record| {
+        record.get("name").and_then(Value::as_str) == Some("pnpm")
+            && record.get("message").and_then(Value::as_str) == Some("Already up to date")
+    })
+}
+
 #[test]
 fn full_recursive_install_keeps_the_unfiltered_up_to_date_path() {
     let fixture = WorkspaceFixture::new();
@@ -64,10 +71,35 @@ fn full_recursive_install_keeps_the_unfiltered_up_to_date_path() {
 
     assert_eq!(fs::read(lockfile_path).expect("read lockfile"), before);
     assert_eq!(importing_started_count(&records), 0, "a full selection must not relink");
-    assert!(records.iter().any(|record| {
-        record.get("name").and_then(Value::as_str) == Some("pnpm")
-            && record.get("message").and_then(Value::as_str) == Some("Already up to date")
-    }));
+    assert!(reports_up_to_date(&records));
+}
+
+/// A `--filter`ed install with nothing to do short-circuits like the
+/// unfiltered one: the fast path validates the whole workspace, and the
+/// full install that preceded it materialized every project.
+#[test]
+fn filtered_install_takes_the_up_to_date_path_after_a_full_install() {
+    let fixture = WorkspaceFixture::new();
+    fixture.project(
+        "selected",
+        "selected",
+        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+    );
+    fixture.project(
+        "unselected",
+        "unselected",
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+    );
+    fixture.run(["install"]);
+    let lockfile_path = fixture.workspace.join("pnpm-lock.yaml");
+    let before = fs::read(&lockfile_path).expect("read lockfile");
+
+    let records = fixture.run(["--filter", "selected", "install"]);
+
+    assert!(reports_up_to_date(&records));
+    assert_eq!(importing_started_count(&records), 0, "a no-op selection must not relink");
+    assert_eq!(fs::read(&lockfile_path).expect("read lockfile"), before);
+    assert!(!fixture.state().filtered_install, "the short-circuit narrowed nothing");
 }
 
 #[test]
@@ -204,6 +236,110 @@ fn filtered_remove_mutates_only_selected_importers() {
         &["packages/selected-a", "packages/selected-b", "packages/unselected"],
     );
     assert_stage_once(&records);
+}
+
+fn workspace_with_installable_root(
+    selected_deps: ManifestDeps<'_>,
+) -> (WorkspaceFixture, std::path::PathBuf, std::path::PathBuf, Vec<u8>) {
+    let fixture = WorkspaceFixture::new();
+    fixture.write_root_manifest(
+        "workspace-root",
+        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+    );
+    let selected = fixture.project("selected", "selected", selected_deps);
+    let unselected = fixture.project(
+        "unselected",
+        "unselected",
+        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+    );
+    let root_manifest = fs::read(fixture.workspace.join("package.json")).expect("read manifest");
+    (fixture, selected, unselected, root_manifest)
+}
+
+fn assert_root_and_selected_are_materialized(
+    fixture: &WorkspaceFixture,
+    selected: &Path,
+    unselected: &Path,
+    selected_dependency: &str,
+) {
+    assert!(has_link(&fixture.workspace, HELLO), "workspace root dependency must be linked");
+    assert!(has_link(selected, selected_dependency), "selected dependency must be linked");
+    assert!(
+        !unselected.join("node_modules").exists(),
+        "unselected project must not be materialized",
+    );
+    assert_eq!(
+        importer_ids(&fixture.current()),
+        BTreeSet::from([".".to_string(), "packages/selected".to_string()]),
+    );
+}
+
+#[test]
+fn filtered_install_materializes_the_workspace_root() {
+    let (fixture, selected, unselected, root_manifest) =
+        workspace_with_installable_root(ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        });
+
+    fixture.run(["--filter", "selected", "install"]);
+
+    assert_root_and_selected_are_materialized(&fixture, &selected, &unselected, PARENT);
+    assert_eq!(
+        fs::read(fixture.workspace.join("package.json")).expect("read manifest"),
+        root_manifest,
+    );
+}
+
+#[test]
+fn filtered_add_materializes_the_workspace_root_without_mutating_it() {
+    let (fixture, selected, unselected, root_manifest) =
+        workspace_with_installable_root(ManifestDeps::default());
+
+    fixture.run(["--filter", "selected", "add", PARENT]);
+
+    assert_root_and_selected_are_materialized(&fixture, &selected, &unselected, PARENT);
+    assert_eq!(dependency_spec(&selected, "dependencies", PARENT).as_deref(), Some("^100.1.0"));
+    assert_eq!(
+        fs::read(fixture.workspace.join("package.json")).expect("read manifest"),
+        root_manifest,
+    );
+}
+
+#[test]
+fn filtered_update_materializes_the_workspace_root_without_mutating_it() {
+    let (fixture, selected, unselected, root_manifest) =
+        workspace_with_installable_root(ManifestDeps {
+            prod: &[(DEP, "100.0.0")],
+            ..Default::default()
+        });
+
+    fixture.run(["--filter", "selected", "update", DEP, "--latest"]);
+
+    assert_root_and_selected_are_materialized(&fixture, &selected, &unselected, DEP);
+    assert_eq!(dependency_spec(&selected, "dependencies", DEP).as_deref(), Some("101.0.0"));
+    assert_eq!(
+        fs::read(fixture.workspace.join("package.json")).expect("read manifest"),
+        root_manifest,
+    );
+}
+
+#[test]
+fn filtered_remove_materializes_the_workspace_root_without_mutating_it() {
+    let (fixture, selected, unselected, root_manifest) =
+        workspace_with_installable_root(ManifestDeps {
+            prod: &[(HELLO, "1.0.0"), (PARENT, "100.0.0")],
+            ..Default::default()
+        });
+
+    fixture.run(["--filter", "selected", "remove", HELLO]);
+
+    assert_root_and_selected_are_materialized(&fixture, &selected, &unselected, PARENT);
+    assert_eq!(dependency_spec(&selected, "dependencies", HELLO), None);
+    assert_eq!(
+        fs::read(fixture.workspace.join("package.json")).expect("read manifest"),
+        root_manifest,
+    );
 }
 
 #[test]
@@ -694,6 +830,10 @@ fn filtered_prod_install_preserves_shallow_workspace_link_targets() {
 #[test]
 fn filtered_install_keeps_full_cleanup_for_shared_layout_drift() {
     let fixture = WorkspaceFixture::new();
+    // The drift lives in `.modules.yaml`, which the repeat-install fast
+    // path never reads; this test is about what the pipeline cleans up
+    // once it runs, so keep the pipeline in play.
+    fixture.append_workspace_yaml("optimisticRepeatInstall: false\n");
     let selected = fixture.project(
         "selected",
         "selected",

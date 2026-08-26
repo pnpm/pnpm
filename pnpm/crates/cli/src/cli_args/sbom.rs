@@ -3,11 +3,22 @@
 //! Ports pnpm's `sbom` command
 //! (`pnpm11/deps/compliance/commands/src/sbom/sbom.ts`).
 
-use crate::{State, cli_args::recursive::RecursiveSharedLockfileUnsupported};
+use crate::{
+    State,
+    cli_args::{
+        install::resolve_bool_override,
+        recursive::{
+            AutoExcludeRoot, discover_workspace_projects, no_projects_matched_message,
+            notice_workspace_dir, select_recursive_projects, selected_importer_ids,
+        },
+    },
+};
 use clap::Args;
 use indexmap::IndexMap;
+use pnpm_config::Config;
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry,
+    LazyLockfile, Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgName,
+    PkgNameVerPeer, SnapshotEntry,
 };
 use pnpm_package_is_installable::{
     InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
@@ -15,7 +26,9 @@ use pnpm_package_is_installable::{
 use pnpm_package_manager::{importer_root_dir, validate_importer_id};
 use pnpm_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, hash_map::Entry},
+    fmt::Display,
+    hash::Hash,
     io::Write,
     path::{Path, PathBuf},
 };
@@ -62,7 +75,7 @@ pub struct SbomArgs {
     pub supplier: Option<String>,
 
     /// Only include production dependencies.
-    #[clap(long, short = 'P')]
+    #[clap(long, short = 'P', visible_alias = "production")]
     pub prod: bool,
 
     /// Only include dev dependencies.
@@ -70,8 +83,12 @@ pub struct SbomArgs {
     pub dev: bool,
 
     /// Exclude optional dependencies.
-    #[clap(long = "no-optional")]
+    #[clap(long = "no-optional", overrides_with = "optional")]
     pub no_optional: bool,
+
+    /// Include optional dependencies.
+    #[clap(long, overrides_with = "no_optional")]
+    pub optional: bool,
 
     /// Exclude peer dependencies.
     #[clap(long = "exclude-peers")]
@@ -94,11 +111,14 @@ struct IncludeFilter {
 }
 
 impl SbomArgs {
-    fn include_filter(&self) -> IncludeFilter {
+    fn include_filter(&self, include_optional: bool) -> IncludeFilter {
         IncludeFilter {
             dependencies: !self.dev,
             dev_dependencies: !self.prod,
-            optional_dependencies: !self.prod && !self.no_optional,
+            // pnpm's config reader clears `optional` for a dev-only run,
+            // and leaves it alone for a production-only one.
+            optional_dependencies: !self.dev
+                && resolve_bool_override(self.optional, self.no_optional, include_optional),
         }
     }
 }
@@ -129,7 +149,7 @@ struct WalkContext<'a> {
     packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     dep_types: &'a HashMap<PackageKey, DepType>,
     default_registry: &'a str,
-    virtual_store_dir: Option<PathBuf>,
+    virtual_store_dirs: &'a [PathBuf],
     virtual_store_dir_max_length: usize,
     include_optional_transitive: bool,
     installability: InstallabilityOptions<'a>,
@@ -386,6 +406,7 @@ fn collect_components(
     exclude_peers: bool,
     lockfile_only: bool,
     filter_importer_ids: Option<&[&str]>,
+    virtual_store_dirs_override: Option<&[PathBuf]>,
 ) -> miette::Result<SbomResult> {
     let lockfile = state
         .lockfile
@@ -441,15 +462,19 @@ fn collect_components(
 
     let dep_types = detect_dep_types(lockfile, include.optional_dependencies);
 
-    let virtual_store_dir =
-        (!lockfile_only).then(|| state.config.effective_virtual_store_dir().to_path_buf());
+    let default_virtual_store_dirs = [state.config.effective_virtual_store_dir().to_path_buf()];
+    let virtual_store_dirs = if lockfile_only {
+        &[][..]
+    } else {
+        virtual_store_dirs_override.unwrap_or(&default_virtual_store_dirs)
+    };
 
     let ctx = WalkContext {
         snapshots: lockfile.snapshots.as_ref(),
         packages: lockfile.packages.as_ref(),
         dep_types: &dep_types,
         default_registry: &state.config.registry,
-        virtual_store_dir,
+        virtual_store_dirs,
         virtual_store_dir_max_length: state.config.virtual_store_dir_max_length as usize,
         include_optional_transitive: include.optional_dependencies,
         installability: InstallabilityOptions {
@@ -636,22 +661,24 @@ fn read_pkg_metadata_from_store(
         repository: None,
         bugs_url: None,
     };
-    let Some(ref vs_dir) = ctx.virtual_store_dir else {
-        return empty;
-    };
     let store_name = key.to_virtual_store_name(ctx.virtual_store_dir_max_length);
-    let pkg_dir = vs_dir.join(&store_name).join("node_modules").join(pkg_name);
-    let Ok(Some(manifest)) = safe_read_package_json_from_dir(&pkg_dir) else {
-        return empty;
-    };
-    PkgMetadata {
-        license: manifest.get("license").and_then(|v| v.as_str()).map(ToString::to_string),
-        description: manifest.get("description").and_then(|v| v.as_str()).map(ToString::to_string),
-        author: extract_author(&manifest),
-        homepage: extract_homepage(&manifest),
-        repository: extract_repository(&manifest),
-        bugs_url: extract_bugs_url(&manifest),
+    for virtual_store_dir in ctx.virtual_store_dirs {
+        let pkg_dir = virtual_store_dir.join(&store_name).join("node_modules").join(pkg_name);
+        if let Ok(Some(manifest)) = safe_read_package_json_from_dir(&pkg_dir) {
+            return PkgMetadata {
+                license: manifest.get("license").and_then(|v| v.as_str()).map(ToString::to_string),
+                description: manifest
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(ToString::to_string),
+                author: extract_author(&manifest),
+                homepage: extract_homepage(&manifest),
+                repository: extract_repository(&manifest),
+                bugs_url: extract_bugs_url(&manifest),
+            };
+        }
     }
+    empty
 }
 
 /// Whether `package` is an optional dependency that pnpm would not install on
@@ -699,9 +726,9 @@ fn walk_snapshot(
             .and_then(|meta| meta.version.clone())
             .unwrap_or_else(|| key.suffix.version().to_string());
 
-        // `virtual_store_dir` is `None` under --lockfile-only, which describes
+        // `virtual_store_dirs` is empty under --lockfile-only, which describes
         // the whole lockfile graph, platform-independently.
-        if ctx.virtual_store_dir.is_some()
+        if !ctx.virtual_store_dirs.is_empty()
             && platform_incompatible_optional(
                 &key.name.bare,
                 ctx.snapshots.is_some_and(|snapshots| {
@@ -767,15 +794,222 @@ fn walk_snapshot(
     }
 }
 
+/// Whether the run asked for a subset of the workspace: any `--filter` /
+/// `--filter-prod` selector, or `--workspace-root`. Without one, every
+/// importer in the lockfile is in scope.
+fn selectors_narrow_the_run(config: &Config) -> bool {
+    !config.filter.is_empty() || !config.filter_prod.is_empty() || config.workspace_root
+}
+
+/// The lockfile importer ids of the workspace projects the run's selectors
+/// selected.
+fn selected_workspace_importer_ids(state: &State) -> miette::Result<HashSet<String>> {
+    let project_dir = state.project_dir();
+    let workspace_root = state.config.workspace_dir.as_deref().unwrap_or(project_dir);
+    let (projects, _) = discover_workspace_projects(workspace_root, state.config)?;
+    let selection =
+        select_recursive_projects(&projects, state.config, project_dir, AutoExcludeRoot::Disabled)?;
+    Ok(selected_importer_ids(&selection, state.lockfile_dir()).into_iter().collect())
+}
+
+/// The selected importer ids the lockfile has no entry for, sorted so the
+/// error names them in a stable order.
+fn missing_importers(selected: &HashSet<String>, lockfile_ids: &[String]) -> Vec<String> {
+    let known: HashSet<&str> = lockfile_ids.iter().map(String::as_str).collect();
+    let mut missing: Vec<String> =
+        selected.iter().filter(|id| !known.contains(id.as_str())).cloned().collect();
+    missing.sort_unstable();
+    missing
+}
+
+fn missing_importers_error(missing: &[String], project_kind: &str) -> miette::Report {
+    let plural = if missing.len() == 1 { "" } else { "s" };
+    let names = missing.join(", ");
+    let lockfile_name = pnpm_lockfile::Lockfile::FILE_NAME;
+    miette::miette!(
+        code = "ERR_PNPM_SBOM_MISSING_IMPORTERS",
+        r#"{lockfile_name} has no entry for the {project_kind} workspace project{plural}: {names}. Run "pnpm install" to update it."#,
+    )
+}
+
+fn extend_dedicated_lockfile_map<Key, Value>(
+    current: &mut HashMap<Key, Value>,
+    incoming: HashMap<Key, Value>,
+    entry_kind: &str,
+    selected_dir: &Path,
+) -> miette::Result<()>
+where
+    Key: Display + Eq + Hash,
+    Value: PartialEq,
+{
+    for (key, value) in incoming {
+        match current.entry(key) {
+            Entry::Vacant(entry) => {
+                entry.insert(value);
+            }
+            Entry::Occupied(entry) if entry.get() != &value => {
+                let key = entry.key();
+                let selected_dir = selected_dir.display();
+                return Err(miette::miette!(
+                    code = "ERR_PNPM_SBOM_CONFLICTING_LOCKFILE_ENTRIES",
+                    "Cannot combine dedicated workspace lockfiles because {} contains a different {entry_kind} entry for {key}",
+                    selected_dir,
+                ));
+            }
+            Entry::Occupied(_) => {}
+        }
+    }
+    Ok(())
+}
+
+fn extend_dedicated_snapshots(
+    current: &mut HashMap<PackageKey, SnapshotEntry>,
+    incoming: HashMap<PackageKey, SnapshotEntry>,
+    selected_dir: &Path,
+) -> miette::Result<()> {
+    for (key, mut value) in incoming {
+        match current.entry(key) {
+            Entry::Vacant(entry) => {
+                entry.insert(value);
+            }
+            Entry::Occupied(mut entry) => {
+                let incoming_optional = value.optional;
+                value.optional = entry.get().optional;
+                if entry.get() != &value {
+                    let key = entry.key();
+                    let selected_dir = selected_dir.display();
+                    return Err(miette::miette!(
+                        code = "ERR_PNPM_SBOM_CONFLICTING_LOCKFILE_ENTRIES",
+                        "Cannot combine dedicated workspace lockfiles because {} contains a different snapshot entry for {key}",
+                        selected_dir,
+                    ));
+                }
+                entry.get_mut().optional &= incoming_optional;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn extend_dedicated_lockfile(
+    current: &mut Lockfile,
+    incoming: Lockfile,
+    selected_dir: &Path,
+) -> miette::Result<()> {
+    extend_dedicated_lockfile_map(
+        &mut current.importers,
+        incoming.importers,
+        "importer",
+        selected_dir,
+    )?;
+    if let Some(packages) = incoming.packages {
+        extend_dedicated_lockfile_map(
+            current.packages.get_or_insert_default(),
+            packages,
+            "package",
+            selected_dir,
+        )?;
+    }
+    if let Some(snapshots) = incoming.snapshots {
+        extend_dedicated_snapshots(
+            current.snapshots.get_or_insert_default(),
+            snapshots,
+            selected_dir,
+        )?;
+    }
+    Ok(())
+}
+
+fn selected_and_reachable_project_dirs(
+    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+) -> Vec<PathBuf> {
+    let graph = selection.full_graph();
+    let mut project_dirs: Vec<PathBuf> = selection.selected.keys().cloned().collect();
+    let mut seen: HashSet<PathBuf> = project_dirs.iter().cloned().collect();
+    let mut index = 0;
+    while let Some(project_dir) = project_dirs.get(index) {
+        if let Some(project) = graph.get(project_dir) {
+            for dependency_dir in &project.dependencies {
+                if seen.insert(dependency_dir.clone()) {
+                    project_dirs.push(dependency_dir.clone());
+                }
+            }
+        }
+        index += 1;
+    }
+    project_dirs
+}
+
+fn merged_dedicated_lockfile_state(mut state: State) -> miette::Result<(State, Vec<PathBuf>)> {
+    let project_dir = state.project_dir();
+    let workspace_root = state.config.workspace_dir.as_deref().unwrap_or(project_dir);
+    let (projects, _) = discover_workspace_projects(workspace_root, state.config)?;
+    let selection =
+        select_recursive_projects(&projects, state.config, project_dir, AutoExcludeRoot::Disabled)?;
+
+    let mut merged: Option<Lockfile> = None;
+    let project_dirs = selected_and_reachable_project_dirs(&selection);
+    let required_importer_ids: HashSet<String> = project_dirs
+        .iter()
+        .map(|project_dir| pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir))
+        .collect();
+    let mut virtual_store_dirs = Vec::with_capacity(project_dirs.len());
+    for selected_dir in &project_dirs {
+        let mut project_config = state.config.clone();
+        project_config.anchor_lockfile_paths(selected_dir);
+        virtual_store_dirs.push(project_config.effective_virtual_store_dir().to_path_buf());
+
+        let Some(mut lockfile) =
+            Lockfile::load_wanted(selected_dir, &state.config.wanted_lockfile_selection())
+                .map_err(miette::Report::new)?
+        else {
+            continue;
+        };
+        let importers = std::mem::take(&mut lockfile.importers);
+        lockfile.importers = importers
+            .into_iter()
+            .map(|(importer_id, importer)| {
+                validate_importer_id(&importer_id).map_err(miette::Report::new)?;
+                let importer_dir = importer_root_dir(selected_dir, &importer_id);
+                let workspace_id =
+                    pnpm_workspace::importer_id_from_root_dir(workspace_root, &importer_dir);
+                Ok((workspace_id, importer))
+            })
+            .collect::<miette::Result<_>>()?;
+        if let Some(current) = &mut merged {
+            extend_dedicated_lockfile(current, lockfile, selected_dir)?;
+        } else {
+            merged = Some(lockfile);
+        }
+    }
+
+    if let Some(lockfile) = &merged {
+        let importer_ids: Vec<String> = lockfile.importers.keys().cloned().collect();
+        let missing = missing_importers(&required_importer_ids, &importer_ids);
+        if !missing.is_empty() {
+            return Err(missing_importers_error(&missing, "selected or reachable"));
+        }
+    }
+
+    virtual_store_dirs.sort_unstable();
+    virtual_store_dirs.dedup();
+    let mut config = state.config.clone();
+    config.lockfile_dir = Some(workspace_root.to_path_buf());
+    state.config = Config::leak(config);
+    state.lockfile = LazyLockfile::preloaded(merged);
+    Ok((state, virtual_store_dirs))
+}
+
 impl SbomArgs {
     pub async fn run(self, state: State) -> miette::Result<()> {
-        if !state.config.shared_workspace_lockfile
-            && (state.config.recursive || self.split || !state.config.filter.is_empty())
+        let (state, virtual_store_dirs) = if !state.config.shares_one_lockfile()
+            && (state.config.recursive || self.split || selectors_narrow_the_run(state.config))
         {
-            return Err(
-                RecursiveSharedLockfileUnsupported::new("Filtered and split `pnpm sbom`").into()
-            );
-        }
+            let (state, virtual_store_dirs) = merged_dedicated_lockfile_state(state)?;
+            (state, Some(virtual_store_dirs))
+        } else {
+            (state, None)
+        };
         if let Some(ref spec_ver) = self.spec_version {
             if self.format != SbomFormat::CycloneDx {
                 return Err(miette::miette!(
@@ -791,7 +1025,7 @@ impl SbomArgs {
             }
         }
 
-        let include = self.include_filter();
+        let include = self.include_filter(state.config.optional);
         let authors: Vec<String> = self
             .authors
             .as_deref()
@@ -807,30 +1041,43 @@ impl SbomArgs {
             .lockfile
             .get()
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-        let all_importer_ids: Vec<String> =
+        // `importers` is a `HashMap`, so its iteration order is arbitrary.
+        // Sorting fixes the order `--split` emits its SBOMs in, and matches
+        // the lockfile, whose importers are serialized sorted by id.
+        let mut all_importer_ids: Vec<String> =
             lockfile.as_ref().map(|lf| lf.importers.keys().cloned().collect()).unwrap_or_default();
+        all_importer_ids.sort_unstable();
 
         let all_count = all_importer_ids.len();
-        let importer_ids = if state.config.filter.is_empty() {
-            all_importer_ids
+        let importer_ids: Vec<String> = if selectors_narrow_the_run(state.config) {
+            let selected = selected_workspace_importer_ids(&state)?;
+            if selected.is_empty() {
+                // pnpm skips a command whose selectors selected nothing, so
+                // an SBOM of no project is never written.
+                let workspace_dir = notice_workspace_dir(state.config, state.project_dir());
+                println!("{}", no_projects_matched_message(workspace_dir));
+                return Ok(());
+            }
+            // Selecting through the workspace can name a project the lockfile
+            // has no importer for, which only an out-of-date lockfile
+            // produces — pnpm writes an entry for every project, `{}` for one
+            // with no dependencies. Walking what is left would answer with an
+            // SBOM that under-reports the selection's dependencies, so the run
+            // fails instead. No lockfile at all is a different failure, left
+            // to `collect_components` so it keeps its own error.
+            let missing = if lockfile.is_some() {
+                missing_importers(&selected, &all_importer_ids)
+            } else {
+                Vec::new()
+            };
+            if !missing.is_empty() {
+                return Err(missing_importers_error(&missing, "selected"));
+            }
+            // Intersecting rather than mapping the selection keeps the
+            // lockfile order established above.
+            all_importer_ids.into_iter().filter(|id| selected.contains(id)).collect()
         } else {
-            let project_root = state.lockfile_dir();
             all_importer_ids
-                .into_iter()
-                .filter(|id| {
-                    let importer_dir = if id == "." {
-                        project_root.to_string_lossy().to_string()
-                    } else {
-                        project_root.join(id).to_string_lossy().to_string()
-                    };
-                    state.config.filter.iter().any(|f| {
-                        let pattern = f.strip_prefix("./").unwrap_or(f);
-                        id == pattern
-                            || id.starts_with(&format!("{pattern}/"))
-                            || importer_dir.ends_with(pattern)
-                    })
-                })
-                .collect()
         };
 
         let should_split = self.split
@@ -860,6 +1107,7 @@ impl SbomArgs {
                     self.exclude_peers,
                     self.lockfile_only,
                     Some(&filter),
+                    virtual_store_dirs.as_deref(),
                 )?;
                 if result.root_name == "unknown" {
                     continue;
@@ -918,7 +1166,8 @@ impl SbomArgs {
             }
             let _ = stdout.flush();
         } else {
-            let filter_ids: Option<Vec<&str>> = (importer_ids.len() < all_count)
+            let filter_ids: Option<Vec<&str>> = (selectors_narrow_the_run(state.config)
+                || importer_ids.len() < all_count)
                 .then(|| importer_ids.iter().map(String::as_str).collect());
             let result = collect_components(
                 &state,
@@ -927,6 +1176,7 @@ impl SbomArgs {
                 self.exclude_peers,
                 self.lockfile_only,
                 filter_ids.as_deref(),
+                virtual_store_dirs.as_deref(),
             )?;
 
             let output = match self.format {

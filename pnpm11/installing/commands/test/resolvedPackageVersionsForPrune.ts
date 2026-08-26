@@ -12,28 +12,22 @@ const newLockfile = {
 }
 
 test('the versions of the freshly resolved lockfile', () => {
-  expect(resolvedPackageVersionsForPrune({ minimumReleaseAgeExcludePrune: true }, newLockfile))
+  expect(resolvedPackageVersionsForPrune({}, newLockfile))
     .toEqual(new Map([['foo', new Set(['1.0.0'])]]))
-})
-
-test('no versions when the setting is off', () => {
-  expect(resolvedPackageVersionsForPrune({}, newLockfile)).toBeUndefined()
-})
-
-test('no versions when the install resolved no lockfile', () => {
-  expect(resolvedPackageVersionsForPrune({ minimumReleaseAgeExcludePrune: true }, undefined)).toBeUndefined()
 })
 
 test('no versions when the lockfile is not used', () => {
   expect(resolvedPackageVersionsForPrune({
-    minimumReleaseAgeExcludePrune: true,
     lockfile: false,
   }, newLockfile)).toBeUndefined()
 })
 
 test('no versions when the lockfile is not shared by the whole workspace', () => {
   expect(resolvedPackageVersionsForPrune({
-    minimumReleaseAgeExcludePrune: true,
     sharedWorkspaceLockfile: false,
   }, newLockfile)).toBeUndefined()
+})
+
+test('no versions when no lockfile is available', () => {
+  expect(resolvedPackageVersionsForPrune({}, undefined)).toBeUndefined()
 })

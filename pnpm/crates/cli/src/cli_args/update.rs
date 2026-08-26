@@ -1,9 +1,11 @@
 use crate::{
     State,
     cli_args::{
-        pipelines::InstallFamilySelection, recursive,
+        lockfile_dir::LockfileDirArg,
+        pipelines::InstallFamilySelection,
+        recursive,
         supported_architectures::SupportedArchitecturesArgs,
-        update_interactive::InteractiveUpdateOptions,
+        update_interactive::{InteractiveUpdateOptions, UpdatePrompt},
     },
     github_actions,
 };
@@ -22,13 +24,16 @@ use std::{collections::HashSet, path::Path};
 #[derive(Debug, Clone, Args)]
 pub struct UpdateDependencyOptions {
     /// Update packages only in "dependencies" and "optionalDependencies".
-    #[clap(short = 'P', long)]
+    #[clap(short = 'P', long, visible_alias = "production")]
     prod: bool,
     /// Update packages only in "devDependencies".
     #[clap(short = 'D', long)]
     dev: bool,
+    /// Update packages only in "optionalDependencies".
+    #[clap(long, overrides_with = "no_optional")]
+    optional: bool,
     /// Don't update packages in "optionalDependencies".
-    #[clap(long)]
+    #[clap(long, overrides_with = "optional")]
     no_optional: bool,
 }
 
@@ -36,14 +41,17 @@ impl UpdateDependencyOptions {
     /// The dependency groups whose direct dependencies the update may
     /// match. Returns the groups for which the corresponding inclusion bit
     /// is set.
+    ///
+    /// This narrows what the update *matches*, not what the install that
+    /// follows it materializes: pnpm leaves the `included` set recorded in
+    /// `.modules.yaml` untouched for an update, so these flags never reach
+    /// [`Config::optional`] and friends.
     fn include_direct(&self) -> Vec<DependencyGroup> {
         // `Some(true)` only when the flag was explicitly passed: the raw
         // CLI flags are read rather than the merged config.
         let production = self.prod.then_some(true);
         let dev = self.dev.then_some(true);
-        // There is no positive `--optional` flag for update; `--no-optional`
-        // sets it to `false`, otherwise it stays unset.
-        let optional = self.no_optional.then_some(false);
+        let optional = self.optional.then_some(true).or_else(|| self.no_optional.then_some(false));
 
         let ne_true = |flag: Option<bool>| flag != Some(true);
         let dependencies = production == Some(true) || (ne_true(dev) && ne_true(optional));
@@ -82,6 +90,10 @@ pub struct UpdateArgs {
     #[clap(short = 'L', long)]
     pub latest: bool,
 
+    /// Refresh registry revisions without changing package versions.
+    #[clap(long)]
+    pub patches: bool,
+
     /// Write the resolved version without a range operator when
     /// rewriting the manifest under `--latest`.
     #[clap(short = 'E', long = "save-exact")]
@@ -100,6 +112,9 @@ pub struct UpdateArgs {
     /// Dependencies are not downloaded; only `pnpm-lock.yaml` is updated.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
+
+    #[clap(flatten)]
+    pub lockfile_dir: LockfileDirArg,
 
     /// Show outdated dependencies and select which ones to update.
     #[clap(short = 'i', long)]
@@ -132,6 +147,9 @@ pub struct UpdateArgs {
     /// pnpmfiles of config dependencies.
     #[clap(long = "ignore-pnpmfile")]
     pub ignore_pnpmfile: bool,
+
+    #[clap(skip)]
+    pub(crate) prompt: UpdatePrompt,
 }
 
 /// The option combinations `--workspace` rejects, checked before any
@@ -148,6 +166,13 @@ enum WorkspaceUpdateError {
     OutsideWorkspace,
 }
 
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "--patches cannot be combined with package selectors, --latest, --interactive, or --global"
+)]
+#[diagnostic(code(ERR_PNPM_PATCHES_WITH_SELECTOR))]
+struct PatchesWithSelectorError;
+
 impl UpdateArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
@@ -157,10 +182,12 @@ impl UpdateArgs {
         self,
         mut state: State,
     ) -> miette::Result<()> {
+        self.check_patches_options()?;
+        state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let workspace_packages = self
             .check_workspace_option(state.config.workspace_dir.as_deref())?
             .map(|workspace_root| {
-                recursive::discover_workspace_projects(workspace_root)
+                recursive::discover_workspace_projects(workspace_root, state.config)
                     .map(|(projects, _)| build_workspace_packages_map(Some(&projects)))
             })
             .transpose()?
@@ -208,6 +235,7 @@ impl UpdateArgs {
                     latest: self.latest,
                     include_direct: &include_direct,
                     include_github_actions: update_actions,
+                    prompt: self.prompt,
                 },
             )
             .await?
@@ -242,6 +270,7 @@ impl UpdateArgs {
                 lockfile_path: Some(&lockfile_path),
                 packages: &package_selectors,
                 latest: self.latest,
+                patches: self.patches,
                 save_exact: self.save_exact || config.save_exact,
                 save: !self.no_save,
                 include_direct,
@@ -272,6 +301,8 @@ impl UpdateArgs {
         mut state: State,
         selection: InstallFamilySelection,
     ) -> miette::Result<()> {
+        self.check_patches_options()?;
+        state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let workspace_packages = self
             .check_workspace_option(state.config.workspace_dir.as_deref())?
             .and_then(|_| build_workspace_packages_map(Some(&selection.projects)));
@@ -313,6 +344,7 @@ impl UpdateArgs {
                     latest: self.latest,
                     include_direct: &include_direct,
                     include_github_actions: update_actions,
+                    prompt: self.prompt,
                 },
             )
             .await?
@@ -336,6 +368,7 @@ impl UpdateArgs {
             ordered_groups,
             ordered_dirs,
             selected_dirs,
+            install_dirs,
             active_manifest_is_standin,
         } = selection;
 
@@ -351,6 +384,7 @@ impl UpdateArgs {
                 lockfile_path: Some(&lockfile_path),
                 packages: &package_selectors,
                 latest: self.latest,
+                patches: self.patches,
                 save_exact: self.save_exact || config.save_exact,
                 save: !self.no_save,
                 include_direct,
@@ -365,6 +399,7 @@ impl UpdateArgs {
                 &ordered_groups,
                 &ordered_dirs,
                 selected_dirs.as_ref(),
+                install_dirs.as_ref(),
                 active_manifest_is_standin,
             )
             .await
@@ -389,12 +424,14 @@ impl UpdateArgs {
         self,
         config: &'static Config,
     ) -> miette::Result<()> {
+        self.check_patches_options()?;
         self.check_workspace_option(None)?;
         let selected_hashes: Option<HashSet<String>> = if self.interactive {
             match crate::cli_args::update_interactive::select_global_package_groups(
                 config,
                 &self.packages,
                 self.latest,
+                self.prompt,
             )
             .await?
             {
@@ -437,6 +474,15 @@ impl UpdateArgs {
             return Err(WorkspaceUpdateError::LatestWithWorkspace.into());
         }
         workspace_root.ok_or_else(|| WorkspaceUpdateError::OutsideWorkspace.into()).map(Some)
+    }
+
+    fn check_patches_options(&self) -> miette::Result<()> {
+        if self.patches
+            && (!self.packages.is_empty() || self.latest || self.interactive || self.global)
+        {
+            return Err(PatchesWithSelectorError.into());
+        }
+        Ok(())
     }
 
     fn should_update_github_actions(

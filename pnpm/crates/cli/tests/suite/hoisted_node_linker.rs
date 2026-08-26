@@ -616,6 +616,10 @@ fn a_nested_copy_is_removed_once_its_version_wins_the_root_slot() {
     fs::create_dir_all(stale.parent().expect("scope dir")).expect("create the scope dir");
     std::os::unix::fs::symlink(fixture.workspace.join("node_modules").join(SCRIPTS), &stale)
         .expect("plant a stale link");
+    // The repeat-install short-circuit would report the unchanged
+    // workspace up to date without ever reaching the linker.
+    fs::remove_file(fixture.workspace.join("node_modules/.pnpm-workspace-state-v1.json"))
+        .expect("remove the workspace state");
     fixture.run(["install"]);
 
     assert!(!stale.exists(), "a stale project-local link must not survive a reinstall");
@@ -893,6 +897,40 @@ fn linking_bins_of_local_projects() {
     assert!(consumer.join("node_modules/.bin/project-2").exists());
 }
 
+/// The hoisted linker turns `preferSymlinkedExecutables` on by
+/// default, so on Unix `.bin` entries are symlinks to the bin file
+/// instead of shell shims — pnpm's `nodeLinker: hoisted` behavior. An
+/// explicit `preferSymlinkedExecutables: false` restores the shims.
+#[test]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
+fn hoisted_linker_symlinks_bins_by_default() {
+    for (yaml, expect_symlink) in [
+        ("nodeLinker: hoisted\n", true),
+        ("nodeLinker: hoisted\npreferSymlinkedExecutables: false\n", false),
+    ] {
+        let fixture = WorkspaceFixture::new();
+        fixture.append_workspace_yaml(yaml);
+        let consumer = fixture.project(
+            "project-1",
+            "project-1",
+            ManifestDeps { prod: &[("project-2", "workspace:*")], ..Default::default() },
+        );
+        let provider = fixture.project("project-2", "project-2", ManifestDeps::default());
+        let mut provider_manifest = read_manifest(&provider);
+        provider_manifest["bin"] = serde_json::json!({ "project-2": "index.js" });
+        write_manifest_value(&provider, &provider_manifest);
+        fs::write(provider.join("index.js"), "#!/usr/bin/env node\nconsole.log('hello')\n")
+            .expect("write project bin");
+
+        fixture.run(["install"]);
+
+        let bin = consumer.join("node_modules/.bin/project-2");
+        let is_symlink =
+            fs::symlink_metadata(&bin).expect("bin must exist").file_type().is_symlink();
+        assert_eq!(is_symlink, expect_symlink, "yaml: {yaml}");
+    }
+}
+
 /// TS: `run pre/postinstall scripts in a project that uses
 /// node-linker=hoisted. Should not fail on repeat install`
 /// (`lifecycleScripts.ts:825`).
@@ -1019,4 +1057,69 @@ fn a_directory_dependency_is_recopied_under_the_hoisted_linker() {
     );
 
     drop((root, mock_instance));
+}
+
+/// Two projects on the same `@pnpm.e2e/abc@1.0.0` but on different
+/// `peer-a` versions give the lockfile two peer variants of one package
+/// version. pnpm hoists such variants into a single root copy; nesting
+/// a second, identical copy under the project only costs disk and
+/// install time.
+///
+/// Collapsing the variants leaves only one of the two snapshot keys in
+/// the dep graph, so the package map is asserted too: a project that
+/// declared the *other* variant must still resolve the dependency it
+/// declared, through the one copy at the root.
+#[test]
+fn peer_variants_of_one_version_share_the_root_slot() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("nodeLinker: hoisted\n");
+    let deps_with_peer_a_1_0_0 = [
+        ("@pnpm.e2e/abc", "1.0.0"),
+        ("@pnpm.e2e/peer-a", "1.0.0"),
+        ("@pnpm.e2e/peer-b", "1.0.0"),
+        ("@pnpm.e2e/peer-c", "1.0.0"),
+    ];
+    let deps_with_peer_a_1_0_1 = [
+        ("@pnpm.e2e/abc", "1.0.0"),
+        ("@pnpm.e2e/peer-a", "1.0.1"),
+        ("@pnpm.e2e/peer-b", "1.0.0"),
+        ("@pnpm.e2e/peer-c", "1.0.0"),
+    ];
+    let on_peer_a_1_0_0 = fixture.project(
+        "a",
+        "a",
+        ManifestDeps { prod: &deps_with_peer_a_1_0_0, ..Default::default() },
+    );
+    let on_peer_a_1_0_1 = fixture.project(
+        "b",
+        "b",
+        ManifestDeps { prod: &deps_with_peer_a_1_0_1, ..Default::default() },
+    );
+
+    fixture.run(["install"]);
+
+    assert!(
+        is_real_dir(&fixture.workspace, "node_modules/@pnpm.e2e/abc"),
+        "the shared version holds the root slot",
+    );
+    for project in [&on_peer_a_1_0_0, &on_peer_a_1_0_1] {
+        assert!(
+            !project.join("node_modules/@pnpm.e2e/abc").exists(),
+            "a peer variant of the root version must not nest its own copy: {project:?}",
+        );
+    }
+
+    let package_map: serde_json::Value =
+        serde_json::from_str(&package_map_contents(&fixture.workspace))
+            .expect("parse the package map");
+    for project in ["a", "b"] {
+        let dependency_id = package_map["packages"][format!("../packages/{project}")]
+            ["dependencies"]["@pnpm.e2e/abc"]
+            .as_str()
+            .unwrap_or_else(|| panic!("packages/{project} declares @pnpm.e2e/abc"));
+        assert_eq!(
+            package_map["packages"][dependency_id]["url"], "./@pnpm.e2e/abc",
+            "packages/{project} resolves @pnpm.e2e/abc through the root copy",
+        );
+    }
 }

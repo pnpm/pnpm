@@ -5,6 +5,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_lockfile::ProjectSnapshot;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{AddedRoot, DependencyType, LogEvent, LogLevel, RootLog, RootMessage};
@@ -42,7 +43,7 @@ pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
     project_manifests: &[(PathBuf, &PackageManifest)],
     importers: Option<&HashMap<String, ProjectSnapshot>>,
     modules_dir_name: &std::ffi::OsStr,
-    extra_node_paths: &[String],
+    link_options: &LinkBinsOptions,
 ) -> Result<(), LinkManifestLinkDepsError> {
     // The name must be a single normal path component. The install
     // call site derives it from `config.modules_dir.file_name()`,
@@ -138,7 +139,7 @@ pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
         // targets without a `package.json` (Bit's manifest-less
         // component links), so a bin-less link is a no-op.
         if !linked_aliases.is_empty() {
-            crate::link_direct_dep_bins(&modules_dir, &linked_aliases, extra_node_paths)
+            crate::link_direct_dep_bins(&modules_dir, &linked_aliases, link_options)
                 .map_err(LinkManifestLinkDepsError::LinkBins)?;
         }
     }

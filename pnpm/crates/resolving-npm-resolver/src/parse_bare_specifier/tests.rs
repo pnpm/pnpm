@@ -8,7 +8,7 @@ use crate::{
         parse_jsr_specifier_to_registry_package_spec,
         parse_named_registry_specifier_to_registry_package_spec,
     },
-    pick_package_from_meta::RegistryPackageSpecType,
+    pick_package_from_meta::{RegistryPackageSpecType, RegistryRevisionSelector},
 };
 
 const DEFAULT_TAG: &str = "latest";
@@ -20,6 +20,50 @@ fn version_selector_classified_as_version() {
     assert_eq!(spec.name, "foo");
     assert_eq!(spec.fetch_spec, "1.0.0");
     assert_eq!(spec.spec_type, RegistryPackageSpecType::Version);
+}
+
+#[test]
+fn version_selector_drops_build_metadata() {
+    // pnpm/pnpm#14096: `@parcel/codeframe` is published as
+    // `2.0.0-canary.1718`, but dependents declare it as
+    // `2.0.0-canary.1718+d8408010f`.
+    for (selector, expected) in
+        [("1.0.0+build1", "1.0.0"), ("1.0.0-canary.1+build1", "1.0.0-canary.1")]
+    {
+        let spec = parse_bare_specifier(selector, Some("foo"), DEFAULT_TAG, REGISTRY)
+            .unwrap_or_else(|| panic!("expected a spec for {selector:?}"));
+        assert_eq!(spec.fetch_spec, expected, "for {selector:?}");
+        assert_eq!(spec.spec_type, RegistryPackageSpecType::Version, "for {selector:?}");
+    }
+}
+
+#[test]
+fn version_selector_extracts_registry_revision() {
+    for (selector, revision) in [("1.0.0+r0", 0), ("1.0.0+r42", 42)] {
+        let spec = parse_bare_specifier(selector, Some("foo"), DEFAULT_TAG, REGISTRY).unwrap();
+        assert_eq!(spec.fetch_spec, "1.0.0");
+        assert_eq!(spec.revision, Some(RegistryRevisionSelector::Valid(revision)));
+    }
+}
+
+#[test]
+fn unrelated_build_metadata_is_not_a_registry_revision() {
+    for selector in ["1.0.0+build1", "1.0.0+r1.extra", "1.0.0+rx"] {
+        let spec = parse_bare_specifier(selector, Some("foo"), DEFAULT_TAG, REGISTRY).unwrap();
+        assert_eq!(spec.revision, None, "for {selector:?}");
+    }
+}
+
+#[test]
+fn noncanonical_registry_revision_is_retained_as_invalid() {
+    for selector in ["1.0.0+r01", "1.0.0+r9007199254740992"] {
+        let spec = parse_bare_specifier(selector, Some("foo"), DEFAULT_TAG, REGISTRY).unwrap();
+        assert_eq!(
+            spec.revision,
+            Some(RegistryRevisionSelector::Invalid(selector.to_string())),
+            "for {selector:?}",
+        );
+    }
 }
 
 #[test]

@@ -2,13 +2,15 @@ use super::{
     FetchTarballForResolution, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, RetryOpts,
     SharedReportedProgressKeys,
     download::{
-        DownloadTarballToStore, download_priority, fetch_and_extract_with_retry, is_transient_error,
+        DownloadTarballToStore, download_priority, fetch_and_extract_with_retry,
+        is_transient_error, slow_download_warning,
     },
     error::{HttpStatusError, NetworkError, TarballError, VerifyChecksumError},
     extract::{
         STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD, allocate_tarball_buffer,
         apply_append_manifest, apply_placeholder_manifest, bounded_gzip_size_hint, decompress_gzip,
-        extract_tarball_entries, normalize_bundled_manifest, should_stream_extract,
+        extract_gzipped_tarball, extract_tarball_entries, gzip_isize_hint,
+        is_eager_decode_limit_exceeded, normalize_bundled_manifest, should_stream_extract,
         stream_extract_gzipped_tarball,
     },
     local_tarball::{
@@ -16,7 +18,7 @@ use super::{
         read_local_tarball_buffer, read_local_tarball_metadata,
     },
     prefetch::{PrefetchedCasPaths, prefetch_cas_paths},
-    zip_archive::extract_zip_entries,
+    zip_archive::{extract_zip_entries, write_zip_entry_to_cas},
 };
 use pipe_trait::Pipe;
 use pnpm_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, ThrottledClient, UNPRIORITIZED};
@@ -29,7 +31,7 @@ use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::{
     collections::HashMap,
-    io::{Cursor, ErrorKind},
+    io::{Cursor, ErrorKind, Read},
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -38,6 +40,39 @@ use tempfile::{TempDir, tempdir};
 
 fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")
+}
+
+#[test]
+fn formats_warning_for_slow_tarball_download() {
+    assert_eq!(
+        slow_download_warning(
+            40 * 1024,
+            Duration::from_millis(2_001),
+            50,
+            "https://user:pass@registry.example.test/pkg.tgz?token=secret#fragment\u{1b}",
+        ),
+        Some(
+            "Tarball download average speed 19 KiB/s (size 40 KiB) is below 50 KiB/s: https://registry.example.test/pkg.tgz (GET)"
+                .to_string(),
+        ),
+    );
+}
+
+#[test]
+fn does_not_warn_for_short_or_fast_tarball_download() {
+    assert_eq!(
+        slow_download_warning(1, Duration::from_secs(1), 50, "https://example.test/pkg.tgz"),
+        None,
+    );
+    assert_eq!(
+        slow_download_warning(
+            100 * 1024,
+            Duration::from_secs(2),
+            50,
+            "https://example.test/pkg.tgz",
+        ),
+        None,
+    );
 }
 
 #[test]
@@ -118,12 +153,19 @@ fn allocate_tarball_buffer_rejects_absurd_content_length() {
 /// could stall for minutes of TCP retry. One-second bounds are
 /// plenty for loopback and keep the failure mode deterministic.
 fn fast_fail_client() -> ThrottledClient {
-    let client = reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(1))
-        .timeout(std::time::Duration::from_secs(1))
-        .build()
-        .expect("build reqwest client");
-    ThrottledClient::from_client(client)
+    let build = |redirect| {
+        reqwest::Client::builder()
+            .no_proxy()
+            .connect_timeout(std::time::Duration::from_secs(1))
+            .timeout(std::time::Duration::from_secs(1))
+            .redirect(redirect)
+            .build()
+            .expect("build reqwest client")
+    };
+    ThrottledClient::from_clients(
+        build(reqwest::redirect::Policy::limited(10)),
+        build(reqwest::redirect::Policy::none()),
+    )
 }
 
 /// Pin `walk_reqwest_chain`'s contract: a `NetworkError` formed
@@ -134,16 +176,15 @@ fn fast_fail_client() -> ThrottledClient {
 /// which is what triggered the original "what's actually failing?"
 /// debugging round on this branch.
 ///
-/// Uses `127.0.0.1:1` (port 1 is reserved; connect always fails
-/// with a deterministic ECONNREFUSED on every host I've tried)
-/// and [`fast_fail_client`]'s 1 s bounds, so the test stays
-/// hermetic and quick.
+/// Uses `127.0.0.1:1` and [`fast_fail_client`]'s 1 s bounds. A
+/// firewalled runner may time out instead of refusing the connection.
 #[tokio::test]
 async fn network_error_display_includes_reqwest_inner_chain() {
-    let url = "http://127.0.0.1:1/whatever";
+    let url = "http://127.0.0.1:1/ssl-package.tgz";
     let client = fast_fail_client();
     let err =
         client.acquire().await.get(url).send().await.expect_err("connecting to port 1 must fail");
+    let expected_code = if err.is_timeout() { "ETIMEDOUT" } else { "ECONNREFUSED" };
     let net_err = NetworkError { url: url.to_string(), error: err };
 
     let rendered = net_err.to_string();
@@ -177,6 +218,9 @@ async fn network_error_display_includes_reqwest_inner_chain() {
         std::error::Error::source(&net_err).is_some(),
         "NetworkError should expose its reqwest::Error as source",
     );
+    let details = TarballError::FetchTarball(net_err).fetch_error_details();
+    assert_eq!(details.code.as_deref(), Some(expected_code));
+    assert_eq!(details.status, None);
 }
 
 /// Default `RetryOpts` for unit tests. We don't want the suite to
@@ -218,6 +262,7 @@ async fn packages_under_orgs_should_work() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&integrity("sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),
         package_unpacked_size: Some(16697),
         package_file_count: None,
@@ -283,6 +328,7 @@ async fn network_fetch_records_progress_key() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: Some(16697),
         package_file_count: None,
@@ -320,6 +366,7 @@ async fn should_throw_error_on_checksum_mismatch() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&integrity("sha512-aaaan1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),
         package_unpacked_size: Some(16697),
         package_file_count: None,
@@ -381,6 +428,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: Some(false),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -394,12 +442,13 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
     // key to prevent a later warm/cold pass from counting the same
     // package status again.
     let progress_reported = SharedReportedProgressKeys::default();
-    let cas_paths = DownloadTarballToStore {
+    let download = DownloadTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -418,10 +467,11 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         offline: false,
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
         append_manifest: None,
-    }
-    .run_without_mem_cache::<SilentReporter>()
-    .await
-    .expect("cache hit should succeed without network");
+    };
+    let cas_paths = download
+        .run_without_mem_cache::<SilentReporter>()
+        .await
+        .expect("cache hit should succeed without network");
 
     assert_eq!(cas_paths.len(), 2);
     assert_eq!(cas_paths.get("package.json"), Some(&pkg_json_path));
@@ -430,6 +480,11 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         progress_reported.contains(&index_key),
         "a store cache hit must record its progress key; got {progress_reported:?}",
     );
+    let error = download
+        .fetch_and_extract::<SilentReporter>()
+        .await
+        .expect_err("an explicit fetch must read the requested URL despite the cached digest");
+    assert!(matches!(error, TarballError::FetchTarball(_)), "{error}");
 
     drop(store_dir);
 }
@@ -472,6 +527,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -526,6 +582,7 @@ async fn prefetch_cas_paths_returns_hits_for_live_index_rows() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: Some(false),
+        requires_prepare: Some(true),
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -546,6 +603,7 @@ async fn prefetch_cas_paths_returns_hits_for_live_index_rows() {
     let map = prefetched.cas_paths.get(&index_key).expect("hit");
     assert_eq!(map.get("package.json"), Some(&pkg_json_path));
     assert_eq!(prefetched.requires_build.get(&index_key), Some(&false));
+    assert_eq!(prefetched.requires_prepare.get(&index_key), Some(&true));
     drop(store_dir);
 }
 
@@ -575,6 +633,7 @@ async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
     let entry = PackageFilesIndex {
         manifest: Some(serde_json::from_slice(manifest_bytes).unwrap()),
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -628,6 +687,7 @@ async fn prefetch_cas_paths_omits_failed_integrity_entries() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: Some(false),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -688,6 +748,7 @@ async fn prefetch_cas_paths_skips_filesystem_checks_when_verify_disabled() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: Some(false),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -740,6 +801,7 @@ async fn falls_through_when_cafs_file_missing() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -754,6 +816,7 @@ async fn falls_through_when_cafs_file_missing() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -775,6 +838,152 @@ async fn falls_through_when_cafs_file_missing() {
     assert!(
         matches!(err, TarballError::FetchTarball(_)),
         "expected fall-through to network fetch, got: {err:?}",
+    );
+
+    drop(store_dir);
+}
+
+/// Write one store-index row whose bundled manifest names
+/// `other-package@9.9.9`, keyed for `fake@1.0.0`.
+fn seed_row_holding_another_package(store_path: &StoreDir, index_key: &str) {
+    let mut files = HashMap::new();
+    files.insert(
+        "package.json".to_string(),
+        CafsFileInfo { digest: "0".repeat(128), mode: 0o644, size: 0, checked_at: None },
+    );
+    let entry = PackageFilesIndex {
+        manifest: Some(serde_json::json!({ "name": "other-package", "version": "9.9.9" })),
+        requires_build: None,
+        requires_prepare: None,
+        algo: "sha512".to_string(),
+        files,
+        side_effects: None,
+    };
+    let index = StoreIndex::open_in(store_path).unwrap();
+    index.set(index_key, &entry).unwrap();
+    drop(index);
+}
+
+/// A lockfile that pairs an integrity with the wrong package, or a
+/// registry serving a tarball that isn't what its metadata says, leaves
+/// a store row whose `package.json` names another package. Reusing it
+/// would install that other package under this name, so the read fails
+/// instead — pnpm's `ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE`.
+#[tokio::test]
+async fn store_row_holding_another_package_fails_the_read() {
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+
+    let pkg_integrity = integrity(
+        "sha512-q/IXcMGuF8v7ZLf/JeYfE/pB4Wg1yxT6jXJz8JxRK7a4mJSXV1QKMXDPfZkvMHTZpYxWBDoJiXtptDWFnoCA2w==",
+    );
+    let pkg_id = "fake@1.0.0";
+    let index_key = store_index_key(&pkg_integrity.to_string(), pkg_id);
+    seed_row_holding_another_package(store_path, &index_key);
+
+    let err = DownloadTarballToStore {
+        http_client: &fast_fail_client(),
+        store_dir: store_path,
+        store_index: StoreIndex::shared_readonly_in(store_path),
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        package_integrity: Some(&pkg_integrity),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: "http://127.0.0.1:1/unreachable.tgz",
+        package_id: pkg_id,
+        requester: "",
+        prefetched_cas_paths: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: None,
+        append_manifest: None,
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .expect_err("a row holding another package must not be reused");
+    let TarballError::UnexpectedPkgContentInStore { hint } = &err else {
+        panic!("expected an unexpected-content error, got: {err:?}");
+    };
+    assert!(hint.contains("Expected package: fake@1.0.0."), "{hint}");
+    assert!(hint.contains("Actual package in the store: other-package@9.9.9."), "{hint}");
+
+    drop(store_dir);
+}
+
+/// `strictStorePkgContentCheck: false` downgrades the same
+/// disagreement to a warning and installs from the row anyway.
+#[tokio::test]
+async fn store_row_holding_another_package_only_warns_when_not_strict() {
+    use std::sync::Mutex;
+
+    use pnpm_reporter::LogEvent;
+
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+
+    struct RecordingReporter;
+    impl pnpm_reporter::Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+
+    let pkg_integrity = integrity(
+        "sha512-q/IXcMGuF8v7ZLf/JeYfE/pB4Wg1yxT6jXJz8JxRK7a4mJSXV1QKMXDPfZkvMHTZpYxWBDoJiXtptDWFnoCA2w==",
+    );
+    let pkg_id = "fake@1.0.0";
+    let index_key = store_index_key(&pkg_integrity.to_string(), pkg_id);
+    seed_row_holding_another_package(store_path, &index_key);
+
+    EVENTS.lock().unwrap().clear();
+    let cas_paths = DownloadTarballToStore {
+        http_client: &fast_fail_client(),
+        store_dir: store_path,
+        store_index: StoreIndex::shared_readonly_in(store_path),
+        store_index_writer: None,
+        // The row's blob was never written to disk, so the reuse this
+        // asserts is only reachable with verification off.
+        verify_store_integrity: false,
+        strict_store_pkg_content_check: false,
+        package_integrity: Some(&pkg_integrity),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: "http://127.0.0.1:1/unreachable.tgz",
+        package_id: pkg_id,
+        requester: "",
+        prefetched_cas_paths: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: None,
+        append_manifest: None,
+    }
+    .run_without_mem_cache::<RecordingReporter>()
+    .await
+    .expect("without the strict check the row is still used");
+    assert!(cas_paths.contains_key("package.json"));
+
+    let warnings: Vec<String> = EVENTS
+        .lock()
+        .unwrap()
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Global(log) => Some(log.message.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(
+        warnings[0]
+            .starts_with("Package name or version mismatch found while reading from the store."),
+        "{warnings:?}",
     );
 
     drop(store_dir);
@@ -802,6 +1011,7 @@ async fn falls_through_when_digest_is_malformed() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -816,6 +1026,7 @@ async fn falls_through_when_digest_is_malformed() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -869,6 +1080,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -883,6 +1095,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -946,6 +1159,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -960,6 +1174,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -1180,6 +1395,123 @@ fn extract_tarball_reads_a_manifest_that_starts_with_a_utf8_bom() {
 
     assert_eq!(pkg_files_idx.requires_build, Some(true));
     assert!(pkg_files_idx.manifest.is_some(), "the bundled manifest must be recorded");
+    drop(tempdir);
+}
+
+/// Build a gzipped tar that inflates to more than
+/// [`MAX_UNTRUSTED_PREALLOC_BYTES`] from a compressed body small enough
+/// that [`should_stream_extract`] sees nothing suspicious about it — the
+/// gzip bomb the eager decode ceiling exists for.
+///
+/// `generated` entries are `(path, size)` pairs of filler produced
+/// straight into the encoder, so the archive only ever exists
+/// compressed; `verbatim` entries carry their own bytes.
+fn gzip_bomb_tarball(generated: &[(&str, u64)], verbatim: &[(&str, &[u8])]) -> Vec<u8> {
+    fn header(size: u64) -> tar::Header {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(size);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_cksum();
+        header
+    }
+
+    let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    let mut builder = tar::Builder::new(encoder);
+    for &(path, size) in generated {
+        builder
+            .append_data(&mut header(size), path, std::io::repeat(b'a').take(size))
+            .expect("append generated entry");
+    }
+    for &(path, bytes) in verbatim {
+        builder
+            .append_data(&mut header(bytes.len() as u64), path, bytes)
+            .expect("append verbatim entry");
+    }
+    builder.into_inner().expect("finish tar").finish().expect("finish gzip")
+}
+
+/// Nothing an archive says about itself bounds what it decodes to:
+/// `dist.unpackedSize` is the publisher's claim and the compressed
+/// length says nothing about the ratio, so the eager decode measures the
+/// archive itself and stops at the ceiling.
+#[test]
+fn decompress_gzip_stops_at_the_eager_ceiling() {
+    let bomb =
+        gzip_bomb_tarball(&[("package/bomb.bin", MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)], &[]);
+    assert!(
+        !should_stream_extract(bomb.len(), None),
+        "the compressed body must look small enough to route to the eager path",
+    );
+
+    let err = decompress_gzip(&bomb, None).expect_err("the archive must not inflate past the cap");
+    assert!(is_eager_decode_limit_exceeded(&err), "expected an output-limit refusal, got {err:?}");
+    assert!(is_transient_error(&err), "a decode failure must remain retryable");
+}
+
+/// A lockfile records no unpacked size, so on a frozen install the
+/// archive's own gzip trailer is the only claim about it there is — and
+/// a good enough one to route a large archive straight to the streaming
+/// extractor instead of discovering its size by decoding it twice.
+#[test]
+fn gzip_isize_hint_routes_a_large_archive_before_it_is_decoded() {
+    let bomb =
+        gzip_bomb_tarball(&[("package/bomb.bin", MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)], &[]);
+    let hint = gzip_isize_hint(&bomb).expect("a gzip stream carries an unpacked size");
+    assert!(
+        hint > MAX_UNTRUSTED_PREALLOC_BYTES,
+        "the trailer must report the archive's real size, got {hint}",
+    );
+    assert!(should_stream_extract(bomb.len(), Some(hint)));
+
+    assert_eq!(gzip_isize_hint(b"not a gzip stream at all"), None);
+    // Faked magic over garbage: the trailer of a body that cannot decode
+    // is not a size, and reading it as one would route the body away
+    // from the path whose error says it is not a gzip stream.
+    let mut faked = vec![0x1f_u8, 0x8b];
+    faked.extend(std::iter::repeat_n(0xa5_u8, 64));
+    assert_eq!(gzip_isize_hint(&faked), None);
+}
+
+/// Reaching the eager decode ceiling refuses no package: an archive that
+/// under-reports its unpacked size takes the eager path, exceeds the
+/// ceiling, and is extracted in full by the streaming extractor, which
+/// holds a bounded window of it rather than the whole thing.
+#[test]
+fn extract_gzipped_tarball_streams_an_archive_past_the_eager_ceiling() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let payload_size = MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1;
+    let mut bomb = gzip_bomb_tarball(
+        &[("package/bomb.bin", payload_size), ("package/tail.txt", 3)],
+        &[("package/package.json", br#"{"name":"bomb"}"#)],
+    );
+    // Rewrite the trailer's unpacked size so nothing warns the router
+    // ahead of the decode — the shape a bomb takes once the trailer is
+    // a signal.
+    let trailer = bomb.len() - 4;
+    bomb[trailer..].copy_from_slice(&1024_u32.to_le_bytes());
+    assert!(
+        !should_stream_extract(bomb.len(), gzip_isize_hint(&bomb)),
+        "the fixture must look small enough to route to the eager path",
+    );
+
+    let (cas_paths, pkg_files_idx) = extract_gzipped_tarball(&bomb, None, store_path, None)
+        .expect("an archive past the eager ceiling must still extract");
+
+    dbg!(cas_paths.keys().collect::<Vec<_>>());
+    assert_eq!(pkg_files_idx.files["bomb.bin"].size, payload_size);
+    assert_eq!(
+        std::fs::metadata(&cas_paths["bomb.bin"]).expect("stat the streamed entry").len(),
+        payload_size,
+        "the oversized entry must land in the CAS in full",
+    );
+    assert_eq!(
+        std::fs::read(&cas_paths["tail.txt"]).expect("read the trailing entry"),
+        b"aaa",
+        "entries after the oversized one must still be extracted",
+    );
+
     drop(tempdir);
 }
 
@@ -1558,6 +1890,7 @@ async fn download_pipeline_extracts_via_streaming_path_for_large_unpacked_hint()
             &AuthHeaders::default(),
             None,
             None,
+            false,
         )
         .await
         .expect("download with a large unpacked-size hint");
@@ -1733,6 +2066,31 @@ async fn read_local_tarball_metadata_reads_integrity_and_bundled_manifest() {
     assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("3.3.0"));
 }
 
+/// A `file:` tarball is read to learn the name and version its
+/// specifier does not carry, so the eager decode ceiling must not turn
+/// a large local archive into an unresolvable dependency: past the
+/// ceiling the manifest is found by streaming instead.
+#[tokio::test]
+async fn read_local_tarball_metadata_reads_a_manifest_past_the_eager_ceiling() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+
+    let archive = gzip_bomb_tarball(
+        &[("package/payload.bin", MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)],
+        &[("package/package.json", br#"{"name":"huge","version":"1.0.0"}"#)],
+    );
+    std::fs::write(&tarball_path, &archive).unwrap();
+
+    let metadata = read_local_tarball_metadata(&tarball_path)
+        .await
+        .expect("an archive past the eager ceiling must still resolve");
+
+    let manifest = metadata.manifest.expect("bundled manifest");
+    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("huge"));
+    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("1.0.0"));
+    assert!(metadata.has_manifest_entry);
+}
+
 /// The manifest is the package's only source of identity here, so an
 /// unparsable one fails the resolve rather than degrading to `None` —
 /// matching how pnpm rejects the same tarball.
@@ -1829,43 +2187,65 @@ async fn read_local_tarball_metadata_reports_a_missing_file_as_not_found() {
 }
 
 #[tokio::test]
-async fn run_without_mem_cache_reads_local_file_tarball() {
+async fn fetch_and_extract_records_expected_or_computed_integrity() {
     let local_dir = tempdir().unwrap();
     let tarball_path = local_dir.path().join("pkg.tgz");
     std::fs::write(&tarball_path, FASTIFY_ERROR_TARBALL).unwrap();
 
-    let (store_dir, store_path) = tempdir_with_leaked_path();
     let package_url = format!("file:{}", tarball_path.display());
     let client = fast_fail_client();
-    let package_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
-    let cas_paths = DownloadTarballToStore {
-        http_client: &client,
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        package_integrity: Some(&package_integrity),
-        package_unpacked_size: Some(16697),
-        package_file_count: None,
-        package_url: &package_url,
-        package_id: "@fastify/error@3.3.0",
-        requester: "",
-        prefetched_cas_paths: None,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
-        ignore_file_pattern: None,
-        offline: true,
-        progress_reported: None,
-        append_manifest: None,
+    let mut sha1 = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha1);
+    sha1.input(FASTIFY_ERROR_TARBALL);
+    let sha1 = sha1.result();
+    let sha512 = integrity(FASTIFY_ERROR_INTEGRITY);
+    let package_id = "@fastify/error@3.3.0";
+    for package_integrity in [Some(&sha1), None] {
+        let expected = package_integrity.unwrap_or(&sha512);
+        let (store_dir, store_path) = tempdir_with_leaked_path();
+        let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
+        let result = DownloadTarballToStore {
+            http_client: &client,
+            store_dir: store_path,
+            store_index: None,
+            store_index_writer: Some(Arc::clone(&writer)),
+            verify_store_integrity: true,
+            strict_store_pkg_content_check: true,
+            package_integrity,
+            package_unpacked_size: Some(16697),
+            package_file_count: None,
+            package_url: &package_url,
+            package_id,
+            requester: "",
+            prefetched_cas_paths: None,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            retry_opts: test_retry_opts(),
+            auth_headers: &AuthHeaders::default(),
+            ignore_file_pattern: None,
+            offline: true,
+            progress_reported: None,
+            append_manifest: None,
+        }
+        .fetch_and_extract::<SilentReporter>()
+        .await
+        .expect("local tarballs should be read from disk without network access");
+
+        assert_eq!(&result.integrity, expected);
+        let manifest = result.manifest.expect("bundled manifest");
+        assert_eq!(manifest["name"], "@fastify/error");
+        assert_eq!(manifest["version"], "3.3.0");
+        assert!(!result.requires_build, "fixture has no install script");
+        assert!(result.files_map.contains_key("package.json"));
+
+        drop(writer);
+        writer_task.await.expect("writer task").expect("writer flushed");
+        let index = StoreIndex::open_in(store_path).expect("open store index");
+        let key = store_index_key(&expected.to_string(), package_id);
+        assert_eq!(index.keys().expect("read index keys"), vec![key.clone()]);
+        let entry = index.get(&key).expect("read index entry").expect("archive is indexed");
+        assert_eq!(entry.manifest, Some(manifest));
+        assert_eq!(entry.requires_build, Some(false));
+        drop((index, store_dir));
     }
-    .run_without_mem_cache::<SilentReporter>()
-    .await
-    .expect("local tarballs should be read from disk without network access");
-
-    assert!(cas_paths.contains_key("package.json"));
-
-    drop((store_dir, local_dir));
 }
 
 /// A resolution that pins no integrity is downloaded unverified, and
@@ -1889,6 +2269,7 @@ async fn run_without_mem_cache_fetches_unverified_and_writes_no_index_row() {
         store_index: None,
         store_index_writer: Some(Arc::clone(&writer)),
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         package_integrity: None,
         package_unpacked_size: None,
         package_file_count: None,
@@ -1949,6 +2330,7 @@ async fn retries_then_succeeds_on_transient_5xx() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect("transient 503 should be followed by a successful retry");
@@ -1957,6 +2339,209 @@ async fn retries_then_succeeds_on_transient_5xx() {
     assert!(cas_paths.contains_key("package.json"));
     fail.assert_async().await;
     ok.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn revision_addressed_tarball_does_not_retry_a_transient_failure() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let digest = "A".repeat(86);
+    let path = format!("/-/tarballs/sha512/{digest}");
+    let mock = server.mock("GET", path.as_str()).with_status(503).expect(1).create_async().await;
+    let url = format!("{}{path}", server.url());
+    let expected = integrity(&format!("sha512-{digest}=="));
+
+    let err = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&expected),
+        None,
+        0,
+        "test-pkg",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+        true,
+    )
+    .await
+    .expect_err("a revision-addressed 503 must fail after one request");
+
+    assert!(matches!(err, TarballError::HttpStatus(_)), "got {err:?}");
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn revision_addressed_tarball_does_not_follow_a_redirect() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let digest = "A".repeat(86);
+    let path = format!("/-/tarballs/sha512/{digest}");
+    let redirect = server
+        .mock("GET", path.as_str())
+        .with_status(302)
+        .with_header("location", "/redirected.tgz")
+        .expect(1)
+        .create_async()
+        .await;
+    let redirected = server
+        .mock("GET", "/redirected.tgz")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(0)
+        .create_async()
+        .await;
+    let url = format!("{}{path}", server.url());
+    let expected = integrity(&format!("sha512-{digest}=="));
+
+    let err = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&expected),
+        None,
+        0,
+        "test-pkg",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+        true,
+    )
+    .await
+    .expect_err("a revision-addressed redirect must not be followed");
+
+    assert!(matches!(err, TarballError::HttpStatus(_)), "got {err:?}");
+    redirect.assert_async().await;
+    redirected.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn revision_addressed_mem_cache_does_not_retry_a_failed_prefetch() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let digest = "A".repeat(86);
+    let path = format!("/-/tarballs/sha512/{digest}");
+    let mock = server.mock("GET", path.as_str()).with_status(503).expect(1).create_async().await;
+    let url = format!("{}{path}", server.url());
+    let expected = integrity(&format!("sha512-{digest}=="));
+    let client = ThrottledClient::default();
+    let mem_cache = MemCache::default();
+    let auth_headers = AuthHeaders::default();
+    let verified_files_cache = SharedVerifiedFilesCache::default();
+    let download = || DownloadTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+        package_integrity: Some(&expected),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: &url,
+        package_id: "test-pkg",
+        requester: "",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &auth_headers,
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: None,
+        append_manifest: None,
+    };
+
+    let (first, second) = futures_util::future::join(
+        download().run_revision_addressed_with_mem_cache::<SilentReporter>(&mem_cache),
+        download().run_revision_addressed_with_mem_cache::<SilentReporter>(&mem_cache),
+    )
+    .await;
+    let first = first.expect_err("the first revision-addressed consumer must fail");
+    let second = second.expect_err("the second revision-addressed consumer must fail");
+    assert!(
+        matches!(&first, TarballError::HttpStatus(_))
+            && matches!(&second, TarballError::SiblingFetchFailed { .. })
+            || matches!(&second, TarballError::HttpStatus(_))
+                && matches!(&first, TarballError::SiblingFetchFailed { .. }),
+        "one consumer must own the request and the other inherit its failure; got {first:?} and {second:?}",
+    );
+
+    let later = download()
+        .run_revision_addressed_with_mem_cache::<SilentReporter>(&mem_cache)
+        .await
+        .expect_err("a later consumer must inherit the terminal failure");
+    assert!(matches!(later, TarballError::SiblingFetchFailed { .. }), "got {later:?}");
+
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn revision_addressed_mem_cache_does_not_reuse_a_redirect_permitting_fetch() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let redirect = server
+        .mock("GET", "/-/tarballs/sha512/digest")
+        .with_status(302)
+        .with_header("location", "/redirected.tgz")
+        .expect(2)
+        .create_async()
+        .await;
+    let redirected = server
+        .mock("GET", "/redirected.tgz")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(1)
+        .create_async()
+        .await;
+    let url = format!("{}/-/tarballs/sha512/digest", server.url());
+    let expected = integrity(FASTIFY_ERROR_INTEGRITY);
+    let client = ThrottledClient::default();
+    let mem_cache = MemCache::default();
+    let auth_headers = AuthHeaders::default();
+    let verified_files_cache = SharedVerifiedFilesCache::default();
+    let download = || DownloadTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+        package_integrity: Some(&expected),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: &url,
+        package_id: "test-pkg",
+        requester: "",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &auth_headers,
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: None,
+        append_manifest: None,
+    };
+
+    download()
+        .run_with_mem_cache::<SilentReporter>(&mem_cache)
+        .await
+        .expect("an ordinary fetch may follow the redirect");
+    let err = download()
+        .run_revision_addressed_with_mem_cache::<SilentReporter>(&mem_cache)
+        .await
+        .expect_err("a revision fetch must make its own request and reject the redirect");
+
+    assert!(matches!(err, TarballError::HttpStatus(_)), "got {err:?}");
+    redirect.assert_async().await;
+    redirected.assert_async().await;
     drop(store_dir_keep);
 }
 
@@ -1994,6 +2579,7 @@ async fn retries_integrity_mismatch_until_exhausted() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect_err("integrity mismatch should exhaust the retry budget");
@@ -2249,6 +2835,7 @@ async fn fails_fast_on_404() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect_err("404 must fail-fast without retry");
@@ -2288,6 +2875,7 @@ async fn retries_other_4xx_codes() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect_err("non-401/403/404 4xx should exhaust the retry budget");
@@ -2322,6 +2910,7 @@ async fn retry_exhaustion_returns_last_error() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect_err("permanent 500s should exhaust the retry budget");
@@ -2436,6 +3025,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     store_index: None,
                     store_index_writer: None,
                     verify_store_integrity: true,
+                    strict_store_pkg_content_check: true,
                     package_integrity: Some(pkg_integrity),
                     package_unpacked_size: None,
                     package_file_count: None,
@@ -2521,6 +3111,7 @@ async fn zero_retries_makes_a_single_attempt() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect_err("retries=0 must surface the first failure");
@@ -2568,6 +3159,7 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
         &auth_headers,
         None,
         None,
+        false,
     )
     .await
     .expect("server should accept the request once the bearer header is attached");
@@ -2610,6 +3202,7 @@ async fn fetch_attaches_authorization_header_when_scope_creds_match_package_id()
         &auth_headers,
         None,
         None,
+        false,
     )
     .await
     .expect("server should accept the request once the scoped bearer header is attached");
@@ -2666,6 +3259,7 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
         &auth_headers,
         None,
         None,
+        false,
     )
     .await
     .expect("retry attempt should also carry the bearer header");
@@ -2731,6 +3325,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -2761,6 +3356,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -2858,6 +3454,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -2897,6 +3494,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -2980,6 +3578,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::default(),
         package_integrity: Some(pkg_integrity),
         package_unpacked_size: None,
@@ -3096,6 +3695,7 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect("transient 503 should be followed by a successful retry");
@@ -3188,6 +3788,7 @@ async fn started_fires_for_connection_level_failures() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect_err("connect-refused must surface as a TarballError");
@@ -3268,6 +3869,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         store_index: None,
         store_index_writer: Some(Arc::clone(&writer)),
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -3309,6 +3911,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         store_index: Some(store_index),
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -3403,6 +4006,7 @@ async fn request_retry_event_fires_per_retried_attempt() {
         &AuthHeaders::default(),
         None,
         None,
+        false,
     )
     .await
     .expect("transient 503 should be followed by a successful retry");
@@ -3670,6 +4274,94 @@ fn extract_zip_normalizes_dot_segments_in_entry_paths() {
     drop(tempdir);
 }
 
+/// A source that keeps producing bytes, counting how many were taken
+/// from it. `cap` is a safety net for the very regression under test: a
+/// caller that forgets to bound its read gets an error instead of an
+/// endless loop, and the byte count says what happened.
+struct EndlessReader {
+    bytes_read: u64,
+    cap: u64,
+}
+
+impl Read for EndlessReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.bytes_read >= self.cap {
+            return Err(std::io::Error::other("test reader ran past its safety cap"));
+        }
+        let take = buf.len().min(usize::try_from(self.cap - self.bytes_read).unwrap_or(usize::MAX));
+        buf[..take].fill(b'x');
+        self.bytes_read += take as u64;
+        Ok(take)
+    }
+}
+
+/// A zip entry's decompressed size is a claim in the central directory,
+/// not a limit the deflate stream behind it respects. An entry that
+/// keeps producing bytes past what it declared is the zip bomb: it must
+/// be rejected, and the read must stop rather than following the stream
+/// to wherever it ends — on the buffered and the direct-to-store branch
+/// alike.
+#[test]
+fn write_zip_entry_to_cas_stops_reading_an_entry_longer_than_it_claims() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    for declared_size in [16, STREAM_ENTRY_BUFFER_MAX + 1] {
+        let mut liar = EndlessReader { bytes_read: 0, cap: declared_size * 8 };
+        let err = write_zip_entry_to_cas(
+            &mut liar,
+            declared_size,
+            "https://example.test/bomb.zip",
+            "big.bin",
+            store_path,
+            false,
+        )
+        .expect_err("an entry that outruns its declared size must be rejected");
+        assert!(
+            matches!(err, TarballError::ReadZipEntries { .. }),
+            "expected ReadZipEntries for declared_size {declared_size}, got {err:?}",
+        );
+        assert!(
+            liar.bytes_read <= declared_size + 1,
+            "the read must stop just past the declared {declared_size} bytes, took {}",
+            liar.bytes_read,
+        );
+    }
+
+    drop(tempdir);
+}
+
+/// The counterpart of the rejection above: a truthful entry past the
+/// buffering ceiling streams into the CAS in full, so bounding the read
+/// costs a runtime archive's biggest member nothing.
+#[test]
+fn write_zip_entry_to_cas_streams_a_truthful_oversized_entry() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let declared_size = STREAM_ENTRY_BUFFER_MAX + 1;
+    let mut payload = std::io::repeat(b'x').take(declared_size);
+    let (file_path, _, size) = write_zip_entry_to_cas(
+        &mut payload,
+        declared_size,
+        "https://example.test/runtime.zip",
+        "bin/node",
+        store_path,
+        true,
+    )
+    .expect("an oversized entry must stream into the store");
+
+    assert_eq!(size, declared_size);
+    assert_eq!(
+        std::fs::metadata(&file_path).expect("stat the streamed entry").len(),
+        declared_size,
+    );
+    assert!(
+        file_path.to_string_lossy().ends_with("-exec"),
+        "executable entries must keep the -exec CAS suffix on the streaming branch",
+    );
+
+    drop(tempdir);
+}
+
 /// `offline: true` short-circuits the fetcher before any network
 /// request when the package isn't in the local store. Mocks a server
 /// with `.expect(0)` so the assertion fires *only* if the fetcher
@@ -3697,6 +4389,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::default(),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -3770,6 +4463,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
         verified_files_cache: SharedVerifiedFilesCache::default(),
         package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
@@ -4215,6 +4909,7 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
             &AuthHeaders::default(),
             None,
             None,
+            false,
         )
         .await
         .expect("the download should succeed");
@@ -4245,6 +4940,304 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
         "a tarball under the threshold must not report per-chunk progress",
     );
 
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn streaming_download_extracts_a_big_pinned_tarball() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let body = incompressible_tarball(5 * 1024 * 1024);
+    let pinned = Integrity::from(&body);
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(body.clone())
+        .expect(1)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    let (verified, cas_paths, files_idx) = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&pinned),
+        None,
+        0,
+        "noise@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+        false,
+    )
+    .await
+    .expect("a well-formed pinned tarball must download and extract");
+    mock.assert_async().await;
+
+    assert_eq!(verified.to_string(), pinned.to_string(), "the pinned integrity is what verifies");
+
+    let (reference_keep, reference_store) = tempdir_with_leaked_path();
+    let (reference_paths, reference_idx) =
+        stream_extract_gzipped_tarball(&body, reference_store, None)
+            .expect("the reference extraction of the same bytes must succeed");
+    assert_eq!(
+        cas_paths.keys().collect::<std::collections::BTreeSet<_>>(),
+        reference_paths.keys().collect::<std::collections::BTreeSet<_>>(),
+        "the streaming path must materialize the same entries",
+    );
+    // `checked_at` is stamped at write time; everything else must match.
+    let strip_checked_at = |mut idx: PackageFilesIndex| {
+        for info in idx.files.values_mut() {
+            info.checked_at = None;
+        }
+        idx
+    };
+    assert_eq!(
+        strip_checked_at(files_idx),
+        strip_checked_at(reference_idx),
+        "the streaming path must index the same file hashes",
+    );
+
+    drop(reference_keep);
+    drop(store_dir_keep);
+}
+
+/// A chunked response advertises no length, so nothing decides up front
+/// that its body is large — the buffered path has to notice while it
+/// runs. Past the point where the archive would be extracted as a stream
+/// anyway, it is, and the download completes as it would have with a
+/// `Content-Length`.
+#[tokio::test]
+async fn chunked_download_extracts_a_body_past_the_buffering_threshold() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let body = incompressible_tarball(STREAM_EXTRACT_COMPRESSED_THRESHOLD);
+    assert!(
+        body.len() > STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+        "the body must outgrow the buffering threshold to exercise the handover",
+    );
+    let pinned = Integrity::from(&body);
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_chunked_body(move |writer| writer.write_all(&body))
+        .expect(1)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    let (verified, cas_paths, _) = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&pinned),
+        None,
+        0,
+        "noise@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+        false,
+    )
+    .await
+    .expect("a chunked body must download and extract");
+    mock.assert_async().await;
+
+    assert_eq!(verified.to_string(), pinned.to_string());
+    assert!(cas_paths.contains_key("noise.bin"), "got {:?}", cas_paths.keys().collect::<Vec<_>>());
+    drop(store_dir_keep);
+}
+
+/// A body that never was an archive still has to be read to its end
+/// before it can be judged: whether it hashes to the pinned integrity is
+/// what decides between "someone tampered with this download" and "this
+/// package is not a gzip stream". Dropping the bytes instead of keeping
+/// them must not change which of the two is reported.
+#[tokio::test]
+async fn oversized_non_gzip_body_reports_the_integrity_verdict_first() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let body = vec![b'n'; STREAM_EXTRACT_COMPRESSED_THRESHOLD + (1 << 16)];
+    let matching = Integrity::from(&body);
+    let wrong = Integrity::from(b"the body the registry was supposed to serve");
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(body)
+        .expect(6)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    async fn fetch_err(
+        url: &str,
+        pinned: &Integrity,
+        store_path: &'static StoreDir,
+    ) -> TarballError {
+        fetch_and_extract_with_retry::<SilentReporter>(
+            &ThrottledClient::default(),
+            url,
+            Some(pinned),
+            None,
+            0,
+            "noise@1.0.0",
+            "",
+            store_path,
+            fast_retry_opts(),
+            &AuthHeaders::default(),
+            None,
+            None,
+            false,
+        )
+        .await
+        .expect_err("a body that is not an archive must fail")
+    }
+
+    let err = fetch_err(&url, &wrong, store_path).await;
+    assert!(
+        matches!(err, TarballError::Checksum(_)),
+        "a body that does not hash to the pinned integrity must report that, got {err:?}",
+    );
+
+    let err = fetch_err(&url, &matching, store_path).await;
+    assert!(
+        matches!(err, TarballError::DecodeGzip(_)),
+        "a body that hashes correctly but is not gzip must report the decode failure, got {err:?}",
+    );
+
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn streaming_download_integrity_mismatch_retries_and_fails() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let body = incompressible_tarball(5 * 1024 * 1024);
+    let wrong = Integrity::from(b"not the body being served");
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(body)
+        .expect(3)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    let err = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&wrong),
+        None,
+        0,
+        "noise@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+        false,
+    )
+    .await
+    .expect_err("an integrity mismatch must exhaust the retry budget");
+    assert!(matches!(err, TarballError::Checksum(_)), "expected Checksum error, got {err:?}");
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn streaming_download_corrupt_archive_retries_and_fails() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut body = vec![0x1f_u8, 0x8b];
+    body.extend(std::iter::repeat_n(0xa5_u8, 5 * 1024 * 1024));
+    // The integrity pins the garbage itself, so only the archive
+    // decode can produce the failure under test.
+    let pinned = Integrity::from(&body);
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(body)
+        .expect(3)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    let err = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&pinned),
+        None,
+        0,
+        "noise@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+        false,
+    )
+    .await
+    .expect_err("a corrupt archive must exhaust the retry budget");
+    assert!(
+        matches!(err, TarballError::DecodeGzip(_)),
+        "the exhausting attempt is buffered, so the eager decode diagnostic surfaces, got {err:?}",
+    );
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn streaming_download_tampered_and_corrupt_body_reports_integrity() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut body = vec![0x1f_u8, 0x8b];
+    body.extend(std::iter::repeat_n(0x5a_u8, 5 * 1024 * 1024));
+    let wrong = Integrity::from(b"the body the registry was supposed to serve");
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(body)
+        .expect(3)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+
+    let err = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&wrong),
+        None,
+        0,
+        "noise@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+        false,
+    )
+    .await
+    .expect_err("a tampered body must exhaust the retry budget");
+    assert!(
+        matches!(err, TarballError::Checksum(_)),
+        "the integrity verdict must outrank the decode failure, got {err:?}",
+    );
+    mock.assert_async().await;
     drop(store_dir_keep);
 }
 

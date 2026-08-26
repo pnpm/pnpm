@@ -24,6 +24,7 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) derived_lockfile_path: Option<PathBuf>,
     pub(super) dependency_groups: Vec<DependencyGroup>,
     pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub(super) lockfile_specifier_project_manifests: Option<Vec<(PathBuf, PackageManifest)>>,
     pub(super) workspace_projects: Option<&'a [pnpm_workspace::Project]>,
     pub(super) requested_importer_ids: Option<&'a HashSet<String>>,
     pub(super) real_importer_ids: &'a HashSet<String>,
@@ -63,6 +64,11 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) prefix: &'a str,
 }
 
+/// The store-index writer's wind-down task — see
+/// [`MaterializationOutput::store_index_teardown`].
+pub(super) type StoreIndexTeardown =
+    tokio::task::JoinHandle<Result<(), pnpm_store_dir::StoreIndexError>>;
+
 pub(super) struct MaterializationOutput {
     pub(super) ignored_builds: Vec<String>,
     pub(super) deferred_builds: Vec<String>,
@@ -71,6 +77,11 @@ pub(super) struct MaterializationOutput {
     pub(super) hoisted_locations: BTreeMap<String, Vec<String>>,
     pub(super) install_skipped: crate::SkippedSnapshots,
     pub(super) fresh_lockfile: Option<Lockfile>,
+    /// The store-index writer task, already winding down (both install
+    /// paths dropped every writer handle before returning). The caller
+    /// awaits it after the tail writes it can overlap with — the full
+    /// rationale lives at the await site in `run.rs`.
+    pub(super) store_index_teardown: StoreIndexTeardown,
 }
 
 pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
@@ -90,6 +101,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         derived_lockfile_path,
         dependency_groups,
         project_manifests,
+        lockfile_specifier_project_manifests,
         workspace_projects,
         requested_importer_ids,
         real_importer_ids,
@@ -130,11 +142,18 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
     let injected_deps: BTreeMap<String, Vec<String>>;
     let effective_node_version =
         config.node_version.clone().or_else(|| node_version_from_engines_runtime(manifest.value()));
-    let (hoisted_dependencies, hoisted_locations, install_skipped, fresh_lockfile): (
+    let (
+        hoisted_dependencies,
+        hoisted_locations,
+        install_skipped,
+        fresh_lockfile,
+        store_index_teardown,
+    ): (
         HoistedDependencies,
         BTreeMap<String, Vec<String>>,
         crate::SkippedSnapshots,
         Option<Lockfile>,
+        StoreIndexTeardown,
     ) = if take_frozen_path {
         let lockfile = lockfile.expect("dispatch verified lockfile is present");
         // pnpm's headless installer announces itself whenever it is
@@ -227,6 +246,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         let frozen_result = InstallFrozenLockfile {
             http_client,
             config,
+            pnpmfile_hook: pnpmfile_hook.as_ref(),
             importers,
             packages: packages.as_ref(),
             snapshots: snapshots.as_ref(),
@@ -283,6 +303,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             frozen_result.hoisted_locations,
             frozen_result.skipped,
             None,
+            frozen_result.store_index_teardown,
         )
     } else {
         // Re-verify the existing lockfile alongside the fresh resolve,
@@ -324,6 +345,18 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
                 (pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir), *manifest)
             })
             .collect();
+        let lockfile_specifier_manifests =
+            lockfile_specifier_project_manifests.map(|project_manifests| {
+                project_manifests
+                    .into_iter()
+                    .map(|(project_dir, manifest)| {
+                        (
+                            pnpm_workspace::importer_id_from_root_dir(workspace_root, &project_dir),
+                            manifest,
+                        )
+                    })
+                    .collect()
+            });
         let fresh_result = InstallWithFreshLockfile {
             tarball_mem_cache,
             resolved_packages,
@@ -331,6 +364,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             http_client_arc: Arc::clone(&http_client_arc),
             config,
             importer_manifests,
+            lockfile_specifier_manifests,
             dependency_groups,
             logged_methods,
             requester: prefix,
@@ -384,7 +418,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             // their cache on, so the next install's stat shortcut hits.
             let lockfile_path = derived_lockfile_path
                 .clone()
-                .unwrap_or_else(|| workspace_root.join(Lockfile::FILE_NAME));
+                .unwrap_or_else(|| workspace_root.join(config.wanted_lockfile_name()));
             record_lockfile_verified(
                 Some(&config.cache_dir),
                 &lockfile_path,
@@ -401,6 +435,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             fresh_result.hoisted_locations,
             fresh_result.skipped,
             fresh_result.wanted_lockfile,
+            fresh_result.store_index_teardown,
         )
     };
 
@@ -412,5 +447,6 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         hoisted_locations,
         install_skipped,
         fresh_lockfile,
+        store_index_teardown,
     })
 }

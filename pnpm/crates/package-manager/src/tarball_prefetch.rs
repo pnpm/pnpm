@@ -9,7 +9,7 @@
 //! progress as it consumes each tarball.
 //!
 //! Each download lands its result in the shared [`MemCache`] keyed by
-//! tarball URL; the later install pass picks it up via
+//! tarball URL and fetch policy; the later install pass picks it up via
 //! [`DownloadTarballToStore::run_with_mem_cache`] (an immediate
 //! `CacheValue::Available` hit, or a brief park on the per-URL `Notify`
 //! while the prefetch finishes).
@@ -26,9 +26,13 @@ use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexError,
     StoreIndexWriter, store_index_key,
 };
-use pnpm_tarball::{DownloadTarballToStore, MemCache, RetryOpts};
+use pnpm_tarball::{DownloadTarballToStore, MemCache, RetryOpts, TarballError};
 use ssri::Integrity;
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+};
 
 /// One registry lockfile entry [`TarballPrefetcher::prefetch_lockfile`]
 /// may spawn a download for, staged so the whole batch can be filtered
@@ -38,6 +42,7 @@ struct PendingPrefetch {
     package_id: String,
     package_url: String,
     integrity: String,
+    revision_addressed: bool,
 }
 
 /// Drop every pending entry whose `(integrity, package_id)` row already
@@ -76,11 +81,13 @@ pub(crate) struct TarballDownload {
     pub requester: Arc<str>,
     pub offline: bool,
     pub verify_store_integrity: bool,
+    pub strict_store_pkg_content_check: bool,
     pub package_id: String,
     pub package_url: String,
     pub integrity: Integrity,
     pub package_unpacked_size: Option<usize>,
     pub package_file_count: Option<usize>,
+    pub revision_addressed: bool,
 }
 
 /// [`tokio::spawn`] a single tarball download into the shared mem cache
@@ -92,6 +99,14 @@ pub(crate) struct TarballDownload {
 /// → imported` progress itself as it consumes each tarball, so the
 /// prefetch must not emit a competing, out-of-order set.
 pub(crate) fn spawn_tarball_download(download: TarballDownload) {
+    tokio::spawn(async move {
+        let _ = run_tarball_download(download).await;
+    });
+}
+
+async fn run_tarball_download(
+    download: TarballDownload,
+) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
     let TarballDownload {
         http_client,
         mem_cache,
@@ -104,42 +119,46 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
         requester,
         offline,
         verify_store_integrity,
+        strict_store_pkg_content_check,
         package_id,
         package_url,
         integrity,
         package_unpacked_size,
         package_file_count,
+        revision_addressed,
     } = download;
 
-    tokio::spawn(async move {
-        let _ = DownloadTarballToStore {
-            http_client: &http_client,
-            store_dir,
-            store_index,
-            store_index_writer,
-            verify_store_integrity,
-            verified_files_cache,
-            package_integrity: Some(&integrity),
-            package_unpacked_size,
-            package_file_count,
-            package_url: &package_url,
-            package_id: &package_id,
-            requester: &requester,
-            prefetched_cas_paths: None,
-            retry_opts,
-            auth_headers: &auth_headers,
-            ignore_file_pattern: None,
-            offline,
-            // The client prefetch routes through `SilentReporter`, so
-            // there's no install reporter to dedup progress events
-            // against — the frozen materialization install emits its own
-            // progress as it consumes each tarball from the mem cache.
-            progress_reported: None,
-            append_manifest: None,
-        }
-        .run_with_mem_cache::<SilentReporter>(&mem_cache)
-        .await;
-    });
+    let download = DownloadTarballToStore {
+        http_client: &http_client,
+        store_dir,
+        store_index,
+        store_index_writer,
+        verify_store_integrity,
+        strict_store_pkg_content_check,
+        verified_files_cache,
+        package_integrity: Some(&integrity),
+        package_unpacked_size,
+        package_file_count,
+        package_url: &package_url,
+        package_id: &package_id,
+        requester: &requester,
+        prefetched_cas_paths: None,
+        retry_opts,
+        auth_headers: &auth_headers,
+        ignore_file_pattern: None,
+        offline,
+        // The client prefetch routes through `SilentReporter`, so
+        // there's no install reporter to dedup progress events
+        // against — the frozen materialization install emits its own
+        // progress as it consumes each tarball from the mem cache.
+        progress_reported: None,
+        append_manifest: None,
+    };
+    if revision_addressed {
+        download.run_revision_addressed_with_mem_cache::<SilentReporter>(&mem_cache).await
+    } else {
+        download.run_with_mem_cache::<SilentReporter>(&mem_cache).await
+    }
 }
 
 /// Fires background tarball downloads on the pnpr client as resolved
@@ -148,7 +167,8 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
 /// finished lockfile.
 ///
 /// Mirrors the local fresh-install [`crate::PrefetchingResolver`] —
-/// each download lands in the shared [`MemCache`] keyed by tarball URL,
+/// each download lands in the shared [`MemCache`] keyed by tarball URL and
+/// fetch policy,
 /// and the frozen materialization install the client runs afterward
 /// picks it up from the cache. It carries its own store-index writer so
 /// freshly-downloaded tarballs are recorded in `index.db` (the frozen
@@ -168,6 +188,7 @@ pub struct TarballPrefetcher {
     requester: Arc<str>,
     offline: bool,
     verify_store_integrity: bool,
+    strict_store_pkg_content_check: bool,
     /// URLs already spawned, so repeated frames for the same tarball
     /// (the resolver yields one per dependent edge) collapse to a single
     /// download. Mirrors `PrefetchingResolver::spawned_urls`.
@@ -220,6 +241,7 @@ impl TarballPrefetcher {
             requester: Arc::<str>::from(requester),
             offline: config.offline,
             verify_store_integrity: config.verify_store_integrity,
+            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
             spawned_urls: DashSet::new(),
         }
     }
@@ -238,6 +260,7 @@ impl TarballPrefetcher {
         integrity: &str,
         unpacked_size: Option<usize>,
         file_count: Option<usize>,
+        revision_addressed: bool,
     ) {
         let integrity = match integrity.parse::<Integrity>() {
             Ok(integrity) => integrity,
@@ -266,11 +289,13 @@ impl TarballPrefetcher {
             requester: Arc::clone(&self.requester),
             offline: self.offline,
             verify_store_integrity: self.verify_store_integrity,
+            strict_store_pkg_content_check: self.strict_store_pkg_content_check,
             package_id,
             package_url,
             integrity,
             package_unpacked_size: unpacked_size,
             package_file_count: file_count,
+            revision_addressed,
         });
     }
 
@@ -304,18 +329,24 @@ impl TarballPrefetcher {
             let package_id = package_key.pkg_id();
             let integrity =
                 integrity.expect("registry resolutions always carry an integrity").to_string();
+            let revision_addressed = matches!(
+                &metadata.resolution,
+                LockfileResolution::Registry(registry) if registry.revision.is_some(),
+            );
             pending.push(PendingPrefetch {
                 store_key: store_index_key(&integrity, &package_id),
                 package_id,
                 package_url: tarball_url.into_owned(),
                 integrity,
+                revision_addressed,
             });
         }
         for entry in without_store_hits(self.store_index.clone(), pending).await {
-            let PendingPrefetch { package_id, package_url, integrity, .. } = entry;
+            let PendingPrefetch { package_id, package_url, integrity, revision_addressed, .. } =
+                entry;
             // The lockfile records no dist size hints, so the downloads
             // queue without a work estimate.
-            self.prefetch(package_id, package_url, &integrity, None, None);
+            self.prefetch(package_id, package_url, &integrity, None, None, revision_addressed);
         }
     }
 

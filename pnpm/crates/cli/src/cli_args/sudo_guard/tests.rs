@@ -115,3 +115,39 @@ fn bare_link_targets_the_global_dir_and_is_blocked() {
     );
     assert_eq!(sudo_blocked_operation(&command(&["pnpm", "link", "../foo"])), None);
 }
+
+/// `pnpm set` is `pnpm config set`, defaulting to the global config file
+/// just the same, so it has to be gated the same way.
+#[test]
+fn the_top_level_set_is_gated_like_config_set() {
+    assert_eq!(
+        sudo_blocked_operation(&command(&["pnpm", "set", "store-dir", "/tmp/store"])),
+        Some("pnpm set --global".to_string()),
+    );
+    assert_eq!(
+        sudo_blocked_operation(&command(&[
+            "pnpm",
+            "set",
+            "--location=project",
+            "store-dir",
+            "/tmp/store",
+        ])),
+        None,
+    );
+    // Reads stay allowed, as they do for `pnpm config get`.
+    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "get", "store-dir"])), None);
+}
+
+/// `pnpm env use --global` installs a runtime into the home directory, the
+/// same write `pnpm runtime set --global` makes.
+#[test]
+fn global_env_is_blocked_under_sudo() {
+    assert_eq!(
+        sudo_blocked_operation(&command(&["pnpm", "env", "use", "--global", "24"])),
+        Some("pnpm env use --global".to_string()),
+    );
+    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "env", "use", "24"])), None);
+    // `env list` only queries a mirror, so it stays allowed even globally.
+    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "env", "list"])), None);
+    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "env", "list", "--global"])), None);
+}

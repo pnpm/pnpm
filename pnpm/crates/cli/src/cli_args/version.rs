@@ -33,8 +33,7 @@ pub struct VersionArgs {
     /// apply the pending change intents instead.
     pub params: Vec<String>,
 
-    /// Print the release plan the pending change intents produce without
-    /// applying it.
+    /// Print what the command would do without changing anything.
     #[clap(long = "dry-run")]
     pub dry_run: bool,
 
@@ -161,7 +160,8 @@ impl VersionArgs {
         } else {
             parse_bump(raw)?
         };
-        if config.git_checks
+        if !self.dry_run
+            && config.git_checks
             && !self.no_git_checks
             && is_git_repo::<Host>(&git_cwd)
             && !is_working_tree_clean::<Host>(&git_cwd)
@@ -172,7 +172,7 @@ impl VersionArgs {
         let mut changes: Vec<VersionChange> = Vec::new();
         if recursive {
             let base = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-            let (projects, _) = discover_workspace_projects(&base)?;
+            let (projects, _) = discover_workspace_projects(&base, config)?;
             let selection =
                 select_recursive_projects(&projects, config, &base, AutoExcludeRoot::Disabled)?;
             for pkg_dir in selection.selected.keys() {
@@ -195,12 +195,19 @@ impl VersionArgs {
         // In recursive mode, multiple packages can be bumped to different
         // versions in a single run, and there is no obvious single version to
         // tag the commit with. Skip the git commit and tag entirely then.
-        if !recursive && !self.no_git_tag_version && is_git_repo::<Host>(&git_cwd) {
+        if !self.dry_run && !recursive && !self.no_git_tag_version && is_git_repo::<Host>(&git_cwd)
+        {
             self.commit_and_tag(&changes[0], &git_cwd)?;
         }
 
         for change in &changes {
-            run_version_lifecycle_hook::<Reporter>("postversion", change, config, dir)?;
+            run_version_lifecycle_hook::<Reporter>(
+                "postversion",
+                change,
+                config,
+                dir,
+                self.dry_run,
+            )?;
         }
 
         if self.json {
@@ -220,7 +227,11 @@ impl VersionArgs {
         }
 
         use std::fmt::Write as _;
-        let mut output = String::from("Version bumped successfully:\n");
+        let mut output = String::from(if self.dry_run {
+            "Version bump plan:\n"
+        } else {
+            "Version bumped successfully:\n"
+        });
         for change in &changes {
             writeln!(
                 output,
@@ -234,8 +245,9 @@ impl VersionArgs {
     }
 
     /// Bump one package's manifest, running its `preversion` and `version`
-    /// lifecycle hooks around the write. Returns `None` — bumping nothing —
-    /// when the manifest has no name or no version.
+    /// lifecycle hooks around the write. Both the write and the hooks are
+    /// skipped on a dry run. Returns `None` — bumping nothing — when the
+    /// manifest has no name or no version.
     fn bump_package_version<Reporter: pnpm_reporter::Reporter>(
         &self,
         pkg_dir: &Path,
@@ -269,7 +281,13 @@ impl VersionArgs {
             path: pkg_dir.to_path_buf(),
             manifest_path: manifest_path.clone(),
         };
-        run_version_lifecycle_hook::<Reporter>("preversion", &pre_change, config, init_cwd)?;
+        run_version_lifecycle_hook::<Reporter>(
+            "preversion",
+            &pre_change,
+            config,
+            init_cwd,
+            self.dry_run,
+        )?;
 
         let new_version = match bump {
             Bump::Explicit(version) => version.clone(),
@@ -292,7 +310,9 @@ impl VersionArgs {
             .as_object_mut()
             .expect("package.json is an object — its version field was just read")
             .insert("version".to_string(), Value::String(new_version.clone()));
-        manifest.save().wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
+        if !self.dry_run {
+            manifest.save().wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
+        }
 
         let change = VersionChange {
             name,
@@ -301,7 +321,7 @@ impl VersionArgs {
             path: pkg_dir.to_path_buf(),
             manifest_path,
         };
-        run_version_lifecycle_hook::<Reporter>("version", &change, config, init_cwd)?;
+        run_version_lifecycle_hook::<Reporter>("version", &change, config, init_cwd, self.dry_run)?;
         Ok(Some(change))
     }
 
@@ -358,7 +378,7 @@ impl VersionArgs {
 
         let intents = read_change_intents(&workspace_dir)?;
         let ledger = read_ledger(&workspace_dir)?;
-        let (projects, _) = discover_workspace_projects(&workspace_dir)?;
+        let (projects, _) = discover_workspace_projects(&workspace_dir, config)?;
         let engine_projects = to_engine_projects(&projects);
         let published_names = changelog::published_names(&projects);
 
@@ -458,16 +478,17 @@ impl VersionArgs {
 }
 
 /// Run one `preversion` / `version` / `postversion` script of the bumped
-/// package, when the manifest declares it and scripts are not ignored.
-/// The manifest is re-read so the `version` and `postversion` hooks see
-/// the bumped version.
+/// package, when the manifest declares it, scripts are not ignored and this
+/// is not a dry run. The manifest is re-read so the `version` and
+/// `postversion` hooks see the bumped version.
 fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
     stage: &str,
     change: &VersionChange,
     config: &Config,
     init_cwd: &Path,
+    dry_run: bool,
 ) -> miette::Result<()> {
-    if config.ignore_scripts {
+    if config.ignore_scripts || dry_run {
         return Ok(());
     }
     let manifest = PackageManifest::from_path(change.manifest_path.clone())
@@ -502,6 +523,7 @@ fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
             config.scripts_prepend_node_path,
         ),
         script_shell: script_shell.as_deref(),
+        shell_emulator: config.shell_emulator,
         optional: false,
     };
     let parent_env: HashMap<String, String> = std::env::vars().collect();

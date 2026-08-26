@@ -181,6 +181,7 @@ async fn materialize<Reporter: self::Reporter>(
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: opts.verify_store_integrity,
+        strict_store_pkg_content_check: opts.strict_store_pkg_content_check,
         verified_files_cache: SharedVerifiedFilesCache::default(),
         package_integrity: Some(integrity),
         package_unpacked_size: None,

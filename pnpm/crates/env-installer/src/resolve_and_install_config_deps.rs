@@ -3,20 +3,24 @@
 //!
 //! Handles three input shapes:
 //! 1. old object form `{ tarball?, integrity }` — migrated inline into
-//!    the lockfile,
-//! 2. old string form `<version>+<integrity>` — migrated inline,
+//!    the lockfile when it carries a tarball URL, otherwise resolved,
+//! 2. old string form `<version>+<integrity>` — resolved against the
+//!    registry for its tarball URL, keeping the inline integrity,
 //! 3. new clean specifier (`1.2.0` / `^1.0.0`) — resolved against the
 //!    registry when it isn't already pinned in the lockfile.
 
 use crate::{
-    ConfigDepError, install_config_deps::install_config_deps, options::ConfigDepsInstallOptions,
-    parse_integrity::parse_integrity, prune::prune_env_lockfile,
+    ConfigDepError,
+    install_config_deps::install_config_deps,
+    options::ConfigDepsInstallOptions,
+    parse_integrity::parse_integrity,
+    prune::prune_env_lockfile,
     resolve_optional_subdeps::resolve_optional_subdeps,
-    verify_env_lockfile::write_verified_env_lockfile,
+    verify_env_lockfile::{assert_valid_migrated_config_dep, write_verified_env_lockfile},
 };
 use pnpm_lockfile::{
     EnvLockfile, LockfileFormOptions, LockfileResolution, PackageKey, PackageMetadata,
-    SnapshotEntry, SpecifierAndResolution, TarballResolution, TarballUrlOptions, npm_tarball_url,
+    SnapshotEntry, SpecifierAndResolution, TarballResolution,
 };
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
@@ -42,7 +46,7 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
         .map_err(ConfigDepError::ReadLockfile)?
         .unwrap_or_else(EnvLockfile::create);
 
-    let mut to_resolve: Vec<(String, String)> = Vec::new();
+    let mut to_resolve: Vec<(String, String, Option<Integrity>)> = Vec::new();
     let mut lockfile_changed = false;
 
     // Drop env-lockfile entries for config deps that were removed from
@@ -61,43 +65,29 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
             ConfigDependency::Detailed(detail) => {
                 if !has_config_dep(&env_lockfile, name) {
                     let (version, integrity) = parse_integrity(name, &detail.integrity)?;
-                    let registry = opts.pick_registry(name);
-                    let tarball = detail.tarball.clone().unwrap_or_else(|| {
-                        npm_tarball_url(
-                            name,
-                            &version,
-                            TarballUrlOptions { registry, server_type: None },
-                        )
-                    });
-                    migrate_into_lockfile(
-                        &mut env_lockfile,
-                        name,
-                        &version,
-                        integrity,
-                        tarball,
-                        registry,
-                    )?;
-                    lockfile_changed = true;
+                    assert_valid_migrated_config_dep(name, &version)?;
+                    match detail.tarball.clone() {
+                        Some(tarball) => {
+                            let registry = opts.pick_registry(name);
+                            migrate_into_lockfile(
+                                &mut env_lockfile,
+                                name,
+                                &version,
+                                integrity,
+                                tarball,
+                                registry,
+                            )?;
+                            lockfile_changed = true;
+                        }
+                        None => to_resolve.push((name.clone(), version, Some(integrity))),
+                    }
                 }
             }
             ConfigDependency::VersionWithIntegrity(value) if value.contains('+') => {
                 if !has_config_dep(&env_lockfile, name) {
                     let (version, integrity) = parse_integrity(name, value)?;
-                    let registry = opts.pick_registry(name);
-                    let tarball = npm_tarball_url(
-                        name,
-                        &version,
-                        TarballUrlOptions { registry, server_type: None },
-                    );
-                    migrate_into_lockfile(
-                        &mut env_lockfile,
-                        name,
-                        &version,
-                        integrity,
-                        tarball,
-                        registry,
-                    )?;
-                    lockfile_changed = true;
+                    assert_valid_migrated_config_dep(name, &version)?;
+                    to_resolve.push((name.clone(), version, Some(integrity)));
                 }
             }
             ConfigDependency::VersionWithIntegrity(specifier) => {
@@ -107,7 +97,7 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
                 {
                     continue;
                 }
-                to_resolve.push((name.clone(), specifier.clone()));
+                to_resolve.push((name.clone(), specifier.clone(), None));
             }
         }
     }
@@ -128,8 +118,9 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
         return install_config_deps::<Reporter>(&env_lockfile, opts).await;
     }
 
-    for (name, specifier) in &to_resolve {
-        resolve_one(&mut env_lockfile, resolver, opts, name, specifier).await?;
+    for (name, specifier, pinned_integrity) in &to_resolve {
+        resolve_one(&mut env_lockfile, resolver, opts, name, specifier, pinned_integrity.as_ref())
+            .await?;
     }
 
     prune_env_lockfile(&mut env_lockfile);
@@ -137,14 +128,15 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     install_config_deps::<Reporter>(&env_lockfile, opts).await
 }
 
-/// Resolve a single clean-specifier config dependency and record it
-/// (plus one level of optional subdeps) into the env lockfile.
+/// Resolve a single config dependency and record it (plus one level of
+/// optional subdeps) into the env lockfile.
 async fn resolve_one(
     env_lockfile: &mut EnvLockfile,
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
     name: &str,
     specifier: &str,
+    pinned_integrity: Option<&Integrity>,
 ) -> Result<(), ConfigDepError> {
     let wanted = WantedDependency {
         alias: Some(name.to_string()),
@@ -178,20 +170,30 @@ async fn resolve_one(
         name.to_string(),
         SpecifierAndResolution { specifier: specifier.to_string(), version: version.clone() },
     );
+    let mut resolution = result.resolution;
+    // A migrated dependency keeps the integrity pinned in pnpm-workspace.yaml,
+    // so the registry hands over the tarball URL without loosening the pin.
+    if let (Some(pinned), LockfileResolution::Tarball(tarball)) =
+        (pinned_integrity, &mut resolution)
+    {
+        tarball.integrity = Some(pinned.clone());
+    }
     env_lockfile.packages.insert(
         key.clone(),
-        registry_package_metadata(result.resolution.to_lockfile_form(
-            name,
-            &version,
-            npm_lockfile_form(registry),
-        )),
+        registry_package_metadata(
+            resolution
+                .to_lockfile_form(name, &version, npm_lockfile_form(registry))
+                .map_err(ConfigDepError::LockfileForm)?,
+        ),
     );
 
-    let optional_subdeps = match result.manifest.as_deref() {
-        Some(manifest) => {
+    // A pinned dependency covers only itself, so its optional subdeps stay out
+    // of the lockfile until it is declared as a clean specifier.
+    let optional_subdeps = match (pinned_integrity, result.manifest.as_deref()) {
+        (None, Some(manifest)) => {
             resolve_optional_subdeps(name, manifest, resolver, opts, env_lockfile).await?
         }
-        None => None,
+        _ => None,
     };
     env_lockfile.snapshots.insert(
         key,
@@ -218,10 +220,12 @@ fn migrate_into_lockfile(
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball,
         integrity: Some(integrity),
+        revision: None,
         git_hosted: None,
         path: None,
     })
-    .to_lockfile_form(name, version, npm_lockfile_form(registry));
+    .to_lockfile_form(name, version, npm_lockfile_form(registry))
+    .map_err(ConfigDepError::LockfileForm)?;
     env_lockfile.packages.insert(key.clone(), registry_package_metadata(resolution));
     env_lockfile.snapshots.insert(key, SnapshotEntry::default());
     Ok(())

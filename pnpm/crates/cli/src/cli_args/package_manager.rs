@@ -1,5 +1,7 @@
 use miette::IntoDiagnostic;
 use pnpm_config::PmOnFail;
+use pnpm_env_installer::is_package_manager_resolved;
+use pnpm_lockfile::EnvLockfile;
 use pnpm_package_manifest::{
     package_manager_spec::{
         dev_engines_package_managers, is_version_request, split_spec, version_without_build,
@@ -57,6 +59,45 @@ pub(crate) fn package_manager_to_sync(
     exact_version(wanted_version)
         .filter(|version| version_satisfies(version, wanted_version))
         .map(|version| PackageManagerToSync { specifier: wanted_version.to_string(), version })
+}
+
+/// Whether the pnpm version the manifest at `root_dir` pins still has to be
+/// recorded in the env lockfile there. The install family records it from
+/// its own pipeline, so an install that short-circuits before the pipeline
+/// has to give up its fast path — a plain install would otherwise keep
+/// reporting success while leaving every `--frozen-lockfile` run failing on
+/// the unwritten entry.
+///
+/// `root_manifest` is that manifest when the caller already holds it, so a
+/// fast path does not read the same file twice.
+///
+/// A manifest that cannot be read answers `false`: the full install path
+/// reports that, and a fast path is not where it should surface.
+pub(crate) fn package_manager_needs_recording(
+    root_dir: &Path,
+    on_fail: Option<PmOnFail>,
+    root_manifest: Option<&Value>,
+) -> bool {
+    let read;
+    let manifest = if let Some(manifest) = root_manifest {
+        manifest
+    } else {
+        let Ok(Some(manifest)) = read_manifest_json(&root_dir.join("package.json")) else {
+            return false;
+        };
+        read = manifest;
+        &read
+    };
+    let Some(package_manager) = package_manager_to_sync(manifest, root_dir, on_fail) else {
+        return false;
+    };
+    !EnvLockfile::read(root_dir).ok().flatten().is_some_and(|env_lockfile| {
+        is_package_manager_resolved(
+            &env_lockfile,
+            &package_manager.specifier,
+            &package_manager.version,
+        )
+    })
 }
 
 pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
@@ -149,9 +190,16 @@ fn pnpm_version_from(root_dir: &Path) -> Option<String> {
     value.get("version").and_then(Value::as_str).map(ToString::to_string)
 }
 
+/// The one version `version` pins, or `None` when it pins a range, a
+/// dist-tag, or nothing at all.
+///
+/// The `+<algorithm>.<hash>` build corepack records the artifact it
+/// downloaded with is dropped: it names corepack's download, not a pnpm
+/// release, so the registry resolves the version without it and a lockfile
+/// entry that kept it would never match the version recorded beside it.
 pub(crate) fn exact_version(version: &str) -> Option<String> {
     let parsed = node_semver::Version::parse(version).ok()?;
-    (parsed.to_string() == version).then(|| version.to_string())
+    (parsed.to_string() == version).then(|| version_without_build(version).to_string())
 }
 
 pub(crate) fn version_satisfies(version: &str, wanted_range: &str) -> bool {
@@ -176,3 +224,6 @@ pub(crate) fn version_satisfies(version: &str, wanted_range: &str) -> bool {
     };
     base.satisfies(&range)
 }
+
+#[cfg(test)]
+mod tests;

@@ -1,0 +1,32 @@
+[package]
+name                  = "pnpm-deps-inspection-peers"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+pnpm-config                            = { workspace = true }
+pnpm-lockfile                          = { workspace = true }
+pnpm-package-manifest                  = { workspace = true }
+pnpm-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-resolving-resolver-base           = { workspace = true }
+pnpm-text-sanitize                     = { workspace = true }
+pnpm-workspace                         = { workspace = true }
+
+dunce       = { workspace = true }
+node-semver = { workspace = true }
+owo-colors  = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

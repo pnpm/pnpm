@@ -22,7 +22,6 @@ use std::{
     fs,
     path::{Component, Path, PathBuf},
     process::Command,
-    time::Duration,
 };
 
 use clap::Args;
@@ -32,7 +31,7 @@ use pnpm_config::{Config, Host};
 use pnpm_engine_runtime_node_resolver::{
     get_node_mirror, parse_node_specifier, resolve_node_version,
 };
-use pnpm_network::{NetworkSettings, ThrottledClient};
+use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::parse_manifest;
 use serde_json::Value;
 
@@ -627,11 +626,7 @@ fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
         &config.proxy,
         &config.tls,
         &config.tls_by_uri,
-        &NetworkSettings {
-            network_concurrency: config.network_concurrency,
-            fetch_timeout: Duration::from_millis(config.fetch_timeout),
-            user_agent: config.user_agent.clone(),
-        },
+        &config.network_settings(),
     )
     .into_diagnostic()
     .wrap_err("create the network client for pack-app")

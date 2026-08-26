@@ -16,6 +16,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use pnpm_registry::Package;
+use ssri::Integrity;
 use tokio::sync::{Mutex, OnceCell};
 
 /// Per-version time map keyed by version string. The verifier only
@@ -38,7 +39,7 @@ pub(crate) type PublishedAtTimeMap = HashMap<String, String>;
 pub(crate) struct AbbreviatedMetaProjection {
     pub modified: Option<String>,
     /// version → `dist.tarball`; key presence means the version is published.
-    pub version_tarballs: Option<HashMap<String, String>>,
+    pub version_artifacts: Option<HashMap<String, RegistryArtifactHistory>>,
     /// version → `dist` work statistics (`unpackedSize`, `fileCount`),
     /// for the versions whose registry published either. Carried so the
     /// verifier can surface tarball work estimates to fetch scheduling
@@ -47,6 +48,25 @@ pub(crate) struct AbbreviatedMetaProjection {
     ///
     /// [`ObservedDistStats`]: crate::ObservedDistStats
     pub version_dist_stats: Option<HashMap<String, crate::DistStats>>,
+    /// version → publish timestamp from the document's `time` map, for
+    /// registries that serve it in abbreviated metadata
+    /// (`registrySupportsTimeField`). Populated only when the verifier
+    /// asked for it, so registries without the field pay no memory for
+    /// an always-empty map.
+    pub version_time: Option<HashMap<String, String>>,
+}
+
+#[derive(Debug, Default, Clone)]
+pub(crate) struct RegistryArtifactHistory {
+    pub current: RegistryArtifact,
+    pub revisions: Vec<RegistryArtifact>,
+}
+
+#[derive(Debug, Default, Clone)]
+pub(crate) struct RegistryArtifact {
+    pub revision: Option<serde_json::Value>,
+    pub integrity: Option<Integrity>,
+    pub tarball: Option<String>,
 }
 
 /// Slot map of singleflight cells. Outer mutex guards lookup/insert;

@@ -94,11 +94,11 @@ pub fn is_symlink_or_junction(link: &Path) -> io::Result<bool> {
         // rather than `Ok(false)`; for this question that is a plain
         // "no".
         const ERROR_NOT_A_REPARSE_POINT: i32 = 4390;
-        return match junction::exists(link) {
+        match junction::exists(link) {
             Ok(is_junction) => Ok(is_junction),
             Err(error) if error.raw_os_error() == Some(ERROR_NOT_A_REPARSE_POINT) => Ok(false),
             Err(error) => Err(error),
-        };
+        }
     }
     #[cfg(not(windows))]
     Ok(link.is_symlink())

@@ -53,12 +53,13 @@ import {
 import { quoteAndJoin } from './quoteAndJoin.js'
 import { transformPathKeys } from './transformPath.js'
 import { types } from './types.js'
+import { isKnownSettingKey, quoteAndAnnotateUnknown } from './unknownSettings.js'
 export { types }
 
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 export { getGlobalConfigPath } from './dirs.js'
 export { getDefaultCreds, getNetworkConfigs, type NetworkConfigs } from './getNetworkConfigs.js'
-export { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+export { getOptionsFromPnpmSettings, type OptionsFromRootManifest, toAuditSettings, toUpdateSettings } from './getOptionsFromRootManifest.js'
 export {
   getPackageManagerBootstrapConfig,
   getPackageManagerRegistries,
@@ -81,6 +82,12 @@ export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDeps
 
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
 export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
+
+/**
+ * A YAML-language-server schema association, not a setting; tools put it in
+ * config files pnpm reads, so it must not trip the unknown-setting warnings.
+ */
+const SCHEMA_DIRECTIVE_KEY = '$schema'
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
   ? `${T extends Lowercase<T> ? '' : '-'}${Lowercase<T>}${CamelToKebabCase<U>}`
@@ -303,11 +310,6 @@ export async function getConfig (opts: {
     warnings.push(`Directory "${cwd}" contains the path delimiter character (${path.delimiter}), so binaries from node_modules/.bin will not be accessible via PATH. Consider renaming the directory.`)
   }
 
-  // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
-  pnpmConfig.maxSockets = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets'] ?? npmDefaults.maxsockets
-  // @ts-expect-error
-  delete pnpmConfig['maxsockets']
-
   pnpmConfig.configDir = configDir
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.workspaceRoot = cliOptions['workspace-root'] as boolean // This is needed to prevent pnpm reading workspaceRoot from env variables
@@ -326,26 +328,37 @@ export async function getConfig (opts: {
     // The gate below is kebab-based, but only camelCase keys are picked up later.
     const kebabKeys: string[] = []
     for (const key in globalYamlConfig) {
-      if (!isConfigFileKey(kebabCase(key))) {
-        ignoredKeys.push(key)
+      // A key set to null is dropped like any other the file may not set, but
+      // it is not reported: it chose nothing, so there is nothing to correct.
+      // A null a setting accepts (`httpProxy`, `pnprServer`, ...) is a value
+      // like any other and passes through both branches untouched.
+      const setsNothing = globalYamlConfig[key as keyof typeof globalYamlConfig] == null
+      if (key === SCHEMA_DIRECTIVE_KEY) {
+        delete globalYamlConfig[key as keyof typeof globalYamlConfig]
+      } else if (!isConfigFileKey(kebabCase(key))) {
+        if (!setsNothing) ignoredKeys.push(key)
         delete globalYamlConfig[key as keyof typeof globalYamlConfig]
       } else if (!isCamelCase(key)) {
-        kebabKeys.push(key)
+        if (!setsNothing) kebabKeys.push(key)
         delete globalYamlConfig[key as keyof typeof globalYamlConfig]
       }
     }
     if (ignoredKeys.length > 0 || kebabKeys.length > 0) {
       const globalYamlConfigPath = getGlobalConfigPath(configDir)
-      const movable = ignoredKeys.filter((key) => !isRefusedByAProjectManifest(key))
+      const movable = ignoredKeys.filter((key) => !isRefusedByAProjectManifest(key) && isKnownSettingKey(key))
+      const unrecognized = ignoredKeys.filter((key) => !isRefusedByAProjectManifest(key) && !isKnownSettingKey(key))
       const nowhere = ignoredKeys.filter(isRefusedByAProjectManifest)
       if (movable.length > 0) {
-        warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndJoin(movable)}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
+        warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndJoin(movable.map(redactAndSanitize))}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
+      }
+      if (unrecognized.length > 0) {
+        warnings.push(`The following settings in the global config file ("${globalYamlConfigPath}") are not recognized by this version of pnpm and were ignored: ${quoteAndAnnotateUnknown(unrecognized)}.`)
       }
       if (nowhere.length > 0) {
         warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndExplain(nowhere)}.`)
       }
       if (kebabKeys.length > 0) {
-        warnings.push(`The following settings in the global config file ("${globalYamlConfigPath}") were ignored because they are not written in camelCase: ${kebabKeys.map(k => `"${k}" (use "${camelcase(k)}")`).join(', ')}.`)
+        warnings.push(`The following settings in the global config file ("${globalYamlConfigPath}") were ignored because they are not written in camelCase: ${quoteAndSuggestCamelCase(kebabKeys)}.`)
       }
     }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
@@ -494,9 +507,31 @@ export async function getConfig (opts: {
 
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
       if (workspaceManifest) {
-        const ignoredKeys = Object.keys(workspaceManifest).filter(isRefusedByAProjectManifest)
-        if (ignoredKeys.length > 0) {
-          warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${quoteAndExplain(ignoredKeys)}.`)
+        const refusedKeys: string[] = []
+        const unrecognizedKeys: string[] = []
+        const kebabKeys: string[] = []
+        for (const [key, value] of Object.entries(workspaceManifest)) {
+          // An unrecognized key is only reported, never dropped: this file's
+          // unknown camelCase keys reach the config record, which
+          // `pnpm config list` prints, and taking that away is the breaking
+          // change v12 makes rather than v11.
+          if (key === SCHEMA_DIRECTIVE_KEY || value == null) continue
+          if (isRefusedByAProjectManifest(key)) {
+            refusedKeys.push(key)
+          } else if (!isKnownSettingKey(key)) {
+            unrecognizedKeys.push(key)
+          } else if (!isCamelCase(key)) {
+            kebabKeys.push(key)
+          }
+        }
+        if (refusedKeys.length > 0) {
+          warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${quoteAndExplain(refusedKeys)}.`)
+        }
+        if (unrecognizedKeys.length > 0) {
+          warnings.push(`The following settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: ${quoteAndAnnotateUnknown(unrecognizedKeys)}.`)
+        }
+        if (kebabKeys.length > 0) {
+          warnings.push(`The following settings in pnpm-workspace.yaml were ignored because they are not written in camelCase: ${quoteAndSuggestCamelCase(kebabKeys)}.`)
         }
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
@@ -567,14 +602,22 @@ export async function getConfig (opts: {
     pnpmConfig.registry = pnpmConfig.registriesByScope.default
   }
 
-  // omit some schema that the custom parser can't yet handle
-  const envPnpmTypes = omit([
-    'init-version', // the type is a private function named 'semver'
-    'node-version', // the type is a private function named 'semver'
-    'umask', // the type is a private function named 'Umask'
-  ], types)
+  const envPnpmTypes = {
+    ...omit([
+      // npm interprets leading-zero values as octal, while the Number schema does not.
+      'umask',
+    ], types),
+    // `types` carries npm's `maxsockets` spelling alone, so without this
+    // entry `PNPM_CONFIG_MAX_SOCKETS` — the canonical setting name, spelled
+    // the way the environment spells every other camelCase setting — would
+    // match no schema and be dropped. Env-only: the CLI flag and
+    // `pnpm config` keys keep npm's spelling.
+    'max-sockets': Number,
+  }
 
   let virtualStoreTypeFromEnv: VirtualStoreType | undefined
+  let maxsocketsFromEnv: number | undefined
+  let maxSocketsFromEnv: number | undefined
   for (const { key, value } of parseEnvVars(key => envPnpmTypes[key as keyof typeof envPnpmTypes], env)) {
     // undefined means that the env key was defined, but its value couldn't be parsed according to the schema
     // TODO: should we throw some error or print some warning here?
@@ -588,6 +631,18 @@ export async function getConfig (opts: {
     // whichever order the two arrive in.
     if (key === 'virtualStoreType') {
       virtualStoreTypeFromEnv = value as VirtualStoreType
+      continue
+    }
+
+    // The two spellings of `maxSockets` the environment can carry, held
+    // back rather than assigned so the fold below can keep the environment
+    // ranked above the config files whichever order the two arrive in.
+    if (key === 'maxsockets') {
+      maxsocketsFromEnv = value as number
+      continue
+    }
+    if (key === 'maxSockets') {
+      maxSocketsFromEnv = value as number
       continue
     }
 
@@ -612,6 +667,22 @@ export async function getConfig (opts: {
   // `registries.default` above, and an entry matching it must not be reported
   // as unused.
   warnAboutUnmatchedRegistryOptions(pnpmConfig, warnings)
+
+  // Also after the env loop, and after the config files were applied: npm
+  // spells the setting `maxsockets`, so every source may carry either
+  // spelling and both have to be folded into the one field the rest of
+  // pnpm reads. The layers keep their usual rank — command line over
+  // environment over config files — and within each layer the canonical
+  // spelling wins. Ranking the command line here rather than leaving it to
+  // the loop's CLI guard is what keeps a `--maxsockets` above a
+  // `PNPM_CONFIG_MAX_SOCKETS`, and above a `maxSockets` in the YAML.
+  // npm's own default stands in when no layer set either.
+  const maxSocketsFromCli = (configFromCliOpts.maxSockets ?? configFromCliOpts.maxsockets) as number | undefined
+  // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
+  const maxSocketsFromFiles: number | undefined = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets']
+  pnpmConfig.maxSockets = maxSocketsFromCli ?? maxSocketsFromEnv ?? maxsocketsFromEnv ?? maxSocketsFromFiles ?? npmDefaults.maxsockets
+  // @ts-expect-error
+  delete pnpmConfig['maxsockets']
 
   // When the user explicitly sets `minimumReleaseAge`, treat it as strict by
   // default. Without this, a user-set value would silently fall back to
@@ -682,6 +753,10 @@ export async function getConfig (opts: {
 
   if (typeof pnpmConfig.filterProd === 'string') {
     pnpmConfig.filterProd = (pnpmConfig.filterProd as string).split(' ')
+  }
+
+  if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir && pnpmConfig.workspaceDir) {
+    pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
   }
 
   if (pnpmConfig.workspaceDir) {
@@ -763,10 +838,6 @@ export async function getConfig (opts: {
   }
   pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache ?? pnpmConfig.sideEffectsCacheReadonly
   pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
-
-  if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir && pnpmConfig.workspaceDir) {
-    pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
-  }
 
   pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
 
@@ -1359,11 +1430,20 @@ export function whereRefusedKeyBelongs (camelKey: string): string {
 }
 
 function quoteRefusedKey (key: string): string {
-  return `"${key}" (${whereRefusedKeyBelongs(camelcase(key, { locale: 'en-US' }))})`
+  const sanitized = redactAndSanitize(key)
+  return `"${sanitized}" (${whereRefusedKeyBelongs(camelcase(sanitized, { locale: 'en-US' }))})`
 }
 
 function quoteAndExplain (keys: string[]): string {
   return keys.map(quoteRefusedKey).join(', ')
+}
+
+/** Renders keys pnpm only reads in camelCase, naming the spelling that works. */
+function quoteAndSuggestCamelCase (keys: string[]): string {
+  return keys.map((key) => {
+    const sanitized = redactAndSanitize(key)
+    return `"${sanitized}" (use "${camelcase(sanitized, { locale: 'en-US' })}")`
+  }).join(', ')
 }
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {

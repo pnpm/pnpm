@@ -1,6 +1,6 @@
 use pnpm_config::{
-    Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail, RuntimeOnFail,
-    VerifyDepsBeforeRun,
+    ColorMode, Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail,
+    RuntimeOnFail, VerifyDepsBeforeRun, default_state_dir,
 };
 use pnpm_fs::lexical_normalize;
 use pnpm_store_dir::StoreDir;
@@ -57,6 +57,24 @@ where
     Ok(())
 }
 
+pub(crate) fn apply_state_dir_override<Sys>(config: &mut Config, state_dir: &Path, dir: &Path)
+where
+    Sys: EnvVar + GetHomeDir,
+{
+    config.state_dir = if state_dir.as_os_str().is_empty() {
+        default_state_dir::<Sys>().unwrap_or_default()
+    } else if state_dir.is_absolute() {
+        lexical_normalize(state_dir)
+    } else {
+        lexical_normalize(&dir.join(state_dir))
+    };
+    if let Some(state_dir) = state_dir.to_str() {
+        config
+            .explicit_settings
+            .insert("stateDir".to_string(), serde_json::Value::String(state_dir.to_string()));
+    }
+}
+
 fn home_relative_store_dir(store_dir: &Path) -> Option<&Path> {
     let store_dir = store_dir.to_str()?;
     store_dir.strip_prefix("~/").or_else(|| store_dir.strip_prefix(r"~\")).map(Path::new)
@@ -72,18 +90,44 @@ fn home_relative_store_dir(store_dir: &Path) -> Option<&Path> {
 ///
 /// Unknown keys are accepted silently: pnpm exposes a long tail of config
 /// keys, and erroring on an unrecognized one would break the moment pnpm
-/// adds a new key that pacquet hasn't ported yet. The token has already
-/// been honored by pnpm itself before delegation, so dropping it on
-/// pacquet's side just means the pacquet leg falls back to the yaml/npmrc
-/// value — never an incorrect override.
+/// adds a new key that pacquet hasn't ported yet. Dropping one is only
+/// harmless when pnpm parsed the token first and delegated, leaving the
+/// pacquet leg to fall back to the yaml value. When the binary runs
+/// standalone there is no other leg, so a setting that changes what gets
+/// installed has to be ported here.
 #[derive(Debug, Default)]
 pub struct ConfigOverrides {
+    bail: Option<bool>,
+    ci: Option<bool>,
+    color: Option<ColorMode>,
+    embed_readme: Option<bool>,
+    ignore_workspace_root_check: Option<bool>,
+    lockfile: Option<bool>,
+    optional: Option<bool>,
+    package_lock: Option<bool>,
+    pending: Option<bool>,
+    recursive_install: Option<bool>,
+    reverse: Option<bool>,
+    shell_emulator: Option<bool>,
+    skip_manifest_obfuscation: Option<bool>,
+    sort: Option<bool>,
+    use_beta_cli: Option<bool>,
     registry: Option<String>,
     scope: Option<String>,
     registries: BTreeMap<String, String>,
     deploy_all_files: Option<bool>,
     force_legacy_deploy: Option<bool>,
+    ignore_scripts: Option<bool>,
     inject_workspace_packages: Option<bool>,
+    /// `maxsockets`, npm's spelling of [`Self::max_sockets`]. Kept apart
+    /// so the canonical spelling can win when one command line carries
+    /// both.
+    maxsockets: Option<usize>,
+    max_sockets: Option<usize>,
+    minimum_release_age: Option<u64>,
+    minimum_release_age_exclude: Option<Vec<String>>,
+    minimum_release_age_ignore_missing_time: Option<bool>,
+    minimum_release_age_strict: Option<bool>,
     node_linker: Option<NodeLinker>,
     pm_on_fail: Option<PmOnFail>,
     runtime_on_fail: Option<RuntimeOnFail>,
@@ -112,8 +156,10 @@ impl ConfigOverrides {
                 continue;
             }
             match classify(&arg) {
-                ConfigToken::WellFormed { key: "store-dir", value } => {
-                    remaining.push(OsString::from(format!("--store-dir={value}")));
+                ConfigToken::WellFormed { key, value }
+                    if matches!(key, "state-dir" | "store-dir") =>
+                {
+                    remaining.push(OsString::from(format!("--{key}={value}")));
                 }
                 ConfigToken::WellFormed { key, value } => overrides.set(key, value),
                 ConfigToken::Malformed => {}
@@ -124,6 +170,32 @@ impl ConfigOverrides {
     }
 
     fn set(&mut self, key: &str, value: &str) {
+        match key {
+            "bail" => self.bail = parse_bool(value),
+            "ci" => self.ci = parse_bool(value),
+            "color" => {
+                self.color = parse_bool(value)
+                    .map(|enabled| if enabled { ColorMode::Always } else { ColorMode::Never })
+                    .or_else(|| parse_enum(value));
+            }
+            "embed-readme" => self.embed_readme = parse_bool(value),
+            "ignore-workspace-root-check" => {
+                self.ignore_workspace_root_check = parse_bool(value);
+            }
+            "lockfile" => self.lockfile = parse_bool(value),
+            "optional" => self.optional = parse_bool(value),
+            "package-lock" => self.package_lock = parse_bool(value),
+            "pending" => self.pending = parse_bool(value),
+            "recursive-install" => self.recursive_install = parse_bool(value),
+            "reverse" => self.reverse = parse_bool(value),
+            "shell-emulator" => self.shell_emulator = parse_bool(value),
+            "skip-manifest-obfuscation" => {
+                self.skip_manifest_obfuscation = parse_bool(value);
+            }
+            "sort" => self.sort = parse_bool(value),
+            "use-beta-cli" => self.use_beta_cli = parse_bool(value),
+            _ => {}
+        }
         if key == "registry" {
             self.registry = Some(normalize_registry_url(value));
             return;
@@ -152,8 +224,38 @@ impl ConfigOverrides {
             self.force_legacy_deploy = parse_bool(value);
             return;
         }
+        if key == "ignore-scripts" {
+            self.ignore_scripts = parse_bool(value);
+            return;
+        }
         if key == "inject-workspace-packages" {
             self.inject_workspace_packages = parse_bool(value);
+            return;
+        }
+        if key == "maxsockets" {
+            self.maxsockets = value.parse().ok();
+            return;
+        }
+        if key == "max-sockets" {
+            self.max_sockets = value.parse().ok();
+            return;
+        }
+        if key == "minimum-release-age" {
+            self.minimum_release_age = value.parse().ok();
+            return;
+        }
+        if key == "minimum-release-age-exclude" {
+            // nopt collects a repeated key it has no type for into a list,
+            // and pnpm re-parses the `--config.` tokens without any types.
+            self.minimum_release_age_exclude.get_or_insert_default().push(value.to_string());
+            return;
+        }
+        if key == "minimum-release-age-ignore-missing-time" {
+            self.minimum_release_age_ignore_missing_time = parse_bool(value);
+            return;
+        }
+        if key == "minimum-release-age-strict" {
+            self.minimum_release_age_strict = parse_bool(value);
             return;
         }
         if key == "node-linker" {
@@ -190,6 +292,55 @@ impl ConfigOverrides {
             self.http_proxy.as_deref(),
             self.no_proxy.as_deref(),
         );
+        if let Some(value) = self.bail {
+            config.bail = value;
+        }
+        if let Some(value) = self.ci {
+            config.ci = value;
+        }
+        if let Some(value) = self.color {
+            config.color = value;
+        }
+        if let Some(value) = self.embed_readme {
+            config.embed_readme = value;
+        }
+        if let Some(value) = self.ignore_workspace_root_check {
+            config.ignore_workspace_root_check = value;
+        }
+        if let Some(value) = self.optional {
+            config.optional = value;
+        }
+        if let Some(value) = self.package_lock {
+            config.package_lock = value;
+            if self.lockfile.is_none() && !config.explicit_settings.contains_key("lockfile") {
+                config.lockfile = value;
+            }
+        }
+        if let Some(value) = self.lockfile {
+            config.lockfile = value;
+            config.explicit_settings.insert("lockfile".to_string(), value.into());
+        }
+        if let Some(value) = self.pending {
+            config.pending = value;
+        }
+        if let Some(value) = self.recursive_install {
+            config.recursive_install = value;
+        }
+        if let Some(value) = self.reverse {
+            config.reverse = value;
+        }
+        if let Some(value) = self.shell_emulator {
+            config.shell_emulator = value;
+        }
+        if let Some(value) = self.skip_manifest_obfuscation {
+            config.skip_manifest_obfuscation = value;
+        }
+        if let Some(value) = self.sort {
+            config.sort = value;
+        }
+        if let Some(value) = self.use_beta_cli {
+            config.use_beta_cli = value;
+        }
         if let Some(registry) = &self.registry {
             apply_registry_override(config, registry);
         }
@@ -206,11 +357,54 @@ impl ConfigOverrides {
         if let Some(value) = self.force_legacy_deploy {
             config.force_legacy_deploy = value;
         }
+        // `pnpm config get ignore-scripts` answers from the explicitly-set
+        // settings, so a CLI-set value has to be recorded there to be
+        // reported as set while it suppresses the scripts.
+        if let Some(value) = self.ignore_scripts {
+            config.ignore_scripts = value;
+            config.explicit_settings.insert("ignoreScripts".to_string(), value.into());
+        }
         if let Some(value) = self.inject_workspace_packages {
             config.inject_workspace_packages = value;
         }
+        // npm's spelling first, so the canonical one wins when a single
+        // command line carries both.
+        if let Some(value) = self.maxsockets {
+            config.max_sockets = Some(value);
+        }
+        if let Some(value) = self.max_sockets {
+            config.max_sockets = Some(value);
+        }
+        // pnpm seeds `explicitlySetKeys` from the command line as well as
+        // from the config files, and the workspace state reads it back to
+        // decide whether `minimumReleaseAgeStrict` defaults to true.
+        if let Some(value) = self.minimum_release_age {
+            config.minimum_release_age = Some(value);
+            config.explicit_settings.insert("minimumReleaseAge".to_string(), value.into());
+        }
+        if let Some(value) = &self.minimum_release_age_exclude {
+            config.minimum_release_age_exclude = Some(value.clone());
+            config
+                .explicit_settings
+                .insert("minimumReleaseAgeExclude".to_string(), value.as_slice().into());
+        }
+        if let Some(value) = self.minimum_release_age_ignore_missing_time {
+            config.minimum_release_age_ignore_missing_time = value;
+            config
+                .explicit_settings
+                .insert("minimumReleaseAgeIgnoreMissingTime".to_string(), value.into());
+        }
+        if let Some(value) = self.minimum_release_age_strict {
+            config.minimum_release_age_strict = Some(value);
+            config.explicit_settings.insert("minimumReleaseAgeStrict".to_string(), value.into());
+        }
         if let Some(value) = self.node_linker {
             config.node_linker = value;
+            // A CLI-selected hoisted linker turns the default on just
+            // like a yaml-selected one — pnpm merges CLI options before
+            // its `nodeLinker` switch, so the derivation must see this
+            // override too.
+            config.apply_prefer_symlinked_executables_derivation();
         }
         if let Some(value) = self.pm_on_fail {
             config.pm_on_fail = Some(value);

@@ -116,6 +116,28 @@ test('authorization headers are not removed before redirection if the target is 
   }
 })
 
+test('manual redirect mode returns the redirect response without following it', async () => {
+  setupMockAgent()
+  try {
+    const mockPool = getMockAgent().get('http://registry.pnpm.io')
+    mockPool.intercept({
+      path: '/-/tarballs/sha512/digest',
+      method: 'GET',
+    }).reply(302, '', { headers: { location: '/redirected' } })
+
+    const fetchFromRegistry = createFetchFromRegistry({})
+    const response = await fetchFromRegistry(
+      'http://registry.pnpm.io/-/tarballs/sha512/digest',
+      { redirect: 'manual' }
+    )
+
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe('/redirected')
+  } finally {
+    await teardownMockAgent()
+  }
+})
+
 test('switch to the correct agent for requests on redirect from http: to https:', async () => {
   // This test uses real network - no mock needed
   const fetchFromRegistry = createFetchFromRegistry({})

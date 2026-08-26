@@ -12,6 +12,7 @@ import {
   NoMatchingVersionError,
   RegistryResponseError,
 } from '@pnpm/resolving.npm-resolver'
+import type { PkgResolutionId } from '@pnpm/resolving.resolver-base'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectRootDir, RegistriesByScope } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
@@ -39,6 +40,12 @@ const registriesByScope = {
 const fetch = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
+const REVISION_INTEGRITY = 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ=='
+const REVISION_DIGEST = Buffer.from(REVISION_INTEGRITY.slice('sha512-'.length), 'base64').toString('base64url')
+const ORIGINAL_INTEGRITY = `sha512-${Buffer.alloc(64, 1).toString('base64')}`
+const ORIGINAL_DIGEST = Buffer.from(ORIGINAL_INTEGRITY.slice('sha512-'.length), 'base64').toString('base64url')
+const SECOND_REVISION_INTEGRITY = `sha512-${Buffer.alloc(64, 2).toString('base64')}`
+const SECOND_REVISION_DIGEST = Buffer.from(SECOND_REVISION_INTEGRITY.slice('sha512-'.length), 'base64').toString('base64url')
 
 afterEach(async () => {
   await teardownMockAgent()
@@ -79,6 +86,372 @@ test('resolveFromNpm()', async () => {
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
+})
+
+test('resolveFromNpm() validates and preserves a registry tarball revision', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      versions: {
+        ...isPositiveMeta.versions,
+        '1.0.0': {
+          ...isPositiveMeta.versions['1.0.0'],
+          dist: {
+            ...isPositiveMeta.versions['1.0.0'].dist,
+            integrity: REVISION_INTEGRITY,
+            revision: 1,
+            tarball: `${registriesByScope.default}-/tarballs/sha512/${REVISION_DIGEST}`,
+            revisions: [{
+              revision: 1,
+              integrity: REVISION_INTEGRITY,
+              tarball: `${registriesByScope.default}-/tarballs/sha512/${REVISION_DIGEST}`,
+              manifest: {},
+            }],
+          },
+        },
+      },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  const result = await resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    {}
+  )
+
+  expect(result!.resolution).toStrictEqual({
+    integrity: REVISION_INTEGRITY,
+    revision: 1,
+    tarball: `${registriesByScope.default}-/tarballs/sha512/${REVISION_DIGEST}`,
+  })
+})
+
+test('resolveFromNpm() rejects a current revision without a matching history entry', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      versions: {
+        ...isPositiveMeta.versions,
+        '1.0.0': {
+          ...isPositiveMeta.versions['1.0.0'],
+          dist: {
+            ...isPositiveMeta.versions['1.0.0'].dist,
+            integrity: REVISION_INTEGRITY,
+            revision: 1,
+            tarball: `${registriesByScope.default}-/tarballs/sha512/${REVISION_DIGEST}`,
+            revisions: [],
+          },
+        },
+      },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  await expect(resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})).rejects.toMatchObject({
+    code: 'ERR_PNPM_MALFORMED_METADATA',
+  })
+})
+
+test('resolveFromNpm() selects an advertised revision and uses its manifest', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      versions: {
+        ...isPositiveMeta.versions,
+        '1.0.0': {
+          ...isPositiveMeta.versions['1.0.0'],
+          deprecated: 'current warning',
+          dependencies: { current: '2.0.0' },
+          optionalDependencies: { removed: '1.0.0' },
+          dist: {
+            ...isPositiveMeta.versions['1.0.0'].dist,
+            integrity: SECOND_REVISION_INTEGRITY,
+            revision: 2,
+            tarball: `${registriesByScope.default}-/tarballs/sha512/${SECOND_REVISION_DIGEST}`,
+            revisions: [
+              {
+                revision: 0,
+                integrity: ORIGINAL_INTEGRITY,
+                tarball: `${registriesByScope.default}-/tarballs/sha512/${ORIGINAL_DIGEST}`,
+                manifest: { dependencies: { original: '1.0.0' } },
+              },
+              {
+                revision: 1,
+                integrity: REVISION_INTEGRITY,
+                tarball: `${registriesByScope.default}-/tarballs/sha512/${REVISION_DIGEST}`,
+                manifest: {
+                  name: 'not-is-positive',
+                  version: '9.0.0',
+                  deprecated: 'historical warning',
+                  dist: {},
+                  dependencies: { selected: '1.0.0' },
+                  hasInstallScript: true,
+                },
+              },
+              {
+                revision: 2,
+                integrity: SECOND_REVISION_INTEGRITY,
+                tarball: `${registriesByScope.default}-/tarballs/sha512/${SECOND_REVISION_DIGEST}`,
+                manifest: { dependencies: { selectedCurrent: '2.0.0' } },
+              },
+            ],
+          },
+        },
+      },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  const result = await resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '1.0.0+r1' },
+    { calcSpecifier: true }
+  )
+
+  expect(result!.normalizedBareSpecifier).toBe('1.0.0+r1')
+  expect(result!.resolution).toStrictEqual({
+    integrity: REVISION_INTEGRITY,
+    revision: 1,
+    tarball: `${registriesByScope.default}-/tarballs/sha512/${REVISION_DIGEST}`,
+  })
+  expect(result!.manifest).toMatchObject({
+    name: 'is-positive',
+    version: '1.0.0',
+    deprecated: 'current warning',
+    dependencies: { selected: '1.0.0' },
+    hasInstallScript: true,
+  })
+  expect(result!.manifest).not.toHaveProperty('optionalDependencies')
+})
+
+test('resolveFromNpm() selects revision zero without recording a revision', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      versions: {
+        ...isPositiveMeta.versions,
+        '1.0.0': {
+          ...isPositiveMeta.versions['1.0.0'],
+          dependencies: { current: '2.0.0' },
+          dist: {
+            ...isPositiveMeta.versions['1.0.0'].dist,
+            integrity: REVISION_INTEGRITY,
+            revision: 1,
+            tarball: `${registriesByScope.default}-/tarballs/sha512/${REVISION_DIGEST}`,
+            revisions: [
+              {
+                revision: 0,
+                integrity: ORIGINAL_INTEGRITY,
+                tarball: `${registriesByScope.default}-/tarballs/sha512/${ORIGINAL_DIGEST}`,
+                manifest: { dependencies: { original: '1.0.0' } },
+              },
+              {
+                revision: 1,
+                integrity: REVISION_INTEGRITY,
+                tarball: `${registriesByScope.default}-/tarballs/sha512/${REVISION_DIGEST}`,
+                manifest: { dependencies: { current: '2.0.0' } },
+              },
+            ],
+          },
+        },
+      },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  const result = await resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '1.0.0+r0' },
+    {}
+  )
+
+  expect(result!.resolution).toStrictEqual({
+    integrity: ORIGINAL_INTEGRITY,
+    tarball: `${registriesByScope.default}-/tarballs/sha512/${ORIGINAL_DIGEST}`,
+  })
+  expect(result!.manifest!.dependencies).toStrictEqual({ original: '1.0.0' })
+})
+
+test('resolveFromNpm() selects the current revision when history includes it', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      versions: {
+        ...isPositiveMeta.versions,
+        '1.0.0': {
+          ...isPositiveMeta.versions['1.0.0'],
+          dependencies: { current: '2.0.0' },
+          dist: {
+            ...isPositiveMeta.versions['1.0.0'].dist,
+            integrity: SECOND_REVISION_INTEGRITY,
+            revision: 2,
+            tarball: `${registriesByScope.default}-/tarballs/sha512/${SECOND_REVISION_DIGEST}`,
+            revisions: [
+              {
+                revision: 1,
+                integrity: REVISION_INTEGRITY,
+                tarball: `${registriesByScope.default}-/tarballs/sha512/${REVISION_DIGEST}`,
+                manifest: { dependencies: { previous: '1.0.0' } },
+              },
+              {
+                revision: 2,
+                integrity: SECOND_REVISION_INTEGRITY,
+                tarball: `${registriesByScope.default}-/tarballs/sha512/${SECOND_REVISION_DIGEST}`,
+                manifest: { dependencies: { selectedCurrent: '2.0.0' } },
+              },
+            ],
+          },
+        },
+      },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  const result = await resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '1.0.0+r2' },
+    {}
+  )
+
+  expect(result!.resolution).toStrictEqual({
+    integrity: SECOND_REVISION_INTEGRITY,
+    revision: 2,
+    tarball: `${registriesByScope.default}-/tarballs/sha512/${SECOND_REVISION_DIGEST}`,
+  })
+  expect(result!.manifest!.dependencies).toStrictEqual({ selectedCurrent: '2.0.0' })
+})
+
+test('resolveFromNpm() treats revision zero as the original on an unpatched version', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  const result = await resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '1.0.0+r0' },
+    {}
+  )
+
+  expect(result!.resolution).not.toHaveProperty('revision')
+  expect(result!.manifest!.version).toBe('1.0.0')
+})
+
+test('resolveFromNpm() rejects an unadvertised revision', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  await expect(resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '1.0.0+r1' },
+    {}
+  )).rejects.toMatchObject({
+    code: 'ERR_PNPM_NO_MATCHING_REVISION',
+  })
+})
+
+test.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '1', '01'])('resolveFromNpm() rejects malformed registry revision %s', async (revision) => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      versions: {
+        ...isPositiveMeta.versions,
+        '1.0.0': {
+          ...isPositiveMeta.versions['1.0.0'],
+          dist: {
+            ...isPositiveMeta.versions['1.0.0'].dist,
+            integrity: REVISION_INTEGRITY,
+            revision,
+            tarball: `${registriesByScope.default}-/tarballs/sha512/${REVISION_DIGEST}`,
+          },
+        },
+      },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  await expect(resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    {}
+  )).rejects.toMatchObject({
+    code: 'ERR_PNPM_MALFORMED_METADATA',
+  })
+})
+
+test('resolveFromNpm() rejects a revision whose tarball URL does not match its integrity', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      versions: {
+        ...isPositiveMeta.versions,
+        '1.0.0': {
+          ...isPositiveMeta.versions['1.0.0'],
+          dist: {
+            ...isPositiveMeta.versions['1.0.0'].dist,
+            integrity: REVISION_INTEGRITY,
+            revision: 1,
+            tarball: `${registriesByScope.default}-/tarballs/sha512/${'A'.repeat(86)}`,
+            revisions: [{
+              revision: 1,
+              integrity: REVISION_INTEGRITY,
+              tarball: `${registriesByScope.default}-/tarballs/sha512/${'A'.repeat(86)}`,
+              manifest: {},
+            }],
+          },
+        },
+      },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  await expect(resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    {}
+  )).rejects.toMatchObject({
+    code: 'ERR_PNPM_MALFORMED_METADATA',
+  })
 })
 
 test('resolveFromNpm() strips port 80 from http tarball URLs', async () => {
@@ -1352,6 +1725,73 @@ test('resolve from local directory when it matches the latest version of the pac
   expect(resolveResult!.manifest!.version).toBe('1.0.0')
 })
 
+test('revision refresh preserves an implicit workspace resolution', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(404)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    projectDir: '/home/istvan/src',
+    updatePatches: true,
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: { name: 'is-positive', version: '1.0.0' },
+        }],
+      ])],
+    ]),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('workspace')
+  expect(resolveResult!.id).toBe('link:is-positive')
+})
+
+test('revision refresh does not replace a registry resolution with a matching workspace package', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const refreshOptions = {
+    currentPkg: {
+      id: 'is-positive@1.0.0' as PkgResolutionId,
+      name: 'is-positive',
+      version: '1.0.0',
+      resolution: {
+        integrity: isPositiveMeta.versions['1.0.0'].dist.integrity,
+        tarball: isPositiveMeta.versions['1.0.0'].dist.tarball,
+      },
+    },
+    projectDir: '/home/istvan/src',
+    updatePatches: true,
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: { name: 'is-positive', version: '1.0.0' },
+        }],
+      ])],
+    ]),
+  }
+  const resolveResult = await resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    refreshOptions
+  )
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+})
+
 test('resolve injected dependency from local directory when it matches the latest version of the package', async () => {
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
@@ -1636,6 +2076,7 @@ test('preferWorkspacePackages: still consults the registry under trustPolicy=no-
       'dist-tags': { latest: '3.1.0' },
       time: {
         '1.0.0': '2016-01-01T00:00:00.000Z',
+        '2.0.0': '2016-06-01T00:00:00.000Z',
         '3.0.0': '2017-01-01T00:00:00.000Z',
         '3.1.0': '2018-01-01T00:00:00.000Z',
       },
@@ -1669,6 +2110,45 @@ test('preferWorkspacePackages: still consults the registry under trustPolicy=no-
       id: 'link:is-positive',
       latest: '3.1.0',
     })
+  )
+})
+
+test('resolveFromNpm() fails under trustPolicy=no-downgrade when the registry serves no time field', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  await expect(
+    resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, { trustPolicy: 'no-downgrade' })
+  ).rejects.toThrow('The metadata of is-positive is missing the "time" field')
+})
+
+test('resolveFromNpm() skips the trust check when ignoreMissingTimeField is set and the registry serves no time field', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+    ignoreMissingTimeField: true,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    trustPolicy: 'no-downgrade',
+  })
+
+  expect(resolveResult).toStrictEqual(
+    expect.objectContaining({ id: 'is-positive@3.1.0' })
   )
 })
 
@@ -2553,6 +3033,35 @@ test('throws an error with the available workspace versions when workspace packa
   expect(err).toBeTruthy()
   expect(err.code).toBe('ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE')
   expect(err.message).toBe(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@2.0.0 inside the workspace. Available versions: 1.0.0`)
+})
+
+test('does not fall back to a workspace package for a revision-qualified selector', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(404, {})
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+
+  await expect(resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0+r1' }, {
+    projectDir: '/home/istvan/src',
+    update: 'compatible',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: {
+            name: 'is-positive',
+            version: '1.0.0',
+          },
+        }],
+      ])],
+    ]),
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_FETCH_404' })
 })
 
 test('throws an error with the available workspace versions when workspace package version does not match and registry has no matching version', async () => {

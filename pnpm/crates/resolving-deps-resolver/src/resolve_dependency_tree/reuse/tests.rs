@@ -168,9 +168,9 @@ mod real_package_name_of {
 }
 
 mod is_update_target {
-    use rustc_hash::FxHashSet as HashSet;
-
     use pnpm_resolving_resolver_base::WantedDependency;
+
+    use crate::{UpdateTargets, VersionLine};
 
     use super::super::{UpdateDepth, UpdateReuseScope, UpdateScope, is_update_target};
 
@@ -183,7 +183,21 @@ mod is_update_target {
     }
 
     fn except(names: &[&str]) -> UpdateReuseScope {
-        UpdateReuseScope::Except(names.iter().map(|s| (*s).to_string()).collect::<HashSet<_>>())
+        UpdateReuseScope::Except(
+            names.iter().map(|name| ((*name).to_string(), None)).collect::<UpdateTargets>(),
+        )
+    }
+
+    /// A selector that pinned an exact version, so the target is scoped to
+    /// that version's line.
+    fn except_line(name: &str, version: &str) -> UpdateReuseScope {
+        UpdateReuseScope::Except(
+            std::iter::once((name.to_string(), VersionLine::parse(version))).collect(),
+        )
+    }
+
+    fn version(version: &str) -> node_semver::Version {
+        version.parse().expect("parse version")
     }
 
     /// The scope of a `--depth Infinity` update — the default, under
@@ -198,6 +212,7 @@ mod is_update_target {
         assert!(!is_update_target(
             unlimited(&UpdateReuseScope::All),
             &wanted_with(Some("foo"), Some("^1.0.0")),
+            None,
             0,
         ));
     }
@@ -208,6 +223,7 @@ mod is_update_target {
         assert!(!is_update_target(
             unlimited(&UpdateReuseScope::None),
             &wanted_with(Some("foo"), Some("^1.0.0")),
+            None,
             0,
         ));
     }
@@ -219,6 +235,7 @@ mod is_update_target {
         assert!(is_update_target(
             unlimited(&except(&["foo"])),
             &wanted_with(Some("foo"), Some("^1.0.0")),
+            None,
             0,
         ));
     }
@@ -229,6 +246,7 @@ mod is_update_target {
         assert!(!is_update_target(
             unlimited(&except(&["bar"])),
             &wanted_with(Some("foo"), Some("^1.0.0")),
+            None,
             0,
         ));
     }
@@ -241,6 +259,55 @@ mod is_update_target {
         assert!(is_update_target(
             unlimited(&except(&["bar"])),
             &wanted_with(Some("foo"), Some("npm:bar@^4")),
+            None,
+            0,
+        ));
+    }
+
+    #[test]
+    fn a_pinned_selector_targets_only_its_version_line() {
+        let reuse = except_line("foo", "1.2.3");
+
+        assert!(is_update_target(
+            unlimited(&reuse),
+            &wanted_with(Some("foo"), Some("^1.0.0")),
+            Some(&version("1.0.0")),
+            0,
+        ));
+        assert!(!is_update_target(
+            unlimited(&reuse),
+            &wanted_with(Some("foo"), Some("^2.0.0")),
+            Some(&version("2.5.0")),
+            0,
+        ));
+    }
+
+    #[test]
+    fn a_pinned_zero_x_selector_targets_only_its_minor_line() {
+        let reuse = except_line("foo", "0.2.5");
+
+        assert!(is_update_target(
+            unlimited(&reuse),
+            &wanted_with(Some("foo"), Some("^0.2.0")),
+            Some(&version("0.2.1")),
+            0,
+        ));
+        assert!(!is_update_target(
+            unlimited(&reuse),
+            &wanted_with(Some("foo"), Some("^0.3.0")),
+            Some(&version("0.3.0")),
+            0,
+        ));
+    }
+
+    #[test]
+    fn a_pinned_selector_matches_an_edge_with_no_locked_version() {
+        // Nothing to judge the line against yet, so the name decides —
+        // as it does in pnpm's version-less `updateMatching` calls.
+        assert!(is_update_target(
+            unlimited(&except_line("foo", "1.2.3")),
+            &wanted_with(Some("foo"), Some("^2.0.0")),
+            None,
             0,
         ));
     }
@@ -249,7 +316,7 @@ mod is_update_target {
     fn returns_false_when_real_name_is_unrecoverable() {
         // Alias missing AND no bare_specifier pattern that yields a name.
         // Defensive: "not a targeted update" since we can't match.
-        assert!(!is_update_target(unlimited(&except(&["foo"])), &wanted_with(None, None), 0));
+        assert!(!is_update_target(unlimited(&except(&["foo"])), &wanted_with(None, None), None, 0));
     }
 
     #[test]
@@ -258,8 +325,8 @@ mod is_update_target {
         let scope = UpdateScope { reuse: &reuse, max_depth: UpdateDepth::new(0) };
         let wanted = wanted_with(Some("foo"), Some("^1.0.0"));
 
-        assert!(is_update_target(scope, &wanted, 0));
-        assert!(!is_update_target(scope, &wanted, 1));
+        assert!(is_update_target(scope, &wanted, None, 0));
+        assert!(!is_update_target(scope, &wanted, None, 1));
     }
 
     #[test]
@@ -268,8 +335,8 @@ mod is_update_target {
         let scope = UpdateScope { reuse: &reuse, max_depth: UpdateDepth::new(2) };
         let wanted = wanted_with(Some("foo"), Some("^1.0.0"));
 
-        assert!(is_update_target(scope, &wanted, 2));
-        assert!(!is_update_target(scope, &wanted, 3));
+        assert!(is_update_target(scope, &wanted, None, 2));
+        assert!(!is_update_target(scope, &wanted, None, 3));
     }
 
     #[test]
@@ -277,6 +344,6 @@ mod is_update_target {
         let reuse = except(&["foo"]);
         let scope = UpdateScope { reuse: &reuse, max_depth: UpdateDepth::new(usize::MAX) };
 
-        assert!(is_update_target(scope, &wanted_with(Some("foo"), Some("^1.0.0")), i32::MAX));
+        assert!(is_update_target(scope, &wanted_with(Some("foo"), Some("^1.0.0")), None, i32::MAX));
     }
 }

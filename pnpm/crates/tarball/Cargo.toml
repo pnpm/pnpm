@@ -18,6 +18,7 @@ pnpm-package-manifest = { workspace = true }
 pnpm-reporter         = { workspace = true }
 pnpm-store-dir        = { workspace = true }
 
+bytes        = { workspace = true }
 dashmap      = { workspace = true }
 derive_more  = { workspace = true }
 flate2       = { workspace = true }
@@ -27,6 +28,7 @@ num_cpus     = { workspace = true }
 pipe-trait   = { workspace = true }
 rayon        = { workspace = true }
 reqwest      = { workspace = true }
+rustls       = { workspace = true }
 serde        = { workspace = true }
 serde_json   = { workspace = true }
 ssri         = { workspace = true }

@@ -15,9 +15,7 @@ use std::{
 
 use crate::{
     State,
-    cli_args::pipelines::{
-        InstallFamilySelection, anchor_dedicated_project_config, select_workspace_projects,
-    },
+    cli_args::pipelines::{InstallFamilySelection, select_workspace_projects},
 };
 
 /// `pacquet rebuild` — re-run the lifecycle scripts of installed
@@ -30,8 +28,12 @@ pub struct RebuildArgs {
 
     /// Rebuild packages that were not built during installation, such as
     /// under `--ignore-scripts`.
-    #[clap(long)]
+    #[clap(long, overrides_with = "no_pending")]
     pub pending: bool,
+
+    /// Rebuild all matching packages, including those without pending builds.
+    #[clap(long = "no-pending", hide = true, overrides_with = "pending")]
+    pub no_pending: bool,
 }
 
 impl RebuildArgs {
@@ -58,7 +60,7 @@ impl RebuildArgs {
         {
             return Ok(());
         }
-        if !cfg.shared_workspace_lockfile
+        if !cfg.shares_one_lockfile()
             && let Some(workspace_selection) = workspace_selection
         {
             let base_config = cfg.clone();
@@ -70,7 +72,7 @@ impl RebuildArgs {
                     let rebuilds = batch.iter().cloned().map(|project_dir| {
                         let args = self.clone();
                         let mut project_config = base_config.clone();
-                        anchor_dedicated_project_config(&mut project_config, &project_dir);
+                        project_config.anchor_lockfile_paths(&project_dir);
                         async move {
                             let project_config = Config::leak(project_config);
                             let state =
@@ -235,6 +237,7 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
                         ordered_groups: &selection.ordered_groups,
                         ordered_dirs: &selection.ordered_dirs,
                         selected_dirs: selection.selected_dirs.as_ref(),
+                        install_dirs: selection.selected_dirs.as_ref(),
                         active_manifest_is_standin: selection.active_manifest_is_standin,
                     },
                     rebuild,
