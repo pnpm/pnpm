@@ -92,7 +92,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'pnprServer'
-| 'sharedSideEffectsCache'
+| 'remoteSideEffectsCache'
 | 'production'
 | 'preferWorkspacePackages'
 | 'registriesByScope'

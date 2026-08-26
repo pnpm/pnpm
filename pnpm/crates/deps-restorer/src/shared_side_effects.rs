@@ -50,7 +50,7 @@ pub(crate) async fn apply_shared_side_effects(
         return;
     }
     let (Some(server), Some(settings)) =
-        (config.pnpr_server.as_deref(), config.shared_side_effects_cache.as_ref())
+        (config.pnpr_server.as_deref(), config.remote_side_effects_cache.as_ref())
     else {
         return;
     };
@@ -58,7 +58,7 @@ pub(crate) async fn apply_shared_side_effects(
     let supported_tags = match linux_glibc_supported_tags(platform) {
         Ok(tags) => tags,
         Err(error) => {
-            tracing::warn!(target: "pacquet::install", %error, "shared side-effects platform is unsupported");
+            tracing::warn!(target: "pacquet::install", %error, "remote side-effects platform is unsupported");
             return;
         }
     };
@@ -79,7 +79,7 @@ pub(crate) async fn apply_shared_side_effects(
     tracing::debug!(
         target: "pacquet::install",
         eligible_snapshots = roots.len(),
-        "planned shared side-effects candidates",
+        "planned remote side-effects candidates",
     );
     if roots.is_empty() {
         return;
@@ -159,12 +159,12 @@ pub(crate) async fn apply_shared_side_effects(
     tracing::debug!(
         target: "pacquet::install",
         candidates = groups.len(),
-        "querying shared side-effects cache",
+        "querying remote side-effects cache",
     );
 
     let client = PnprClient::new(server);
     if let Err(error) = client.handshake_artifacts().await {
-        tracing::warn!(target: "pacquet::install", %error, "shared side-effects cache handshake failed");
+        tracing::warn!(target: "pacquet::install", %error, "remote side-effects cache handshake failed");
         return;
     }
     let authorization = config.auth_headers.for_url(server);
@@ -184,7 +184,7 @@ pub(crate) async fn apply_shared_side_effects(
     {
         Ok(resolved) => resolved,
         Err(error) => {
-            tracing::warn!(target: "pacquet::install", %error, "shared side-effects cache lookup failed");
+            tracing::warn!(target: "pacquet::install", %error, "remote side-effects cache lookup failed");
             return;
         }
     };
@@ -242,7 +242,7 @@ pub(crate) async fn apply_shared_side_effects(
                 target: "pacquet::install",
                 package = %group.candidate.package.name,
                 %error,
-                "shared side-effects artifact was rejected",
+                "remote side-effects artifact was rejected",
             );
             continue;
         }
@@ -262,7 +262,7 @@ pub(crate) async fn apply_shared_side_effects(
 /// narrow what the install trusts, so the whole lookup is abandoned rather than
 /// run against a partial key set.
 fn decoded_trusted_keys(
-    settings: &pnpm_config::SharedSideEffectsCacheSettings,
+    settings: &pnpm_config::RemoteSideEffectsCacheSettings,
 ) -> Option<BTreeMap<String, Vec<u8>>> {
     let encoded = settings.trusted_keys.as_ref().filter(|keys| !keys.is_empty())?;
     let mut trusted_keys = BTreeMap::new();
@@ -274,7 +274,7 @@ fn decoded_trusted_keys(
                     target: "pacquet::install",
                     key_id,
                     %error,
-                    "shared side-effects public key is not valid base64",
+                    "remote side-effects public key is not valid base64",
                 );
                 return None;
             }
@@ -293,7 +293,7 @@ pub(crate) fn shared_side_effects_publisher(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
 ) -> Option<SharedSideEffectsPublisher> {
     let server = config.pnpr_server.as_deref()?;
-    let settings = config.shared_side_effects_cache.as_ref()?;
+    let settings = config.remote_side_effects_cache.as_ref()?;
     if settings.publish != Some(true) {
         return None;
     }

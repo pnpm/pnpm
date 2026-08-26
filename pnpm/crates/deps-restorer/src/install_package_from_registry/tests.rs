@@ -105,7 +105,7 @@ fn create_config(
         scope: None,
         registries_by_scope: Default::default(),
         pnpr_server: None,
-        shared_side_effects_cache: None,
+        remote_side_effects_cache: None,
         registries_by_prefix: Default::default(),
         registry_options_by_url: Default::default(),
         auto_install_peers: false,

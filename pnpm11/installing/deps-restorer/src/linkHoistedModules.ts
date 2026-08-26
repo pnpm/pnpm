@@ -17,7 +17,7 @@ import type {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store.controller-types'
-import type { AllowBuild, RegistryConfig, SharedSideEffectsCacheSettings, SupportedArchitectures } from '@pnpm/types'
+import type { AllowBuild, RegistryConfig, RemoteSideEffectsCacheSettings, SupportedArchitectures } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import pLimit from 'p-limit'
 import { difference, isEmpty } from 'ramda'
@@ -38,7 +38,7 @@ export async function linkHoistedModules (
     lockfileDir: string
     preferSymlinkedExecutables?: boolean
     sideEffectsCacheRead: boolean
-    sharedSideEffectsCache?: SharedSideEffectsCacheSettings
+    remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     pnprServer?: string
     configByUri: Record<string, RegistryConfig>
     supportedArchitectures?: SupportedArchitectures
@@ -71,7 +71,7 @@ export async function linkHoistedModules (
     ignoreScripts: opts.ignoreScripts,
     nodeVersion,
     pnprServer: opts.pnprServer,
-    settings: opts.sharedSideEffectsCache,
+    settings: opts.remoteSideEffectsCache,
     storeController,
   })) {
     const fetched = (await Promise.all(Object.entries(graph).map(async ([dir, depNode]) => {
@@ -105,7 +105,7 @@ export async function linkHoistedModules (
         version: depNode.version,
       })),
       pnprServer: opts.pnprServer,
-      settings: opts.sharedSideEffectsCache,
+      settings: opts.remoteSideEffectsCache,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
       storeController,
       supportedArchitectures: opts.supportedArchitectures,

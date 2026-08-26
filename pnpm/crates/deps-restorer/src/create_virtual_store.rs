@@ -493,7 +493,7 @@ impl CreateVirtualStore<'_> {
             side_effects_maps_by_snapshot.clear();
         }
         let shared_packages = config
-            .shared_side_effects_cache
+            .remote_side_effects_cache
             .as_ref()
             .map(|settings| settings.packages.iter().map(String::as_str).collect::<HashSet<_>>());
         let mut shared_base_cas_paths = crate::shared_side_effects::BaseCasPaths::new();

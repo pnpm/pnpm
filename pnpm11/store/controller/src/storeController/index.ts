@@ -96,7 +96,7 @@ export function createPackageStore (
     requestPackage: packageRequester.requestPackage,
     upload,
     // A read-only store cannot accept new content, so it does not advertise the
-    // direct write capability that shared side-effects hydration requires.
+    // direct write capability that remote side-effects hydration requires.
     addFileToStore: initOpts.frozenStore ? undefined : cafs.addFile,
     clearResolutionCache: initOpts.clearResolutionCache,
   }

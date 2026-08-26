@@ -512,7 +512,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
                         target: "pacquet::build",
                         dep_path = %snapshot_key,
                         %error,
-                        "shared side-effects publication failed; build proceeds",
+                        "remote side-effects publication failed; build proceeds",
                     );
                 }
                 Ok(())

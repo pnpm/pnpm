@@ -27,7 +27,7 @@ const depPath = graphKey as DepPath
 const sourceIntegrity = `sha512-${createHash('sha512').update('source').digest('base64')}`
 const builtFile = Buffer.from('compiled native addon')
 const builtFileIntegrity = `sha512-${createHash('sha512').update(builtFile).digest('base64')}`
-describe('install shared side-effects', () => {
+describe('install remote side-effects', () => {
   test('hydrates the store and selects a verified remote build', async () => {
     const platform = currentLinuxGlibcPlatform()
     if (platform == null) return

@@ -10,7 +10,7 @@ import type {
   RegistriesByScope,
   RegistryConfig,
   RegistryOptions,
-  SharedSideEffectsCacheSettings,
+  RemoteSideEffectsCacheSettings,
   TrustPolicy,
   VersioningSettings,
   VirtualStoreType,
@@ -258,7 +258,7 @@ export interface Config extends OptionsFromRootManifest {
   blockExoticSubdeps?: boolean
 
   pnprServer?: string
-  sharedSideEffectsCache?: SharedSideEffectsCacheSettings
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
 
   registriesByScope: RegistriesByScope
   packageManagerRegistries?: RegistriesByScope

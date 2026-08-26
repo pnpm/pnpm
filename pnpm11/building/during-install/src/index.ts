@@ -20,7 +20,7 @@ import type {
   DepPath,
   IgnoredBuilds,
   RegistryConfig,
-  SharedSideEffectsCacheSettings,
+  RemoteSideEffectsCacheSettings,
   SupportedArchitectures,
 } from '@pnpm/types'
 import { hardLinkDir } from '@pnpm/worker'
@@ -60,7 +60,7 @@ export async function buildModules<T extends string> (
     frozenStore?: boolean
     configByUri?: Record<string, RegistryConfig>
     pnprServer?: string
-    sharedSideEffectsCache?: SharedSideEffectsCacheSettings
+    remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
@@ -232,7 +232,7 @@ async function buildDependency<T extends string> (
     /** Resolved `engines.runtime` Node version — see [`buildModules`]. */
     nodeVersion?: string
     pnprServer?: string
-    sharedSideEffectsCache?: SharedSideEffectsCacheSettings
+    remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     supportedArchitectures?: SupportedArchitectures
     warn: (message: string) => void
   }
@@ -283,9 +283,9 @@ async function buildDependency<T extends string> (
     // sideEffectsCacheWrite off under frozenStore; this guards callers that
     // bypass it.
     const shouldPublishSharedSideEffects = hasSideEffects &&
-      opts.sharedSideEffectsCache?.publish === true &&
+      opts.remoteSideEffectsCache?.publish === true &&
       opts.pnprServer != null &&
-      opts.sharedSideEffectsCache?.packages?.includes(depNode.name) === true &&
+      opts.remoteSideEffectsCache?.packages?.includes(depNode.name) === true &&
       depNode.resolution != null
     if ((isPatched || hasSideEffects) && (opts.sideEffectsCacheWrite || shouldPublishSharedSideEffects) && !opts.frozenStore) {
       try {
@@ -308,7 +308,7 @@ async function buildDependency<T extends string> (
             patchFileHash: depNode.patch?.hash,
             pnprServer: opts.pnprServer,
             resolution: depNode.resolution,
-            settings: opts.sharedSideEffectsCache,
+            settings: opts.remoteSideEffectsCache,
             supportedArchitectures: opts.supportedArchitectures,
             upload,
             version: depNode.version,

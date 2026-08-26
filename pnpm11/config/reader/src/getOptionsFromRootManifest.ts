@@ -40,7 +40,7 @@ export type OptionsFromRootManifest = {
   registriesByPrefix?: Record<string, string>
   registryOptionsByUrl?: Record<string, RegistryOptions>
   auditIgnorePrune?: boolean
-} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'sharedSideEffectsCache' | 'updateConfig'>
+} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'remoteSideEffectsCache' | 'updateConfig'>
 
 interface GetOptionsFromPnpmSettingsOptions {
   /**
@@ -68,8 +68,8 @@ export function getOptionsFromPnpmSettings (
   const opts = isGetOptionsFromPnpmSettingsOptions(manifestOrOpts)
     ? manifestOrOpts
     : manifestOrOpts == null ? {} : { manifest: manifestOrOpts }
-  if (pnpmSettings.sharedSideEffectsCache != null) {
-    assertValidSharedSideEffectsCache(pnpmSettings.sharedSideEffectsCache, opts.trustedSource ?? false)
+  if (pnpmSettings.remoteSideEffectsCache != null) {
+    assertValidSharedSideEffectsCache(pnpmSettings.remoteSideEffectsCache, opts.trustedSource ?? false)
   }
   const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings, {
     expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? false,
@@ -106,7 +106,7 @@ export function getOptionsFromPnpmSettings (
 /**
  * The signing trust root stays outside the repository: a workspace declares
  * which organization and packages are eligible and nothing else — see
- * {@link WORKSPACE_SHARED_SIDE_EFFECTS_FIELDS}. Letting it set `publish` would
+ * {@link WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS}. Letting it set `publish` would
  * turn a key the machine holds for its own builds into a signing oracle any
  * cloned repository could aim at a registry of its choosing.
  *
@@ -115,42 +115,42 @@ export function getOptionsFromPnpmSettings (
  * surface as a type error deep inside the hydration path.
  */
 function assertValidSharedSideEffectsCache (
-  settings: NonNullable<PnpmSettings['sharedSideEffectsCache']>,
+  settings: NonNullable<PnpmSettings['remoteSideEffectsCache']>,
   trustedSource: boolean
 ): void {
-  assertObjectSetting(settings, 'sharedSideEffectsCache')
+  assertObjectSetting(settings, 'remoteSideEffectsCache')
   if (!trustedSource) {
     const machineField = Object.keys(settings)
-      .find((field) => !WORKSPACE_SHARED_SIDE_EFFECTS_FIELDS.has(field))
+      .find((field) => !WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS.has(field))
     if (machineField != null) {
       throw new PnpmError(
-        'WORKSPACE_SHARED_SIDE_EFFECTS_TRUST',
-        `sharedSideEffectsCache.${machineField} cannot be set by a workspace`,
-        { hint: `Set it in the global config file (pnpm config set --location=global sharedSideEffectsCache.${machineField} ...) or in the environment instead.` }
+        'WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST',
+        `remoteSideEffectsCache.${machineField} cannot be set by a workspace`,
+        { hint: `Set it in the global config file (pnpm config set --location=global remoteSideEffectsCache.${machineField} ...) or in the environment instead.` }
       )
     }
   }
   if (settings.organization != null) {
-    assertString(settings.organization, 'sharedSideEffectsCache.organization')
+    assertString(settings.organization, 'remoteSideEffectsCache.organization')
   }
   if (settings.packages != null) {
-    assertStringArray(settings.packages, 'sharedSideEffectsCache.packages')
+    assertStringArray(settings.packages, 'remoteSideEffectsCache.packages')
   }
-  assertOptionalBoolean(settings.publish, 'sharedSideEffectsCache.publish')
+  assertOptionalBoolean(settings.publish, 'remoteSideEffectsCache.publish')
   for (const field of ['keyId', 'builderId', 'imageDigest', 'architectureBaseline', 'privateKey'] as const) {
     if (settings[field] == null) continue
-    assertString(settings[field], `sharedSideEffectsCache.${field}`)
+    assertString(settings[field], `remoteSideEffectsCache.${field}`)
   }
   if (settings.buildEnv != null) {
-    assertObjectSetting(settings.buildEnv, 'sharedSideEffectsCache.buildEnv')
+    assertObjectSetting(settings.buildEnv, 'remoteSideEffectsCache.buildEnv')
     for (const [name, value] of Object.entries(settings.buildEnv)) {
-      assertString(value, `sharedSideEffectsCache.buildEnv.${name}`)
+      assertString(value, `remoteSideEffectsCache.buildEnv.${name}`)
     }
   }
 }
 
 /**
- * The only fields of `sharedSideEffectsCache` a committed file may contribute.
+ * The only fields of `remoteSideEffectsCache` a committed file may contribute.
  *
  * Everything else describes the act of signing — which key signs, what
  * provenance the signature attests, and whether to publish at all — so it
@@ -158,7 +158,7 @@ function assertValidSharedSideEffectsCache (
  * rather than what it may not, keeps a field added later machine-only until
  * someone decides otherwise.
  */
-const WORKSPACE_SHARED_SIDE_EFFECTS_FIELDS: ReadonlySet<string> = new Set(['organization', 'packages'])
+const WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS: ReadonlySet<string> = new Set(['organization', 'packages'])
 
 const REGISTRY_SERVER_TYPES = new Set(['npm', 'artifactory'])
 

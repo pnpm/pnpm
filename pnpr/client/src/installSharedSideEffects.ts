@@ -6,7 +6,7 @@ import { calcDepState, calcDepStateInputKey, type DepsGraph, type DepsStateCache
 import type { LockfileResolution } from '@pnpm/lockfile.types'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import type { PackageFilesResponse, StoreController, UploadPkgToStoreResult } from '@pnpm/store.controller-types'
-import type { AllowBuild, DepPath, RegistryConfig, SharedSideEffectsCacheSettings, SupportedArchitectures } from '@pnpm/types'
+import type { AllowBuild, DepPath, RegistryConfig, RemoteSideEffectsCacheSettings, SupportedArchitectures } from '@pnpm/types'
 import pLimit from 'p-limit'
 
 import {
@@ -42,7 +42,7 @@ export interface SharedSideEffectsInstallOptions<T extends string> {
   nodeVersion?: string
   nodes: Array<SharedSideEffectsInstallNode<T>>
   pnprServer?: string
-  settings?: SharedSideEffectsCacheSettings
+  settings?: RemoteSideEffectsCacheSettings
   sideEffectsCacheRead: boolean
   storeController: StoreController
   supportedArchitectures?: SupportedArchitectures
@@ -53,7 +53,7 @@ export interface SharedSideEffectsInstallPrerequisites {
   ignoreScripts: boolean
   nodeVersion?: string
   pnprServer?: string
-  settings?: SharedSideEffectsCacheSettings
+  settings?: RemoteSideEffectsCacheSettings
   storeController: StoreController
 }
 
@@ -117,7 +117,7 @@ export async function applySharedSideEffectsToInstall<T extends string> (
         existing.candidate.package.version !== node.version ||
         existing.candidate.sourceIntegrity !== sourceIntegrity
       ) {
-        opts.warn?.(`Shared side-effects input key collision for ${node.name}@${node.version}; building locally`)
+        opts.warn?.(`Remote side-effects input key collision for ${node.name}@${node.version}; building locally`)
         grouped.delete(inputKey)
         collisions.add(inputKey)
         continue
@@ -145,7 +145,7 @@ export async function applySharedSideEffectsToInstall<T extends string> (
       authorization,
     })) return new Map()
   } catch (err: unknown) {
-    opts.warn?.(`Shared side-effects cache handshake failed: ${errorMessage(err)}`)
+    opts.warn?.(`Remote side-effects cache handshake failed: ${errorMessage(err)}`)
     return new Map()
   }
 
@@ -164,7 +164,7 @@ export async function applySharedSideEffectsToInstall<T extends string> (
       trustedKeys,
     })
   } catch (err: unknown) {
-    opts.warn?.(`Shared side-effects cache lookup failed: ${errorMessage(err)}`)
+    opts.warn?.(`Remote side-effects cache lookup failed: ${errorMessage(err)}`)
     return new Map()
   }
 
@@ -209,7 +209,7 @@ export async function applySharedSideEffectsToInstall<T extends string> (
         hits.set(node.graphKey, group.localCacheKey)
       }
     } catch (err: unknown) {
-      opts.warn?.(`Shared side-effects artifact for ${group.candidate.package.name}@${group.candidate.package.version} was rejected: ${errorMessage(err)}`)
+      opts.warn?.(`Remote side-effects artifact for ${group.candidate.package.name}@${group.candidate.package.version} was rejected: ${errorMessage(err)}`)
     }
   })))
   return hits
@@ -224,7 +224,7 @@ export interface PublishBuiltSharedSideEffectsOptions<T extends string> {
   patchFileHash?: string
   pnprServer?: string
   resolution: LockfileResolution
-  settings?: SharedSideEffectsCacheSettings
+  settings?: RemoteSideEffectsCacheSettings
   supportedArchitectures?: SupportedArchitectures
   upload: UploadPkgToStoreResult
   version: string

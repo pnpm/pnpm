@@ -151,11 +151,11 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 /// Only `organization` and `packages` may come from a repository. Every other
 /// field describes the act of signing and travels with the machine: loading a
 /// `pnpm-workspace.yaml` that sets one fails with
-/// [`LoadWorkspaceYamlError::WorkspaceSharedSideEffectsTrust`], leaving the
+/// [`LoadWorkspaceYamlError::WorkspaceRemoteSideEffectsTrust`], leaving the
 /// global config yaml and the environment.
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
-pub struct SharedSideEffectsCacheSettings {
+pub struct RemoteSideEffectsCacheSettings {
     pub organization: String,
     pub packages: Vec<String>,
     /// Publish the lifecycle-script diff of every eligible package that is built.
@@ -180,7 +180,7 @@ pub struct SharedSideEffectsCacheSettings {
     pub private_key: Option<String>,
 }
 
-impl SharedSideEffectsCacheSettings {
+impl RemoteSideEffectsCacheSettings {
     /// Overlay the fields `other` sets onto `self`, leaving the rest alone.
     ///
     /// A workspace declares eligibility while the machine holds the signing
@@ -350,7 +350,7 @@ pub struct WorkspaceSettings {
     /// older `<scope>: <url>` shape and is read as one.
     pub registries: Option<BTreeMap<String, RegistryEntry>>,
     pub pnpr_server: Option<String>,
-    pub shared_side_effects_cache: Option<SharedSideEffectsCacheSettings>,
+    pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
     pub https_proxy: Option<String>,
     pub http_proxy: Option<String>,
     pub no_proxy: Option<serde_json::Value>,
@@ -1173,18 +1173,18 @@ pub enum LoadWorkspaceYamlError {
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_OVERRIDE_VERSION))]
     CannotResolveOverrideVersion { spec: String, dependency_name: String },
 
-    /// The signing trust root for shared side-effects artifacts appeared in a
+    /// The signing trust root for remote side-effects artifacts appeared in a
     /// committed file. Only the global config yaml and the environment may
-    /// carry it — see [`SharedSideEffectsCacheSettings`].
-    #[display("sharedSideEffectsCache.{field} cannot be set by a workspace ({})", path.display())]
+    /// carry it — see [`RemoteSideEffectsCacheSettings`].
+    #[display("remoteSideEffectsCache.{field} cannot be set by a workspace ({})", path.display())]
     #[diagnostic(
-        code(ERR_PNPM_WORKSPACE_SHARED_SIDE_EFFECTS_TRUST),
+        code(ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST),
         help(
             "Set it in the global config file or in the environment instead of {}.",
             path.display(),
         )
     )]
-    WorkspaceSharedSideEffectsTrust { path: PathBuf, field: &'static str },
+    WorkspaceRemoteSideEffectsTrust { path: PathBuf, field: &'static str },
 }
 
 impl WorkspaceSettings {
@@ -1447,7 +1447,7 @@ impl WorkspaceSettings {
         Ok(Some(settings))
     }
 
-    /// Reject every shared side-effects field a committed file may not set.
+    /// Reject every remote side-effects field a committed file may not set.
     ///
     /// A workspace declares which organization and packages are eligible and
     /// nothing else: the rest describes the act of signing — which key signs,
@@ -1463,7 +1463,7 @@ impl WorkspaceSettings {
         &self,
         path: &Path,
     ) -> Result<(), LoadWorkspaceYamlError> {
-        let Some(settings) = self.shared_side_effects_cache.as_ref() else { return Ok(()) };
+        let Some(settings) = self.remote_side_effects_cache.as_ref() else { return Ok(()) };
         let machine_only = [
             ("publish", settings.publish.is_some()),
             ("keyId", settings.key_id.is_some()),
@@ -1477,7 +1477,7 @@ impl WorkspaceSettings {
         let Some((field, _)) = machine_only.into_iter().find(|(_, is_set)| *is_set) else {
             return Ok(());
         };
-        Err(LoadWorkspaceYamlError::WorkspaceSharedSideEffectsTrust {
+        Err(LoadWorkspaceYamlError::WorkspaceRemoteSideEffectsTrust {
             path: path.to_path_buf(),
             field,
         })
@@ -1857,8 +1857,8 @@ impl WorkspaceSettings {
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);
         }
-        if let Some(v) = self.shared_side_effects_cache {
-            config.shared_side_effects_cache.get_or_insert_default().overlay(v);
+        if let Some(v) = self.remote_side_effects_cache {
+            config.remote_side_effects_cache.get_or_insert_default().overlay(v);
         }
         if let Some(v) = self.named_registries {
             if declared_prefixes {

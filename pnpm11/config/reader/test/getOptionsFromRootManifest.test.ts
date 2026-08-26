@@ -98,14 +98,14 @@ test('getOptionsFromPnpmSettings() converts allowBuilds', () => {
   })
 })
 
-test('getOptionsFromPnpmSettings() reads shared side-effects cache settings', () => {
-  const sharedSideEffectsCache = {
+test('getOptionsFromPnpmSettings() reads remote side-effects cache settings', () => {
+  const remoteSideEffectsCache = {
     organization: 'acme',
     packages: ['native-addon'],
   }
   expect(getOptionsFromPnpmSettings(process.cwd(), {
-    sharedSideEffectsCache,
-  })).toStrictEqual({ sharedSideEffectsCache })
+    remoteSideEffectsCache,
+  })).toStrictEqual({ remoteSideEffectsCache })
 })
 
 // A repository that could set `publish` would turn a key the machine holds for
@@ -120,30 +120,30 @@ test.each([
   ['imageDigest', 'sha256:abc'],
   ['architectureBaseline', 'x64'],
   ['buildEnv', { CC: 'clang' }],
-])('getOptionsFromPnpmSettings() rejects a workspace-controlled shared side-effects %s', (field, value) => {
+])('getOptionsFromPnpmSettings() rejects a workspace-controlled remote side-effects %s', (field, value) => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
-    sharedSideEffectsCache: {
+    remoteSideEffectsCache: {
       organization: 'acme',
       packages: ['native-addon'],
       [field]: value,
     },
   } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
-    code: 'ERR_PNPM_WORKSPACE_SHARED_SIDE_EFFECTS_TRUST',
+    code: 'ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST',
   }))
 })
 
-test('getOptionsFromPnpmSettings() accepts shared side-effects trust material on its own from a trusted source', () => {
-  const sharedSideEffectsCache = {
+test('getOptionsFromPnpmSettings() accepts remote side-effects trust material on its own from a trusted source', () => {
+  const remoteSideEffectsCache = {
     trustedKeys: { 'acme-2026': 'AA==' },
     privateKey: 'AA==',
   }
-  expect(getOptionsFromPnpmSettings(process.cwd(), { sharedSideEffectsCache }, {
+  expect(getOptionsFromPnpmSettings(process.cwd(), { remoteSideEffectsCache }, {
     trustedSource: true,
-  })).toStrictEqual({ sharedSideEffectsCache })
+  })).toStrictEqual({ remoteSideEffectsCache })
 })
 
-test('getOptionsFromPnpmSettings() reads the shared side-effects builder settings from a trusted source', () => {
-  const sharedSideEffectsCache = {
+test('getOptionsFromPnpmSettings() reads the remote side-effects builder settings from a trusted source', () => {
+  const remoteSideEffectsCache = {
     organization: 'acme',
     packages: ['native-addon'],
     publish: true,
@@ -153,15 +153,15 @@ test('getOptionsFromPnpmSettings() reads the shared side-effects builder setting
     architectureBaseline: 'x64',
     buildEnv: { CC: 'clang' },
   }
-  expect(getOptionsFromPnpmSettings(process.cwd(), { sharedSideEffectsCache }, {
+  expect(getOptionsFromPnpmSettings(process.cwd(), { remoteSideEffectsCache }, {
     trustedSource: true,
-  })).toStrictEqual({ sharedSideEffectsCache })
+  })).toStrictEqual({ remoteSideEffectsCache })
 })
 
 test('getOptionsFromPnpmSettings() lets a workspace declare eligibility', () => {
-  const sharedSideEffectsCache = { organization: 'acme', packages: ['native-addon'] }
-  expect(getOptionsFromPnpmSettings(process.cwd(), { sharedSideEffectsCache }))
-    .toStrictEqual({ sharedSideEffectsCache })
+  const remoteSideEffectsCache = { organization: 'acme', packages: ['native-addon'] }
+  expect(getOptionsFromPnpmSettings(process.cwd(), { remoteSideEffectsCache }))
+    .toStrictEqual({ remoteSideEffectsCache })
 })
 
 test.each([
@@ -170,9 +170,9 @@ test.each([
   ['publish', { organization: 'acme', packages: [], publish: 'yes' }],
   ['buildEnv', { organization: 'acme', packages: [], buildEnv: { CC: 1 } }],
   ['keyId', { organization: 'acme', packages: [], keyId: 7 }],
-])('getOptionsFromPnpmSettings() rejects a malformed shared side-effects %s', (_field, sharedSideEffectsCache) => {
+])('getOptionsFromPnpmSettings() rejects a malformed remote side-effects %s', (_field, remoteSideEffectsCache) => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
-    sharedSideEffectsCache,
+    remoteSideEffectsCache,
   } as unknown as PnpmSettings, { trustedSource: true })).toThrow(expect.objectContaining({
     code: 'ERR_PNPM_INVALID_SETTING',
   }))

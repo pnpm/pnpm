@@ -33,7 +33,7 @@ import type {
   ProjectId,
   RegistriesByScope,
   RegistryConfig,
-  SharedSideEffectsCacheSettings,
+  RemoteSideEffectsCacheSettings,
   SupportedArchitectures,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
@@ -70,7 +70,7 @@ export interface LinkPackagesOptions {
   registriesByScope: RegistriesByScope
   rootModulesDir: string
   sideEffectsCacheRead: boolean
-  sharedSideEffectsCache?: SharedSideEffectsCacheSettings
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
   pnprServer?: string
   configByUri: Record<string, RegistryConfig>
   symlink: boolean
@@ -169,7 +169,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       lockfileDir: opts.lockfileDir,
       optional: opts.include.optionalDependencies,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
-      sharedSideEffectsCache: opts.sharedSideEffectsCache,
+      remoteSideEffectsCache: opts.remoteSideEffectsCache,
       pnprServer: opts.pnprServer,
       configByUri: opts.configByUri,
       symlink: opts.symlink,
@@ -344,7 +344,7 @@ interface LinkNewPackagesOptions {
   ignoreScripts: boolean
   lockfileDir: string
   sideEffectsCacheRead: boolean
-  sharedSideEffectsCache?: SharedSideEffectsCacheSettings
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
   pnprServer?: string
   configByUri: Record<string, RegistryConfig>
   symlink: boolean
@@ -464,7 +464,7 @@ async function linkNewPackages (
       ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
-      sharedSideEffectsCache: opts.sharedSideEffectsCache,
+      remoteSideEffectsCache: opts.remoteSideEffectsCache,
       pnprServer: opts.pnprServer,
       configByUri: opts.configByUri,
       supportedArchitectures: opts.supportedArchitectures,
@@ -524,7 +524,7 @@ async function linkAllPkgs (
     ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
-    sharedSideEffectsCache?: SharedSideEffectsCacheSettings
+    remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     pnprServer?: string
     configByUri: Record<string, RegistryConfig>
     supportedArchitectures?: SupportedArchitectures
@@ -541,7 +541,7 @@ async function linkAllPkgs (
     ignoreScripts: opts.ignoreScripts,
     nodeVersion,
     pnprServer: opts.pnprServer,
-    settings: opts.sharedSideEffectsCache,
+    settings: opts.remoteSideEffectsCache,
     storeController,
   })) {
     const fetched = await Promise.all(depNodes.map(async (depNode) => ({
@@ -569,7 +569,7 @@ async function linkAllPkgs (
         version: depNode.version,
       })),
       pnprServer: opts.pnprServer,
-      settings: opts.sharedSideEffectsCache,
+      settings: opts.remoteSideEffectsCache,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
       storeController,
       supportedArchitectures: opts.supportedArchitectures,

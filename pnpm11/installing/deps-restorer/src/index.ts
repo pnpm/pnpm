@@ -81,7 +81,7 @@ import {
   type ProjectRootDir,
   type RegistriesByScope,
   type RegistryConfig,
-  type SharedSideEffectsCacheSettings,
+  type RemoteSideEffectsCacheSettings,
   type SupportedArchitectures,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
@@ -166,7 +166,7 @@ export interface HeadlessOptions extends RegistryContext {
   storeController: StoreController
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean
-  sharedSideEffectsCache?: SharedSideEffectsCacheSettings
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
   pnprServer?: string
   symlink?: boolean
   disableRelinkLocalDirDeps?: boolean
@@ -454,7 +454,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         lockfileDir: opts.lockfileDir,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
-        sharedSideEffectsCache: opts.sharedSideEffectsCache,
+        remoteSideEffectsCache: opts.remoteSideEffectsCache,
         pnprServer: opts.pnprServer,
         configByUri: opts.configByUri,
         supportedArchitectures: opts.supportedArchitectures,
@@ -497,7 +497,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           ignoreScripts: opts.ignoreScripts,
           lockfileDir: opts.lockfileDir,
           sideEffectsCacheRead: opts.sideEffectsCacheRead,
-          sharedSideEffectsCache: opts.sharedSideEffectsCache,
+          remoteSideEffectsCache: opts.remoteSideEffectsCache,
           pnprServer: opts.pnprServer,
           configByUri: opts.configByUri,
           storeDir: opts.storeDir,
@@ -691,7 +691,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       scriptShell: opts.scriptShell,
       shellEmulator: opts.shellEmulator,
       sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
-      sharedSideEffectsCache: opts.sharedSideEffectsCache,
+      remoteSideEffectsCache: opts.remoteSideEffectsCache,
       storeController: opts.storeController,
       supportedArchitectures: opts.supportedArchitectures,
       unsafePerm: opts.unsafePerm,
@@ -1029,7 +1029,7 @@ async function linkAllPkgs (
     ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
-    sharedSideEffectsCache?: SharedSideEffectsCacheSettings
+    remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     pnprServer?: string
     configByUri: Record<string, RegistryConfig>
     storeDir: string
@@ -1058,7 +1058,7 @@ async function linkAllPkgs (
     ignoreScripts: opts.ignoreScripts,
     nodeVersion,
     pnprServer: opts.pnprServer,
-    settings: opts.sharedSideEffectsCache,
+    settings: opts.remoteSideEffectsCache,
     storeController,
   })) {
     const fetched = (await Promise.all(
@@ -1096,7 +1096,7 @@ async function linkAllPkgs (
         version: depNode.version,
       })),
       pnprServer: opts.pnprServer,
-      settings: opts.sharedSideEffectsCache,
+      settings: opts.remoteSideEffectsCache,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
       storeController,
       supportedArchitectures: opts.supportedArchitectures,

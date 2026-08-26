@@ -231,7 +231,7 @@ pub fn run_build_phase<Reporter: self::Reporter>(
             requires_build_by_snapshot: Some(requires_build_by_snapshot),
             engine_name,
             side_effects_cache: config.side_effects_cache_read()
-                || config.shared_side_effects_cache.is_some(),
+                || config.remote_side_effects_cache.is_some(),
             side_effects_cache_write: config.side_effects_cache_write(),
             shared_side_effects_publisher: shared_side_effects_publisher.as_ref(),
             store_dir: Some(&config.store_dir),

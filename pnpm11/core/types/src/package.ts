@@ -286,7 +286,7 @@ export interface PnpmSettings {
   httpsProxy?: string
   noProxy?: string | boolean
   pnprServer?: string
-  sharedSideEffectsCache?: SharedSideEffectsCacheSettings
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
   versioning?: VersioningSettings
   /**
    * Where the virtual store lives, and therefore who shares it: one store
@@ -310,7 +310,7 @@ export interface PnpmSettings {
  * config yaml, the environment, and CLI flags, and rejects them in
  * `pnpm-workspace.yaml`.
  */
-export interface SharedSideEffectsCacheSettings {
+export interface RemoteSideEffectsCacheSettings {
   /**
    * Both halves are optional because one section is assembled from several
    * sources: the repository names the eligible organization and packages while

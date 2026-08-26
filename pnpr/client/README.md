@@ -1,7 +1,8 @@
 # @pnpm/pnpr.client
 
 Client library for the pnpr server. Resolves project dependencies server-side
-and contains the TypeScript client for the shared side-effects artifact PoC.
+and contains the TypeScript client for the shared-artifact PoC behind the
+`remoteSideEffectsCache` setting.
 
 ## How it works
 
@@ -41,12 +42,12 @@ Add to `pnpm-workspace.yaml` to enable automatically during `pnpm install`:
 pnprServer: http://localhost:4000
 ```
 
-## Shared side-effects artifact PoC
+## Shared-artifact PoC (`remoteSideEffectsCache`)
 
 Set `resolver.artifacts: true` in pnpr's YAML to advertise and mount the
 organization-scoped v0 endpoints. The feature is off by default. Both the
 TypeScript and Rust CLIs automatically query it during normal and frozen
-lockfile installs when `pnprServer` and `sharedSideEffectsCache` are configured.
+lockfile installs when `pnprServer` and `remoteSideEffectsCache` are configured.
 In this PoC, an `organization` owner's name must equal the authenticated pnpr
 username; publisher-owned artifacts are rejected until publisher discovery is
 defined.
@@ -57,7 +58,7 @@ Add the client policy to `pnpm-workspace.yaml`:
 pnprServer: http://127.0.0.1:7677
 allowBuilds:
   native-addon: true
-sharedSideEffectsCache:
+remoteSideEffectsCache:
   organization: acme
   packages:
     - native-addon
@@ -74,12 +75,12 @@ build. The PoC supports Linux glibc on x64 and arm64.
 `trustedKeys` and `privateKey` are the signing trust root, so
 `pnpm-workspace.yaml` may not set them: the repository being installed is not a
 trust root, and pnpm rejects the file with
-`ERR_PNPM_WORKSPACE_SHARED_SIDE_EFFECTS_TRUST` if it tries. They come from the
+`ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST` if it tries. They come from the
 global config file (`~/.config/pnpm/config.yaml`), which travels with the
 machine rather than the repository:
 
 ```yaml
-sharedSideEffectsCache:
+remoteSideEffectsCache:
   trustedKeys:
     acme-2026: '<base64 P-256 SubjectPublicKeyInfo DER public key>'
 ```
@@ -89,14 +90,14 @@ over both files — the form a CI runner wants for material it must not commit:
 
 | Environment variable | Setting |
 | --- | --- |
-| `PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS` | `trustedKeys` (JSON object) |
-| `PNPM_SHARED_SIDE_EFFECTS_CACHE_PRIVATE_KEY` | `privateKey` |
-| `PNPM_SHARED_SIDE_EFFECTS_CACHE_PUBLISH` | `publish` |
-| `PNPM_SHARED_SIDE_EFFECTS_CACHE_KEY_ID` | `keyId` |
-| `PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILDER_ID` | `builderId` |
-| `PNPM_SHARED_SIDE_EFFECTS_CACHE_IMAGE_DIGEST` | `imageDigest` |
-| `PNPM_SHARED_SIDE_EFFECTS_CACHE_ARCHITECTURE_BASELINE` | `architectureBaseline` |
-| `PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILD_ENV` | `buildEnv` (JSON object) |
+| `PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS` | `trustedKeys` (JSON object) |
+| `PNPM_REMOTE_SIDE_EFFECTS_CACHE_PRIVATE_KEY` | `privateKey` |
+| `PNPM_REMOTE_SIDE_EFFECTS_CACHE_PUBLISH` | `publish` |
+| `PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID` | `keyId` |
+| `PNPM_REMOTE_SIDE_EFFECTS_CACHE_BUILDER_ID` | `builderId` |
+| `PNPM_REMOTE_SIDE_EFFECTS_CACHE_IMAGE_DIGEST` | `imageDigest` |
+| `PNPM_REMOTE_SIDE_EFFECTS_CACHE_ARCHITECTURE_BASELINE` | `architectureBaseline` |
+| `PNPM_REMOTE_SIDE_EFFECTS_CACHE_BUILD_ENV` | `buildEnv` (JSON object) |
 
 The repository and the machine each contribute the half they own, so a
 workspace naming `organization` and `packages` keeps the trust material the
@@ -108,10 +109,10 @@ Turn publication on only for a trusted builder, so `pnpm install` uploads the
 build diff it produced:
 
 ```sh
-export PNPM_SHARED_SIDE_EFFECTS_CACHE_PUBLISH=true
-export PNPM_SHARED_SIDE_EFFECTS_CACHE_KEY_ID=acme-2026
-export PNPM_SHARED_SIDE_EFFECTS_CACHE_PRIVATE_KEY='<base64 P-256 PKCS#8 DER private key>'
-export PNPM_SHARED_SIDE_EFFECTS_CACHE_BUILDER_ID='ci/main/42'
+export PNPM_REMOTE_SIDE_EFFECTS_CACHE_PUBLISH=true
+export PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID=acme-2026
+export PNPM_REMOTE_SIDE_EFFECTS_CACHE_PRIVATE_KEY='<base64 P-256 PKCS#8 DER private key>'
+export PNPM_REMOTE_SIDE_EFFECTS_CACHE_BUILDER_ID='ci/main/42'
 ```
 
 `imageDigest`, `architectureBaseline`, and `buildEnv` are optional provenance.
@@ -147,7 +148,7 @@ target/debug/pnpr --config /tmp/pnpr-shared-artifacts/config.yaml
 node pnpm11/pnpm/dist/pnpm.mjs login --registry=http://127.0.0.1:7677
 ```
 
-Use the login name as `sharedSideEffectsCache.organization`. The login writes
+Use the login name as `remoteSideEffectsCache.organization`. The login writes
 the bearer token that pnpm reuses for artifact publication, lookup, and blob
 downloads. Generate a P-256 key pair with Node.js:
 
@@ -161,11 +162,11 @@ Keep the printed private key in the trusted builder environment. Put the public
 key in the user environment that runs installs:
 
 ```sh
-export PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS='{"acme-2026":"<printed public key>"}'
+export PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS='{"acme-2026":"<printed public key>"}'
 ```
 
 Run the first install with the publication variables set. Then unset
-`PNPM_SHARED_SIDE_EFFECTS_CACHE_PUBLISH`, remove the project's `node_modules`,
+`PNPM_REMOTE_SIDE_EFFECTS_CACHE_PUBLISH`, remove the project's `node_modules`,
 and run the same install again. Keep both `sideEffectsCache` and
 `sideEffectsCacheReadonly` false while testing if the same machine's ordinary
 local side-effects cache would otherwise hide the remote lookup. pnpr should log
