@@ -39,7 +39,10 @@ use crate::{
 use axum::{
     Router,
     body::Body,
-    extract::{FromRequestParts, Path, RawPathParams, Request, State, connect_info::Connected},
+    extract::{
+        FromRequestParts, Path, RawPathParams, Request, State, connect_info::Connected,
+        rejection::RawPathParamsRejection,
+    },
     http::{HeaderMap, StatusCode, header, request::Parts},
     middleware::Next,
     response::{IntoResponse, Response},
@@ -429,8 +432,21 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for TargetRegistry 
         // absent `prefix` means this is the bare registration rather than a
         // prefixed request that happened to omit the segment.
         let params = RawPathParams::from_request_parts(parts, &()).await.map_err(|err| {
-            RegistryError::Internal { reason: format!("path params unavailable: {err}") }
-                .into_response()
+            match err {
+                // The client sent a segment that percent-decodes to invalid
+                // UTF-8. It cannot be a well-formed `~<name>`, so answer it the
+                // same 404 every other malformed prefix gets rather than a 500
+                // — a bad URL is not a server fault, and rendering it as one
+                // would also let a client fill the error log.
+                RawPathParamsRejection::InvalidUtf8InPathParam(_) => RegistryError::NotFound,
+                // The matched route registered no path parameters at all, which
+                // means the route table and this extractor disagree. Fail closed
+                // rather than serve the request as if it named no registry.
+                rejection => RegistryError::Internal {
+                    reason: format!("path params unavailable: {rejection}"),
+                },
+            }
+            .into_response()
         })?;
         let Some((_, prefix)) = params.iter().find(|(name, _)| *name == "prefix") else {
             return Ok(Self(None));
