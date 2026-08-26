@@ -424,6 +424,44 @@ impl S3Store {
         Err(RegistryError::RevisionReferenceWriteConflict { digest: digest.to_string() })
     }
 
+    pub async fn remove_revision_ref(&self, digest: &str, ref_id: &str) -> Result<()> {
+        for attempt in 0..REVISION_REF_WRITE_RETRIES {
+            let Some((mut index, version)) = self.read_revision_ref_index(digest).await? else {
+                return self.remove_revision_ref_bytes(digest, ref_id).await;
+            };
+            if !index.remove(ref_id) {
+                return self.remove_revision_ref_bytes(digest, ref_id).await;
+            }
+            match self
+                .store
+                .put_opts(
+                    &self.revision_ref_index_key(digest),
+                    PutPayload::from(index.to_bytes()),
+                    PutOptions { mode: PutMode::Update(version), ..PutOptions::default() },
+                )
+                .await
+            {
+                Ok(_) => return self.remove_revision_ref_bytes(digest, ref_id).await,
+                Err(
+                    object_store::Error::NotFound { .. } | object_store::Error::Precondition { .. },
+                ) => {
+                    if attempt + 1 < REVISION_REF_WRITE_RETRIES {
+                        wait_after_packument_write_conflict(attempt).await;
+                    }
+                }
+                Err(err) => return Err(err.into()),
+            }
+        }
+        if self
+            .read_revision_ref_index(digest)
+            .await?
+            .is_none_or(|(index, _)| !index.contains(ref_id))
+        {
+            return self.remove_revision_ref_bytes(digest, ref_id).await;
+        }
+        Err(RegistryError::RevisionReferenceWriteConflict { digest: digest.to_string() })
+    }
+
     async fn read_revision_ref_index(
         &self,
         digest: &str,
@@ -452,6 +490,13 @@ impl S3Store {
             .put(&self.revision_ref_key(digest, ref_id), PutPayload::from(bytes.to_vec()))
             .await?;
         Ok(())
+    }
+
+    async fn remove_revision_ref_bytes(&self, digest: &str, ref_id: &str) -> Result<()> {
+        match self.store.delete(&self.revision_ref_key(digest, ref_id)).await {
+            Ok(()) | Err(object_store::Error::NotFound { .. }) => Ok(()),
+            Err(err) => Err(err.into()),
+        }
     }
 
     fn packument_key(&self, name: &PackageName) -> ObjectPath {

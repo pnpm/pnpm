@@ -230,6 +230,21 @@ async fn missing_indexed_revision_ref_body_is_skipped() {
 }
 
 #[tokio::test]
+async fn revision_ref_removal_updates_the_index_and_body() {
+    let (store, _staging) = store_with_prefix("packages");
+    let digest = "A".repeat(86);
+    let removed_ref_id = "a".repeat(64);
+    store.write_revision_ref(&digest, &removed_ref_id, b"removed").await.unwrap();
+    store.write_revision_ref(&digest, &"b".repeat(64), b"retained").await.unwrap();
+
+    store.remove_revision_ref(&digest, &removed_ref_id).await.unwrap();
+    store.remove_revision_ref(&digest, &removed_ref_id).await.unwrap();
+
+    assert_eq!(store.read_revision_refs(&digest).await.unwrap(), vec![b"retained".to_vec()]);
+    assert!(store.store.get(&store.revision_ref_key(&digest, &removed_ref_id)).await.is_err());
+}
+
+#[tokio::test]
 async fn revision_ref_writes_enforce_the_read_bound() {
     let (store, _staging) = store_with_prefix("packages");
     let digest = "A".repeat(86);

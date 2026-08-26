@@ -209,6 +209,60 @@ async fn roll_forward_drops_a_version_that_cannot_reserve_a_revision_reference()
 }
 
 #[tokio::test]
+async fn roll_forward_removes_partial_revision_references_for_a_dropped_version() {
+    let tmp = tempdir().unwrap();
+    let storage =
+        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"));
+    let available_digest = URL_SAFE_NO_PAD.encode([6_u8; 64]);
+    let full_digest = URL_SAFE_NO_PAD.encode([7_u8; 64]);
+    for index in 0..crate::storage::MAX_HOSTED_REVISION_REFS {
+        storage
+            .write_hosted_revision_ref(&full_digest, &format!("{index:064x}"), b"{}")
+            .await
+            .unwrap();
+    }
+    let name = PackageName::parse("pkg").unwrap();
+    let packument = serde_json::to_vec(&json!({
+        "name": "pkg",
+        "versions": { "1.0.0": { "version": "1.0.0" } },
+    }))
+    .unwrap();
+    let ref_id = "f".repeat(64);
+    let record = br#"{"package":"pkg","version":"1.0.0"}"#.to_vec();
+    let revision_refs = [
+        JournaledRevisionRef {
+            filename: "pkg-1.0.0.tgz".to_string(),
+            digest: available_digest.clone(),
+            ref_id: ref_id.clone(),
+            bytes: record.clone(),
+        },
+        JournaledRevisionRef {
+            filename: "pkg-1.0.0.tgz".to_string(),
+            digest: full_digest,
+            ref_id,
+            bytes: record,
+        },
+    ];
+    let entries = [JournaledPublish {
+        name: &name,
+        org: None,
+        packument: &packument,
+        slots: &[],
+        revision_refs: &revision_refs,
+    }];
+
+    storage.publish_journal().seal(&entries).await.unwrap().roll_forward(&storage).await.unwrap();
+
+    assert_eq!(
+        storage.read_hosted_revision_refs(&available_digest).await.unwrap(),
+        Vec::<Vec<u8>>::new(),
+    );
+    let hosted = storage.read_hosted_packument(&name).await.unwrap().unwrap();
+    let hosted: serde_json::Value = serde_json::from_slice(&hosted).unwrap();
+    assert_eq!(hosted["versions"], json!({}));
+}
+
+#[tokio::test]
 async fn roll_forward_preserves_tarball_conflict_across_a_later_package_failure() {
     let tmp = tempdir().unwrap();
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());

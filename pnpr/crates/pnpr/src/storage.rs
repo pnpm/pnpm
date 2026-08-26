@@ -73,6 +73,14 @@ impl HostedRevisionRefIndex {
         Ok(())
     }
 
+    pub(crate) fn remove(&mut self, ref_id: &str) -> bool {
+        let Some(index) = self.refs.iter().position(|candidate| candidate == ref_id) else {
+            return false;
+        };
+        self.refs.remove(index);
+        true
+    }
+
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         serde_json::to_vec(self).expect("hosted revision reference index serializes")
     }
@@ -444,6 +452,13 @@ impl HostedStore {
         }
     }
 
+    async fn remove_revision_ref(&self, digest: &str, ref_id: &str) -> Result<()> {
+        match self {
+            HostedStore::Fs(store) => store.remove_revision_ref(digest, ref_id).await,
+            HostedStore::S3(store) => store.remove_revision_ref(digest, ref_id).await,
+        }
+    }
+
     /// A view rooted under `segment`, giving a hosted registry its own
     /// storage namespace so two orgs hosting the same `name@version` never
     /// collide on disk (or on object keys).
@@ -520,6 +535,16 @@ impl Storage {
         validate_revision_digest(digest)?;
         validate_revision_ref_id(ref_id)?;
         self.hosted.write_revision_ref(digest, ref_id, bytes).await
+    }
+
+    pub(crate) async fn remove_hosted_revision_ref(
+        &self,
+        digest: &str,
+        ref_id: &str,
+    ) -> Result<()> {
+        validate_revision_digest(digest)?;
+        validate_revision_ref_id(ref_id)?;
+        self.hosted.remove_revision_ref(digest, ref_id).await
     }
 
     /// A view whose hosted store is namespaced under `org`, so a hosted
@@ -1059,7 +1084,11 @@ impl Store {
         let index = self.read_revision_ref_index(digest).await?;
         let mut refs = Vec::with_capacity(index.ref_ids().len());
         for ref_id in index.ref_ids() {
-            refs.push(fs::read(self.revision_ref_path(digest, ref_id)).await?);
+            match fs::read(self.revision_ref_path(digest, ref_id)).await {
+                Ok(bytes) => refs.push(bytes),
+                Err(err) if err.kind() == ErrorKind::NotFound => {}
+                Err(err) => return Err(err.into()),
+            }
         }
         Ok(refs)
     }
@@ -1074,6 +1103,19 @@ impl Store {
             write_atomic(&self.revision_ref_index_path(digest), &index.to_bytes()).await?;
         }
         Ok(())
+    }
+
+    async fn remove_revision_ref(&self, digest: &str, ref_id: &str) -> Result<()> {
+        let _guard = self.revision_ref_write_lock.lock().await;
+        let mut index = self.read_revision_ref_index(digest).await?;
+        if index.remove(ref_id) {
+            write_atomic(&self.revision_ref_index_path(digest), &index.to_bytes()).await?;
+        }
+        match fs::remove_file(self.revision_ref_path(digest, ref_id)).await {
+            Ok(()) => Ok(()),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(()),
+            Err(err) => Err(err.into()),
+        }
     }
 
     async fn read_revision_ref_index(&self, digest: &str) -> Result<HostedRevisionRefIndex> {

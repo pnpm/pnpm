@@ -36,7 +36,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     io::{self, ErrorKind},
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
@@ -273,8 +273,16 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
         }
         let mut journaled: serde_json::Value =
             serde_json::from_slice(&fs::read(dir.join(&package.packument_file)).await?)?;
-        for revision_ref in &package.revision_refs {
-            let (_, version) = name.parse_tarball_name(&revision_ref.filename)?;
+        let revision_refs = package
+            .revision_refs
+            .iter()
+            .map(|revision_ref| {
+                let (_, version) = name.parse_tarball_name(&revision_ref.filename)?;
+                Ok((revision_ref, version))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let mut applied_revision_refs: HashMap<String, Vec<&JournaledRevisionRef>> = HashMap::new();
+        for (revision_ref, version) in revision_refs {
             if conflicted_versions.contains(&version) {
                 continue;
             }
@@ -286,9 +294,21 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
                 )
                 .await
             {
-                Ok(()) => {}
+                Ok(()) => {
+                    applied_revision_refs.entry(version).or_default().push(revision_ref);
+                }
                 Err(crate::error::RegistryError::RevisionReferenceLimit { .. }) => {
-                    conflicted_versions.insert(version);
+                    conflicted_versions.insert(version.clone());
+                    if let Some(applied) = applied_revision_refs.remove(&version) {
+                        for applied_ref in applied {
+                            store
+                                .remove_hosted_revision_ref(
+                                    &applied_ref.digest,
+                                    &applied_ref.ref_id,
+                                )
+                                .await?;
+                        }
+                    }
                 }
                 Err(err) => return Err(err),
             }
