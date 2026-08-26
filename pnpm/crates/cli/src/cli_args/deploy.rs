@@ -87,17 +87,6 @@ enum DeployError {
     #[diagnostic(code(ERR_PNPM_INVALID_DEPLOY_TARGET))]
     UnsafeDeployTarget { deploy_dir: PathBuf, reason: &'static str },
 
-    #[display(
-        r#"By default, starting from pnpm v10, we only deploy from workspaces that have "inject-workspace-packages=true" set"#
-    )]
-    #[diagnostic(
-        code(ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE),
-        help(
-            r#"If you want to deploy without using injected dependencies, run "pnpm deploy" with the "--legacy" flag or set "force-legacy-deploy" to true"#
-        )
-    )]
-    NonInjectedWorkspace,
-
     #[display("The selected project is missing from pnpm-lock.yaml: {project_id}")]
     #[diagnostic(code(ERR_PNPM_CANNOT_DEPLOY))]
     MissingImporter { project_id: String },
@@ -170,10 +159,6 @@ impl DeployArgs {
         }
 
         let force_legacy = self.legacy || config.force_legacy_deploy;
-        if config.shares_one_lockfile() && !force_legacy && !config.inject_workspace_packages {
-            return Err(DeployError::NonInjectedWorkspace.into());
-        }
-
         let deploy_dir = resolve_target_dir(dir, &self.target_dirs[0]);
         // Deploy's `--force` (declared on the flattened `InstallArgs`)
         // does double duty: besides the install-side force semantics it
@@ -230,9 +215,6 @@ impl DeployArgs {
         selected: &SelectedProject,
         deploy_dir: &Path,
     ) -> miette::Result<SharedDeployOutcome> {
-        if !config.inject_workspace_packages {
-            return Err(DeployError::NonInjectedWorkspace.into());
-        }
         // The shared lockfile, and the importer ids naming the projects in
         // it, belong to the lockfile dir — which `lockfileDir` can move
         // away from the workspace this deploy selected its project from.

@@ -476,22 +476,30 @@ fn deploy_refuses_non_empty_target_without_force() {
 }
 
 #[test]
-fn shared_lockfile_deploy_refuses_non_injected_workspace_before_target_mutation() {
+fn shared_lockfile_deploy_supports_non_injected_workspace() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
 
-    let output = pacquet
-        .with_args(["--filter", "app", "deploy", "deploy"])
-        .output()
-        .expect("run pacquet deploy");
-    assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("inject-workspace-packages=true"), "unexpected stderr:\n{stderr}");
+    pacquet.with_arg("install").assert().success();
+    let deploy_dir = root.path().join("deploy");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod"])
+        .with_arg(&deploy_dir)
+        .assert()
+        .success();
+
     assert!(
-        !workspace.join("deploy").exists(),
-        "non-injected shared-lockfile deploy must fail before creating the target",
+        is_symlink_or_junction(&deploy_dir.join("node_modules/lib")).unwrap(),
+        "the linked workspace dependency should be materialized in the deploy directory",
+    );
+
+    fs::remove_dir_all(deploy_dir.join("node_modules")).unwrap();
+    pacquet_cmd(&deploy_dir).with_args(["install", "--frozen-lockfile"]).assert().success();
+    assert!(
+        deploy_dir.join("node_modules/lib/index.js").is_file(),
+        "the dedicated deploy lockfile should restore the workspace dependency on frozen reinstall",
     );
 
     drop((root, mock_instance));

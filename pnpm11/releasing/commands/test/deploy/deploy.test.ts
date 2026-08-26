@@ -165,6 +165,62 @@ test('legacy deploy injects workspace dependencies that the shared lockfile link
   )
 })
 
+test('native deploy creates a dedicated lockfile from linked workspace dependencies', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  })
+  expect(assertProject(process.cwd()).readLockfile().importers['project-1'].dependencies!['project-2'].version).toBe('link:../project-2')
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const deployDir = path.resolve('deploy')
+  expect(assertProject(deployDir).readLockfile().importers['.'].dependencies!['project-2'].version).toMatch(/^project-2@file:/)
+  const deployedDependencyDir = fs.realpathSync(path.join(deployDir, 'node_modules/project-2'))
+  expect(deployedDependencyDir.startsWith(`${path.join(deployDir, 'node_modules/.pnpm')}${path.sep}`)).toBeTruthy()
+  expect(deployedDependencyDir.endsWith(path.join('node_modules', 'project-2'))).toBeTruthy()
+})
+
 test('deploy in workspace with shared-workspace-lockfile=false', async () => {
   preparePackages([
     {
