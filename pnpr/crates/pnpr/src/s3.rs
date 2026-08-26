@@ -17,11 +17,13 @@ use crate::{
     error::{RegistryError, Result},
     package_name::PackageName,
     storage::{
-        HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR, HostedRevisionRefIndex,
-        HostedRevisionRefWrite, STAGED_DIR, staged_id_of_meta_object,
-        wait_after_packument_write_conflict,
+        HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR, HostedBackend,
+        HostedPackumentForUpdate, HostedPackumentVersion, HostedRevisionRefIndex,
+        HostedRevisionRefWrite, PackumentWrite, STAGED_DIR, TarballFinalize,
+        staged_id_of_meta_object, wait_after_packument_write_conflict,
     },
 };
+use async_trait::async_trait;
 use axum::body::Body;
 use futures_util::StreamExt;
 use object_store::{
@@ -135,6 +137,9 @@ pub struct S3Store {
     /// when the final home is a bucket; a subdirectory of the
     /// proxy-cache root doubles as scratch.
     staging_dir: PathBuf,
+    /// The proxy-cache root `staging_dir` sits under. The publish journal
+    /// lives here, beside the staged tmp files it rolls forward.
+    cache_root: PathBuf,
 }
 
 #[derive(Debug)]
@@ -149,12 +154,8 @@ pub(crate) struct S3PackumentForUpdate {
 const STAGING_SUBDIR: &str = "pnpr-hosted-staging";
 
 impl S3Store {
-    #[expect(
-        clippy::needless_pass_by_value,
-        reason = "constructor; cache_root seeds staging_dir without threading &Path through storage::new and its construction sites"
-    )]
     pub fn new(store: Arc<dyn ObjectStore>, prefix: String, cache_root: PathBuf) -> Self {
-        Self { store, prefix, staging_dir: cache_root.join(STAGING_SUBDIR) }
+        Self { store, prefix, staging_dir: cache_root.join(STAGING_SUBDIR), cache_root }
     }
 
     /// A view of this store with `segment` appended to the key prefix, giving a
@@ -170,12 +171,14 @@ impl S3Store {
                 store: Arc::clone(&self.store),
                 prefix: self.prefix.clone(),
                 staging_dir: self.staging_dir.clone(),
+                cache_root: self.cache_root.clone(),
             };
         }
         Self {
             store: Arc::clone(&self.store),
             prefix: format!("{}{segment}/", self.prefix),
             staging_dir: self.staging_dir.clone(),
+            cache_root: self.cache_root.clone(),
         }
     }
 
@@ -267,8 +270,7 @@ impl S3Store {
         tmp_path: &Path,
         name: &PackageName,
         filename: &str,
-    ) -> Result<crate::storage::TarballFinalize> {
-        use crate::storage::TarballFinalize;
+    ) -> Result<TarballFinalize> {
         let bytes = fs::read(tmp_path).await?;
         let key = self.tarball_key(name, filename);
         // Create-only. A published version's tarball is immutable, so an object
@@ -566,3 +568,129 @@ impl S3Store {
 
 #[cfg(test)]
 mod tests;
+
+/// The S3-compatible object-store backend. Packument writes are
+/// compare-and-set on the object's version, so concurrent publishers on
+/// separate nodes cannot lose each other's writes, and a tarball is promoted
+/// by upload rather than rename.
+#[async_trait]
+impl HostedBackend for S3Store {
+    async fn read_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
+        S3Store::read_packument(self, name).await
+    }
+
+    async fn read_packument_for_update(
+        &self,
+        name: &PackageName,
+    ) -> Result<Option<HostedPackumentForUpdate>> {
+        Ok(S3Store::read_packument_for_update(self, name).await?.map(|packument| {
+            HostedPackumentForUpdate {
+                bytes: packument.bytes,
+                version: HostedPackumentVersion::ObjectVersion(packument.version),
+            }
+        }))
+    }
+
+    async fn write_packument_if_current(
+        &self,
+        name: &PackageName,
+        bytes: &[u8],
+        version: Option<&HostedPackumentVersion>,
+    ) -> Result<PackumentWrite> {
+        let version = match version {
+            Some(HostedPackumentVersion::ObjectVersion(version)) => Some(version),
+            Some(HostedPackumentVersion::Unversioned) | None => None,
+        };
+        if S3Store::write_packument_if_current(self, name, bytes, version).await? {
+            Ok(PackumentWrite::Written)
+        } else {
+            Ok(PackumentWrite::Conflict)
+        }
+    }
+
+    async fn open_tarball(
+        &self,
+        name: &PackageName,
+        filename: &str,
+    ) -> Result<Option<(Body, Option<u64>)>> {
+        S3Store::open_tarball(self, name, filename).await
+    }
+
+    async fn reserve_tarball_tmp(&self, name: &PackageName, filename: &str) -> Result<PathBuf> {
+        self.staging_tmp_path(name, filename).await
+    }
+
+    async fn finalize_tarball(
+        &self,
+        tmp_path: &Path,
+        name: &PackageName,
+        filename: &str,
+    ) -> Result<TarballFinalize> {
+        let outcome = self.upload_tarball(tmp_path, name, filename).await?;
+        // Keep the staged tmp on a Conflict so journal roll-forward can
+        // re-detect it and exclude the version whose bytes we don't own;
+        // once the object is ours there is nothing left to promote.
+        if outcome != TarballFinalize::Conflict {
+            let _ = fs::remove_file(tmp_path).await;
+        }
+        Ok(outcome)
+    }
+
+    async fn remove_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
+        S3Store::remove_tarball(self, name, filename).await
+    }
+
+    async fn remove_package(&self, name: &PackageName) -> Result<bool> {
+        S3Store::remove_package(self, name).await
+    }
+
+    async fn list_package_names(&self) -> Result<Vec<String>> {
+        S3Store::list_package_names(self).await
+    }
+
+    async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
+        S3Store::read_revision_refs(self, digest).await
+    }
+
+    async fn write_revision_ref(
+        &self,
+        digest: &str,
+        ref_id: &str,
+        owner: &str,
+        bytes: &[u8],
+    ) -> Result<HostedRevisionRefWrite> {
+        S3Store::write_revision_ref(self, digest, ref_id, owner, bytes).await
+    }
+
+    async fn remove_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
+        S3Store::remove_revision_ref(self, digest, ref_id, owner).await
+    }
+
+    async fn commit_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
+        S3Store::commit_revision_ref(self, digest, ref_id, owner).await
+    }
+
+    fn namespaced(&self, segment: &str) -> Arc<dyn HostedBackend> {
+        Arc::new(S3Store::namespaced(self, segment))
+    }
+
+    fn local_scratch_root(&self) -> &Path {
+        &self.cache_root
+    }
+
+    async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>> {
+        S3Store::read_staged(self, object).await
+    }
+
+    async fn write_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
+        S3Store::write_staged(self, object, bytes).await
+    }
+
+    async fn remove_staged(&self, object: &str) -> Result<bool> {
+        S3Store::remove_staged(self, object).await
+    }
+
+    async fn list_staged_ids(&self) -> Result<Vec<String>> {
+        S3Store::list_staged_ids(self).await
+    }
+}

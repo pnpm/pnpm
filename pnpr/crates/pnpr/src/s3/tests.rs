@@ -34,8 +34,8 @@ async fn collect(body: Body) -> Vec<u8> {
 
 /// Stage a tarball through the same path the publish flow uses: write
 /// the decoded bytes to the reserved local tmp file, then upload.
-/// (Cleaning up the staging file is the `HostedStore` wrapper's job,
-/// not the adapter's, so it stays behind here.)
+/// (Cleaning up the staging file belongs to the `HostedBackend` impl, not
+/// to `upload_tarball`, so it stays behind here.)
 async fn upload(store: &S3Store, name: &PackageName, filename: &str, bytes: &[u8]) {
     let tmp = store.staging_tmp_path(name, filename).await.expect("reserve staging path");
     tokio::fs::write(&tmp, bytes).await.expect("write staging file");

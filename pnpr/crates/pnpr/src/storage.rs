@@ -5,8 +5,8 @@ use crate::{
     s3::S3Store,
     streaming,
 };
+use async_trait::async_trait;
 use axum::body::Body;
-use object_store::UpdateVersion;
 use pnpm_crypto_hash::integrity_addressed_tarball_integrity;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -22,6 +22,12 @@ use std::{
 use tokio::{
     fs,
     io::{AsyncSeekExt, AsyncWriteExt},
+};
+
+mod backend;
+
+pub(crate) use self::backend::{
+    HostedBackend, HostedPackumentForUpdate, HostedPackumentVersion, TarballFinalize,
 };
 
 const PACKUMENT_FILE: &str = "package.json";
@@ -333,29 +339,8 @@ pub enum CachedPackument {
 /// in static mode.
 #[derive(Debug, Clone)]
 pub struct Storage {
-    hosted: HostedStore,
+    hosted: Arc<dyn HostedBackend>,
     cached: Store,
-}
-
-/// The hosted store's pluggable backend: a local directory or an
-/// S3-compatible bucket. The disposable `cached` store is always
-/// local, so only the hosted side varies.
-#[derive(Debug, Clone)]
-enum HostedStore {
-    Fs(Store),
-    S3(S3Store),
-}
-
-#[derive(Debug)]
-pub(crate) struct HostedPackumentForUpdate {
-    pub(crate) bytes: Vec<u8>,
-    pub(crate) version: HostedPackumentVersion,
-}
-
-#[derive(Debug)]
-pub(crate) enum HostedPackumentVersion {
-    Fs,
-    S3(UpdateVersion),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -373,74 +358,33 @@ pub(crate) enum PackumentUpdate {
     NotFound,
 }
 
-/// Outcome of promoting a staged tarball into the hosted store.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TarballFinalize {
-    /// The tarball was promoted: created on S3, or renamed into place on the
-    /// single-node FS backend, which owns its store exclusively.
-    Written,
-    /// An object with byte-identical content already occupied the key, so
-    /// promotion was a no-op. Safe — the published artifact is exactly ours.
-    AlreadyIdentical,
-    /// A *different* object already occupies the key: a concurrent publisher
-    /// won this version's tarball. A published version's tarball is immutable,
-    /// so the caller must not overwrite it and should surface a write conflict
-    /// rather than advertise an integrity that no longer matches the bytes.
-    Conflict,
-}
-
-impl HostedStore {
+/// The single-node filesystem backend. It owns its directory tree
+/// exclusively, so a packument write needs no compare-and-set and a tarball
+/// is promoted by rename.
+#[async_trait]
+impl HostedBackend for Store {
     async fn read_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
-        match self {
-            HostedStore::Fs(store) => store.read_packument_any_age(name).await,
-            HostedStore::S3(store) => store.read_packument(name).await,
-        }
+        Store::read_packument_any_age(self, name).await
     }
 
     async fn read_packument_for_update(
         &self,
         name: &PackageName,
     ) -> Result<Option<HostedPackumentForUpdate>> {
-        match self {
-            HostedStore::Fs(store) => Ok(store.read_packument_any_age(name).await?.map(|bytes| {
-                HostedPackumentForUpdate { bytes, version: HostedPackumentVersion::Fs }
-            })),
-            HostedStore::S3(store) => {
-                Ok(store.read_packument_for_update(name).await?.map(|packument| {
-                    HostedPackumentForUpdate {
-                        bytes: packument.bytes,
-                        version: HostedPackumentVersion::S3(packument.version),
-                    }
-                }))
-            }
-        }
+        Ok(Store::read_packument_any_age(self, name).await?.map(|bytes| HostedPackumentForUpdate {
+            bytes,
+            version: HostedPackumentVersion::Unversioned,
+        }))
     }
 
-    /// FS has no hosted packument CAS and always returns `Written`.
-    /// `Conflict` is only returned by the S3 object-version path.
     async fn write_packument_if_current(
         &self,
         name: &PackageName,
         bytes: &[u8],
-        version: Option<&HostedPackumentVersion>,
+        _version: Option<&HostedPackumentVersion>,
     ) -> Result<PackumentWrite> {
-        match self {
-            HostedStore::Fs(store) => {
-                store.write_packument(name, bytes).await?;
-                Ok(PackumentWrite::Written)
-            }
-            HostedStore::S3(store) => {
-                let version = match version {
-                    Some(HostedPackumentVersion::S3(version)) => Some(version),
-                    Some(HostedPackumentVersion::Fs) | None => None,
-                };
-                if store.write_packument_if_current(name, bytes, version).await? {
-                    Ok(PackumentWrite::Written)
-                } else {
-                    Ok(PackumentWrite::Conflict)
-                }
-            }
-        }
+        Store::write_packument(self, name, bytes).await?;
+        Ok(PackumentWrite::Written)
     }
 
     async fn open_tarball(
@@ -448,21 +392,13 @@ impl HostedStore {
         name: &PackageName,
         filename: &str,
     ) -> Result<Option<(Body, Option<u64>)>> {
-        match self {
-            HostedStore::Fs(store) => Ok(store
-                .open_tarball(name, filename)
-                .await?
-                .map(|(file, len)| (streaming::stream_file(file), Some(len)))),
-            HostedStore::S3(store) => store.open_tarball(name, filename).await,
-        }
+        Ok(Store::open_tarball(self, name, filename)
+            .await?
+            .map(|(file, len)| (streaming::stream_file(file), Some(len))))
     }
 
-    /// Reserve the local staging path the publish flow decodes into.
     async fn reserve_tarball_tmp(&self, name: &PackageName, filename: &str) -> Result<PathBuf> {
-        match self {
-            HostedStore::Fs(store) => store.reserve_tarball_tmp(name, filename).await,
-            HostedStore::S3(store) => store.staging_tmp_path(name, filename).await,
-        }
+        Store::reserve_tarball_tmp(self, name, filename).await
     }
 
     async fn finalize_tarball(
@@ -471,50 +407,24 @@ impl HostedStore {
         name: &PackageName,
         filename: &str,
     ) -> Result<TarballFinalize> {
-        match self {
-            HostedStore::Fs(store) => {
-                store.finalize_tarball(tmp_path, name, filename).await?;
-                Ok(TarballFinalize::Written)
-            }
-            HostedStore::S3(store) => {
-                let outcome = store.upload_tarball(tmp_path, name, filename).await?;
-                // Keep the staged tmp on a Conflict so journal roll-forward can
-                // re-detect it and exclude the version whose bytes we don't own;
-                // once the object is ours there is nothing left to promote.
-                if outcome != TarballFinalize::Conflict {
-                    let _ = fs::remove_file(tmp_path).await;
-                }
-                Ok(outcome)
-            }
-        }
+        Store::finalize_tarball(self, tmp_path, name, filename).await?;
+        Ok(TarballFinalize::Written)
     }
 
     async fn remove_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
-        match self {
-            HostedStore::Fs(store) => store.remove_tarball(name, filename).await,
-            HostedStore::S3(store) => store.remove_tarball(name, filename).await,
-        }
+        Store::remove_tarball(self, name, filename).await
     }
 
     async fn remove_package(&self, name: &PackageName) -> Result<bool> {
-        match self {
-            HostedStore::Fs(store) => store.remove_package(name).await,
-            HostedStore::S3(store) => store.remove_package(name).await,
-        }
+        Store::remove_package(self, name).await
     }
 
     async fn list_package_names(&self) -> Result<Vec<String>> {
-        match self {
-            HostedStore::Fs(store) => store.list_package_names().await,
-            HostedStore::S3(store) => store.list_package_names().await,
-        }
+        Store::list_package_names(self).await
     }
 
     async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
-        match self {
-            HostedStore::Fs(store) => store.read_revision_refs(digest).await,
-            HostedStore::S3(store) => store.read_revision_refs(digest).await,
-        }
+        Store::read_revision_refs(self, digest).await
     }
 
     async fn write_revision_ref(
@@ -524,62 +434,39 @@ impl HostedStore {
         owner: &str,
         bytes: &[u8],
     ) -> Result<HostedRevisionRefWrite> {
-        match self {
-            HostedStore::Fs(store) => store.write_revision_ref(digest, ref_id, owner, bytes).await,
-            HostedStore::S3(store) => store.write_revision_ref(digest, ref_id, owner, bytes).await,
-        }
+        Store::write_revision_ref(self, digest, ref_id, owner, bytes).await
     }
 
     async fn remove_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
-        match self {
-            HostedStore::Fs(store) => store.remove_revision_ref(digest, ref_id, owner).await,
-            HostedStore::S3(store) => store.remove_revision_ref(digest, ref_id, owner).await,
-        }
+        Store::remove_revision_ref(self, digest, ref_id, owner).await
     }
 
     async fn commit_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
-        match self {
-            HostedStore::Fs(store) => store.commit_revision_ref(digest, ref_id, owner).await,
-            HostedStore::S3(store) => store.commit_revision_ref(digest, ref_id, owner).await,
-        }
+        Store::commit_revision_ref(self, digest, ref_id, owner).await
     }
 
-    /// A view rooted under `segment`, giving a hosted registry its own
-    /// storage namespace so two orgs hosting the same `name@version` never
-    /// collide on disk (or on object keys).
-    fn namespaced(&self, segment: &str) -> HostedStore {
-        match self {
-            HostedStore::Fs(store) => HostedStore::Fs(store.namespaced(segment)),
-            HostedStore::S3(store) => HostedStore::S3(store.namespaced(segment)),
-        }
+    fn namespaced(&self, segment: &str) -> Arc<dyn HostedBackend> {
+        Arc::new(Store::namespaced(self, segment))
+    }
+
+    fn local_scratch_root(&self) -> &Path {
+        &self.root
     }
 
     async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>> {
-        match self {
-            HostedStore::Fs(store) => store.read_staged(object).await,
-            HostedStore::S3(store) => store.read_staged(object).await,
-        }
+        Store::read_staged(self, object).await
     }
 
     async fn write_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
-        match self {
-            HostedStore::Fs(store) => store.write_staged(object, bytes).await,
-            HostedStore::S3(store) => store.write_staged(object, bytes).await,
-        }
+        Store::write_staged(self, object, bytes).await
     }
 
     async fn remove_staged(&self, object: &str) -> Result<bool> {
-        match self {
-            HostedStore::Fs(store) => store.remove_staged(object).await,
-            HostedStore::S3(store) => store.remove_staged(object).await,
-        }
+        Store::remove_staged(self, object).await
     }
 
     async fn list_staged_ids(&self) -> Result<Vec<String>> {
-        match self {
-            HostedStore::Fs(store) => store.list_staged_ids().await,
-            HostedStore::S3(store) => store.list_staged_ids().await,
-        }
+        Store::list_staged_ids(self).await
     }
 }
 
@@ -591,10 +478,10 @@ impl Storage {
     /// S3 backend's local staging scratch.
     pub fn new(hosted: &HostedStoreConfig, storage: PathBuf, cache_storage: PathBuf) -> Self {
         let cached = Store::new(cache_storage.clone());
-        let hosted = match hosted {
-            HostedStoreConfig::Fs => HostedStore::Fs(Store::new(storage)),
+        let hosted: Arc<dyn HostedBackend> = match hosted {
+            HostedStoreConfig::Fs => Arc::new(Store::new(storage)),
             HostedStoreConfig::S3 { store, prefix } => {
-                HostedStore::S3(S3Store::new(Arc::clone(store), prefix.clone(), cache_storage))
+                Arc::new(S3Store::new(Arc::clone(store), prefix.clone(), cache_storage))
             }
         };
         Self { hosted, cached }
@@ -878,10 +765,7 @@ impl Storage {
     /// root on the fs backend, the cache scratch on the S3 backend
     /// (whose staging paths live there too).
     pub fn publish_journal(&self) -> crate::journal::PublishJournal {
-        let root = match &self.hosted {
-            HostedStore::Fs(store) => &store.root,
-            HostedStore::S3(_) => &self.cached.root,
-        };
+        let root = self.hosted.local_scratch_root();
         crate::journal::PublishJournal::new(root.join(crate::journal::JOURNAL_DIR))
     }
 
