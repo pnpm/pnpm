@@ -1003,6 +1003,18 @@ sharedSideEffectsCache:
     assert!(error.to_string().contains("trustedKeys"));
 }
 
+#[test]
+fn rejects_incomplete_shared_side_effects_cache() {
+    let error = serde_saphyr::from_str::<WorkspaceSettings>(
+        r"
+sharedSideEffectsCache:
+  organization: acme
+",
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("packages"), "{error}");
+}
+
 /// pnpm scaffolds `allowBuilds` entries with a placeholder string for the
 /// user to replace. The file pnpm wrote must stay loadable, and the
 /// undecided package must stay under the default-deny policy rather than

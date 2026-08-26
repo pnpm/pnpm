@@ -141,8 +141,14 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
     allow_builds.into_iter().filter_map(|(pkg, value)| Some((pkg, value.decided()?))).collect()
 }
 
+/// Organization-owned dependency build artifacts eligible for this workspace.
+///
+/// `deny_unknown_fields` keeps the signing trust root out of the repository:
+/// a `trustedKeys` entry here is rejected rather than believed. Both fields
+/// are required so a mistyped section fails at parse time instead of
+/// silently resolving to an empty allowlist.
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SharedSideEffectsCacheSettings {
     pub organization: String,
     pub packages: Vec<String>,

@@ -58,7 +58,9 @@ export function getOptionsFromPnpmSettings (
   pnpmSettings: PnpmSettings,
   manifestOrOpts?: ProjectManifest | GetOptionsFromPnpmSettingsOptions
 ): OptionsFromRootManifest {
-  assertWorkspaceDoesNotSetSharedSideEffectsTrust(pnpmSettings.sharedSideEffectsCache)
+  if (pnpmSettings.sharedSideEffectsCache != null) {
+    assertValidSharedSideEffectsCache(pnpmSettings.sharedSideEffectsCache)
+  }
   const opts = isGetOptionsFromPnpmSettingsOptions(manifestOrOpts)
     ? manifestOrOpts
     : manifestOrOpts == null ? {} : { manifest: manifestOrOpts }
@@ -94,15 +96,23 @@ export function getOptionsFromPnpmSettings (
   return settings
 }
 
-function assertWorkspaceDoesNotSetSharedSideEffectsTrust (
-  settings: PnpmSettings['sharedSideEffectsCache']
+// The signing trust root stays outside the repository: a workspace may only
+// declare which organization and packages are eligible, never which keys are
+// believed. Both fields are consumed without further checks by the install-time
+// lookup, so a malformed section has to be rejected here rather than surface as
+// a type error deep inside the hydration path.
+function assertValidSharedSideEffectsCache (
+  settings: NonNullable<PnpmSettings['sharedSideEffectsCache']>
 ): void {
-  if (settings != null && Object.prototype.hasOwnProperty.call(settings, 'trustedKeys')) {
+  assertObjectSetting(settings, 'sharedSideEffectsCache')
+  if (Object.prototype.hasOwnProperty.call(settings, 'trustedKeys')) {
     throw new PnpmError(
       'WORKSPACE_SHARED_SIDE_EFFECTS_TRUST',
       'sharedSideEffectsCache.trustedKeys cannot be set by a workspace; set PNPM_SHARED_SIDE_EFFECTS_CACHE_TRUSTED_KEYS in the user environment'
     )
   }
+  assertString(settings.organization, 'sharedSideEffectsCache.organization')
+  assertStringArray(settings.packages, 'sharedSideEffectsCache.packages')
 }
 
 const REGISTRY_SERVER_TYPES = new Set(['npm', 'artifactory'])

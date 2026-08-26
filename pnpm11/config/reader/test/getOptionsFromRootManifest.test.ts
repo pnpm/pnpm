@@ -120,6 +120,18 @@ test('getOptionsFromPnpmSettings() rejects workspace-controlled shared side-effe
   }))
 })
 
+test.each([
+  ['organization', { organization: 42, packages: [] }],
+  ['packages', { organization: 'acme', packages: 'native-addon' }],
+  ['packages', { organization: 'acme' }],
+])('getOptionsFromPnpmSettings() rejects a malformed shared side-effects %s', (_field, sharedSideEffectsCache) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    sharedSideEffectsCache,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+  }))
+})
+
 test('getOptionsFromPnpmSettings() rejects non-string overrides values', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     overrides: {
