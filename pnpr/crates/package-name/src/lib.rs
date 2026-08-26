@@ -1,4 +1,4 @@
-use crate::error::RegistryError;
+use pnpr_error::RegistryError;
 
 /// A package name validated to be safe for use as a filesystem path
 /// segment (no traversal, no absolute-path prefixes) and well-formed
@@ -33,10 +33,12 @@ impl PackageName {
         Ok(Self { raw: raw.to_string(), basename })
     }
 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.raw
     }
 
+    #[must_use]
     pub fn tarball_name_for_version(&self, version: &str) -> String {
         format!("{}-{version}.tgz", self.basename)
     }

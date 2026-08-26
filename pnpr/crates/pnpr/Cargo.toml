@@ -20,11 +20,15 @@ path = "src/main.rs"
 
 [features]
 default          = ["backend-libsql"]
-backend-libsql   = ["dep:libsql"]
-backend-mysql    = ["dep:sqlx", "sqlx/mysql"]
-backend-postgres = ["dep:sqlx", "sqlx/postgres"]
+backend-libsql   = ["dep:libsql", "pnpr-error/backend-libsql"]
+backend-mysql    = ["dep:sqlx", "sqlx/mysql", "pnpr-error/backend-mysql"]
+backend-postgres = ["dep:sqlx", "sqlx/postgres", "pnpr-error/backend-postgres"]
 
 [dependencies]
+pnpr-error                    = { workspace = true }
+pnpr-package-name             = { workspace = true }
+pnpr-policy                   = { workspace = true }
+pnpr-registry                 = { workspace = true }
 pnpm-catalogs-types           = { workspace = true }
 pnpm-config                   = { workspace = true }
 pnpm-config-dir               = { workspace = true }

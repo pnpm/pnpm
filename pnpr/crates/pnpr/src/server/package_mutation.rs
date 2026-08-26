@@ -6,13 +6,13 @@ use axum::{
 use serde_json::{Value, json};
 
 use crate::{
-    error::RegistryError,
-    package_name::PackageName,
-    policy::Identity,
     publish::now_iso,
     storage::{PACKUMENT_WRITE_RETRIES, PackumentUpdate, PackumentWrite},
     upstream::tarball_basename,
 };
+use pnpr_error::RegistryError;
+use pnpr_package_name::PackageName;
+use pnpr_policy::Identity;
 
 use super::{
     Action, AppState, RegistrySource, authorize, filter_osv_vulnerable_dist_tags, hosted_storage,

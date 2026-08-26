@@ -8,15 +8,13 @@ use self::upstream::{
     Interval, UpstreamAuthFile, UpstreamConfigFile, parse_interval, resolve_upstream_config,
 };
 
-use crate::{
-    error::RegistryError,
-    policy::{AccessList, AccessToken, PackageRule, PackageRules},
-    registry::{PackagePattern, Registries, Registry, RegistryConfigError},
-    s3::{S3Settings, build_s3_store},
-};
+use crate::s3::{S3Settings, build_s3_store};
 use indexmap::IndexMap;
 use object_store::ObjectStore;
 use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
+use pnpr_error::RegistryError;
+use pnpr_policy::{AccessList, AccessToken, PackageRule, PackageRules};
+use pnpr_registry::{PackagePattern, Registries, Registry, RegistryConfigError};
 use reqwest::header::HeaderMap;
 use serde::Deserialize;
 use std::{
@@ -1743,7 +1741,7 @@ fn registry_access_list(
 /// characters), or a path-meaningful component intermediaries may normalize
 /// away (`.`, `..`, a Windows drive prefix).
 fn validate_registry_name(name: &str) -> Result<(), RegistryError> {
-    let safe = crate::package_name::is_safe_path_segment(name)
+    let safe = pnpr_package_name::is_safe_path_segment(name)
         && !name.contains(['%', '?', '#'])
         && !name.contains(|ch: char| ch.is_whitespace() || ch.is_control());
     if safe {
@@ -1768,7 +1766,7 @@ fn validate_registry_name(name: &str) -> Result<(), RegistryError> {
 /// journal), which would put authoritative packages under a path an operator
 /// is told is safe to delete.
 fn validate_org_namespace(name: &str, org: &str) -> Result<(), RegistryError> {
-    if org.is_empty() || crate::package_name::is_safe_path_segment(org) {
+    if org.is_empty() || pnpr_package_name::is_safe_path_segment(org) {
         return Ok(());
     }
     Err(RegistryError::InvalidConfig {

@@ -6,11 +6,9 @@ use super::{
     hash_bcrypt, mint_token, sha256_hex, unix_seconds, validate_username, verify_returning_user,
     with_auth_timeout,
 };
-use crate::{
-    config::MaxUsers,
-    error::{RegistryError, Result},
-};
+use crate::config::MaxUsers;
 use async_trait::async_trait;
+use pnpr_error::{RegistryError, Result};
 use std::{
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
@@ -189,11 +187,9 @@ pub(super) mod postgres {
         AuthSqlBackend, InsertUser, SqlAuth, StoredUser, invalid_pool_size, sql_max_users,
         timeout_millis, with_auth_timeout,
     };
-    use crate::{
-        config::{MaxUsers, SqlBackendSettings},
-        error::{RegistryError, Result},
-    };
+    use crate::config::{MaxUsers, SqlBackendSettings};
     use async_trait::async_trait;
+    use pnpr_error::{RegistryError, Result};
     use sqlx::{PgPool, Row, postgres::PgPoolOptions};
     use std::time::Duration;
 
@@ -521,11 +517,9 @@ pub(super) mod mysql {
         AuthSqlBackend, InsertUser, SqlAuth, StoredUser, invalid_pool_size, sql_max_users,
         timeout_millis, timeout_seconds, with_auth_timeout,
     };
-    use crate::{
-        config::{MaxUsers, SqlBackendSettings},
-        error::{RegistryError, Result},
-    };
+    use crate::config::{MaxUsers, SqlBackendSettings};
     use async_trait::async_trait;
+    use pnpr_error::{RegistryError, Result};
     use sqlx::{MySqlPool, Row, mysql::MySqlPoolOptions};
     use std::time::Duration;
 

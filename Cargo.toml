@@ -95,8 +95,12 @@ pnpm-workspace-state                   = { path = "pnpm/crates/workspace-state" 
 pnpm-registry-mock = { path = "pnpm/tasks/registry-mock" }
 
 # Registry (sibling project — pnpm-compatible registry server)
-pnpr          = { path = "pnpr/crates/pnpr" }
-pnpr-fixtures = { path = "pnpr/crates/pnpr-fixtures" }
+pnpr              = { path = "pnpr/crates/pnpr" }
+pnpr-error        = { path = "pnpr/crates/error" }
+pnpr-package-name = { path = "pnpr/crates/package-name" }
+pnpr-policy       = { path = "pnpr/crates/policy" }
+pnpr-registry     = { path = "pnpr/crates/registry" }
+pnpr-fixtures     = { path = "pnpr/crates/pnpr-fixtures" }
 
 # Dependencies
 async-recursion = { version = "1.1.1" }

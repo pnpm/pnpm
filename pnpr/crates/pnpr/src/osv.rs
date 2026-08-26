@@ -14,7 +14,8 @@ use pnpm_resolving_resolver_base::{
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-use crate::{Config, error::RegistryError};
+use crate::Config;
+use pnpr_error::RegistryError;
 
 const OSV_POLICY_KEY: &str = "osvNpmDatabase";
 

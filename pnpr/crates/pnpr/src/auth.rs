@@ -26,13 +26,11 @@
 //! only its SHA-256 hash hits storage, so a leak of the database
 //! doesn't grant access on its own.
 
-use crate::{
-    config::{AuthConfig, BackendConfig, MaxUsers},
-    error::{RegistryError, Result},
-};
+use crate::config::{AuthConfig, BackendConfig, MaxUsers};
 use async_trait::async_trait;
 #[cfg(feature = "backend-libsql")]
 use libsql_backend::LibsqlAuth;
+use pnpr_error::{RegistryError, Result};
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 #[cfg(feature = "backend-mysql")]

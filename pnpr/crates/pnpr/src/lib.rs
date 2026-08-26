@@ -9,13 +9,9 @@
 
 mod auth;
 mod config;
-mod error;
 mod journal;
 mod osv;
-mod package_name;
-mod policy;
 mod publish;
-mod registry;
 mod resolver;
 mod route;
 mod s3;
@@ -37,10 +33,10 @@ pub use config::{
     ResolverFeature, RoutePolicy, SqlBackendSettings, Teams, TokensConfig, UpstreamConfig,
     default_cache_dir,
 };
-pub use error::{RegistryError, Result};
 pub use journal::recover_publish_journal;
-pub use policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
-pub use registry::{
+pub use pnpr_error::{RegistryError, Result};
+pub use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
+pub use pnpr_registry::{
     ConcreteKind, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
 };
 pub use server::{

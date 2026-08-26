@@ -11,17 +11,17 @@ use serde_json::{Value, json};
 use ssri::Integrity;
 
 use crate::{
-    error::RegistryError,
     journal::{JournaledPublish, JournaledRevisionRef},
-    package_name::PackageName,
-    policy::Identity,
     publish::{
         PendingAttachment, extract_attachments, merge_manifest, now_iso,
         stream_decode_verify_and_write,
     },
-    registry::Registry,
     storage::{HostedPackumentVersion, PackumentWrite, TarballFinalize},
 };
+use pnpr_error::RegistryError;
+use pnpr_package_name::PackageName;
+use pnpr_policy::Identity;
+use pnpr_registry::Registry;
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, HostedOriginalRef, RegistrySource, WriteTarget,

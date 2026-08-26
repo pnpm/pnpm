@@ -5,10 +5,8 @@ use pnpm_env_replace::EnvVar;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName, HeaderValue};
 use serde::Deserialize;
 
-use crate::{
-    error::RegistryError,
-    policy::{AccessList, PackageRules},
-};
+use pnpr_error::RegistryError;
+use pnpr_policy::{AccessList, PackageRules};
 
 use super::{AccessSpec, Teams};
 
