@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+    sync::Arc,
+};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use pnpm_shared_artifact_protocol::{
@@ -12,10 +16,12 @@ use tempfile::TempDir;
 use tokio::{fs, sync::Barrier, time::timeout};
 
 use super::{
-    ResolveBudget, acquire_artifact_lock, artifact_usage_path, entry_lock_path, is_variant_file,
-    load_artifact_usage, owner_dir, owner_usage_key, pending_usage_file, publish,
-    reserve_storage_quota_with_limits, stored_bytes,
+    PendingUsageFile, ResolveBudget, StorageQuotaReservation, acquire_artifact_lock,
+    artifact_usage_path, blob_lock_path, entry_lock_path, is_variant_file, load_artifact_usage,
+    owner_dir, owner_usage_key, pending_usage_file, publish,
+    reserve_storage_quota_with_locks_and_limits, stored_bytes,
 };
+use crate::{error::Result, storage::unique_tmp_path};
 
 #[test]
 fn resolve_budget_bounds_combined_scanned_and_serialized_bytes() {
@@ -150,6 +156,84 @@ async fn owner_scoped_pending_usage_is_reconciled() {
 }
 
 #[tokio::test]
+async fn orphaned_atomic_temps_are_removed_before_releasing_quota() {
+    let storage = TempDir::new().unwrap();
+    let root = storage.path().join("shared-artifacts/v0");
+    let final_path = root.join("owner/missing");
+    fs::create_dir_all(final_path.parent().unwrap()).await.unwrap();
+    fs::create_dir_all(root.join(".locks")).await.unwrap();
+    let temp_path = unique_tmp_path(&final_path);
+    fs::write(&temp_path, b"1234").await.unwrap();
+    fs::write(
+        artifact_usage_path(&root),
+        br#"{"global_bytes":4,"owner_bytes":{"owner":4},"pending":{"crashed":{"owner":"owner","lock":{"type":"entry","entry":"entry"},"files":[{"path":"owner/missing","size":4}]}}}"#,
+    )
+    .await
+    .unwrap();
+    let _entry_lock =
+        acquire_artifact_lock(entry_lock_path(&root, "owner", "entry")).await.unwrap();
+
+    reserve_storage_quota_with_limits(&root, "reservation", "owner", "entry", Vec::new(), 10, 10)
+        .await
+        .unwrap();
+
+    assert!(!fs::try_exists(temp_path).await.unwrap());
+    let usage = load_artifact_usage(&root).await.unwrap();
+    assert_eq!(usage.global_bytes, 0);
+    assert_eq!(usage.owner_bytes.get("owner"), Some(&0));
+}
+
+#[tokio::test]
+async fn active_blob_writes_are_not_cleaned_up_by_reconciliation() {
+    let storage = TempDir::new().unwrap();
+    let root = storage.path().join("shared-artifacts/v0");
+    let final_path = root.join("owner/blobs/blob");
+    fs::create_dir_all(final_path.parent().unwrap()).await.unwrap();
+    fs::create_dir_all(root.join(".locks")).await.unwrap();
+    let temp_path = unique_tmp_path(&final_path);
+    fs::write(&temp_path, b"1234").await.unwrap();
+    fs::write(
+        artifact_usage_path(&root),
+        br#"{"global_bytes":4,"owner_bytes":{"owner":4},"pending":{"crashed":{"owner":"owner","lock":{"type":"entry","entry":"first-entry"},"files":[{"path":"owner/blobs/blob","size":4}]}}}"#,
+    )
+    .await
+    .unwrap();
+    let blob_lock = acquire_artifact_lock(blob_lock_path(&root, "owner", "blob")).await.unwrap();
+
+    reserve_storage_quota_with_limits(
+        &root,
+        "reservation",
+        "owner",
+        "second-entry",
+        Vec::new(),
+        10,
+        10,
+    )
+    .await
+    .unwrap();
+
+    assert!(fs::try_exists(&temp_path).await.unwrap());
+    let usage = load_artifact_usage(&root).await.unwrap();
+    assert_eq!(usage.global_bytes, 4);
+    assert!(usage.pending.contains_key("crashed"));
+
+    drop(blob_lock);
+    reserve_storage_quota_with_limits(
+        &root,
+        "next-reservation",
+        "owner",
+        "third-entry",
+        Vec::new(),
+        10,
+        10,
+    )
+    .await
+    .unwrap();
+    assert!(!fs::try_exists(temp_path).await.unwrap());
+    assert_eq!(load_artifact_usage(&root).await.unwrap().global_bytes, 0);
+}
+
+#[tokio::test]
 async fn active_entry_reservations_are_not_reconciled() {
     let storage = TempDir::new().unwrap();
     let root = storage.path().join("shared-artifacts/v0");
@@ -183,6 +267,31 @@ async fn active_entry_reservations_are_not_reconciled() {
     let usage = load_artifact_usage(&root).await.unwrap();
     assert_eq!(usage.global_bytes, 4);
     assert!(usage.pending.contains_key("active-reservation"));
+}
+
+async fn reserve_storage_quota_with_limits(
+    artifact_root: &Path,
+    reservation: &str,
+    owner: &str,
+    entry: &str,
+    files: Vec<PendingUsageFile>,
+    owner_limit: u64,
+    global_limit: u64,
+) -> Result<()> {
+    let locked_blobs = BTreeSet::new();
+    reserve_storage_quota_with_locks_and_limits(
+        artifact_root,
+        StorageQuotaReservation {
+            id: reservation,
+            owner,
+            entry,
+            locked_blobs: &locked_blobs,
+            files,
+        },
+        owner_limit,
+        global_limit,
+    )
+    .await
 }
 
 #[tokio::test]

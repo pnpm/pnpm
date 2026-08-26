@@ -1347,6 +1347,52 @@ pub(crate) async fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
+pub(crate) async fn remove_atomic_write_temps(path: &Path) -> Result<()> {
+    let Some(parent) = path.parent() else {
+        return Ok(());
+    };
+    let Some(file_name) = path.file_name() else {
+        return Ok(());
+    };
+    let mut prefix = file_name.to_os_string();
+    prefix.push(".tmp.");
+    let mut entries = match fs::read_dir(parent).await {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err.into()),
+    };
+    while let Some(entry) = entries.next_entry().await? {
+        let name = entry.file_name();
+        let Some(suffix) = name.as_encoded_bytes().strip_prefix(prefix.as_encoded_bytes()) else {
+            continue;
+        };
+        if !is_atomic_write_temp_suffix(suffix) {
+            continue;
+        }
+        match fs::remove_file(entry.path()).await {
+            Ok(()) => {}
+            Err(err) if err.kind() == ErrorKind::NotFound => {}
+            Err(err) => return Err(err.into()),
+        }
+    }
+    Ok(())
+}
+
+fn is_atomic_write_temp_suffix(suffix: &[u8]) -> bool {
+    let mut parts = suffix.split(|byte| *byte == b'.');
+    let (Some(pid), Some(counter), Some(random), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return false;
+    };
+    !pid.is_empty()
+        && pid.iter().all(u8::is_ascii_digit)
+        && !counter.is_empty()
+        && counter.iter().all(u8::is_ascii_digit)
+        && random.len() == 16
+        && random.iter().all(u8::is_ascii_hexdigit)
+}
+
 async fn create_tmp_file(base: &Path) -> Result<(fs::File, PathBuf)> {
     create_tmp_file_with(base, unique_tmp_path).await
 }
