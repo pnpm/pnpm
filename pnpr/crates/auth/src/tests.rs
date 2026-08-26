@@ -481,8 +481,10 @@ async fn an_unreadable_cidr_whitelist_is_refused_rather_than_dropped() {
     drop(conn);
 
     let err = TokenStore::open(path).expect_err("a corrupt cidr_whitelist must not load");
+    let message = err.to_string();
+    assert!(message.contains("cidr_whitelist"), "the error should name the column: {message}");
     assert!(
-        err.to_string().contains("cidr_whitelist"),
-        "the error should name the offending column: {err}",
+        message.contains("token-hash"),
+        "the error should name the row, so an operator can find it: {message}",
     );
 }
