@@ -593,13 +593,10 @@ fn is_sensitive_query_key(key: &str) -> bool {
     )
 }
 
-/// Render the error as the response the client receives, logging it on the way
-/// out at a severity that matches the status: server faults are `error`, the
-/// statuses an unauthorized or probing client provokes routinely
-/// (401 / 403 / 404) are `debug`, and the rest are `warn`. The `error` branch
-/// logs [`Self::log_message`] because every variant that can embed a request
-/// URL — and so a credential — is a server fault; the client sees only
-/// [`Self::public_message`] either way.
+/// Only server faults need [`Self::log_message`]'s redaction: every variant
+/// that can embed a request URL — and so a credential — is one. The 401 / 403 /
+/// 404 tier drops to `debug` so a probing or unauthorized client cannot flood
+/// the log with warnings.
 impl IntoResponse for RegistryError {
     fn into_response(self) -> Response {
         let status = self.status_code();
