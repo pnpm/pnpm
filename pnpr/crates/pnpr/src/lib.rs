@@ -16,6 +16,8 @@ mod policy;
 mod publish;
 mod registry;
 mod resolver;
+mod revision;
+mod revision_backfill;
 mod route;
 mod s3;
 mod search;
@@ -42,6 +44,7 @@ pub use policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
 pub use registry::{
     ConcreteKind, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
 };
+pub use revision_backfill::{RevisionBackfillReport, backfill_hosted_revision_refs};
 pub use server::{
     router, router_with_auth, serve, serve_listener, try_router, try_router_with_auth,
 };

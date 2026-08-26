@@ -7,7 +7,8 @@ use futures_util::stream;
 use pnpm_crypto_hash::integrity_addressed_tarball_path;
 use pnpr::{
     AccessList, AuthState, Config, HostedConfig, MaxUsers, PackagePattern, PackageRule,
-    PackageRules, PublicRoute, Registries, Registry, router, router_with_auth,
+    PackageRules, PublicRoute, Registries, Registry, backfill_hosted_revision_refs, router,
+    router_with_auth,
 };
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
@@ -3444,6 +3445,60 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
         .unwrap();
     assert_eq!(canonical.status(), StatusCode::OK);
     assert_eq!(body_bytes(canonical.into_body()).await, tarball);
+}
+
+#[tokio::test]
+async fn legacy_hosted_original_is_served_by_digest_after_backfill() {
+    let tmp = TempDir::new().unwrap();
+    let tarball = b"legacy-public-hosted-original";
+    let integrity_text = sha512_integrity(tarball);
+    let integrity = integrity_text.parse().unwrap();
+    let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
+    let package_dir = tmp.path().join("acme/@acme/widget");
+    std::fs::create_dir_all(&package_dir).unwrap();
+    std::fs::write(package_dir.join("widget-1.0.0.tgz"), tarball).unwrap();
+    std::fs::write(
+        package_dir.join("package.json"),
+        json!({
+            "name": "@acme/widget",
+            "dist-tags": { "latest": "1.0.0" },
+            "versions": { "1.0.0": {
+                "name": "@acme/widget",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": "http://example.test/@acme/widget/-/widget-1.0.0.tgz",
+                    "integrity": integrity_text,
+                },
+            } },
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.clear();
+    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
+        Some("acme".to_string()),
+    );
+
+    let before = router(config.clone())
+        .oneshot(Request::get(format!("/{revision_path}")).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(before.status(), StatusCode::NOT_FOUND);
+
+    let report = backfill_hosted_revision_refs(&config, false).await.unwrap();
+    assert_eq!(report.indexed, 1);
+    assert_eq!(report.invalid, 0);
+
+    let after = router(config)
+        .oneshot(Request::get(format!("/{revision_path}")).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(after.status(), StatusCode::OK);
+    assert_eq!(body_bytes(after.into_body()).await, tarball);
 }
 
 #[tokio::test]

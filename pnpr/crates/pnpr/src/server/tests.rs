@@ -1,7 +1,6 @@
 use super::{
-    ConnectInfo, HostedRevisionDist, HostedRevisionRecord, PeerAddr, RevisionField,
-    artifact_blob_response_body, bearer_credentials, canonical_ip, cidr_contains,
-    cidr_whitelist_allows, is_write_method, original_integrity, router_with_auth,
+    ConnectInfo, PeerAddr, artifact_blob_response_body, bearer_credentials, canonical_ip,
+    cidr_contains, cidr_whitelist_allows, is_write_method, router_with_auth,
     token_timestamp_millis,
 };
 use crate::{
@@ -9,6 +8,7 @@ use crate::{
     config::Config,
     error::{RegistryError, Result},
     policy::{AccessList, PackageRule, PackageRules},
+    revision::{HostedRevisionDist, HostedRevisionRecord, RevisionField, original_integrity},
 };
 use async_trait::async_trait;
 use axum::{

@@ -510,6 +510,13 @@ impl HostedStore {
         }
     }
 
+    async fn list_package_names_for_backfill(&self) -> Result<Vec<String>> {
+        match self {
+            HostedStore::Fs(store) => store.list_package_names_for_backfill().await,
+            HostedStore::S3(store) => store.list_package_names().await,
+        }
+    }
+
     async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
         match self {
             HostedStore::Fs(store) => store.read_revision_refs(digest).await,
@@ -604,6 +611,10 @@ impl Storage {
     /// indexes hosted/static packages only, never the proxy mirror).
     pub async fn hosted_package_names(&self) -> Result<Vec<String>> {
         self.hosted.list_package_names().await
+    }
+
+    pub(crate) async fn hosted_package_names_for_backfill(&self) -> Result<Vec<String>> {
+        self.hosted.list_package_names_for_backfill().await
     }
 
     pub(crate) async fn read_hosted_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
@@ -1181,6 +1192,40 @@ impl Store {
         Ok(names)
     }
 
+    async fn list_package_names_for_backfill(&self) -> Result<Vec<String>> {
+        let mut names = Vec::new();
+        let mut top = match fs::read_dir(&self.root).await {
+            Ok(entries) => entries,
+            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(names),
+            Err(err) => return Err(err.into()),
+        };
+        while let Some(entry) = top.next_entry().await? {
+            let entry_name = entry.file_name();
+            let name = entry_name.to_string_lossy();
+            if name.starts_with('.') || !entry.file_type().await?.is_dir() {
+                continue;
+            }
+            if is_file_if_present(entry.path().join(PACKUMENT_FILE)).await? {
+                names.push(name.into_owned());
+                continue;
+            }
+            if !name.starts_with('@') {
+                continue;
+            }
+            let mut scoped = fs::read_dir(entry.path()).await?;
+            while let Some(child) = scoped.next_entry().await? {
+                if !child.file_type().await?.is_dir() {
+                    continue;
+                }
+                if is_file_if_present(child.path().join(PACKUMENT_FILE)).await? {
+                    names.push(format!("{name}/{}", child.file_name().to_string_lossy()));
+                }
+            }
+        }
+        names.sort();
+        Ok(names)
+    }
+
     async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
         let index = self.read_revision_ref_index(digest).await?;
         Ok(index.bodies().map(<[u8]>::to_vec).collect())
@@ -1286,6 +1331,14 @@ impl Store {
             }
         }
         Ok(ids)
+    }
+}
+
+async fn is_file_if_present(path: PathBuf) -> Result<bool> {
+    match fs::metadata(path).await {
+        Ok(metadata) => Ok(metadata.is_file()),
+        Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
+        Err(err) => Err(err.into()),
     }
 }
 

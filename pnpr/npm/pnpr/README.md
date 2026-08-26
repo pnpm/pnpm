@@ -49,6 +49,29 @@ pnpm config set registry http://127.0.0.1:7677/
 Log level is controlled via the standard `RUST_LOG` environment
 variable (e.g. `RUST_LOG=debug pnpr`).
 
+### Backfill hosted revision indexes
+
+Packages published by current pnpr versions are indexed for immutable SHA-512
+digest routes as part of publication. To index packages already present in a
+hosted filesystem or S3 store, first validate the migration without writing:
+
+```sh
+pnpr -c ./pnpr.yaml backfill-revisions --dry-run
+```
+
+Then run the idempotent backfill:
+
+```sh
+pnpr -c ./pnpr.yaml backfill-revisions
+```
+
+The command streams each eligible tarball through its declared SHA-512
+integrity before adding a reference. It reports unsupported metadata as
+skipped, rejects missing or mismatched artifacts, and bounds each tarball at
+100 MiB. Stop the pnpr writer while backfilling the filesystem backend; S3
+backfills use the same conditional updates as normal publication and may run
+alongside the service.
+
 ## Configuration
 
 `pnpr` uses a [verdaccio](https://verdaccio.org/docs/configuration)-shaped

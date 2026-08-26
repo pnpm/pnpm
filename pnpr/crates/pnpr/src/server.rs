@@ -10,6 +10,9 @@ use crate::{
         stream_decode_verify_and_write,
     },
     registry::{ConcreteKind, Registry, Resolved},
+    revision::{
+        HostedOriginalRef, HostedRevisionPackument, hosted_original_reference, original_integrity,
+    },
     storage::{
         HostedPackumentVersion, PACKUMENT_WRITE_RETRIES, PackumentUpdate, PackumentWrite, Storage,
         TarballFinalize,
@@ -36,10 +39,7 @@ use axum::{
 };
 use chrono::Utc;
 use indexmap::IndexMap;
-use pnpm_crypto_hash::{
-    create_hex_hash, integrity_addressed_tarball_integrity, integrity_addressed_tarball_path,
-};
-use pnpm_lockfile::TarballRevision;
+use pnpm_crypto_hash::{integrity_addressed_tarball_integrity, integrity_addressed_tarball_path};
 use serde_json::{Value, json};
 use ssri::Integrity;
 use std::{
@@ -66,17 +66,12 @@ use tracing::Span;
 /// long version histories.
 const ABBREVIATED_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
 
-/// Cap tarballs at 100 MiB while pnpr has to spool them to disk for SRI
-/// verification. This bounds per-request temporary disk usage for
-/// chunked or malicious upstream bodies.
-const MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
-
 /// Cap publish bodies at 100 MiB. The default axum body limit is
 /// 2 MiB, far too small for a real package — npm itself caps publish
 /// at 100 MiB and verdaccio inherits that limit. We apply it via
 /// [`DefaultBodyLimit::max`] on the router rather than on each
 /// route, so future write endpoints inherit the same ceiling.
-const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
+const MAX_PUBLISH_BODY_BYTES: usize = streaming::MAX_TARBALL_BYTES as usize;
 
 /// Cap adduser/login bodies far below the publish ceiling. The body is a
 /// small couchdb-user JSON document, and login is the one body-accepting
@@ -123,12 +118,6 @@ struct AppInner {
     /// Local OSV index, loaded before the server accepts requests when
     /// `osv.enabled` is set and a mounted surface consults it.
     osv_index: Option<Arc<crate::resolver::OsvIndex>>,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct HostedOriginalRef {
-    package: String,
-    version: String,
 }
 
 /// A fixed stripe set bounds lock memory while serializing writers for the
@@ -1878,7 +1867,7 @@ async fn serve_tarball_via_upstream(
             response,
             write,
             &integrity,
-            MAX_TARBALL_BYTES,
+            streaming::MAX_TARBALL_BYTES,
         )
         .await
         {
@@ -1893,7 +1882,12 @@ async fn serve_tarball_via_upstream(
     // `stream_verified_to_cache`). No `Content-Length` is set: the upstream's
     // is attacker-controlled and unverifiable before streaming, so the body is
     // chunked and the client reads to EOF (then re-verifies the integrity).
-    match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
+    match streaming::stream_verified_to_cache(
+        response,
+        write,
+        &integrity,
+        streaming::MAX_TARBALL_BYTES,
+    ) {
         Ok(body) => tarball_response(body, None),
         Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
     }
@@ -1963,7 +1957,7 @@ async fn serve_upstream_revision_tarball(
             response,
             write,
             integrity,
-            MAX_TARBALL_BYTES,
+            streaming::MAX_TARBALL_BYTES,
         )
         .await
         {
@@ -1978,7 +1972,12 @@ async fn serve_upstream_revision_tarball(
             }
         };
     }
-    match streaming::stream_verified_to_cache(response, write, integrity, MAX_TARBALL_BYTES) {
+    match streaming::stream_verified_to_cache(
+        response,
+        write,
+        integrity,
+        streaming::MAX_TARBALL_BYTES,
+    ) {
         Ok(body) => revision_tarball_response(body, None, digest, integrity),
         Err(err) => {
             error_response(&tarball_stream_error_for_package(err, "registry revision", digest))
@@ -2128,74 +2127,6 @@ async fn open_hosted_revision_tarball(
         Ok(None) => not_found(),
         Err(err) => error_response(&err),
     }
-}
-
-#[derive(serde::Deserialize)]
-struct HostedRevisionPackument {
-    #[serde(default)]
-    versions: IndexMap<String, HostedRevisionManifest>,
-}
-
-#[derive(serde::Deserialize)]
-struct HostedRevisionManifest {
-    #[serde(default)]
-    dist: Option<HostedRevisionDist>,
-}
-
-#[derive(serde::Deserialize)]
-struct HostedRevisionDist {
-    #[serde(default)]
-    integrity: Option<String>,
-    #[serde(default)]
-    revision: RevisionField,
-    #[serde(default)]
-    revisions: Vec<HostedRevisionRecord>,
-}
-
-#[derive(serde::Deserialize)]
-struct HostedRevisionRecord {
-    #[serde(default)]
-    revision: Value,
-    #[serde(default)]
-    integrity: Option<String>,
-}
-
-#[derive(Default)]
-enum RevisionField {
-    #[default]
-    Missing,
-    Present(Value),
-}
-
-impl<'de> serde::Deserialize<'de> for RevisionField {
-    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
-    where
-        Deserializer: serde::Deserializer<'de>,
-    {
-        <Value as serde::Deserialize>::deserialize(deserializer).map(Self::Present)
-    }
-}
-
-fn original_integrity(dist: &HostedRevisionDist) -> Option<Integrity> {
-    let RevisionField::Present(revision) = &dist.revision else {
-        return dist.integrity.as_deref()?.parse().ok();
-    };
-    let selected_revision =
-        revision.as_u64().and_then(|revision| TarballRevision::try_from(revision).ok())?.get();
-    let selected: Vec<_> = dist
-        .revisions
-        .iter()
-        .filter(|record| record.revision.as_u64() == Some(selected_revision))
-        .collect();
-    if selected.len() != 1 || selected[0].integrity.as_deref() != dist.integrity.as_deref() {
-        return None;
-    }
-    let originals: Vec<_> =
-        dist.revisions.iter().filter(|record| record.revision.as_u64() == Some(0)).collect();
-    if originals.len() != 1 {
-        return None;
-    }
-    originals[0].integrity.as_deref()?.parse().ok()
 }
 
 /// The response for a cached upstream tarball, or `None` on a cache miss. A
@@ -3466,15 +3397,13 @@ fn staged_hosted_original_ref(
     attachment: &PreparedAttachment,
 ) -> Option<JournaledRevisionRef> {
     let integrity: Integrity = attachment.dist.get("integrity")?.as_str()?.parse().ok()?;
-    let path = integrity_addressed_tarball_path(&integrity)?;
-    let digest = path.strip_prefix("-/tarballs/sha512/")?.to_string();
-    let record = HostedOriginalRef {
-        package: package.as_str().to_string(),
-        version: attachment.version.clone(),
-    };
-    let bytes = serde_json::to_vec(&record).expect("hosted original reference serializes");
-    let ref_id = create_hex_hash(&format!("{}\0{}", record.package, record.version));
-    Some(JournaledRevisionRef { filename: attachment.canonical.clone(), digest, ref_id, bytes })
+    let reference = hosted_original_reference(package.as_str(), &attachment.version, &integrity)?;
+    Some(JournaledRevisionRef {
+        filename: attachment.canonical.clone(),
+        digest: reference.digest,
+        ref_id: reference.ref_id,
+        bytes: reference.bytes,
+    })
 }
 
 /// Make every staged publish visible. The full intent — merged

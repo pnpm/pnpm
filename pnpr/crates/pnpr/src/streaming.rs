@@ -21,6 +21,9 @@ use tokio::{fs::File, io::AsyncReadExt};
 /// multi-MB tarball.
 const READ_CHUNK: usize = 64 * 1024;
 
+/// Maximum tarball size accepted by pnpr's verified streaming paths.
+pub(crate) const MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
+
 pub fn parse_integrity(value: &str) -> Result<Integrity, ssri::Error> {
     let integrity: Integrity = value.parse()?;
     ensure_supported_hash(&integrity)?;

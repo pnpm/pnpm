@@ -1,11 +1,17 @@
-use clap::Parser;
-use pnpr::{Config, ConfigSource, LogConfig, LogFormat, RegistryError, default_cache_dir, serve};
+use clap::{Parser, Subcommand};
+use pnpr::{
+    Config, ConfigSource, HostedStoreConfig, LogConfig, LogFormat, RegistryError,
+    backfill_hosted_revision_refs, default_cache_dir, serve,
+};
 use std::{io::IsTerminal, net::SocketAddr, path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Parser)]
 #[command(name = "pnpr", version, about = "pnpm-compatible npm registry server")]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Command>,
+
     /// Path to a verdaccio-shaped YAML config (storage, upstreams,
     /// packages, log). When omitted, the global `config.yaml` in
     /// pnpr's config dir (pnpm's config-dir rules, under `pnpr`) is
@@ -66,9 +72,20 @@ struct Args {
     disable_resolver: bool,
 }
 
+#[derive(Debug, Subcommand)]
+enum Command {
+    /// Index legacy hosted artifacts for integrity-addressed revision routes.
+    BackfillRevisions {
+        /// Verify and report candidates without changing the hosted store.
+        #[arg(long)]
+        dry_run: bool,
+    },
+}
+
 #[tokio::main]
 async fn main() -> miette::Result<()> {
     let args = Args::parse();
+    let command = args.command;
     let auto_path = Config::auto_config_path();
     // Pass the surface-disable flags into parsing so a CLI-disabled surface
     // skips its parse-time work too (e.g. strict upstream token resolution),
@@ -120,7 +137,35 @@ async fn main() -> miette::Result<()> {
     // enforced that at least one surface stays enabled.
     init_logging(&config.logs);
     log_config_source(&source);
-    serve(config).await.map_err(|err| redacted_report(&err))
+    match command {
+        None => serve(config).await.map_err(|err| redacted_report(&err)),
+        Some(Command::BackfillRevisions { dry_run }) => {
+            if !dry_run && matches!(&config.hosted_store, HostedStoreConfig::Fs) {
+                tracing::warn!("stop the pnpr writer while backfilling a filesystem hosted store");
+            }
+            let report = backfill_hosted_revision_refs(&config, dry_run)
+                .await
+                .map_err(|err| redacted_report(&err))?;
+            tracing::info!(
+                dry_run,
+                stores = report.stores_scanned,
+                packages = report.packages_scanned,
+                versions = report.versions_scanned,
+                indexed = report.indexed,
+                already_indexed = report.already_indexed,
+                skipped = report.skipped,
+                invalid = report.invalid,
+                "hosted revision backfill complete",
+            );
+            if report.invalid > 0 {
+                return Err(miette::miette!(
+                    "hosted revision backfill rejected {} invalid artifact(s)",
+                    report.invalid,
+                ));
+            }
+            Ok(())
+        }
+    }
 }
 
 fn redacted_report(err: &RegistryError) -> miette::Report {
