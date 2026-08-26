@@ -3550,7 +3550,13 @@ async fn commit_publishes(
         }
         Err(apply_err) => {
             tracing::warn!(error = %apply_err, "publish apply failed after seal; rolling forward");
-            txn.roll_forward(&state.inner.storage).await.map_err(|_| apply_err)
+            let report_conflict =
+                matches!(&apply_err, RegistryError::RevisionReferenceLimit { .. });
+            match txn.roll_forward(&state.inner.storage).await {
+                Ok(()) if report_conflict => Err(apply_err),
+                Ok(()) => Ok(()),
+                Err(_) => Err(apply_err),
+            }
         }
     }
 }

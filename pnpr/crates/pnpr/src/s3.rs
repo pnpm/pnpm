@@ -17,8 +17,8 @@ use crate::{
     error::{RegistryError, Result},
     package_name::PackageName,
     storage::{
-        HOSTED_REVISION_REFS_DIR, MAX_HOSTED_REVISION_REFS, STAGED_DIR,
-        is_canonical_revision_ref_id, staged_id_of_meta_object,
+        HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR, HostedRevisionRefIndex,
+        STAGED_DIR, staged_id_of_meta_object, wait_after_packument_write_conflict,
     },
 };
 use axum::body::Body;
@@ -37,6 +37,7 @@ use tokio::fs;
 
 const PACKUMENT_FILE: &str = "package.json";
 const REVISION_REF_READ_CONCURRENCY: usize = 8;
+const REVISION_REF_WRITE_RETRIES: usize = 32;
 
 /// The YAML `s3:` block. Selects the object-store hosted backend.
 /// Credentials fall back to the standard AWS environment variables
@@ -346,26 +347,11 @@ impl S3Store {
     }
 
     pub async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
-        let prefix = self.revision_refs_prefix(digest);
-        let mut listing = self.store.list(Some(&prefix));
-        let mut locations = Vec::new();
-        for index in 0..=MAX_HOSTED_REVISION_REFS {
-            let Some(meta) = listing.next().await else { break };
-            let meta = meta?;
-            if index == MAX_HOSTED_REVISION_REFS {
-                return Err(RegistryError::RevisionReferenceLimit {
-                    limit: MAX_HOSTED_REVISION_REFS,
-                });
-            }
-            let Some(filename) = meta.location.as_ref().rsplit('/').next() else {
-                continue;
-            };
-            let Some(ref_id) = filename.strip_suffix(".json") else { continue };
-            if !is_canonical_revision_ref_id(ref_id) {
-                continue;
-            }
-            locations.push(meta.location);
-        }
+        let Some((index, _)) = self.read_revision_ref_index(digest).await? else {
+            return Ok(Vec::new());
+        };
+        let locations: Vec<_> =
+            index.ref_ids().iter().map(|ref_id| self.revision_ref_key(digest, ref_id)).collect();
         let mut pending = futures_util::stream::iter(locations)
             .map(|location| async move {
                 let bytes = self.store.get(&location).await?.bytes().await?;
@@ -379,7 +365,77 @@ impl S3Store {
         Ok(refs)
     }
 
+    /// Reserve the reference in the bounded index with compare-and-swap before
+    /// writing its body. The sealed publish journal retries a missing body, while
+    /// the conditional index update prevents replicas from exceeding the limit.
     pub async fn write_revision_ref(&self, digest: &str, ref_id: &str, bytes: &[u8]) -> Result<()> {
+        for attempt in 0..REVISION_REF_WRITE_RETRIES {
+            let current = self.read_revision_ref_index(digest).await?;
+            let (mut index, version) = match current {
+                Some((index, version)) => (index, Some(version)),
+                None => (HostedRevisionRefIndex::default(), None),
+            };
+            if index.contains(ref_id) {
+                self.write_revision_ref_bytes(digest, ref_id, bytes).await?;
+                return Ok(());
+            }
+            index.insert(ref_id)?;
+            let mode = match version {
+                Some(version) => PutMode::Update(version),
+                None => PutMode::Create,
+            };
+            match self
+                .store
+                .put_opts(
+                    &self.revision_ref_index_key(digest),
+                    PutPayload::from(index.to_bytes()),
+                    PutOptions { mode, ..PutOptions::default() },
+                )
+                .await
+            {
+                Ok(_) => {
+                    self.write_revision_ref_bytes(digest, ref_id, bytes).await?;
+                    return Ok(());
+                }
+                Err(
+                    object_store::Error::AlreadyExists { .. }
+                    | object_store::Error::NotFound { .. }
+                    | object_store::Error::Precondition { .. },
+                ) => {
+                    if attempt + 1 < REVISION_REF_WRITE_RETRIES {
+                        wait_after_packument_write_conflict(attempt).await;
+                    }
+                }
+                Err(err) => return Err(err.into()),
+            }
+        }
+        Err(RegistryError::RevisionReferenceWriteConflict { digest: digest.to_string() })
+    }
+
+    async fn read_revision_ref_index(
+        &self,
+        digest: &str,
+    ) -> Result<Option<(HostedRevisionRefIndex, UpdateVersion)>> {
+        match self.store.get(&self.revision_ref_index_key(digest)).await {
+            Ok(result) => {
+                let version = UpdateVersion {
+                    e_tag: result.meta.e_tag.clone(),
+                    version: result.meta.version.clone(),
+                };
+                let index = HostedRevisionRefIndex::from_bytes(&result.bytes().await?)?;
+                Ok(Some((index, version)))
+            }
+            Err(object_store::Error::NotFound { .. }) => Ok(None),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    async fn write_revision_ref_bytes(
+        &self,
+        digest: &str,
+        ref_id: &str,
+        bytes: &[u8],
+    ) -> Result<()> {
         self.store
             .put(&self.revision_ref_key(digest, ref_id), PutPayload::from(bytes.to_vec()))
             .await?;
@@ -394,13 +450,16 @@ impl S3Store {
         ObjectPath::from(format!("{}{}/{filename}", self.prefix, name.as_str()))
     }
 
-    fn revision_refs_prefix(&self, digest: &str) -> ObjectPath {
-        ObjectPath::from(format!("{}{HOSTED_REVISION_REFS_DIR}/{digest}/", self.prefix))
-    }
-
     fn revision_ref_key(&self, digest: &str, ref_id: &str) -> ObjectPath {
         ObjectPath::from(format!(
             "{}{HOSTED_REVISION_REFS_DIR}/{digest}/{ref_id}.json",
+            self.prefix,
+        ))
+    }
+
+    fn revision_ref_index_key(&self, digest: &str) -> ObjectPath {
+        ObjectPath::from(format!(
+            "{}{HOSTED_REVISION_REFS_DIR}/{digest}/{HOSTED_REVISION_REF_INDEX_FILE}",
             self.prefix,
         ))
     }

@@ -3447,6 +3447,78 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
 }
 
 #[tokio::test]
+async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_existing_refs() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "$authenticated"));
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
+        Some("acme".to_string()),
+    );
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let tarball = b"shared-hosted-original";
+    let integrity = sha512_integrity(tarball).parse().unwrap();
+    let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
+    let app = router_with_auth(config, auth);
+
+    for index in 0..32 {
+        let package = format!("shared-artifact-{index}");
+        let response = app
+            .clone()
+            .oneshot(hosted_publish_request(
+                &format!("/~acme/{package}"),
+                &package,
+                "1.0.0",
+                tarball,
+                &token,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED, "{package}");
+    }
+
+    let rejected = app
+        .clone()
+        .oneshot(hosted_publish_request(
+            "/~acme/shared-artifact-overflow",
+            "shared-artifact-overflow",
+            "1.0.0",
+            tarball,
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(rejected.status(), StatusCode::CONFLICT);
+
+    let overflow_packument = app
+        .clone()
+        .oneshot(
+            Request::get("/~acme/shared-artifact-overflow")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(overflow_packument.status(), StatusCode::OK);
+    let overflow_packument = body_json(overflow_packument.into_body()).await;
+    assert!(overflow_packument["versions"].get("1.0.0").is_none());
+
+    let existing = app
+        .oneshot(
+            Request::get(format!("/~acme/{revision_path}"))
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(existing.status(), StatusCode::OK);
+    assert_eq!(body_bytes(existing.into_body()).await, tarball);
+}
+
+#[tokio::test]
 async fn hosted_digest_route_rechecks_package_access() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());

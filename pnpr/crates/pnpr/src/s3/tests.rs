@@ -1,6 +1,6 @@
 use super::{Body, ObjectStore, S3Settings, S3Store};
 use crate::package_name::PackageName;
-use object_store::memory::InMemory;
+use object_store::{ObjectStoreExt, PutPayload, memory::InMemory, path::Path as ObjectPath};
 use std::sync::Arc;
 use tempfile::tempdir;
 
@@ -217,19 +217,64 @@ async fn revision_refs_roundtrip_under_the_configured_prefix() {
 }
 
 #[tokio::test]
-async fn revision_ref_reads_are_bounded() {
+async fn revision_ref_writes_enforce_the_read_bound() {
     let (store, _staging) = store_with_prefix("packages");
     let digest = "A".repeat(86);
-    for index in 0..=crate::storage::MAX_HOSTED_REVISION_REFS {
+    for index in 0..crate::storage::MAX_HOSTED_REVISION_REFS {
         store.write_revision_ref(&digest, &format!("{index:064x}"), b"{}").await.unwrap();
     }
 
-    let err = store.read_revision_refs(&digest).await.unwrap_err();
+    let overflow = crate::storage::MAX_HOSTED_REVISION_REFS;
+    let err =
+        store.write_revision_ref(&digest, &format!("{overflow:064x}"), b"{}").await.unwrap_err();
     assert!(matches!(
         err,
         crate::error::RegistryError::RevisionReferenceLimit { limit }
             if limit == crate::storage::MAX_HOSTED_REVISION_REFS
     ));
+
+    store.write_revision_ref(&digest, &"0".repeat(64), b"updated").await.unwrap();
+    store
+        .store
+        .put(
+            &ObjectPath::from(format!("packages/.revisions/sha512/{digest}/not-a-reference.json")),
+            PutPayload::from_static(b"stray"),
+        )
+        .await
+        .unwrap();
+    let refs = store.read_revision_refs(&digest).await.unwrap();
+    assert_eq!(refs.len(), crate::storage::MAX_HOSTED_REVISION_REFS);
+    assert!(refs.iter().any(|bytes| bytes == b"updated"));
+}
+
+#[tokio::test]
+async fn concurrent_revision_ref_writes_cannot_exceed_the_limit() {
+    let (store, _staging) = store_with_prefix("packages");
+    let digest = "A".repeat(86);
+    let mut writes = Vec::new();
+    for index in 0..crate::storage::MAX_HOSTED_REVISION_REFS * 2 {
+        let store = store.clone();
+        let digest = digest.clone();
+        writes.push(tokio::spawn(async move {
+            store.write_revision_ref(&digest, &format!("{index:064x}"), b"{}").await
+        }));
+    }
+
+    let mut written = 0;
+    let mut rejected = 0;
+    for write in writes {
+        match write.await.unwrap() {
+            Ok(()) => written += 1,
+            Err(crate::error::RegistryError::RevisionReferenceLimit { .. }) => rejected += 1,
+            Err(err) => panic!("unexpected revision-reference write error: {err}"),
+        }
+    }
+    assert_eq!(written, crate::storage::MAX_HOSTED_REVISION_REFS);
+    assert_eq!(rejected, crate::storage::MAX_HOSTED_REVISION_REFS);
+    assert_eq!(
+        store.read_revision_refs(&digest).await.unwrap().len(),
+        crate::storage::MAX_HOSTED_REVISION_REFS,
+    );
 }
 
 #[test]

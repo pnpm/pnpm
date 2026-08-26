@@ -131,9 +131,16 @@ pub enum RegistryError {
         package: String,
     },
 
-    #[display("Hosted revision digest has more than {limit} candidate references")]
+    #[display("Hosted revision digest already has the maximum of {limit} references")]
     #[from(skip)]
     RevisionReferenceLimit { limit: usize },
+
+    #[display("Hosted revision reference index for digest {digest:?} changed while writing")]
+    #[from(skip)]
+    RevisionReferenceWriteConflict {
+        #[error(not(source))]
+        digest: String,
+    },
 
     #[display(
         "Package {package}@{version} is listed in the local OSV database as vulnerable ({advisories})"
@@ -264,6 +271,9 @@ impl RegistryError {
             RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
             RegistryError::PackumentWriteConflict { .. } => "packument_write_conflict",
             RegistryError::RevisionReferenceLimit { .. } => "revision_reference_limit",
+            RegistryError::RevisionReferenceWriteConflict { .. } => {
+                "revision_reference_write_conflict"
+            }
             RegistryError::OsvVulnerability { .. } => "osv_vulnerability",
             RegistryError::RegistrationDisabled => "registration_disabled",
             RegistryError::TooManyUsers { .. } => "too_many_users",
@@ -331,15 +341,16 @@ impl RegistryError {
             RegistryError::UpstreamStatus { .. } | RegistryError::TarballIntegrity { .. } => {
                 StatusCode::BAD_GATEWAY
             }
-            RegistryError::UpstreamUnavailable { .. }
-            | RegistryError::RevisionReferenceLimit { .. } => StatusCode::SERVICE_UNAVAILABLE,
+            RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             RegistryError::InvalidPackageName { .. }
             | RegistryError::InvalidTarballName { .. }
             | RegistryError::InvalidConfig { .. }
             | RegistryError::InvalidAttachment { .. }
             | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,
             RegistryError::VersionAlreadyPublished { .. }
-            | RegistryError::PackumentWriteConflict { .. } => StatusCode::CONFLICT,
+            | RegistryError::PackumentWriteConflict { .. }
+            | RegistryError::RevisionReferenceLimit { .. }
+            | RegistryError::RevisionReferenceWriteConflict { .. } => StatusCode::CONFLICT,
             RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
             RegistryError::Forbidden { .. } => StatusCode::FORBIDDEN,
             RegistryError::TeamsConfigManaged { .. } => StatusCode::FORBIDDEN,

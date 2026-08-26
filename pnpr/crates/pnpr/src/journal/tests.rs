@@ -20,11 +20,11 @@ fn drop_conflicted_versions_removes_only_the_lost_versions() {
         "versions": {
             "1.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-1.0.0.tgz" } },
             "2.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-2.0.0.tgz" } },
-            // A version with no resolvable tarball basename is kept as-is.
+            // A version outside the conflict set is kept as-is.
             "3.0.0": { "dist": {} },
         }
     });
-    let conflicted: HashSet<&str> = std::iter::once("pkg-1.0.0.tgz").collect();
+    let conflicted: HashSet<String> = std::iter::once("1.0.0".to_string()).collect();
 
     drop_conflicted_versions(&mut journaled, &conflicted);
 
@@ -37,21 +37,22 @@ fn drop_conflicted_versions_removes_only_the_lost_versions() {
 #[test]
 fn drop_conflicted_versions_tolerates_a_missing_versions_map() {
     let mut journaled = json!({ "name": "pkg" });
-    let conflicted: HashSet<&str> = std::iter::once("pkg-1.0.0.tgz").collect();
+    let conflicted: HashSet<String> = std::iter::once("1.0.0".to_string()).collect();
     drop_conflicted_versions(&mut journaled, &conflicted);
     assert_eq!(journaled, json!({ "name": "pkg" }));
 }
 
 #[test]
-fn drop_conflicted_versions_uses_shared_tarball_url_semantics() {
+fn drop_conflicted_versions_uses_the_canonical_attachment_version() {
     let mut journaled = json!({
         "versions": {
-            "1.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-1.0.0.tgz?sig=x" } },
-            "2.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-2.0.0.tgz#fragment" } },
+            "1.0.0": { "dist": { "tarball": "http://host/pkg/-/publisher-chosen-name.tgz" } },
+            "2.0.0": { "dist": { "tarball": "http://host/pkg/-/another-name.tgz" } },
             "3.0.0": { "dist": { "tarball": "http://host/pkg/-/" } },
         }
     });
-    let conflicted: HashSet<&str> = ["pkg-1.0.0.tgz", "pkg-2.0.0.tgz"].into_iter().collect();
+    let conflicted: HashSet<String> =
+        ["1.0.0".to_string(), "2.0.0".to_string()].into_iter().collect();
 
     drop_conflicted_versions(&mut journaled, &conflicted);
 
@@ -78,7 +79,7 @@ fn drop_conflicted_versions_removes_references_to_lost_versions() {
             "modified": "2026-07-03T00:00:00.000Z",
         },
     });
-    let conflicted: HashSet<&str> = std::iter::once("pkg-1.0.0.tgz").collect();
+    let conflicted: HashSet<String> = std::iter::once("1.0.0".to_string()).collect();
 
     drop_conflicted_versions(&mut journaled, &conflicted);
 
@@ -159,6 +160,55 @@ async fn roll_forward_persists_revision_references() {
 }
 
 #[tokio::test]
+async fn roll_forward_drops_a_version_that_cannot_reserve_a_revision_reference() {
+    let tmp = tempdir().unwrap();
+    let storage =
+        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"));
+    let digest = URL_SAFE_NO_PAD.encode([7_u8; 64]);
+    for index in 0..crate::storage::MAX_HOSTED_REVISION_REFS {
+        storage.write_hosted_revision_ref(&digest, &format!("{index:064x}"), b"{}").await.unwrap();
+    }
+    let name = PackageName::parse("pkg").unwrap();
+    let packument = serde_json::to_vec(&json!({
+        "name": "pkg",
+        "versions": {
+            "1.0.0": {
+                "version": "1.0.0",
+                "dist": { "tarball": "http://host/pkg/-/publisher-chosen-name.tgz" },
+            },
+        },
+        "dist-tags": { "latest": "1.0.0" },
+        "time": { "1.0.0": "2026-07-01T00:00:00.000Z" },
+    }))
+    .unwrap();
+    let revision_refs = [JournaledRevisionRef {
+        filename: "pkg-1.0.0.tgz".to_string(),
+        digest: digest.clone(),
+        ref_id: "f".repeat(64),
+        bytes: br#"{"package":"pkg","version":"1.0.0"}"#.to_vec(),
+    }];
+    let entries = [JournaledPublish {
+        name: &name,
+        org: None,
+        packument: &packument,
+        slots: &[],
+        revision_refs: &revision_refs,
+    }];
+
+    storage.publish_journal().seal(&entries).await.unwrap().roll_forward(&storage).await.unwrap();
+
+    let hosted = storage.read_hosted_packument(&name).await.unwrap().unwrap();
+    let hosted: serde_json::Value = serde_json::from_slice(&hosted).unwrap();
+    assert_eq!(hosted["versions"], json!({}));
+    assert_eq!(hosted["dist-tags"], json!({}));
+    assert_eq!(hosted["time"].get("1.0.0"), None);
+    assert_eq!(
+        storage.read_hosted_revision_refs(&digest).await.unwrap().len(),
+        crate::storage::MAX_HOSTED_REVISION_REFS,
+    );
+}
+
+#[tokio::test]
 async fn roll_forward_preserves_tarball_conflict_across_a_later_package_failure() {
     let tmp = tempdir().unwrap();
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
@@ -185,7 +235,7 @@ async fn roll_forward_preserves_tarball_conflict_across_a_later_package_failure(
             "1.0.0": {
                 "version": "1.0.0",
                 "dist": {
-                    "tarball": "http://host/conflicted-pkg/-/conflicted-pkg-1.0.0.tgz",
+                    "tarball": "http://host/conflicted-pkg/-/publisher-chosen-name.tgz",
                     "integrity": "loser",
                 },
             },

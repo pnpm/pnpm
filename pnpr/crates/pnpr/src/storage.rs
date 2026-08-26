@@ -8,7 +8,9 @@ use crate::{
 use axum::body::Body;
 use object_store::UpdateVersion;
 use pnpm_crypto_hash::integrity_addressed_tarball_integrity;
+use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashSet,
     io::{ErrorKind, SeekFrom},
     path::{Path, PathBuf},
     sync::{
@@ -24,8 +26,57 @@ use tokio::{
 
 const PACKUMENT_FILE: &str = "package.json";
 pub(crate) const HOSTED_REVISION_REFS_DIR: &str = ".revisions/sha512";
-/// Caps backend work triggered by one unauthenticated digest request.
+pub(crate) const HOSTED_REVISION_REF_INDEX_FILE: &str = "index.json";
+/// Bounds both the persisted candidate set and work triggered by one digest request.
 pub(crate) const MAX_HOSTED_REVISION_REFS: usize = 32;
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub(crate) struct HostedRevisionRefIndex {
+    refs: Vec<String>,
+}
+
+impl HostedRevisionRefIndex {
+    pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        let index: Self = serde_json::from_slice(bytes)?;
+        if index.refs.len() > MAX_HOSTED_REVISION_REFS {
+            return Err(RegistryError::RevisionReferenceLimit { limit: MAX_HOSTED_REVISION_REFS });
+        }
+        let mut seen = HashSet::with_capacity(index.refs.len());
+        if index
+            .refs
+            .iter()
+            .any(|ref_id| !is_canonical_revision_ref_id(ref_id) || !seen.insert(ref_id))
+        {
+            return Err(RegistryError::Internal {
+                reason: "hosted revision reference index is invalid".to_string(),
+            });
+        }
+        Ok(index)
+    }
+
+    pub(crate) fn ref_ids(&self) -> &[String] {
+        &self.refs
+    }
+
+    pub(crate) fn contains(&self, ref_id: &str) -> bool {
+        self.refs.iter().any(|candidate| candidate == ref_id)
+    }
+
+    pub(crate) fn insert(&mut self, ref_id: &str) -> Result<()> {
+        if self.contains(ref_id) {
+            return Ok(());
+        }
+        if self.refs.len() == MAX_HOSTED_REVISION_REFS {
+            return Err(RegistryError::RevisionReferenceLimit { limit: MAX_HOSTED_REVISION_REFS });
+        }
+        self.refs.push(ref_id.to_string());
+        Ok(())
+    }
+
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        serde_json::to_vec(self).expect("hosted revision reference index serializes")
+    }
+}
 
 /// Per-process counter feeding [`unique_tmp_path`] so two concurrent
 /// writes to the same path don't collide on the same temp filename.
@@ -190,7 +241,9 @@ pub enum CachedPackument {
 ///   <package>/
 ///     package.json
 ///     <basename>-<version>.tgz
-///   .revisions/sha512/<digest>/<package-version-hash>.json
+///   .revisions/sha512/<digest>/
+///     index.json
+///     <package-version-hash>.json
 /// ```
 ///
 /// For scoped packages the package directory is `<root>/@scope/<name>/`.
@@ -795,18 +848,22 @@ fn validated_stage_id(stage_id: &str) -> Result<&str> {
 #[derive(Debug, Clone)]
 struct Store {
     root: PathBuf,
+    revision_ref_write_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl Store {
     fn new(root: PathBuf) -> Self {
-        Self { root }
+        Self { root, revision_ref_write_lock: Arc::new(tokio::sync::Mutex::new(())) }
     }
 
     /// A disposable store rooted at a sub-path of this one. Used to give a
     /// private `/~<name>/` route its own cache namespace so its packuments
     /// and tarballs never collide with the public mirror or another upstream.
     fn namespaced(&self, prefix: &str) -> Store {
-        Store::new(self.root.join(prefix))
+        Store {
+            root: self.root.join(prefix),
+            revision_ref_write_lock: Arc::clone(&self.revision_ref_write_lock),
+        }
     }
 
     async fn read_packument_entry(
@@ -999,32 +1056,32 @@ impl Store {
     }
 
     async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
-        let mut entries = match fs::read_dir(self.revision_refs_dir(digest)).await {
-            Ok(entries) => entries,
-            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(err) => return Err(err.into()),
-        };
-        let mut refs = Vec::new();
-        for index in 0..=MAX_HOSTED_REVISION_REFS {
-            let Some(entry) = entries.next_entry().await? else { break };
-            if index == MAX_HOSTED_REVISION_REFS {
-                return Err(RegistryError::RevisionReferenceLimit {
-                    limit: MAX_HOSTED_REVISION_REFS,
-                });
-            }
-            let filename = entry.file_name();
-            let filename = filename.to_string_lossy();
-            let Some(ref_id) = filename.strip_suffix(".json") else { continue };
-            if !is_canonical_revision_ref_id(ref_id) {
-                continue;
-            }
-            refs.push(fs::read(entry.path()).await?);
+        let index = self.read_revision_ref_index(digest).await?;
+        let mut refs = Vec::with_capacity(index.ref_ids().len());
+        for ref_id in index.ref_ids() {
+            refs.push(fs::read(self.revision_ref_path(digest, ref_id)).await?);
         }
         Ok(refs)
     }
 
     async fn write_revision_ref(&self, digest: &str, ref_id: &str, bytes: &[u8]) -> Result<()> {
-        write_atomic(&self.revision_refs_dir(digest).join(format!("{ref_id}.json")), bytes).await
+        let _guard = self.revision_ref_write_lock.lock().await;
+        let mut index = self.read_revision_ref_index(digest).await?;
+        let was_present = index.contains(ref_id);
+        index.insert(ref_id)?;
+        write_atomic(&self.revision_ref_path(digest, ref_id), bytes).await?;
+        if !was_present {
+            write_atomic(&self.revision_ref_index_path(digest), &index.to_bytes()).await?;
+        }
+        Ok(())
+    }
+
+    async fn read_revision_ref_index(&self, digest: &str) -> Result<HostedRevisionRefIndex> {
+        match fs::read(self.revision_ref_index_path(digest)).await {
+            Ok(bytes) => HostedRevisionRefIndex::from_bytes(&bytes),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(HostedRevisionRefIndex::default()),
+            Err(err) => Err(err.into()),
+        }
     }
 
     fn package_dir(&self, name: &PackageName) -> PathBuf {
@@ -1045,6 +1102,14 @@ impl Store {
 
     fn revision_refs_dir(&self, digest: &str) -> PathBuf {
         self.root.join(HOSTED_REVISION_REFS_DIR).join(digest)
+    }
+
+    fn revision_ref_index_path(&self, digest: &str) -> PathBuf {
+        self.revision_refs_dir(digest).join(HOSTED_REVISION_REF_INDEX_FILE)
+    }
+
+    fn revision_ref_path(&self, digest: &str, ref_id: &str) -> PathBuf {
+        self.revision_refs_dir(digest).join(format!("{ref_id}.json"))
     }
 
     async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>> {

@@ -33,7 +33,6 @@ use crate::{
     storage::{
         RECOVERY_PACKUMENT_WRITE_RETRIES, Storage, TarballFinalize, TarballSlot, unique_tmp_path,
     },
-    upstream::tarball_basename,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -245,7 +244,7 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
             Some(org) => storage.for_hosted(org),
             None => storage.clone(),
         };
-        let mut conflicted: HashSet<&str> = HashSet::new();
+        let mut conflicted_versions = HashSet::new();
         for tarball in &package.tarballs {
             // A missing tmp file was already promoted before the crash, so
             // skip it. But never read an I/O error as "missing": that would
@@ -261,39 +260,48 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
                 );
                 match store.finalize_tarball_slot(slot).await? {
                     TarballFinalize::Written | TarballFinalize::AlreadyIdentical => {}
-                    // 다른 replica가 같은 버전의 다른 tarball을 먼저 확정했다.
-                    // winner의 bytes는 immutable이므로 덮어쓰거나 우리 integrity를
-                    // 노출하면 안 된다. 재시도에서도 충돌을 다시 감지하도록 임시
-                    // 파일은 유지하고, 아래 merge에서 제외할 filename을 기록한다.
+                    // Another replica finalized different bytes for this version.
+                    // Keep the tmp file so a retry detects the same conflict, and
+                    // exclude the losing version from the merge below.
                     TarballFinalize::Conflict => {
                         conflicted_tmp_paths.push(tarball.tmp_path.as_path());
-                        conflicted.insert(tarball.filename.as_str());
+                        let (_, version) = name.parse_tarball_name(&tarball.filename)?;
+                        conflicted_versions.insert(version);
                     }
                 }
             }
         }
         let mut journaled: serde_json::Value =
             serde_json::from_slice(&fs::read(dir.join(&package.packument_file)).await?)?;
-        if !conflicted.is_empty() {
-            drop_conflicted_versions(&mut journaled, &conflicted);
-        }
         for revision_ref in &package.revision_refs {
-            if !conflicted.contains(revision_ref.filename.as_str()) {
-                store
-                    .write_hosted_revision_ref(
-                        &revision_ref.digest,
-                        &revision_ref.ref_id,
-                        &revision_ref.bytes,
-                    )
-                    .await?;
+            let (_, version) = name.parse_tarball_name(&revision_ref.filename)?;
+            if conflicted_versions.contains(&version) {
+                continue;
             }
+            match store
+                .write_hosted_revision_ref(
+                    &revision_ref.digest,
+                    &revision_ref.ref_id,
+                    &revision_ref.bytes,
+                )
+                .await
+            {
+                Ok(()) => {}
+                Err(crate::error::RegistryError::RevisionReferenceLimit { .. }) => {
+                    conflicted_versions.insert(version);
+                }
+                Err(err) => return Err(err),
+            }
+        }
+        if !conflicted_versions.is_empty() {
+            drop_conflicted_versions(&mut journaled, &conflicted_versions);
         }
         write_merged_packument(&store, &name, &journaled).await?;
     }
-    // journal을 먼저 제거해야 중간 실패가 충돌 상태 없는 재시도를 만들지 않는다.
+    // Remove the journal before cleaning conflicted tmp files so an interruption
+    // cannot leave a retry that has lost the evidence needed to detect conflict.
     fs::remove_dir_all(dir).await?;
-    // 부모 디렉터리까지 동기화되어 journal 삭제가 내구성을 얻은 뒤에만 충돌 tmp를 지운다.
-    // 동기화 실패 시 tmp를 남겨 crash 후 journal이 다시 보이더라도 충돌을 재현할 수 있게 한다.
+    // Only clean conflict evidence after the journal removal is durable.
     let journal_removal_is_durable = match dir.parent() {
         Some(parent) => sync_dir(parent).await.is_ok(),
         None => false,
@@ -334,25 +342,19 @@ async fn write_merged_packument(
     Ok(())
 }
 
-/// Drop from a journaled manifest every version whose staged tarball lost a
-/// compare-and-swap to another replica. The bytes at that (immutable) version
-/// key belong to the winner, so re-merging our `dist`/integrity for the version
-/// would advertise metadata that no longer matches the hosted tarball. Versions
-/// are matched to `conflicted` staged filenames by their `dist.tarball`
-/// basename; a version we cannot match is left in place.
-fn drop_conflicted_versions(journaled: &mut serde_json::Value, conflicted: &HashSet<&str>) {
+/// Drop from a journaled manifest every version that lost an immutable tarball
+/// slot or could not reserve a bounded digest-reference slot. The journal keeps
+/// each staged attachment's canonical filename, so callers resolve that name to
+/// the version before reaching this helper instead of trusting a publisher-
+/// supplied `dist.tarball` URL as the transaction identity.
+fn drop_conflicted_versions(journaled: &mut serde_json::Value, conflicted: &HashSet<String>) {
     let Some(versions) = journaled.get_mut("versions").and_then(serde_json::Value::as_object_mut)
     else {
         return;
     };
     let mut removed_versions = HashSet::new();
-    versions.retain(|version, manifest| {
-        let filename = manifest
-            .get("dist")
-            .and_then(|dist| dist.get("tarball"))
-            .and_then(serde_json::Value::as_str)
-            .and_then(tarball_basename);
-        let keep = filename.is_none_or(|filename| !conflicted.contains(filename));
+    versions.retain(|version, _| {
+        let keep = !conflicted.contains(version);
         if !keep {
             removed_versions.insert(version.clone());
         }
