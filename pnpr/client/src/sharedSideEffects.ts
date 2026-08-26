@@ -672,6 +672,16 @@ function ownersEqual (left: OwnerScope, right: OwnerScope): boolean {
     : left.package === (right as { type: 'publisher', package: string }).package
 }
 
+/**
+ * Hex digest identifying an artifact blob's content, from its `sha512-` value.
+ *
+ * The same identity the store addresses its content by, so a caller holding a
+ * manifest entry can ask the store whether it already has the bytes.
+ */
+export function artifactBlobDigest (integrity: string): string {
+  return blobId(integrity)
+}
+
 function blobId (integrity: string): string {
   if (typeof integrity !== 'string' || !integrity.startsWith('sha512-')) {
     throw new Error('Shared artifact blobs require sha512 integrity')

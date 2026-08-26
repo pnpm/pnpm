@@ -10,6 +10,7 @@ import type { AllowBuild, DepPath, RegistryConfig, RemoteSideEffectsCacheSetting
 import pLimit from 'p-limit'
 
 import {
+  artifactBlobDigest,
   type ArtifactBlobUpload,
   type ArtifactCandidate,
   type ArtifactManifest,
@@ -261,6 +262,15 @@ export function createRemoteSideEffectsRestorer<T extends string> (
         let stored = storedBlobs.get(storedKey)
         if (stored == null) {
           stored = (async () => {
+            // A built package's files are mostly its own, and artifacts share
+            // files with each other. The store addresses content by the digest
+            // this manifest entry already carries, so anything it holds is the
+            // same bytes and does not need transferring again.
+            const present = await opts.storeController.locateFileInStore?.(
+              artifactBlobDigest(file.integrity),
+              file.mode
+            )
+            if (present != null) return present
             const bytes = await downloadLimit(async () => downloadSharedArtifactBlob({
               registryUrl,
               authorization,

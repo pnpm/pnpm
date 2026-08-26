@@ -9,7 +9,8 @@ use pnpm_pnpr_client::{
     ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
     ArtifactManifest, ArtifactPayload, BuilderProfile, CompatibilityConstraints,
     LinuxGlibcPlatform, OwnerScope, PackageIdentity, PnprClient, PublishArtifactRequest,
-    ResolveArtifactsOptions, SignedArtifactEnvelope, linux_glibc_supported_tags, linux_glibc_tag,
+    ResolveArtifactsOptions, SignedArtifactEnvelope, blob_id, linux_glibc_supported_tags,
+    linux_glibc_tag,
 };
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -205,6 +206,18 @@ pub(crate) async fn apply_shared_side_effects(
                 let storage_key = (file.integrity.clone(), file.mode);
                 if let Some(path) = stored.get(&storage_key) {
                     return Ok(path.clone());
+                }
+                // A built package's files are mostly its own, and artifacts
+                // share files with each other. The store addresses content by
+                // the digest this manifest entry already carries, so anything
+                // it holds is the same bytes and needs no transfer.
+                if !downloaded.contains_key(&file.integrity)
+                    && let Ok(digest) = blob_id(&file.integrity)
+                    && let Some(path) = config.store_dir.cas_file_path_by_mode(&digest, file.mode)
+                    && tokio::fs::try_exists(&path).await.unwrap_or(false)
+                {
+                    stored.insert(storage_key, path.clone());
+                    return Ok(path);
                 }
                 if !downloaded.contains_key(&file.integrity) {
                     let bytes = client

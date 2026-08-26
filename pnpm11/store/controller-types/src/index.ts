@@ -59,6 +59,16 @@ export interface StoreController {
   prune: (removeAlienFiles?: boolean) => Promise<void>
   upload: UploadPkgToStore
   addFileToStore?: (buffer: Buffer, mode: number) => FileWriteResult
+  /**
+   * Path of the file the store already holds for this content, or `undefined`
+   * when it holds none.
+   *
+   * Lets a caller that would otherwise fetch content the store already has —
+   * a remote side-effects artifact whose files are shared with the package's
+   * own, or with another artifact — skip the transfer. `mode` matters because
+   * the store keeps executable and non-executable content apart.
+   */
+  locateFileInStore?: (hexDigest: string, mode: number) => Promise<string | undefined>
   clearResolutionCache: () => void
 }
 

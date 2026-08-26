@@ -12,6 +12,7 @@ export { type ResponseMetadata } from './protocol.js'
 export { type PnprProject, resolveViaPnprServer, type ResolveViaPnprServerOptions, type ResolveViaPnprServerResult } from './resolveViaPnprServer.js'
 export {
   ARTIFACT_KIND,
+  artifactBlobDigest,
   type ArtifactBlobRequest,
   type ArtifactBlobUpload,
   type ArtifactCandidate,

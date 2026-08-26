@@ -114,6 +114,7 @@ describe('install remote side-effects', () => {
       resolvedFrom: 'remote',
     }
     const storedFiles: Array<{ bytes: Buffer, mode: number }> = []
+    const alreadyInStore = new Map<string, string>()
     const storeController = {
       addFileToStore: (bytes: Buffer, mode: number) => {
         storedFiles.push({ bytes, mode })
@@ -123,6 +124,7 @@ describe('install remote side-effects', () => {
           filePath: '/store/cafs/build-addon.node',
         }
       },
+      locateFileInStore: async (hexDigest: string, mode: number) => alreadyInStore.get(`${hexDigest}\0${mode}`),
     } as unknown as StoreController
     const depsGraph: DepsGraph<typeof graphKey> = {
       [graphKey]: {
@@ -170,6 +172,43 @@ describe('install remote side-effects', () => {
         '/-/pnpr/v0/artifacts/resolve',
         '/-/pnpr/v0/artifacts/blob',
       ])
+
+      // Content the store already holds is the same content, addressed by the
+      // digest the manifest carries, so a second restore transfers nothing.
+      alreadyInStore.set(
+        `${createHash('sha512').update(builtFile).digest('hex')}\0${0o755}`,
+        '/store/cafs/already-there'
+      )
+      storedFiles.length = 0
+      requestedPaths.length = 0
+      const reuse = createRemoteSideEffectsRestorer({
+        allowBuild: candidate => candidate === depPath,
+        configByUri: {},
+        depsGraph,
+        depsStateCache: {},
+        ignoreScripts: false,
+        pnprServer,
+        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        sideEffectsCacheRead: false,
+        storeController,
+      })
+      const reusedFiles: PackageFilesResponse = {
+        filesMap: new Map(),
+        requiresBuild: true,
+        resolvedFrom: 'remote',
+      }
+      const reusedKey = await reuse?.restore({
+        graphKey,
+        depPath,
+        files: reusedFiles,
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })
+      expect(reusedFiles.sideEffectsMaps?.get(reusedKey!)?.added?.get('build/addon.node'))
+        .toBe('/store/cafs/already-there')
+      expect(storedFiles).toEqual([])
+      expect(requestedPaths).not.toContain('/-/pnpr/v0/artifacts/blob')
 
       // Restoring is per package so one package never waits on another's
       // fetch, but packages restored together still share a lookup request.

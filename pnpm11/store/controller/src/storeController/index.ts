@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 import type { Fetchers } from '@pnpm/fetching.fetcher-base'
@@ -98,7 +99,19 @@ export function createPackageStore (
     // A read-only store cannot accept new content, so it does not advertise the
     // direct write capability that remote side-effects hydration requires.
     addFileToStore: initOpts.frozenStore ? undefined : cafs.addFile,
+    locateFileInStore,
     clearResolutionCache: initOpts.clearResolutionCache,
+  }
+
+  async function locateFileInStore (hexDigest: string, mode: number): Promise<string | undefined> {
+    const filePath = cafs.getFilePathByModeInCafs(hexDigest, mode)
+    try {
+      await fs.promises.stat(filePath)
+      return filePath
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return undefined
+      throw err
+    }
   }
 
   async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }) {
