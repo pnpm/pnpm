@@ -25,8 +25,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::{
-    Action, AppState, AuthedCaller, Identity, RegistrySource, authorize, commit_publishes,
-    is_tilde_prefix, json_response, not_found, private_no_cache, resolve_write_target,
+    Action, AppState, AuthedCaller, Identity, RegistrySource, TargetRegistry, authorize,
+    commit_publishes, json_response, not_found, private_no_cache, resolve_write_target,
     stage_publish, validate_publish_doc,
 };
 use crate::{
@@ -109,141 +109,77 @@ fn parse_staged_list_query(query: &str) -> StagedListQuery {
 }
 
 // ---------------------------------------------------------------------
-// Route handlers — the path-less form and its `/~<name>/`-prefixed twin.
+// Route handlers. Each is registered both bare and under `/{prefix}`;
+// `TargetRegistry` reports which form the request arrived on.
 // ---------------------------------------------------------------------
+
+/// Path capture of the staged routes that address one record. Named rather
+/// than a bare `Path<String>` because the prefixed registration captures the
+/// `{prefix}` segment too, which a single-value `Path` would refuse.
+#[derive(Deserialize)]
+pub(super) struct StageIdPath {
+    id: String,
+}
+
+#[derive(Deserialize)]
+pub(super) struct StagePackagePath {
+    name: String,
+}
 
 pub(super) async fn post_staged_publish(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path(name): Path<String>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<StagePackagePath>,
     body: axum::body::Bytes,
 ) -> Response {
-    serve_staged_publish(&state, &identity, None, &name, &body).await
-}
-
-pub(super) async fn post_staged_publish_prefixed(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    Path((prefix, name)): Path<(String, String)>,
-    body: axum::body::Bytes,
-) -> Response {
-    match tilde_registry(&prefix) {
-        Some(registry) => {
-            serve_staged_publish(&state, &identity, Some(registry), &name, &body).await
-        }
-        None => not_found(),
-    }
+    serve_staged_publish(&state, &identity, registry.as_deref(), &path.name, &body).await
 }
 
 pub(super) async fn list_staged(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
     OriginalUri(uri): OriginalUri,
 ) -> Response {
     let query = parse_staged_list_query(uri.query().unwrap_or(""));
-    private_no_cache(serve_staged_list(&state, &identity, None, &query).await)
-}
-
-pub(super) async fn list_staged_prefixed(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    OriginalUri(uri): OriginalUri,
-    Path(prefix): Path<String>,
-) -> Response {
-    match tilde_registry(&prefix) {
-        Some(registry) => {
-            let query = parse_staged_list_query(uri.query().unwrap_or(""));
-            private_no_cache(serve_staged_list(&state, &identity, Some(registry), &query).await)
-        }
-        None => not_found(),
-    }
+    private_no_cache(serve_staged_list(&state, &identity, registry.as_deref(), &query).await)
 }
 
 pub(super) async fn get_staged(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path(stage_id): Path<String>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<StageIdPath>,
 ) -> Response {
-    private_no_cache(serve_staged_view(&state, &identity, None, &stage_id).await)
-}
-
-pub(super) async fn get_staged_prefixed(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    Path((prefix, stage_id)): Path<(String, String)>,
-) -> Response {
-    match tilde_registry(&prefix) {
-        Some(registry) => {
-            private_no_cache(serve_staged_view(&state, &identity, Some(registry), &stage_id).await)
-        }
-        None => not_found(),
-    }
+    private_no_cache(serve_staged_view(&state, &identity, registry.as_deref(), &path.id).await)
 }
 
 pub(super) async fn reject_staged(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path(stage_id): Path<String>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<StageIdPath>,
 ) -> Response {
-    serve_staged_reject(&state, &identity, None, &stage_id).await
-}
-
-pub(super) async fn reject_staged_prefixed(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    Path((prefix, stage_id)): Path<(String, String)>,
-) -> Response {
-    match tilde_registry(&prefix) {
-        Some(registry) => serve_staged_reject(&state, &identity, Some(registry), &stage_id).await,
-        None => not_found(),
-    }
+    serve_staged_reject(&state, &identity, registry.as_deref(), &path.id).await
 }
 
 pub(super) async fn approve_staged(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path(stage_id): Path<String>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<StageIdPath>,
 ) -> Response {
-    serve_staged_approve(&state, &identity, None, &stage_id).await
-}
-
-pub(super) async fn approve_staged_prefixed(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    Path((prefix, stage_id)): Path<(String, String)>,
-) -> Response {
-    match tilde_registry(&prefix) {
-        Some(registry) => serve_staged_approve(&state, &identity, Some(registry), &stage_id).await,
-        None => not_found(),
-    }
+    serve_staged_approve(&state, &identity, registry.as_deref(), &path.id).await
 }
 
 pub(super) async fn get_staged_tarball(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path(stage_id): Path<String>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<StageIdPath>,
 ) -> Response {
-    private_no_cache(serve_staged_tarball(&state, &identity, None, &stage_id).await)
-}
-
-pub(super) async fn get_staged_tarball_prefixed(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    Path((prefix, stage_id)): Path<(String, String)>,
-) -> Response {
-    match tilde_registry(&prefix) {
-        Some(registry) => private_no_cache(
-            serve_staged_tarball(&state, &identity, Some(registry), &stage_id).await,
-        ),
-        None => not_found(),
-    }
-}
-
-/// The registry a `/~<name>/`-prefixed staged route addresses, or `None`
-/// when the first segment isn't a tilde prefix (the route pattern also
-/// matches plain segments; those name no staged surface).
-fn tilde_registry(prefix: &str) -> Option<&str> {
-    is_tilde_prefix(prefix).then(|| &prefix[1..])
+    private_no_cache(serve_staged_tarball(&state, &identity, registry.as_deref(), &path.id).await)
 }
 
 // ---------------------------------------------------------------------

@@ -4401,3 +4401,27 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "GET {path}");
     }
 }
+
+/// The prefixed registrations exist only to serve the `/~<name>/` form. A
+/// first segment that is not a well-formed `~<name>` must be a 404, not a
+/// fall-through to the path-less behaviour — otherwise any segment at all
+/// would reach the account and staging endpoints.
+#[tokio::test]
+async fn a_first_segment_that_is_not_a_tilde_prefix_is_not_found() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    let app = router(config);
+
+    for path in [
+        // A plain segment, and a bare `~` with no registry name after it.
+        "/corp/-/whoami",
+        "/~/-/whoami",
+        "/corp/-/npm/v1/tokens",
+        "/~/-/npm/v1/user",
+    ] {
+        let response =
+            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "GET {path}");
+    }
+}
