@@ -256,13 +256,13 @@ fn pre_command_plan_from_input(
                 let frozen_lockfile =
                     switch.frozen_lockfile.or(config.frozen_lockfile).unwrap_or(false);
                 if let Some(target) = switch_target(&config, &root_dir, frozen_lockfile)? {
-                    if !version_satisfies(PNPM_VERSION, &target.spec) {
+                    if target.switches_away_from_the_running_pnpm() {
                         return Ok(Some(PreCommandPlan::Switch(SwitchPlan { config, target })));
                     }
-                    // The running pnpm already satisfies the pin, so there is
-                    // nothing to switch to — but the pin still has to reach
-                    // the lockfile, which the switch would otherwise have
-                    // written on its way to the wanted version.
+                    // The running pnpm is the one the pin asks for, so there
+                    // is nothing to switch to — but the pin still has to
+                    // reach the lockfile, which the switch would otherwise
+                    // have written on its way to the wanted version.
                     package_manager_to_sync = env_lockfile_sync(
                         root_manifest,
                         &root_dir,
@@ -979,6 +979,26 @@ impl SwitchProcessState {
 struct SwitchTarget {
     spec: String,
     source: SwitchSource,
+}
+
+impl SwitchTarget {
+    /// Whether reaching the pinned pnpm means running another one.
+    ///
+    /// A resolution recorded in the env lockfile is the pnpm the project
+    /// runs, whatever else its specifier would have allowed, so that
+    /// resolution — not the specifier — answers this. Only without one does
+    /// the specifier decide: the switch resolves it, and a running pnpm the
+    /// specifier already accepts is spared the round trip. A recorded
+    /// resolution that has to be repaired is always carried out, because the
+    /// repairing write happens there.
+    fn switches_away_from_the_running_pnpm(&self) -> bool {
+        match &self.source {
+            SwitchSource::LockedEnv { version, .. } => version != PNPM_VERSION,
+            SwitchSource::Resolve { locked_version, .. } => {
+                locked_version.is_some() || !version_satisfies(PNPM_VERSION, &self.spec)
+            }
+        }
+    }
 }
 
 #[derive(Debug)]

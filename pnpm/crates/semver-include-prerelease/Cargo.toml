@@ -1,5 +1,5 @@
 [package]
-name                  = "pnpm-package-is-installable"
+name                  = "pnpm-semver-include-prerelease"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,16 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pnpm-semver-include-prerelease = { workspace = true }
-
-derive_more = { workspace = true }
-miette      = { workspace = true }
 node-semver = { workspace = true }
-serde       = { workspace = true }
-
-[dev-dependencies]
-pnpm-testing-utils = { workspace = true }
-pretty_assertions  = { workspace = true }
 
 [lints]
 workspace = true

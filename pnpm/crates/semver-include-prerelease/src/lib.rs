@@ -17,7 +17,13 @@ use node_semver::{MAX_SAFE_INTEGER, Range, Version};
 ///
 /// [`Range::satisfies`] hardcodes the eligibility rule and exposes no
 /// options, so neither half can be reached through it.
-pub(crate) struct IncludePrereleaseRange {
+///
+/// Two shapes still answer differently from npm, both in the permissive
+/// direction: `~18`, `~18.x` and `~18.0` admit `18.0.0-rc.1` (npm lowers
+/// no tilde bound, however much the range leaves out), and `^0.1.0`
+/// rejects `0.1.0-rc.1` (npm lowers a caret bound below `1.0.0` even when
+/// the range spells every component out).
+pub struct IncludePrereleaseRange {
     /// The `||`-separated alternatives. A version satisfies the range
     /// when it satisfies every comparator of any one alternative; an
     /// alternative with no comparators is npm's `*`.
@@ -30,12 +36,12 @@ impl IncludePrereleaseRange {
     /// is nothing but such comparators is dropped whole, so a range no
     /// parser accepts is satisfied by nothing rather than by everything.
     #[must_use]
-    pub(crate) fn parse(range: &str) -> Self {
+    pub fn parse(range: &str) -> Self {
         IncludePrereleaseRange { alternatives: range.split("||").filter_map(comparators).collect() }
     }
 
     #[must_use]
-    pub(crate) fn satisfies(&self, version: &Version) -> bool {
+    pub fn satisfies(&self, version: &Version) -> bool {
         // The eligibility rule `includePrerelease` drops only ever
         // excludes prereleases, so for a release `node_semver` already
         // answers with the endpoint test — and answers it without the

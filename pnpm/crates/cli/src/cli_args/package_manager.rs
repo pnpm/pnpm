@@ -8,6 +8,7 @@ use pnpm_package_manifest::{
     },
     parse_manifest,
 };
+use pnpm_semver_include_prerelease::IncludePrereleaseRange;
 use serde_json::Value;
 use std::{fs, io::ErrorKind, path::Path};
 
@@ -202,27 +203,15 @@ pub(crate) fn exact_version(version: &str) -> Option<String> {
     (parsed.to_string() == version).then(|| version_without_build(version).to_string())
 }
 
+/// pnpm's `semver.satisfies(version, wanted_range, { includePrerelease:
+/// true })`, the call every version pin is read with — a package manager's
+/// and a runtime's alike.
+///
+/// A version no parser accepts satisfies nothing, as upstream `satisfies`
+/// answers `false` for one rather than throwing.
 pub(crate) fn version_satisfies(version: &str, wanted_range: &str) -> bool {
-    let Ok(version) = node_semver::Version::parse(version) else {
-        return false;
-    };
-    let Ok(range) = node_semver::Range::parse(wanted_range) else {
-        return false;
-    };
-    if version.satisfies(&range) {
-        return true;
-    }
-    if version.pre_release.is_empty() {
-        return false;
-    }
-    let base = node_semver::Version {
-        major: version.major,
-        minor: version.minor,
-        patch: version.patch,
-        pre_release: Vec::new(),
-        build: version.build,
-    };
-    base.satisfies(&range)
+    node_semver::Version::parse(version)
+        .is_ok_and(|version| IncludePrereleaseRange::parse(wanted_range).satisfies(&version))
 }
 
 #[cfg(test)]
