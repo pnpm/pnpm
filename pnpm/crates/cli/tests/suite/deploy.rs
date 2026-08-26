@@ -676,6 +676,68 @@ fn legacy_deploy_installs_selected_project() {
 }
 
 #[test]
+fn legacy_deploy_injects_transitive_workspace_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, false);
+    write_project(
+        &workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "leaf": "workspace:*" },
+        }),
+    );
+    write_project(
+        &workspace,
+        "leaf",
+        &serde_json::json!({
+            "name": "leaf",
+            "version": "1.0.0",
+            "files": ["index.js"],
+        }),
+    );
+
+    pacquet.with_arg("install").assert().success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("legacy-deploy");
+    let virtual_store_entries = virtual_store_entries(&deploy_dir);
+    let lib_entry = virtual_store_entries
+        .iter()
+        .find(|entry| entry.starts_with("lib@file+"))
+        .expect("lib should be injected into the deploy virtual store");
+    let leaf_entry = virtual_store_entries
+        .iter()
+        .find(|entry| entry.starts_with("leaf@file+"))
+        .expect("transitive leaf should be injected into the deploy virtual store");
+    let nested_leaf =
+        deploy_dir.join("node_modules/.pnpm").join(lib_entry).join("node_modules/leaf");
+    let deployed_leaf =
+        deploy_dir.join("node_modules/.pnpm").join(leaf_entry).join("node_modules/leaf");
+    let deploy_dir = fs::canonicalize(deploy_dir).expect("resolve the deploy directory");
+    let deployed_lib = fs::canonicalize(deploy_dir.join("node_modules/lib"))
+        .expect("resolve the deployed lib package");
+    let nested_leaf = fs::canonicalize(nested_leaf).expect("resolve lib's leaf dependency");
+    let deployed_leaf = fs::canonicalize(deployed_leaf).expect("resolve the deployed leaf package");
+    for deployed_package in [&deployed_lib, &nested_leaf, &deployed_leaf] {
+        assert!(
+            deployed_package.starts_with(&deploy_dir),
+            "{deployed_package:?} should resolve inside {deploy_dir:?}",
+        );
+    }
+    assert_eq!(nested_leaf, deployed_leaf);
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn deploy_from_shared_lockfile_installs_the_workspace_root_without_its_nested_projects() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

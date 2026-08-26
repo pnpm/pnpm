@@ -497,22 +497,31 @@ pub(crate) fn importer_optional_dependency_names(manifest: &PackageManifest) -> 
 /// Collect the names of the importer manifest's `dependenciesMeta` entries
 /// whose `injected` flag is `true`. This per-alias `injected` opt-in
 /// flips a workspace dep onto the hard-linked `file:` path even when the
-/// global `injectWorkspacePackages` is off. Only importer-level deps are
-/// consulted; the recursive walker does not inherit this from any
-/// resolved package's own `dependenciesMeta` — the opt-in is
-/// importer-scoped.
+/// global `injectWorkspacePackages` is off.
 pub(crate) fn importer_injected_dependency_names(manifest: &PackageManifest) -> HashSet<String> {
-    let Some(meta) =
-        manifest.value().get("dependenciesMeta").and_then(serde_json::Value::as_object)
-    else {
+    injected_dependency_names(manifest.value())
+}
+
+fn injected_dependency_names(manifest: &Value) -> HashSet<String> {
+    let Some(meta) = manifest.get("dependenciesMeta").and_then(Value::as_object) else {
         return HashSet::default();
     };
     meta.iter()
-        .filter(|(_, entry)| {
-            entry.get("injected").and_then(serde_json::Value::as_bool).unwrap_or(false)
-        })
+        .filter(|(_, entry)| dependency_meta_is_injected(entry))
         .map(|(name, _)| name.clone())
         .collect()
+}
+
+fn dependency_is_injected(manifest: &Value, name: &str) -> bool {
+    manifest
+        .get("dependenciesMeta")
+        .and_then(Value::as_object)
+        .and_then(|meta| meta.get(name))
+        .is_some_and(dependency_meta_is_injected)
+}
+
+fn dependency_meta_is_injected(meta: &Value) -> bool {
+    meta.get("injected").and_then(Value::as_bool).unwrap_or(false)
 }
 
 /// Build the importer's direct-dependency wanted specs: the manifest's

@@ -213,6 +213,7 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// disk lookup entirely; `None` (every CLI install) falls back to
     /// [`load_pnpmfile`][pnpm_hooks::finder::load_pnpmfile]. See [`crate::Install::pnpmfile_hook_override`].
     pub pnpmfile_hook_override: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    pub deploy_manifest_hook: bool,
     pub real_importer_ids: Option<&'a std::collections::HashSet<String>>,
     pub selected_importer_ids: Option<&'a std::collections::HashSet<String>>,
     /// What the previous install materialized
@@ -766,6 +767,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             peer_issues_sink,
             deps_requiring_build_sink,
             pnpmfile_hook_override,
+            deploy_manifest_hook,
             real_importer_ids,
             selected_importer_ids,
             current_lockfile,
@@ -921,6 +923,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             &catalogs,
             lockfile_dir,
             &importer_manifests,
+            deploy_manifest_hook,
         )?;
         let importer_manifests: BTreeMap<String, &PackageManifest> =
             if effective_importer_manifests.is_empty() {

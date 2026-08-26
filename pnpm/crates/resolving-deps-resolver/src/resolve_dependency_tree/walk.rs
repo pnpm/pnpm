@@ -258,7 +258,7 @@ where
     }
 
     // Memoise the per-wanted resolve. The first caller for a given
-    // `(alias, bare_specifier, optional)` runs the resolver chain and
+    // `(alias, bare_specifier, optional, injected)` runs the resolver chain and
     // stores the `Arc<ResolveResult>` on `ctx.resolved_by_wanted`;
     // every later caller for the same wanted dep clones the `Arc` and
     // skips the chain entirely. Concurrent first-callers can both miss
@@ -855,7 +855,7 @@ fn record_walked_children(
         return (lazy_children(&pending.parent_ancestors), false);
     }
     let optional_by_alias: HashMap<&str, bool> =
-        child_specs.iter().map(|(name, _, optional)| (name.as_str(), *optional)).collect();
+        child_specs.iter().map(|(name, _, optional, _)| (name.as_str(), *optional)).collect();
     let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
     let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
     for dep in seeds.iter().filter_map(seeded_dep) {
@@ -937,7 +937,7 @@ where
     let FrontierNode { pending, claim, children_overlay, children_pkg_aliases } = node;
     // Look up cached children specs first; only read the manifest on a
     // miss. The cache value is held by `Arc` so revisits clone the
-    // refcount instead of the inner `Vec<(String, String, bool)>`, and
+    // refcount instead of the inner `Vec<ChildSpec>`, and
     // it is cached unfiltered because which of the specs the package's
     // own `peerDependencies` shadow is a property of the owner
     // occurrence, not of the manifest.
@@ -958,7 +958,7 @@ where
     } else {
         child_specs
             .iter()
-            .filter(|(name, _, optional)| *optional || !peer_shadowed.contains(name))
+            .filter(|(name, _, optional, _)| *optional || !peer_shadowed.contains(name))
             .cloned()
             .collect::<Vec<ChildSpec>>()
             .pipe(Arc::new)
@@ -966,9 +966,9 @@ where
     let child_specs = if resolves_children_through_catalogs(&pending.result) {
         child_specs
             .iter()
-            .map(|(name, range, optional)| {
+            .map(|(name, range, optional, injected)| {
                 resolve_catalog_specifier(name.clone(), range.clone(), &ctx.catalogs)
-                    .map(|(name, range)| (name, range, *optional))
+                    .map(|(name, range)| (name, range, *optional, *injected))
             })
             .collect::<Result<Vec<ChildSpec>, ResolveDependencyTreeError>>()?
             .pipe(Arc::new)
@@ -1001,11 +1001,12 @@ where
     let next_ancestors = Arc::clone(&pending.next_ancestors);
     let seeds = child_specs
         .iter()
-        .map(|(child_name, child_range, child_optional)| {
+        .map(|(child_name, child_range, child_optional, child_injected)| {
             let mut child_wanted = WantedDependency {
                 alias: Some(child_name.clone()),
                 bare_specifier: Some(child_range.clone()),
                 optional: Some(*child_optional),
+                injected: child_injected.then_some(true),
                 ..WantedDependency::default()
             };
             let mut child_prior = prior_children_snapshot
@@ -1316,12 +1317,13 @@ pub(super) async fn warm_children_resolutions<Chain>(
     let declaring_dir = declaring_manifest_dir(ctx, &pending.result);
     specs
         .iter()
-        .filter(|(name, _, optional)| *optional || !pending.peer_shadowed.contains(name))
-        .map(|(name, range, optional)| {
+        .filter(|(name, _, optional, _)| *optional || !pending.peer_shadowed.contains(name))
+        .map(|(name, range, optional, injected)| {
             let wanted = WantedDependency {
                 alias: Some(name.clone()),
                 bare_specifier: Some(range.clone()),
                 optional: Some(*optional),
+                injected: injected.then_some(true),
                 ..WantedDependency::default()
             };
             let opts = opts_relative_to_declaring_manifest(opts, &wanted, declaring_dir.as_deref());

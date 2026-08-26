@@ -11,8 +11,8 @@ use std::collections::BTreeMap;
 use crate::resolved_tree::PeerDep;
 
 use super::{
-    Deprecation, ResolveDependencyTreeError, lock_recoverable, tree_ctx::TreeCtx,
-    workspace_ctx::ChildSpec,
+    Deprecation, ResolveDependencyTreeError, dependency_is_injected, lock_recoverable,
+    tree_ctx::TreeCtx, workspace_ctx::ChildSpec,
 };
 
 /// Compute the `pkgIdWithPatchHash` for a freshly-resolved package:
@@ -104,10 +104,11 @@ pub(super) async fn build_pkg_id_with_patch_hash(
 /// (via [`extract_peer_dependencies`]) so the peer-resolution stage
 /// can compute the correct depPath suffix once everything is walked.
 ///
-/// Each entry carries an `optional` flag — `true` when the name appears
-/// in `optionalDependencies`. The walker propagates this through
-/// `current_is_optional` so [`ResolvedPackage::optional`] reflects
-/// whether every path to the node went through an optional edge.
+/// Each entry carries `optional` and `injected` flags from the manifest.
+/// The walker propagates `optional` through `current_is_optional` so
+/// [`ResolvedPackage::optional`] reflects whether every path to the node
+/// went through an optional edge. `injected` selects the hard-linked
+/// `file:` resolution for a workspace dependency.
 ///
 /// npm merges `optionalDependencies` into `dependencies` at publish
 /// time, so registry manifests routinely list the same name in both.
@@ -140,7 +141,7 @@ pub(super) fn extract_children(
         }
     }
     for (name, specifier) in engines_runtime_dependencies(manifest, "engines", "dependencies") {
-        out.push((name.to_string(), specifier, false));
+        out.push((name.to_string(), specifier, false, false));
     }
     out.sort_unstable();
     Ok(out)
@@ -187,7 +188,12 @@ fn collect_deps(
             if bundled.contains(name.as_str()) {
                 continue;
             }
-            out.push((name.clone(), range_str.to_string(), optional));
+            out.push((
+                name.clone(),
+                range_str.to_string(),
+                optional,
+                dependency_is_injected(manifest, name),
+            ));
         }
     }
     Ok(())

@@ -4,10 +4,11 @@
 )]
 
 use super::{
-    Install, InstallError, ProjectMutation, UpToDateFastPathCheck,
-    apply_materialization::report_verified_file_integrity, install_already_up_to_date,
-    load_workspace_projects, lockfile_freshness::exclude_linked_dependencies,
-    order_project_lifecycle_groups, project_requires_lifecycle_scripts,
+    Install, InstallError, ProjectMutation, UpToDateFastPathCheck, apply_deploy_manifest_hook,
+    apply_deploy_manifest_hook_to_arc, apply_materialization::report_verified_file_integrity,
+    install_already_up_to_date, load_workspace_projects,
+    lockfile_freshness::exclude_linked_dependencies, order_project_lifecycle_groups,
+    project_requires_lifecycle_scripts,
 };
 use crate::{
     AllowBuildPolicy, InstallWithFreshLockfileError, MinimumReleaseAgeError, VirtualStoreLayout,
@@ -33,7 +34,11 @@ use pnpm_testing_utils::{
 use pnpm_workspace_state::{
     self as workspace_state, NodeLinker as WorkspaceStateNodeLinker, load_workspace_state,
 };
-use std::{fs, sync::Mutex, time::Duration};
+use std::{
+    fs,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -53,6 +58,43 @@ fn empty_test_lockfile() -> Lockfile {
         time: None,
         extra: pnpm_lockfile::LockfileExtra::default(),
     }
+}
+
+#[test]
+fn deploy_manifest_hook_preserves_existing_dependency_metadata() {
+    let mut manifest = serde_json::json!({
+        "dependencies": {
+            "existing": "workspace:*",
+            "non-object": "workspace:*",
+            "new": "workspace:*",
+        },
+        "dependenciesMeta": {
+            "existing": { "built": false, "injected": false },
+            "non-object": null,
+        },
+    });
+
+    apply_deploy_manifest_hook(&mut manifest);
+
+    assert_eq!(
+        manifest["dependenciesMeta"],
+        serde_json::json!({
+            "existing": { "built": false, "injected": true },
+            "non-object": { "injected": true },
+            "new": { "injected": true },
+        }),
+    );
+}
+
+#[test]
+fn deploy_manifest_hook_reuses_unchanged_arc() {
+    let manifest = Arc::new(serde_json::json!({
+        "dependencies": { "registry-package": "1.0.0" },
+    }));
+
+    let transformed = apply_deploy_manifest_hook_to_arc(Arc::clone(&manifest));
+
+    assert!(Arc::ptr_eq(&manifest, &transformed));
 }
 
 #[test]
