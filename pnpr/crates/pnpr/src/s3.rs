@@ -14,7 +14,7 @@
 //! only the hosted store is pluggable.
 
 use crate::{
-    error::Result,
+    error::{RegistryError, Result},
     package_name::PackageName,
     storage::{
         HOSTED_REVISION_REFS_DIR, MAX_HOSTED_REVISION_REFS, STAGED_DIR,
@@ -349,9 +349,14 @@ impl S3Store {
         let prefix = self.revision_refs_prefix(digest);
         let mut listing = self.store.list(Some(&prefix));
         let mut locations = Vec::new();
-        for _ in 0..MAX_HOSTED_REVISION_REFS {
+        for index in 0..=MAX_HOSTED_REVISION_REFS {
             let Some(meta) = listing.next().await else { break };
             let meta = meta?;
+            if index == MAX_HOSTED_REVISION_REFS {
+                return Err(RegistryError::RevisionReferenceLimit {
+                    limit: MAX_HOSTED_REVISION_REFS,
+                });
+            }
             let Some(filename) = meta.location.as_ref().rsplit('/').next() else {
                 continue;
             };

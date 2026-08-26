@@ -1005,8 +1005,13 @@ impl Store {
             Err(err) => return Err(err.into()),
         };
         let mut refs = Vec::new();
-        for _ in 0..MAX_HOSTED_REVISION_REFS {
+        for index in 0..=MAX_HOSTED_REVISION_REFS {
             let Some(entry) = entries.next_entry().await? else { break };
+            if index == MAX_HOSTED_REVISION_REFS {
+                return Err(RegistryError::RevisionReferenceLimit {
+                    limit: MAX_HOSTED_REVISION_REFS,
+                });
+            }
             let filename = entry.file_name();
             let filename = filename.to_string_lossy();
             let Some(ref_id) = filename.strip_suffix(".json") else { continue };

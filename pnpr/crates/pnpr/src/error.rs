@@ -131,6 +131,10 @@ pub enum RegistryError {
         package: String,
     },
 
+    #[display("Hosted revision digest has more than {limit} candidate references")]
+    #[from(skip)]
+    RevisionReferenceLimit { limit: usize },
+
     #[display(
         "Package {package}@{version} is listed in the local OSV database as vulnerable ({advisories})"
     )]
@@ -259,6 +263,7 @@ impl RegistryError {
             RegistryError::BadRequest { .. } => "bad_request",
             RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
             RegistryError::PackumentWriteConflict { .. } => "packument_write_conflict",
+            RegistryError::RevisionReferenceLimit { .. } => "revision_reference_limit",
             RegistryError::OsvVulnerability { .. } => "osv_vulnerability",
             RegistryError::RegistrationDisabled => "registration_disabled",
             RegistryError::TooManyUsers { .. } => "too_many_users",
@@ -326,7 +331,8 @@ impl RegistryError {
             RegistryError::UpstreamStatus { .. } | RegistryError::TarballIntegrity { .. } => {
                 StatusCode::BAD_GATEWAY
             }
-            RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
+            RegistryError::UpstreamUnavailable { .. }
+            | RegistryError::RevisionReferenceLimit { .. } => StatusCode::SERVICE_UNAVAILABLE,
             RegistryError::InvalidPackageName { .. }
             | RegistryError::InvalidTarballName { .. }
             | RegistryError::InvalidConfig { .. }

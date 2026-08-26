@@ -224,10 +224,12 @@ async fn revision_ref_reads_are_bounded() {
         store.write_revision_ref(&digest, &format!("{index:064x}"), b"{}").await.unwrap();
     }
 
-    assert_eq!(
-        store.read_revision_refs(&digest).await.unwrap().len(),
-        crate::storage::MAX_HOSTED_REVISION_REFS,
-    );
+    let err = store.read_revision_refs(&digest).await.unwrap_err();
+    assert!(matches!(
+        err,
+        crate::error::RegistryError::RevisionReferenceLimit { limit }
+            if limit == crate::storage::MAX_HOSTED_REVISION_REFS
+    ));
 }
 
 #[test]

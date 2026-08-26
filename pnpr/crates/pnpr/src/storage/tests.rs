@@ -63,10 +63,12 @@ async fn hosted_revision_ref_reads_are_bounded() {
         storage.write_hosted_revision_ref(&digest, &format!("{index:064x}"), b"{}").await.unwrap();
     }
 
-    assert_eq!(
-        storage.read_hosted_revision_refs(&digest).await.unwrap().len(),
-        MAX_HOSTED_REVISION_REFS,
-    );
+    let err = storage.read_hosted_revision_refs(&digest).await.unwrap_err();
+    assert_eq!(err.status_code(), axum::http::StatusCode::SERVICE_UNAVAILABLE);
+    assert!(matches!(
+        err,
+        RegistryError::RevisionReferenceLimit { limit } if limit == MAX_HOSTED_REVISION_REFS
+    ));
 }
 
 #[tokio::test]
