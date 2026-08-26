@@ -95,7 +95,9 @@ export function createPackageStore (
     prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir, storeIndex: initOpts.storeIndex }),
     requestPackage: packageRequester.requestPackage,
     upload,
-    addFileToStore: cafs.addFile,
+    // A read-only store cannot accept new content, so it does not advertise the
+    // direct write capability that shared side-effects hydration requires.
+    addFileToStore: initOpts.frozenStore ? undefined : cafs.addFile,
     clearResolutionCache: initOpts.clearResolutionCache,
   }
 
