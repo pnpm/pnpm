@@ -259,7 +259,28 @@ export interface ResolutionPolicyViolation {
   resolution: Resolution
   code: string
   reason: string
+  /**
+   * Package ids of the path that reached this pick, the importer's direct
+   * dependency first and the immediate parent last. Absent when the
+   * violation was raised outside a dependency walk (the lockfile verifier
+   * checks entries it has no path for). The install command names the
+   * dependent with it, and the resolver's retry uses the last entry to find
+   * the choice that has to be revisited.
+   */
+  parentIds?: PkgResolutionId[]
 }
+
+/**
+ * Versions a resolution is forbidden to pick, keyed by package name.
+ *
+ * `minimumReleaseAge` narrows candidates one packument at a time, so an edge
+ * that admits no mature version cannot be repaired where it is found — only
+ * by choosing a different version of the package that declared it. The
+ * install re-resolves with the offending parent recorded here, which turns
+ * the dead end into one fewer candidate and lets the pick move down the
+ * range.
+ */
+export type BlockedVersions = ReadonlyMap<string, ReadonlySet<string>>
 
 /** Concrete platform selector used when picking a variant from a VariationsResolution. */
 export interface PlatformSelector {
@@ -393,6 +414,7 @@ export interface ResolveOptions {
   pickLowestVersion?: boolean
   publishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
+  blockedVersions?: BlockedVersions
   projectDir: string
   lockfileDir: string
   preferredVersions: PreferredVersions

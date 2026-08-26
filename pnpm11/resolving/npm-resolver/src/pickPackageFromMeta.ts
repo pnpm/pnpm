@@ -1,9 +1,10 @@
 import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
-import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
+import { filterPkgMetadata } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
 import {
+  type BlockedVersions,
   EXISTING_VERSION_SELECTOR_WEIGHT,
   type VersionSelectors,
   type VersionSelectorType,
@@ -26,6 +27,7 @@ export interface PickPackageFromMetaOptions {
   preferredVersionSelectors: VersionSelectors | undefined
   publishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
+  blockedVersions?: BlockedVersions
 }
 
 export function pickPackageFromMeta (
@@ -34,14 +36,16 @@ export function pickPackageFromMeta (
     preferredVersionSelectors,
     publishedBy,
     publishedByExclude,
+    blockedVersions,
   }: PickPackageFromMetaOptions,
   meta: PackageMeta,
   spec: RegistryPackageSpec
 ): PackageInRegistry | null {
-  if (publishedBy) {
-    const view = applyPublishedByPolicy(meta, publishedBy, publishedByExclude)
+  const blockedForPkg = blockedVersions?.get(meta.name)
+  if (publishedBy || blockedForPkg?.size) {
+    const view = applyPublishedByPolicy(meta, publishedBy, publishedByExclude, blockedForPkg)
     meta = view.meta
-    if (view.needsFullMetadata) {
+    if (view.needsFullMetadata && publishedBy) {
       const modifiedDate = parseModifiedDate(meta.modified)
       if (modifiedDate == null || modifiedDate > publishedBy) {
         // The package was modified after the cutoff (or carries no usable
@@ -52,7 +56,7 @@ export function pickPackageFromMeta (
       // else: `modified` is an upper bound on every per-version timestamp, so
       // `modified <= publishedBy` means they all pass the maturity filter and
       // nothing would be dropped. Inclusive at the boundary on purpose, to
-      // match the per-version `<=` in `filterPkgMetadataByPublishDate`.
+      // match the per-version `<=` in `filterPkgMetadata`.
     }
   }
   if ((!meta.versions || Object.keys(meta.versions).length === 0) && !publishedBy) {
@@ -133,16 +137,25 @@ export interface PublishedByView {
  */
 export function applyPublishedByPolicy (
   meta: PackageMeta,
-  publishedBy: Date,
-  publishedByExclude?: PackageVersionPolicy
+  publishedBy: Date | undefined,
+  publishedByExclude?: PackageVersionPolicy,
+  blockedVersions?: ReadonlySet<string>
 ): PublishedByView {
   const excludeResult = publishedByExclude?.(meta.name) ?? false
-  if (excludeResult === true) return { meta, needsFullMetadata: false }
+  // A blocked version is out even here: the exclusion says the cutoff does
+  // not apply to this package, not that a version whose own dependency tree
+  // cannot satisfy the cutoff is installable.
+  if (excludeResult === true || publishedBy == null) {
+    return {
+      meta: blockedVersions?.size ? filterPkgMetadata(meta, { blockedVersions }) : meta,
+      needsFullMetadata: false,
+    }
+  }
   if (meta.time == null) return { meta, needsFullMetadata: true }
   assertMetaHasTime(meta)
   const trustedVersions = Array.isArray(excludeResult) ? excludeResult : undefined
   return {
-    meta: filterPkgMetadataByPublishDate(meta, publishedBy, trustedVersions),
+    meta: filterPkgMetadata(meta, { publishedBy, trustedVersions, blockedVersions }),
     needsFullMetadata: false,
   }
 }

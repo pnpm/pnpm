@@ -1,10 +1,10 @@
 import { expect, test } from '@jest/globals'
-import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
+import { filterPkgMetadata } from '@pnpm/resolving.registry.pkg-metadata-filter'
 
-test('filterPkgMetadataByPublishDate', () => {
+test('filterPkgMetadata narrows versions and dist-tags by publish date', () => {
   const cutoff = new Date('2020-04-01T00:00:00.000Z')
   const name = 'dist-tag-date'
-  expect(filterPkgMetadataByPublishDate({
+  expect(filterPkgMetadata({
     name,
     versions: {
       '3.0.0': {
@@ -38,9 +38,9 @@ test('filterPkgMetadataByPublishDate', () => {
       '3.1.0': '2020-03-01T00:00:00.000Z',
       '3.2.0': '2020-05-01T00:00:00.000Z',
     },
-  }, cutoff)).toMatchSnapshot()
+  }, { publishedBy: cutoff })).toMatchSnapshot()
 
-  expect(filterPkgMetadataByPublishDate({
+  expect(filterPkgMetadata({
     name,
     versions: {
       '3.0.0': {
@@ -62,7 +62,7 @@ test('filterPkgMetadataByPublishDate', () => {
       '2.9.9': '2020-03-01T00:00:00.000Z',
       '3.0.0': '2020-05-01T00:00:00.000Z',
     },
-  }, cutoff)).toMatchSnapshot()
+  }, { publishedBy: cutoff })).toMatchSnapshot()
 })
 
 test('latest fallback does not exceed the original dist-tag target', () => {
@@ -91,17 +91,17 @@ test('latest fallback does not exceed the original dist-tag target', () => {
     },
   }
 
-  const filtered = filterPkgMetadataByPublishDate(pkgDoc, cutoff)
+  const filtered = filterPkgMetadata(pkgDoc, { publishedBy: cutoff })
 
   expect(filtered['dist-tags'].latest).toBe('3.0.0')
 
-  const withoutSafeFallback = filterPkgMetadataByPublishDate({
+  const withoutSafeFallback = filterPkgMetadata({
     ...pkgDoc,
     versions: {
       '3.0.1': packageVersion('3.0.1'),
       '4.0.0': packageVersion('4.0.0'),
     },
-  }, cutoff)
+  }, { publishedBy: cutoff })
   expect(withoutSafeFallback['dist-tags'].latest).toBeUndefined()
 })
 
@@ -114,7 +114,7 @@ test('custom dist-tag fallback does not exceed the original target', () => {
     dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-${version}.tgz`, shasum: '' },
   })
 
-  const filtered = filterPkgMetadataByPublishDate({
+  const filtered = filterPkgMetadata({
     name,
     versions: {
       '0.0.29-nightly.20260724.896': packageVersion('0.0.29-nightly.20260724.896'),
@@ -129,7 +129,7 @@ test('custom dist-tag fallback does not exceed the original target', () => {
       '0.0.29-nightly.20260725.899': '2026-07-25T04:18:17.590Z',
       '0.1.0-alpha.1': '2026-02-28T23:12:56.014Z',
     },
-  }, cutoff)
+  }, { publishedBy: cutoff })
 
   expect(filtered['dist-tags'].nightly).toBe('0.0.29-nightly.20260724.896')
 })
@@ -154,19 +154,19 @@ test('filtering is memoized per packument and the per-packument policy cache sta
   }
   const cutoff = new Date('2020-04-01T00:00:00.000Z')
 
-  const first = filterPkgMetadataByPublishDate(doc, cutoff)
-  expect(filterPkgMetadataByPublishDate(doc, cutoff)).toBe(first)
+  const first = filterPkgMetadata(doc, { publishedBy: cutoff })
+  expect(filterPkgMetadata(doc, { publishedBy: cutoff })).toBe(first)
   // The key is the cutoff's value, not the Date object's identity.
-  expect(filterPkgMetadataByPublishDate(doc, new Date(cutoff.getTime()))).toBe(first)
+  expect(filterPkgMetadata(doc, { publishedBy: new Date(cutoff.getTime()) })).toBe(first)
   // A different cutoff gets its own slot.
-  expect(filterPkgMetadataByPublishDate(doc, new Date('2020-06-01T00:00:00.000Z'))).not.toBe(first)
+  expect(filterPkgMetadata(doc, { publishedBy: new Date('2020-06-01T00:00:00.000Z') })).not.toBe(first)
 
   // Exceeding the per-packument cap with distinct cutoffs evicts the oldest
   // entry instead of growing forever: the original cutoff is recomputed.
   for (let i = 1; i <= 4; i++) {
-    filterPkgMetadataByPublishDate(doc, new Date(cutoff.getTime() + i * 60_000))
+    filterPkgMetadata(doc, { publishedBy: new Date(cutoff.getTime() + i * 60_000) })
   }
-  expect(filterPkgMetadataByPublishDate(doc, cutoff)).not.toBe(first)
+  expect(filterPkgMetadata(doc, { publishedBy: cutoff })).not.toBe(first)
 })
 
 test('a version or dist-tag named __proto__ stays an own key of the filtered metadata', () => {
@@ -191,7 +191,7 @@ test('a version or dist-tag named __proto__ stays an own key of the filtered met
     "time": { "__proto__": "2020-01-01T00:00:00.000Z", "1.0.0": "2020-01-01T00:00:00.000Z" }
   }`)
 
-  const filtered = filterPkgMetadataByPublishDate(doc, new Date('2020-04-01T00:00:00.000Z'))
+  const filtered = filterPkgMetadata(doc, { publishedBy: new Date('2020-04-01T00:00:00.000Z') })
 
   expect(Object.keys(filtered.versions)).toContain('__proto__')
   expect(Object.keys(filtered['dist-tags'])).toContain('__proto__')
@@ -199,4 +199,86 @@ test('a version or dist-tag named __proto__ stays an own key of the filtered met
   // version manifest the prototype of the map, exposing its fields as
   // versions.
   expect('polluted' in filtered.versions).toBe(false)
+})
+
+test('blocked versions are dropped and dist-tags fall back past them', () => {
+  const name = 'blocked-pkg'
+  const packageVersion = (version: string) => ({
+    name,
+    version,
+    dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-${version}.tgz`, shasum: '' },
+  })
+  const doc = {
+    name,
+    versions: {
+      '1.0.0': packageVersion('1.0.0'),
+      '1.1.0': packageVersion('1.1.0'),
+      '1.2.0': packageVersion('1.2.0'),
+    },
+    'dist-tags': {
+      latest: '1.2.0',
+    },
+    time: {
+      '1.0.0': '2020-01-01T00:00:00.000Z',
+      '1.1.0': '2020-02-01T00:00:00.000Z',
+      '1.2.0': '2020-03-01T00:00:00.000Z',
+    },
+  }
+
+  const filtered = filterPkgMetadata(doc, {
+    publishedBy: new Date('2020-04-01T00:00:00.000Z'),
+    blockedVersions: new Set(['1.2.0']),
+  })
+
+  expect(Object.keys(filtered.versions).sort()).toStrictEqual(['1.0.0', '1.1.0'])
+  expect(filtered['dist-tags'].latest).toBe('1.1.0')
+})
+
+test('blocked versions are dropped with no publish-date cutoff and without a time field', () => {
+  // The shape a package covered wholesale by `minimumReleaseAgeExclude` takes:
+  // the cutoff does not apply to it, but a version whose own dependencies
+  // cannot satisfy the cutoff still has to go.
+  const name = 'excluded-pkg'
+  const packageVersion = (version: string) => ({
+    name,
+    version,
+    dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-${version}.tgz`, shasum: '' },
+  })
+
+  const filtered = filterPkgMetadata({
+    name,
+    versions: {
+      '2.0.0': packageVersion('2.0.0'),
+      '2.1.0': packageVersion('2.1.0'),
+    },
+    'dist-tags': {
+      latest: '2.1.0',
+    },
+  }, { blockedVersions: new Set(['2.1.0']) })
+
+  expect(Object.keys(filtered.versions)).toStrictEqual(['2.0.0'])
+  expect(filtered['dist-tags'].latest).toBe('2.0.0')
+})
+
+test('blocked versions get their own memoization slot', () => {
+  const name = 'memoized-blocked'
+  const doc = {
+    name,
+    versions: {
+      '1.0.0': {
+        name,
+        version: '1.0.0',
+        dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-1.0.0.tgz`, shasum: '' },
+      },
+    },
+    'dist-tags': { latest: '1.0.0' },
+    time: { '1.0.0': '2020-01-01T00:00:00.000Z' },
+  }
+  const publishedBy = new Date('2020-04-01T00:00:00.000Z')
+
+  const unblocked = filterPkgMetadata(doc, { publishedBy })
+  expect(filterPkgMetadata(doc, { publishedBy })).toBe(unblocked)
+  const blocked = filterPkgMetadata(doc, { publishedBy, blockedVersions: new Set(['1.0.0']) })
+  expect(blocked).not.toBe(unblocked)
+  expect(Object.keys(blocked.versions)).toStrictEqual([])
 })
