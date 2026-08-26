@@ -24,6 +24,7 @@ use futures_util::StreamExt as _;
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{PackageExtension, RegistryDeclaration, ResolutionMode, TrustPolicy};
+use pnpm_graph_hasher::hash_object_nullable_with_prefix;
 use pnpm_lockfile::{Lockfile, TarballRevision};
 use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
 use reqwest::Client;
@@ -569,6 +570,7 @@ impl PnprClient {
                                 "/-/pnpr/v0/resolve returned an importer that was not requested: {unexpected:?}",
                             )));
                         }
+                        assert_transform_metadata(&lockfile, &opts)?;
                         return Ok(ResolveOutcome { lockfile: *lockfile, stats });
                     }
                     Frame::Error { message } => return Err(PnprClientError::Server(message)),
@@ -582,6 +584,45 @@ impl PnprClient {
             "/-/pnpr/v0/resolve stream ended without a terminal frame".to_string(),
         ))
     }
+}
+
+fn assert_transform_metadata(
+    lockfile: &Lockfile,
+    opts: &ResolveProjectsOptions,
+) -> Result<(), PnprClientError> {
+    if let Some(expected) = opts.patched_dependencies.as_ref().filter(|patches| !patches.is_empty())
+        && !equal_patch_hashes(lockfile.patched_dependencies.as_ref(), expected)
+    {
+        return Err(PnprClientError::Protocol(
+            "/-/pnpr/v0/resolve returned patchedDependencies that do not match the request; the server may not support project transforms".to_string(),
+        ));
+    }
+
+    if let Some(package_extensions) =
+        opts.package_extensions.as_ref().filter(|extensions| !extensions.is_empty())
+    {
+        let value = serde_json::to_value(package_extensions)
+            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        let expected = hash_object_nullable_with_prefix(&value)
+            .expect("a non-empty packageExtensions map has a checksum");
+        if lockfile.package_extensions_checksum.as_deref() != Some(expected.as_str()) {
+            return Err(PnprClientError::Protocol(
+                "/-/pnpr/v0/resolve returned packageExtensionsChecksum that does not match the request; the server may not support project transforms".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn equal_patch_hashes(
+    actual: Option<&BTreeMap<String, String>>,
+    expected: &IndexMap<String, String>,
+) -> bool {
+    actual.is_some_and(|actual| {
+        actual.len() == expected.len()
+            && expected.iter().all(|(selector, hash)| actual.get(selector) == Some(hash))
+    })
 }
 
 fn parse_frame(line: &[u8]) -> Result<Frame, PnprClientError> {

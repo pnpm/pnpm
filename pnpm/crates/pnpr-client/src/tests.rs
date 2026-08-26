@@ -2,8 +2,9 @@ use std::collections::BTreeMap;
 
 use indexmap::IndexMap;
 use pnpm_config::{PackageExtension, ResolutionMode, TrustPolicy};
+use pnpm_graph_hasher::hash_object_nullable_with_prefix;
 use pnpm_lockfile::TarballRevision;
-use serde_json::json;
+use serde_json::{Value, json};
 
 use super::{
     Frame, PnprClient, PnprClientError, ResolveProject, ResolveProjectsOptions, VerifyError,
@@ -17,6 +18,8 @@ use super::{
 /// wire rather than on the options struct.
 #[tokio::test]
 async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
+    let options = resolve_projects_options();
+    let response_lockfile = matching_transform_lockfile(&options);
     let mut server = mockito::Server::new_async().await;
     let resolve_mock = server
         .mock("POST", "/-/pnpr/v0/resolve")
@@ -39,16 +42,56 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
             "trustPolicyIgnoreAfter": 43200,
             "trustLockfile": true,
         })))
-        .with_body("{\"type\":\"done\",\"lockfile\":{\"lockfileVersion\":\"9.0\"}}\n")
+        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile })))
         .create_async()
         .await;
 
     let _outcome = PnprClient::new(server.url())
-        .resolve_projects(resolve_projects_options())
+        .resolve_projects(options)
         .await
         .expect("the resolve succeeds");
 
     resolve_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn rejects_a_server_that_omits_or_changes_patch_metadata() {
+    let options = resolve_projects_options();
+    let extensions_checksum = package_extensions_checksum(&options);
+    for patched_dependencies in [None, Some(json!({ "acme@1.0.0": "different-hash" }))] {
+        let mut lockfile = json!({
+            "lockfileVersion": "9.0",
+            "packageExtensionsChecksum": extensions_checksum,
+        });
+        if let Some(patched_dependencies) = patched_dependencies {
+            lockfile["patchedDependencies"] = patched_dependencies;
+        }
+        assert_transform_metadata_rejected(
+            resolve_projects_options(),
+            lockfile,
+            "returned patchedDependencies that do not match the request",
+        )
+        .await;
+    }
+}
+
+#[tokio::test]
+async fn rejects_a_server_that_omits_or_changes_package_extension_metadata() {
+    for package_extensions_checksum in [None, Some("sha256-different-checksum")] {
+        let mut lockfile = json!({
+            "lockfileVersion": "9.0",
+            "patchedDependencies": { "acme@1.0.0": "abc123" },
+        });
+        if let Some(package_extensions_checksum) = package_extensions_checksum {
+            lockfile["packageExtensionsChecksum"] = json!(package_extensions_checksum);
+        }
+        assert_transform_metadata_rejected(
+            resolve_projects_options(),
+            lockfile,
+            "returned packageExtensionsChecksum that does not match the request",
+        )
+        .await;
+    }
 }
 
 fn resolve_projects_options() -> ResolveProjectsOptions {
@@ -97,6 +140,44 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
         trust_policy_exclude: Some(vec!["legacy-pkg".to_string()]),
         trust_policy_ignore_after: Some(43200),
     }
+}
+
+fn matching_transform_lockfile(options: &ResolveProjectsOptions) -> Value {
+    json!({
+        "lockfileVersion": "9.0",
+        "patchedDependencies": options.patched_dependencies,
+        "packageExtensionsChecksum": package_extensions_checksum(options),
+    })
+}
+
+fn package_extensions_checksum(options: &ResolveProjectsOptions) -> String {
+    let package_extensions = serde_json::to_value(
+        options.package_extensions.as_ref().expect("package extensions are configured"),
+    )
+    .expect("package extensions serialize");
+    hash_object_nullable_with_prefix(&package_extensions)
+        .expect("configured package extensions have a checksum")
+}
+
+async fn assert_transform_metadata_rejected(
+    options: ResolveProjectsOptions,
+    lockfile: Value,
+    expected_message: &str,
+) {
+    let mut server = mockito::Server::new_async().await;
+    let resolve_mock = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": lockfile })))
+        .create_async()
+        .await;
+
+    let Err(PnprClientError::Protocol(message)) =
+        PnprClient::new(server.url()).resolve_projects(options).await
+    else {
+        panic!("expected a protocol error");
+    };
+    assert!(message.contains(expected_message), "got {message}");
+    resolve_mock.assert_async().await;
 }
 
 #[test]

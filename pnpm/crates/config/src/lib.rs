@@ -3109,8 +3109,12 @@ impl Config {
             .map(|hashes| hashes.into_iter().collect()))
     }
 
-    /// Compute patch hashes while preserving `patchedDependencies` order for
-    /// consumers that group overlapping selectors.
+    /// Return patch hashes in configured selector order.
+    ///
+    /// Precomputed overrides avoid file reads. Without an override, each
+    /// configured patch file is hashed and any I/O or hashing error is
+    /// propagated. Returns `None` when no non-empty patch configuration is
+    /// available.
     pub fn patched_dependency_hashes_in_config_order(
         &self,
     ) -> Result<Option<IndexMap<String, String>>, CalcPatchHashError> {

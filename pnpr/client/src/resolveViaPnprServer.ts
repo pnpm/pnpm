@@ -4,6 +4,7 @@ import { URL } from 'node:url'
 import { gunzip } from 'node:zlib'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { convertToLockfileObject } from '@pnpm/lockfile.fs'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import type { PackageExtension, RegistryDeclaration, TrustPolicy } from '@pnpm/types'
@@ -208,12 +209,37 @@ export async function resolveViaPnprServer (
     throw new Error(`pnpr server rejected the lockfile under the verification policy:\n${rendered}`)
   }
 
+  assertTransformMetadata(terminal.lockfile, opts)
+
   return {
     // The server speaks the on-disk lockfile format; convert it to the
     // in-memory `LockfileObject` the rest of pnpm consumes.
     lockfile: convertToLockfileObject(terminal.lockfile),
     stats: terminal.stats,
   }
+}
+
+function assertTransformMetadata (
+  lockfile: LockfileFile,
+  opts: Pick<ResolveViaPnprServerOptions, 'patchedDependencies' | 'packageExtensions'>
+): void {
+  const expectedPatches = opts.patchedDependencies
+  if (expectedPatches != null && Object.keys(expectedPatches).length > 0 && !equalStringRecords(lockfile.patchedDependencies, expectedPatches)) {
+    throw new Error('pnpr server /-/pnpr/v0/resolve returned patchedDependencies that do not match the request; the server may not support project transforms')
+  }
+
+  const expectedExtensionsChecksum = hashObjectNullableWithPrefix(opts.packageExtensions)
+  if (expectedExtensionsChecksum != null && lockfile.packageExtensionsChecksum !== expectedExtensionsChecksum) {
+    throw new Error('pnpr server /-/pnpr/v0/resolve returned packageExtensionsChecksum that does not match the request; the server may not support project transforms')
+  }
+}
+
+function equalStringRecords (
+  actual: Record<string, string> | undefined,
+  expected: Record<string, string>
+): boolean {
+  if (actual == null || Object.keys(actual).length !== Object.keys(expected).length) return false
+  return Object.entries(expected).every(([key, value]) => actual[key] === value)
 }
 
 type TerminalFrame = Extract<ResolveFrame, { type: 'done' | 'error' | 'violations' }>

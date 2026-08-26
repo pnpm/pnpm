@@ -2,6 +2,7 @@ import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 
 import { expect, test } from '@jest/globals'
+import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { type PnprProject, resolveViaPnprServer, type ResolveViaPnprServerOptions } from '@pnpm/pnpr.client'
 
 interface CapturedResolveRequest {
@@ -106,8 +107,39 @@ test('serializes patch hashes and package extensions', async () => {
   })
 })
 
+test.each([
+  ['omits', undefined],
+  ['changes', { 'foo@1.0.0': 'different-hash' }],
+] as const)('rejects a server that %s the requested patch metadata', async (_behavior, patchedDependencies) => {
+  await expect(captureResolveRequest({
+    dependencies: {},
+    patchedDependencies: { 'foo@1.0.0': 'abc123' },
+  }, {
+    lockfileVersion: '9.0',
+    importers: { '.': {} },
+    ...(patchedDependencies == null ? {} : { patchedDependencies }),
+  })).rejects.toThrow('returned patchedDependencies that do not match the request')
+})
+
+test.each([
+  ['omits', undefined],
+  ['changes', 'sha256-different-checksum'],
+] as const)('rejects a server that %s the requested package extension metadata', async (_behavior, packageExtensionsChecksum) => {
+  await expect(captureResolveRequest({
+    dependencies: {},
+    packageExtensions: {
+      'foo@1.0.0': { dependencies: { bar: '1.0.0' } },
+    },
+  }, {
+    lockfileVersion: '9.0',
+    importers: { '.': {} },
+    ...(packageExtensionsChecksum == null ? {} : { packageExtensionsChecksum }),
+  })).rejects.toThrow('returned packageExtensionsChecksum that does not match the request')
+})
+
 async function captureResolveRequest (
-  options: Omit<ResolveViaPnprServerOptions, 'registryUrl'>
+  options: Omit<ResolveViaPnprServerOptions, 'registryUrl'>,
+  returnedLockfile?: Record<string, unknown>
 ): Promise<CapturedResolveRequest> {
   let capturedRequest: CapturedResolveRequest | undefined
   const server = http.createServer(async (request, response) => {
@@ -118,7 +150,12 @@ async function captureResolveRequest (
     capturedRequest = JSON.parse(Buffer.concat(chunks).toString('utf8')) as CapturedResolveRequest
     response.end(`${JSON.stringify({
       type: 'done',
-      lockfile: { lockfileVersion: '9.0', importers: { '.': {} } },
+      lockfile: returnedLockfile ?? {
+        lockfileVersion: '9.0',
+        importers: { '.': {} },
+        patchedDependencies: capturedRequest.patchedDependencies,
+        packageExtensionsChecksum: hashObjectNullableWithPrefix(capturedRequest.packageExtensions),
+      },
       stats: { totalPackages: 0 },
     })}\n`)
   })

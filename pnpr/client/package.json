@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/types": "workspace:*"

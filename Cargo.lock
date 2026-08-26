@@ -5442,6 +5442,7 @@ dependencies = [
  "mockito",
  "pnpm-catalogs-types",
  "pnpm-config",
+ "pnpm-graph-hasher",
  "pnpm-lockfile",
  "pnpm-lockfile-verification",
  "pnpm-network",

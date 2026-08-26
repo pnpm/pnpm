@@ -10334,6 +10334,9 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../pnpm11/catalogs/types
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../pnpm11/crypto/object-hasher
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../pnpm11/lockfile/fs

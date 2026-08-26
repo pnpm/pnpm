@@ -16,6 +16,9 @@
       "path": "../../pnpm11/core/types"
     },
     {
+      "path": "../../pnpm11/crypto/object-hasher"
+    },
+    {
       "path": "../../pnpm11/lockfile/fs"
     },
     {
