@@ -6,8 +6,8 @@
 //! tarball, one packument write per package. A crash in the middle of
 //! those steps could leave some packages of a batch published and
 //! others not. The journal closes that window: before anything is
-//! promoted, the full intent — the merged packument bytes plus the
-//! locations of the staged tmp files — is persisted under
+//! promoted, the full intent — the merged packument bytes, revision
+//! references, and locations of the staged tmp files — is persisted under
 //! `.pnpr-journal/<txn>/` and sealed with a single atomic rename of the
 //! `commit` marker. [`recover_publish_journal`] runs at startup, before
 //! the server accepts requests: sealed transactions are rolled forward
@@ -27,17 +27,17 @@
 
 use crate::{
     config::Config,
-    error::Result,
+    error::{RegistryError, Result},
     package_name::PackageName,
     publish::{merge_manifest, now_iso},
     storage::{
-        RECOVERY_PACKUMENT_WRITE_RETRIES, Storage, TarballFinalize, TarballSlot, unique_tmp_path,
+        HostedRevisionRefWrite, RECOVERY_PACKUMENT_WRITE_RETRIES, Storage, TarballFinalize,
+        TarballSlot, is_canonical_revision_ref_owner, unique_tmp_path,
     },
-    upstream::tarball_basename,
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     io::{self, ErrorKind},
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
@@ -77,6 +77,8 @@ struct ManifestPackage {
     /// packument bytes.
     packument_file: String,
     tarballs: Vec<ManifestTarball>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    revision_refs: Vec<JournaledRevisionRef>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -87,6 +89,14 @@ struct ManifestTarball {
     tmp_path: PathBuf,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JournaledRevisionRef {
+    pub filename: String,
+    pub digest: String,
+    pub ref_id: String,
+    pub bytes: Vec<u8>,
+}
+
 /// One package of a publish about to be committed, borrowed from the
 /// handler's staged state.
 pub struct JournaledPublish<'a> {
@@ -95,6 +105,7 @@ pub struct JournaledPublish<'a> {
     pub org: Option<&'a str>,
     pub packument: &'a [u8],
     pub slots: &'a [TarballSlot],
+    pub revision_refs: &'a [JournaledRevisionRef],
 }
 
 /// Handle to the journal directory of one [`Storage`].
@@ -108,6 +119,7 @@ pub struct PublishJournal {
 /// startup recovery to (idempotently) re-apply.
 pub struct SealedTxn {
     dir: PathBuf,
+    revision_ref_owner: String,
 }
 
 impl PublishJournal {
@@ -120,7 +132,8 @@ impl PublishJournal {
     /// committed: either the caller applies it now, or startup
     /// recovery does.
     pub async fn seal(&self, packages: &[JournaledPublish<'_>]) -> Result<SealedTxn> {
-        let dir = self.root.join(txn_id());
+        let revision_ref_owner = txn_id();
+        let dir = self.root.join(&revision_ref_owner);
         fs::create_dir_all(&dir).await?;
         let mut manifest = Manifest { packages: Vec::with_capacity(packages.len()) };
         for (index, package) in packages.iter().enumerate() {
@@ -138,6 +151,7 @@ impl PublishJournal {
                         tmp_path: slot.tmp_path.clone(),
                     })
                     .collect(),
+                revision_refs: package.revision_refs.to_vec(),
             });
         }
         write_synced(&dir.join(MANIFEST_FILE), &serde_json::to_vec_pretty(&manifest)?).await?;
@@ -150,7 +164,7 @@ impl PublishJournal {
         write_synced(&marker_tmp, b"").await?;
         fs::rename(&marker_tmp, &marker).await?;
         let _ = sync_dir(&dir).await;
-        Ok(SealedTxn { dir })
+        Ok(SealedTxn { dir, revision_ref_owner })
     }
 
     /// Roll every journal entry to a consistent state: sealed
@@ -177,7 +191,8 @@ impl PublishJournal {
             // rollback, which would delete an already-committed publish.
             // Abort recovery so startup fails loudly instead.
             if fs::try_exists(dir.join(COMMIT_MARKER)).await? {
-                roll_forward(storage, &dir).await?;
+                let revision_ref_owner = revision_ref_owner(&dir)?;
+                roll_forward(storage, &dir, revision_ref_owner).await?;
                 tracing::info!(txn = %dir.display(), "rolled publish journal entry forward");
             } else {
                 roll_back(&dir).await;
@@ -189,6 +204,10 @@ impl PublishJournal {
 }
 
 impl SealedTxn {
+    pub(crate) fn revision_ref_owner(&self) -> &str {
+        &self.revision_ref_owner
+    }
+
     /// Apply the sealed transaction now, completing any apply steps that
     /// have not run yet, and remove the journal entry. This is the same
     /// idempotent roll-forward startup recovery performs; commit calls it
@@ -196,7 +215,7 @@ impl SealedTxn {
     /// server never leaves a sealed batch partially visible until the
     /// next restart.
     pub async fn roll_forward(self, storage: &Storage) -> Result<()> {
-        roll_forward(storage, &self.dir).await
+        roll_forward(storage, &self.dir, &self.revision_ref_owner).await
     }
 
     /// Remove the journal entry once the publish is fully applied.
@@ -221,7 +240,7 @@ pub async fn recover_publish_journal(config: &Config) -> Result<()> {
 /// run before the crash: a tmp file that's gone was already promoted,
 /// and the packument is re-merged into the current on-disk state
 /// instead of overwriting it.
-async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
+async fn roll_forward(storage: &Storage, dir: &Path, revision_ref_owner: &str) -> Result<()> {
     let manifest: Manifest = serde_json::from_slice(&fs::read(dir.join(MANIFEST_FILE)).await?)?;
     let mut conflicted_tmp_paths = Vec::new();
     for package in &manifest.packages {
@@ -233,7 +252,7 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
             Some(org) => storage.for_hosted(org),
             None => storage.clone(),
         };
-        let mut conflicted: HashSet<&str> = HashSet::new();
+        let mut conflicted_versions = HashSet::new();
         for tarball in &package.tarballs {
             // A missing tmp file was already promoted before the crash, so
             // skip it. But never read an I/O error as "missing": that would
@@ -249,28 +268,80 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
                 );
                 match store.finalize_tarball_slot(slot).await? {
                     TarballFinalize::Written | TarballFinalize::AlreadyIdentical => {}
-                    // 다른 replica가 같은 버전의 다른 tarball을 먼저 확정했다.
-                    // winner의 bytes는 immutable이므로 덮어쓰거나 우리 integrity를
-                    // 노출하면 안 된다. 재시도에서도 충돌을 다시 감지하도록 임시
-                    // 파일은 유지하고, 아래 merge에서 제외할 filename을 기록한다.
+                    // Another replica finalized different bytes for this version.
+                    // Keep the tmp file so a retry detects the same conflict, and
+                    // exclude the losing version from the merge below.
                     TarballFinalize::Conflict => {
                         conflicted_tmp_paths.push(tarball.tmp_path.as_path());
-                        conflicted.insert(tarball.filename.as_str());
+                        let (_, version) = name.parse_tarball_name(&tarball.filename)?;
+                        conflicted_versions.insert(version);
                     }
                 }
             }
         }
         let mut journaled: serde_json::Value =
             serde_json::from_slice(&fs::read(dir.join(&package.packument_file)).await?)?;
-        if !conflicted.is_empty() {
-            drop_conflicted_versions(&mut journaled, &conflicted);
+        let revision_refs = package
+            .revision_refs
+            .iter()
+            .map(|revision_ref| {
+                let (_, version) = name.parse_tarball_name(&revision_ref.filename)?;
+                Ok((revision_ref, version))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let mut applied_revision_refs: HashMap<String, Vec<&JournaledRevisionRef>> = HashMap::new();
+        for (revision_ref, version) in revision_refs {
+            if conflicted_versions.contains(&version) {
+                continue;
+            }
+            match store
+                .write_hosted_revision_ref(
+                    &revision_ref.digest,
+                    &revision_ref.ref_id,
+                    revision_ref_owner,
+                    &revision_ref.bytes,
+                )
+                .await
+            {
+                Ok(HostedRevisionRefWrite::Claimed | HostedRevisionRefWrite::AlreadyClaimed) => {
+                    applied_revision_refs.entry(version).or_default().push(revision_ref);
+                }
+                Ok(HostedRevisionRefWrite::Committed) => {}
+                Err(crate::error::RegistryError::RevisionReferenceLimit { .. }) => {
+                    conflicted_versions.insert(version.clone());
+                    if let Some(applied) = applied_revision_refs.remove(&version) {
+                        for applied_ref in applied {
+                            store
+                                .remove_hosted_revision_ref(
+                                    &applied_ref.digest,
+                                    &applied_ref.ref_id,
+                                    revision_ref_owner,
+                                )
+                                .await?;
+                        }
+                    }
+                }
+                Err(err) => return Err(err),
+            }
+        }
+        if !conflicted_versions.is_empty() {
+            drop_conflicted_versions(&mut journaled, &conflicted_versions);
         }
         write_merged_packument(&store, &name, &journaled).await?;
+        for revision_ref in applied_revision_refs.into_values().flatten() {
+            store
+                .commit_hosted_revision_ref(
+                    &revision_ref.digest,
+                    &revision_ref.ref_id,
+                    revision_ref_owner,
+                )
+                .await?;
+        }
     }
-    // journal을 먼저 제거해야 중간 실패가 충돌 상태 없는 재시도를 만들지 않는다.
+    // Remove the journal before cleaning conflicted tmp files so an interruption
+    // cannot leave a retry that has lost the evidence needed to detect conflict.
     fs::remove_dir_all(dir).await?;
-    // 부모 디렉터리까지 동기화되어 journal 삭제가 내구성을 얻은 뒤에만 충돌 tmp를 지운다.
-    // 동기화 실패 시 tmp를 남겨 crash 후 journal이 다시 보이더라도 충돌을 재현할 수 있게 한다.
+    // Only clean conflict evidence after the journal removal is durable.
     let journal_removal_is_durable = match dir.parent() {
         Some(parent) => sync_dir(parent).await.is_ok(),
         None => false,
@@ -311,25 +382,19 @@ async fn write_merged_packument(
     Ok(())
 }
 
-/// Drop from a journaled manifest every version whose staged tarball lost a
-/// compare-and-swap to another replica. The bytes at that (immutable) version
-/// key belong to the winner, so re-merging our `dist`/integrity for the version
-/// would advertise metadata that no longer matches the hosted tarball. Versions
-/// are matched to `conflicted` staged filenames by their `dist.tarball`
-/// basename; a version we cannot match is left in place.
-fn drop_conflicted_versions(journaled: &mut serde_json::Value, conflicted: &HashSet<&str>) {
+/// Drop from a journaled manifest every version that lost an immutable tarball
+/// slot or could not reserve a bounded digest-reference slot. The journal keeps
+/// each staged attachment's canonical filename, so callers resolve that name to
+/// the version before reaching this helper instead of trusting a publisher-
+/// supplied `dist.tarball` URL as the transaction identity.
+fn drop_conflicted_versions(journaled: &mut serde_json::Value, conflicted: &HashSet<String>) {
     let Some(versions) = journaled.get_mut("versions").and_then(serde_json::Value::as_object_mut)
     else {
         return;
     };
     let mut removed_versions = HashSet::new();
-    versions.retain(|version, manifest| {
-        let filename = manifest
-            .get("dist")
-            .and_then(|dist| dist.get("tarball"))
-            .and_then(serde_json::Value::as_str)
-            .and_then(tarball_basename);
-        let keep = filename.is_none_or(|filename| !conflicted.contains(filename));
+    versions.retain(|version, _| {
+        let keep = !conflicted.contains(version);
         if !keep {
             removed_versions.insert(version.clone());
         }
@@ -370,6 +435,20 @@ fn txn_id() -> String {
         SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
     let counter = TXN_COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("{millis:016}-{}-{counter}", std::process::id())
+}
+
+fn revision_ref_owner(dir: &Path) -> Result<&str> {
+    let owner =
+        dir.file_name().and_then(|name| name.to_str()).ok_or_else(|| RegistryError::Internal {
+            reason: format!("publish journal path has no transaction id: {}", dir.display()),
+        })?;
+    if is_canonical_revision_ref_owner(owner) {
+        Ok(owner)
+    } else {
+        Err(RegistryError::Internal {
+            reason: format!("publish journal transaction id is invalid: {}", dir.display()),
+        })
+    }
 }
 
 async fn write_synced(path: &Path, bytes: &[u8]) -> Result<()> {

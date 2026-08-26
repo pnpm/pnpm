@@ -2,7 +2,7 @@ use crate::{
     auth::{AuthState, TokenRecord, UpsertOutcome, identify},
     config::{Config, HostedConfig},
     error::RegistryError,
-    journal::JournaledPublish,
+    journal::{JournaledPublish, JournaledRevisionRef},
     package_name::PackageName,
     policy::{Identity, PackageRules},
     publish::{
@@ -36,7 +36,10 @@ use axum::{
 };
 use chrono::Utc;
 use indexmap::IndexMap;
-use pnpm_crypto_hash::integrity_addressed_tarball_integrity;
+use pnpm_crypto_hash::{
+    create_hex_hash, integrity_addressed_tarball_integrity, integrity_addressed_tarball_path,
+};
+use pnpm_lockfile::TarballRevision;
 use serde_json::{Value, json};
 use ssri::Integrity;
 use std::{
@@ -110,6 +113,12 @@ struct AppInner {
     /// Local OSV index, loaded before the server accepts requests when
     /// `osv.enabled` is set and a mounted surface consults it.
     osv_index: Option<Arc<crate::resolver::OsvIndex>>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct HostedOriginalRef {
+    package: String,
+    version: String,
 }
 
 /// Per-package serialization for the read-modify-write packument flows
@@ -750,12 +759,7 @@ async fn get_four_segments(
 ) -> Response {
     if a == "-" && b == "tarballs" && c == "sha512" {
         let Some(registry) = default_registry_target(&state) else { return not_found() };
-        let response = serve_revision_tarball(&state, &identity, &registry, &d).await;
-        return if revision_registry_is_private(&state, &registry) {
-            private_no_cache(response)
-        } else {
-            response
-        };
+        return serve_revision_tarball(&state, &identity, &registry, &d).await;
     }
     if a == "-" && b == "package" && d == "dist-tags" {
         let response = get_dist_tags(&state, &identity, None, &c).await;
@@ -788,7 +792,7 @@ async fn get_four_segments(
 /// * `/~<name>/-/package/<pkg>/dist-tags` — dist-tags through a registry
 ///   endpoint.
 /// * `/~<name>/-/org/{scope}/team` — org teams through a registry endpoint.
-/// * `/~<name>/-/tarballs/sha512/{digest}` — immutable artifact through an upstream.
+/// * `/~<name>/-/tarballs/sha512/{digest}`: immutable artifact through an addressed registry.
 ///
 /// Every other 5-segment GET is a not-found catchall (the route exists so
 /// DELETE/PUT can sit on the same path).
@@ -802,7 +806,7 @@ async fn get_five_segments(
     }
     if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
         if b == "-" && c == "tarballs" && d == "sha512" {
-            return private_no_cache(serve_revision_tarball(&state, &identity, registry, &e).await);
+            return serve_revision_tarball(&state, &identity, registry, &e).await;
         }
         if b.starts_with('@') && d == "-" {
             let full = format!("{b}/{c}");
@@ -1873,6 +1877,25 @@ async fn serve_revision_tarball(
     let Some(integrity) = integrity_addressed_tarball_integrity(digest) else {
         return not_found();
     };
+    if matches!(state.inner.config.registries.get(registry), Some(Registry::Upstream { .. })) {
+        let response =
+            serve_upstream_revision_tarball(state, identity, registry, digest, &integrity).await;
+        return if revision_registry_is_private(state, registry) {
+            private_no_cache(response)
+        } else {
+            response
+        };
+    }
+    serve_hosted_revision_tarball(state, identity, registry, digest, &integrity).await
+}
+
+async fn serve_upstream_revision_tarball(
+    state: &AppState,
+    identity: &Identity,
+    registry: &str,
+    digest: &str,
+    integrity: &Integrity,
+) -> Response {
     let upstream = match authorized_revision_upstream(state, identity, registry) {
         Ok(upstream) => upstream,
         Err(response) => return *response,
@@ -1881,7 +1904,12 @@ async fn serve_revision_tarball(
     if upstream.caches() {
         match state.inner.storage.open_upstream_revision_tarball(&namespace, digest).await {
             Ok(Some((file, len))) => {
-                return tarball_response(streaming::stream_file(file), Some(len));
+                return revision_tarball_response(
+                    streaming::stream_file(file),
+                    Some(len),
+                    digest,
+                    integrity,
+                );
             }
             Ok(None) => {}
             Err(err) => {
@@ -1903,25 +1931,240 @@ async fn serve_revision_tarball(
         return match streaming::download_verified_to_temp(
             response,
             write,
-            &integrity,
+            integrity,
             MAX_TARBALL_BYTES,
         )
         .await
         {
-            Ok((file, len, tmp_path)) => {
-                tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
-            }
+            Ok((file, len, tmp_path)) => revision_tarball_response(
+                streaming::stream_file_and_remove(file, tmp_path),
+                Some(len),
+                digest,
+                integrity,
+            ),
             Err(err) => {
                 error_response(&tarball_stream_error_for_package(err, "registry revision", digest))
             }
         };
     }
-    match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
-        Ok(body) => tarball_response(body, None),
+    match streaming::stream_verified_to_cache(response, write, integrity, MAX_TARBALL_BYTES) {
+        Ok(body) => revision_tarball_response(body, None, digest, integrity),
         Err(err) => {
             error_response(&tarball_stream_error_for_package(err, "registry revision", digest))
         }
     }
+}
+
+async fn serve_hosted_revision_tarball(
+    state: &AppState,
+    identity: &Identity,
+    registry: &str,
+    digest: &str,
+    integrity: &Integrity,
+) -> Response {
+    let sources = hosted_revision_sources(state, registry);
+    if sources.is_empty() {
+        return not_found();
+    }
+
+    let mut private_refs = Vec::new();
+    let mut policy_error = None;
+    for source in sources {
+        let Some(hosted) = state.inner.config.hosted.get(&source) else {
+            continue;
+        };
+        let storage = state.inner.storage.for_hosted(&hosted.org);
+        let refs = match hosted_revision_refs(&storage, digest).await {
+            Ok(refs) => refs,
+            Err(err) => return private_no_cache(error_response(&err)),
+        };
+        for original in refs {
+            let package = match PackageName::parse(&original.package) {
+                Ok(package) => package,
+                Err(err) => return private_no_cache(error_response(&err)),
+            };
+            let filename = package.tarball_name_for_version(&original.version);
+            if let Err(err) = package.canonicalize_tarball_name(&filename) {
+                return private_no_cache(error_response(&err));
+            }
+            if !matches!(
+                resolve_registry_source(state, registry, package.as_str()),
+                RegistrySource::Hosted(resolved) if resolved == source,
+            ) || !matches!(
+                hosted_gate(state, identity, &source, package.as_str()),
+                HostedGate::Allowed(_),
+            ) {
+                continue;
+            }
+            match hosted_original_is_current(&storage, &package, &original.version, digest).await {
+                Ok(true) => {}
+                Ok(false) => continue,
+                Err(err) => return private_no_cache(error_response(&err)),
+            }
+            if let Err(err) = ensure_osv_allowed(state, &package, &original.version) {
+                policy_error.get_or_insert(err);
+                continue;
+            }
+            if matches!(
+                hosted_gate(state, &Identity::Anonymous, &source, package.as_str()),
+                HostedGate::Allowed(_),
+            ) {
+                let response = open_hosted_revision_tarball(
+                    &storage,
+                    &package,
+                    &original.version,
+                    digest,
+                    integrity,
+                )
+                .await;
+                if response.status() != StatusCode::NOT_FOUND {
+                    return response;
+                }
+                continue;
+            }
+            private_refs.push((storage.clone(), package, original.version));
+        }
+    }
+
+    for (storage, package, version) in private_refs {
+        let response =
+            open_hosted_revision_tarball(&storage, &package, &version, digest, integrity).await;
+        if response.status() != StatusCode::NOT_FOUND {
+            return response;
+        }
+    }
+    if let Some(err) = policy_error {
+        return private_no_cache(error_response(&err));
+    }
+    private_no_cache(not_found())
+}
+
+fn hosted_revision_sources(state: &AppState, registry: &str) -> Vec<String> {
+    match state.inner.config.registries.get(registry) {
+        Some(Registry::Hosted { .. }) => vec![registry.to_string()],
+        Some(Registry::Router { sources }) => sources
+            .iter()
+            .filter(|source| {
+                matches!(state.inner.config.registries.get(source), Some(Registry::Hosted { .. }))
+            })
+            .cloned()
+            .collect(),
+        Some(Registry::Upstream { .. }) | None => Vec::new(),
+    }
+}
+
+async fn hosted_revision_refs(
+    storage: &Storage,
+    digest: &str,
+) -> Result<Vec<HostedOriginalRef>, RegistryError> {
+    storage
+        .read_hosted_revision_refs(digest)
+        .await?
+        .into_iter()
+        .map(|bytes| serde_json::from_slice(&bytes).map_err(RegistryError::Json))
+        .collect()
+}
+
+async fn hosted_original_is_current(
+    storage: &Storage,
+    package: &PackageName,
+    version: &str,
+    digest: &str,
+) -> Result<bool, RegistryError> {
+    let Some(bytes) = storage.read_hosted_packument(package).await? else {
+        return Ok(false);
+    };
+    let packument = serde_json::from_slice::<HostedRevisionPackument>(&bytes)?;
+    Ok(packument
+        .versions
+        .get(version)
+        .and_then(|manifest| manifest.dist.as_ref())
+        .and_then(original_integrity)
+        .and_then(|integrity| integrity_addressed_tarball_path(&integrity))
+        .is_some_and(|path| path == format!("-/tarballs/sha512/{digest}")))
+}
+
+async fn open_hosted_revision_tarball(
+    storage: &Storage,
+    package: &PackageName,
+    version: &str,
+    digest: &str,
+    integrity: &Integrity,
+) -> Response {
+    let filename = package.tarball_name_for_version(version);
+    match storage.open_hosted_tarball(package, &filename).await {
+        Ok(Some((body, len))) => revision_tarball_response(body, len, digest, integrity),
+        Ok(None) => not_found(),
+        Err(err) => error_response(&err),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct HostedRevisionPackument {
+    #[serde(default)]
+    versions: IndexMap<String, HostedRevisionManifest>,
+}
+
+#[derive(serde::Deserialize)]
+struct HostedRevisionManifest {
+    #[serde(default)]
+    dist: Option<HostedRevisionDist>,
+}
+
+#[derive(serde::Deserialize)]
+struct HostedRevisionDist {
+    #[serde(default)]
+    integrity: Option<String>,
+    #[serde(default)]
+    revision: RevisionField,
+    #[serde(default)]
+    revisions: Vec<HostedRevisionRecord>,
+}
+
+#[derive(serde::Deserialize)]
+struct HostedRevisionRecord {
+    #[serde(default)]
+    revision: Value,
+    #[serde(default)]
+    integrity: Option<String>,
+}
+
+#[derive(Default)]
+enum RevisionField {
+    #[default]
+    Missing,
+    Present(Value),
+}
+
+impl<'de> serde::Deserialize<'de> for RevisionField {
+    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
+    where
+        Deserializer: serde::Deserializer<'de>,
+    {
+        <Value as serde::Deserialize>::deserialize(deserializer).map(Self::Present)
+    }
+}
+
+fn original_integrity(dist: &HostedRevisionDist) -> Option<Integrity> {
+    let RevisionField::Present(revision) = &dist.revision else {
+        return dist.integrity.as_deref()?.parse().ok();
+    };
+    let selected_revision =
+        revision.as_u64().and_then(|revision| TarballRevision::try_from(revision).ok())?.get();
+    let selected: Vec<_> = dist
+        .revisions
+        .iter()
+        .filter(|record| record.revision.as_u64() == Some(selected_revision))
+        .collect();
+    if selected.len() != 1 || selected[0].integrity.as_deref() != dist.integrity.as_deref() {
+        return None;
+    }
+    let originals: Vec<_> =
+        dist.revisions.iter().filter(|record| record.revision.as_u64() == Some(0)).collect();
+    if originals.len() != 1 {
+        return None;
+    }
+    originals[0].integrity.as_deref()?.parse().ok()
 }
 
 /// The response for a cached upstream tarball, or `None` on a cache miss. A
@@ -3051,6 +3294,7 @@ struct StagedPublish {
     merged_bytes: Vec<u8>,
     base_version: Option<HostedPackumentVersion>,
     slots: Vec<crate::storage::TarballSlot>,
+    original_refs: Vec<JournaledRevisionRef>,
     /// Hosted-org storage namespace this publish targets, or `None` for the
     /// flat (path-less) hosted store. Threaded into the commit and journal so
     /// the write — and any crash-recovery roll-forward — lands in the right org.
@@ -3135,6 +3379,10 @@ async fn stage_publish(
     let existing: Option<Value> = hosted.clone();
     let merged = merge_manifest(existing.as_ref(), &incoming, hosted.as_ref(), now_iso);
     let merged_bytes = serde_json::to_vec_pretty(&merged).map_err(RegistryError::Json)?;
+    let original_refs = prepared
+        .iter()
+        .filter_map(|attachment| staged_hosted_original_ref(&name, attachment))
+        .collect();
     // `incoming` is no longer needed; drop it so the base64 strings
     // inside go away as soon as `prepared` (which owns each one) is
     // drained below.
@@ -3179,12 +3427,29 @@ async fn stage_publish(
         merged_bytes,
         base_version,
         slots: written_slots,
+        original_refs,
         org: org.map(str::to_string),
     })
 }
 
+fn staged_hosted_original_ref(
+    package: &PackageName,
+    attachment: &PreparedAttachment,
+) -> Option<JournaledRevisionRef> {
+    let integrity: Integrity = attachment.dist.get("integrity")?.as_str()?.parse().ok()?;
+    let path = integrity_addressed_tarball_path(&integrity)?;
+    let digest = path.strip_prefix("-/tarballs/sha512/")?.to_string();
+    let record = HostedOriginalRef {
+        package: package.as_str().to_string(),
+        version: attachment.version.clone(),
+    };
+    let bytes = serde_json::to_vec(&record).expect("hosted original reference serializes");
+    let ref_id = create_hex_hash(&format!("{}\0{}", record.package, record.version));
+    Some(JournaledRevisionRef { filename: attachment.canonical.clone(), digest, ref_id, bytes })
+}
+
 /// Make every staged publish visible. The full intent — merged
-/// packument bytes plus the staged tmp-file locations — is sealed into
+/// packument bytes, revision references, and staged tmp-file locations — is sealed into
 /// the commit journal first, so a crash or I/O failure mid-apply can
 /// never leave the batch partially published: startup recovery rolls
 /// a sealed transaction forward. If sealing itself fails, nothing was
@@ -3205,6 +3470,7 @@ async fn commit_publishes(
             org: stage.org.as_deref(),
             packument: &stage.merged_bytes,
             slots: &stage.slots,
+            revision_refs: &stage.original_refs,
         })
         .collect();
     let sealed = journal.seal(&entries).await;
@@ -3218,6 +3484,7 @@ async fn commit_publishes(
             return Err(err);
         }
     };
+    let revision_ref_owner = txn.revision_ref_owner().to_string();
     // Past the seal the transaction is committed: the apply below is pure
     // roll-forward, and failures must NOT clean up the staged files. If
     // the apply fails partway, complete it immediately via the same
@@ -3245,6 +3512,16 @@ async fn commit_publishes(
                     }
                 }
             }
+            for original in &stage.original_refs {
+                store
+                    .write_hosted_revision_ref(
+                        &original.digest,
+                        &original.ref_id,
+                        &revision_ref_owner,
+                        &original.bytes,
+                    )
+                    .await?;
+            }
             match store
                 .write_hosted_packument_if_current(
                     &stage.name,
@@ -3253,7 +3530,17 @@ async fn commit_publishes(
                 )
                 .await?
             {
-                PackumentWrite::Written => {}
+                PackumentWrite::Written => {
+                    for original in &stage.original_refs {
+                        store
+                            .commit_hosted_revision_ref(
+                                &original.digest,
+                                &original.ref_id,
+                                &revision_ref_owner,
+                            )
+                            .await?;
+                    }
+                }
                 // Tarballs are already promoted at this point. A conflict means
                 // another replica advanced the packument since staging, so the
                 // base version is stale. Surfacing it drops into the seal's
@@ -3279,7 +3566,13 @@ async fn commit_publishes(
         }
         Err(apply_err) => {
             tracing::warn!(error = %apply_err, "publish apply failed after seal; rolling forward");
-            txn.roll_forward(&state.inner.storage).await.map_err(|_| apply_err)
+            let report_conflict =
+                matches!(&apply_err, RegistryError::RevisionReferenceLimit { .. });
+            match txn.roll_forward(&state.inner.storage).await {
+                Ok(()) if report_conflict => Err(apply_err),
+                Ok(()) => Ok(()),
+                Err(_) => Err(apply_err),
+            }
         }
     }
 }
@@ -4509,6 +4802,33 @@ fn tarball_response(body: Body, content_length: Option<u64>) -> Response {
         builder = builder.header(header::CONTENT_LENGTH, len);
     }
     builder.body(body).expect("static-shape response always builds")
+}
+
+fn revision_tarball_response(
+    body: Body,
+    content_length: Option<u64>,
+    digest: &str,
+    integrity: &Integrity,
+) -> Response {
+    let mut response = tarball_response(body, content_length);
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CACHE_CONTROL,
+        "public, max-age=31536000, immutable".parse().expect("static cache control is valid"),
+    );
+    headers.insert(
+        header::ETAG,
+        format!(r#""{digest}""#).parse().expect("canonical base64url digest is a valid ETag"),
+    );
+    if let [hash] = integrity.hashes.as_slice() {
+        headers.insert(
+            "content-digest",
+            format!("sha-512=:{}:", hash.digest)
+                .parse()
+                .expect("canonical base64 digest is a valid header value"),
+        );
+    }
+    private_no_cache(response)
 }
 
 fn not_found() -> Response {

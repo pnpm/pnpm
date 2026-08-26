@@ -14,9 +14,13 @@
 //! only the hosted store is pluggable.
 
 use crate::{
-    error::Result,
+    error::{RegistryError, Result},
     package_name::PackageName,
-    storage::{STAGED_DIR, staged_id_of_meta_object},
+    storage::{
+        HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR, HostedRevisionRefIndex,
+        HostedRevisionRefWrite, STAGED_DIR, staged_id_of_meta_object,
+        wait_after_packument_write_conflict,
+    },
 };
 use axum::body::Body;
 use futures_util::StreamExt;
@@ -33,6 +37,7 @@ use std::{
 use tokio::fs;
 
 const PACKUMENT_FILE: &str = "package.json";
+const REVISION_REF_WRITE_RETRIES: usize = 32;
 
 /// The YAML `s3:` block. Selects the object-store hosted backend.
 /// Credentials fall back to the standard AWS environment variables
@@ -341,12 +346,177 @@ impl S3Store {
         Ok(names)
     }
 
+    pub async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
+        let Some((index, _)) = self.read_revision_ref_index(digest).await? else {
+            return Ok(Vec::new());
+        };
+        Ok(index.bodies().map(<[u8]>::to_vec).collect())
+    }
+
+    pub async fn write_revision_ref(
+        &self,
+        digest: &str,
+        ref_id: &str,
+        owner: &str,
+        bytes: &[u8],
+    ) -> Result<HostedRevisionRefWrite> {
+        for attempt in 0..REVISION_REF_WRITE_RETRIES {
+            let current = self.read_revision_ref_index(digest).await?;
+            let (mut index, version) = match current {
+                Some((index, version)) => (index, Some(version)),
+                None => (HostedRevisionRefIndex::default(), None),
+            };
+            let outcome = index.insert(ref_id, owner, bytes)?;
+            if outcome != HostedRevisionRefWrite::Claimed {
+                return Ok(outcome);
+            }
+            let mode = match version {
+                Some(version) => PutMode::Update(version),
+                None => PutMode::Create,
+            };
+            match self
+                .store
+                .put_opts(
+                    &self.revision_ref_index_key(digest),
+                    PutPayload::from(index.to_bytes()),
+                    PutOptions { mode, ..PutOptions::default() },
+                )
+                .await
+            {
+                Ok(_) => return Ok(HostedRevisionRefWrite::Claimed),
+                Err(
+                    object_store::Error::AlreadyExists { .. }
+                    | object_store::Error::NotFound { .. }
+                    | object_store::Error::Precondition { .. },
+                ) => {
+                    if attempt + 1 < REVISION_REF_WRITE_RETRIES {
+                        wait_after_packument_write_conflict(attempt).await;
+                    }
+                }
+                Err(err) => return Err(err.into()),
+            }
+        }
+        let mut index = self
+            .read_revision_ref_index(digest)
+            .await?
+            .map_or_else(HostedRevisionRefIndex::default, |(index, _)| index);
+        let outcome = index.insert(ref_id, owner, bytes)?;
+        if outcome != HostedRevisionRefWrite::Claimed {
+            return Ok(outcome);
+        }
+        Err(RegistryError::RevisionReferenceWriteConflict { digest: digest.to_string() })
+    }
+
+    pub async fn remove_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
+        for attempt in 0..REVISION_REF_WRITE_RETRIES {
+            let Some((mut index, version)) = self.read_revision_ref_index(digest).await? else {
+                return Ok(());
+            };
+            if !index.remove_if_owned(ref_id, owner) {
+                return Ok(());
+            }
+            match self
+                .store
+                .put_opts(
+                    &self.revision_ref_index_key(digest),
+                    PutPayload::from(index.to_bytes()),
+                    PutOptions { mode: PutMode::Update(version), ..PutOptions::default() },
+                )
+                .await
+            {
+                Ok(_) => return Ok(()),
+                Err(
+                    object_store::Error::NotFound { .. } | object_store::Error::Precondition { .. },
+                ) => {
+                    if attempt + 1 < REVISION_REF_WRITE_RETRIES {
+                        wait_after_packument_write_conflict(attempt).await;
+                    }
+                }
+                Err(err) => return Err(err.into()),
+            }
+        }
+        if self
+            .read_revision_ref_index(digest)
+            .await?
+            .is_none_or(|(index, _)| !index.is_owned_by(ref_id, owner))
+        {
+            return Ok(());
+        }
+        Err(RegistryError::RevisionReferenceWriteConflict { digest: digest.to_string() })
+    }
+
+    pub async fn commit_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
+        for attempt in 0..REVISION_REF_WRITE_RETRIES {
+            let Some((mut index, version)) = self.read_revision_ref_index(digest).await? else {
+                return Err(RegistryError::Internal {
+                    reason: "hosted revision reference is missing during commit".to_string(),
+                });
+            };
+            if !index.commit_if_owned(ref_id, owner)? {
+                return Ok(());
+            }
+            match self
+                .store
+                .put_opts(
+                    &self.revision_ref_index_key(digest),
+                    PutPayload::from(index.to_bytes()),
+                    PutOptions { mode: PutMode::Update(version), ..PutOptions::default() },
+                )
+                .await
+            {
+                Ok(_) => return Ok(()),
+                Err(
+                    object_store::Error::NotFound { .. } | object_store::Error::Precondition { .. },
+                ) => {
+                    if attempt + 1 < REVISION_REF_WRITE_RETRIES {
+                        wait_after_packument_write_conflict(attempt).await;
+                    }
+                }
+                Err(err) => return Err(err.into()),
+            }
+        }
+        let Some((mut index, _)) = self.read_revision_ref_index(digest).await? else {
+            return Err(RegistryError::Internal {
+                reason: "hosted revision reference is missing during commit".to_string(),
+            });
+        };
+        if !index.commit_if_owned(ref_id, owner)? {
+            return Ok(());
+        }
+        Err(RegistryError::RevisionReferenceWriteConflict { digest: digest.to_string() })
+    }
+
+    async fn read_revision_ref_index(
+        &self,
+        digest: &str,
+    ) -> Result<Option<(HostedRevisionRefIndex, UpdateVersion)>> {
+        match self.store.get(&self.revision_ref_index_key(digest)).await {
+            Ok(result) => {
+                let version = UpdateVersion {
+                    e_tag: result.meta.e_tag.clone(),
+                    version: result.meta.version.clone(),
+                };
+                let index = HostedRevisionRefIndex::from_bytes(&result.bytes().await?)?;
+                Ok(Some((index, version)))
+            }
+            Err(object_store::Error::NotFound { .. }) => Ok(None),
+            Err(err) => Err(err.into()),
+        }
+    }
+
     fn packument_key(&self, name: &PackageName) -> ObjectPath {
         ObjectPath::from(format!("{}{}/{PACKUMENT_FILE}", self.prefix, name.as_str()))
     }
 
     fn tarball_key(&self, name: &PackageName, filename: &str) -> ObjectPath {
         ObjectPath::from(format!("{}{}/{filename}", self.prefix, name.as_str()))
+    }
+
+    fn revision_ref_index_key(&self, digest: &str) -> ObjectPath {
+        ObjectPath::from(format!(
+            "{}{HOSTED_REVISION_REFS_DIR}/{digest}/{HOSTED_REVISION_REF_INDEX_FILE}",
+            self.prefix,
+        ))
     }
 
     // Staged-publish records (see `storage::Storage`'s staged section for

@@ -1,6 +1,6 @@
 use super::{Body, ObjectStore, S3Settings, S3Store};
-use crate::package_name::PackageName;
-use object_store::memory::InMemory;
+use crate::{package_name::PackageName, storage::HostedRevisionRefWrite};
+use object_store::{ObjectStoreExt, PutPayload, memory::InMemory, path::Path as ObjectPath};
 use std::sync::Arc;
 use tempfile::tempdir;
 
@@ -199,6 +199,151 @@ async fn lists_hosted_package_names() {
         names.sort();
         assert_eq!(names, vec!["@scope/thing".to_string(), "is-positive".to_string()]);
     }
+}
+
+#[tokio::test]
+async fn revision_refs_roundtrip_under_the_configured_prefix() {
+    for prefix in ["", "packages"] {
+        let (store, _staging) = store_with_prefix(prefix);
+        let digest = "A".repeat(86);
+        assert_eq!(store.read_revision_refs(&digest).await.unwrap(), Vec::<Vec<u8>>::new());
+
+        store.write_revision_ref(&digest, &"a".repeat(64), "owner-a", b"first").await.unwrap();
+        store.write_revision_ref(&digest, &"b".repeat(64), "owner-a", b"second").await.unwrap();
+        let mut refs = store.read_revision_refs(&digest).await.unwrap();
+        refs.sort();
+        assert_eq!(refs, vec![b"first".to_vec(), b"second".to_vec()]);
+    }
+}
+
+#[tokio::test]
+async fn revision_ref_removal_is_scoped_to_its_owner() {
+    let (store, _staging) = store_with_prefix("packages");
+    let digest = "A".repeat(86);
+    let ref_id = "a".repeat(64);
+    assert_eq!(
+        store.write_revision_ref(&digest, &ref_id, "owner-a", b"record").await.unwrap(),
+        HostedRevisionRefWrite::Claimed,
+    );
+    assert_eq!(
+        store.write_revision_ref(&digest, &ref_id, "owner-b", b"record").await.unwrap(),
+        HostedRevisionRefWrite::Claimed,
+    );
+
+    store.remove_revision_ref(&digest, &ref_id, "owner-a").await.unwrap();
+    assert_eq!(store.read_revision_refs(&digest).await.unwrap(), vec![b"record".to_vec()]);
+
+    store.remove_revision_ref(&digest, &ref_id, "owner-a").await.unwrap();
+    assert_eq!(store.read_revision_refs(&digest).await.unwrap(), vec![b"record".to_vec()]);
+
+    store.commit_revision_ref(&digest, &ref_id, "owner-b").await.unwrap();
+    store.remove_revision_ref(&digest, &ref_id, "owner-b").await.unwrap();
+    assert_eq!(store.read_revision_refs(&digest).await.unwrap(), vec![b"record".to_vec()]);
+
+    assert_eq!(
+        store.write_revision_ref(&digest, &ref_id, "owner-a", b"record").await.unwrap(),
+        HostedRevisionRefWrite::Committed,
+    );
+}
+
+#[tokio::test]
+async fn concurrent_revision_ref_claims_survive_other_owner_removal() {
+    let (store, _staging) = store_with_prefix("packages");
+    let digest = "A".repeat(86);
+    let ref_id = "a".repeat(64);
+    let first = {
+        let store = store.clone();
+        let digest = digest.clone();
+        let ref_id = ref_id.clone();
+        tokio::spawn(async move {
+            store.write_revision_ref(&digest, &ref_id, "owner-a", b"record").await
+        })
+    };
+    let second = {
+        let store = store.clone();
+        let digest = digest.clone();
+        let ref_id = ref_id.clone();
+        tokio::spawn(async move {
+            store.write_revision_ref(&digest, &ref_id, "owner-b", b"record").await
+        })
+    };
+
+    assert_eq!(first.await.unwrap().unwrap(), HostedRevisionRefWrite::Claimed);
+    assert_eq!(second.await.unwrap().unwrap(), HostedRevisionRefWrite::Claimed);
+    store.remove_revision_ref(&digest, &ref_id, "owner-a").await.unwrap();
+    assert_eq!(store.read_revision_refs(&digest).await.unwrap(), vec![b"record".to_vec()]);
+    store.remove_revision_ref(&digest, &ref_id, "owner-b").await.unwrap();
+    assert_eq!(store.read_revision_refs(&digest).await.unwrap(), Vec::<Vec<u8>>::new());
+}
+
+#[tokio::test]
+async fn revision_ref_writes_enforce_the_read_bound() {
+    let (store, _staging) = store_with_prefix("packages");
+    let digest = "A".repeat(86);
+    for index in 0..crate::storage::MAX_HOSTED_REVISION_REFS {
+        store
+            .write_revision_ref(&digest, &format!("{index:064x}"), "owner-a", b"{}")
+            .await
+            .unwrap();
+    }
+
+    let overflow = crate::storage::MAX_HOSTED_REVISION_REFS;
+    let err = store
+        .write_revision_ref(&digest, &format!("{overflow:064x}"), "owner-a", b"{}")
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        crate::error::RegistryError::RevisionReferenceLimit { limit }
+            if limit == crate::storage::MAX_HOSTED_REVISION_REFS
+    ));
+
+    assert_eq!(
+        store.write_revision_ref(&digest, &"0".repeat(64), "owner-a", b"{}").await.unwrap(),
+        HostedRevisionRefWrite::AlreadyClaimed,
+    );
+    store
+        .store
+        .put(
+            &ObjectPath::from(format!("packages/.revisions/sha512/{digest}/not-a-reference.json")),
+            PutPayload::from_static(b"stray"),
+        )
+        .await
+        .unwrap();
+    let refs = store.read_revision_refs(&digest).await.unwrap();
+    assert_eq!(refs.len(), crate::storage::MAX_HOSTED_REVISION_REFS);
+    assert!(refs.iter().all(|bytes| bytes == b"{}"));
+}
+
+#[tokio::test]
+async fn concurrent_revision_ref_writes_cannot_exceed_the_limit() {
+    let (store, _staging) = store_with_prefix("packages");
+    let digest = "A".repeat(86);
+    let mut writes = Vec::new();
+    for index in 0..crate::storage::MAX_HOSTED_REVISION_REFS * 2 {
+        let store = store.clone();
+        let digest = digest.clone();
+        writes.push(tokio::spawn(async move {
+            store.write_revision_ref(&digest, &format!("{index:064x}"), "owner-a", b"{}").await
+        }));
+    }
+
+    let mut written = 0;
+    let mut rejected = 0;
+    for write in writes {
+        match write.await.unwrap() {
+            Ok(HostedRevisionRefWrite::Claimed) => written += 1,
+            Ok(outcome) => panic!("unexpected revision-reference write outcome: {outcome:?}"),
+            Err(crate::error::RegistryError::RevisionReferenceLimit { .. }) => rejected += 1,
+            Err(err) => panic!("unexpected revision-reference write error: {err}"),
+        }
+    }
+    assert_eq!(written, crate::storage::MAX_HOSTED_REVISION_REFS);
+    assert_eq!(rejected, crate::storage::MAX_HOSTED_REVISION_REFS);
+    assert_eq!(
+        store.read_revision_refs(&digest).await.unwrap().len(),
+        crate::storage::MAX_HOSTED_REVISION_REFS,
+    );
 }
 
 #[test]

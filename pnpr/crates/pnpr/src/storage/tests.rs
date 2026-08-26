@@ -1,6 +1,6 @@
 use super::{
-    AsyncWriteExt, ErrorKind, HostedStoreConfig, PackageName, RegistryError, Storage, TarballWrite,
-    create_tmp_file_with, fs,
+    AsyncWriteExt, ErrorKind, HostedRevisionRefWrite, HostedStoreConfig, MAX_HOSTED_REVISION_REFS,
+    PackageName, RegistryError, Storage, TarballWrite, create_tmp_file_with, fs,
 };
 use tempfile::TempDir;
 
@@ -18,6 +18,118 @@ fn packument_write_conflict_delay_caps_growth() {
     assert_eq!(super::packument_write_conflict_delay(1).as_millis(), 10);
     assert_eq!(super::packument_write_conflict_delay(6).as_millis(), 250);
     assert_eq!(super::packument_write_conflict_delay(32).as_millis(), 250);
+}
+
+#[tokio::test]
+async fn hosted_revision_refs_roundtrip_in_the_org_namespace() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp).for_hosted("acme");
+    let digest = "A".repeat(86);
+    let ref_id = "b".repeat(64);
+
+    assert_eq!(storage.read_hosted_revision_refs(&digest).await.unwrap(), Vec::<Vec<u8>>::new());
+    storage
+        .write_hosted_revision_ref(
+            &digest,
+            &ref_id,
+            "owner-a",
+            br#"{"package":"foo","version":"1.0.0"}"#,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        storage.read_hosted_revision_refs(&digest).await.unwrap(),
+        vec![br#"{"package":"foo","version":"1.0.0"}"#.to_vec()],
+    );
+    assert_eq!(
+        storage_in(&tmp).read_hosted_revision_refs(&digest).await.unwrap(),
+        Vec::<Vec<u8>>::new(),
+    );
+}
+
+#[tokio::test]
+async fn hosted_revision_ref_paths_reject_noncanonical_segments() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let digest = "A".repeat(86);
+
+    let invalid_digest = storage.read_hosted_revision_refs("../escape").await;
+    assert!(invalid_digest.is_err());
+    let invalid_ref =
+        storage.write_hosted_revision_ref(&digest, "../escape", "owner-a", b"{}").await;
+    assert!(invalid_ref.is_err());
+}
+
+#[tokio::test]
+async fn hosted_revision_ref_writes_enforce_the_read_bound() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let digest = "A".repeat(86);
+    for index in 0..MAX_HOSTED_REVISION_REFS {
+        storage
+            .write_hosted_revision_ref(&digest, &format!("{index:064x}"), "owner-a", b"{}")
+            .await
+            .unwrap();
+    }
+
+    let overflow = MAX_HOSTED_REVISION_REFS;
+    let err = storage
+        .write_hosted_revision_ref(&digest, &format!("{overflow:064x}"), "owner-a", b"{}")
+        .await
+        .unwrap_err();
+    assert_eq!(err.status_code(), axum::http::StatusCode::CONFLICT);
+    assert!(matches!(
+        err,
+        RegistryError::RevisionReferenceLimit { limit } if limit == MAX_HOSTED_REVISION_REFS
+    ));
+
+    assert_eq!(
+        storage
+            .write_hosted_revision_ref(&digest, &"0".repeat(64), "owner-a", b"{}")
+            .await
+            .unwrap(),
+        HostedRevisionRefWrite::AlreadyClaimed,
+    );
+    let stray_dir = tmp.path().join("storage/.revisions/sha512").join(&digest);
+    fs::write(stray_dir.join("not-a-reference.json"), b"stray").await.unwrap();
+    fs::write(stray_dir.join("interrupted.tmp"), b"stray").await.unwrap();
+    let refs = storage.read_hosted_revision_refs(&digest).await.unwrap();
+    assert_eq!(refs.len(), MAX_HOSTED_REVISION_REFS);
+    assert!(refs.iter().all(|bytes| bytes == b"{}"));
+}
+
+#[tokio::test]
+async fn concurrent_hosted_revision_ref_writes_cannot_exceed_the_limit() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let digest = "A".repeat(86);
+    let mut writes = Vec::new();
+    for index in 0..MAX_HOSTED_REVISION_REFS * 2 {
+        let storage = storage.clone();
+        let digest = digest.clone();
+        writes.push(tokio::spawn(async move {
+            storage
+                .write_hosted_revision_ref(&digest, &format!("{index:064x}"), "owner-a", b"{}")
+                .await
+        }));
+    }
+
+    let mut written = 0;
+    let mut rejected = 0;
+    for write in writes {
+        match write.await.unwrap() {
+            Ok(HostedRevisionRefWrite::Claimed) => written += 1,
+            Ok(outcome) => panic!("unexpected revision-reference write outcome: {outcome:?}"),
+            Err(RegistryError::RevisionReferenceLimit { .. }) => rejected += 1,
+            Err(err) => panic!("unexpected revision-reference write error: {err}"),
+        }
+    }
+    assert_eq!(written, MAX_HOSTED_REVISION_REFS);
+    assert_eq!(rejected, MAX_HOSTED_REVISION_REFS);
+    assert_eq!(
+        storage.read_hosted_revision_refs(&digest).await.unwrap().len(),
+        MAX_HOSTED_REVISION_REFS,
+    );
 }
 
 #[tokio::test]

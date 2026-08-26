@@ -8,7 +8,9 @@ use crate::{
 use axum::body::Body;
 use object_store::UpdateVersion;
 use pnpm_crypto_hash::integrity_addressed_tarball_integrity;
+use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashSet,
     io::{ErrorKind, SeekFrom},
     path::{Path, PathBuf},
     sync::{
@@ -23,6 +25,138 @@ use tokio::{
 };
 
 const PACKUMENT_FILE: &str = "package.json";
+pub(crate) const HOSTED_REVISION_REFS_DIR: &str = ".revisions/sha512";
+pub(crate) const HOSTED_REVISION_REF_INDEX_FILE: &str = "index.json";
+/// Bounds both the persisted candidate set and work triggered by one digest request.
+pub(crate) const MAX_HOSTED_REVISION_REFS: usize = 32;
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub(crate) struct HostedRevisionRefIndex {
+    refs: Vec<HostedRevisionRefIndexEntry>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct HostedRevisionRefIndexEntry {
+    id: String,
+    committed: bool,
+    pending_owners: Vec<String>,
+    bytes: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum HostedRevisionRefWrite {
+    Claimed,
+    AlreadyClaimed,
+    Committed,
+}
+
+impl HostedRevisionRefIndex {
+    pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        let index: Self = serde_json::from_slice(bytes)?;
+        if index.refs.len() > MAX_HOSTED_REVISION_REFS {
+            return Err(RegistryError::RevisionReferenceLimit { limit: MAX_HOSTED_REVISION_REFS });
+        }
+        let mut seen = HashSet::with_capacity(index.refs.len());
+        if index.refs.iter().any(|entry| {
+            !is_canonical_revision_ref_id(&entry.id)
+                || (entry.committed && !entry.pending_owners.is_empty())
+                || (!entry.committed && entry.pending_owners.is_empty())
+                || entry.pending_owners.iter().enumerate().any(|(owner_index, owner)| {
+                    !is_canonical_revision_ref_owner(owner)
+                        || entry.pending_owners[..owner_index].contains(owner)
+                })
+                || !seen.insert(&entry.id)
+        }) {
+            return Err(RegistryError::Internal {
+                reason: "hosted revision reference index is invalid".to_string(),
+            });
+        }
+        Ok(index)
+    }
+
+    pub(crate) fn bodies(&self) -> impl Iterator<Item = &[u8]> {
+        self.refs.iter().map(|entry| entry.bytes.as_slice())
+    }
+
+    pub(crate) fn insert(
+        &mut self,
+        ref_id: &str,
+        owner: &str,
+        bytes: &[u8],
+    ) -> Result<HostedRevisionRefWrite> {
+        if let Some(entry) = self.refs.iter_mut().find(|entry| entry.id == ref_id) {
+            if entry.bytes != bytes {
+                return Err(RegistryError::Internal {
+                    reason: "hosted revision reference body conflicts with its id".to_string(),
+                });
+            }
+            if entry.committed {
+                return Ok(HostedRevisionRefWrite::Committed);
+            }
+            if entry.pending_owners.iter().any(|candidate| candidate == owner) {
+                return Ok(HostedRevisionRefWrite::AlreadyClaimed);
+            }
+            entry.pending_owners.push(owner.to_string());
+            return Ok(HostedRevisionRefWrite::Claimed);
+        }
+        if self.refs.len() == MAX_HOSTED_REVISION_REFS {
+            return Err(RegistryError::RevisionReferenceLimit { limit: MAX_HOSTED_REVISION_REFS });
+        }
+        self.refs.push(HostedRevisionRefIndexEntry {
+            id: ref_id.to_string(),
+            committed: false,
+            pending_owners: vec![owner.to_string()],
+            bytes: bytes.to_vec(),
+        });
+        Ok(HostedRevisionRefWrite::Claimed)
+    }
+
+    pub(crate) fn remove_if_owned(&mut self, ref_id: &str, owner: &str) -> bool {
+        let Some(entry_index) = self.refs.iter().position(|entry| entry.id == ref_id) else {
+            return false;
+        };
+        let Some(owner_index) =
+            self.refs[entry_index].pending_owners.iter().position(|candidate| candidate == owner)
+        else {
+            return false;
+        };
+        self.refs[entry_index].pending_owners.remove(owner_index);
+        if self.refs[entry_index].pending_owners.is_empty() {
+            self.refs.remove(entry_index);
+        }
+        true
+    }
+
+    pub(crate) fn is_owned_by(&self, ref_id: &str, owner: &str) -> bool {
+        self.refs.iter().any(|entry| {
+            entry.id == ref_id && entry.pending_owners.iter().any(|candidate| candidate == owner)
+        })
+    }
+
+    pub(crate) fn commit_if_owned(&mut self, ref_id: &str, owner: &str) -> Result<bool> {
+        let Some(entry) = self.refs.iter_mut().find(|entry| entry.id == ref_id) else {
+            return Err(RegistryError::Internal {
+                reason: "hosted revision reference is missing during commit".to_string(),
+            });
+        };
+        if entry.committed {
+            return Ok(false);
+        }
+        if !entry.pending_owners.iter().any(|candidate| candidate == owner) {
+            return Err(RegistryError::Internal {
+                reason: "hosted revision reference is not owned by its committing transaction"
+                    .to_string(),
+            });
+        }
+        entry.committed = true;
+        entry.pending_owners.clear();
+        Ok(true)
+    }
+
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        serde_json::to_vec(self).expect("hosted revision reference index serializes")
+    }
+}
 
 /// Per-process counter feeding [`unique_tmp_path`] so two concurrent
 /// writes to the same path don't collide on the same temp filename.
@@ -187,6 +321,9 @@ pub enum CachedPackument {
 ///   <package>/
 ///     package.json
 ///     <basename>-<version>.tgz
+///   .revisions/sha512/<digest>/
+///     index.json
+///     <package-version-hash>.json
 /// ```
 ///
 /// For scoped packages the package directory is `<root>/@scope/<name>/`.
@@ -373,6 +510,40 @@ impl HostedStore {
         }
     }
 
+    async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
+        match self {
+            HostedStore::Fs(store) => store.read_revision_refs(digest).await,
+            HostedStore::S3(store) => store.read_revision_refs(digest).await,
+        }
+    }
+
+    async fn write_revision_ref(
+        &self,
+        digest: &str,
+        ref_id: &str,
+        owner: &str,
+        bytes: &[u8],
+    ) -> Result<HostedRevisionRefWrite> {
+        match self {
+            HostedStore::Fs(store) => store.write_revision_ref(digest, ref_id, owner, bytes).await,
+            HostedStore::S3(store) => store.write_revision_ref(digest, ref_id, owner, bytes).await,
+        }
+    }
+
+    async fn remove_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
+        match self {
+            HostedStore::Fs(store) => store.remove_revision_ref(digest, ref_id, owner).await,
+            HostedStore::S3(store) => store.remove_revision_ref(digest, ref_id, owner).await,
+        }
+    }
+
+    async fn commit_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
+        match self {
+            HostedStore::Fs(store) => store.commit_revision_ref(digest, ref_id, owner).await,
+            HostedStore::S3(store) => store.commit_revision_ref(digest, ref_id, owner).await,
+        }
+    }
+
     /// A view rooted under `segment`, giving a hosted registry its own
     /// storage namespace so two orgs hosting the same `name@version` never
     /// collide on disk (or on object keys).
@@ -433,6 +604,48 @@ impl Storage {
     /// indexes hosted/static packages only, never the proxy mirror).
     pub async fn hosted_package_names(&self) -> Result<Vec<String>> {
         self.hosted.list_package_names().await
+    }
+
+    pub(crate) async fn read_hosted_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
+        validate_revision_digest(digest)?;
+        self.hosted.read_revision_refs(digest).await
+    }
+
+    pub(crate) async fn write_hosted_revision_ref(
+        &self,
+        digest: &str,
+        ref_id: &str,
+        owner: &str,
+        bytes: &[u8],
+    ) -> Result<HostedRevisionRefWrite> {
+        validate_revision_digest(digest)?;
+        validate_revision_ref_id(ref_id)?;
+        validate_revision_ref_owner(owner)?;
+        self.hosted.write_revision_ref(digest, ref_id, owner, bytes).await
+    }
+
+    pub(crate) async fn remove_hosted_revision_ref(
+        &self,
+        digest: &str,
+        ref_id: &str,
+        owner: &str,
+    ) -> Result<()> {
+        validate_revision_digest(digest)?;
+        validate_revision_ref_id(ref_id)?;
+        validate_revision_ref_owner(owner)?;
+        self.hosted.remove_revision_ref(digest, ref_id, owner).await
+    }
+
+    pub(crate) async fn commit_hosted_revision_ref(
+        &self,
+        digest: &str,
+        ref_id: &str,
+        owner: &str,
+    ) -> Result<()> {
+        validate_revision_digest(digest)?;
+        validate_revision_ref_id(ref_id)?;
+        validate_revision_ref_owner(owner)?;
+        self.hosted.commit_revision_ref(digest, ref_id, owner).await
     }
 
     /// A view whose hosted store is namespaced under `org`, so a hosted
@@ -761,18 +974,22 @@ fn validated_stage_id(stage_id: &str) -> Result<&str> {
 #[derive(Debug, Clone)]
 struct Store {
     root: PathBuf,
+    revision_ref_write_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl Store {
     fn new(root: PathBuf) -> Self {
-        Self { root }
+        Self { root, revision_ref_write_lock: Arc::new(tokio::sync::Mutex::new(())) }
     }
 
     /// A disposable store rooted at a sub-path of this one. Used to give a
     /// private `/~<name>/` route its own cache namespace so its packuments
     /// and tarballs never collide with the public mirror or another upstream.
     fn namespaced(&self, prefix: &str) -> Store {
-        Store::new(self.root.join(prefix))
+        Store {
+            root: self.root.join(prefix),
+            revision_ref_write_lock: Arc::clone(&self.revision_ref_write_lock),
+        }
     }
 
     async fn read_packument_entry(
@@ -964,6 +1181,53 @@ impl Store {
         Ok(names)
     }
 
+    async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
+        let index = self.read_revision_ref_index(digest).await?;
+        Ok(index.bodies().map(<[u8]>::to_vec).collect())
+    }
+
+    async fn write_revision_ref(
+        &self,
+        digest: &str,
+        ref_id: &str,
+        owner: &str,
+        bytes: &[u8],
+    ) -> Result<HostedRevisionRefWrite> {
+        let _guard = self.revision_ref_write_lock.lock().await;
+        let mut index = self.read_revision_ref_index(digest).await?;
+        let outcome = index.insert(ref_id, owner, bytes)?;
+        if outcome == HostedRevisionRefWrite::Claimed {
+            write_atomic(&self.revision_ref_index_path(digest), &index.to_bytes()).await?;
+        }
+        Ok(outcome)
+    }
+
+    async fn remove_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
+        let _guard = self.revision_ref_write_lock.lock().await;
+        let mut index = self.read_revision_ref_index(digest).await?;
+        if index.remove_if_owned(ref_id, owner) {
+            write_atomic(&self.revision_ref_index_path(digest), &index.to_bytes()).await?;
+        }
+        Ok(())
+    }
+
+    async fn commit_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
+        let _guard = self.revision_ref_write_lock.lock().await;
+        let mut index = self.read_revision_ref_index(digest).await?;
+        if index.commit_if_owned(ref_id, owner)? {
+            write_atomic(&self.revision_ref_index_path(digest), &index.to_bytes()).await?;
+        }
+        Ok(())
+    }
+
+    async fn read_revision_ref_index(&self, digest: &str) -> Result<HostedRevisionRefIndex> {
+        match fs::read(self.revision_ref_index_path(digest)).await {
+            Ok(bytes) => HostedRevisionRefIndex::from_bytes(&bytes),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(HostedRevisionRefIndex::default()),
+            Err(err) => Err(err.into()),
+        }
+    }
+
     fn package_dir(&self, name: &PackageName) -> PathBuf {
         self.root.join(name.as_str())
     }
@@ -978,6 +1242,14 @@ impl Store {
 
     fn revision_tarball_path(&self, digest: &str) -> PathBuf {
         self.root.join(".revisions").join("sha512").join(digest)
+    }
+
+    fn revision_refs_dir(&self, digest: &str) -> PathBuf {
+        self.root.join(HOSTED_REVISION_REFS_DIR).join(digest)
+    }
+
+    fn revision_ref_index_path(&self, digest: &str) -> PathBuf {
+        self.revision_refs_dir(digest).join(HOSTED_REVISION_REF_INDEX_FILE)
     }
 
     async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>> {
@@ -1014,6 +1286,32 @@ impl Store {
             }
         }
         Ok(ids)
+    }
+}
+
+pub(crate) fn is_canonical_revision_ref_id(ref_id: &str) -> bool {
+    ref_id.len() == 64 && ref_id.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+pub(crate) fn is_canonical_revision_ref_owner(owner: &str) -> bool {
+    !owner.is_empty()
+        && owner.len() <= 64
+        && owner.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+}
+
+fn validate_revision_ref_id(ref_id: &str) -> Result<()> {
+    if is_canonical_revision_ref_id(ref_id) {
+        Ok(())
+    } else {
+        Err(RegistryError::BadRequest { reason: "invalid revision reference id".to_string() })
+    }
+}
+
+fn validate_revision_ref_owner(owner: &str) -> Result<()> {
+    if is_canonical_revision_ref_owner(owner) {
+        Ok(())
+    } else {
+        Err(RegistryError::BadRequest { reason: "invalid revision reference owner".to_string() })
     }
 }
 
