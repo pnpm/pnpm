@@ -82,6 +82,12 @@ struct StorageQuotaReservation<'a> {
     files: Vec<PendingUsageFile>,
 }
 
+#[derive(Default)]
+struct PendingUsageReconciliation {
+    usage_changed: bool,
+    blocked_locked_blobs: bool,
+}
+
 pub(crate) fn parse_publish(body: &[u8]) -> Result<PublishArtifactRequest> {
     serde_json::from_slice(body)
         .map_err(|err| bad_request(format!("invalid shared artifact request: {err}")))
@@ -134,12 +140,36 @@ pub(crate) async fn publish(
     let _entry_lock =
         acquire_artifact_lock(entry_lock_path(&artifact_root, &owner, &entry_digest)).await?;
     let locked_blob_locks: BTreeSet<String> = required_by_lock.keys().cloned().collect();
-    let mut blob_locks = Vec::with_capacity(locked_blob_locks.len());
-    for lock in &locked_blob_locks {
-        blob_locks.push(acquire_artifact_lock(blob_lock_path_for_key(&artifact_root, lock)).await?);
-    }
-    reconcile_storage_reservations(&artifact_root, &owner, &publication_lock, &locked_blob_locks)
-        .await?;
+    let _blob_locks = loop {
+        let owner_recovery_lock =
+            acquire_artifact_lock(owner_lock_path(&artifact_root, &owner)).await?;
+        let mut blob_locks = Vec::with_capacity(locked_blob_locks.len());
+        let mut acquired_all_blob_locks = true;
+        for lock in &locked_blob_locks {
+            let Some(blob_lock) =
+                try_acquire_artifact_lock(blob_lock_path_for_key(&artifact_root, lock)).await?
+            else {
+                acquired_all_blob_locks = false;
+                break;
+            };
+            blob_locks.push(blob_lock);
+        }
+        if acquired_all_blob_locks
+            && reconcile_storage_reservations(
+                &artifact_root,
+                &owner,
+                &publication_lock,
+                true,
+                &locked_blob_locks,
+            )
+            .await?
+        {
+            break blob_locks;
+        }
+        drop(blob_locks);
+        drop(owner_recovery_lock);
+        sleep(ARTIFACT_LOCK_POLL_INTERVAL).await;
+    };
 
     let mut new_blobs = Vec::new();
     for blobs in required_by_lock.into_values() {
@@ -222,6 +252,7 @@ pub(crate) async fn publish(
             &artifact_root,
             &owner,
             &publication_lock,
+            false,
             &locked_blob_locks,
         )
         .await
@@ -259,15 +290,16 @@ async fn reserve_storage_quota_with_locks_and_limits(
 ) -> Result<()> {
     let _usage_lock = acquire_artifact_lock(usage_lock_path(artifact_root)).await?;
     let mut usage = load_artifact_usage(artifact_root).await?;
-    if reconcile_pending_usage(
+    let reconciliation = reconcile_pending_usage(
         artifact_root,
         &mut usage,
         reservation.owner,
         &reservation.lock,
+        false,
         reservation.locked_blob_locks,
     )
-    .await?
-    {
+    .await?;
+    if reconciliation.usage_changed {
         write_artifact_usage(artifact_root, &usage).await?;
     }
     let added_bytes = reservation.files.iter().try_fold(0_u64, |total, file| {
@@ -322,16 +354,24 @@ async fn reconcile_storage_reservations(
     artifact_root: &Path,
     owner: &str,
     held_lock: &PendingUsageLock,
+    owner_locked: bool,
     locked_blob_locks: &BTreeSet<String>,
-) -> Result<()> {
+) -> Result<bool> {
     let _usage_lock = acquire_artifact_lock(usage_lock_path(artifact_root)).await?;
     let mut usage = load_artifact_usage(artifact_root).await?;
-    if reconcile_pending_usage(artifact_root, &mut usage, owner, held_lock, locked_blob_locks)
-        .await?
-    {
+    let reconciliation = reconcile_pending_usage(
+        artifact_root,
+        &mut usage,
+        owner,
+        held_lock,
+        owner_locked,
+        locked_blob_locks,
+    )
+    .await?;
+    if reconciliation.usage_changed {
         write_artifact_usage(artifact_root, &usage).await?;
     }
-    Ok(())
+    Ok(!reconciliation.blocked_locked_blobs)
 }
 
 async fn load_artifact_usage(artifact_root: &Path) -> Result<ArtifactUsage> {
@@ -371,15 +411,21 @@ async fn reconcile_pending_usage(
     usage: &mut ArtifactUsage,
     locked_owner: &str,
     held_lock: &PendingUsageLock,
+    owner_locked: bool,
     locked_blob_locks: &BTreeSet<String>,
-) -> Result<bool> {
+) -> Result<PendingUsageReconciliation> {
     let reservations: Vec<String> = usage.pending.keys().cloned().collect();
-    let mut reconciled = false;
+    let mut reconciliation = PendingUsageReconciliation::default();
     'reservations: for reservation in reservations {
         let pending = usage.pending.get(&reservation).ok_or_else(|| RegistryError::Internal {
             reason: "shared artifact pending storage reservation disappeared".to_string(),
         })?;
-        let caller_holds_lock = pending.owner == locked_owner && &pending.lock == held_lock;
+        let pending_blob_locks = pending_blob_lock_keys(pending)?;
+        let shares_locked_blobs =
+            pending_blob_locks.iter().any(|lock| locked_blob_locks.contains(lock));
+        let caller_holds_lock = pending.owner == locked_owner
+            && (&pending.lock == held_lock
+                || owner_locked && matches!(&pending.lock, PendingUsageLock::Owner));
         let _publication_lock = if caller_holds_lock {
             None
         } else {
@@ -390,18 +436,20 @@ async fn reconcile_pending_usage(
             ))
             .await?
             else {
+                reconciliation.blocked_locked_blobs |= shares_locked_blobs;
                 continue;
             };
             Some(publication_lock)
         };
         let mut blob_locks = Vec::new();
-        for lock in pending_blob_lock_keys(pending)? {
+        for lock in pending_blob_locks {
             if locked_blob_locks.contains(&lock) {
                 continue;
             }
             let Some(blob_lock) =
                 try_acquire_artifact_lock(blob_lock_path_for_key(artifact_root, &lock)).await?
             else {
+                reconciliation.blocked_locked_blobs |= shares_locked_blobs;
                 continue 'reservations;
             };
             blob_locks.push(blob_lock);
@@ -410,7 +458,7 @@ async fn reconcile_pending_usage(
             usage.pending.remove(&reservation).ok_or_else(|| RegistryError::Internal {
                 reason: "shared artifact pending storage reservation disappeared".to_string(),
             })?;
-        reconciled = true;
+        reconciliation.usage_changed = true;
         let committed = match pending.commit_file.as_deref() {
             Some(commit_file) => {
                 let commit_path = pending_usage_path(commit_file)?;
@@ -453,7 +501,7 @@ async fn reconcile_pending_usage(
             release_reserved_bytes(usage, &pending.owner, file.size)?;
         }
     }
-    Ok(reconciled)
+    Ok(reconciliation)
 }
 
 fn release_reserved_bytes(usage: &mut ArtifactUsage, owner: &str, bytes: u64) -> Result<()> {

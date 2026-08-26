@@ -17,11 +17,12 @@ use tempfile::TempDir;
 use tokio::{fs, sync::Barrier, time::timeout};
 
 use super::{
-    BLOB_LOCK_STRIPES, PendingUsageFile, PendingUsageLock, ResolveBudget, StorageQuotaReservation,
-    acquire_artifact_lock, artifact_usage_path, blob_lock_key, blob_lock_path_for_key,
-    entry_digest, entry_lock_path, is_variant_file, load_artifact_usage, owner_dir,
-    owner_lock_path, owner_usage_key, pending_usage_file, publish, reconcile_storage_reservations,
-    reserve_storage_quota_with_locks_and_limits, stored_bytes, try_acquire_artifact_lock,
+    ArtifactUsage, BLOB_LOCK_STRIPES, PendingUsage, PendingUsageFile, PendingUsageLock,
+    ResolveBudget, StorageQuotaReservation, acquire_artifact_lock, artifact_usage_path,
+    blob_lock_key, blob_lock_path_for_key, entry_digest, entry_lock_path, is_variant_file,
+    load_artifact_usage, owner_dir, owner_lock_path, owner_usage_key, pending_usage_file, publish,
+    reconcile_storage_reservations, reserve_storage_quota_with_locks_and_limits, stored_bytes,
+    try_acquire_artifact_lock, write_artifact_usage,
 };
 use crate::{error::Result, storage::unique_tmp_path};
 
@@ -212,9 +213,15 @@ async fn an_incomplete_publication_removes_its_blobs_and_releases_all_quota() {
     .unwrap();
     let _owner_lock = acquire_artifact_lock(owner_lock_path(&root, "owner")).await.unwrap();
 
-    reconcile_storage_reservations(&root, "owner", &PendingUsageLock::Owner, &BTreeSet::new())
-        .await
-        .unwrap();
+    reconcile_storage_reservations(
+        &root,
+        "owner",
+        &PendingUsageLock::Entry { entry: "current".to_string() },
+        true,
+        &BTreeSet::new(),
+    )
+    .await
+    .unwrap();
 
     assert!(!fs::try_exists(blob_path).await.unwrap());
     let usage = load_artifact_usage(&root).await.unwrap();
@@ -274,6 +281,80 @@ async fn active_blob_writes_are_not_cleaned_up_by_reconciliation() {
     .unwrap();
     assert!(!fs::try_exists(temp_path).await.unwrap());
     assert_eq!(load_artifact_usage(&root).await.unwrap().global_bytes, 0);
+}
+
+#[tokio::test]
+async fn blob_classification_waits_for_a_complete_stale_transaction_rollback() {
+    let storage = TempDir::new().unwrap();
+    let root = storage.path().join("shared-artifacts/v0");
+    let owner = "owner";
+    let first_blob = "first-blob";
+    let first_lock = blob_lock_key(owner, first_blob);
+    let second_blob = (0_u64..1024)
+        .map(|index| format!("second-blob-{index}"))
+        .find(|blob| blob_lock_key(owner, blob) != first_lock)
+        .unwrap();
+    let second_lock = blob_lock_key(owner, &second_blob);
+    let blobs_dir = root.join(owner).join("blobs");
+    fs::create_dir_all(&blobs_dir).await.unwrap();
+    let first_path = blobs_dir.join(first_blob);
+    let second_path = blobs_dir.join(&second_blob);
+    fs::write(&first_path, b"first").await.unwrap();
+    fs::write(&second_path, b"second").await.unwrap();
+    let variant_path = root.join(owner).join("entries/crashed/variant.json");
+    let variant_file = pending_usage_file(&root, &variant_path, 1).unwrap();
+    let commit_file = variant_file.path.clone();
+    write_artifact_usage(
+        &root,
+        &ArtifactUsage {
+            global_bytes: 12,
+            owner_bytes: BTreeMap::from([(owner.to_string(), 12)]),
+            pending: BTreeMap::from([(
+                "crashed".to_string(),
+                PendingUsage {
+                    owner: owner.to_string(),
+                    lock: PendingUsageLock::Entry { entry: "crashed".to_string() },
+                    commit_file: Some(commit_file),
+                    files: vec![
+                        pending_usage_file(&root, &first_path, 5).unwrap(),
+                        pending_usage_file(&root, &second_path, 6).unwrap(),
+                        variant_file,
+                    ],
+                },
+            )]),
+        },
+    )
+    .await
+    .unwrap();
+    let current_lock = PendingUsageLock::Entry { entry: "current".to_string() };
+    let _current_entry =
+        acquire_artifact_lock(entry_lock_path(&root, owner, "current")).await.unwrap();
+    let _first_blob =
+        acquire_artifact_lock(blob_lock_path_for_key(&root, &first_lock)).await.unwrap();
+    let second_blob_guard =
+        acquire_artifact_lock(blob_lock_path_for_key(&root, &second_lock)).await.unwrap();
+    let locked_blob_locks = BTreeSet::from([first_lock]);
+
+    assert!(
+        !reconcile_storage_reservations(&root, owner, &current_lock, false, &locked_blob_locks,)
+            .await
+            .unwrap(),
+    );
+    assert!(fs::try_exists(&first_path).await.unwrap());
+    assert!(fs::try_exists(&second_path).await.unwrap());
+    assert!(load_artifact_usage(&root).await.unwrap().pending.contains_key("crashed"));
+
+    drop(second_blob_guard);
+    assert!(
+        reconcile_storage_reservations(&root, owner, &current_lock, false, &locked_blob_locks,)
+            .await
+            .unwrap(),
+    );
+    assert!(!fs::try_exists(first_path).await.unwrap());
+    assert!(!fs::try_exists(second_path).await.unwrap());
+    let usage = load_artifact_usage(&root).await.unwrap();
+    assert_eq!(usage.global_bytes, 0);
+    assert!(usage.pending.is_empty());
 }
 
 #[tokio::test]
