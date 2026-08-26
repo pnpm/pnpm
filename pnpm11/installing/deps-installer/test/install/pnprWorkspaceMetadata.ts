@@ -50,8 +50,8 @@ const resolveViaPnprServer = jest.fn(async (
 })
 
 jest.unstable_mockModule('@pnpm/pnpr.client', () => ({
-  applySharedSideEffectsToInstall: async () => new Map(),
-  canApplySharedSideEffectsToInstall: () => false,
+  canRestoreRemoteSideEffects: () => false,
+  createRemoteSideEffectsRestorer: () => undefined,
   publishBuiltSharedSideEffects: async () => undefined,
   resolveViaPnprServer,
 }))

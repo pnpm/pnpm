@@ -250,14 +250,16 @@ describe('install remote side-effects', () => {
         throw new Error('unexpected')
       } } as unknown as StoreController,
     })
-    await expect(restorer?.restore({
+    // A platform the PoC does not support has no restorer at all, which is the
+    // same answer this test is about: nothing is asked of pnpr.
+    await expect(Promise.resolve(restorer?.restore({
       graphKey,
       depPath,
       files,
       name: packageName,
       resolution: { integrity: sourceIntegrity } as LockfileResolution,
       version: packageVersion,
-    })).resolves.toBeUndefined()
+    }))).resolves.toBeUndefined()
   })
 
   test('publishes a signed build diff produced by install', async () => {
