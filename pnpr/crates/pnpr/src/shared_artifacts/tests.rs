@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     path::Path,
     sync::Arc,
 };
@@ -16,10 +16,10 @@ use tempfile::TempDir;
 use tokio::{fs, sync::Barrier, time::timeout};
 
 use super::{
-    PendingUsageFile, ResolveBudget, StorageQuotaReservation, acquire_artifact_lock,
-    artifact_usage_path, blob_lock_path, entry_lock_path, is_variant_file, load_artifact_usage,
-    owner_dir, owner_usage_key, pending_usage_file, publish,
-    reserve_storage_quota_with_locks_and_limits, stored_bytes,
+    BLOB_LOCK_STRIPES, PendingUsageFile, ResolveBudget, StorageQuotaReservation,
+    acquire_artifact_lock, artifact_usage_path, blob_lock_key, blob_lock_path_for_key,
+    entry_lock_path, is_variant_file, load_artifact_usage, owner_dir, owner_usage_key,
+    pending_usage_file, publish, reserve_storage_quota_with_locks_and_limits, stored_bytes,
 };
 use crate::{error::Result, storage::unique_tmp_path};
 
@@ -56,6 +56,17 @@ fn variant_files_have_canonical_envelope_digest_names() {
     assert!(is_variant_file(format!("{digest}.json").as_ref()));
     assert!(!is_variant_file(format!("{digest}.json.tmp").as_ref()));
     assert!(!is_variant_file(format!("{}.json", "A".repeat(64)).as_ref()));
+}
+
+#[test]
+fn blob_lock_file_names_are_bounded() {
+    let root = Path::new("shared-artifacts/v0");
+    let paths: HashSet<_> = (0..10_000)
+        .map(|index| {
+            blob_lock_path_for_key(root, &blob_lock_key("owner", &format!("{index:0128x}")))
+        })
+        .collect();
+    assert!(paths.len() <= BLOB_LOCK_STRIPES);
 }
 
 #[tokio::test]
@@ -198,7 +209,10 @@ async fn active_blob_writes_are_not_cleaned_up_by_reconciliation() {
     )
     .await
     .unwrap();
-    let blob_lock = acquire_artifact_lock(blob_lock_path(&root, "owner", "blob")).await.unwrap();
+    let blob_lock =
+        acquire_artifact_lock(blob_lock_path_for_key(&root, &blob_lock_key("owner", "blob")))
+            .await
+            .unwrap();
 
     reserve_storage_quota_with_limits(
         &root,
@@ -278,14 +292,15 @@ async fn reserve_storage_quota_with_limits(
     owner_limit: u64,
     global_limit: u64,
 ) -> Result<()> {
-    let locked_blobs = BTreeSet::new();
+    let locked_blob_locks = BTreeSet::new();
     reserve_storage_quota_with_locks_and_limits(
         artifact_root,
         StorageQuotaReservation {
             id: reservation,
             owner,
             entry,
-            locked_blobs: &locked_blobs,
+            entry_locked: true,
+            locked_blob_locks: &locked_blob_locks,
             files,
         },
         owner_limit,
@@ -325,6 +340,31 @@ async fn an_entry_lock_does_not_block_another_entry() {
     .expect("an unrelated entry must not wait for the held entry lock")
     .unwrap();
     assert!(published);
+}
+
+#[tokio::test]
+async fn rejected_missing_blobs_use_bounded_lock_files() {
+    let storage = TempDir::new().unwrap();
+    for index in 0..64_u64 {
+        let bytes = index.to_le_bytes();
+        let mut request = publication_request(
+            "acme",
+            &format!("dependency-side-effects:v1:missing={index}"),
+            &format!("ci/missing/{index}"),
+            Some(&bytes),
+        );
+        request.blobs.clear();
+        assert!(publish(storage.path(), "acme", request).await.is_err());
+    }
+
+    let locks = storage.path().join("shared-artifacts/v0/.locks");
+    let mut blob_locks = fs::read_dir(locks.join("blobs")).await.unwrap();
+    let mut lock_count = 0;
+    while blob_locks.next_entry().await.unwrap().is_some() {
+        lock_count += 1;
+    }
+    assert!(lock_count <= BLOB_LOCK_STRIPES);
+    assert!(!fs::try_exists(locks.join("entries")).await.unwrap());
 }
 
 #[tokio::test]

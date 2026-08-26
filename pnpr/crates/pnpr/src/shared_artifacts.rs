@@ -3,7 +3,8 @@ use std::{
     fs::{File, OpenOptions, TryLockError},
     io::ErrorKind,
     path::{Component, Path, PathBuf},
-    time::Duration,
+    sync::atomic::{AtomicU64, Ordering},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use pnpm_shared_artifact_protocol::{
@@ -23,8 +24,10 @@ use crate::{
 const ARTIFACT_CACHE_DIR: &str = "shared-artifacts/v0";
 const ARTIFACT_LOCK_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const ARTIFACT_USAGE_FILE: &str = "usage.json";
+const BLOB_LOCK_STRIPES: usize = 256;
 const MAX_OWNER_ARTIFACT_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_GLOBAL_ARTIFACT_BYTES: u64 = 10 * MAX_OWNER_ARTIFACT_BYTES;
+static ARTIFACT_RESERVATION_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
 struct ArtifactUsage {
@@ -65,7 +68,8 @@ struct StorageQuotaReservation<'a> {
     id: &'a str,
     owner: &'a str,
     entry: &'a str,
-    locked_blobs: &'a BTreeSet<String>,
+    entry_locked: bool,
+    locked_blob_locks: &'a BTreeSet<String>,
     files: Vec<PendingUsageFile>,
 }
 
@@ -86,101 +90,127 @@ pub(crate) async fn publish(
     let owner_dir = owner_dir(cache_storage, username, &payload.owner)?;
     let owner = owner_usage_key(&owner_dir)?;
     let entry_digest = entry_digest(&request.key, &payload.package, &payload.source_integrity);
+    let envelope_digest = request.envelope.digest().map_err(|err| protocol_error(&err))?;
+    let required: BTreeMap<&str, u64> =
+        payload.manifest.added.iter().map(|file| (file.integrity.as_str(), file.size)).collect();
+    let blobs_dir = owner_dir.join("blobs");
+    let mut required_by_lock = BTreeMap::<String, Vec<(&str, String, u64)>>::new();
+    for (integrity, size) in required {
+        let id = blob_id(integrity).map_err(|err| protocol_error(&err))?;
+        required_by_lock.entry(blob_lock_key(&owner, &id)).or_default().push((integrity, id, size));
+    }
+    for blobs in required_by_lock.values() {
+        for (integrity, id, size) in blobs {
+            let Some(bytes) = uploads.get(*integrity) else {
+                continue;
+            };
+            if bytes.len() as u64 != *size {
+                return Err(bad_request(format!(
+                    "blob {id} has {} bytes but the signed manifest declares {}",
+                    bytes.len(),
+                    size,
+                )));
+            }
+            verify_blob(integrity, bytes).map_err(|err| protocol_error(&err))?;
+        }
+    }
+
+    let reservation = reservation_id(&owner, &entry_digest, &envelope_digest);
+    for (lock, blobs) in required_by_lock {
+        let _blob_lock =
+            acquire_artifact_lock(blob_lock_path_for_key(&artifact_root, &lock)).await?;
+        let mut new_blobs = Vec::new();
+        for (integrity, id, size) in blobs {
+            let path = blobs_dir.join(&id);
+            match uploads.remove(integrity) {
+                Some(bytes) => {
+                    if !fs::try_exists(&path).await? {
+                        new_blobs.push((path, bytes));
+                    }
+                }
+                None => match fs::read(&path).await {
+                    Ok(bytes) => {
+                        if bytes.len() as u64 != size {
+                            return Err(RegistryError::Internal {
+                                reason: format!(
+                                    "stored shared artifact blob {id} has {} bytes instead of {size}",
+                                    bytes.len(),
+                                ),
+                            });
+                        }
+                        verify_blob(integrity, &bytes).map_err(|err| RegistryError::Internal {
+                            reason: format!(
+                                "stored shared artifact blob failed verification: {err}",
+                            ),
+                        })?;
+                    }
+                    Err(err) if err.kind() == ErrorKind::NotFound => {
+                        return Err(bad_request(format!(
+                            "signed manifest references blob {id} without uploading it",
+                        )));
+                    }
+                    Err(err) => return Err(err.into()),
+                },
+            }
+        }
+        if new_blobs.is_empty() {
+            continue;
+        }
+        let mut pending_files = Vec::with_capacity(new_blobs.len());
+        for (path, bytes) in &new_blobs {
+            pending_files.push(pending_usage_file(&artifact_root, path, bytes.len() as u64)?);
+        }
+        let locked_blob_locks = BTreeSet::from([lock]);
+        reserve_storage_quota(
+            &artifact_root,
+            StorageQuotaReservation {
+                id: &reservation,
+                owner: &owner,
+                entry: &entry_digest,
+                entry_locked: false,
+                locked_blob_locks: &locked_blob_locks,
+                files: pending_files,
+            },
+        )
+        .await?;
+        for (path, bytes) in new_blobs {
+            write_atomic(&path, &bytes).await?;
+        }
+        clear_storage_reservation(&artifact_root, &reservation).await?;
+    }
+
     let key_dir = owner_dir.join("entries").join(&entry_digest);
     let _entry_lock =
         acquire_artifact_lock(entry_lock_path(&artifact_root, &owner, &entry_digest)).await?;
-    let envelope_digest = request.envelope.digest().map_err(|err| protocol_error(&err))?;
     let variant_path = key_dir.join(format!("{envelope_digest}.json"));
-    let already_present = fs::try_exists(&variant_path).await?;
-    if !already_present && count_variants(&key_dir).await? >= MAX_VARIANTS_PER_CANDIDATE {
+    if fs::try_exists(&variant_path).await? {
+        return Ok(false);
+    }
+    if count_variants(&key_dir).await? >= MAX_VARIANTS_PER_CANDIDATE {
         return Err(bad_request(format!(
             "artifact key already has the {MAX_VARIANTS_PER_CANDIDATE}-variant limit",
         )));
     }
 
-    let required: BTreeMap<&str, u64> =
-        payload.manifest.added.iter().map(|file| (file.integrity.as_str(), file.size)).collect();
-    let mut blob_ids = BTreeSet::new();
-    for integrity in required.keys() {
-        let id = blob_id(integrity).map_err(|err| protocol_error(&err))?;
-        blob_ids.insert(id);
-    }
-    let mut blob_locks = Vec::with_capacity(blob_ids.len());
-    for id in &blob_ids {
-        blob_locks.push(acquire_artifact_lock(blob_lock_path(&artifact_root, &owner, id)).await?);
-    }
-
     let envelope_bytes = serde_json::to_vec(&request.envelope)?;
-    let blobs_dir = owner_dir.join("blobs");
-    let mut new_blobs = Vec::new();
-    let mut added_bytes = if already_present { 0 } else { envelope_bytes.len() as u64 };
-    for (integrity, size) in required {
-        let id = blob_id(integrity).map_err(|err| protocol_error(&err))?;
-        let path = blobs_dir.join(&id);
-        let (bytes, is_new) = match uploads.remove(integrity) {
-            Some(bytes) => {
-                let is_new = !fs::try_exists(&path).await?;
-                (bytes, is_new)
-            }
-            None => match fs::read(&path).await {
-                Ok(bytes) => (bytes, false),
-                Err(err) if err.kind() == ErrorKind::NotFound => {
-                    return Err(bad_request(format!(
-                        "signed manifest references blob {id} without uploading it",
-                    )));
-                }
-                Err(err) => return Err(err.into()),
-            },
-        };
-        if bytes.len() as u64 != size {
-            return Err(bad_request(format!(
-                "blob {id} has {} bytes but the signed manifest declares {}",
-                bytes.len(),
-                size,
-            )));
-        }
-        verify_blob(integrity, &bytes).map_err(|err| protocol_error(&err))?;
-        if is_new {
-            added_bytes =
-                added_bytes.checked_add(bytes.len() as u64).ok_or_else(storage_quota_error)?;
-            new_blobs.push((path, bytes));
-        }
-    }
-
-    if added_bytes == 0 {
-        return Ok(false);
-    }
-    let mut pending_files = Vec::with_capacity(new_blobs.len() + usize::from(!already_present));
-    for (path, bytes) in &new_blobs {
-        pending_files.push(pending_usage_file(&artifact_root, path, bytes.len() as u64)?);
-    }
-    if !already_present {
-        pending_files.push(pending_usage_file(
-            &artifact_root,
-            &variant_path,
-            envelope_bytes.len() as u64,
-        )?);
-    }
-    let reservation = reservation_id(&owner, &entry_digest, &envelope_digest);
+    let pending_files =
+        vec![pending_usage_file(&artifact_root, &variant_path, envelope_bytes.len() as u64)?];
+    let locked_blob_locks = BTreeSet::new();
     reserve_storage_quota(
         &artifact_root,
         StorageQuotaReservation {
             id: &reservation,
             owner: &owner,
             entry: &entry_digest,
-            locked_blobs: &blob_ids,
+            entry_locked: true,
+            locked_blob_locks: &locked_blob_locks,
             files: pending_files,
         },
     )
     .await?;
-    for (path, bytes) in new_blobs {
-        write_atomic(&path, &bytes).await?;
-    }
-    if !already_present {
-        write_atomic(&variant_path, &envelope_bytes).await?;
-    }
+    write_atomic(&variant_path, &envelope_bytes).await?;
     clear_storage_reservation(&artifact_root, &reservation).await?;
-    Ok(!already_present)
+    Ok(true)
 }
 
 async fn reserve_storage_quota(
@@ -209,7 +239,8 @@ async fn reserve_storage_quota_with_locks_and_limits(
         &mut usage,
         reservation.owner,
         reservation.entry,
-        reservation.locked_blobs,
+        reservation.entry_locked,
+        reservation.locked_blob_locks,
     )
     .await?
     {
@@ -299,7 +330,8 @@ async fn reconcile_pending_usage(
     usage: &mut ArtifactUsage,
     locked_owner: &str,
     locked_entry: &str,
-    locked_blobs: &BTreeSet<String>,
+    entry_locked: bool,
+    locked_blob_locks: &BTreeSet<String>,
 ) -> Result<bool> {
     let reservations: Vec<String> = usage.pending.keys().cloned().collect();
     let mut reconciled = false;
@@ -307,7 +339,8 @@ async fn reconcile_pending_usage(
         let pending = usage.pending.get(&reservation).ok_or_else(|| RegistryError::Internal {
             reason: "shared artifact pending storage reservation disappeared".to_string(),
         })?;
-        let caller_holds_lock = pending.owner == locked_owner
+        let caller_holds_lock = entry_locked
+            && pending.owner == locked_owner
             && matches!(
                 &pending.lock,
                 PendingUsageLock::Entry { entry } if entry == locked_entry,
@@ -327,13 +360,12 @@ async fn reconcile_pending_usage(
             Some(publication_lock)
         };
         let mut blob_locks = Vec::new();
-        for blob in pending_blob_ids(pending)? {
-            if locked_blobs.contains(&blob) {
+        for lock in pending_blob_lock_keys(pending)? {
+            if locked_blob_locks.contains(&lock) {
                 continue;
             }
             let Some(blob_lock) =
-                try_acquire_artifact_lock(blob_lock_path(artifact_root, &pending.owner, &blob))
-                    .await?
+                try_acquire_artifact_lock(blob_lock_path_for_key(artifact_root, &lock)).await?
             else {
                 continue 'reservations;
             };
@@ -375,8 +407,8 @@ async fn reconcile_pending_usage(
     Ok(reconciled)
 }
 
-fn pending_blob_ids(pending: &PendingUsage) -> Result<BTreeSet<String>> {
-    let mut blob_ids = BTreeSet::new();
+fn pending_blob_lock_keys(pending: &PendingUsage) -> Result<BTreeSet<String>> {
+    let mut lock_keys = BTreeSet::new();
     for file in &pending.files {
         let mut components = pending_usage_path(&file.path)?.components();
         let (Some(Component::Normal(owner)), Some(Component::Normal(kind))) =
@@ -393,9 +425,9 @@ fn pending_blob_ids(pending: &PendingUsage) -> Result<BTreeSet<String>> {
         let blob = blob.to_str().ok_or_else(|| RegistryError::Internal {
             reason: "shared artifact usage state contains an invalid blob path".to_string(),
         })?;
-        blob_ids.insert(blob.to_string());
+        lock_keys.insert(blob_lock_key(&pending.owner, blob));
     }
-    Ok(blob_ids)
+    Ok(lock_keys)
 }
 
 fn pending_usage_path(path: &str) -> Result<&Path> {
@@ -437,12 +469,17 @@ fn entry_lock_path(artifact_root: &Path, owner: &str, entry: &str) -> PathBuf {
         .join(format!("{}.lock", digest_segment(entry.as_bytes())))
 }
 
-fn blob_lock_path(artifact_root: &Path, owner: &str, blob: &str) -> PathBuf {
-    artifact_root
-        .join(".locks")
-        .join("blobs")
-        .join(digest_segment(owner.as_bytes()))
-        .join(format!("{}.lock", digest_segment(blob.as_bytes())))
+fn blob_lock_key(owner: &str, blob: &str) -> String {
+    let mut bytes = Vec::with_capacity(owner.len() + blob.len() + 1);
+    bytes.extend_from_slice(owner.as_bytes());
+    bytes.push(0);
+    bytes.extend_from_slice(blob.as_bytes());
+    let digest = Sha256::digest(bytes);
+    format!("{:02x}", usize::from(digest[0]) % BLOB_LOCK_STRIPES)
+}
+
+fn blob_lock_path_for_key(artifact_root: &Path, lock: &str) -> PathBuf {
+    artifact_root.join(".locks").join("blobs").join(format!("{lock}.lock"))
 }
 
 fn pending_lock_path(
@@ -458,12 +495,17 @@ fn pending_lock_path(
 }
 
 fn reservation_id(owner: &str, entry: &str, envelope: &str) -> String {
-    let mut bytes = Vec::with_capacity(owner.len() + entry.len() + envelope.len() + 2);
+    let counter = ARTIFACT_RESERVATION_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
+    let mut bytes = Vec::with_capacity(owner.len() + entry.len() + envelope.len() + 34);
     bytes.extend_from_slice(owner.as_bytes());
     bytes.push(0);
     bytes.extend_from_slice(entry.as_bytes());
     bytes.push(0);
     bytes.extend_from_slice(envelope.as_bytes());
+    bytes.extend_from_slice(&std::process::id().to_ne_bytes());
+    bytes.extend_from_slice(&counter.to_ne_bytes());
+    bytes.extend_from_slice(&timestamp.to_ne_bytes());
     digest_segment(&bytes)
 }
 
