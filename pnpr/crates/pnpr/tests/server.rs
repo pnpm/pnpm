@@ -4413,13 +4413,7 @@ async fn a_first_segment_that_is_not_a_tilde_prefix_is_not_found() {
     config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
-    for path in [
-        // A plain segment, and a bare `~` with no registry name after it.
-        "/corp/-/whoami",
-        "/~/-/whoami",
-        "/corp/-/npm/v1/tokens",
-        "/~/-/npm/v1/user",
-    ] {
+    for path in ["/corp/-/whoami", "/~/-/whoami", "/corp/-/npm/v1/tokens", "/~/-/npm/v1/user"] {
         let response =
             app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "GET {path}");
