@@ -431,130 +431,170 @@ async fn reconcile_pending_usage(
     let reservations: Vec<String> = usage.pending.keys().cloned().collect();
     let mut reconciliation = PendingUsageReconciliation::default();
     let mut adopted_files = Vec::new();
-    'reservations: for reservation in reservations {
+    for reservation in reservations {
         if recovery_locks.active_reservation == Some(reservation.as_str()) {
             continue;
         }
-        let pending = usage.pending.get(&reservation).ok_or_else(|| RegistryError::Internal {
-            reason: "shared artifact pending storage reservation disappeared".to_string(),
-        })?;
+        let pending = usage.pending.get(&reservation).ok_or_else(missing_pending_usage)?;
         let pending_blob_locks = pending_blob_lock_keys(pending)?;
         let shares_locked_blobs =
             pending_blob_locks.iter().any(|lock| recovery_locks.blob_locks.contains(lock));
-        let caller_holds_lock = pending.owner == recovery_locks.owner
-            && (&pending.lock == recovery_locks.publication
-                || recovery_locks.owner_locked && matches!(&pending.lock, PendingUsageLock::Owner));
-        let _publication_lock = if caller_holds_lock {
-            None
-        } else {
-            let Some(publication_lock) = try_acquire_artifact_lock(pending_lock_path(
-                artifact_root,
-                &pending.owner,
-                &pending.lock,
-            ))
-            .await?
-            else {
-                reconciliation.blocked_locked_blobs |= shares_locked_blobs;
-                continue;
-            };
-            Some(publication_lock)
+        let Some(_reservation_locks) = try_acquire_pending_usage_locks(
+            artifact_root,
+            pending,
+            pending_blob_locks,
+            recovery_locks,
+        )
+        .await?
+        else {
+            reconciliation.blocked_locked_blobs |= shares_locked_blobs;
+            continue;
         };
-        let mut blob_locks = Vec::new();
-        for lock in pending_blob_locks {
-            if recovery_locks.blob_locks.contains(&lock) {
-                continue;
-            }
-            let Some(blob_lock) =
-                try_acquire_artifact_lock(blob_lock_path_for_key(artifact_root, &lock)).await?
-            else {
-                reconciliation.blocked_locked_blobs |= shares_locked_blobs;
-                continue 'reservations;
-            };
-            blob_locks.push(blob_lock);
-        }
-        let pending =
-            usage.pending.remove(&reservation).ok_or_else(|| RegistryError::Internal {
-                reason: "shared artifact pending storage reservation disappeared".to_string(),
-            })?;
+
+        let pending = usage.pending.remove(&reservation).ok_or_else(missing_pending_usage)?;
+        let committed = pending_usage_is_committed(artifact_root, &pending).await?;
+        adopted_files.extend(
+            reconcile_pending_files(artifact_root, usage, pending, committed, recovery_locks)
+                .await?,
+        );
         reconciliation.usage_changed = true;
-        let committed = match pending.commit_file.as_deref() {
-            Some(commit_file) => {
-                let commit_path = pending_usage_path(commit_file)?;
-                match pending.files.iter().find(|file| file.path == commit_file) {
-                    Some(commit_file) => {
-                        match fs::metadata(artifact_root.join(commit_path)).await {
-                            Ok(metadata) => {
-                                metadata.is_file() && metadata.len() == commit_file.size
-                            }
-                            Err(error) if error.kind() == ErrorKind::NotFound => false,
-                            Err(error) => return Err(error.into()),
-                        }
-                    }
-                    None => false,
-                }
-            }
-            None => true,
-        };
-        for file in pending.files {
-            let relative_path = pending_usage_path(&file.path)?;
-            let path = artifact_root.join(relative_path);
-            remove_atomic_write_temps(&path).await?;
-            if !committed {
-                let preserved = pending.owner == recovery_locks.owner
-                    && pending_blob_id(&pending.owner, &file)?
-                        .is_some_and(|blob| recovery_locks.preserved_blob_ids.contains(blob));
-                if preserved {
-                    match fs::metadata(&path).await {
-                        Ok(metadata) if metadata.is_file() && metadata.len() == file.size => {
-                            adopted_files.push(file);
-                            continue;
-                        }
-                        Ok(_) => {}
-                        Err(error) if error.kind() == ErrorKind::NotFound => {}
-                        Err(error) => return Err(error.into()),
-                    }
-                }
-                match fs::remove_file(path).await {
-                    Ok(()) => {}
-                    Err(error) if error.kind() == ErrorKind::NotFound => {}
-                    Err(error) => return Err(error.into()),
-                }
-                release_reserved_bytes(usage, &pending.owner, file.size)?;
-                continue;
-            }
-            let present = match fs::metadata(path).await {
-                Ok(metadata) => metadata.is_file() && metadata.len() == file.size,
-                Err(error) if error.kind() == ErrorKind::NotFound => false,
-                Err(error) => return Err(error.into()),
-            };
-            if present {
-                continue;
-            }
-            release_reserved_bytes(usage, &pending.owner, file.size)?;
-        }
     }
     if !adopted_files.is_empty() {
-        let reservation =
-            recovery_locks.active_reservation.ok_or_else(|| RegistryError::Internal {
-                reason: "shared artifact recovery has no adopting storage reservation".to_string(),
-            })?;
-        let commit_file =
-            recovery_locks.adoption_commit_file.ok_or_else(|| RegistryError::Internal {
-                reason: "shared artifact recovery has no adopting commit file".to_string(),
-            })?;
-        merge_pending_usage(
-            usage,
-            reservation,
-            PendingUsage {
-                owner: recovery_locks.owner.to_string(),
-                lock: recovery_locks.publication.clone(),
-                commit_file: Some(commit_file.to_string()),
-                files: adopted_files,
-            },
-        )?;
+        adopt_recovered_files(usage, recovery_locks, adopted_files)?;
         reconciliation.usage_changed = true;
     }
     Ok(reconciliation)
+}
+
+struct PendingUsageLocks {
+    _publication: Option<File>,
+    _blobs: Vec<File>,
+}
+
+async fn try_acquire_pending_usage_locks(
+    artifact_root: &Path,
+    pending: &PendingUsage,
+    pending_blob_locks: BTreeSet<String>,
+    recovery_locks: &ArtifactRecoveryLocks<'_>,
+) -> Result<Option<PendingUsageLocks>> {
+    let caller_holds_lock = pending.owner == recovery_locks.owner
+        && (&pending.lock == recovery_locks.publication
+            || recovery_locks.owner_locked && matches!(&pending.lock, PendingUsageLock::Owner));
+    let publication = if caller_holds_lock {
+        None
+    } else {
+        let Some(lock) = try_acquire_artifact_lock(pending_lock_path(
+            artifact_root,
+            &pending.owner,
+            &pending.lock,
+        ))
+        .await?
+        else {
+            return Ok(None);
+        };
+        Some(lock)
+    };
+
+    let mut blobs = Vec::new();
+    for lock in pending_blob_locks {
+        if recovery_locks.blob_locks.contains(&lock) {
+            continue;
+        }
+        let Some(lock) =
+            try_acquire_artifact_lock(blob_lock_path_for_key(artifact_root, &lock)).await?
+        else {
+            return Ok(None);
+        };
+        blobs.push(lock);
+    }
+    Ok(Some(PendingUsageLocks { _publication: publication, _blobs: blobs }))
+}
+
+async fn pending_usage_is_committed(artifact_root: &Path, pending: &PendingUsage) -> Result<bool> {
+    let Some(commit_path) = pending.commit_file.as_deref() else {
+        return Ok(true);
+    };
+    let Some(commit_file) = pending.files.iter().find(|file| file.path == commit_path) else {
+        return Ok(false);
+    };
+    let commit_path = pending_usage_path(commit_path)?;
+    stored_file_has_size(&artifact_root.join(commit_path), commit_file.size).await
+}
+
+async fn reconcile_pending_files(
+    artifact_root: &Path,
+    usage: &mut ArtifactUsage,
+    pending: PendingUsage,
+    committed: bool,
+    recovery_locks: &ArtifactRecoveryLocks<'_>,
+) -> Result<Vec<PendingUsageFile>> {
+    let mut adopted_files = Vec::new();
+    for file in pending.files {
+        let relative_path = pending_usage_path(&file.path)?;
+        let path = artifact_root.join(relative_path);
+        remove_atomic_write_temps(&path).await?;
+
+        if committed {
+            if !stored_file_has_size(&path, file.size).await? {
+                release_reserved_bytes(usage, &pending.owner, file.size)?;
+            }
+            continue;
+        }
+
+        let preserved = pending.owner == recovery_locks.owner
+            && pending_blob_id(&pending.owner, &file)?
+                .is_some_and(|blob| recovery_locks.preserved_blob_ids.contains(blob));
+        if preserved && stored_file_has_size(&path, file.size).await? {
+            adopted_files.push(file);
+            continue;
+        }
+
+        match fs::remove_file(&path).await {
+            Ok(()) => {}
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        release_reserved_bytes(usage, &pending.owner, file.size)?;
+    }
+    Ok(adopted_files)
+}
+
+async fn stored_file_has_size(path: &Path, expected_size: u64) -> Result<bool> {
+    match fs::metadata(path).await {
+        Ok(metadata) => Ok(metadata.is_file() && metadata.len() == expected_size),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn adopt_recovered_files(
+    usage: &mut ArtifactUsage,
+    recovery_locks: &ArtifactRecoveryLocks<'_>,
+    files: Vec<PendingUsageFile>,
+) -> Result<()> {
+    let reservation = recovery_locks.active_reservation.ok_or_else(|| RegistryError::Internal {
+        reason: "shared artifact recovery has no adopting storage reservation".to_string(),
+    })?;
+    let commit_file =
+        recovery_locks.adoption_commit_file.ok_or_else(|| RegistryError::Internal {
+            reason: "shared artifact recovery has no adopting commit file".to_string(),
+        })?;
+    merge_pending_usage(
+        usage,
+        reservation,
+        PendingUsage {
+            owner: recovery_locks.owner.to_string(),
+            lock: recovery_locks.publication.clone(),
+            commit_file: Some(commit_file.to_string()),
+            files,
+        },
+    )
+}
+
+fn missing_pending_usage() -> RegistryError {
+    RegistryError::Internal {
+        reason: "shared artifact pending storage reservation disappeared".to_string(),
+    }
 }
 
 fn merge_pending_usage(

@@ -13,7 +13,7 @@ use std::{
 };
 
 use super::{
-    MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY, cached_resolution,
+    cache::{MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY, cached_resolution},
     protocol::{ResolveRequest, ResolveRequestProject},
     reject_inline_url_auth, reject_invalid_patch_hashes, reject_off_allowlist_fetches,
     resolution_cache_key, store_resolution,
@@ -1037,7 +1037,7 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
         upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let router = tarball_router(&registry, user("alice"));
-    let frame = super::package_frame(
+    let frame = super::wire::package_frame(
         &router,
         &ResolvedPackageHint {
             id: "acme@1.0.0",
@@ -1072,7 +1072,7 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
     let registries =
         HashMap::from([("default".to_string(), "https://npm.corp.example/".to_string())]);
     let router = tarball_router_with_registries(&registry, user("alice"), registries);
-    let frame = super::package_frame(
+    let frame = super::wire::package_frame(
         &router,
         &ResolvedPackageHint {
             id: "acme@1.0.0",
@@ -1102,7 +1102,7 @@ fn package_frame_strips_signed_token_from_public_registry_tarball() {
     let registries =
         HashMap::from([("default".to_string(), "https://registry.npmjs.org/".to_string())]);
     let router = tarball_router_with_registries(&registry, user("alice"), registries);
-    let frame = super::package_frame(
+    let frame = super::wire::package_frame(
         &router,
         &ResolvedPackageHint {
             id: "acme@1.0.0",
@@ -1211,32 +1211,32 @@ fn osv_checkable_tarball_does_not_trust_git_hosted_flag_or_strict_url_parsing() 
     };
 
     // `gitHosted: true` must not let a normal https registry tarball opt out.
-    assert!(super::is_osv_checkable_resolution(&tarball(
+    assert!(super::wire::is_osv_checkable_resolution(&tarball(
         "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz",
         Some(true),
     )));
     // A URL that strict parsing would reject is still scanned when it is http(s).
-    assert!(super::is_osv_checkable_resolution(&tarball(
+    assert!(super::wire::is_osv_checkable_resolution(&tarball(
         "https://registry.npmjs.org/foo/-/foo 1.0.0.tgz",
         None,
     )));
     // Mutable git-host archive refs are still checked.
-    assert!(super::is_osv_checkable_resolution(&tarball(
+    assert!(super::wire::is_osv_checkable_resolution(&tarball(
         "https://codeload.github.com/foo/bar/tar.gz/abc123",
         Some(false),
     )));
     // Genuinely git-hosted-by-URL tarballs are skipped regardless of the flag.
-    assert!(!super::is_osv_checkable_resolution(&tarball(
+    assert!(!super::wire::is_osv_checkable_resolution(&tarball(
         "https://codeload.github.com/foo/bar/tar.gz/0123456789abcdef0123456789abcdef01234567",
         Some(false),
     )));
     // Non-http schemes are skipped.
-    assert!(!super::is_osv_checkable_resolution(&tarball("file:../foo.tgz", None)));
+    assert!(!super::wire::is_osv_checkable_resolution(&tarball("file:../foo.tgz", None)));
 }
 
 #[test]
 fn tarball_url_version_extracts_conventional_names_only() {
-    use super::tarball_url_version;
+    use super::wire::tarball_url_version;
 
     assert_eq!(tarball_url_version("https://r/foo/-/foo-1.2.3.tgz", "foo"), Some("1.2.3"));
     // Scoped packages name the tarball file with the unscoped name.
