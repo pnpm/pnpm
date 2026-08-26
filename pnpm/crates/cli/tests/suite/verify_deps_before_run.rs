@@ -581,7 +581,10 @@ fn a_recursive_run_keeps_the_spawned_install_off_stdout() {
     let output = pacquet.with_args(["-r", "run", "hello"]).output().expect("spawn pacquet run");
     assert!(output.status.success(), "run must succeed after the spawned install");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stdout.contains("Done in"), "the spawned install must not write to stdout:\n{stdout}");
+    assert_eq!(
+        stdout, "Scope: 2 of 3 workspace projects\n{\"ok\":true}\n{\"ok\":true}\n",
+        "stdout carries the scripts and `run`'s own scope line, nothing from the install",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Done in"), "the spawned install must report on stderr:\n{stderr}");
 
