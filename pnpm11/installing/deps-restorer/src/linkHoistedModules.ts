@@ -10,7 +10,7 @@ import type {
   DependenciesGraph,
   DepHierarchy,
 } from '@pnpm/deps.graph-builder'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
 import { logger } from '@pnpm/logger'
 import type {
   PackageFilesResponse,
@@ -30,6 +30,7 @@ export async function linkHoistedModules (
   hierarchy: DepHierarchy,
   opts: {
     allowBuild?: AllowBuild
+    deferDependencyBuilds: boolean
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
     force: boolean
@@ -101,6 +102,7 @@ async function linkAllPkgsInOrder (
   parentDir: string,
   opts: {
     allowBuild?: AllowBuild
+    deferDependencyBuilds: boolean
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
     force: boolean
@@ -137,7 +139,11 @@ async function linkAllPkgsInOrder (
         if (opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
           if (opts.allowBuild?.(depNode.depPath) === true) {
             sideEffectsCacheKey = calcDepState(graph, opts.depsStateCache, dir, {
-              includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
+              includeDepGraphHash: shouldIncludeDepGraphHash({
+                ignoreScripts: opts.ignoreScripts,
+                deferDependencyBuilds: opts.deferDependencyBuilds,
+                requiresBuild: depNode.requiresBuild,
+              }),
               patchFileHash: depNode.patch?.hash,
               supportedArchitectures: opts.supportedArchitectures,
               nodeVersion: opts.nodeVersion,
