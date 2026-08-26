@@ -38,7 +38,7 @@
 //! install path discover and resolve every importer. The client
 //! authenticates to pnpr (its request `Authorization` identifies the
 //! caller) but does not forward its own upstream registry credentials:
-//! pnpr selects upstream auth from its route policy (see [`crate::route`]),
+//! pnpr selects upstream auth from its route policy (see [`pnpr_route`]),
 //! so private dependencies resolve via a pnpr-managed upstream credential or
 //! fail closed.
 
@@ -56,12 +56,10 @@ use std::{
     time::Duration,
 };
 
-use crate::{
-    osv::OsvIndex,
-    route::{Footprint, RouteContext, RouteHook},
-};
+use crate::osv::OsvIndex;
 use pnpr_config::Config as RegistryConfig;
 use pnpr_policy::Identity;
+use pnpr_route::{Footprint, RouteContext, RouteHook};
 
 use axum::{
     body::{Body, Bytes},

@@ -9,8 +9,8 @@ use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::hash_lockfile;
 use sha2::{Digest, Sha256};
 
-use crate::route::{Footprint, RouteContext};
 use pnpr_policy::Identity;
+use pnpr_route::{Footprint, RouteContext};
 
 use super::protocol::ResolveRequest;
 

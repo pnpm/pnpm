@@ -6004,11 +6004,14 @@ dependencies = [
  "pnpm-shared-artifact-protocol",
  "pnpm-store-dir",
  "pnpm-tarball",
+ "pnpr-auth",
  "pnpr-config",
  "pnpr-error",
  "pnpr-package-name",
  "pnpr-policy",
  "pnpr-registry",
+ "pnpr-route",
+ "pnpr-upstream",
  "reqwest",
  "rusqlite",
  "serde",
@@ -6026,6 +6029,26 @@ dependencies = [
  "url",
  "wax",
  "zip",
+]
+
+[[package]]
+name = "pnpr-auth"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "axum 0.8.9",
+ "bcrypt",
+ "getrandom 0.4.3",
+ "libsql",
+ "pnpr-config",
+ "pnpr-error",
+ "rusqlite",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "tempfile",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -6109,6 +6132,42 @@ dependencies = [
  "pnpr-error",
  "pnpr-package-name",
  "wax",
+]
+
+[[package]]
+name = "pnpr-route"
+version = "0.0.1"
+dependencies = [
+ "indexmap 2.14.0",
+ "pnpm-network",
+ "pnpr-config",
+ "pnpr-policy",
+ "pnpr-registry",
+ "reqwest",
+ "sha2",
+ "tracing",
+ "wax",
+]
+
+[[package]]
+name = "pnpr-upstream"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "mockito",
+ "pnpm-lockfile",
+ "pnpm-network",
+ "pnpr-config",
+ "pnpr-error",
+ "pnpr-package-name",
+ "pnpr-policy",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tempfile",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

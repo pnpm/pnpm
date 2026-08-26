@@ -18,9 +18,9 @@ use super::{
     reject_inline_url_auth, reject_invalid_patch_hashes, reject_off_allowlist_fetches,
     resolution_cache_key, store_resolution,
 };
-use crate::route::{Footprint, PrivateAccessDescriptor, RouteContext};
 use pnpr_config::{Config as RegistryConfig, PublicRoute, UpstreamConfig};
 use pnpr_policy::{AccessList, Identity, PackageRule, PackageRules};
+use pnpr_route::{Footprint, PrivateAccessDescriptor, RouteContext};
 
 fn config_for_registry(registry: &str) -> PacquetConfig {
     let mut config = PacquetConfig::new();
@@ -95,7 +95,7 @@ fn private_alias_footprint(alias: &str) -> Footprint {
     let mut footprint = Footprint::default();
     footprint.add(PrivateAccessDescriptor::Alias {
         alias: alias.to_string(),
-        credential_digest: crate::route::credential_digest(ALIAS_TOKEN),
+        credential_digest: pnpr_route::credential_digest(ALIAS_TOKEN),
         package: None,
     });
     footprint
@@ -551,7 +551,7 @@ fn package_qualified_alias_descriptor_rechecks_upstream_rules_on_replay() {
     let mut footprint = Footprint::default();
     footprint.add(PrivateAccessDescriptor::Alias {
         alias: "corp".to_string(),
-        credential_digest: crate::route::credential_digest(ALIAS_TOKEN),
+        credential_digest: pnpr_route::credential_digest(ALIAS_TOKEN),
         package: Some("@corp/secret".to_string()),
     });
     assert!(store_resolution(

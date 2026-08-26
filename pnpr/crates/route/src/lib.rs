@@ -60,7 +60,7 @@ pub enum RouteClass {
 /// gets HMAC'd into the cache key; identical inputs from different
 /// callers who share the same access collapse to one shared entry.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PrivateAccessDescriptor {
+pub enum PrivateAccessDescriptor {
     /// Proxied route via a pnpr-managed upstream alias. [`credential_digest`]
     /// hashes the upstream's `Authorization`, so rotating the credential moves
     /// future hits to a new namespace — no manual epoch counter to bump.
@@ -112,11 +112,7 @@ impl PrivateAccessDescriptor {
 /// upstream's attached headers, so rotating any credential moves to a fresh
 /// namespace.
 #[must_use]
-pub(crate) fn upstream_cache_digest(
-    upstream: &str,
-    credential_digest: String,
-    secret: &[u8],
-) -> String {
+pub fn upstream_cache_digest(upstream: &str, credential_digest: String, secret: &[u8]) -> String {
     PrivateAccessDescriptor::Alias { alias: upstream.to_string(), credential_digest, package: None }
         .digest_id(secret)
 }
@@ -126,10 +122,10 @@ pub(crate) fn upstream_cache_digest(
 /// credential changes this automatically, re-keying every private cache the
 /// upstream owns — so a rotation invalidates old-credential content with no
 /// manual step to forget. The raw token never appears: it's a one-way SHA-256
-/// (then HMAC-keyed with the server secret by [`PrivateAccessDescriptor::digest_id`]
+/// (then HMAC-keyed with the server secret by `PrivateAccessDescriptor::digest_id`
 /// before it reaches disk).
 #[must_use]
-pub(crate) fn credential_digest(authorization: &str) -> String {
+pub fn credential_digest(authorization: &str) -> String {
     hex(&Sha256::digest(authorization.as_bytes()))
 }
 
@@ -145,9 +141,9 @@ pub(crate) fn credential_digest(authorization: &str) -> String {
 /// header set is unambiguous and distinct sets can only collide by a SHA-256
 /// collision. The raw values never reach disk — this is a one-way SHA-256,
 /// then HMAC-keyed with the server secret by
-/// [`PrivateAccessDescriptor::digest_id`].
+/// `PrivateAccessDescriptor::digest_id`.
 #[must_use]
-pub(crate) fn headers_credential_digest(headers: &HeaderMap) -> String {
+pub fn headers_credential_digest(headers: &HeaderMap) -> String {
     let mut entries: Vec<(&[u8], &[u8])> =
         headers.iter().map(|(name, value)| (name.as_str().as_bytes(), value.as_bytes())).collect();
     entries.sort_unstable();
@@ -174,7 +170,7 @@ pub struct Footprint {
 }
 
 impl Footprint {
-    pub(crate) fn add(&mut self, descriptor: PrivateAccessDescriptor) {
+    pub fn add(&mut self, descriptor: PrivateAccessDescriptor) {
         self.descriptors.insert(descriptor);
     }
 
@@ -206,7 +202,7 @@ impl Footprint {
     /// Whether every private descriptor in this footprint is still
     /// authorized for `identity` under the current route context.
     #[must_use]
-    pub(crate) fn allows(&self, context: &RouteContext, identity: &Identity) -> bool {
+    pub fn allows(&self, context: &RouteContext, identity: &Identity) -> bool {
         self.descriptors.iter().all(|descriptor| context.allows_descriptor(identity, descriptor))
     }
 }
@@ -612,7 +608,8 @@ impl RouteContext {
     /// `/~<name>/` endpoint, used to reverse an endpoint tarball URL back to
     /// its upstream when verifying an input lockfile. Returns `None` when the
     /// upstream is unknown or the caller is not authorized for it.
-    pub(crate) fn upstream_registry(&self, identity: &Identity, upstream: &str) -> Option<String> {
+    #[must_use]
+    pub fn upstream_registry(&self, identity: &Identity, upstream: &str) -> Option<String> {
         self.aliases
             .iter()
             .find(|candidate| candidate.name == upstream && candidate.access.allows(identity))
@@ -715,7 +712,7 @@ pub struct RouteHook {
 }
 
 impl fmt::Debug for RouteHook {
-    /// Redacts [`Self::secret`] — the descriptor-HMAC key must never reach a
+    /// Redacts `Self::secret` — the descriptor-HMAC key must never reach a
     /// log line or panic dump, or the private namespace becomes correlatable.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RouteHook")
@@ -826,7 +823,7 @@ pub fn url_has_inline_credentials(spec: &str) -> bool {
 /// anonymously fetchable, so the stripped URL still works. Returns the input
 /// unchanged when there is no `scheme://` authority or no userinfo.
 #[must_use]
-pub(crate) fn strip_url_credentials(url: &str) -> String {
+pub fn strip_url_credentials(url: &str) -> String {
     let Some((scheme, after)) = url.split_once("://") else {
         return url.to_string();
     };
@@ -848,7 +845,7 @@ pub(crate) fn strip_url_credentials(url: &str) -> String {
 /// the token server-side). Unlike a client-supplied direct-tarball spec — whose
 /// query is the caller's own intent — this is untrusted upstream metadata.
 #[must_use]
-pub(crate) fn sanitize_registry_tarball_url(url: &str) -> String {
+pub fn sanitize_registry_tarball_url(url: &str) -> String {
     let no_creds = strip_url_credentials(url);
     match no_creds.split_once(['?', '#']) {
         Some((base, _)) => base.to_string(),

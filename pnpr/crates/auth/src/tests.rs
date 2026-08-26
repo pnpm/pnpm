@@ -460,3 +460,31 @@ async fn identify_parses_auth_scheme_case_insensitively() {
         );
     }
 }
+
+/// An empty `cidr_whitelist` means the token carries no address restriction,
+/// so silently defaulting a malformed one to empty would turn a CIDR-confined
+/// token into an unrestricted one — the wrong direction to fail. Refuse the
+/// store instead.
+#[tokio::test]
+async fn an_unreadable_cidr_whitelist_is_refused_rather_than_dropped() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("tokens.db");
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    super::init_tokens_schema(&conn).unwrap();
+    conn.execute(
+        "INSERT INTO tokens
+         (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params!["token-hash", "alice", 0_i64, 0_i64, 0_i64, "{ not json"],
+    )
+    .unwrap();
+    drop(conn);
+
+    let err = TokenStore::open(path).expect_err("a corrupt cidr_whitelist must not load");
+    let message = err.to_string();
+    assert!(message.contains("cidr_whitelist"), "the error should name the column: {message}");
+    assert!(
+        message.contains("token-hash"),
+        "the error should name the row, so an operator can find it: {message}",
+    );
+}

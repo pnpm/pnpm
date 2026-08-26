@@ -7,25 +7,22 @@
 //!
 //! See <https://github.com/pnpm/pnpm> for the parent project.
 
-mod auth;
 mod journal;
 mod osv;
 mod publish;
 mod resolver;
-mod route;
 mod s3;
 mod search;
 mod server;
 mod shared_artifacts;
 mod storage;
 mod streaming;
-mod upstream;
 
-pub use auth::{
+pub use journal::recover_publish_journal;
+pub use pnpr_auth::{
     AuthState, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend, UserStore,
     identify,
 };
-pub use journal::recover_publish_journal;
 pub use pnpr_config::{
     AccessSpec, AuthConfig, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML,
     FeatureOverrides, HostedConfig, HostedStoreConfig, HtpasswdConfig, LibsqlSettings, LogConfig,

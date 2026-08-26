@@ -10,7 +10,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-use crate::auth::TokenRecord;
+use pnpr_auth::TokenRecord;
 use pnpr_error::RegistryError;
 use pnpr_policy::{Identity, PackageRules};
 
@@ -213,7 +213,7 @@ pub(super) fn authorize(
 
 /// The raw credentials of an `Authorization: Bearer <token>` header, or
 /// `None` for any other scheme. The scheme is matched case-insensitively,
-/// matching [`crate::auth::identify`].
+/// matching [`pnpr_auth::identify`].
 pub(super) fn bearer_credentials(header_value: &str) -> Option<&str> {
     let (scheme, credentials) = header_value.trim().split_once(' ')?;
     scheme.eq_ignore_ascii_case("Bearer").then(|| credentials.trim())

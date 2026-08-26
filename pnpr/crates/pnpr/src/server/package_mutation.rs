@@ -8,11 +8,11 @@ use serde_json::{Value, json};
 use crate::{
     publish::now_iso,
     storage::{PACKUMENT_WRITE_RETRIES, PackumentUpdate, PackumentWrite},
-    upstream::tarball_basename,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::PackageName;
 use pnpr_policy::Identity;
+use pnpr_upstream::tarball_basename;
 
 use super::{
     Action, AppState, RegistrySource, authorize, filter_osv_vulnerable_dist_tags, hosted_storage,
@@ -233,7 +233,7 @@ fn enforce_published_version_immutability(
 }
 
 /// The tarball basename a version is actually served under, mirroring
-/// [`crate::upstream::rewrite_tarball_urls`]: the `dist.tarball` URL's own basename when it has
+/// [`pnpr_upstream::rewrite_tarball_urls`]: the `dist.tarball` URL's own basename when it has
 /// one, otherwise the version-derived canonical name the rewrite falls back to.
 /// Returns `None` when the manifest carries no string `dist.tarball` to serve.
 fn served_tarball_basename(manifest: &Value, pkg: &PackageName) -> Option<String> {

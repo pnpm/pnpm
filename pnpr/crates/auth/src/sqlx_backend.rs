@@ -15,7 +15,7 @@ use std::{
 };
 
 #[derive(Debug)]
-pub(in crate::auth) struct SqlAuth<Db> {
+pub(crate) struct SqlAuth<Db> {
     db: Db,
     secret: [u8; 32],
     counter: AtomicU64,
@@ -194,14 +194,14 @@ pub(super) mod postgres {
     use std::time::Duration;
 
     #[derive(Debug)]
-    pub(in crate::auth) struct PostgresDatabase {
+    pub(crate) struct PostgresDatabase {
         pool: PgPool,
     }
 
-    pub(in crate::auth) type PostgresAuth = SqlAuth<PostgresDatabase>;
+    pub(crate) type PostgresAuth = SqlAuth<PostgresDatabase>;
 
     impl SqlAuth<PostgresDatabase> {
-        pub(in crate::auth) async fn connect(
+        pub(crate) async fn connect(
             settings: &SqlBackendSettings,
             max_users: MaxUsers,
         ) -> Result<Self> {
@@ -368,7 +368,7 @@ pub(super) mod postgres {
             .bind(token_hash)
             .fetch_optional(&self.pool)
             .await?;
-            row.map(|row| token_record_from_row(&row)).transpose()
+            row.map(|row| token_record_from_row(&row, token_hash)).transpose()
         }
 
         async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
@@ -483,16 +483,25 @@ pub(super) mod postgres {
     }
 
     fn keyed_token_record_from_row(row: &sqlx::postgres::PgRow) -> Result<(String, TokenRecord)> {
-        Ok((row.try_get(0)?, token_record_from_offset(row, 1)?))
+        let token_hash: String = row.try_get(0)?;
+        let record = token_record_from_offset(row, 1, &token_hash)?;
+        Ok((token_hash, record))
     }
 
-    fn token_record_from_row(row: &sqlx::postgres::PgRow) -> Result<TokenRecord> {
-        token_record_from_offset(row, 0)
+    fn token_record_from_row(row: &sqlx::postgres::PgRow, token_hash: &str) -> Result<TokenRecord> {
+        token_record_from_offset(row, 0, token_hash)
     }
 
-    fn token_record_from_offset(row: &sqlx::postgres::PgRow, offset: usize) -> Result<TokenRecord> {
+    fn token_record_from_offset(
+        row: &sqlx::postgres::PgRow,
+        offset: usize,
+        token_hash: &str,
+    ) -> Result<TokenRecord> {
         let cidr_json: String = row.try_get(offset + 4)?;
-        let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json).unwrap_or_default();
+        let cidr_whitelist: Vec<String> =
+            serde_json::from_str(&cidr_json).map_err(|err| RegistryError::Internal {
+                reason: format!("token {token_hash} has an unreadable cidr_whitelist: {err}"),
+            })?;
         let readonly: i16 = row.try_get(offset + 3)?;
         Ok(TokenRecord {
             username: row.try_get(offset)?,
@@ -524,14 +533,14 @@ pub(super) mod mysql {
     use std::time::Duration;
 
     #[derive(Debug)]
-    pub(in crate::auth) struct MysqlDatabase {
+    pub(crate) struct MysqlDatabase {
         pool: MySqlPool,
     }
 
-    pub(in crate::auth) type MysqlAuth = SqlAuth<MysqlDatabase>;
+    pub(crate) type MysqlAuth = SqlAuth<MysqlDatabase>;
 
     impl SqlAuth<MysqlDatabase> {
-        pub(in crate::auth) async fn connect(
+        pub(crate) async fn connect(
             settings: &SqlBackendSettings,
             max_users: MaxUsers,
         ) -> Result<Self> {
@@ -703,7 +712,7 @@ pub(super) mod mysql {
             .bind(token_hash)
             .fetch_optional(&self.pool)
             .await?;
-            row.map(|row| token_record_from_row(&row)).transpose()
+            row.map(|row| token_record_from_row(&row, token_hash)).transpose()
         }
 
         async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
@@ -830,16 +839,25 @@ pub(super) mod mysql {
     }
 
     fn keyed_token_record_from_row(row: &sqlx::mysql::MySqlRow) -> Result<(String, TokenRecord)> {
-        Ok((row.try_get(0)?, token_record_from_offset(row, 1)?))
+        let token_hash: String = row.try_get(0)?;
+        let record = token_record_from_offset(row, 1, &token_hash)?;
+        Ok((token_hash, record))
     }
 
-    fn token_record_from_row(row: &sqlx::mysql::MySqlRow) -> Result<TokenRecord> {
-        token_record_from_offset(row, 0)
+    fn token_record_from_row(row: &sqlx::mysql::MySqlRow, token_hash: &str) -> Result<TokenRecord> {
+        token_record_from_offset(row, 0, token_hash)
     }
 
-    fn token_record_from_offset(row: &sqlx::mysql::MySqlRow, offset: usize) -> Result<TokenRecord> {
+    fn token_record_from_offset(
+        row: &sqlx::mysql::MySqlRow,
+        offset: usize,
+        token_hash: &str,
+    ) -> Result<TokenRecord> {
         let cidr_json: String = row.try_get(offset + 4)?;
-        let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json).unwrap_or_default();
+        let cidr_whitelist: Vec<String> =
+            serde_json::from_str(&cidr_json).map_err(|err| RegistryError::Internal {
+                reason: format!("token {token_hash} has an unreadable cidr_whitelist: {err}"),
+            })?;
         let readonly: i16 = row.try_get(offset + 3)?;
         Ok(TokenRecord {
             username: row.try_get(offset)?,
