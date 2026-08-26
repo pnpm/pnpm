@@ -2,7 +2,7 @@ use crate::_utils::append_workspace_yaml_key;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::Lockfile;
+use pnpm_lockfile::{Lockfile, PkgName};
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
@@ -490,16 +490,30 @@ fn shared_lockfile_deploy_supports_non_injected_workspace() {
         .assert()
         .success();
 
+    let lib_link = deploy_dir.join("node_modules/lib");
     assert!(
-        is_symlink_or_junction(&deploy_dir.join("node_modules/lib")).unwrap(),
+        is_symlink_or_junction(&lib_link).unwrap(),
         "the linked workspace dependency should be materialized in the deploy directory",
     );
 
-    fs::remove_dir_all(deploy_dir.join("node_modules")).unwrap();
-    pacquet_cmd(&deploy_dir).with_args(["install", "--frozen-lockfile"]).assert().success();
+    let deploy_lockfile = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
+    let importer = deploy_lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY).unwrap();
+    let dependencies = importer.dependencies.as_ref().expect("deploy importer dependencies");
+    let lib_name: PkgName = "lib".parse().unwrap();
+    let lib_version =
+        dependencies.get(&lib_name).expect("deployed lib dependency").version.to_string();
     assert!(
-        deploy_dir.join("node_modules/lib/index.js").is_file(),
-        "the dedicated deploy lockfile should restore the workspace dependency on frozen reinstall",
+        lib_version.starts_with("lib@file:"),
+        "the dedicated deploy lockfile should rewrite the linked workspace dependency: {lib_version}",
+    );
+
+    let deploy_dir_real = fs::canonicalize(&deploy_dir).unwrap();
+    let lib_real = fs::canonicalize(&lib_link).unwrap();
+    assert!(
+        lib_real.starts_with(&deploy_dir_real),
+        "the deployed workspace dependency should stay inside {}: {}",
+        deploy_dir_real.display(),
+        lib_real.display(),
     );
 
     drop((root, mock_instance));
