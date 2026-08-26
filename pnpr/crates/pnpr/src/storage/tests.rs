@@ -21,6 +21,42 @@ fn packument_write_conflict_delay_caps_growth() {
 }
 
 #[tokio::test]
+async fn hosted_revision_refs_roundtrip_in_the_org_namespace() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp).for_hosted("acme");
+    let digest = "A".repeat(86);
+    let ref_id = "b".repeat(64);
+
+    assert_eq!(storage.read_hosted_revision_refs(&digest).await.unwrap(), Vec::<Vec<u8>>::new());
+    storage
+        .write_hosted_revision_ref(&digest, &ref_id, br#"{"package":"foo","version":"1.0.0"}"#)
+        .await
+        .unwrap();
+    assert_eq!(
+        storage.read_hosted_revision_refs(&digest).await.unwrap(),
+        vec![br#"{"package":"foo","version":"1.0.0"}"#.to_vec()],
+    );
+    assert_eq!(
+        storage_in(&tmp).read_hosted_revision_refs(&digest).await.unwrap(),
+        Vec::<Vec<u8>>::new(),
+    );
+}
+
+#[tokio::test]
+async fn hosted_revision_ref_paths_reject_noncanonical_segments() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let digest = "A".repeat(86);
+
+    let invalid_digest = storage.read_hosted_revision_refs("../escape").await;
+    dbg!(&invalid_digest);
+    assert!(invalid_digest.is_err());
+    let invalid_ref = storage.write_hosted_revision_ref(&digest, "../escape", b"{}").await;
+    dbg!(&invalid_ref);
+    assert!(invalid_ref.is_err());
+}
+
+#[tokio::test]
 async fn hosted_tarball_under_non_directory_package_path_is_an_error() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);

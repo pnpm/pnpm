@@ -16,7 +16,7 @@
 use crate::{
     error::Result,
     package_name::PackageName,
-    storage::{STAGED_DIR, staged_id_of_meta_object},
+    storage::{HOSTED_REVISION_REFS_DIR, STAGED_DIR, staged_id_of_meta_object},
 };
 use axum::body::Body;
 use futures_util::StreamExt;
@@ -341,12 +341,48 @@ impl S3Store {
         Ok(names)
     }
 
+    pub async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
+        let prefix = self.revision_refs_prefix(digest);
+        let mut listing = self.store.list(Some(&prefix));
+        let mut refs = Vec::new();
+        while let Some(meta) = listing.next().await {
+            let meta = meta?;
+            let Some(filename) = meta.location.as_ref().rsplit('/').next() else {
+                continue;
+            };
+            let Some(ref_id) = filename.strip_suffix(".json") else { continue };
+            if ref_id.len() != 64 || !ref_id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                continue;
+            }
+            refs.push(self.store.get(&meta.location).await?.bytes().await?.to_vec());
+        }
+        Ok(refs)
+    }
+
+    pub async fn write_revision_ref(&self, digest: &str, ref_id: &str, bytes: &[u8]) -> Result<()> {
+        self.store
+            .put(&self.revision_ref_key(digest, ref_id), PutPayload::from(bytes.to_vec()))
+            .await?;
+        Ok(())
+    }
+
     fn packument_key(&self, name: &PackageName) -> ObjectPath {
         ObjectPath::from(format!("{}{}/{PACKUMENT_FILE}", self.prefix, name.as_str()))
     }
 
     fn tarball_key(&self, name: &PackageName, filename: &str) -> ObjectPath {
         ObjectPath::from(format!("{}{}/{filename}", self.prefix, name.as_str()))
+    }
+
+    fn revision_refs_prefix(&self, digest: &str) -> ObjectPath {
+        ObjectPath::from(format!("{}{HOSTED_REVISION_REFS_DIR}/{digest}/", self.prefix))
+    }
+
+    fn revision_ref_key(&self, digest: &str, ref_id: &str) -> ObjectPath {
+        ObjectPath::from(format!(
+            "{}{HOSTED_REVISION_REFS_DIR}/{digest}/{ref_id}.json",
+            self.prefix,
+        ))
     }
 
     // Staged-publish records (see `storage::Storage`'s staged section for

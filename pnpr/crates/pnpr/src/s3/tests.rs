@@ -201,6 +201,21 @@ async fn lists_hosted_package_names() {
     }
 }
 
+#[tokio::test]
+async fn revision_refs_roundtrip_under_the_configured_prefix() {
+    for prefix in ["", "packages"] {
+        let (store, _staging) = store_with_prefix(prefix);
+        let digest = "A".repeat(86);
+        assert_eq!(store.read_revision_refs(&digest).await.unwrap(), Vec::<Vec<u8>>::new());
+
+        store.write_revision_ref(&digest, &"a".repeat(64), b"first").await.unwrap();
+        store.write_revision_ref(&digest, &"b".repeat(64), b"second").await.unwrap();
+        let mut refs = store.read_revision_refs(&digest).await.unwrap();
+        refs.sort();
+        assert_eq!(refs, vec![b"first".to_vec(), b"second".to_vec()]);
+    }
+}
+
 #[test]
 fn prefix_normalizes() {
     let normalized = |prefix: Option<&str>| {
