@@ -161,8 +161,14 @@ fn patches_is_a_selectorless_update_mode() {
 }
 
 #[test]
-fn patch_refresh_with_a_depth_limit_stays_on_the_client() {
-    assert!(update_args(&["--patches"]).can_delegate_patch_refresh(false));
-    assert!(!update_args(&["--patches", "--depth", "0"]).can_delegate_patch_refresh(false));
-    assert!(!update_args(&["--patches"]).can_delegate_patch_refresh(true));
+fn constrained_patch_refresh_stays_on_the_client() {
+    let all_groups = vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+    let prod_only = vec![DependencyGroup::Prod];
+
+    assert!(update_args(&["--patches"]).can_delegate_patch_refresh(false, &all_groups));
+    assert!(
+        !update_args(&["--patches", "--depth", "0"]).can_delegate_patch_refresh(false, &all_groups),
+    );
+    assert!(!update_args(&["--patches"]).can_delegate_patch_refresh(true, &all_groups));
+    assert!(!update_args(&["--patches"]).can_delegate_patch_refresh(false, &prod_only));
 }

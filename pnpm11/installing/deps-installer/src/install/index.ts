@@ -211,7 +211,7 @@ export async function install (
 
   // When a pnpr server is configured, use server-side resolution
   // instead of the normal resolution flow.
-  if (opts.pnprServer) {
+  if (opts.pnprServer && canUsePnprForInstall(opts)) {
     return installViaPnprServer(manifest, rootDir, opts)
   }
 
@@ -2782,15 +2782,16 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
  */
 function canUsePnprForMutations (
   projects: MutatedProject[],
-  opts: Pick<MutateModulesOptions, 'allProjects' | 'depth'>
+  opts: Pick<MutateModulesOptions, 'allProjects' | 'depth' | 'includeDirect'>
 ): boolean {
   if (projects.length === 0) return false
   const refreshesRevisions = projects.some(project =>
     (project.mutation === 'install' || project.mutation === 'installSome') && project.updatePatches === true
   )
   if (refreshesRevisions) {
-    if (opts.depth !== Infinity && projects.some(project =>
-      project.mutation !== 'uninstallSome' && project.update === true
+    if (projects.some(project =>
+      project.mutation !== 'uninstallSome' &&
+      !canUsePnprForPatchRefresh(opts, project.update)
     )) return false
     const { allProjects } = opts
     if (allProjects == null || projects.length !== allProjects.length) return false
@@ -2809,6 +2810,26 @@ function canUsePnprForMutations (
     const m = p as InstallDepsMutation | InstallSomeDepsMutation
     return !m.update && !m.updateToLatest && m.updateMatching == null
   })
+}
+
+function canUsePnprForInstall (opts: Opts): boolean {
+  if (opts.updatePatches) {
+    return !opts.updateToLatest &&
+      opts.updateMatching == null &&
+      canUsePnprForPatchRefresh(opts, opts.update)
+  }
+  return !opts.update && !opts.updateToLatest && opts.updateMatching == null
+}
+
+function canUsePnprForPatchRefresh (
+  opts: Pick<InstallOptions, 'depth' | 'includeDirect'>,
+  update: boolean | undefined
+): boolean {
+  if (update !== true) return true
+  return opts.depth === Infinity &&
+    opts.includeDirect?.dependencies !== false &&
+    opts.includeDirect?.devDependencies !== false &&
+    opts.includeDirect?.optionalDependencies !== false
 }
 
 interface PnprNewDep {

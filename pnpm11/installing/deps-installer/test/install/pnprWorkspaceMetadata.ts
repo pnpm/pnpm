@@ -241,7 +241,12 @@ test('updatePatches is delegated to pnpr', async () => {
   const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
   const options = createOptions(workspaceRoot, rootDir)
 
-  await install(manifest, { ...options, updatePatches: true })
+  await install(manifest, {
+    ...options,
+    depth: Infinity,
+    update: true,
+    updatePatches: true,
+  })
 
   expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
     updatePatches: true,
@@ -263,16 +268,43 @@ test('a complete updatePatches mutation is delegated to pnpr', async () => {
   }))
 })
 
-test('an updatePatches mutation with a depth limit stays on the client', async () => {
+test('an updatePatches install with a depth limit stays on the client', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir)
+
+  await install(manifest, { ...options, depth: 0, update: true, updatePatches: true })
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+})
+
+test('an updatePatches mutation with filtered dependency groups stays on the client', async () => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir
   const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
   const options = createOptions(workspaceRoot, rootDir, {
     allProjects: [{ buildIndex: 0, manifest, rootDir }],
-    depth: 0,
+    depth: Infinity,
+    includeDirect: {
+      dependencies: true,
+      devDependencies: false,
+      optionalDependencies: false,
+    },
   })
 
   await mutateModules([{ mutation: 'install', rootDir, update: true, updatePatches: true }], options)
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+})
+
+test('unsupported direct update modes stay on the client', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir)
+
+  await install(manifest, { ...options, update: true })
 
   expect(resolveViaPnprServer).not.toHaveBeenCalled()
 })
