@@ -106,10 +106,10 @@ type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
 pub(super) type DirectDepVersions = HashMap<String, Vec<node_semver::Version>>;
 
 /// One entry in [`WorkspaceTreeCtx`]'s `children_specs_by_id` map —
-/// `(child_alias, child_range, child_optional)` triples extracted from
+/// `(child_alias, child_range, child_optional, child_injected)` tuples extracted from
 /// a resolved package's manifest's `dependencies` plus
 /// `optionalDependencies` sections.
-pub(super) type ChildSpec = (String, String, bool);
+pub(super) type ChildSpec = (String, String, bool, bool);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ChildrenOwner {

@@ -862,6 +862,7 @@ struct InstallRunOptions<'install, 'selection> {
     rebuild: Option<RebuildOptions>,
     selection: Option<WorkspaceInstallSelection<'selection>>,
     root_manifest_as_workspace_root: bool,
+    deploy_manifest_hook: bool,
     /// Project manifests used only as the source for lockfile importer
     /// specifiers. `pacquet update --no-save` resolves against an in-memory
     /// manifest rewrite but must serialize importer specifiers from the
@@ -898,6 +899,7 @@ impl Default for InstallRunOptions<'_, '_> {
             rebuild: None,
             selection: None,
             root_manifest_as_workspace_root: false,
+            deploy_manifest_hook: false,
             lockfile_specifier_project_manifests: None,
             read_package_hooked_manifest_paths: HashSet::new(),
             save_lockfile: true,
@@ -1053,6 +1055,7 @@ where
     ) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             root_manifest_as_workspace_root: true,
+            deploy_manifest_hook: true,
             save_lockfile: false,
             ..Default::default()
         }))
@@ -1096,5 +1099,32 @@ where
             ..Default::default()
         }))
         .await
+    }
+}
+
+/// Mark every `workspace:` dependency for injection into a self-contained
+/// legacy deploy.
+pub fn apply_deploy_manifest_hook(manifest: &mut serde_json::Value) {
+    let names = ["optionalDependencies", "dependencies", "devDependencies"]
+        .into_iter()
+        .filter_map(|field| manifest.get(field)?.as_object())
+        .flat_map(|dependencies| dependencies.iter())
+        .filter_map(|(name, specifier)| {
+            specifier
+                .as_str()
+                .is_some_and(|specifier| specifier.starts_with("workspace:"))
+                .then_some(name.clone())
+        })
+        .collect::<Vec<_>>();
+    if names.is_empty() {
+        return;
+    }
+    let Some(object) = manifest.as_object_mut() else { return };
+    let dependencies_meta = object
+        .entry("dependenciesMeta")
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    let Some(meta_object) = dependencies_meta.as_object_mut() else { return };
+    for name in names {
+        meta_object.insert(name, serde_json::json!({ "injected": true }));
     }
 }

@@ -18,12 +18,13 @@ use pnpm_lockfile::{
     TarballResolution, VersionPart, WantedLockfileSelection,
 };
 use pnpm_package_manager::{
-    ImportIndexedDirOpts, Install, ProjectMutation, UpdateSeedPolicy, import_indexed_dir,
+    ImportIndexedDirOpts, Install, ProjectMutation, UpdateSeedPolicy, apply_deploy_manifest_hook,
+    import_indexed_dir,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_workspace::{Project, WORKSPACE_MANIFEST_FILENAME, importer_id_from_root_dir};
-use serde_json::{Map, Value, json};
+use serde_json::{Map, Value};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     fs,
@@ -721,29 +722,8 @@ fn copy_project<ReporterT: Reporter>(
 fn apply_deploy_hook(manifest_path: &Path) -> miette::Result<()> {
     let mut manifest = PackageManifest::from_path(manifest_path.to_path_buf())
         .wrap_err("read deployed manifest")?;
-    apply_deploy_hook_to_value(manifest.value_mut());
+    apply_deploy_manifest_hook(manifest.value_mut());
     manifest.save().wrap_err("write deployed manifest")
-}
-
-fn apply_deploy_hook_to_value(manifest: &mut Value) {
-    let names = ["dependencies", "devDependencies", "optionalDependencies"]
-        .into_iter()
-        .filter_map(|field| manifest.get(field)?.as_object())
-        .flat_map(|deps| deps.iter())
-        .filter_map(|(name, spec)| {
-            spec.as_str().is_some_and(|spec| spec.starts_with("workspace:")).then_some(name.clone())
-        })
-        .collect::<Vec<_>>();
-    if names.is_empty() {
-        return;
-    }
-    let Some(object) = manifest.as_object_mut() else { return };
-    let dependencies_meta =
-        object.entry("dependenciesMeta").or_insert_with(|| Value::Object(Map::new()));
-    let Some(meta_object) = dependencies_meta.as_object_mut() else { return };
-    for name in names {
-        meta_object.insert(name, json!({ "injected": true }));
-    }
 }
 
 fn create_deploy_files(

@@ -1,5 +1,6 @@
 //! pnpm's built-in read-package hook chain: `packageExtensions` (the
-//! compatibility DB plus the user's) and `pnpm.overrides`.
+//! compatibility DB plus the user's), legacy deploy's workspace
+//! injection, and `pnpm.overrides`.
 //!
 //! Owns the *transform* half of the resolve inputs. The seeds, options,
 //! and reuse decisions the same resolve consumes live in
@@ -9,7 +10,7 @@ use super::{
     InstallWithFreshLockfileError, compose_manifest_hooks, parse_config_overrides,
     resolved_overrides_map,
 };
-use crate::VersionsOverrider;
+use crate::{VersionsOverrider, apply_deploy_manifest_hook};
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
@@ -21,10 +22,10 @@ use std::{collections::BTreeMap, path::Path, sync::Arc};
 /// resolution consumes, plus the pieces later phases read off it.
 ///
 /// The order matches `createReadPackageHook`: packageExtensions first,
-/// overrides after. The two halves stay separate hooks because the
-/// resolver interleaves the pnpmfile's `readPackage` between them —
-/// packageExtensions → readPackage → overrides — so a hook that replaces
-/// the manifest cannot erase the overrides.
+/// then the pnpmfile and deploy hook, then overrides. The hooks stay
+/// separate because the resolver interleaves the pnpmfile's `readPackage` between them:
+/// packageExtensions → readPackage → deploy → overrides. This prevents a
+/// hook that replaces the manifest from erasing the deploy injection or overrides.
 pub(super) struct ManifestTransforms {
     pub parsed_overrides: Option<Vec<pnpm_config_parse_overrides::VersionOverride>>,
     pub resolved_overrides: Option<IndexMap<String, String>>,
@@ -44,6 +45,7 @@ pub(super) fn build_manifest_transforms(
     catalogs: &Catalogs,
     lockfile_dir: &Path,
     importer_manifests: &BTreeMap<String, &PackageManifest>,
+    deploy_manifest_hook: bool,
 ) -> Result<ManifestTransforms, InstallWithFreshLockfileError> {
     let parsed_overrides = parse_config_overrides(config, catalogs)?;
     let resolved_overrides = parsed_overrides.as_deref().map(resolved_overrides_map);
@@ -70,6 +72,7 @@ pub(super) fn build_manifest_transforms(
     if compat_package_extender.is_some()
         || package_extender.is_some()
         || versions_overrider.as_ref().is_some_and(|overrider| !overrider.is_empty())
+        || deploy_manifest_hook
     {
         for (id, manifest) in importer_manifests {
             let mut cloned = (*manifest).clone();
@@ -78,6 +81,9 @@ pub(super) fn build_manifest_transforms(
             }
             if let Some(extender) = package_extender.as_ref() {
                 extender.apply(cloned.value_mut());
+            }
+            if deploy_manifest_hook {
+                apply_deploy_manifest_hook(cloned.value_mut());
             }
             if let Some(overrider) = versions_overrider.as_ref() {
                 let manifest_dir = cloned.path().parent().map(Path::to_path_buf);
@@ -100,6 +106,13 @@ pub(super) fn build_manifest_transforms(
         let overrider = Arc::clone(overrider);
         Arc::new(move |manifest| overrider.apply_to_arc(manifest, None)) as ManifestHook
     });
+    let deploy_manifest_hook: Option<ManifestHook> = deploy_manifest_hook.then(|| {
+        Arc::new(|manifest: Arc<serde_json::Value>| {
+            let mut manifest = (*manifest).clone();
+            apply_deploy_manifest_hook(&mut manifest);
+            Arc::new(manifest)
+        }) as ManifestHook
+    });
     let override_bare_specifier: Option<Arc<DependencyOverrider>> =
         active_overrider.map(|overrider| {
             let overrider = Arc::clone(overrider);
@@ -117,7 +130,7 @@ pub(super) fn build_manifest_transforms(
             compat_package_extensions_hook,
             package_extensions_hook,
         ),
-        overrides_hook,
+        overrides_hook: compose_manifest_hooks(deploy_manifest_hook, overrides_hook),
         override_bare_specifier,
         effective_importer_manifests,
     })
