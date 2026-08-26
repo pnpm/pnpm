@@ -13,7 +13,7 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pnpm_config::Config;
-use pnpm_package_manager::{Update, build_workspace_packages_map};
+use pnpm_package_manager::{Update, build_workspace_packages_map, included_direct_groups};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
@@ -148,6 +148,10 @@ pub struct UpdateArgs {
     #[clap(long = "ignore-pnpmfile")]
     pub ignore_pnpmfile: bool,
 
+    /// URL of a pnpr server to offload revision refresh resolution to.
+    #[clap(long = "pnpr-server")]
+    pub pnpr_server: Option<String>,
+
     #[clap(skip)]
     pub(crate) prompt: UpdatePrompt,
 }
@@ -176,6 +180,9 @@ struct PatchesWithSelectorError;
 impl UpdateArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
+        if let Some(pnpr_server) = self.pnpr_server.clone() {
+            config.pnpr_server = Some(pnpr_server);
+        }
     }
 
     pub async fn run<Reporter: self::Reporter + 'static>(
@@ -184,8 +191,21 @@ impl UpdateArgs {
     ) -> miette::Result<()> {
         self.check_patches_options()?;
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
-        let workspace_packages = self
-            .check_workspace_option(state.config.workspace_dir.as_deref())?
+        let workspace_root = self.check_workspace_option(state.config.workspace_dir.as_deref())?;
+        let include_direct = self.dependency_options.include_direct();
+        let update_actions = self.should_update_github_actions(state.config, &include_direct);
+        if self.can_delegate_patch_refresh(update_actions, &include_direct)
+            && let Some(pnpr_server) = state.config.pnpr_server.as_deref()
+        {
+            let lockfile_path = state.lockfile_path();
+            return super::install::install_via_pnpr::<Reporter>(
+                &state,
+                pnpr_server,
+                self.pnpr_patch_link(&state, &lockfile_path),
+            )
+            .await;
+        }
+        let workspace_packages = workspace_root
             .map(|workspace_root| {
                 recursive::discover_workspace_projects(workspace_root, state.config)
                     .map(|(projects, _)| build_workspace_packages_map(Some(&projects)))
@@ -195,8 +215,6 @@ impl UpdateArgs {
 
         let actions_root =
             state.config.workspace_dir.clone().unwrap_or_else(|| manifest_root(&state.manifest));
-        let include_direct = self.dependency_options.include_direct();
-        let update_actions = self.should_update_github_actions(state.config, &include_direct);
         let action_matcher =
             if update_actions { github_actions::selector_matcher(&self.packages) } else { None };
         let package_selectors = filter_package_selectors(&self.packages, update_actions);
@@ -303,13 +321,25 @@ impl UpdateArgs {
     ) -> miette::Result<()> {
         self.check_patches_options()?;
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
-        let workspace_packages = self
-            .check_workspace_option(state.config.workspace_dir.as_deref())?
-            .and_then(|_| build_workspace_packages_map(Some(&selection.projects)));
-
-        let actions_root = selection.workspace_root.clone();
+        let workspace_root = self.check_workspace_option(state.config.workspace_dir.as_deref())?;
         let include_direct = self.dependency_options.include_direct();
         let update_actions = self.should_update_github_actions(state.config, &include_direct);
+        if self.can_delegate_patch_refresh(update_actions, &include_direct)
+            && let Some(pnpr_server) = state.config.pnpr_server.as_deref()
+        {
+            let lockfile_path = state.lockfile_path();
+            return super::install::install_selected_via_pnpr::<Reporter>(
+                &state,
+                pnpr_server,
+                &selection,
+                self.pnpr_patch_link(&state, &lockfile_path),
+            )
+            .await;
+        }
+        let workspace_packages =
+            workspace_root.and_then(|_| build_workspace_packages_map(Some(&selection.projects)));
+
+        let actions_root = selection.workspace_root.clone();
         let action_matcher =
             if update_actions { github_actions::selector_matcher(&self.packages) } else { None };
         let package_selectors = filter_package_selectors(&self.packages, update_actions);
@@ -483,6 +513,42 @@ impl UpdateArgs {
             return Err(PatchesWithSelectorError.into());
         }
         Ok(())
+    }
+
+    fn can_delegate_patch_refresh(
+        &self,
+        update_actions: bool,
+        include_direct: &[DependencyGroup],
+    ) -> bool {
+        let all_dependency_groups =
+            [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+        self.patches
+            && self.depth.is_none()
+            && !update_actions
+            && all_dependency_groups.iter().all(|group| include_direct.contains(group))
+    }
+
+    fn pnpr_patch_link<'path>(
+        &self,
+        state: &State,
+        lockfile_path: &'path Path,
+    ) -> super::install::PnprLink<'path> {
+        super::install::PnprLink {
+            dependency_groups: included_direct_groups(state.config.optional).collect(),
+            supported_architectures: self
+                .supported_architectures
+                .apply_to(state.config.supported_architectures.clone()),
+            node_linker: state.config.node_linker,
+            skip_runtimes: state.config.skip_runtimes,
+            frozen_lockfile: false,
+            prefer_frozen_lockfile: false,
+            update_patches: true,
+            lockfile_only: self.lockfile_only,
+            ignore_manifest_check: false,
+            trust_lockfile: state.config.trust_lockfile,
+            lockfile_path: Some(lockfile_path),
+            use_state_lockfile: true,
+        }
     }
 
     fn should_update_github_actions(

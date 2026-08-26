@@ -116,6 +116,8 @@ export interface ResolveViaPnprServerOptions {
    */
   frozenLockfile?: boolean
   preferFrozenLockfile?: boolean
+  /** Refresh registry artifacts while retaining every locked package version. */
+  updatePatches?: boolean
   /**
    * Existing lockfile for incremental resolution, in the on-disk format
    * the wire protocol carries. The caller reads it with
@@ -190,6 +192,7 @@ export async function resolveViaPnprServer (
     trustLockfile: opts.trustLockfile,
     frozenLockfile: opts.frozenLockfile,
     preferFrozenLockfile: opts.preferFrozenLockfile,
+    updatePatches: opts.updatePatches,
     // Sent as-is: `opts.lockfile` is already the on-disk format the wire
     // protocol carries (split `packages`/`snapshots`, `{ specifier, version }`
     // importer deps).

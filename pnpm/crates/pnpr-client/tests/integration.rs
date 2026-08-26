@@ -220,6 +220,7 @@ fn options(
         lockfile: None,
         frozen_lockfile: false,
         prefer_frozen_lockfile: None,
+        update_patches: false,
         ignore_manifest_check: false,
         trust_lockfile: false,
         resolution_mode: pnpm_config::ResolutionMode::default(),

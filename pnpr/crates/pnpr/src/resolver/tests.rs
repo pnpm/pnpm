@@ -327,6 +327,35 @@ fn resolution_cache_key_changes_with_project_transforms() {
 }
 
 #[test]
+fn revision_refresh_bypasses_the_resolution_cache() {
+    let ordinary = ResolveRequest {
+        dependencies: Some(deps(&[("foo", "1.0.0")])),
+        ..ResolveRequest::default()
+    };
+    let refresh = ResolveRequest {
+        dependencies: ordinary.dependencies.clone(),
+        update_patches: true,
+        ..ResolveRequest::default()
+    };
+
+    assert!(resolution_cache_key(&config(), &ordinary).is_some());
+    assert!(resolution_cache_key(&config(), &refresh).is_none());
+}
+
+#[test]
+fn update_patches_defaults_to_false_for_older_clients() {
+    let request = serde_json::from_value::<ResolveRequest>(serde_json::json!({}))
+        .expect("legacy request parses");
+    let refresh = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "updatePatches": true
+    }))
+    .expect("refresh request parses");
+
+    assert!(!request.update_patches);
+    assert!(refresh.update_patches);
+}
+
+#[test]
 fn resolution_cache_key_hashes_input_lockfile_stably() {
     let first_lockfile: Lockfile = serde_saphyr::from_str(
         "lockfileVersion: '9.0'

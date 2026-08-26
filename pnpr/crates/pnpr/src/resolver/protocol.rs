@@ -124,6 +124,10 @@ pub struct ResolveRequest {
     /// when the lockfile is up to date. `None` defaults to reuse.
     #[serde(default)]
     pub prefer_frozen_lockfile: Option<bool>,
+    /// Refresh registry artifacts while retaining every locked package
+    /// version. Omitted by older clients and false for ordinary resolves.
+    #[serde(default)]
+    pub update_patches: bool,
     /// `ignoreManifestCheck`: skip the manifest ↔ lockfile freshness
     /// comparison during the frozen resolve.
     #[serde(default)]

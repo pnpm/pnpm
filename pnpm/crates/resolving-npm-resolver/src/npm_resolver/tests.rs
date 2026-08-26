@@ -1070,6 +1070,45 @@ async fn revision_refresh_does_not_replace_a_registry_resolution_with_a_workspac
 }
 
 #[tokio::test]
+async fn revision_refresh_revalidates_a_warm_packument_without_update_checksums() {
+    let mut server = mockito::Server::new_async().await;
+    let first_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap();
+    first_mock.assert_async().await;
+    first_mock.remove_async().await;
+
+    let refresh_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let opts = ResolveOptions {
+        update: UpdateBehavior::Patches,
+        update_checksums: false,
+        ..ResolveOptions::default()
+    };
+    resolver.resolve(&wanted, &opts).await.unwrap();
+
+    refresh_mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn workspace_shadows_registry_when_name_and_version_match() {
     let mut server = mockito::Server::new_async().await;
     let _mock = server
