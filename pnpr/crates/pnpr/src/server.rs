@@ -4947,7 +4947,7 @@ async fn serve_publish_artifact(
 ) -> Response {
     let username = match require_caller(&identity, "shared artifact publication") {
         Ok(username) => username,
-        Err(err) => return error_response(&err),
+        Err(err) => return private_no_cache(error_response(&err)),
     };
     let request = match crate::shared_artifacts::parse_publish(&body) {
         Ok(request) => request,
@@ -4975,7 +4975,7 @@ async fn serve_resolve_artifacts(
 ) -> Response {
     let username = match require_caller(&identity, "shared artifact lookup") {
         Ok(username) => username,
-        Err(err) => return error_response(&err),
+        Err(err) => return private_no_cache(error_response(&err)),
     };
     private_no_cache(
         match crate::shared_artifacts::resolve(&state.inner.config.cache_storage, &username, &body)
@@ -4994,7 +4994,7 @@ async fn serve_artifact_blob(
 ) -> Response {
     let username = match require_caller(&identity, "shared artifact blob") {
         Ok(username) => username,
-        Err(err) => return error_response(&err),
+        Err(err) => return private_no_cache(error_response(&err)),
     };
     let permit = Arc::clone(&state.inner.artifact_blob_verifications)
         .acquire_owned()
