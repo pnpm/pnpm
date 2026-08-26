@@ -21,8 +21,9 @@ use std::collections::{BTreeMap, HashSet};
 
 use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
+use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{RegistryDeclaration, ResolutionMode, TrustPolicy};
+use pnpm_config::{PackageExtension, RegistryDeclaration, ResolutionMode, TrustPolicy};
 use pnpm_lockfile::{Lockfile, TarballRevision};
 use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
 use reqwest::Client;
@@ -65,6 +66,13 @@ pub struct ResolveOptions {
     /// at resolve time server-side. Sent unresolved: `catalog:` references
     /// in them are resolved server-side against [`Self::catalogs`].
     pub overrides: Option<serde_json::Value>,
+    /// The client's `patchedDependencies`, with paths replaced by their
+    /// SHA-256 hashes. The server uses these to key patched snapshots;
+    /// materialization and patch application remain client-side.
+    pub patched_dependencies: Option<IndexMap<String, String>>,
+    /// The client's manifest extensions, applied during server resolution.
+    pub package_extensions: Option<IndexMap<String, PackageExtension>>,
+    pub allow_unused_patches: bool,
     /// The client's workspace catalogs (`catalog:` / `catalogs:` from
     /// `pnpm-workspace.yaml`). The workspace the server reconstructs from
     /// this request carries no catalog sections, so without these it
@@ -135,6 +143,9 @@ pub struct ResolveProjectsOptions {
     pub registries: RegistryDeclarations,
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
+    pub patched_dependencies: Option<IndexMap<String, String>>,
+    pub package_extensions: Option<IndexMap<String, PackageExtension>>,
+    pub allow_unused_patches: bool,
     pub catalogs: Option<Catalogs>,
     pub auto_install_peers: Option<bool>,
     pub dedupe_peers: Option<bool>,
@@ -169,6 +180,9 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
             registries: opts.registries,
             authorization: opts.authorization,
             overrides: opts.overrides,
+            patched_dependencies: opts.patched_dependencies,
+            package_extensions: opts.package_extensions,
+            allow_unused_patches: opts.allow_unused_patches,
             catalogs: opts.catalogs,
             auto_install_peers: opts.auto_install_peers,
             dedupe_peers: opts.dedupe_peers,
@@ -474,6 +488,9 @@ impl PnprClient {
             "registry": opts.registry,
             "registries": opts.registries,
             "overrides": opts.overrides,
+            "patchedDependencies": opts.patched_dependencies,
+            "packageExtensions": opts.package_extensions,
+            "allowUnusedPatches": opts.allow_unused_patches,
             "catalogs": opts.catalogs,
             "autoInstallPeers": opts.auto_install_peers,
             "dedupePeers": opts.dedupe_peers,

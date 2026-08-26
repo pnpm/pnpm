@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
-use pnpm_config::{ResolutionMode, TrustPolicy};
+use indexmap::IndexMap;
+use pnpm_config::{PackageExtension, ResolutionMode, TrustPolicy};
 use pnpm_lockfile::TarballRevision;
 use serde_json::json;
 
@@ -21,6 +22,11 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
         .mock("POST", "/-/pnpr/v0/resolve")
         .match_body(mockito::Matcher::PartialJson(json!({
             "catalogs": { "default": { "acme": "^1.0.0" } },
+            "patchedDependencies": { "acme@1.0.0": "abc123" },
+            "packageExtensions": {
+                "acme@1.0.0": { "dependencies": { "helper": "1.0.0" } }
+            },
+            "allowUnusedPatches": true,
             "autoInstallPeers": false,
             "dedupePeers": true,
             "excludeLinksFromLockfile": false,
@@ -59,6 +65,18 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
         registries: BTreeMap::new(),
         authorization: None,
         overrides: None,
+        patched_dependencies: Some(IndexMap::from([(
+            "acme@1.0.0".to_string(),
+            "abc123".to_string(),
+        )])),
+        package_extensions: Some(IndexMap::from([(
+            "acme@1.0.0".to_string(),
+            PackageExtension {
+                dependencies: Some(BTreeMap::from([("helper".to_string(), "1.0.0".to_string())])),
+                ..PackageExtension::default()
+            },
+        )])),
+        allow_unused_patches: true,
         catalogs: Some(BTreeMap::from([(
             "default".to_string(),
             BTreeMap::from([("acme".to_string(), "^1.0.0".to_string())]),

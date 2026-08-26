@@ -119,7 +119,7 @@ test('pnpm install resolves optionalDependencies via the pnpr server', async () 
   expect(fs.existsSync('node_modules/is-negative')).toBe(true)
 })
 
-test('pnpm install uses local resolution for patched dependencies and package extensions', async () => {
+test('pnpm install forwards patched dependencies and package extensions to pnpr', async () => {
   prepareProject({
     dependencies: {
       'is-positive': '1.0.0',
@@ -145,7 +145,7 @@ test('pnpm install uses local resolution for patched dependencies and package ex
 
   await execPnpm(['install'])
 
-  expect(requestCount).toBe(0)
+  expect(requestCount).toBeGreaterThanOrEqual(1)
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
   const lockfile = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
   expect(lockfile).toContain('patchedDependencies:')

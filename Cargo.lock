@@ -5438,6 +5438,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "futures-util",
+ "indexmap 2.14.0",
  "mockito",
  "pnpm-catalogs-types",
  "pnpm-config",

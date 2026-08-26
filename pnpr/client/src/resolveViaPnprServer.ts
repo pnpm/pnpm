@@ -6,7 +6,7 @@ import { gunzip } from 'node:zlib'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { convertToLockfileObject } from '@pnpm/lockfile.fs'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
-import type { RegistryDeclaration, TrustPolicy } from '@pnpm/types'
+import type { PackageExtension, RegistryDeclaration, TrustPolicy } from '@pnpm/types'
 
 import type { ResponseMetadata } from './protocol.js'
 
@@ -55,6 +55,12 @@ export interface ResolveViaPnprServerOptions {
   authorization?: string
   /** Overrides */
   overrides?: Record<string, string>
+  /** Patch selectors mapped to SHA-256 hashes; patch files stay client-side. */
+  patchedDependencies?: Record<string, string>
+  /** Manifest extensions applied during server-side resolution. */
+  packageExtensions?: Record<string, PackageExtension>
+  /** Allow configured patches that match no resolved package. */
+  allowUnusedPatches?: boolean
   /**
    * Workspace catalogs (`catalog:` / `catalogs:` from `pnpm-workspace.yaml`),
    * keyed by catalog name with the default catalog under `default`. The
@@ -162,6 +168,9 @@ export async function resolveViaPnprServer (
     registry: opts.registry,
     registries: opts.registries,
     overrides: opts.overrides,
+    patchedDependencies: opts.patchedDependencies,
+    packageExtensions: opts.packageExtensions,
+    allowUnusedPatches: opts.allowUnusedPatches,
     catalogs: opts.catalogs,
     nodeVersion: opts.nodeVersion ?? process.version.slice(1),
     autoInstallPeers: opts.autoInstallPeers,

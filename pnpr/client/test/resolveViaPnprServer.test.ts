@@ -7,6 +7,9 @@ import { type PnprProject, resolveViaPnprServer, type ResolveViaPnprServerOption
 interface CapturedResolveRequest {
   projects: Array<Record<string, unknown>>
   resolutionMode?: string
+  patchedDependencies?: Record<string, string>
+  packageExtensions?: Record<string, unknown>
+  allowUnusedPatches?: boolean
 }
 
 const resolverSettingNames = ['autoInstallPeers', 'dedupePeers', 'excludeLinksFromLockfile'] as const
@@ -82,6 +85,25 @@ test('omits resolutionMode when the caller has none', async () => {
   const request = await captureResolveRequest({ dependencies: {} })
 
   expect(Object.hasOwn(request, 'resolutionMode')).toBe(false)
+})
+
+test('serializes patch hashes and package extensions', async () => {
+  const request = await captureResolveRequest({
+    dependencies: {},
+    patchedDependencies: { 'foo@1.0.0': 'abc123' },
+    packageExtensions: {
+      'foo@1.0.0': { dependencies: { bar: '1.0.0' } },
+    },
+    allowUnusedPatches: true,
+  })
+
+  expect(request).toMatchObject({
+    patchedDependencies: { 'foo@1.0.0': 'abc123' },
+    packageExtensions: {
+      'foo@1.0.0': { dependencies: { bar: '1.0.0' } },
+    },
+    allowUnusedPatches: true,
+  })
 })
 
 async function captureResolveRequest (

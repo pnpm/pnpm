@@ -147,6 +147,7 @@ fn create_config(
         npmrc_auth_file: None,
         workspace_dir: None,
         patched_dependencies: None,
+        patched_dependency_hashes_override: None,
         patches_dir: None,
         pnpmfile: None,
         global_pnpmfile: None,

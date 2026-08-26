@@ -11,14 +11,25 @@ import { testDefaults } from '../utils/index.js'
 
 const originalCwd = process.cwd()
 const storeControllers: StoreController[] = []
-const pnprUnsupportedSettings: Array<[string, Partial<MutateModulesOptions>]> = [
+const pnprResolutionSettings: Array<[
+  string,
+  Partial<MutateModulesOptions>,
+  Record<string, unknown>
+]> = [
   ['patchedDependencies', {
     allowUnusedPatches: true,
     patchedDependencies: {
       'unused@1.0.0': path.join(import.meta.dirname, '../fixtures/patch-pkg/is-positive@1.0.0.patch'),
     },
+  }, {
+    allowUnusedPatches: true,
+    patchedDependencies: { 'unused@1.0.0': expect.any(String) },
   }],
   ['packageExtensions', {
+    packageExtensions: {
+      'unused@1.0.0': { dependencies: { 'is-positive': '1.0.0' } },
+    },
+  }, {
     packageExtensions: {
       'unused@1.0.0': { dependencies: { 'is-positive': '1.0.0' } },
     },
@@ -248,7 +259,7 @@ test('an updatePatches mutation uses client-side resolution instead of silently 
   expect(resolveViaPnprServer).not.toHaveBeenCalled()
 })
 
-test.each(pnprUnsupportedSettings)('install uses client-side resolution when %s is configured', async (_settingName, settings) => {
+test.each(pnprResolutionSettings)('install forwards %s to pnpr', async (_settingName, settings, expected) => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir
   const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
@@ -256,10 +267,10 @@ test.each(pnprUnsupportedSettings)('install uses client-side resolution when %s 
 
   await install(manifest, options)
 
-  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining(expected))
 })
 
-test.each(pnprUnsupportedSettings)('a mutation uses client-side resolution when %s is configured', async (_settingName, settings) => {
+test.each(pnprResolutionSettings)('a mutation forwards %s to pnpr', async (_settingName, settings, expected) => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir
   const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
@@ -270,7 +281,7 @@ test.each(pnprUnsupportedSettings)('a mutation uses client-side resolution when 
 
   await mutateModules([{ mutation: 'install', rootDir }], options)
 
-  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining(expected))
 })
 
 function createOptions (

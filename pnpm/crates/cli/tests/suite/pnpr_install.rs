@@ -363,10 +363,12 @@ fn install_via_pnpr_links_node_modules() {
 }
 
 #[test]
-fn patched_dependencies_bypass_pnpr_resolution() {
+fn patched_dependencies_resolve_via_pnpr() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     fs::write(
         workspace.join("package.json"),
@@ -382,7 +384,11 @@ fn patched_dependencies_bypass_pnpr_resolution() {
         "{ 'is-positive@1.0.0': patches/is-positive@1.0.0.patch }",
     );
 
-    pacquet.with_args(["install", "--pnpr-server", "http://127.0.0.1:0"]).assert().success();
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
 
     let installed = fs::read_to_string(workspace.join("node_modules/is-positive/index.js"))
         .expect("read installed package");
@@ -397,10 +403,12 @@ fn patched_dependencies_bypass_pnpr_resolution() {
 }
 
 #[test]
-fn package_extensions_bypass_pnpr_resolution() {
+fn package_extensions_resolve_via_pnpr() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     fs::write(
         workspace.join("package.json"),
@@ -413,12 +421,19 @@ fn package_extensions_bypass_pnpr_resolution() {
         "{ 'is-positive@1.0.0': { dependencies: { is-negative: 1.0.0 } } }",
     );
 
-    pacquet.with_args(["install", "--pnpr-server", "http://127.0.0.1:0"]).assert().success();
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
 
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
     eprintln!("LOCKFILE:\n{lockfile}\n");
     assert!(lockfile.contains("packageExtensionsChecksum:"));
     assert!(lockfile.contains("is-negative: 1.0.0"));
+    assert!(
+        workspace.join("node_modules/.pnpm/is-positive@1.0.0/node_modules/is-negative").exists(),
+    );
 
     drop((root, mock_instance));
 }
