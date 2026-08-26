@@ -482,7 +482,86 @@ async fn rejected_adoption_reclaims_the_preserved_blob_and_quota() {
     assert_eq!(fs::read(artifact_usage_path(&root)).await.unwrap(), usage_before);
 }
 
+/// The full interleaving a rollback would have to survive to strand a committed
+/// artifact: a crash leaves a blob reservation, a second publication commits an
+/// envelope reusing that blob, and a third fails after adopting the same
+/// reservation. The second publication is what closes it — it adopts the stale
+/// reservation itself, so by the time it commits nothing holds the blob pending
+/// for the third publication's rollback to reclaim.
+#[tokio::test]
+async fn a_commit_over_a_stale_reservation_leaves_no_blob_for_a_later_rollback() {
+    let storage = TempDir::new().unwrap();
+    let root = storage.path().join("shared-artifacts/v0");
+    let artifact_owner =
+        owner_dir(storage.path(), "acme", &OwnerScope::organization("acme")).unwrap();
+    let owner = owner_usage_key(&artifact_owner).unwrap();
+    let blob_bytes = b"shared addon";
+    let blob = blob_id(&format!("sha512-{}", BASE64.encode(Sha512::digest(blob_bytes)))).unwrap();
+    let blob_path = artifact_owner.join("blobs").join(&blob);
+    fs::create_dir_all(blob_path.parent().unwrap()).await.unwrap();
+    fs::write(&blob_path, blob_bytes).await.unwrap();
+    let stale_variant_path = artifact_owner.join("entries/crashed/variant.json");
+    let stale_variant = pending_usage_file(&root, &stale_variant_path, 1).unwrap();
+    write_artifact_usage(
+        &root,
+        &ArtifactUsage {
+            global_bytes: blob_bytes.len() as u64 + 1,
+            owner_bytes: BTreeMap::from([(owner.clone(), blob_bytes.len() as u64 + 1)]),
+            pending: BTreeMap::from([(
+                "crashed".to_string(),
+                PendingUsage {
+                    owner: owner.clone(),
+                    lock: PendingUsageLock::Entry { entry: "crashed".to_string() },
+                    commit_file: Some(stale_variant.path.clone()),
+                    files: vec![
+                        pending_usage_file(&root, &blob_path, blob_bytes.len() as u64).unwrap(),
+                        stale_variant,
+                    ],
+                },
+            )]),
+        },
+    )
+    .await
+    .unwrap();
+
+    // The committing publication adopts the crashed reservation, then clears it.
+    let committed_key = "dependency-side-effects:v1:deps=committed";
+    assert!(
+        publish(storage.path(), "acme", publication_with_blob(committed_key, "ci/committed"))
+            .await
+            .unwrap(),
+    );
+    assert!(
+        load_artifact_usage(&root).await.unwrap().pending.is_empty(),
+        "the committed blob is still owned by a pending reservation",
+    );
+
+    // A third publication for another entry now fails past its variant limit.
+    let rejected_key = "dependency-side-effects:v1:deps=rejected";
+    for index in 0..MAX_VARIANTS_PER_CANDIDATE {
+        assert!(
+            publish(
+                storage.path(),
+                "acme",
+                publication_with_blob(rejected_key, &format!("ci/accepted/{index}")),
+            )
+            .await
+            .unwrap(),
+        );
+    }
+    let error = publish(storage.path(), "acme", publication_with_blob(rejected_key, "ci/rejected"))
+        .await
+        .unwrap_err();
+
+    assert!(error.to_string().contains("variant limit"), "{error}");
+    assert!(fs::try_exists(&blob_path).await.unwrap(), "the committed artifact lost its blob");
+    assert_eq!(fs::read(&blob_path).await.unwrap(), blob_bytes);
+    let usage = load_artifact_usage(&root).await.unwrap();
+    assert_eq!(usage.global_bytes, stored_bytes(&artifact_owner, None).await.unwrap());
+}
+
 /// Rollback reclaims what the failed publication itself stored, never a blob a
+/// committed artifact still depends on./// Rollback reclaims what the failed publication itself stored, never a blob a
 /// committed artifact still depends on. A publication that finds its blob
 /// already on disk does not reserve it, so the failure has nothing to undo.
 #[tokio::test]
