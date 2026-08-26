@@ -1,4 +1,5 @@
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
+import { isRuntimeDepPath } from '@pnpm/deps.path'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot, packageIdFromSnapshot } from '@pnpm/lockfile.utils'
@@ -54,6 +55,12 @@ export async function lockfileToLicenseNode (
   const dependencies: Record<string, LicenseNode> = Object.fromEntries(
     (await Promise.all(step.dependencies.map(async (dependency): Promise<[string, LicenseNode] | null> => {
       const { depPath, pkgSnapshot, next } = dependency
+
+      // Runtimes downloaded via devEngines are managed by pnpm itself, not licensed dependencies
+      if (isRuntimeDepPath(depPath)) {
+        return null
+      }
+
       const { name, version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
 
       const packageInstallable = packageIsInstallable(pkgSnapshot.id ?? depPath, {

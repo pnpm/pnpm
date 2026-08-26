@@ -16,7 +16,7 @@ use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic};
 use owo_colors::{OwoColorize, Stream};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, PackageKey, PkgName, ResolvedDependencyMap};
+use pnpm_lockfile::{Lockfile, PackageKey, PkgName, Prefix, ResolvedDependencyMap};
 use pnpm_package_is_installable::{
     InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
 };
@@ -368,6 +368,11 @@ fn collect_dependencies(
     let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
 
     while let Some((key, kind)) = stack.pop() {
+        // Runtimes downloaded via devEngines are managed by pnpm itself, not licensed dependencies
+        if key.suffix.prefix() == Prefix::Runtime {
+            continue;
+        }
+
         if let Some(existing) = belongs_to.get(&key)
             && *existing <= kind
         {

@@ -173,6 +173,54 @@ snapshots:
 }
 
 #[test]
+fn skips_runtimes_downloaded_through_dev_engines() {
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      prod-only:
+        specifier: 1.0.0
+        version: 1.0.0
+    devDependencies:
+      node:
+        specifier: 'runtime:^24.14.1'
+        version: 'runtime:24.19.0'
+packages:
+  prod-only@1.0.0:
+    resolution: {integrity: sha512-prod}
+  node@runtime:24.19.0:
+    resolution:
+      type: variations
+      variants: []
+    version: 24.19.0
+snapshots:
+  prod-only@1.0.0: {}
+  node@runtime:24.19.0: {}
+",
+    )
+    .unwrap();
+    let include =
+        Include { dependencies: true, dev_dependencies: true, optional_dependencies: true };
+
+    let dependencies = collect_dependencies(
+        &lockfile,
+        lockfile.importers.keys(),
+        include,
+        &InstallabilityOptions {
+            current_os: "linux",
+            current_cpu: "x64",
+            current_libc: "glibc",
+            ..Default::default()
+        },
+    );
+
+    assert_eq!(dependencies.len(), 1);
+    assert_eq!(dependencies[&"prod-only@1.0.0".parse().unwrap()], BelongsTo::Prod);
+}
+
+#[test]
 fn renders_dev_classification() {
     let info = LicenseInfo {
         name: "dev-only".to_string(),
