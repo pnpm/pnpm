@@ -24,7 +24,7 @@ fn run_stream(
     bytes: &[u8],
     dist: Option<&Value>,
     declared_length: Option<u64>,
-) -> (Result<u64, crate::error::RegistryError>, PathBuf, TempDir) {
+) -> (Result<u64, pnpr_core::error::RegistryError>, PathBuf, TempDir) {
     let tmp = TempDir::new().unwrap();
     let dest = tmp.path().join("out.tgz");
     let b64 = BASE64.encode(bytes);

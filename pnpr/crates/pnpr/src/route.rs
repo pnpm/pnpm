@@ -33,8 +33,8 @@ use reqwest::header::{AUTHORIZATION, HeaderMap};
 use sha2::{Digest, Sha256};
 use wax::{Glob, Program};
 
-use crate::{
-    config::{Config, PublicRoute, UpstreamConfig},
+use crate::config::{Config, PublicRoute, UpstreamConfig};
+use pnpr_core::{
     policy::{AccessList, Identity, PackageRules},
     registry::{ConcreteKind, Registries, Resolved},
 };

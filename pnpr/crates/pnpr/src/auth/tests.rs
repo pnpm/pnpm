@@ -278,7 +278,10 @@ async fn open_rejects_corrupt_htpasswd_at_startup() {
     let path = tmp.path().join("htpasswd");
     std::fs::write(&path, "no-colon-here\nalice:plaintext\n").unwrap();
     let err = UserStore::open(path, MaxUsers::Unlimited).unwrap_err();
-    assert!(matches!(err, crate::error::RegistryError::InvalidHtpasswdFile { .. }), "got {err:?}");
+    assert!(
+        matches!(err, pnpr_core::error::RegistryError::InvalidHtpasswdFile { .. }),
+        "got {err:?}",
+    );
 }
 
 #[test]

@@ -1,0 +1,40 @@
+[package]
+name                 = "pnpr-core"
+version              = "0.0.1"
+description          = "Errors, package names, registry routing tables, and access policy for pnpr"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license-file         = "../../LICENSE.md"
+repository.workspace = true
+
+[features]
+backend-libsql   = ["dep:libsql"]
+backend-mysql    = ["dep:sqlx", "sqlx/mysql"]
+backend-postgres = ["dep:sqlx", "sqlx/postgres"]
+
+[dependencies]
+axum         = { workspace = true }
+bcrypt       = { workspace = true }
+derive_more  = { workspace = true }
+indexmap     = { workspace = true }
+libsql       = { workspace = true, optional = true }
+object_store = { workspace = true }
+reqwest      = { workspace = true }
+rusqlite     = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+sqlx         = { workspace = true, optional = true }
+tokio        = { workspace = true }
+tracing      = { workspace = true }
+url          = { workspace = true }
+wax          = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio    = { workspace = true }
+
+[lints]
+workspace = true

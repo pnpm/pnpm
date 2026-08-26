@@ -43,7 +43,13 @@ pnpr/
       src/
         lib.rs              -> library API
         main.rs             -> binary entry point (ships the `pnpr` binary)
-    # future sibling crates land here, see "New registry-only crates" below
+    core/          -> package "pnpr-core"
+      src/
+        error.rs            -> the error type every layer returns
+        package_name.rs     -> package-name parsing
+        registry.rs         -> the registry routing table
+        policy.rs           -> access policy for those routes
+    # further sibling crates land here, see "New registry-only crates" below
 ```
 
 The Rust workspace itself, `rust-toolchain.toml`, `justfile`, and

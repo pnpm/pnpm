@@ -1,13 +1,11 @@
-use crate::{
-    config::HostedStoreConfig,
-    error::{RegistryError, Result},
-    package_name::PackageName,
-    s3::S3Store,
-    streaming,
-};
+use crate::{config::HostedStoreConfig, s3::S3Store, streaming};
 use async_trait::async_trait;
 use axum::body::Body;
 use pnpm_crypto_hash::integrity_addressed_tarball_integrity;
+use pnpr_core::{
+    error::{RegistryError, Result},
+    package_name::PackageName,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,

@@ -6004,6 +6004,7 @@ dependencies = [
  "pnpm-shared-artifact-protocol",
  "pnpm-store-dir",
  "pnpm-tarball",
+ "pnpr-core",
  "reqwest",
  "rusqlite",
  "serde",
@@ -6021,6 +6022,28 @@ dependencies = [
  "url",
  "wax",
  "zip",
+]
+
+[[package]]
+name = "pnpr-core"
+version = "0.0.1"
+dependencies = [
+ "axum 0.8.9",
+ "bcrypt",
+ "derive_more",
+ "indexmap 2.14.0",
+ "libsql",
+ "object_store",
+ "reqwest",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "url",
+ "wax",
 ]
 
 [[package]]

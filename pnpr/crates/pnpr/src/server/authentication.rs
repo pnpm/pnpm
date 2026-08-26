@@ -10,8 +10,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-use crate::{
-    auth::TokenRecord,
+use crate::auth::TokenRecord;
+use pnpr_core::{
     error::RegistryError,
     policy::{Identity, PackageRules},
 };

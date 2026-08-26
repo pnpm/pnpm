@@ -16,11 +16,10 @@ use pnpm_resolving_resolver_base::PackageVersionGuard;
 
 use crate::{
     osv::{OsvIndex, format_advisory_ids},
-    package_name::PackageName,
-    policy::Identity,
     route::{RouteClass, RouteContext, sanitize_registry_tarball_url, strip_url_credentials},
     upstream::tarball_basename,
 };
+use pnpr_core::{package_name::PackageName, policy::Identity};
 
 #[derive(Clone)]
 pub(super) struct TarballRouter {

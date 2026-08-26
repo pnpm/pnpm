@@ -11,16 +11,15 @@ use serde_json::{Value, json};
 use ssri::Integrity;
 
 use crate::{
-    error::RegistryError,
     journal::{JournaledPublish, JournaledRevisionRef},
-    package_name::PackageName,
-    policy::Identity,
     publish::{
         PendingAttachment, extract_attachments, merge_manifest, now_iso,
         stream_decode_verify_and_write,
     },
-    registry::Registry,
     storage::{HostedPackumentVersion, PackumentWrite, TarballFinalize},
+};
+use pnpr_core::{
+    error::RegistryError, package_name::PackageName, policy::Identity, registry::Registry,
 };
 
 use super::{

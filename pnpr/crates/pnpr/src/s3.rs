@@ -13,15 +13,11 @@
 //! resolver `SQLite` stores stay on local disk regardless —
 //! only the hosted store is pluggable.
 
-use crate::{
-    error::{RegistryError, Result},
-    package_name::PackageName,
-    storage::{
-        HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR, HostedBackend,
-        HostedPackumentForUpdate, HostedPackumentVersion, HostedRevisionRefIndex,
-        HostedRevisionRefWrite, PackumentWrite, STAGED_DIR, TarballFinalize,
-        staged_id_of_meta_object, wait_after_packument_write_conflict,
-    },
+use crate::storage::{
+    HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR, HostedBackend,
+    HostedPackumentForUpdate, HostedPackumentVersion, HostedRevisionRefIndex,
+    HostedRevisionRefWrite, PackumentWrite, STAGED_DIR, TarballFinalize, staged_id_of_meta_object,
+    wait_after_packument_write_conflict,
 };
 use async_trait::async_trait;
 use axum::body::Body;
@@ -29,6 +25,10 @@ use futures_util::StreamExt;
 use object_store::{
     ObjectStore, ObjectStoreExt, PutMode, PutOptions, PutPayload, UpdateVersion,
     aws::AmazonS3Builder, path::Path as ObjectPath,
+};
+use pnpr_core::{
+    error::{RegistryError, Result},
+    package_name::PackageName,
 };
 use serde::Deserialize;
 use std::{
@@ -116,7 +116,7 @@ pub fn build_s3_store(settings: &S3Settings) -> Result<Arc<dyn ObjectStore>> {
     if let Some(allow_http) = settings.allow_http {
         builder = builder.with_allow_http(allow_http);
     }
-    let store = builder.build().map_err(|err| crate::error::RegistryError::InvalidConfig {
+    let store = builder.build().map_err(|err| pnpr_core::error::RegistryError::InvalidConfig {
         reason: format!("invalid s3 config: {err}"),
     })?;
     Ok(Arc::new(store))

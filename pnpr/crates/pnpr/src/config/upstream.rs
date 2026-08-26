@@ -5,7 +5,7 @@ use pnpm_env_replace::EnvVar;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName, HeaderValue};
 use serde::Deserialize;
 
-use crate::{
+use pnpr_core::{
     error::RegistryError,
     policy::{AccessList, PackageRules},
 };

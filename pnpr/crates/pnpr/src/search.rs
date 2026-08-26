@@ -14,7 +14,8 @@
 //! the `@pnpm/registry-mock` fixture (a few dozen packages) and the
 //! test queries that exercise it.
 
-use crate::{error::Result, package_name::PackageName, storage::Storage};
+use crate::storage::Storage;
+use pnpr_core::{error::Result, package_name::PackageName};
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
 

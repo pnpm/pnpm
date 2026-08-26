@@ -33,10 +33,12 @@ impl PackageName {
         Ok(Self { raw: raw.to_string(), basename })
     }
 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.raw
     }
 
+    #[must_use]
     pub fn tarball_name_for_version(&self, version: &str) -> String {
         format!("{}-{version}.tgz", self.basename)
     }

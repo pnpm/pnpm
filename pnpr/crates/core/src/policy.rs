@@ -67,7 +67,8 @@ pub struct AccessList(Vec<AccessToken>);
 impl AccessList {
     /// Build from already-resolved tokens (the config loader's path,
     /// where `team:` references have been resolved to member sets).
-    pub(crate) fn new(tokens: Vec<AccessToken>) -> Self {
+    #[must_use]
+    pub fn new(tokens: Vec<AccessToken>) -> Self {
         Self(tokens)
     }
 

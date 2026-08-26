@@ -1,14 +1,14 @@
-use crate::{
-    config::{RedactedHeaders, UpstreamConfig},
-    error::{RegistryError, Result},
-    package_name::PackageName,
-};
+use crate::config::{RedactedHeaders, UpstreamConfig};
 use chrono::{DateTime, Timelike, Utc};
 use pnpm_lockfile::{
     MAX_TARBALL_REVISION, TarballRevision, integrity_addressed_registry_tarball_url,
     is_integrity_addressed_registry_tarball_url,
 };
 use pnpm_network::{ThrottledClient, read_limited_body};
+use pnpr_core::{
+    error::{RegistryError, Result},
+    package_name::PackageName,
+};
 use reqwest::{
     StatusCode,
     header::{self, HeaderMap, HeaderValue},

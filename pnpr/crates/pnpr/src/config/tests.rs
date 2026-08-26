@@ -4,9 +4,9 @@ use super::{
     config_file_in, parse_interval, resolve_relative, resolve_upstream_config,
     upstream::{TokenEnv, UpstreamAuthType},
 };
-use crate::{error::RegistryError, policy::Identity};
 use indexmap::IndexMap;
 use pnpm_env_replace::EnvVar;
+use pnpr_core::{error::RegistryError, policy::Identity};
 use reqwest::header::AUTHORIZATION;
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -377,7 +377,7 @@ fn resolve_relative_joins_relative_paths_to_base() {
 
 #[test]
 fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
-    use crate::registry::{ConcreteKind, Resolved};
+    use pnpr_core::registry::{ConcreteKind, Resolved};
     let config = Config::proxy(listen(), PathBuf::from("/tmp"));
     assert!(config.upstreams.contains_key("npmjs"));
     assert_eq!(config.registries.default_registry(), Some("main"));
@@ -400,7 +400,7 @@ fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
 
 #[test]
 fn static_constructor_serves_everything_from_one_hosted() {
-    use crate::registry::{ConcreteKind, Resolved};
+    use pnpr_core::registry::{ConcreteKind, Resolved};
     let config = Config::static_serve(listen(), PathBuf::from("/tmp"));
     assert!(config.upstreams.is_empty());
     // Everything routes to the single local hosted registry, which serves the
@@ -414,7 +414,7 @@ fn static_constructor_serves_everything_from_one_hosted() {
 
 #[test]
 fn from_default_yaml_parses_bundled_file() {
-    use crate::registry::{ConcreteKind, Resolved};
+    use pnpr_core::registry::{ConcreteKind, Resolved};
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
     assert!(config.upstreams.contains_key("npmjs"));
     assert_eq!(config.upstreams["npmjs"].url, "https://registry.npmjs.org/");
@@ -826,11 +826,11 @@ defaultRegistry: main
     assert_eq!(config.registries.default_registry(), Some("main"));
     assert!(config.registries.is_router("main"));
     match config.registries.resolve("main", "@corp/secret") {
-        crate::registry::Resolved::Concrete { registry, .. } => assert_eq!(registry, "corp"),
+        pnpr_core::registry::Resolved::Concrete { registry, .. } => assert_eq!(registry, "corp"),
         other => panic!("expected @corp/* -> corp, got {other:?}"),
     }
     match config.registries.resolve("main", "lodash") {
-        crate::registry::Resolved::Concrete { registry, .. } => assert_eq!(registry, "npmjs"),
+        pnpr_core::registry::Resolved::Concrete { registry, .. } => assert_eq!(registry, "npmjs"),
         other => panic!("expected lodash -> npmjs, got {other:?}"),
     }
 }
@@ -2126,7 +2126,7 @@ registries:
       '@corp/*': {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    use crate::registry::{ConcreteKind, Resolved};
+    use pnpr_core::registry::{ConcreteKind, Resolved};
     assert_eq!(
         config.registries.resolve("corp", "@corp/tool"),
         Resolved::Concrete { registry: "corp", kind: ConcreteKind::Upstream },
@@ -2222,7 +2222,7 @@ fn bundled_default_config_enforces_its_protections() {
     assert!(!public.unpublish.allows(&Identity::Anonymous));
     // `lodash` is not local: it is unclaimed by the hosted registry and
     // resolves to the npmjs catch-all through the router.
-    use crate::registry::{ConcreteKind, Resolved};
+    use pnpr_core::registry::{ConcreteKind, Resolved};
     assert_eq!(
         config.registries.resolve_default("lodash"),
         Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },

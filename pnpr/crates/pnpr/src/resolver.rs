@@ -59,9 +59,9 @@ use std::{
 use crate::{
     config::Config as RegistryConfig,
     osv::OsvIndex,
-    policy::Identity,
     route::{Footprint, RouteContext, RouteHook},
 };
+use pnpr_core::policy::Identity;
 
 use axum::{
     body::{Body, Bytes},

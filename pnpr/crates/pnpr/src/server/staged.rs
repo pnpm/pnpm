@@ -30,11 +30,10 @@ use super::{
     stage_publish, validate_publish_doc,
 };
 use crate::{
-    error::RegistryError,
-    package_name::PackageName,
     publish::{extract_attachments, now_iso},
     search::percent_decode,
 };
+use pnpr_core::{error::RegistryError, package_name::PackageName};
 
 /// One staged publish's metadata, stored next to the held publish body and
 /// served by the list/view endpoints (without the `registry` field, which is

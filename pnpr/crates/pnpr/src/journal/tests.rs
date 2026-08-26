@@ -4,11 +4,11 @@ use super::{
 };
 use crate::{
     config::HostedStoreConfig,
-    package_name::PackageName,
     storage::{HostedRevisionRefWrite, Storage, TarballFinalize},
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use object_store::{ObjectStore, memory::InMemory};
+use pnpr_core::package_name::PackageName;
 use serde_json::json;
 use std::{collections::HashSet, sync::Arc};
 use tempfile::tempdir;

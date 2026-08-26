@@ -27,13 +27,15 @@
 
 use crate::{
     config::Config,
-    error::{RegistryError, Result},
-    package_name::PackageName,
     publish::{merge_manifest, now_iso},
     storage::{
         HostedRevisionRefWrite, RECOVERY_PACKUMENT_WRITE_RETRIES, Storage, TarballFinalize,
         TarballSlot, is_canonical_revision_ref_owner, unique_tmp_path,
     },
+};
+use pnpr_core::{
+    error::{RegistryError, Result},
+    package_name::PackageName,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -307,7 +309,7 @@ async fn roll_forward(storage: &Storage, dir: &Path, revision_ref_owner: &str) -
                     applied_revision_refs.entry(version).or_default().push(revision_ref);
                 }
                 Ok(HostedRevisionRefWrite::Committed) => {}
-                Err(crate::error::RegistryError::RevisionReferenceLimit { .. }) => {
+                Err(pnpr_core::error::RegistryError::RevisionReferenceLimit { .. }) => {
                     conflicted_versions.insert(version.clone());
                     if let Some(applied) = applied_revision_refs.remove(&version) {
                         for applied_ref in applied {
