@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     fs::{File, OpenOptions, TryLockError},
-    io::ErrorKind,
+    io::{ErrorKind, SeekFrom},
     path::{Component, Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -9,12 +9,17 @@ use std::{
 
 use pnpm_shared_artifact_protocol::{
     ArtifactBlobRequest, ArtifactCandidate, ArtifactPayload, ArtifactProtocolError,
-    ArtifactVariant, MAX_CANDIDATES, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
-    OwnerScope, PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest,
-    ResolveArtifactsResponse, ResolvedArtifact, SignedArtifactEnvelope, blob_id, verify_blob,
+    ArtifactVariant, MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE,
+    MAX_VARIANTS_PER_CANDIDATE, OwnerScope, PackageIdentity, PublishArtifactRequest,
+    ResolveArtifactsRequest, ResolveArtifactsResponse, ResolvedArtifact, SignedArtifactEnvelope,
+    blob_id, verify_blob,
 };
-use sha2::{Digest as _, Sha256};
-use tokio::{fs, time::sleep};
+use sha2::{Digest as _, Sha256, Sha512};
+use tokio::{
+    fs,
+    io::{AsyncReadExt as _, AsyncSeekExt as _},
+    time::sleep,
+};
 
 use crate::{
     error::{RegistryError, Result},
@@ -24,6 +29,7 @@ use crate::{
 const ARTIFACT_CACHE_DIR: &str = "shared-artifacts/v0";
 const ARTIFACT_LOCK_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const ARTIFACT_USAGE_FILE: &str = "usage.json";
+const ARTIFACT_BLOB_READ_CHUNK: usize = 64 * 1024;
 const BLOB_LOCK_STRIPES: usize = 256;
 const MAX_OWNER_ARTIFACT_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_GLOBAL_ARTIFACT_BYTES: u64 = 10 * MAX_OWNER_ARTIFACT_BYTES;
@@ -694,7 +700,7 @@ pub(crate) async fn read_blob(
     cache_storage: &Path,
     username: &str,
     body: &[u8],
-) -> Result<Option<Vec<u8>>> {
+) -> Result<Option<(fs::File, u64)>> {
     let request: ArtifactBlobRequest = serde_json::from_slice(body)
         .map_err(|err| bad_request(format!("invalid artifact blob request: {err}")))?;
     request.validate().map_err(|err| protocol_error(&err))?;
@@ -704,16 +710,36 @@ pub(crate) async fn read_blob(
         Err(err) => return Err(err),
     };
     let id = blob_id(&request.integrity).map_err(|err| protocol_error(&err))?;
-    match fs::read(owner_dir.join("blobs").join(id)).await {
-        Ok(bytes) => {
-            verify_blob(&request.integrity, &bytes).map_err(|err| RegistryError::Internal {
-                reason: format!("stored shared artifact blob failed verification: {err}"),
-            })?;
-            Ok(Some(bytes))
-        }
-        Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
-        Err(err) => Err(err.into()),
+    let mut file = match fs::File::open(owner_dir.join("blobs").join(&id)).await {
+        Ok(file) => file,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(err.into()),
+    };
+    let size = file.metadata().await?.len();
+    if size > MAX_FILE_SIZE {
+        return Err(RegistryError::Internal {
+            reason: format!(
+                "stored shared artifact blob has {size} bytes; limit is {MAX_FILE_SIZE}",
+            ),
+        });
     }
+    let mut digest = Sha512::new();
+    let mut buffer = vec![0_u8; ARTIFACT_BLOB_READ_CHUNK];
+    loop {
+        let read = file.read(&mut buffer).await?;
+        if read == 0 {
+            break;
+        }
+        digest.update(&buffer[..read]);
+    }
+    if hex(&digest.finalize()) != id {
+        return Err(RegistryError::Internal {
+            reason: "stored shared artifact blob failed verification: downloaded bytes do not match the declared digest"
+                .to_string(),
+        });
+    }
+    file.seek(SeekFrom::Start(0)).await?;
+    Ok(Some((file, size)))
 }
 
 async fn resolve_candidate(
