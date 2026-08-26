@@ -15,13 +15,12 @@ use pnpm_resolving_npm_resolver::ObservedDistStats;
 use pnpm_resolving_resolver_base::PackageVersionGuard;
 
 use crate::{
+    osv::{OsvIndex, format_advisory_ids},
     package_name::PackageName,
     policy::Identity,
     route::{RouteClass, RouteContext, sanitize_registry_tarball_url, strip_url_credentials},
     upstream::tarball_basename,
 };
-
-use super::{OsvIndex, format_advisory_ids};
 
 #[derive(Clone)]
 pub(super) struct TarballRouter {

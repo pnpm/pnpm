@@ -11,6 +11,7 @@ mod auth;
 mod config;
 mod error;
 mod journal;
+mod osv;
 mod package_name;
 mod policy;
 mod publish;

@@ -118,7 +118,7 @@ struct AppInner {
     resolver: std::sync::OnceLock<crate::resolver::Resolver>,
     /// Local OSV index, loaded before the server accepts requests when
     /// `osv.enabled` is set and a mounted surface consults it.
-    osv_index: Option<Arc<crate::resolver::OsvIndex>>,
+    osv_index: Option<Arc<crate::osv::OsvIndex>>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -228,9 +228,9 @@ pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> crate::error
 /// both.
 fn load_active_osv_index(
     config: &Config,
-) -> crate::error::Result<Option<Arc<crate::resolver::OsvIndex>>> {
+) -> crate::error::Result<Option<Arc<crate::osv::OsvIndex>>> {
     if config.resolver.enabled || config.registry.enabled {
-        crate::resolver::load_osv_index(config)
+        crate::osv::load_osv_index(config)
     } else {
         Ok(None)
     }
@@ -2461,7 +2461,7 @@ fn packument_response(
     bytes: &[u8],
     tarball_base: &str,
     revision_registry: Option<&str>,
-    osv_index: Option<&Arc<crate::resolver::OsvIndex>>,
+    osv_index: Option<&Arc<crate::osv::OsvIndex>>,
     abbreviated: bool,
 ) -> Result<Response, RegistryError> {
     let mut doc: Value = serde_json::from_slice(bytes)?;
@@ -2485,7 +2485,7 @@ fn packument_response(
 fn filter_osv_vulnerable_versions(
     packument: &mut Value,
     name: &PackageName,
-    osv_index: Option<&Arc<crate::resolver::OsvIndex>>,
+    osv_index: Option<&Arc<crate::osv::OsvIndex>>,
 ) {
     let Some(osv_index) = osv_index else { return };
     let package_name = name.as_str();
@@ -2531,7 +2531,7 @@ fn filter_osv_vulnerable_dist_tags(
     tags: &mut Value,
     packument: &Value,
     name: &PackageName,
-    osv_index: Option<&Arc<crate::resolver::OsvIndex>>,
+    osv_index: Option<&Arc<crate::osv::OsvIndex>>,
 ) {
     let Some(osv_index) = osv_index else { return };
     let Some(tags) = tags.as_object_mut() else {
@@ -2549,7 +2549,7 @@ fn is_osv_vulnerable_packument_version(
     packument: &Value,
     package_name: &str,
     version: &str,
-    osv_index: &crate::resolver::OsvIndex,
+    osv_index: &crate::osv::OsvIndex,
 ) -> bool {
     if osv_index.is_vulnerable(package_name, version) {
         return true;
@@ -2587,7 +2587,7 @@ fn ensure_osv_allowed(
     Err(RegistryError::OsvVulnerability {
         package: name.as_str().to_string(),
         version: version.to_string(),
-        advisories: crate::resolver::format_advisory_ids(&ids),
+        advisories: crate::osv::format_advisory_ids(&ids),
     })
 }
 
