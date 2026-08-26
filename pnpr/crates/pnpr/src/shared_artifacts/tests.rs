@@ -10,16 +10,18 @@ use pnpm_shared_artifact_protocol::{
     ArtifactVariant, BuilderProfile, CompatibilityConstraints, MAX_RESOLVE_RESPONSE_SIZE,
     MAX_VARIANTS_PER_CANDIDATE, OwnerScope, PackageIdentity, PublishArtifactRequest,
     ResolveArtifactsResponse, ResolvedArtifact, SIGNATURE_ALGORITHM, SignedArtifactEnvelope,
+    blob_id,
 };
 use sha2::{Digest as _, Sha512};
 use tempfile::TempDir;
 use tokio::{fs, sync::Barrier, time::timeout};
 
 use super::{
-    BLOB_LOCK_STRIPES, PendingUsageFile, ResolveBudget, StorageQuotaReservation,
+    BLOB_LOCK_STRIPES, PendingUsageFile, PendingUsageLock, ResolveBudget, StorageQuotaReservation,
     acquire_artifact_lock, artifact_usage_path, blob_lock_key, blob_lock_path_for_key,
-    entry_lock_path, is_variant_file, load_artifact_usage, owner_dir, owner_usage_key,
-    pending_usage_file, publish, reserve_storage_quota_with_locks_and_limits, stored_bytes,
+    entry_lock_path, is_variant_file, load_artifact_usage, owner_dir, owner_lock_path,
+    owner_usage_key, pending_usage_file, publish, reconcile_storage_reservations,
+    reserve_storage_quota_with_locks_and_limits, stored_bytes,
 };
 use crate::{error::Result, storage::unique_tmp_path};
 
@@ -195,6 +197,33 @@ async fn orphaned_atomic_temps_are_removed_before_releasing_quota() {
 }
 
 #[tokio::test]
+async fn an_incomplete_publication_removes_its_blobs_and_releases_all_quota() {
+    let storage = TempDir::new().unwrap();
+    let root = storage.path().join("shared-artifacts/v0");
+    let blob_path = root.join("owner/blobs/blob");
+    fs::create_dir_all(blob_path.parent().unwrap()).await.unwrap();
+    fs::create_dir_all(root.join(".locks")).await.unwrap();
+    fs::write(&blob_path, b"blob").await.unwrap();
+    fs::write(
+        artifact_usage_path(&root),
+        br#"{"global_bytes":12,"owner_bytes":{"owner":12},"pending":{"crashed":{"owner":"owner","lock":{"type":"owner"},"commit_file":"owner/entries/entry/variant.json","files":[{"path":"owner/blobs/blob","size":4},{"path":"owner/entries/entry/variant.json","size":8}]}}}"#,
+    )
+    .await
+    .unwrap();
+    let _owner_lock = acquire_artifact_lock(owner_lock_path(&root, "owner")).await.unwrap();
+
+    reconcile_storage_reservations(&root, "owner", &PendingUsageLock::Owner, &BTreeSet::new())
+        .await
+        .unwrap();
+
+    assert!(!fs::try_exists(blob_path).await.unwrap());
+    let usage = load_artifact_usage(&root).await.unwrap();
+    assert_eq!(usage.global_bytes, 0);
+    assert_eq!(usage.owner_bytes.get("owner"), Some(&0));
+    assert!(usage.pending.is_empty());
+}
+
+#[tokio::test]
 async fn active_blob_writes_are_not_cleaned_up_by_reconciliation() {
     let storage = TempDir::new().unwrap();
     let root = storage.path().join("shared-artifacts/v0");
@@ -298,8 +327,8 @@ async fn reserve_storage_quota_with_limits(
         StorageQuotaReservation {
             id: reservation,
             owner,
-            entry,
-            entry_locked: true,
+            lock: PendingUsageLock::Entry { entry: entry.to_string() },
+            commit_file: None,
             locked_blob_locks: &locked_blob_locks,
             files,
         },
@@ -438,6 +467,34 @@ async fn concurrent_publishers_sharing_a_cache_respect_the_variant_limit() {
     assert_eq!(accepted, MAX_VARIANTS_PER_CANDIDATE);
     assert_eq!(rejected.len(), PUBLICATIONS - accepted);
     assert!(rejected.iter().all(|error| error.contains("variant limit")));
+}
+
+#[tokio::test]
+async fn a_variant_limit_rejection_does_not_store_or_charge_uploaded_blobs() {
+    let storage = TempDir::new().unwrap();
+    for index in 0..MAX_VARIANTS_PER_CANDIDATE {
+        assert!(
+            publish(storage.path(), "acme", publication(&format!("ci/accepted/{index}")))
+                .await
+                .unwrap(),
+        );
+    }
+    let root = storage.path().join("shared-artifacts/v0");
+    let usage_before = fs::read(artifact_usage_path(&root)).await.unwrap();
+    let rejected = publication_request(
+        "acme",
+        "dependency-side-effects:v1:deps=abc",
+        "ci/rejected",
+        Some(b"rejected blob"),
+    );
+    let rejected_blob = blob_id(&rejected.blobs[0].integrity).unwrap();
+    let owner = owner_dir(storage.path(), "acme", &OwnerScope::organization("acme")).unwrap();
+
+    let error = publish(storage.path(), "acme", rejected).await.unwrap_err();
+
+    assert!(error.to_string().contains("variant limit"));
+    assert!(!fs::try_exists(owner.join("blobs").join(rejected_blob)).await.unwrap());
+    assert_eq!(fs::read(artifact_usage_path(&root)).await.unwrap(), usage_before);
 }
 
 fn publication(builder_id: &str) -> PublishArtifactRequest {

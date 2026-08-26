@@ -41,10 +41,13 @@ struct ArtifactUsage {
 struct PendingUsage {
     owner: String,
     lock: PendingUsageLock,
+    /// Recovery keeps every reserved file only when this file was committed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    commit_file: Option<String>,
     files: Vec<PendingUsageFile>,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 enum PendingUsageLock {
     Entry { entry: String },
@@ -67,8 +70,8 @@ struct PendingUsageFile {
 struct StorageQuotaReservation<'a> {
     id: &'a str,
     owner: &'a str,
-    entry: &'a str,
-    entry_locked: bool,
+    lock: PendingUsageLock,
+    commit_file: Option<String>,
     locked_blob_locks: &'a BTreeSet<String>,
     files: Vec<PendingUsageFile>,
 }
@@ -116,10 +119,21 @@ pub(crate) async fn publish(
     }
 
     let reservation = reservation_id(&owner, &entry_digest, &envelope_digest);
+    let _owner_publication_lock =
+        acquire_artifact_lock(owner_lock_path(&artifact_root, &owner)).await?;
+    let locked_blob_locks = BTreeSet::new();
+    reconcile_storage_reservations(
+        &artifact_root,
+        &owner,
+        &PendingUsageLock::Owner,
+        &locked_blob_locks,
+    )
+    .await?;
+
+    let mut new_blobs = Vec::new();
     for (lock, blobs) in required_by_lock {
         let _blob_lock =
             acquire_artifact_lock(blob_lock_path_for_key(&artifact_root, &lock)).await?;
-        let mut new_blobs = Vec::new();
         for (integrity, id, size) in blobs {
             let path = blobs_dir.join(&id);
             match uploads.remove(integrity) {
@@ -153,30 +167,6 @@ pub(crate) async fn publish(
                 },
             }
         }
-        if new_blobs.is_empty() {
-            continue;
-        }
-        let mut pending_files = Vec::with_capacity(new_blobs.len());
-        for (path, bytes) in &new_blobs {
-            pending_files.push(pending_usage_file(&artifact_root, path, bytes.len() as u64)?);
-        }
-        let locked_blob_locks = BTreeSet::from([lock]);
-        reserve_storage_quota(
-            &artifact_root,
-            StorageQuotaReservation {
-                id: &reservation,
-                owner: &owner,
-                entry: &entry_digest,
-                entry_locked: false,
-                locked_blob_locks: &locked_blob_locks,
-                files: pending_files,
-            },
-        )
-        .await?;
-        for (path, bytes) in new_blobs {
-            write_atomic(&path, &bytes).await?;
-        }
-        clear_storage_reservation(&artifact_root, &reservation).await?;
     }
 
     let key_dir = owner_dir.join("entries").join(&entry_digest);
@@ -193,22 +183,50 @@ pub(crate) async fn publish(
     }
 
     let envelope_bytes = serde_json::to_vec(&request.envelope)?;
-    let pending_files =
-        vec![pending_usage_file(&artifact_root, &variant_path, envelope_bytes.len() as u64)?];
-    let locked_blob_locks = BTreeSet::new();
+    let mut pending_files = Vec::with_capacity(new_blobs.len() + 1);
+    for (path, bytes) in &new_blobs {
+        pending_files.push(pending_usage_file(&artifact_root, path, bytes.len() as u64)?);
+    }
+    let variant_file =
+        pending_usage_file(&artifact_root, &variant_path, envelope_bytes.len() as u64)?;
+    let commit_file = variant_file.path.clone();
+    pending_files.push(variant_file);
     reserve_storage_quota(
         &artifact_root,
         StorageQuotaReservation {
             id: &reservation,
             owner: &owner,
-            entry: &entry_digest,
-            entry_locked: true,
+            lock: PendingUsageLock::Owner,
+            commit_file: Some(commit_file),
             locked_blob_locks: &locked_blob_locks,
             files: pending_files,
         },
     )
     .await?;
-    write_atomic(&variant_path, &envelope_bytes).await?;
+    let write_result: Result<()> = async {
+        for (path, bytes) in new_blobs {
+            write_atomic(&path, &bytes).await?;
+        }
+        write_atomic(&variant_path, &envelope_bytes).await
+    }
+    .await;
+    if let Err(error) = write_result {
+        if let Err(rollback_error) = reconcile_storage_reservations(
+            &artifact_root,
+            &owner,
+            &PendingUsageLock::Owner,
+            &locked_blob_locks,
+        )
+        .await
+        {
+            return Err(RegistryError::Internal {
+                reason: format!(
+                    "shared artifact publication failed: {error}; rollback failed: {rollback_error}",
+                ),
+            });
+        }
+        return Err(error);
+    }
     clear_storage_reservation(&artifact_root, &reservation).await?;
     Ok(true)
 }
@@ -238,8 +256,7 @@ async fn reserve_storage_quota_with_locks_and_limits(
         artifact_root,
         &mut usage,
         reservation.owner,
-        reservation.entry,
-        reservation.entry_locked,
+        &reservation.lock,
         reservation.locked_blob_locks,
     )
     .await?
@@ -267,7 +284,8 @@ async fn reserve_storage_quota_with_locks_and_limits(
             reservation.id.to_string(),
             PendingUsage {
                 owner: reservation.owner.to_string(),
-                lock: PendingUsageLock::Entry { entry: reservation.entry.to_string() },
+                lock: reservation.lock,
+                commit_file: reservation.commit_file,
                 files: reservation.files,
             },
         )
@@ -291,6 +309,22 @@ async fn clear_storage_reservation(artifact_root: &Path, reservation: &str) -> R
         });
     }
     write_artifact_usage(artifact_root, &usage).await
+}
+
+async fn reconcile_storage_reservations(
+    artifact_root: &Path,
+    owner: &str,
+    held_lock: &PendingUsageLock,
+    locked_blob_locks: &BTreeSet<String>,
+) -> Result<()> {
+    let _usage_lock = acquire_artifact_lock(usage_lock_path(artifact_root)).await?;
+    let mut usage = load_artifact_usage(artifact_root).await?;
+    if reconcile_pending_usage(artifact_root, &mut usage, owner, held_lock, locked_blob_locks)
+        .await?
+    {
+        write_artifact_usage(artifact_root, &usage).await?;
+    }
+    Ok(())
 }
 
 async fn load_artifact_usage(artifact_root: &Path) -> Result<ArtifactUsage> {
@@ -329,8 +363,7 @@ async fn reconcile_pending_usage(
     artifact_root: &Path,
     usage: &mut ArtifactUsage,
     locked_owner: &str,
-    locked_entry: &str,
-    entry_locked: bool,
+    held_lock: &PendingUsageLock,
     locked_blob_locks: &BTreeSet<String>,
 ) -> Result<bool> {
     let reservations: Vec<String> = usage.pending.keys().cloned().collect();
@@ -339,12 +372,7 @@ async fn reconcile_pending_usage(
         let pending = usage.pending.get(&reservation).ok_or_else(|| RegistryError::Internal {
             reason: "shared artifact pending storage reservation disappeared".to_string(),
         })?;
-        let caller_holds_lock = entry_locked
-            && pending.owner == locked_owner
-            && matches!(
-                &pending.lock,
-                PendingUsageLock::Entry { entry } if entry == locked_entry,
-            );
+        let caller_holds_lock = pending.owner == locked_owner && &pending.lock == held_lock;
         let _publication_lock = if caller_holds_lock {
             None
         } else {
@@ -376,10 +404,37 @@ async fn reconcile_pending_usage(
                 reason: "shared artifact pending storage reservation disappeared".to_string(),
             })?;
         reconciled = true;
+        let committed = match pending.commit_file.as_deref() {
+            Some(commit_file) => {
+                let commit_path = pending_usage_path(commit_file)?;
+                let commit_file =
+                    pending.files.iter().find(|file| file.path == commit_file).ok_or_else(
+                        || RegistryError::Internal {
+                            reason: "shared artifact storage reservation has no commit file"
+                                .to_string(),
+                        },
+                    )?;
+                match fs::metadata(artifact_root.join(commit_path)).await {
+                    Ok(metadata) => metadata.is_file() && metadata.len() == commit_file.size,
+                    Err(error) if error.kind() == ErrorKind::NotFound => false,
+                    Err(error) => return Err(error.into()),
+                }
+            }
+            None => true,
+        };
         for file in pending.files {
             let relative_path = pending_usage_path(&file.path)?;
             let path = artifact_root.join(relative_path);
             remove_atomic_write_temps(&path).await?;
+            if !committed {
+                match fs::remove_file(path).await {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == ErrorKind::NotFound => {}
+                    Err(error) => return Err(error.into()),
+                }
+                release_reserved_bytes(usage, &pending.owner, file.size)?;
+                continue;
+            }
             let present = match fs::metadata(path).await {
                 Ok(metadata) => metadata.is_file() && metadata.len() == file.size,
                 Err(error) if error.kind() == ErrorKind::NotFound => false,
@@ -388,23 +443,24 @@ async fn reconcile_pending_usage(
             if present {
                 continue;
             }
-            usage.global_bytes = usage.global_bytes.checked_sub(file.size).ok_or_else(|| {
-                RegistryError::Internal {
-                    reason: "shared artifact global usage counter underflow".to_string(),
-                }
-            })?;
-            let owner_bytes = usage.owner_bytes.get_mut(&pending.owner).ok_or_else(|| {
-                RegistryError::Internal {
-                    reason: "shared artifact usage state is missing the pending owner".to_string(),
-                }
-            })?;
-            *owner_bytes =
-                owner_bytes.checked_sub(file.size).ok_or_else(|| RegistryError::Internal {
-                    reason: "shared artifact owner usage counter underflow".to_string(),
-                })?;
+            release_reserved_bytes(usage, &pending.owner, file.size)?;
         }
     }
     Ok(reconciled)
+}
+
+fn release_reserved_bytes(usage: &mut ArtifactUsage, owner: &str, bytes: u64) -> Result<()> {
+    usage.global_bytes =
+        usage.global_bytes.checked_sub(bytes).ok_or_else(|| RegistryError::Internal {
+            reason: "shared artifact global usage counter underflow".to_string(),
+        })?;
+    let owner_bytes = usage.owner_bytes.get_mut(owner).ok_or_else(|| RegistryError::Internal {
+        reason: "shared artifact usage state is missing the pending owner".to_string(),
+    })?;
+    *owner_bytes = owner_bytes.checked_sub(bytes).ok_or_else(|| RegistryError::Internal {
+        reason: "shared artifact owner usage counter underflow".to_string(),
+    })?;
+    Ok(())
 }
 
 fn pending_blob_lock_keys(pending: &PendingUsage) -> Result<BTreeSet<String>> {
@@ -529,7 +585,10 @@ where
             .into_iter()
             .map(|(owner, files)| {
                 let reservation = format!("legacy-owner-{}", digest_segment(owner.as_bytes()));
-                (reservation, PendingUsage { owner, lock: PendingUsageLock::Owner, files })
+                (
+                    reservation,
+                    PendingUsage { owner, lock: PendingUsageLock::Owner, commit_file: None, files },
+                )
             })
             .collect(),
         PendingUsageState::Global(Some(pending)) => BTreeMap::from([(
@@ -537,6 +596,7 @@ where
             PendingUsage {
                 owner: pending.owner,
                 lock: PendingUsageLock::Global,
+                commit_file: None,
                 files: pending.files,
             },
         )]),
