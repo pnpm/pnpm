@@ -49,6 +49,20 @@ fn original_integrity_rejects_an_explicit_null_revision() {
 }
 
 #[test]
+fn original_integrity_rejects_an_explicit_revision_zero() {
+    let integrity = format!("sha512-{}==", "A".repeat(86));
+    let dist = HostedRevisionDist {
+        integrity: Some(integrity.clone()),
+        revision: RevisionField::Present(serde_json::json!(0)),
+        revisions: vec![HostedRevisionRecord {
+            revision: serde_json::json!(0),
+            integrity: Some(integrity),
+        }],
+    };
+    assert_eq!(original_integrity(&dist).map(|integrity| integrity.to_string()), None);
+}
+
+#[test]
 fn original_integrity_uses_validated_revision_zero_after_replacement() {
     let original = format!("sha512-{}==", "A".repeat(86));
     let replacement = format!("sha512-{}Q==", "B".repeat(85));

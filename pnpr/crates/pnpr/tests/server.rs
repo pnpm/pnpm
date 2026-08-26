@@ -3423,10 +3423,8 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
         let response =
             app.clone().oneshot(Request::get(&path).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK, "{path}");
-        assert_eq!(
-            response.headers().get(header::CACHE_CONTROL).unwrap(),
-            "public, max-age=31536000, immutable",
-        );
+        assert_eq!(response.headers().get(header::CACHE_CONTROL).unwrap(), "private, no-store");
+        assert_eq!(response.headers().get(header::VARY).unwrap(), "Authorization");
         assert_eq!(
             response.headers().get(header::ETAG).unwrap().to_str().unwrap(),
             format!(r#""{digest}""#),

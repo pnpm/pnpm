@@ -216,6 +216,20 @@ async fn revision_refs_roundtrip_under_the_configured_prefix() {
     }
 }
 
+#[tokio::test]
+async fn revision_ref_reads_are_bounded() {
+    let (store, _staging) = store_with_prefix("packages");
+    let digest = "A".repeat(86);
+    for index in 0..=crate::storage::MAX_HOSTED_REVISION_REFS {
+        store.write_revision_ref(&digest, &format!("{index:064x}"), b"{}").await.unwrap();
+    }
+
+    assert_eq!(
+        store.read_revision_refs(&digest).await.unwrap().len(),
+        crate::storage::MAX_HOSTED_REVISION_REFS,
+    );
+}
+
 #[test]
 fn prefix_normalizes() {
     let normalized = |prefix: Option<&str>| {

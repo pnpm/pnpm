@@ -24,6 +24,8 @@ use tokio::{
 
 const PACKUMENT_FILE: &str = "package.json";
 pub(crate) const HOSTED_REVISION_REFS_DIR: &str = ".revisions/sha512";
+/// Caps backend work triggered by one unauthenticated digest request.
+pub(crate) const MAX_HOSTED_REVISION_REFS: usize = 32;
 
 /// Per-process counter feeding [`unique_tmp_path`] so two concurrent
 /// writes to the same path don't collide on the same temp filename.
@@ -1003,11 +1005,12 @@ impl Store {
             Err(err) => return Err(err.into()),
         };
         let mut refs = Vec::new();
-        while let Some(entry) = entries.next_entry().await? {
+        for _ in 0..MAX_HOSTED_REVISION_REFS {
+            let Some(entry) = entries.next_entry().await? else { break };
             let filename = entry.file_name();
             let filename = filename.to_string_lossy();
             let Some(ref_id) = filename.strip_suffix(".json") else { continue };
-            if validate_revision_ref_id(ref_id).is_err() {
+            if !is_canonical_revision_ref_id(ref_id) {
                 continue;
             }
             refs.push(fs::read(entry.path()).await?);
@@ -1076,8 +1079,12 @@ impl Store {
     }
 }
 
+pub(crate) fn is_canonical_revision_ref_id(ref_id: &str) -> bool {
+    ref_id.len() == 64 && ref_id.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
 fn validate_revision_ref_id(ref_id: &str) -> Result<()> {
-    if ref_id.len() == 64 && ref_id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+    if is_canonical_revision_ref_id(ref_id) {
         Ok(())
     } else {
         Err(RegistryError::BadRequest { reason: "invalid revision reference id".to_string() })

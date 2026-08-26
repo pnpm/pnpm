@@ -2015,7 +2015,6 @@ async fn serve_hosted_revision_tarball(
                     &original.version,
                     digest,
                     integrity,
-                    false,
                 )
                 .await;
                 if response.status() != StatusCode::NOT_FOUND {
@@ -2029,8 +2028,7 @@ async fn serve_hosted_revision_tarball(
 
     for (storage, package, version) in private_refs {
         let response =
-            open_hosted_revision_tarball(&storage, &package, &version, digest, integrity, true)
-                .await;
+            open_hosted_revision_tarball(&storage, &package, &version, digest, integrity).await;
         if response.status() != StatusCode::NOT_FOUND {
             return response;
         }
@@ -2092,15 +2090,13 @@ async fn open_hosted_revision_tarball(
     version: &str,
     digest: &str,
     integrity: &Integrity,
-    private: bool,
 ) -> Response {
     let filename = package.tarball_name_for_version(version);
-    let response = match storage.open_hosted_tarball(package, &filename).await {
+    match storage.open_hosted_tarball(package, &filename).await {
         Ok(Some((body, len))) => revision_tarball_response(body, len, digest, integrity),
-        Ok(None) => return not_found(),
-        Err(err) => return error_response(&err),
-    };
-    if private { private_no_cache(response) } else { response }
+        Ok(None) => not_found(),
+        Err(err) => error_response(&err),
+    }
 }
 
 #[derive(serde::Deserialize)]
@@ -4810,7 +4806,7 @@ fn revision_tarball_response(
                 .expect("canonical base64 digest is a valid header value"),
         );
     }
-    response
+    private_no_cache(response)
 }
 
 fn not_found() -> Response {

@@ -16,7 +16,10 @@
 use crate::{
     error::Result,
     package_name::PackageName,
-    storage::{HOSTED_REVISION_REFS_DIR, STAGED_DIR, staged_id_of_meta_object},
+    storage::{
+        HOSTED_REVISION_REFS_DIR, MAX_HOSTED_REVISION_REFS, STAGED_DIR,
+        is_canonical_revision_ref_id, staged_id_of_meta_object,
+    },
 };
 use axum::body::Body;
 use futures_util::StreamExt;
@@ -33,6 +36,7 @@ use std::{
 use tokio::fs;
 
 const PACKUMENT_FILE: &str = "package.json";
+const REVISION_REF_READ_CONCURRENCY: usize = 8;
 
 /// The YAML `s3:` block. Selects the object-store hosted backend.
 /// Credentials fall back to the standard AWS environment variables
@@ -344,17 +348,28 @@ impl S3Store {
     pub async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
         let prefix = self.revision_refs_prefix(digest);
         let mut listing = self.store.list(Some(&prefix));
-        let mut refs = Vec::new();
-        while let Some(meta) = listing.next().await {
+        let mut locations = Vec::new();
+        for _ in 0..MAX_HOSTED_REVISION_REFS {
+            let Some(meta) = listing.next().await else { break };
             let meta = meta?;
             let Some(filename) = meta.location.as_ref().rsplit('/').next() else {
                 continue;
             };
             let Some(ref_id) = filename.strip_suffix(".json") else { continue };
-            if ref_id.len() != 64 || !ref_id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            if !is_canonical_revision_ref_id(ref_id) {
                 continue;
             }
-            refs.push(self.store.get(&meta.location).await?.bytes().await?.to_vec());
+            locations.push(meta.location);
+        }
+        let mut pending = futures_util::stream::iter(locations)
+            .map(|location| async move {
+                let bytes = self.store.get(&location).await?.bytes().await?;
+                Ok::<_, object_store::Error>(bytes.to_vec())
+            })
+            .buffered(REVISION_REF_READ_CONCURRENCY);
+        let mut refs = Vec::new();
+        while let Some(bytes) = pending.next().await {
+            refs.push(bytes?);
         }
         Ok(refs)
     }

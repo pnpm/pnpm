@@ -1,6 +1,6 @@
 use super::{
-    AsyncWriteExt, ErrorKind, HostedStoreConfig, PackageName, RegistryError, Storage, TarballWrite,
-    create_tmp_file_with, fs,
+    AsyncWriteExt, ErrorKind, HostedStoreConfig, MAX_HOSTED_REVISION_REFS, PackageName,
+    RegistryError, Storage, TarballWrite, create_tmp_file_with, fs,
 };
 use tempfile::TempDir;
 
@@ -49,11 +49,24 @@ async fn hosted_revision_ref_paths_reject_noncanonical_segments() {
     let digest = "A".repeat(86);
 
     let invalid_digest = storage.read_hosted_revision_refs("../escape").await;
-    dbg!(&invalid_digest);
     assert!(invalid_digest.is_err());
     let invalid_ref = storage.write_hosted_revision_ref(&digest, "../escape", b"{}").await;
-    dbg!(&invalid_ref);
     assert!(invalid_ref.is_err());
+}
+
+#[tokio::test]
+async fn hosted_revision_ref_reads_are_bounded() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let digest = "A".repeat(86);
+    for index in 0..=MAX_HOSTED_REVISION_REFS {
+        storage.write_hosted_revision_ref(&digest, &format!("{index:064x}"), b"{}").await.unwrap();
+    }
+
+    assert_eq!(
+        storage.read_hosted_revision_refs(&digest).await.unwrap().len(),
+        MAX_HOSTED_REVISION_REFS,
+    );
 }
 
 #[tokio::test]
