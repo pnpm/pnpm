@@ -1419,6 +1419,9 @@ impl WorkspaceSettings {
         self.versioning = None;
         self.packages = None;
         self.catalog = None;
+        // Task declarations describe the workspace's own scripts; pnpm's
+        // config-file key filter drops them from the global file too.
+        self.tasks = None;
         // A pnpmfile belongs to the project that ships it, and pnpm reads
         // `ignorePnpmfile` from `pnpm-workspace.yaml` and the environment but
         // not from here. Honoring it globally would silently drop a

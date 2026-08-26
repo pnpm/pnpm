@@ -110,7 +110,7 @@ fn recursive_exec_respects_workspace_concurrency() {
 }
 
 #[test]
-fn recursive_exec_no_sort_reverse_and_resume_transform_workspace_order() {
+fn recursive_exec_no_sort_makes_reverse_and_resume_no_ops() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["z-first", "m-middle", "a-last"]);
 

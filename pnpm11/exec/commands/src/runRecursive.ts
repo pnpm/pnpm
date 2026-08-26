@@ -72,10 +72,8 @@ export async function runRecursive (
   }
 
   const taskGraph = buildRunTaskGraph(scriptName, opts)
-  // Also the cycle check: tasks may declare dependencies on each other now,
-  // and a cyclic graph cannot be scheduled — the previous silent behaviour of
-  // running a cyclic workspace in whatever order the sorter picked produced
-  // runs that succeeded or failed by luck.
+  // Also the cycle check: a cyclic graph cannot be scheduled, and sequenced
+  // into an arbitrary order it would succeed or fail by luck.
   const sequencedTasks = sequenceTasks(taskGraph, opts.workspaceDir)
 
   if (opts.dryRun) {
@@ -247,7 +245,11 @@ export async function runRecursive (
     throw firstError
   }
 
-  if (scriptName !== 'test' && !hasCommand && !opts.ifPresent) {
+  // The no-script error is only for a run that had nothing to do. A run
+  // where a `dependsOn`-pulled task failed and skipped every requested task
+  // must report that failure, not claim the script does not exist.
+  const hasFailures = Object.values(result).some(({ status }) => status === 'failure')
+  if (scriptName !== 'test' && !hasCommand && !hasFailures && !opts.ifPresent) {
     const allPackagesAreSelected = Object.keys(opts.selectedProjectsGraph).length === opts.allProjects.length
     if (allPackagesAreSelected) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)

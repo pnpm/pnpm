@@ -225,9 +225,8 @@ export async function handler (
     })
   }
 
-  // Also the cycle check: a cyclic graph cannot be scheduled, and the
-  // previous silent behaviour of running a cyclic workspace in whatever order
-  // the sorter picked produced runs that succeeded or failed by luck.
+  // Also the cycle check: a cyclic graph cannot be scheduled, and sequenced
+  // into an arbitrary order it would succeed or fail by luck.
   sequenceTasks(taskGraph, opts.workspaceDir ?? opts.dir)
 
   const result: RecursiveSummary = {}

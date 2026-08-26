@@ -79,8 +79,8 @@ where
 /// Build the graph of tasks the invocation runs: a task named `task_name`
 /// in every selected project, plus every task those transitively pull in
 /// through `dependsOn`. A task with no `tasks` entry behaves as
-/// `dependsOn: ['^<its own name>']`, which is what chunked topological
-/// ordering used to imply.
+/// `dependsOn: ['^<its own name>']`: plain topological order over the
+/// project graph.
 pub fn build_task_graph<SelectScripts>(
     options: &BuildTaskGraphOptions<'_, SelectScripts>,
 ) -> TaskGraph

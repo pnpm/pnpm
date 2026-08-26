@@ -186,13 +186,15 @@ impl RunArgs {
         reporter: ReporterType,
         fallback_to_exec: bool,
     ) -> miette::Result<()> {
+        // Before the dependency verification: an unsupported flag must
+        // fail before anything can trigger an install or a prompt.
+        if self.dry_run {
+            return Err(RunError::DryRunNotRecursive.into());
+        }
         // Before the manifest is read, so a mistyped command in a
         // directory without a project skips the check instead of
         // spawning a doomed install (see check_deps_status_before_run_at).
         super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
-        if self.dry_run {
-            return Err(RunError::DryRunNotRecursive.into());
-        }
         let silent = matches!(reporter, ReporterType::Silent);
         let RunArgs { script, if_present, .. } = self;
         let Some((script_name, args)) = script.split_first() else {

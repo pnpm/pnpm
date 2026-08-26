@@ -147,10 +147,8 @@ pub fn run_recursive(
     // Compiled once for the whole run, not per project or task.
     let selector = ScriptSelector::new(script_name)?;
     let task_graph = build_run_task_graph(script_name, &selector, args, config, graph, &selection)?;
-    // Also the cycle check: tasks may declare dependencies on each other
-    // now, and a cyclic graph cannot be scheduled — the previous silent
-    // behaviour of running a cyclic workspace in whatever order the sorter
-    // picked produced runs that succeeded or failed by luck.
+    // Also the cycle check: a cyclic graph cannot be scheduled, and
+    // sequenced into an arbitrary order it would succeed or fail by luck.
     let sequenced_tasks = sequence_tasks(&task_graph, workspace_root)?;
 
     if args.dry_run {
@@ -279,8 +277,16 @@ pub fn run_recursive(
     // `test` is exempt because `pnpm test` falls back to a default and
     // should not error on a workspace with no `test` script; otherwise a
     // recursive run that matched nothing is a user error, unless
-    // `--if-present` opted out of it.
-    if script_name != "test" && has_command.load(Ordering::Relaxed) == 0 && !args.if_present {
+    // `--if-present` opted out of it. The error is only for a run that had
+    // nothing to do: a run where a `dependsOn`-pulled task failed and
+    // skipped every requested task must report that failure instead of
+    // claiming the script does not exist.
+    let failures = count_failures(&result);
+    if script_name != "test"
+        && has_command.load(Ordering::Relaxed) == 0
+        && failures == 0
+        && !args.if_present
+    {
         let script_name = script_name.to_string();
         return Err(if graph.len() == projects.len() {
             RecursiveRunError::NoScript { script_name }
@@ -294,7 +300,6 @@ pub fn run_recursive(
         write_recursive_summary(workspace_root, &result)?;
     }
 
-    let failures = count_failures(&result);
     if failures > 0 {
         return Err(RecursiveRunError::RecursiveFail { count: failures }.into());
     }

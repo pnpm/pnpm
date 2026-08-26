@@ -141,10 +141,8 @@ pub async fn exec_recursive(
         let anchor = find_resume_root(resume_from, graph)?;
         task_graph = resume_task_graph_from(task_graph, &anchor, command_name);
     }
-    // Also the cycle check: a cyclic graph cannot be scheduled, and the
-    // previous silent behaviour of running a cyclic workspace in whatever
-    // order the sorter picked produced runs that succeeded or failed by
-    // luck.
+    // Also the cycle check: a cyclic graph cannot be scheduled, and
+    // sequenced into an arbitrary order it would succeed or fail by luck.
     sequence_tasks(&task_graph, workspace_root)?;
 
     let bail = !args.no_bail;

@@ -11,10 +11,6 @@ import type { PackageScripts, ProjectRootDir, ProjectsGraph, WorkspaceTasks } fr
  */
 export type TaskKey = string
 
-export function taskKey (project: ProjectRootDir, taskName: string): TaskKey {
-  return `${project}\0${taskName}`
-}
-
 export interface TaskNode {
   project: ProjectRootDir
   taskName: string
@@ -52,8 +48,8 @@ export interface BuildTaskGraphOptions {
  * Builds the graph of tasks the invocation runs: a task named `taskName` in
  * every selected project, plus every task those transitively pull in through
  * `dependsOn`. A task with no `tasks` entry behaves as
- * `dependsOn: ['^<its own name>']`, which is what chunked topological
- * ordering used to imply.
+ * `dependsOn: ['^<its own name>']`: plain topological order over the
+ * project graph.
  */
 export function buildTaskGraph (opts: BuildTaskGraphOptions): TaskGraph {
   const graph: TaskGraph = new Map()
@@ -61,8 +57,11 @@ export function buildTaskGraph (opts: BuildTaskGraphOptions): TaskGraph {
   for (const project of opts.projectDependencies.keys()) {
     queue.push({ project, taskName: opts.taskName, requested: true })
   }
-  while (queue.length > 0) {
-    const { project, taskName, requested } = queue.shift()!
+  // Drained by index: shift() moves every remaining element, which is
+  // quadratic over a workspace-sized queue.
+  let head = 0
+  while (head < queue.length) {
+    const { project, taskName, requested } = queue[head++]
     const key = taskKey(project, taskName)
     const existing = graph.get(key)
     if (existing != null) {
@@ -70,7 +69,7 @@ export function buildTaskGraph (opts: BuildTaskGraphOptions): TaskGraph {
       continue
     }
     const dependencies = new Set<TaskKey>()
-    for (const entry of opts.tasks?.[taskName] != null ? opts.tasks[taskName].dependsOn ?? [] : [`^${taskName}`]) {
+    for (const entry of taskDependsOn(opts.tasks, taskName)) {
       if (entry.startsWith('^')) {
         const dependencyTaskName = entry.slice(1)
         for (const dependencyProject of opts.projectDependencies.get(project) ?? []) {
@@ -91,6 +90,23 @@ export function buildTaskGraph (opts: BuildTaskGraphOptions): TaskGraph {
     })
   }
   return graph
+}
+
+export function taskKey (project: ProjectRootDir, taskName: string): TaskKey {
+  return `${project}\0${taskName}`
+}
+
+/**
+ * The `dependsOn` entries of `taskName`. An own-property check, not a plain
+ * lookup: a script named like an `Object.prototype` member (`constructor`,
+ * `toString`, ...) must get the default rather than resolve an inherited
+ * value.
+ */
+function taskDependsOn (tasks: WorkspaceTasks | undefined, taskName: string): string[] {
+  if (tasks != null && Object.hasOwn(tasks, taskName)) {
+    return tasks[taskName].dependsOn ?? []
+  }
+  return [`^${taskName}`]
 }
 
 /**

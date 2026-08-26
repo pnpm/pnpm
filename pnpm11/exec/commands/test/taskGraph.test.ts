@@ -16,40 +16,6 @@ import {
 
 const WORKSPACE_DIR = '/workspace'
 
-function dir (name: string): ProjectRootDir {
-  return `${WORKSPACE_DIR}/${name}` as ProjectRootDir
-}
-
-interface FakeProject {
-  dependencies?: string[]
-  scripts?: string[]
-}
-
-function buildGraph (
-  projects: Record<string, FakeProject>,
-  taskName: string,
-  tasks?: Record<string, { dependsOn?: string[] }>
-): TaskGraph {
-  const scriptsByDir = new Map<ProjectRootDir, PackageScripts>(
-    Object.entries(projects).map(([name, project]) => [
-      dir(name),
-      Object.fromEntries((project.scripts ?? []).map((script) => [script, `echo ${script}`])),
-    ])
-  )
-  return buildTaskGraph({
-    projectDependencies: new Map(
-      Object.entries(projects).map(([name, project]) => [
-        dir(name),
-        (project.dependencies ?? []).map(dir),
-      ])
-    ),
-    scriptsByProject: (project) => scriptsByDir.get(project)!,
-    selectScripts: getSpecifiedScripts,
-    taskName,
-    tasks,
-  })
-}
-
 test('an unconfigured task depends on the same task in the workspace dependencies', () => {
   const graph = buildGraph({
     a: { dependencies: ['b'], scripts: ['build'] },
@@ -256,4 +222,50 @@ test('renderTaskGraphDryRun prints one stable linearization', () => {
     'b#build (skipped: no such script)',
     'c#build',
   ].join('\n'))
+})
+
+function dir (name: string): ProjectRootDir {
+  return `${WORKSPACE_DIR}/${name}` as ProjectRootDir
+}
+
+interface FakeProject {
+  dependencies?: string[]
+  scripts?: string[]
+}
+
+function buildGraph (
+  projects: Record<string, FakeProject>,
+  taskName: string,
+  tasks?: Record<string, { dependsOn?: string[] }>
+): TaskGraph {
+  const scriptsByDir = new Map<ProjectRootDir, PackageScripts>(
+    Object.entries(projects).map(([name, project]) => [
+      dir(name),
+      Object.fromEntries((project.scripts ?? []).map((script) => [script, `echo ${script}`])),
+    ])
+  )
+  return buildTaskGraph({
+    projectDependencies: new Map(
+      Object.entries(projects).map(([name, project]) => [
+        dir(name),
+        (project.dependencies ?? []).map(dir),
+      ])
+    ),
+    scriptsByProject: (project) => scriptsByDir.get(project)!,
+    selectScripts: getSpecifiedScripts,
+    taskName,
+    tasks,
+  })
+}
+
+test('a script named like an Object prototype member gets the default dependsOn', () => {
+  for (const name of ['constructor', 'toString', '__proto__']) {
+    const graph = buildGraph({
+      a: { dependencies: ['b'], scripts: [name] },
+      b: { scripts: [name] },
+    }, name, {
+      build: { dependsOn: ['^build'] },
+    })
+    expect(graph.get(taskKey(dir('a'), name))!.dependencies).toStrictEqual([taskKey(dir('b'), name)])
+  }
 })

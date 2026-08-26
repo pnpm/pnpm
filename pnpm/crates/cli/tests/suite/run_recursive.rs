@@ -1148,7 +1148,7 @@ fn recursive_run_no_sort_uses_workspace_order() {
 /// dependencies in — both are no-ops and every project runs in workspace
 /// order, exactly as in pnpm.
 #[test]
-fn recursive_run_no_sort_reverse_and_resume_transform_workspace_order() {
+fn recursive_run_no_sort_makes_reverse_and_resume_no_ops() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
         &workspace,
@@ -2358,9 +2358,10 @@ fn sorted_lines(stdout: &[u8]) -> Vec<String> {
     lines
 }
 
-/// Chunked scheduling would run `dep` and `slow` before `mid`, so `slow`'s
-/// wait for the marker `mid` writes would deadlock. Per-task scheduling
-/// runs `mid` as soon as `dep` is done, while `slow` is still waiting.
+/// `slow` waits for a marker only `mid` writes, and `mid` may start only
+/// once `dep` is done — so the run completes only if `mid` is dispatched
+/// while the unrelated `slow` is still in flight. Any barrier between
+/// dependency-independent tasks deadlocks this fixture.
 #[test]
 fn task_starts_as_soon_as_its_dependencies_finish() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -2795,6 +2796,44 @@ fn dry_run_outside_a_recursive_run_is_an_error() {
         .expect("run dry-run");
     assert!(!output.status.success(), "--dry-run without -r must error");
     assert!(String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_DRY_RUN_NOT_RECURSIVE"));
+
+    drop(root);
+}
+
+/// Every requested task was skipped because its build dependency failed;
+/// the run must report that failure, not `RECURSIVE_RUN_NO_SCRIPT`.
+#[test]
+fn failed_upstream_task_is_reported_as_the_failure_not_a_missing_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-a",
+            json!({
+                "name": "project-a",
+                "version": "1.0.0",
+                "scripts": { "build": "exit 1", "test": "echo test" },
+            }),
+        )],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-a\ntasks:\n  test:\n    dependsOn: ['build']\n",
+    )
+    .expect("write workspace settings");
+
+    let output = pacquet
+        .with_args(["--no-bail", "-r", "run", "--report-summary", "test"])
+        .output()
+        .expect("run recursive script");
+    assert!(!output.status.success(), "the failed build must fail the run");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("failed in 1 packages"), "stderr: {stderr}");
+    assert!(!stderr.contains("RECURSIVE_RUN_NO_SCRIPT"), "stderr: {stderr}");
+
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(statuses.get("project-a").map(String::as_str), Some("skipped"));
+    assert_eq!(statuses.get("project-a#build").map(String::as_str), Some("failure"));
 
     drop(root);
 }

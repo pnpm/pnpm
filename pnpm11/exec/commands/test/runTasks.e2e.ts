@@ -14,16 +14,13 @@ import { DEFAULT_OPTS } from './utils/index.js'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
-function readSummary (): Record<string, { status: string }> {
-  return JSON.parse(fs.readFileSync('pnpm-exec-summary.json', 'utf8')).executionStatus
-}
-
 test('a task starts as soon as its dependencies finish, without waiting for unrelated tasks', async () => {
   await using server = await createTestIpcServer()
 
-  // Chunked scheduling would run [dep, slow] before mid, so slow's wait for
-  // the marker mid writes would deadlock. Per-task scheduling runs mid as
-  // soon as dep is done, while slow is still waiting.
+  // slow waits for a marker only mid writes, and mid may start only once
+  // dep is done — so the run completes only if mid is dispatched while the
+  // unrelated slow is still in flight. Any barrier between
+  // dependency-independent tasks deadlocks this fixture.
   preparePackages([
     {
       name: 'dep',
@@ -100,9 +97,8 @@ test('dependsOn runs the tasks a task depends on, in dependency order', async ()
     workspaceDir: process.cwd(),
   }, ['test'])
 
-  const lines = server.getLines()
-  expect(lines.sort()).toStrictEqual(['a-build', 'a-test', 'b-build', 'b-test'])
   const order = server.getLines()
+  expect([...order].sort()).toStrictEqual(['a-build', 'a-test', 'b-build', 'b-test'])
   expect(order.indexOf('b-build')).toBeLessThan(order.indexOf('a-build'))
   expect(order.indexOf('a-build')).toBeLessThan(order.indexOf('a-test'))
   expect(order.indexOf('b-build')).toBeLessThan(order.indexOf('b-test'))
@@ -467,6 +463,45 @@ test('--dry-run outside a recursive run is an error', async () => {
   expect(err.code).toBe('ERR_PNPM_DRY_RUN_NOT_RECURSIVE')
 })
 
+test('a failed upstream task is reported as the failure, not as a missing script', async () => {
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      scripts: {
+        build: 'exit 1',
+        test: 'echo test',
+      },
+    },
+  ])
+
+  let err!: PnpmError
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+      bail: false,
+      dir: process.cwd(),
+      recursive: true,
+      reportSummary: true,
+      tasks: {
+        test: { dependsOn: ['build'] },
+      },
+      workspaceDir: process.cwd(),
+    }, ['test'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  // Every requested task was skipped because its build dependency failed;
+  // the run must report that failure, not RECURSIVE_RUN_NO_SCRIPT.
+  expect(err.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
+  expect(err.message).toContain('failed in 1 packages')
+  const executionStatus = readSummary()
+  expect(executionStatus[path.resolve('project-a')].status).toBe('skipped')
+  expect(executionStatus[`${path.resolve('project-a')}#build`].status).toBe('failure')
+})
+
 test('the tasks section of pnpm-workspace.yaml reaches the CLI run', async () => {
   await using server = await createTestIpcServer()
 
@@ -501,8 +536,11 @@ test('the tasks section of pnpm-workspace.yaml reaches the CLI run', async () =>
   await execa(pnpmBin, ['run', '-r', 'test'])
 
   const order = server.getLines()
-  expect(order.sort()).toStrictEqual(['a-build', 'a-test', 'b-build'])
-  const lines = server.getLines()
-  expect(lines.indexOf('b-build')).toBeLessThan(lines.indexOf('a-build'))
-  expect(lines.indexOf('a-build')).toBeLessThan(lines.indexOf('a-test'))
+  expect([...order].sort()).toStrictEqual(['a-build', 'a-test', 'b-build'])
+  expect(order.indexOf('b-build')).toBeLessThan(order.indexOf('a-build'))
+  expect(order.indexOf('a-build')).toBeLessThan(order.indexOf('a-test'))
 })
+
+function readSummary (): Record<string, { status: string }> {
+  return JSON.parse(fs.readFileSync('pnpm-exec-summary.json', 'utf8')).executionStatus
+}

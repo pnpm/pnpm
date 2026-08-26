@@ -91,13 +91,15 @@ export async function scheduleTasks (graph: TaskGraph, opts: ScheduleTasksOption
     }
     // An explicit queue rather than recursion: a workspace-long chain of
     // pass-through tasks completes synchronously, and call depth must not
-    // grow with chain length.
+    // grow with chain length. Drained by index: shift() moves every
+    // remaining element, which is quadratic over a workspace-sized queue.
+    let head = 0
     let pumping = false
     const pump = (): void => {
       if (pumping) return
       pumping = true
-      while (!stopDispatch && ready.length > 0) {
-        const key = ready.shift()!
+      while (!stopDispatch && head < ready.length) {
+        const key = ready[head++]
         const node = graph.get(key)!
         if (node.scripts.length === 0) {
           opts.onTaskSkipped(node, key)

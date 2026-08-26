@@ -222,6 +222,14 @@ export async function handler (
   }
   const [scriptName, ...passedThruArgs] = params
 
+  // Before the dependency verification: an unsupported flag must fail
+  // before anything can trigger an install or a prompt.
+  if (opts.dryRun && !opts.recursive) {
+    throw new PnpmError('DRY_RUN_NOT_RECURSIVE', 'The --dry-run option is only supported with recursive runs', {
+      hint: 'Use "pnpm -r run --dry-run <script>" to print the task graph of a recursive run.',
+    })
+  }
+
   if (opts.verifyDepsBeforeRun) {
     await runDepsStatusCheck(opts)
   }
@@ -239,11 +247,6 @@ export async function handler (
     }
     dir = Object.keys(opts.selectedProjectsGraph)[0]
   } else {
-    if (opts.dryRun) {
-      throw new PnpmError('DRY_RUN_NOT_RECURSIVE', 'The --dry-run option is only supported with recursive runs', {
-        hint: 'Use "pnpm -r run --dry-run <script>" to print the task graph of a recursive run.',
-      })
-    }
     dir = opts.dir
   }
   const manifest = await readProjectManifestOnly(dir, opts)
