@@ -1,8 +1,7 @@
 use super::{
-    ConnectInfo, HostedRevisionDist, HostedRevisionRecord, PeerAddr, RevisionField,
-    artifact_blob_response_body, bearer_credentials, canonical_ip, cidr_contains,
-    cidr_whitelist_allows, is_write_method, original_integrity, router_with_auth,
-    token_timestamp_millis,
+    HostedRevisionDist, HostedRevisionRecord, PeerAddr, RevisionField, artifact_blob_response_body,
+    bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows, is_write_method,
+    original_integrity, router_with_auth, token_timestamp_millis,
 };
 use crate::{
     auth::{AuthState, TokenBackend, TokenRecord, UserStore},
@@ -13,6 +12,7 @@ use crate::{
 use async_trait::async_trait;
 use axum::{
     body::{Body, to_bytes},
+    extract::ConnectInfo,
     http::{Method, Request, StatusCode, header},
 };
 use std::{
