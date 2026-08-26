@@ -160,7 +160,7 @@ pub fn run_recursive(
         } else {
             println!(
                 "{}",
-                render_task_graph_dry_run(&task_graph, &sequenced_tasks, workspace_root)
+                render_task_graph_dry_run(&task_graph, &sequenced_tasks, workspace_root),
             );
         }
         return Ok(());

@@ -279,7 +279,7 @@ pub fn task_summary_key(node: &TaskNode) -> String {
 }
 
 /// One task reference in the `--dry-run --json` output.
-#[derive(Debug, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct DryRunTaskDependency {
     pub project: String,
     pub script: String,
