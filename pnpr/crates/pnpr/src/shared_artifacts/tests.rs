@@ -220,6 +220,8 @@ async fn an_incomplete_publication_removes_its_blobs_and_releases_all_quota() {
         &ArtifactRecoveryLocks {
             owner: "owner",
             publication: &PendingUsageLock::Entry { entry: "current".to_string() },
+            active_reservation: None,
+            adoption_commit_file: None,
             owner_locked: true,
             blob_locks: &empty,
             preserved_blob_ids: &empty,
@@ -340,9 +342,13 @@ async fn blob_classification_waits_for_complete_rollback_and_preserves_required_
         acquire_artifact_lock(blob_lock_path_for_key(&root, &second_lock)).await.unwrap();
     let locked_blob_locks = BTreeSet::from([first_lock]);
     let preserved_blob_ids = BTreeSet::from([first_blob.to_string()]);
+    let current_reservation = "current-reservation";
+    let current_commit_file = "owner/entries/current/variant.json";
     let recovery_locks = ArtifactRecoveryLocks {
         owner,
         publication: &current_lock,
+        active_reservation: Some(current_reservation),
+        adoption_commit_file: Some(current_commit_file),
         owner_locked: false,
         blob_locks: &locked_blob_locks,
         preserved_blob_ids: &preserved_blob_ids,
@@ -360,7 +366,10 @@ async fn blob_classification_waits_for_complete_rollback_and_preserves_required_
     let usage = load_artifact_usage(&root).await.unwrap();
     assert_eq!(usage.global_bytes, 5);
     assert_eq!(usage.owner_bytes.get(owner), Some(&5));
-    assert!(usage.pending.is_empty());
+    let adoption = usage.pending.get(current_reservation).unwrap();
+    assert_eq!(adoption.commit_file.as_deref(), Some(current_commit_file));
+    assert_eq!(adoption.files.len(), 1);
+    assert_eq!(adoption.files[0].path, format!("owner/blobs/{first_blob}"));
 }
 
 #[tokio::test]
@@ -414,6 +423,60 @@ async fn publication_reuses_a_blob_preserved_from_a_stale_transaction() {
     assert_eq!(usage.global_bytes, actual_bytes);
     assert_eq!(usage.owner_bytes.get(&owner), Some(&actual_bytes));
     assert!(usage.pending.is_empty());
+}
+
+#[tokio::test]
+async fn rejected_adoption_reclaims_the_preserved_blob_and_quota() {
+    let storage = TempDir::new().unwrap();
+    for index in 0..MAX_VARIANTS_PER_CANDIDATE {
+        assert!(
+            publish(storage.path(), "acme", publication(&format!("ci/accepted/{index}")))
+                .await
+                .unwrap(),
+        );
+    }
+    let root = storage.path().join("shared-artifacts/v0");
+    let usage_before = fs::read(artifact_usage_path(&root)).await.unwrap();
+    let artifact_owner =
+        owner_dir(storage.path(), "acme", &OwnerScope::organization("acme")).unwrap();
+    let owner = owner_usage_key(&artifact_owner).unwrap();
+    let blob_bytes = b"rejected adopted blob";
+    let mut request = publication_request(
+        "acme",
+        "dependency-side-effects:v1:deps=abc",
+        "ci/rejected-adoption",
+        Some(blob_bytes),
+    );
+    let blob = blob_id(&request.blobs[0].integrity).unwrap();
+    request.blobs.clear();
+    let blob_path = artifact_owner.join("blobs").join(&blob);
+    fs::create_dir_all(blob_path.parent().unwrap()).await.unwrap();
+    fs::write(&blob_path, blob_bytes).await.unwrap();
+    let stale_variant_path = artifact_owner.join("entries/crashed/variant.json");
+    let stale_variant = pending_usage_file(&root, &stale_variant_path, 1).unwrap();
+    let stale_commit_file = stale_variant.path.clone();
+    let mut usage = load_artifact_usage(&root).await.unwrap();
+    usage.global_bytes += blob_bytes.len() as u64 + 1;
+    *usage.owner_bytes.get_mut(&owner).unwrap() += blob_bytes.len() as u64 + 1;
+    usage.pending.insert(
+        "crashed".to_string(),
+        PendingUsage {
+            owner,
+            lock: PendingUsageLock::Entry { entry: "crashed".to_string() },
+            commit_file: Some(stale_commit_file),
+            files: vec![
+                pending_usage_file(&root, &blob_path, blob_bytes.len() as u64).unwrap(),
+                stale_variant,
+            ],
+        },
+    );
+    write_artifact_usage(&root, &usage).await.unwrap();
+
+    let error = publish(storage.path(), "acme", request).await.unwrap_err();
+
+    assert!(error.to_string().contains("variant limit"));
+    assert!(!fs::try_exists(blob_path).await.unwrap());
+    assert_eq!(fs::read(artifact_usage_path(&root)).await.unwrap(), usage_before);
 }
 
 #[tokio::test]

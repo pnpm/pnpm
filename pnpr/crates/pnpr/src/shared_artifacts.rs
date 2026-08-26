@@ -91,6 +91,8 @@ struct PendingUsageReconciliation {
 struct ArtifactRecoveryLocks<'a> {
     owner: &'a str,
     publication: &'a PendingUsageLock,
+    active_reservation: Option<&'a str>,
+    adoption_commit_file: Option<&'a str>,
     owner_locked: bool,
     blob_locks: &'a BTreeSet<String>,
     preserved_blob_ids: &'a BTreeSet<String>,
@@ -145,6 +147,12 @@ pub(crate) async fn publish(
 
     let reservation = reservation_id(&owner, &entry_digest, &envelope_digest);
     let publication_lock = PendingUsageLock::Entry { entry: entry_digest.clone() };
+    let key_dir = owner_dir.join("entries").join(&entry_digest);
+    let variant_path = key_dir.join(format!("{envelope_digest}.json"));
+    let envelope_bytes = serde_json::to_vec(&request.envelope)?;
+    let variant_file =
+        pending_usage_file(&artifact_root, &variant_path, envelope_bytes.len() as u64)?;
+    let commit_file = variant_file.path.clone();
     let _entry_lock =
         acquire_artifact_lock(entry_lock_path(&artifact_root, &owner, &entry_digest)).await?;
     let locked_blob_locks: BTreeSet<String> = required_by_lock.keys().cloned().collect();
@@ -170,6 +178,8 @@ pub(crate) async fn publish(
                 &ArtifactRecoveryLocks {
                     owner: &owner,
                     publication: &publication_lock,
+                    active_reservation: Some(&reservation),
+                    adoption_commit_file: Some(&commit_file),
                     owner_locked: true,
                     blob_locks: &locked_blob_locks,
                     preserved_blob_ids: &preserved_blob_ids,
@@ -184,105 +194,113 @@ pub(crate) async fn publish(
         sleep(ARTIFACT_LOCK_POLL_INTERVAL).await;
     };
 
-    let mut new_blobs = Vec::new();
-    for blobs in required_by_lock.into_values() {
-        for (integrity, id, size) in blobs {
-            let path = blobs_dir.join(&id);
-            match uploads.remove(integrity) {
-                Some(bytes) => {
-                    if !fs::try_exists(&path).await? {
-                        new_blobs.push((path, bytes));
-                    }
-                }
-                None => match fs::read(&path).await {
-                    Ok(bytes) => {
-                        if bytes.len() as u64 != size {
-                            return Err(RegistryError::Internal {
-                                reason: format!(
-                                    "stored shared artifact blob {id} has {} bytes instead of {size}",
-                                    bytes.len(),
-                                ),
-                            });
+    let publication_result: Result<bool> = async {
+        let mut new_blobs = Vec::new();
+        for blobs in required_by_lock.into_values() {
+            for (integrity, id, size) in blobs {
+                let path = blobs_dir.join(&id);
+                match uploads.remove(integrity) {
+                    Some(bytes) => {
+                        if !fs::try_exists(&path).await? {
+                            new_blobs.push((path, bytes));
                         }
-                        verify_blob(integrity, &bytes).map_err(|err| RegistryError::Internal {
-                            reason: format!(
-                                "stored shared artifact blob failed verification: {err}",
-                            ),
-                        })?;
                     }
-                    Err(err) if err.kind() == ErrorKind::NotFound => {
-                        return Err(bad_request(format!(
-                            "signed manifest references blob {id} without uploading it",
-                        )));
-                    }
-                    Err(err) => return Err(err.into()),
-                },
+                    None => match fs::read(&path).await {
+                        Ok(bytes) => {
+                            if bytes.len() as u64 != size {
+                                return Err(RegistryError::Internal {
+                                    reason: format!(
+                                        "stored shared artifact blob {id} has {} bytes instead of {size}",
+                                        bytes.len(),
+                                    ),
+                                });
+                            }
+                            verify_blob(integrity, &bytes).map_err(|err| {
+                                RegistryError::Internal {
+                                    reason: format!(
+                                        "stored shared artifact blob failed verification: {err}",
+                                    ),
+                                }
+                            })?;
+                        }
+                        Err(err) if err.kind() == ErrorKind::NotFound => {
+                            return Err(bad_request(format!(
+                                "signed manifest references blob {id} without uploading it",
+                            )));
+                        }
+                        Err(err) => return Err(err.into()),
+                    },
+                }
             }
         }
-    }
 
-    let key_dir = owner_dir.join("entries").join(&entry_digest);
-    let variant_path = key_dir.join(format!("{envelope_digest}.json"));
-    if fs::try_exists(&variant_path).await? {
-        return Ok(false);
-    }
-    if count_variants(&key_dir).await? >= MAX_VARIANTS_PER_CANDIDATE {
-        return Err(bad_request(format!(
-            "artifact key already has the {MAX_VARIANTS_PER_CANDIDATE}-variant limit",
-        )));
-    }
+        if fs::try_exists(&variant_path).await? {
+            remove_storage_reservation(&artifact_root, &reservation).await?;
+            return Ok(false);
+        }
+        if count_variants(&key_dir).await? >= MAX_VARIANTS_PER_CANDIDATE {
+            return Err(bad_request(format!(
+                "artifact key already has the {MAX_VARIANTS_PER_CANDIDATE}-variant limit",
+            )));
+        }
 
-    let envelope_bytes = serde_json::to_vec(&request.envelope)?;
-    let mut pending_files = Vec::with_capacity(new_blobs.len() + 1);
-    for (path, bytes) in &new_blobs {
-        pending_files.push(pending_usage_file(&artifact_root, path, bytes.len() as u64)?);
-    }
-    let variant_file =
-        pending_usage_file(&artifact_root, &variant_path, envelope_bytes.len() as u64)?;
-    let commit_file = variant_file.path.clone();
-    pending_files.push(variant_file);
-    reserve_storage_quota(
-        &artifact_root,
-        StorageQuotaReservation {
-            id: &reservation,
-            owner: &owner,
-            lock: publication_lock.clone(),
-            commit_file: Some(commit_file),
-            locked_blob_locks: &locked_blob_locks,
-            files: pending_files,
-        },
-    )
-    .await?;
-    let write_result: Result<()> = async {
+        let mut pending_files = Vec::with_capacity(new_blobs.len() + 1);
+        for (path, bytes) in &new_blobs {
+            pending_files.push(pending_usage_file(&artifact_root, path, bytes.len() as u64)?);
+        }
+        pending_files.push(variant_file);
+        reserve_storage_quota(
+            &artifact_root,
+            StorageQuotaReservation {
+                id: &reservation,
+                owner: &owner,
+                lock: publication_lock.clone(),
+                commit_file: Some(commit_file),
+                locked_blob_locks: &locked_blob_locks,
+                files: pending_files,
+            },
+        )
+        .await?;
         for (path, bytes) in new_blobs {
             write_atomic(&path, &bytes).await?;
         }
-        write_atomic(&variant_path, &envelope_bytes).await
-    }
-    .await;
-    if let Err(error) = write_result {
-        if let Err(rollback_error) = reconcile_storage_reservations(
-            &artifact_root,
-            &ArtifactRecoveryLocks {
-                owner: &owner,
-                publication: &publication_lock,
-                owner_locked: false,
-                blob_locks: &locked_blob_locks,
-                preserved_blob_ids: &BTreeSet::new(),
-            },
-        )
-        .await
-        {
+        write_atomic(&variant_path, &envelope_bytes).await?;
+        if !remove_storage_reservation(&artifact_root, &reservation).await? {
             return Err(RegistryError::Internal {
-                reason: format!(
-                    "shared artifact publication failed: {error}; rollback failed: {rollback_error}",
-                ),
+                reason: "shared artifact storage reservation is missing after publication"
+                    .to_string(),
             });
         }
-        return Err(error);
+        Ok(true)
     }
-    clear_storage_reservation(&artifact_root, &reservation).await?;
-    Ok(true)
+    .await;
+    match publication_result {
+        Ok(published) => Ok(published),
+        Err(error) => {
+            let preserved_blob_ids = BTreeSet::new();
+            if let Err(rollback_error) = reconcile_storage_reservations(
+                &artifact_root,
+                &ArtifactRecoveryLocks {
+                    owner: &owner,
+                    publication: &publication_lock,
+                    active_reservation: None,
+                    adoption_commit_file: None,
+                    owner_locked: false,
+                    blob_locks: &locked_blob_locks,
+                    preserved_blob_ids: &preserved_blob_ids,
+                },
+            )
+            .await
+            {
+                return Err(RegistryError::Internal {
+                    reason: format!(
+                        "shared artifact publication failed: {error}; rollback failed: {rollback_error}",
+                    ),
+                });
+            }
+            Err(error)
+        }
+    }
 }
 
 async fn reserve_storage_quota(
@@ -313,6 +331,8 @@ async fn reserve_storage_quota_with_locks_and_limits(
         &ArtifactRecoveryLocks {
             owner: reservation.owner,
             publication: &reservation.lock,
+            active_reservation: Some(reservation.id),
+            adoption_commit_file: reservation.commit_file.as_deref(),
             owner_locked: false,
             blob_locks: reservation.locked_blob_locks,
             preserved_blob_ids: &preserved_blob_ids,
@@ -337,37 +357,25 @@ async fn reserve_storage_quota_with_locks_and_limits(
     }
     usage.global_bytes = next_global_bytes;
     usage.owner_bytes.insert(reservation.owner.to_string(), next_owner_bytes);
-    if usage
-        .pending
-        .insert(
-            reservation.id.to_string(),
-            PendingUsage {
-                owner: reservation.owner.to_string(),
-                lock: reservation.lock,
-                commit_file: reservation.commit_file,
-                files: reservation.files,
-            },
-        )
-        .is_some()
-    {
-        return Err(RegistryError::Internal {
-            reason: "shared artifact publication already has a pending storage reservation"
-                .to_string(),
-        });
-    }
+    let pending = PendingUsage {
+        owner: reservation.owner.to_string(),
+        lock: reservation.lock,
+        commit_file: reservation.commit_file,
+        files: reservation.files,
+    };
+    merge_pending_usage(&mut usage, reservation.id, pending)?;
     write_artifact_usage(artifact_root, &usage).await?;
     Ok(())
 }
 
-async fn clear_storage_reservation(artifact_root: &Path, reservation: &str) -> Result<()> {
+async fn remove_storage_reservation(artifact_root: &Path, reservation: &str) -> Result<bool> {
     let _usage_lock = acquire_artifact_lock(usage_lock_path(artifact_root)).await?;
     let mut usage = load_artifact_usage(artifact_root).await?;
     if usage.pending.remove(reservation).is_none() {
-        return Err(RegistryError::Internal {
-            reason: "shared artifact storage reservation is missing after publication".to_string(),
-        });
+        return Ok(false);
     }
-    write_artifact_usage(artifact_root, &usage).await
+    write_artifact_usage(artifact_root, &usage).await?;
+    Ok(true)
 }
 
 async fn reconcile_storage_reservations(
@@ -422,7 +430,11 @@ async fn reconcile_pending_usage(
 ) -> Result<PendingUsageReconciliation> {
     let reservations: Vec<String> = usage.pending.keys().cloned().collect();
     let mut reconciliation = PendingUsageReconciliation::default();
+    let mut adopted_files = Vec::new();
     'reservations: for reservation in reservations {
+        if recovery_locks.active_reservation == Some(reservation.as_str()) {
+            continue;
+        }
         let pending = usage.pending.get(&reservation).ok_or_else(|| RegistryError::Internal {
             reason: "shared artifact pending storage reservation disappeared".to_string(),
         })?;
@@ -468,17 +480,17 @@ async fn reconcile_pending_usage(
         let committed = match pending.commit_file.as_deref() {
             Some(commit_file) => {
                 let commit_path = pending_usage_path(commit_file)?;
-                let commit_file =
-                    pending.files.iter().find(|file| file.path == commit_file).ok_or_else(
-                        || RegistryError::Internal {
-                            reason: "shared artifact storage reservation has no commit file"
-                                .to_string(),
-                        },
-                    )?;
-                match fs::metadata(artifact_root.join(commit_path)).await {
-                    Ok(metadata) => metadata.is_file() && metadata.len() == commit_file.size,
-                    Err(error) if error.kind() == ErrorKind::NotFound => false,
-                    Err(error) => return Err(error.into()),
+                match pending.files.iter().find(|file| file.path == commit_file) {
+                    Some(commit_file) => {
+                        match fs::metadata(artifact_root.join(commit_path)).await {
+                            Ok(metadata) => {
+                                metadata.is_file() && metadata.len() == commit_file.size
+                            }
+                            Err(error) if error.kind() == ErrorKind::NotFound => false,
+                            Err(error) => return Err(error.into()),
+                        }
+                    }
+                    None => false,
                 }
             }
             None => true,
@@ -494,6 +506,7 @@ async fn reconcile_pending_usage(
                 if preserved {
                     match fs::metadata(&path).await {
                         Ok(metadata) if metadata.is_file() && metadata.len() == file.size => {
+                            adopted_files.push(file);
                             continue;
                         }
                         Ok(_) => {}
@@ -520,7 +533,50 @@ async fn reconcile_pending_usage(
             release_reserved_bytes(usage, &pending.owner, file.size)?;
         }
     }
+    if !adopted_files.is_empty() {
+        let reservation =
+            recovery_locks.active_reservation.ok_or_else(|| RegistryError::Internal {
+                reason: "shared artifact recovery has no adopting storage reservation".to_string(),
+            })?;
+        let commit_file =
+            recovery_locks.adoption_commit_file.ok_or_else(|| RegistryError::Internal {
+                reason: "shared artifact recovery has no adopting commit file".to_string(),
+            })?;
+        merge_pending_usage(
+            usage,
+            reservation,
+            PendingUsage {
+                owner: recovery_locks.owner.to_string(),
+                lock: recovery_locks.publication.clone(),
+                commit_file: Some(commit_file.to_string()),
+                files: adopted_files,
+            },
+        )?;
+        reconciliation.usage_changed = true;
+    }
     Ok(reconciliation)
+}
+
+fn merge_pending_usage(
+    usage: &mut ArtifactUsage,
+    reservation: &str,
+    pending: PendingUsage,
+) -> Result<()> {
+    if let Some(active) = usage.pending.get_mut(reservation) {
+        if active.owner != pending.owner
+            || active.lock != pending.lock
+            || active.commit_file != pending.commit_file
+        {
+            return Err(RegistryError::Internal {
+                reason: "shared artifact publication has conflicting storage reservations"
+                    .to_string(),
+            });
+        }
+        active.files.extend(pending.files);
+    } else {
+        usage.pending.insert(reservation.to_string(), pending);
+    }
+    Ok(())
 }
 
 fn release_reserved_bytes(usage: &mut ArtifactUsage, owner: &str, bytes: u64) -> Result<()> {
