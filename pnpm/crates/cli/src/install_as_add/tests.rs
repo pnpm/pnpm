@@ -96,3 +96,15 @@ fn the_separator_spelling_parses_as_add() {
     };
     assert_eq!(add.package_names, ["valibot"]);
 }
+
+#[test]
+fn install_with_offline_after_the_package_parses_as_add() {
+    let args = parse(&["pnpm", "install", "valibot", "--offline", "--ignore-scripts"]);
+
+    let CliCommand::Add(add) = args.command else {
+        panic!("expected add");
+    };
+    assert_eq!(add.package_names, ["valibot"]);
+    assert!(add.offline);
+    assert!(add.ignore_scripts);
+}

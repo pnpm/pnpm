@@ -829,10 +829,8 @@ fn unsafe_perm_is_a_bare_flag_on_every_command() {
     }
 }
 
-/// The boolean settings pnpm's `nopt` types make spellable on every
-/// command that lists them, which clap rejected as unexpected arguments.
 #[test]
-fn the_boolean_settings_are_bare_flags_where_no_command_declares_them() {
+fn boolean_settings_are_extracted_unless_the_command_declares_them() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
         "pacquet",
         "add",
@@ -850,7 +848,7 @@ fn the_boolean_settings_are_bare_flags_where_no_command_declares_them() {
         "--no-verify-store-integrity",
         "--force-legacy-deploy",
     ]));
-    assert_eq!(remaining, argv(["pacquet", "add", "foo"]));
+    assert_eq!(remaining, argv(["pacquet", "add", "foo", "--offline", "--prefer-offline"]));
 
     let mut config = Config::default();
     overrides.apply(&mut config, Path::new("/workspace"));
@@ -860,13 +858,12 @@ fn the_boolean_settings_are_bare_flags_where_no_command_declares_them() {
     assert!(config.lockfile_include_tarball_url);
     assert!(config.merge_git_branch_lockfiles);
     assert!(config.node_experimental_package_map);
-    assert!(config.offline);
+    assert!(!config.offline);
     assert!(config.prefer_frozen_lockfile);
-    assert!(config.prefer_offline);
+    assert!(!config.prefer_offline);
     assert!(!config.shared_workspace_lockfile);
     assert!(!config.verify_store_integrity);
     assert!(config.force_legacy_deploy);
-    assert_eq!(config.explicit_settings.get("offline"), Some(&serde_json::Value::Bool(true)));
     assert_eq!(
         config.explicit_settings.get("sharedWorkspaceLockfile"),
         Some(&serde_json::Value::Bool(false)),
