@@ -25,6 +25,27 @@ impl FailedToPublishError {
     /// a single-line body appended inline.
     #[must_use]
     pub fn new(name: &str, version: &str, status: u16, status_text: String, text: String) -> Self {
+        Self::from_response(&format!("package {name}@{version}"), status, status_text, text)
+    }
+
+    /// Build the error for one rejected batch request.
+    #[must_use]
+    pub fn new_batch(
+        package_count: usize,
+        registry: &str,
+        status: u16,
+        status_text: String,
+        text: String,
+    ) -> Self {
+        Self::from_response(
+            &format!("{package_count} packages to {registry}"),
+            status,
+            status_text,
+            text,
+        )
+    }
+
+    fn from_response(subject: &str, status: u16, status_text: String, text: String) -> Self {
         let status_display = if status_text.is_empty() {
             status.to_string()
         } else {
@@ -32,8 +53,7 @@ impl FailedToPublishError {
         };
 
         let trimmed = text.trim();
-        let mut message =
-            format!("Failed to publish package {name}@{version} (status {status_display})");
+        let mut message = format!("Failed to publish {subject} (status {status_display})");
         if trimmed.contains('\n') {
             message.push_str("\nDetails:\n");
             for line in text.trim_end().split('\n') {

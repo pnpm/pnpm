@@ -26,11 +26,11 @@ pub(super) fn add_dir_to_windows_env_path(
 ) -> Result<Vec<EnvVariableChange>, PathExtenderError> {
     // `chcp` makes `reg` use UTF-8 for output. Otherwise non-ASCII
     // characters in environment variables become garbled.
-    let chcp_output = run_capture("chcp", &[])
+    let chcp_output = run_capture_chcp(&[])
         .map_err(|err| PathExtenderError::Chcp { message: err.to_string() })?;
     let cp_bak = first_number(&chcp_output)
         .ok_or_else(|| PathExtenderError::Chcp { message: chcp_output.clone() })?;
-    run_capture("chcp", &["65001"])?;
+    run_capture_chcp(&["65001"])?;
 
     let result = (|| {
         let report = add_dir_to_windows_env_path_inner(dir, opts)?;
@@ -39,7 +39,7 @@ pub(super) fn add_dir_to_windows_env_path(
     })();
 
     // Restore the original code page even when the body failed.
-    let _ = run_capture("chcp", &[&cp_bak.to_string()]);
+    let _ = run_capture_chcp(&[&cp_bak.to_string()]);
     result
 }
 
@@ -154,6 +154,27 @@ fn run_capture(program: &str, args: &[&str]) -> Result<String, PathExtenderError
         });
     }
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// Run `chcp`, attempting `chcp.com` first (the standard executable name on
+/// Windows) with a fallback to `chcp` if `chcp.com` is not found.
+fn run_capture_chcp(args: &[&str]) -> Result<String, PathExtenderError> {
+    run_capture_chcp_with(args, run_capture)
+}
+
+fn run_capture_chcp_with<Runner>(
+    args: &[&str],
+    mut runner: Runner,
+) -> Result<String, PathExtenderError>
+where
+    Runner: FnMut(&str, &[&str]) -> Result<String, PathExtenderError>,
+{
+    match runner("chcp.com", args) {
+        Err(PathExtenderError::Io(err)) if err.kind() == std::io::ErrorKind::NotFound => {
+            runner("chcp", args)
+        }
+        res => res,
+    }
 }
 
 /// Parse a `reg query` line of the form `    <name>    <type>    <data>`

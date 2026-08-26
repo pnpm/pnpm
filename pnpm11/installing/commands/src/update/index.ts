@@ -18,6 +18,7 @@ import { handleGlobalUpdate } from '@pnpm/global.commands'
 import { scanGlobalPackages } from '@pnpm/global.packages'
 import type { UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
 import { globalInfo } from '@pnpm/logger'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import type { IncludedDependencies, PackageVulnerabilityAudit, ProjectRootDir } from '@pnpm/types'
 import chalk from 'chalk'
 import { pick, unnest } from 'ramda'
@@ -25,10 +26,10 @@ import { renderHelp } from 'render-help'
 
 import type { InstallCommandOptions } from '../install.js'
 import { createVulnerabilityUpdateMatching, installDeps } from '../installDeps.js'
-import { parseUpdateParam } from '../recursive.js'
+import { createUpdateMatching, expandUpdateSelectorsForMatching, parseUpdateParam } from '../recursive.js'
 import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
 import { captureUpdateChangesetContext, generateUpdateChangeset } from './generateUpdateChangeset.js'
-import { getUpdateChoices, sanitizeUpdateChoiceText } from './getUpdateChoices.js'
+import { getUpdateChoices } from './getUpdateChoices.js'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
@@ -88,6 +89,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     'include-github-actions': Boolean,
     interactive: Boolean,
     latest: Boolean,
+    patches: Boolean,
     recursive: Boolean,
     workspace: Boolean,
   }
@@ -133,6 +135,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: 'Ignore version ranges in package.json',
             name: '--latest',
             shortAlias: '-L',
+          },
+          {
+            description: 'Refresh registry revisions without changing package versions',
+            name: '--patches',
           },
           {
             description: 'Update packages only in "dependencies" and "optionalDependencies"',
@@ -189,6 +195,7 @@ export type UpdateCommandOptions = InstallCommandOptions & {
   includeGithubActions?: boolean
   interactive?: boolean
   latest?: boolean
+  patches?: boolean
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
 }
 
@@ -197,6 +204,7 @@ export async function handler (
   params: string[] = [],
   commands?: CommandHandlerMap
 ): Promise<string | undefined> {
+  assertPatchesOptions(params, opts)
   if (opts.global) {
     if (!opts.bin) {
       throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
@@ -263,7 +271,7 @@ async function selectGlobalPackageGroups (
       name: outdated
         .map(({ alias, current, wanted, latestManifest }) =>
           [alias, current ?? 'missing', '→', opts.latest ? latestManifest?.version ?? wanted : wanted]
-            .map(sanitizeUpdateChoiceText)
+            .map(sanitizeInline)
             .join(' ')
         )
         .join(', '),
@@ -409,6 +417,7 @@ async function update (
   opts: UpdateCommandOptions,
   rebuildHandler?: CommandHandler
 ): Promise<void> {
+  assertPatchesOptions(dependencies, opts)
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
   const updateActions = shouldUpdateGitHubActions(opts, includeDirect)
   if (opts.latest) {
@@ -435,10 +444,8 @@ async function update (
   let updateMatching: UpdateMatchingFunction | undefined
   if (opts.packageVulnerabilityAudit != null) {
     updateMatching = createVulnerabilityUpdateMatching(opts.packageVulnerabilityAudit)
-  } else if (
-    (packageDependencies.length > 0) && packageDependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
-  ) {
-    updateMatching = createMatcher(packageDependencies)
+  } else if ((packageDependencies.length > 0) && depth > 0 && !opts.latest) {
+    updateMatching = createUpdateMatching(packageDependencies.flatMap(expandUpdateSelectorsForMatching))
   }
   const generateChangeset = opts.changeset ?? opts.updateConfig?.changeset ?? false
   const changesetContext = generateChangeset ? await captureUpdateChangesetContext(opts) : undefined
@@ -452,9 +459,10 @@ async function update (
       include,
       includeDirect,
       update: true,
+      updatePatches: opts.patches,
       updateToLatest: opts.latest,
       updateMatching,
-      updatePackageManifest: opts.save !== false,
+      updatePackageManifest: opts.patches ? false : opts.save !== false,
       resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
       // `--dry-run` is an `install`-only preview; never let a config-level
       // `dry-run` turn `update` into a no-op check.
@@ -471,6 +479,12 @@ async function update (
   }
   if (changesetContext != null) {
     await generateUpdateChangeset(changesetContext)
+  }
+}
+
+function assertPatchesOptions (dependencies: string[], opts: UpdateCommandOptions): void {
+  if (opts.patches && (dependencies.length > 0 || opts.latest || opts.interactive || opts.global)) {
+    throw new PnpmError('PATCHES_WITH_SELECTOR', '--patches cannot be combined with package selectors, --latest, --interactive, or --global')
   }
 }
 

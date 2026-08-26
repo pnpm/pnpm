@@ -293,7 +293,7 @@ export async function handler (
         })
       }
     }
-    const allowBuilds: Record<string, boolean> = {}
+    const allowBuilds = { ...opts.allowBuilds }
     for (const pkg of opts.allowBuild) {
       allowBuilds[pkg] = true
     }
@@ -307,14 +307,9 @@ export async function handler (
         },
       })
     }
-    // Pass the allowed packages to allowBuilds so they can build during this install
-    const mergedAllowBuilds = { ...opts.allowBuilds }
-    for (const pkg of opts.allowBuild) {
-      mergedAllowBuilds[pkg] = true
-    }
     await installDeps({
       ...opts,
-      allowBuilds: mergedAllowBuilds,
+      allowBuilds,
       rebuildHandler: commands?.rebuild,
       include,
       includeDirect: include,

@@ -73,7 +73,7 @@ use axum::{
 use indexmap::IndexMap;
 use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, TarballResolution, is_git_hosted_tarball_url,
+    Lockfile, LockfileResolution, TarballResolution, TarballRevision, is_git_hosted_tarball_url,
     pick_registry_for_package,
 };
 use pnpm_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
@@ -243,9 +243,9 @@ const TOO_MANY_CONFIGS_MESSAGE: &str = "too many distinct registry configuration
 /// which carries its attacker-controlled `registry` / `namedRegistries` /
 /// `overrides` content. [`MAX_INTERNED_CONFIGS`] bounds only the *count* of
 /// leaked configs; without this a caller could pad each distinct config with
-/// a giant overrides/named-registries map and still amplify the per-request
+/// a giant overrides/package-extensions/registry map and still amplify the per-request
 /// leak (the whole request body is allowed up to the publish-sized limit).
-/// `128 KiB` is far above any real registry/overrides configuration.
+/// `128 KiB` is far above any real resolver configuration.
 const MAX_CONFIG_KEY_BYTES: usize = 128 * 1024;
 
 /// The settings a request resolves under, and the only part of an input
@@ -306,7 +306,7 @@ impl EffectiveResolverSettings {
 ///   same key be re-leaked); or
 /// * when a single config's canonical key exceeds `max_key_bytes`, which
 ///   bounds the *size* of each leaked config so a caller can't amplify the
-///   leak with a giant `overrides` / `namedRegistries` map.
+///   leak with a giant `overrides`, `packageExtensions`, or registry map.
 ///
 /// Both caps are generous enough that legitimate clients (which reuse one
 /// small configuration) never hit them.
@@ -338,6 +338,9 @@ fn intern_config(
         "resolverSettings": resolver_settings,
         "registries": &request.registries,
         "overrides": overrides_key,
+        "patchedDependencies": &request.patched_dependencies,
+        "packageExtensions": &request.package_extensions,
+        "allowUnusedPatches": request.allow_unused_patches,
         "resolutionMode": request.resolution_mode,
         "minimumReleaseAge": request.minimum_release_age,
         "minimumReleaseAgeExclude": request.minimum_release_age_exclude,
@@ -376,6 +379,9 @@ fn intern_config(
     config.registries_by_prefix = lookups.registries_by_prefix;
     config.registry_options_by_url = lookups.registry_options_by_url;
     config.overrides = overrides;
+    config.patched_dependency_hashes_override.clone_from(&request.patched_dependencies);
+    config.package_extensions.clone_from(&request.package_extensions);
+    config.allow_unused_patches = request.allow_unused_patches;
     config.modules_dir = PathBuf::from("node_modules");
     config.lockfile = true;
     config.verify_store_integrity = true;
@@ -426,6 +432,9 @@ pub(crate) async fn handle_resolve(
     };
 
     if let Some(response) = reject_invalid_registries(&request) {
+        return response;
+    }
+    if let Some(response) = reject_invalid_patch_hashes(&request) {
         return response;
     }
     if let Some(response) = reject_inline_url_auth(&request) {
@@ -789,6 +798,12 @@ fn lru_resolution_candidate(
 }
 
 fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Option<String> {
+    // A revision refresh is an explicit request for current upstream state.
+    // Serving or storing it in the whole-resolution cache would make the next
+    // refresh repeat an old registry selection until the cache TTL expires.
+    if request.update_patches {
+        return None;
+    }
     let projects: Vec<serde_json::Value> = request
         .projects_normalized()
         .into_iter()
@@ -808,6 +823,9 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
         "registries": &request.registries,
         "overrides": &request.overrides,
         "catalogs": &request.catalogs,
+        "patchedDependencies": &request.patched_dependencies,
+        "packageExtensions": &request.package_extensions,
+        "allowUnusedPatches": request.allow_unused_patches,
         "autoInstallPeers": config.auto_install_peers,
         "dedupePeers": config.dedupe_peers,
         "excludeLinksFromLockfile": config.exclude_links_from_lockfile,
@@ -914,6 +932,7 @@ impl TarballRouter {
             metadata.resolution = LockfileResolution::Tarball(TarballResolution {
                 tarball: routed_url,
                 integrity: Some(integrity.clone()),
+                revision: None,
                 git_hosted: None,
                 path: None,
             });
@@ -1007,6 +1026,8 @@ fn upstream_endpoint_tarball_url(
 /// server's gzip [`CompressionLayer`](crate::server) so frames flush to
 /// the client incrementally rather than being buffered by the encoder.
 const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson";
+const PROJECT_TRANSFORMS_HEADER: &str = "pnpr-project-transforms";
+const PROJECT_TRANSFORMS_VERSION: &str = "1";
 
 /// [`ResolutionObserver`](pnpm_package_manager::ResolutionObserver)
 /// that turns each resolved tarball into a `package` NDJSON frame and
@@ -1031,9 +1052,7 @@ impl pnpm_package_manager::ResolutionObserver for StreamObserver {
     }
 }
 
-/// One `package` NDJSON frame. `unpackedSize` is omitted (not null)
-/// when the registry never published a `dist.unpackedSize`, so older
-/// clients parse the frame unchanged.
+/// One `package` NDJSON frame. Optional fields are omitted (not null).
 fn package_frame(router: &TarballRouter, hint: &ResolvedPackageHint<'_>) -> serde_json::Value {
     // A registry-resolved package's `tarball_url` is the packument's
     // `dist.tarball`, which a split-domain registry hosts on a different origin
@@ -1057,6 +1076,11 @@ fn package_frame(router: &TarballRouter, hint: &ResolvedPackageHint<'_>) -> serd
     }
     if let Some(count) = hint.file_count {
         frame["fileCount"] = serde_json::Value::from(count);
+    }
+    if tarball_url == hint.tarball_url
+        && let Some(revision) = hint.revision
+    {
+        frame["revision"] = serde_json::Value::from(revision);
     }
     frame
 }
@@ -1101,12 +1125,24 @@ fn frozen_package_frames(
         };
         let name = package_key.name.to_string();
         let version = package_key.suffix.version().to_string();
-        let tarball_url = router.route_url(&name, &version, &tarball_url);
+        let upstream_tarball_url = tarball_url;
+        let tarball_url = router.route_url(&name, &version, &upstream_tarball_url);
         if !seen_urls.insert(tarball_url.clone()) {
             continue;
         }
         let id = format!("{name}@{version}");
         let integrity = integrity.to_string();
+        let revision = if tarball_url == upstream_tarball_url {
+            match &snapshot.resolution {
+                LockfileResolution::Tarball(tarball) => tarball.revision.map(TarballRevision::get),
+                LockfileResolution::Registry(registry) => {
+                    registry.revision.map(TarballRevision::get)
+                }
+                _ => None,
+            }
+        } else {
+            None
+        };
         let stats = dist_stats.get(&(name.clone(), version.clone())).map(|entry| *entry.value());
         let frame = package_frame(
             router,
@@ -1118,6 +1154,7 @@ fn frozen_package_frames(
                 tarball_url: &tarball_url,
                 unpacked_size: stats.and_then(|stats| stats.unpacked_size),
                 file_count: stats.and_then(|stats| stats.file_count),
+                revision,
                 // The URL is already routed (canonical → endpoint above), so
                 // re-routing by registry would be redundant; route_url is a
                 // no-op on an already-routed URL.
@@ -1305,6 +1342,7 @@ fn ndjson_single_frame(frame: &[u8]) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
+        .header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .body(Body::from(frame.to_vec()))
         .expect("binary response is always valid")
 }
@@ -1316,6 +1354,7 @@ fn ndjson_frames(frames: &[Vec<u8>]) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
+        .header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .body(Body::from(frames.concat()))
         .expect("binary response is always valid")
 }
@@ -1330,6 +1369,7 @@ fn ndjson_stream_response(rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>) -> 
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
+        .header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .body(Body::from_stream(stream))
         .expect("streaming response is always valid")
 }
@@ -1450,9 +1490,9 @@ fn merge_policies(
 /// cloud instance metadata, an internal service, or any other off-allowlist
 /// host. Beyond the default/named registries this also covers every fetch a
 /// *direct-URL dependency* would trigger: an `http(s)`/`git` dependency spec,
-/// a catalog entry, an override URL leaf, or an input lockfile's tarball URL. A
-/// semver range or `npm:`/`workspace:`/`file:` alias never hits the network, so
-/// it is ignored.
+/// a catalog or package-extension entry, an override URL leaf, or an input
+/// lockfile's tarball URL. A semver range or `npm:`/`workspace:`/`file:` alias
+/// never hits the network, so it is ignored.
 fn reject_off_allowlist_fetches(
     request: &ResolveRequest,
     context: &RouteContext,
@@ -1485,6 +1525,7 @@ fn reject_off_allowlist_fetches(
         url_specs
             .extend(catalogs.values().flat_map(|catalog| catalog.values()).map(String::as_str));
     }
+    extend_package_extension_specs(request, &mut url_specs);
     if let Some(packages) =
         request.lockfile.as_ref().and_then(|lockfile| lockfile.packages.as_ref())
     {
@@ -1591,11 +1632,23 @@ fn reject_invalid_registries(request: &ResolveRequest) -> Option<Response> {
         .map(|error| json_error(StatusCode::BAD_REQUEST, &error.to_string()))
 }
 
+fn reject_invalid_patch_hashes(request: &ResolveRequest) -> Option<Response> {
+    let (selector, _) = request.patched_dependencies.as_ref()?.iter().find(|(_, hash)| {
+        hash.len() != 64
+            || !hash.bytes().all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    })?;
+    Some(json_error(
+        StatusCode::BAD_REQUEST,
+        &format!("patchedDependencies entry {selector:?} does not contain a SHA-256 hex digest"),
+    ))
+}
+
 /// Reject a request whose client-supplied URLs carry inline
 /// `user:pass@host` credentials, before any fetch or cache write. Covers
-/// the default and named registries, every dependency spec, catalog value,
-/// override values, and the tarball URLs of an input lockfile — every surface
-/// a tarball/registry URL can reach the resolver (or be echoed back) through.
+/// the default and named registries, every dependency spec, catalog and
+/// package-extension value, override values, and the tarball URLs of an input
+/// lockfile — every surface a tarball/registry URL can reach the resolver (or
+/// be echoed back) through.
 /// Returns a `400` response when one is found.
 fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Response> {
     let mut specs: Vec<&str> = Vec::new();
@@ -1614,6 +1667,7 @@ fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Response> {
     if let Some(catalogs) = request.catalogs.as_ref() {
         specs.extend(catalogs.values().flat_map(|catalog| catalog.values()).map(String::as_str));
     }
+    extend_package_extension_specs(request, &mut specs);
     // A supplied lockfile can carry `resolution.tarball` URLs that reach the
     // verify/frozen paths and would otherwise be routed or echoed back.
     if let Some(packages) =
@@ -1634,6 +1688,24 @@ fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Response> {
              configure an upstream credential alias instead",
         )
     })
+}
+
+fn extend_package_extension_specs<'a>(request: &'a ResolveRequest, specs: &mut Vec<&'a str>) {
+    let Some(extensions) = request.package_extensions.as_ref() else {
+        return;
+    };
+    for extension in extensions.values() {
+        for dependencies in [
+            extension.dependencies.as_ref(),
+            extension.optional_dependencies.as_ref(),
+            extension.peer_dependencies.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            specs.extend(dependencies.values().map(String::as_str));
+        }
+    }
 }
 
 /// Recursively scan an `overrides` JSON value for any string leaf that is

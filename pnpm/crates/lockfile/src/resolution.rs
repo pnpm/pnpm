@@ -1,5 +1,7 @@
-use derive_more::{Display, From, TryInto};
+use derive_more::{Display, Error, From, Into, TryInto};
 use pipe_trait::Pipe;
+use pnpm_crypto_hash::integrity_addressed_tarball_path;
+use pnpm_diagnostics::miette::Diagnostic;
 use serde::{Deserialize, Serialize};
 use ssri::Integrity;
 use std::{
@@ -14,6 +16,8 @@ pub struct TarballResolution {
     pub tarball: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub integrity: Option<Integrity>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revision: Option<TarballRevision>,
     /// `true` for tarballs sourced from a git host (codeload.github.com /
     /// gitlab.com / bitbucket.org). Such tarballs need preparation
     /// (preparePackage / packlist) on extraction, and their cached content
@@ -52,6 +56,59 @@ impl TarballResolution {
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RegistryResolution {
     pub integrity: Integrity,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revision: Option<TarballRevision>,
+}
+
+/// Largest registry revision every pnpm implementation can represent exactly.
+pub const MAX_TARBALL_REVISION: u64 = 9_007_199_254_740_991;
+
+/// A positive registry artifact revision in JavaScript's safe-integer range.
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Into,
+)]
+#[serde(try_from = "u64", into = "u64")]
+pub struct TarballRevision(u64);
+
+impl TarballRevision {
+    #[must_use]
+    pub fn get(self) -> u64 {
+        self.0
+    }
+}
+
+impl TryFrom<u64> for TarballRevision {
+    type Error = InvalidTarballRevisionError;
+
+    fn try_from(revision: u64) -> Result<Self, Self::Error> {
+        if (1..=MAX_TARBALL_REVISION).contains(&revision) {
+            Ok(Self(revision))
+        } else {
+            Err(InvalidTarballRevisionError { revision })
+        }
+    }
+}
+
+#[derive(Debug, Display, Error, Clone, Copy)]
+#[display("tarball revision {revision} is not a positive integer at most {MAX_TARBALL_REVISION}")]
+pub struct InvalidTarballRevisionError {
+    pub revision: u64,
+}
+
+/// A resolver-produced tarball revision that cannot be represented as the
+/// compact, integrity-addressed lockfile form required by the RFC.
+#[derive(Debug, Display, Error, Diagnostic, Clone, Copy)]
+#[non_exhaustive]
+pub enum LockfileFormError {
+    #[display("Cannot serialize a tarball revision without integrity.")]
+    #[diagnostic(code(ERR_PNPM_INVALID_TARBALL_REVISION))]
+    RevisionWithoutIntegrity,
+
+    #[display(
+        "Cannot serialize tarball revision {revision}: its URL does not match its integrity and registry."
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_TARBALL_REVISION))]
+    RevisionUrlMismatch { revision: TarballRevision },
 }
 
 /// For local directory on a filesystem.
@@ -361,18 +418,30 @@ impl LockfileResolution {
     /// derived URL (e.g. private registries with non-standard tarball paths).
     /// Non-tarball resolutions and integrity-less tarballs pass through
     /// unchanged.
-    #[must_use]
     pub fn to_lockfile_form(
         &self,
         name: &str,
         version: &str,
         opts: LockfileFormOptions<'_>,
-    ) -> LockfileResolution {
+    ) -> Result<LockfileResolution, LockfileFormError> {
         let LockfileFormOptions { registry, server_type, include_tarball_url } = opts;
-        let LockfileResolution::Tarball(tarball) = self else { return self.clone() };
-        let Some(integrity) = tarball.integrity.as_ref() else { return self.clone() };
+        let LockfileResolution::Tarball(tarball) = self else { return Ok(self.clone()) };
+        let Some(integrity) = tarball.integrity.as_ref() else {
+            return if tarball.revision.is_some() {
+                Err(LockfileFormError::RevisionWithoutIntegrity)
+            } else {
+                Ok(self.clone())
+            };
+        };
 
         let git_hosted = tarball.is_git_hosted();
+        let integrity_addressed =
+            is_integrity_addressed_registry_tarball_url(&tarball.tarball, integrity, registry);
+        if let Some(revision) = tarball.revision
+            && !integrity_addressed
+        {
+            return Err(LockfileFormError::RevisionUrlMismatch { revision });
+        }
         // A standard registry tarball whose URL can be rebuilt from name+version+
         // registry is written as just `{integrity}` — pnpm derives the URL on
         // demand. Every other tarball must keep its URL or it can no longer be
@@ -380,6 +449,7 @@ impl LockfileResolution {
         // tarballs, and non-standard registry URLs (npm Enterprise, GitHub Packages
         // `/download/` URLs). `include_tarball_url` forces the URL to be kept.
         if !include_tarball_url
+            && tarball.revision.is_none()
             && !git_hosted
             && !tarball.tarball.starts_with("file:")
             && is_canonical_registry_tarball_url(
@@ -389,20 +459,28 @@ impl LockfileResolution {
                 TarballUrlOptions { registry, server_type },
             )
         {
-            return LockfileResolution::Registry(RegistryResolution {
+            return Ok(LockfileResolution::Registry(RegistryResolution {
                 integrity: integrity.clone(),
-            });
+                revision: tarball.revision,
+            }));
+        }
+        if !git_hosted && !tarball.tarball.starts_with("file:") && integrity_addressed {
+            return Ok(LockfileResolution::Registry(RegistryResolution {
+                integrity: integrity.clone(),
+                revision: tarball.revision,
+            }));
         }
         // The kept-URL form carries the `git_hosted` marker and the subdirectory
         // `path` (`repo#commit&path:/sub/dir`, only ever set on git-hosted tarballs)
         // so a git-hosted monorepo tarball still unpacks the right subfolder.
         // See <https://github.com/pnpm/pnpm/issues/12304>.
-        LockfileResolution::Tarball(TarballResolution {
+        Ok(LockfileResolution::Tarball(TarballResolution {
             tarball: tarball.tarball.clone(),
             integrity: Some(integrity.clone()),
+            revision: tarball.revision,
             git_hosted: git_hosted.then_some(true),
             path: tarball.path.clone(),
-        })
+        }))
     }
 }
 
@@ -543,6 +621,37 @@ pub struct LockfileFormOptions<'a> {
     pub server_type: Option<RegistryServerType>,
     /// Keep the tarball URL even when it is reconstructible.
     pub include_tarball_url: bool,
+}
+
+/// Build an integrity-addressed tarball URL relative to `registry`.
+#[must_use]
+pub fn integrity_addressed_registry_tarball_url(
+    integrity: &Integrity,
+    registry: &str,
+) -> Option<String> {
+    let path = integrity_addressed_tarball_path(integrity)?;
+    let registry =
+        if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
+    url::Url::parse(&registry).ok()?.join(&path).ok().map(Into::into)
+}
+
+/// Whether `tarball` is the exact digest route derived from `registry` and `integrity`.
+#[must_use]
+pub fn is_integrity_addressed_registry_tarball_url(
+    tarball: &str,
+    integrity: &Integrity,
+    registry: &str,
+) -> bool {
+    if !tarball.contains("/-/tarballs/sha512/") {
+        return false;
+    }
+    let Some(expected) = integrity_addressed_registry_tarball_url(integrity, registry) else {
+        return false;
+    };
+    match (url::Url::parse(tarball), url::Url::parse(&expected)) {
+        (Ok(actual), Ok(expected)) => actual == expected,
+        _ => false,
+    }
 }
 
 /// Derive the canonical npm registry tarball URL for `name@version`. Port of

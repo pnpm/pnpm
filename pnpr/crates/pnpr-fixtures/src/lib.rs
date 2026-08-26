@@ -63,6 +63,48 @@ pub fn build_storage_at_with_substitutions(
     build_storage(packages, out, substitutions);
 }
 
+/// Point `tag` at `version` in a built storage tree — the fixture-side
+/// equivalent of the JS harness's `addDistTag`, and the only way to give a
+/// package a `latest` other than its highest published version.
+///
+/// `time.modified` moves with the tag, the same as pnpr's own
+/// `PUT /-/package/:pkg/dist-tags/:tag` — it is what the served
+/// `Last-Modified` is derived from.
+///
+/// Only call this on a tree the test owns, never on the process-global
+/// storage every other test reads — see [`build_storage_at`].
+pub fn set_dist_tag(storage: &Path, package: &str, version: &str, tag: &str) {
+    let path = storage.join(package).join("package.json");
+    let bytes = fs::read(&path)
+        .unwrap_or_else(|err| panic!("read fixture packument at {}: {err}", path.display()));
+    let mut packument: Value = serde_json::from_slice(&bytes).expect("parse fixture packument");
+    let packument_object = packument.as_object_mut().expect("fixture packument is an object");
+    assert!(
+        packument_object
+            .get("versions")
+            .and_then(Value::as_object)
+            .is_some_and(|versions| versions.contains_key(version)),
+        "{package} has no fixture version {version} to tag as {tag}",
+    );
+    insert_object_entry(packument_object, "dist-tags", tag, json!(version));
+    insert_object_entry(packument_object, "time", "modified", json!(now_iso()));
+    fs::write(&path, serde_json::to_vec(&packument).expect("serialize fixture packument"))
+        .expect("write fixture packument");
+}
+
+fn insert_object_entry(parent: &mut Map<String, Value>, field: &str, key: &str, value: Value) {
+    parent
+        .entry(field.to_string())
+        .or_insert_with(|| Value::Object(Map::new()))
+        .as_object_mut()
+        .unwrap_or_else(|| panic!("fixture packument {field} is an object"))
+        .insert(key.to_string(), value);
+}
+
+fn now_iso() -> String {
+    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+}
+
 fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()

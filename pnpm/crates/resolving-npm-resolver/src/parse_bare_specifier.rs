@@ -23,7 +23,9 @@ use pnpm_resolving_resolver_base::{
 };
 use reqwest::Url;
 
-use crate::pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType};
+use crate::pick_package_from_meta::{
+    RegistryPackageSpec, RegistryPackageSpecType, RegistryRevisionSelector,
+};
 
 /// Discriminator + normalized form produced by [`get_version_selector_type`].
 pub(crate) struct VersionSelectorMatch {
@@ -80,6 +82,7 @@ pub fn parse_bare_specifier(
             name: name.clone(),
             fetch_spec: selector.normalized,
             spec_type: selector.spec_type,
+            revision: parse_revision_selector(selector.spec_type, &bare),
             normalized_bare_specifier: None,
         });
     }
@@ -91,6 +94,7 @@ pub fn parse_bare_specifier(
             name: pkg.name,
             fetch_spec: pkg.version,
             spec_type: RegistryPackageSpecType::Version,
+            revision: None,
             normalized_bare_specifier: Some(bare),
         });
     }
@@ -136,6 +140,7 @@ pub fn parse_jsr_specifier_to_registry_package_spec(
             name: spec.npm_pkg_name,
             fetch_spec: selector.normalized,
             spec_type: selector.spec_type,
+            revision: parse_revision_selector(selector.spec_type, selector_input),
             normalized_bare_specifier: None,
         },
         jsr_pkg_name: spec.jsr_pkg_name,
@@ -266,6 +271,7 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
             name: pkg_name,
             fetch_spec: selector.normalized,
             spec_type: selector.spec_type,
+            revision: parse_revision_selector(selector.spec_type, selector_input),
             normalized_bare_specifier: None,
         },
         registry_name: registry_name.to_string(),
@@ -274,9 +280,11 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
 
 /// Discriminate between an exact version, a semver range, and a
 /// dist-tag, returning the normalized form alongside the discriminator:
-/// version first, range second, tag last. Returns `None` only when the
-/// selector contains characters that `encodeURIComponent` would escape
-/// (i.e. not a valid npm tag).
+/// version first, range second, tag last. An exact version normalizes
+/// without its build metadata, since npm strips build metadata off a
+/// version when it publishes it. Returns `None` only when the selector
+/// contains characters that `encodeURIComponent` would escape (i.e. not
+/// a valid npm tag).
 pub(crate) fn get_version_selector_type(selector: &str) -> Option<VersionSelectorMatch> {
     if is_any_version_range(selector) {
         return Some(VersionSelectorMatch {
@@ -284,7 +292,8 @@ pub(crate) fn get_version_selector_type(selector: &str) -> Option<VersionSelecto
             normalized: ANY_VERSION_RANGE.to_string(),
         });
     }
-    if let Ok(version) = Version::parse(selector) {
+    if let Ok(mut version) = Version::parse(selector) {
+        version.build.clear();
         return Some(VersionSelectorMatch {
             spec_type: RegistryPackageSpecType::Version,
             normalized: version.to_string(),
@@ -303,6 +312,33 @@ pub(crate) fn get_version_selector_type(selector: &str) -> Option<VersionSelecto
         });
     }
     None
+}
+
+fn parse_revision_selector(
+    spec_type: RegistryPackageSpecType,
+    raw_selector: &str,
+) -> Option<RegistryRevisionSelector> {
+    if spec_type != RegistryPackageSpecType::Version {
+        return None;
+    }
+    let normalized = raw_selector.trim();
+    let (_, build) = normalized.split_once('+')?;
+    let digits = build.strip_prefix('r')?;
+    if digits.is_empty()
+        || digits.contains('.')
+        || !digits.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return None;
+    }
+    if digits.len() > 1 && digits.starts_with('0') {
+        return Some(RegistryRevisionSelector::Invalid(raw_selector.to_string()));
+    }
+    match digits.parse::<u64>() {
+        Ok(revision) if revision <= pnpm_lockfile::MAX_TARBALL_REVISION => {
+            Some(RegistryRevisionSelector::Valid(revision))
+        }
+        _ => Some(RegistryRevisionSelector::Invalid(raw_selector.to_string())),
+    }
 }
 
 /// Mirrors JS's `encodeURIComponent(s) === s` check, rejecting

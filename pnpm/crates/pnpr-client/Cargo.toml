@@ -13,11 +13,13 @@ path = "src/lib.rs"
 [dependencies]
 pnpm-catalogs-types        = { workspace = true }
 pnpm-config                = { workspace = true }
+pnpm-graph-hasher          = { workspace = true }
 pnpm-lockfile              = { workspace = true }
 pnpm-lockfile-verification = { workspace = true }
 pnpm-network               = { workspace = true }
 derive_more                = { workspace = true }
 futures-util               = { workspace = true }
+indexmap                   = { workspace = true }
 reqwest                    = { workspace = true }
 serde                      = { workspace = true }
 serde_json                 = { workspace = true }

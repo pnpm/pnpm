@@ -3,11 +3,11 @@
 use super::{
     AtomicU8, BTreeMap, BTreeSet, Config, DependencyGroup, Diagnostic, Display, Error, HashMap,
     HashSet, HoistedDepGraphError, IncludedDependencies, LinkHoistedModulesError,
-    LinkHoistedModulesOpts, Lockfile, LockfileToHoistedDepGraphOptions, OsStr, PackageKey,
-    PackageMetadata, Path, PathBuf, Prefix, ProjectSnapshot, Reporter, SkippedSnapshots,
-    SnapshotEntry, SymlinkDirectDependencies, SymlinkDirectDependenciesError, SymlinkPackageError,
-    VirtualStoreLayout, build_direct_deps_by_importer, create_matcher, get_hoisted_dependencies,
-    link_hoisted_modules, lockfile_to_hoisted_dep_graph,
+    LinkHoistedModulesOpts, Lockfile, LockfileToHoistedDepGraphOptions, NodeLinker, OsStr,
+    PackageKey, PackageMetadata, Path, PathBuf, Prefix, ProjectSnapshot, Reporter,
+    SkippedSnapshots, SnapshotEntry, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
+    SymlinkPackageError, VirtualStoreLayout, build_direct_deps_by_importer, create_matcher,
+    get_hoisted_dependencies, link_hoisted_modules, lockfile_to_hoisted_dep_graph,
 };
 
 /// Internal handoff between the hoisted-linker walker/linker pass
@@ -197,6 +197,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     // Only happens when the install has no snapshots, in which case
     // the linker is a no-op.
     let cas_index = cas_paths_by_pkg_id.expect("hoisted CreateVirtualStore populates cas_paths");
+    let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
     let link_opts = LinkHoistedModulesOpts {
         graph: &walker_result.graph,
         prev_graph: walker_result.prev_graph.as_ref(),
@@ -206,6 +207,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
         logged_methods,
         requester,
         confine_root: walker_lockfile_dir,
+        link_options: &link_options,
     };
     link_hoisted_modules::<Reporter>(&link_opts).map_err(HoistedLinkerError::LinkHoistedModules)?;
     link_selected_hoisted_direct_dependencies(
@@ -259,7 +261,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
         trusted_importer_ids: Some(&trusted_importer_ids),
         // pnpm gates `extraNodePaths` on the isolated linker, so the
         // hoisted linker's shims never carry `NODE_PATH`.
-        extra_node_paths: &[],
+        link_options: &link_options,
     }
     .run::<Reporter>()
     .map_err(HoistedLinkerError::SymlinkDirectDependencies)?;
@@ -291,6 +293,7 @@ pub(crate) fn link_selected_hoisted_direct_dependencies(
     let modules_dir_name =
         config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
     let root_modules_dir = pnpm_fs::lexical_normalize(&lockfile_dir.join(modules_dir_name));
+    let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
     for (project_dir, _) in project_manifests {
         let importer_id = pnpm_workspace::importer_id_from_root_dir(lockfile_dir, project_dir);
         let Some(direct_dependencies) = direct_dependencies_by_importer_id.get(&importer_id) else {
@@ -386,11 +389,13 @@ pub(crate) fn link_selected_hoisted_direct_dependencies(
             })?;
             linked_names.push(alias.clone());
         }
-        crate::link_direct_dep_bins(&modules_dir, &linked_names, &[]).map_err(|source| {
-            HoistedLinkerError::SymlinkDirectDependencies(SymlinkDirectDependenciesError::LinkBins(
-                source,
-            ))
-        })?;
+        crate::link_direct_dep_bins(&modules_dir, &linked_names, &link_options).map_err(
+            |source| {
+                HoistedLinkerError::SymlinkDirectDependencies(
+                    SymlinkDirectDependenciesError::LinkBins(source),
+                )
+            },
+        )?;
     }
     Ok(())
 }

@@ -9,7 +9,18 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::{Lockfile, PkgName};
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path};
+use std::{fs, io, path::Path, process::Command};
+
+/// Nothing at `path` at all. `Path::exists` follows links, so it also reports
+/// `false` for a link whose target is missing — an excluded dependency that was
+/// wrongly linked would pass a plain `!exists()` check.
+fn is_absent(path: &Path) -> bool {
+    match fs::symlink_metadata(path) {
+        Ok(_) => false,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => true,
+        Err(error) => panic!("stat {}: {error}", path.display()),
+    }
+}
 
 fn read_wanted_lockfile(workspace: &Path) -> Lockfile {
     let text =
@@ -600,9 +611,9 @@ fn headless_install_without_optional_deps() {
 
 /// TS: `installing only optional deps` (`deps-restorer/test/index.ts:300`).
 /// Upstream drives the programmatic API with `include = { dependencies:
-/// false, devDependencies: false, optionalDependencies: true }`; the
-/// CLI-reachable equivalent is `--dev` (keep dev + optional, drop
-/// production), which exercises the same headless include filtering.
+/// false, devDependencies: false, optionalDependencies: true }`, which no
+/// flag combination reaches. `--dev` is the closest CLI-reachable headless
+/// include filter: it drops the optional group along with the production one.
 #[test]
 fn headless_install_include_filtering_excludes_production_group() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -620,7 +631,7 @@ fn headless_install_include_filtering_excludes_production_group() {
     pacquet_in(&workspace).with_args(["install", "--frozen-lockfile", "--dev"]).assert().success();
 
     assert!(
-        !workspace.join("node_modules/@pnpm.e2e/foo").exists(),
+        is_absent(&workspace.join("node_modules/@pnpm.e2e/foo")),
         "the excluded production dependency must not be linked",
     );
     assert!(
@@ -628,8 +639,8 @@ fn headless_install_include_filtering_excludes_production_group() {
         "the dev dependency must be installed",
     );
     assert!(
-        workspace.join("node_modules/@pnpm.e2e/qar/package.json").exists(),
-        "the optional dependency must be installed",
+        is_absent(&workspace.join("node_modules/@pnpm.e2e/qar")),
+        "a dev-only install must not install the optional dependency",
     );
 
     drop((root, npmrc_info)); // cleanup
@@ -795,6 +806,35 @@ fn not_installing_optional_dependencies_when_optional_is_false() {
     );
 
     drop((root, npmrc_info)); // cleanup
+}
+
+#[test]
+fn optional_setting_excludes_optional_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "dependencies": { "is-positive": "1.0.0" },
+            "optionalDependencies": { "@pnpm.e2e/pkg-with-optional": "1.0.0" },
+        }),
+    );
+    append_workspace_yaml_key(&workspace, "optional", "false");
+
+    pacquet.with_arg("install").assert().success();
+
+    assert!(workspace.join("node_modules/is-positive/package.json").exists());
+    assert!(is_absent(&workspace.join("node_modules/@pnpm.e2e/pkg-with-optional")));
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--optional"])
+        .assert()
+        .success();
+    assert!(workspace.join("node_modules/@pnpm.e2e/pkg-with-optional/package.json").exists());
+
+    drop((root, npmrc_info));
 }
 
 /// TS: `optional dependency has bigger priority than regular dependency`

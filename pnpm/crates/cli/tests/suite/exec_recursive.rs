@@ -5,9 +5,9 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use serde_json::{Value, json};
-use std::{collections::HashMap, fs, path::Path};
+use std::{collections::HashMap, fs, path::Path, process::Command};
 
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` per name under its own subdirectory of `workspace`.
@@ -46,6 +46,23 @@ fn summary_statuses(workspace: &Path) -> HashMap<String, String> {
         .collect()
 }
 
+fn write_concurrency_probe(workspace: &Path) {
+    fs::write(
+        workspace.join("track-concurrency.sh"),
+        r#"marker=../active-$(basename "$PWD")
+mkdir "$marker"
+sleep 0.2
+set -- ../active-*
+[ -e "$1" ] || set --
+[ "$#" -ge 2 ] && touch ../saw-parallel
+[ "$#" -gt 2 ] && touch ../exceeded-concurrency
+sleep 0.2
+rmdir "$marker"
+"#,
+    )
+    .expect("write concurrency probe");
+}
+
 /// `pacquet -r exec <command>` runs the command once in every workspace
 /// project, each with cwd == its own package root — a relative `touch`
 /// lands a marker inside each package directory.
@@ -68,6 +85,67 @@ fn recursive_exec_runs_command_in_every_project() {
             "{name} should have run the command in its own directory",
         );
     }
+
+    drop(root);
+}
+
+#[test]
+fn recursive_exec_respects_workspace_concurrency() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
+    write_concurrency_probe(&workspace);
+
+    pacquet
+        .with_args(["--workspace-concurrency=2", "-r", "exec", "sh", "../track-concurrency.sh"])
+        .assert()
+        .success();
+
+    assert!(workspace.join("saw-parallel").exists(), "two commands should overlap");
+    assert!(
+        !workspace.join("exceeded-concurrency").exists(),
+        "no more than two commands should overlap",
+    );
+
+    drop(root);
+}
+
+#[test]
+fn recursive_exec_no_sort_reverse_and_resume_transform_workspace_order() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["z-first", "m-middle", "a-last"]);
+
+    pacquet
+        .with_args([
+            "--workspace-concurrency=1",
+            "--no-sort",
+            "--reverse",
+            "--resume-from=m-middle",
+            "-r",
+            "exec",
+            "-c",
+            r#"echo "$(basename "$PWD")" >> ../order.log"#,
+        ])
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "m-middle\na-last\n");
+
+    drop(root);
+}
+
+#[test]
+fn parallel_recursive_exec_has_no_workspace_concurrency_cap() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
+    write_concurrency_probe(&workspace);
+
+    pacquet.with_args(["--parallel", "exec", "sh", "../track-concurrency.sh"]).assert().success();
+
+    assert!(
+        workspace.join("exceeded-concurrency").exists(),
+        "--parallel should start all three commands together",
+    );
 
     drop(root);
 }
@@ -238,6 +316,31 @@ fn recursive_exec_report_summary_records_every_package_status() {
     drop(root);
 }
 
+#[test]
+fn recursive_exec_bail_summary_records_every_completed_batch_result() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["fails", "passes"]);
+
+    pacquet
+        .with_args([
+            "--workspace-concurrency=2",
+            "--no-sort",
+            "--report-summary",
+            "-r",
+            "exec",
+            "-c",
+            r#"if [ "$(basename "$PWD")" = fails ]; then exit 1; fi"#,
+        ])
+        .assert()
+        .failure();
+
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(statuses.get("fails").map(String::as_str), Some("failure"));
+    assert_eq!(statuses.get("passes").map(String::as_str), Some("passed"));
+
+    drop(root);
+}
+
 /// With `--no-bail`, a failing command runs in every project and the
 /// invocation still ends with a non-zero exit (the recursive-fail error).
 #[test]
@@ -265,14 +368,15 @@ fn recursive_exec_no_bail_runs_all_then_fails() {
     drop(root);
 }
 
-/// Without `--no-bail`, execution stops at the first failing project, so
-/// at least one project never runs.
+/// With one workspace task in flight, execution stops at the first failing
+/// project, so at least one project never runs.
 #[test]
 fn recursive_exec_bail_stops_at_first_failure() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
 
     let output = pacquet
+        .with_arg("--workspace-concurrency=1")
         .with_arg("-r")
         .with_arg("exec")
         .with_arg("-c")
@@ -324,6 +428,219 @@ fn recursive_exec_settings_only_workspace_enumerates_root_only() {
     assert!(
         !nested.join("ran.txt").exists(),
         "settings-only workspace manifests must not recursively enumerate vendored packages",
+    );
+
+    drop(root);
+}
+
+/// Port of upstream's `pnpm exec --recursive --no-reporter-hide-prefix
+/// prints prefixes` (`exec/commands/test/exec.logs.ts`). `exec` labels
+/// its output with the package name and a `(exec)` stage.
+#[test]
+fn no_reporter_hide_prefix_labels_each_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+
+    let output = pacquet
+        .with_args([
+            "-r",
+            "--no-reporter-hide-prefix",
+            "--config.verify-deps-before-run=false",
+            "exec",
+            "echo",
+            "hello",
+        ])
+        .output()
+        .expect("run exec");
+    assert!(output.status.success(), "prefixed exec failed: {output:?}");
+    assert_eq!(
+        sorted_lines(&output.stdout),
+        [
+            "project-1 (exec): Done",
+            "project-1 (exec): hello",
+            "project-2 (exec): Done",
+            "project-2 (exec): hello",
+        ],
+    );
+
+    drop(root);
+}
+
+/// A `{<dir>}` selector matches the directory as a glob, so it selects the
+/// project living in that directory and not the ones nested below it.
+#[test]
+fn a_dir_selector_selects_the_project_in_that_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["nested", "nested/inner"]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("{nested}")
+        .with_arg("exec")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .assert()
+        .success();
+
+    assert!(workspace.join("nested/ran.txt").exists(), "the project at {{nested}} should run");
+    assert!(
+        !workspace.join("nested/inner/ran.txt").exists(),
+        "a project below {{nested}} is not selected by the glob match",
+    );
+
+    drop(root);
+}
+
+/// Port of upstream's `pnpm exec --recursive does not print prefixes by
+/// default`: unlike `run`, `exec` inherits the terminal unless the user
+/// turns the hiding off explicitly. `--stream` does not change that.
+#[test]
+fn recursive_exec_inherits_stdio_by_default() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+
+    for extra in [[].as_slice(), ["--stream"].as_slice(), ["--reporter-hide-prefix"].as_slice()] {
+        let mut args = vec!["-r", "--config.verify-deps-before-run=false"];
+        args.extend_from_slice(extra);
+        args.extend_from_slice(&["exec", "echo", "hello"]);
+        let output = Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .without_ambient_pnpm_config()
+            .with_args(args)
+            .output()
+            .expect("run exec");
+        assert!(output.status.success(), "exec failed with {extra:?}: {output:?}");
+        assert_eq!(sorted_lines(&output.stdout), ["hello", "hello"]);
+    }
+
+    drop(root);
+}
+
+/// Sorted so a test does not depend on the order the projects finish in.
+fn sorted_lines(stdout: &[u8]) -> Vec<String> {
+    let stdout = String::from_utf8_lossy(stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    let mut lines = stdout.trim().lines().map(str::to_string).collect::<Vec<_>>();
+    lines.sort();
+    lines
+}
+
+/// Under `legacyDirFiltering` the selector matches by subtree instead: it
+/// names the projects strictly below the directory, and not the project in
+/// the directory itself.
+#[test]
+fn legacy_dir_filtering_selects_the_subtree_below_the_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["nested", "nested/inner"]);
+    let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("read pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("{workspace_yaml}legacyDirFiltering: true\n"),
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("{nested}")
+        .with_arg("exec")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("nested/inner/ran.txt").exists(),
+        "the project below {{nested}} should run under legacyDirFiltering",
+    );
+    assert!(
+        !workspace.join("nested/ran.txt").exists(),
+        "the subtree match excludes the directory it starts from",
+    );
+
+    drop(root);
+}
+
+/// The `!{<workspace-root>}` selector a recursive `run` / `exec` generates
+/// is pnpm's own, so `legacyDirFiltering` must not reach it: read as a
+/// subtree match it would name every project below the root and leave the
+/// root alone selected, which is the opposite of what it is for.
+#[test]
+fn legacy_dir_filtering_leaves_the_generated_root_exclusion_alone() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1"]);
+    let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("read pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("{workspace_yaml}legacyDirFiltering: true\n"),
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the root package.json");
+
+    pacquet
+        .with_args(["-r", "--config.verify-deps-before-run=false", "exec", "touch", "ran.txt"])
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("project-1/ran.txt").exists(),
+        "the workspace projects should run under legacyDirFiltering",
+    );
+    assert!(
+        !workspace.join("ran.txt").exists(),
+        "the workspace root is still excluded from a recursive exec",
+    );
+
+    drop(root);
+}
+
+/// The `{<workspace-root>}` selector `--workspace-root` generates is pnpm's
+/// own as well: read as a subtree match it would name every project below
+/// the root and run the command everywhere but the root.
+#[test]
+fn legacy_dir_filtering_leaves_the_generated_root_inclusion_alone() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1"]);
+    let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("read pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("{workspace_yaml}legacyDirFiltering: true\n"),
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the root package.json");
+
+    pacquet
+        .with_args([
+            "-r",
+            "--workspace-root",
+            "--config.verify-deps-before-run=false",
+            "exec",
+            "touch",
+            "ran.txt",
+        ])
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("ran.txt").exists(),
+        "--workspace-root should select the workspace root under legacyDirFiltering",
+    );
+    assert!(
+        !workspace.join("project-1/ran.txt").exists(),
+        "--workspace-root selects the root alone, not the projects below it",
     );
 
     drop(root);

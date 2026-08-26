@@ -139,25 +139,22 @@ fn parses_lockfile_larger_than_default_yaml_node_budget() {
 
 #[test]
 fn parses_lockfile_larger_than_default_yaml_scalar_byte_budget() {
-    const IMPORTER_COUNT: usize = 1_000_000;
+    // A single huge scalar to push the document past the parser's 64 MiB default scalar budget,
+    // avoiding the O(N) allocation overhead of creating millions of individual AST nodes.
+    let mut content = String::from("lockfileVersion: '9.0'\n\npnpmfileChecksum: ");
+    let huge_string_len = 65 * 1024 * 1024;
+    content.reserve(huge_string_len + 100);
+    content.push_str(&"a".repeat(huge_string_len));
+    content.push_str("\n\nimporters:\n  .: {}\n");
 
-    // Each importer line contributes ~100 bytes of scalar text, pushing the
-    // document past the parser's 64 MiB default scalar budget.
-    let mut content = String::from("lockfileVersion: '9.0'\n\nimporters:\n");
-    for index in 0..IMPORTER_COUNT {
-        writeln!(
-            content,
-            "  padded-project-directory-name/deeply/nested/workspace-component-{index:07}: {{}}",
-        )
-        .expect("write importer");
-    }
     assert!(content.len() > 64 * 1024 * 1024, "fixture must exceed the default scalar budget");
 
     let lockfile = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
         .expect("parse large lockfile")
         .expect("large lockfile should be present");
 
-    assert_eq!(lockfile.importers.len(), IMPORTER_COUNT);
+    assert!(lockfile.pnpmfile_checksum.is_some());
+    assert_eq!(lockfile.pnpmfile_checksum.unwrap().len(), huge_string_len);
 }
 
 // A regression here makes every subsequent install re-resolve from

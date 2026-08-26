@@ -1,4 +1,5 @@
 mod workspace_resolution;
+mod workspace_sort;
 
 use std::{fs, hint::black_box, path::Path, time::Duration};
 
@@ -58,6 +59,7 @@ fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_f
                 store_index: None,
                 store_index_writer: None,
                 verify_store_integrity: true,
+                strict_store_pkg_content_check: true,
                 verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
                 package_integrity: Some(&package_integrity),
                 package_unpacked_size: Some(16697),
@@ -120,6 +122,7 @@ fn bench_concurrent_tarballs(criterion: &mut Criterion, server: &mut ServerGuard
                     store_index: None,
                     store_index_writer: None,
                     verify_store_integrity: true,
+                    strict_store_pkg_content_check: true,
                     verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
                     package_integrity: Some(&package.integrity),
                     package_unpacked_size: Some(package.unpacked_size),
@@ -243,6 +246,7 @@ pub fn main() -> Result<(), String> {
     bench_packument(&mut criterion, &packument);
     bench_lockfile(&mut criterion, &lockfile_dir);
     workspace_resolution::bench_workspace_resolution(&mut criterion);
+    workspace_sort::bench_workspace_sort(&mut criterion);
 
     Ok(())
 }

@@ -5,7 +5,7 @@ use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_modules_yaml::{Host, write_modules_manifest};
 use pnpm_package_manager::allow_build_key_from_ignored_build;
-use pnpm_workspace_manifest_writer::set_allow_builds;
+use pnpm_workspace_manifest_writer::set_allow_builds_clearing_legacy;
 use std::{
     collections::{BTreeMap, HashSet},
     path::Path,
@@ -24,7 +24,7 @@ pub struct ApproveBuildsArgs {
     #[clap(long)]
     pub all: bool,
 
-    /// Approve builds for globally installed packages (not supported yet).
+    /// Approve builds for globally installed packages.
     #[clap(short = 'g', long)]
     pub global: bool,
 }
@@ -33,15 +33,6 @@ pub struct ApproveBuildsArgs {
 /// `ERR_PNPM_APPROVE_BUILDS_*` set.
 #[derive(Debug, Display, Error, Diagnostic)]
 enum ApproveBuildsError {
-    #[display(r#""approve-builds" is not supported with global packages"#)]
-    #[diagnostic(
-        code(ERR_PNPM_APPROVE_BUILDS_NOT_SUPPORTED_WITH_GLOBAL),
-        help(
-            r#"Use --allow-build when installing globally, e.g. "pnpm add -g --allow-build=<pkg> <pkg>". pnpm will also prompt to allow builds interactively during global install."#
-        )
-    )]
-    NotSupportedWithGlobal,
-
     #[display("Cannot use --all with positional arguments")]
     #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_ALL_WITH_ARGS))]
     AllWithArgs,
@@ -53,6 +44,12 @@ enum ApproveBuildsError {
     #[display("The following packages are both approved and denied: {}", _0.join(", "))]
     #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_CONTRADICTING_ARGS))]
     ContradictingArgs(#[error(not(source))] Vec<String>),
+}
+
+pub(crate) struct ApprovalDecision {
+    pub(crate) build_packages: Vec<String>,
+    decisions: BTreeMap<String, bool>,
+    clear_all: bool,
 }
 
 impl ApproveBuildsArgs {
@@ -74,47 +71,47 @@ impl ApproveBuildsArgs {
         config: &(dyn Fn() -> miette::Result<&'static mut Config> + Sync),
         state: &(dyn Fn(bool) -> miette::Result<State> + Sync),
     ) -> miette::Result<Option<(State, Vec<String>)>> {
-        let ApproveBuildsArgs { packages, all, global } = self;
-
-        if global {
-            return Err(ApproveBuildsError::NotSupportedWithGlobal.into());
-        }
-        if all && !packages.is_empty() {
-            return Err(ApproveBuildsError::AllWithArgs.into());
-        }
-
+        self.validate()?;
         let initial_config: &Config = config()?;
         let scan = get_automatically_ignored_builds(initial_config)?;
         let Some(pending) = scan.names.filter(|names| !names.is_empty()) else {
             println!("There are no packages awaiting approval");
             return Ok(None);
         };
+        let Some(decision) = self.decide(&pending)? else {
+            return Ok(None);
+        };
 
-        let (approved, denied) = partition_params(&packages, &pending)?;
+        let settings_dir =
+            initial_config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
+        write_approval_settings(&settings_dir, &decision)?;
+        clear_decided_ignored_builds(scan.modules_manifest, &scan.modules_dir, &decision)?;
 
-        // The packages to build: explicit approvals, every pending package
-        // under `--all`, or the interactive selection otherwise.
+        if decision.build_packages.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some((state(true)?, decision.build_packages)))
+    }
+
+    pub(crate) fn decide(self, pending: &[String]) -> miette::Result<Option<ApprovalDecision>> {
+        self.validate()?;
+        let ApproveBuildsArgs { packages, all, global: _ } = self;
+
+        let (approved, denied) = partition_params(&packages, pending)?;
         let build_packages: Vec<String> = if !packages.is_empty() {
             sort_unique(approved.clone())
         } else if all {
-            sort_unique(pending.clone())
+            sort_unique(pending.to_owned())
         } else {
-            let Some(selected) = prompt_for_builds(&pending)? else {
-                // The prompt was interrupted (Esc / Ctrl-C); leave
-                // everything untouched, matching pnpm's `ExitPromptError`
-                // early exit.
+            let Some(selected) = prompt_for_builds(pending)? else {
                 return Ok(None);
             };
             selected
         };
 
-        // The `allowBuilds` entries to write: each decided package mapped to
-        // `true` (build) or `false` (skip). In interactive / `--all` mode
-        // every pending package is decided, so unselected ones are recorded
-        // as `false`.
         let mut decisions: BTreeMap<String, bool> = BTreeMap::new();
         if packages.is_empty() {
-            for pkg in &pending {
+            for pkg in pending {
                 decisions.insert(pkg.clone(), build_packages.contains(pkg));
             }
         } else {
@@ -134,29 +131,26 @@ impl ApproveBuildsArgs {
             }
         }
 
-        let settings_dir =
-            initial_config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-        set_allow_builds(
-            &settings_dir,
-            decisions.iter().map(|(pkg, &value)| (pkg.as_str(), value)),
-        )
-        .into_diagnostic()?;
-
-        clear_decided_ignored_builds(
-            scan.modules_manifest,
-            &scan.modules_dir,
-            &packages,
-            &approved,
-            &denied,
-        )?;
-
-        if build_packages.is_empty() {
-            return Ok(None);
-        }
-        // Build state from a freshly loaded config so the rebuild's
-        // allow-build policy reflects the `allowBuilds` just written.
-        Ok(Some((state(true)?, build_packages)))
+        Ok(Some(ApprovalDecision { build_packages, decisions, clear_all: packages.is_empty() }))
     }
+
+    pub(crate) fn validate(&self) -> miette::Result<()> {
+        if self.all && !self.packages.is_empty() {
+            return Err(ApproveBuildsError::AllWithArgs.into());
+        }
+        Ok(())
+    }
+}
+
+pub(crate) fn write_approval_settings(
+    settings_dir: &Path,
+    decision: &ApprovalDecision,
+) -> miette::Result<()> {
+    set_allow_builds_clearing_legacy(
+        settings_dir,
+        decision.decisions.iter().map(|(pkg, &value)| (pkg.as_str(), value)),
+    )
+    .into_diagnostic()
 }
 
 /// Split `params` into approved (`<pkg>`) and denied (`!<pkg>`) names,
@@ -225,12 +219,10 @@ fn confirm_builds(build_packages: &[String]) -> miette::Result<bool> {
 /// later `ignored-builds` / install no longer reports them. With positional
 /// arguments only the decided (approved + denied) packages are removed,
 /// preserving the still-pending ones; otherwise every entry is cleared.
-fn clear_decided_ignored_builds(
+pub(crate) fn clear_decided_ignored_builds(
     modules_manifest: Option<pnpm_modules_yaml::Modules>,
     modules_dir: &Path,
-    params: &[String],
-    approved: &[String],
-    denied: &[String],
+    decision: &ApprovalDecision,
 ) -> miette::Result<()> {
     let Some(mut modules) = modules_manifest else {
         return Ok(());
@@ -238,11 +230,10 @@ fn clear_decided_ignored_builds(
     if modules.ignored_builds.is_none() {
         return Ok(());
     }
-    if params.is_empty() {
+    if decision.clear_all {
         modules.ignored_builds = None;
     } else {
-        let decided: HashSet<&str> =
-            approved.iter().chain(denied.iter()).map(String::as_str).collect();
+        let decided: HashSet<&str> = decision.decisions.keys().map(String::as_str).collect();
         if let Some(ignored) = modules.ignored_builds.as_mut() {
             ignored.retain(|dep_path| {
                 !decided.contains(allow_build_key_from_ignored_build(dep_path.as_str()).as_str())

@@ -335,6 +335,7 @@ fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> Resolv
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: format!("https://registry.example/{name}-{version}.tgz"),
             integrity: None,
+            revision: None,
             git_hosted: None,
             path: None,
         }),

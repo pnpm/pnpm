@@ -1,5 +1,6 @@
 use pnpm_lockfile::{
-    BundledDependencies, LockfileFormOptions, PackageMetadata, PeerDependencyMeta, StringOrList,
+    BundledDependencies, LockfileFormError, LockfileFormOptions, PackageMetadata,
+    PeerDependencyMeta, StringOrList,
 };
 use pnpm_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
@@ -11,9 +12,9 @@ pub(crate) fn package_metadata(
     result: &ResolveResult,
     registry: &str,
     lockfile_include_tarball_url: bool,
-) -> PackageMetadata {
+) -> Result<PackageMetadata, LockfileFormError> {
     let manifest = result.manifest.as_deref();
-    PackageMetadata {
+    Ok(PackageMetadata {
         resolution: result.resolution.to_lockfile_form(
             name,
             version,
@@ -22,7 +23,7 @@ pub(crate) fn package_metadata(
                 server_type: None,
                 include_tarball_url: lockfile_include_tarball_url,
             },
-        ),
+        )?,
         version: None,
         engines: read_engines(manifest),
         cpu: read_string_list(manifest, "cpu"),
@@ -37,7 +38,7 @@ pub(crate) fn package_metadata(
         bundled_dependencies: BundledDependencies::from_manifest(manifest),
         peer_dependencies: read_string_map(manifest, "peerDependencies"),
         peer_dependencies_meta: read_peer_dependencies_meta(manifest),
-    }
+    })
 }
 
 pub(crate) fn read_dependency_map(manifest: Option<&Value>, key: &str) -> HashMap<String, String> {

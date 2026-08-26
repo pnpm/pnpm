@@ -78,6 +78,81 @@ describe('plugin-commands-audit', () => {
     expect(stripAnsi(output)).toMatchSnapshot()
   })
 
+  test('audit reports the lowest non-deprecated published version as the patch', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        axios: [
+          {
+            id: 1,
+            title: 'vulnerability in axios',
+            severity: 'high',
+            vulnerable_versions: '<=0.18.0',
+            url: 'https://github.com/advisories/GHSA-mock-mock-mock',
+          },
+        ],
+      })
+    // 0.18.1 was never published and 0.18.2 is deprecated, so the inferred
+    // >=0.18.1 patch resolves to 0.18.3.
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/axios', method: 'GET' })
+      .reply(200, {
+        name: 'axios',
+        time: {
+          '0.18.0': '2020-01-01T00:00:00.000Z',
+          '0.18.2': '2020-02-01T00:00:00.000Z',
+          '0.18.3': '2020-03-01T00:00:00.000Z',
+        },
+        versions: {
+          '0.18.0': {},
+          '0.18.2': { deprecated: 'do not use' },
+          '0.18.3': {},
+        },
+      })
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toContain('>=0.18.3')
+  })
+
+  test('audit reports no patched versions when none was published', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        axios: [
+          {
+            id: 1,
+            title: 'vulnerability in axios',
+            severity: 'high',
+            vulnerable_versions: '<=0.18.0',
+            url: 'https://github.com/advisories/GHSA-mock-mock-mock',
+          },
+        ],
+      })
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/axios', method: 'GET' })
+      .reply(200, {
+        name: 'axios',
+        time: { '0.18.0': '2020-01-01T00:00:00.000Z' },
+      })
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toContain('Patched versions')
+    expect(stripAnsi(output)).toContain('None')
+    expect(stripAnsi(output)).not.toContain('(unknown)')
+  })
+
   test('audit: no vulnerabilities', async () => {
     getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
       .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })

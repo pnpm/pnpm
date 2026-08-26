@@ -9,7 +9,7 @@ use pnpm_lockfile::{
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
-use pnpm_resolving_npm_resolver::infer_range_spec_style;
+use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style};
 use pnpm_resolving_resolver_base::VersionSelectorType;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -149,10 +149,8 @@ fn render_aliases<Bumped, Rendered>(
 /// The range that pins `version` for a dependency that currently declares
 /// `declared`, or `None` when the declaration is not a range this may move.
 ///
-/// The operator the declaration already pins wins over `default_style`, so
-/// an update never widens or narrows what the manifest asked for. Mirrors
-/// the npm resolver's `calc_specifier`, which decides the same text for a
-/// version it has just picked.
+/// The range text is [`calc_version_range`]'s decision — the same one the
+/// npm resolver's `calc_specifier` makes for a version it has just picked.
 fn bumped_range(
     declared: &str,
     version: &ImporterDepVersion,
@@ -170,14 +168,8 @@ fn bumped_range(
         // A link or an injected directory has no version to pin.
         ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => return None,
     };
-    // No range operator expresses "this prerelease and later ones", so a
-    // prerelease pick is pinned exactly.
-    let range = if resolved.pre_release.is_empty() {
-        let style = infer_range_spec_style(declared_range).unwrap_or(default_style);
-        format!("{}{resolved}", style.range_prefix())
-    } else {
-        resolved.to_string()
-    };
+    let range =
+        calc_version_range(resolved, infer_range_spec_style(declared_range), None, default_style);
     let bumped = format!("{prefix}{range}");
     (bumped != declared).then_some(bumped)
 }

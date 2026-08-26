@@ -108,6 +108,7 @@ impl<'a> LatestPicker<'a> {
             dry_run,
             optional: false,
             update_checksums: false,
+            trust_policy: Some(self.config.trust_policy),
             blocked_versions: None,
         };
         let ctx = pick_package_context(

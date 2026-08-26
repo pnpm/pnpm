@@ -1,6 +1,7 @@
 use super::{
     dispatch::{CommandFuture, RunCtx},
     exec::ExecArgs,
+    init::InitArgs,
     pkg::PkgArgs,
     reporter::{ReporterType, reporter_emit},
     restart::RestartArgs,
@@ -9,11 +10,46 @@ use super::{
     set_script::SetScriptArgs,
 };
 use miette::Context;
-use pnpm_package_manifest::PackageManifest;
+use pnpm_config::{Config, InitType};
+use pnpm_package_manifest::{InitAuthor, InitOptions, PackageManifest};
 
-pub(super) fn init<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
-    let result = PackageManifest::init(ctx.manifest_path).wrap_err("initialize package.json");
-    Ok(Box::pin(std::future::ready(result)))
+// `init` looks the version it pins up on the registry, so unlike the other
+// manifest-only commands here it dispatches a real future rather than a
+// ready one.
+pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<CommandFuture<'a>> {
+    let config: &Config = (ctx.config)()?;
+    let es_module = args.effective_init_type(config) == InitType::Module;
+    // `config_self_update`, so a repo-controlled `pnpm-workspace.yaml` cannot
+    // relax the release-age and trust policies governing the version pnpm
+    // ends up downloading. A manifest that is already there skips the lookup
+    // altogether: `PackageManifest::init` refuses to overwrite it, and
+    // `pnpm init` should not wait on a registry to report an error it can
+    // already see.
+    let pin_config: Option<&Config> =
+        if args.pins_pnpm(config, ctx.dir) && !ctx.manifest_path.exists() {
+            Some((ctx.config_self_update)()?)
+        } else {
+            None
+        };
+    let manifest_path = ctx.manifest_path;
+    Ok(Box::pin(async move {
+        let pinned_pnpm_version = match pin_config {
+            Some(pin_config) => Some(super::init::version_to_pin(pin_config).await),
+            None => None,
+        };
+        let options = InitOptions {
+            es_module,
+            pinned_pnpm_version: pinned_pnpm_version.as_deref(),
+            author: InitAuthor {
+                name: config.init_author_name.as_deref(),
+                email: config.init_author_email.as_deref(),
+                url: config.init_author_url.as_deref(),
+            },
+            license: config.init_license.as_deref(),
+            version: config.init_version.as_deref(),
+        };
+        PackageManifest::init(manifest_path, options).wrap_err("initialize package.json")
+    }))
 }
 
 // `set-script` only rewrites `package.json#scripts`; it never touches the
@@ -44,16 +80,17 @@ pub(super) fn test<'a>(
 }
 
 pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<CommandFuture<'a>> {
-    let args = with_recursive_run_options(ctx, args);
+    let config = (ctx.config)()?;
+    let args = with_recursive_run_options(ctx, args, config);
     if ctx.recursive {
         args.run_recursive(
-            (ctx.config)()?,
+            config,
             ctx.dir,
             reporter_emit(ctx.reporter),
             matches!(ctx.reporter, ReporterType::Ndjson | ReporterType::Silent),
         )?;
     } else {
-        args.run(ctx.dir, (ctx.config)()?, matches!(ctx.reporter, ReporterType::Silent))?;
+        args.run(ctx.dir, config, matches!(ctx.reporter, ReporterType::Silent))?;
     }
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
@@ -69,48 +106,56 @@ pub(super) fn fallback<'a>(
         report_summary: false,
         no_bail: false,
         sort: true,
+        reverse: false,
         parallel: false,
         sequential: false,
     };
-    let args = with_recursive_run_options(ctx, args);
+    let config = (ctx.config)()?;
+    let args = with_recursive_run_options(ctx, args, config);
     if ctx.recursive {
         args.run_recursive(
-            (ctx.config)()?,
+            config,
             ctx.dir,
             reporter_emit(ctx.reporter),
             matches!(ctx.reporter, ReporterType::Ndjson | ReporterType::Silent),
         )?;
     } else {
-        args.run_fallback(ctx.dir, (ctx.config)()?, matches!(ctx.reporter, ReporterType::Silent))?;
+        args.run_fallback(ctx.dir, config, matches!(ctx.reporter, ReporterType::Silent))?;
     }
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
 pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<CommandFuture<'a>> {
-    let args = with_recursive_exec_options(ctx, args);
+    let config: &'static Config = (ctx.config)()?;
+    let args = with_recursive_exec_options(ctx, args, config);
     if ctx.recursive {
-        args.run_recursive((ctx.config)()?, ctx.dir)?;
+        let dir = ctx.dir;
+        let emit = reporter_emit(ctx.reporter);
+        Ok(Box::pin(async move { args.run_recursive(config, dir, emit).await }))
     } else {
-        args.run(ctx.dir, (ctx.config)()?)?;
+        args.run(ctx.dir, config)?;
+        Ok(Box::pin(std::future::ready(Ok(()))))
     }
-    Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
-fn with_recursive_run_options(ctx: &RunCtx<'_>, mut args: RunArgs) -> RunArgs {
+fn with_recursive_run_options(ctx: &RunCtx<'_>, mut args: RunArgs, config: &Config) -> RunArgs {
     args.resume_from = ctx.recursive_resume_from.map(str::to_string);
     args.report_summary = ctx.recursive_report_summary;
-    args.no_bail = ctx.recursive_no_bail;
-    args.sort = ctx.recursive_sort;
+    args.no_bail = !config.bail;
+    args.sort = config.sort;
+    args.reverse = config.reverse;
     args.parallel = ctx.recursive_parallel;
     args.if_present |= ctx.if_present;
     args
 }
 
-fn with_recursive_exec_options(ctx: &RunCtx<'_>, mut args: ExecArgs) -> ExecArgs {
+fn with_recursive_exec_options(ctx: &RunCtx<'_>, mut args: ExecArgs, config: &Config) -> ExecArgs {
     args.resume_from = ctx.recursive_resume_from.map(str::to_string);
     args.report_summary = ctx.recursive_report_summary;
-    args.no_bail = ctx.recursive_no_bail;
-    args.sort = ctx.recursive_sort;
+    args.no_bail = !config.bail;
+    args.sort = config.sort;
+    args.reverse = config.reverse;
+    args.parallel = ctx.recursive_parallel;
     args
 }
 

@@ -27,6 +27,8 @@ export interface PackageFilesResponse {
   // Pre-calculated file location maps for side effects, avoiding recalculation during import
   sideEffectsMaps?: Map<string, { added?: FilesMap, deleted?: string[] }>
   requiresBuild: boolean
+  /** Whether preparing a git package required lifecycle scripts before these files were stored. */
+  requiresPrepare?: boolean
 }
 
 export interface ImportPackageOpts {

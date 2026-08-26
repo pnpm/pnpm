@@ -165,7 +165,7 @@ async fn rejects_build_when_not_allowed() {
     .unwrap_err();
 
     match err {
-        GitFetcherError::Prepare(PreparePackageError::NotAllowed { name, version }) => {
+        GitFetcherError::Prepare(PreparePackageError::NotAllowed { name, version, .. }) => {
             assert_eq!(name, "naughty");
             assert_eq!(version, "2.0.0");
         }

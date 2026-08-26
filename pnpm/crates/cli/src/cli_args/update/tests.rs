@@ -15,13 +15,13 @@ fn update_args(args: &[&str]) -> UpdateArgs {
         .args
 }
 
-fn options(prod: bool, dev: bool, no_optional: bool) -> UpdateDependencyOptions {
-    UpdateDependencyOptions { prod, dev, no_optional }
+fn options(prod: bool, dev: bool, optional: bool, no_optional: bool) -> UpdateDependencyOptions {
+    UpdateDependencyOptions { prod, dev, optional, no_optional }
 }
 
 #[test]
 fn no_flags_includes_all_groups() {
-    let groups = options(false, false, false).include_direct();
+    let groups = options(false, false, false, false).include_direct();
     assert_eq!(
         groups,
         vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
@@ -30,19 +30,19 @@ fn no_flags_includes_all_groups() {
 
 #[test]
 fn prod_includes_only_dependencies() {
-    let groups = options(true, false, false).include_direct();
+    let groups = options(true, false, false, false).include_direct();
     assert_eq!(groups, vec![DependencyGroup::Prod]);
 }
 
 #[test]
 fn dev_includes_only_dev_dependencies() {
-    let groups = options(false, true, false).include_direct();
+    let groups = options(false, true, false, false).include_direct();
     assert_eq!(groups, vec![DependencyGroup::Dev]);
 }
 
 #[test]
 fn no_optional_alone_does_not_drop_optional() {
-    let groups = options(false, false, true).include_direct();
+    let groups = options(false, false, false, true).include_direct();
     assert_eq!(
         groups,
         vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
@@ -51,8 +51,14 @@ fn no_optional_alone_does_not_drop_optional() {
 
 #[test]
 fn prod_with_no_optional_drops_optional() {
-    let groups = options(true, false, true).include_direct();
+    let groups = options(true, false, false, true).include_direct();
     assert_eq!(groups, vec![DependencyGroup::Prod]);
+}
+
+#[test]
+fn optional_includes_only_optional_dependencies() {
+    let groups = options(false, false, true, false).include_direct();
+    assert_eq!(groups, vec![DependencyGroup::Optional]);
 }
 
 #[test]
@@ -122,4 +128,47 @@ fn ignore_pnpmfile_flag_applies_to_config() {
 
     update_args(&["--ignore-pnpmfile"]).apply_cli_config(&mut config);
     assert!(config.ignore_pnpmfile, "flag present → config set");
+}
+
+#[test]
+fn pnpr_server_flag_applies_to_config() {
+    let mut config = Config::default();
+
+    update_args(&["--pnpr-server", "https://pnpr.example.test/"]).apply_cli_config(&mut config);
+
+    assert_eq!(config.pnpr_server.as_deref(), Some("https://pnpr.example.test/"));
+}
+
+#[test]
+fn patches_is_a_selectorless_update_mode() {
+    let patches = update_args(&["--patches"]);
+    assert!(patches.patches);
+    patches.check_patches_options().expect("standalone --patches");
+
+    for args in [
+        &["--patches", "foo"][..],
+        &["--patches", "--latest"][..],
+        &["--patches", "--interactive"][..],
+        &["--patches", "--global"][..],
+    ] {
+        let error =
+            update_args(args).check_patches_options().expect_err("--patches combination must fail");
+        assert_eq!(
+            error.to_string(),
+            "--patches cannot be combined with package selectors, --latest, --interactive, or --global",
+        );
+    }
+}
+
+#[test]
+fn constrained_patch_refresh_stays_on_the_client() {
+    let all_groups = vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+    let prod_only = vec![DependencyGroup::Prod];
+
+    assert!(update_args(&["--patches"]).can_delegate_patch_refresh(false, &all_groups));
+    assert!(
+        !update_args(&["--patches", "--depth", "0"]).can_delegate_patch_refresh(false, &all_groups),
+    );
+    assert!(!update_args(&["--patches"]).can_delegate_patch_refresh(true, &all_groups));
+    assert!(!update_args(&["--patches"]).can_delegate_patch_refresh(false, &prod_only));
 }

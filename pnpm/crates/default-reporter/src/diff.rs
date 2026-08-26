@@ -18,7 +18,7 @@ use crate::format::visible_width;
 // undercounted, same as the pre-pnpm/pnpm#12351 behavior.
 
 /// Renders the differential between successive frames.
-pub(crate) struct Diff {
+pub struct Diff {
     col: usize,
     row: usize,
     width: usize,
@@ -26,11 +26,21 @@ pub(crate) struct Diff {
 }
 
 impl Diff {
-    pub(crate) fn new(width: usize) -> Self {
+    /// A differ for frames `width` columns wide. Every frame handed to
+    /// [`Self::update_into`] is wrapped at this width, so it has to be the
+    /// terminal's real column count: a differ narrower than the terminal
+    /// computes cursor moves for wraps that never happened.
+    #[must_use]
+    pub fn new(width: usize) -> Self {
         Diff { col: 0, row: 0, width, lines: Vec::new() }
     }
 
-    pub(crate) fn reset(&mut self) {
+    /// Forget the previous frame and the tracked cursor position, so the
+    /// next [`Self::update_into`] emits a full redraw. Call it whenever
+    /// something other than this differ wrote to the terminal — an
+    /// interactive prompt, a spawned process — and its own idea of where
+    /// the cursor is no longer holds.
+    pub fn reset(&mut self) {
         self.col = 0;
         self.row = 0;
         self.lines.clear();
@@ -40,7 +50,7 @@ impl Diff {
     /// frame into `frame`. The caller wraps this with `\r` (column reset) and
     /// `\x1b[0J` (erase below frame), composing the whole redraw into one
     /// buffer so it reaches the terminal as a single write.
-    pub(crate) fn update_into(&mut self, frame: &str, out: &mut String) {
+    pub fn update_into(&mut self, frame: &str, out: &mut String) {
         let next = Line::split(frame, self.width);
         let min = next.len().min(self.lines.len());
         let mut scrub = false;
@@ -116,7 +126,7 @@ impl Diff {
     }
 
     #[cfg(test)]
-    pub(crate) fn update(&mut self, frame: &str) -> String {
+    pub fn update(&mut self, frame: &str) -> String {
         let mut out = String::new();
         self.update_into(frame, &mut out);
         out

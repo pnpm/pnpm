@@ -1,9 +1,10 @@
 use crate::{
     State,
     cli_args::{
-        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields_in,
+        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields_in, lockfile_dir::LockfileDirArg,
         override_version_references::warn_deprecated_override_version_references,
-        pipelines::InstallFamilySelection, recursive::discover_workspace_projects,
+        package_manager::package_manager_needs_recording, pipelines::InstallFamilySelection,
+        recursive::discover_workspace_projects,
         supported_architectures::SupportedArchitecturesArgs,
     },
 };
@@ -59,26 +60,38 @@ impl NodeLinkerArg {
 pub struct InstallDependencyOptions {
     /// Install only production dependencies. devDependencies are skipped,
     /// and removed if already installed. Takes precedence over `NODE_ENV`.
-    #[arg(short = 'P', long)]
+    #[arg(short = 'P', long, visible_alias = "production")]
     prod: bool,
     /// Install only devDependencies. Regular dependencies are skipped, and
     /// removed if already installed, regardless of `NODE_ENV`.
     #[arg(short = 'D', long)]
     dev: bool,
+    /// Include optionalDependencies even when the configured default excludes them.
+    #[arg(long, overrides_with = "no_optional")]
+    optional: bool,
     /// Don't install optionalDependencies.
-    #[arg(long)]
+    #[arg(long, overrides_with = "optional")]
     no_optional: bool,
 }
 
 impl InstallDependencyOptions {
     /// Convert the dependency options to an iterator of [`DependencyGroup`]
     /// which filters the types of dependencies to install.
-    pub(crate) fn dependency_groups(&self) -> impl Iterator<Item = DependencyGroup> {
-        let &InstallDependencyOptions { prod, dev, no_optional } = self;
-        let has_both = prod == dev;
-        let has_prod = has_both || prod;
-        let has_dev = has_both || dev;
-        let has_optional = !no_optional;
+    pub(crate) fn dependency_groups(
+        &self,
+        include_optional: bool,
+    ) -> impl Iterator<Item = DependencyGroup> {
+        let &InstallDependencyOptions { prod, dev, optional, no_optional } = self;
+        let include_optional = resolve_bool_override(optional, no_optional, include_optional);
+        // `--prod` wins over `--dev`, and a dev-only install drops optional
+        // dependencies along with the production ones.
+        let (has_prod, has_dev, has_optional) = if prod {
+            (true, false, include_optional)
+        } else if dev {
+            (false, true, false)
+        } else {
+            (true, true, include_optional)
+        };
         std::iter::empty()
             .chain(has_prod.then_some(DependencyGroup::Prod))
             .chain(has_dev.then_some(DependencyGroup::Dev))
@@ -110,6 +123,21 @@ pub struct InstallArgs {
     /// `node_modules`.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
+
+    #[clap(flatten)]
+    pub lockfile_dir: LockfileDirArg,
+
+    /// Fold every per-branch lockfile (`pnpm-lock.<branch>.yaml`, written
+    /// under the `gitBranchLockfile` setting) into `pnpm-lock.yaml` and
+    /// delete them.
+    #[clap(long = "merge-git-branch-lockfiles")]
+    pub merge_git_branch_lockfiles: bool,
+
+    /// Glob patterns naming the branches that merge the per-branch
+    /// lockfiles, so a mainline branch does not have to pass
+    /// `--merge-git-branch-lockfiles` by hand.
+    #[clap(long = "merge-git-branch-lockfiles-branch-pattern")]
+    pub merge_git_branch_lockfiles_branch_pattern: Vec<String>,
 
     /// Show what an install would change without writing anything to disk.
     #[clap(long = "dry-run")]
@@ -224,6 +252,15 @@ pub struct InstallArgs {
     #[clap(long = "fetch-timeout")]
     pub fetch_timeout: Option<u64>,
 
+    /// Warn when a registry metadata request takes longer than this many
+    /// milliseconds.
+    #[clap(long = "fetch-warn-timeout-ms")]
+    pub fetch_warn_timeout_ms: Option<u64>,
+
+    /// Warn when a tarball download's average speed is below this many KiB/s.
+    #[clap(long = "fetch-min-speed-ki-bps")]
+    pub fetch_min_speed_ki_bps: Option<u64>,
+
     /// `User-Agent` header to send on registry requests.
     #[clap(long = "user-agent")]
     pub user_agent: Option<String>,
@@ -260,12 +297,16 @@ impl InstallArgs {
             dependency_options: InstallDependencyOptions {
                 prod: false,
                 dev: false,
+                optional: false,
                 no_optional: false,
             },
             supported_architectures: SupportedArchitecturesArgs::default(),
             frozen_lockfile: false,
             no_frozen_lockfile: true,
             lockfile_only: false,
+            lockfile_dir: LockfileDirArg::default(),
+            merge_git_branch_lockfiles: false,
+            merge_git_branch_lockfiles_branch_pattern: Vec::new(),
             dry_run: false,
             force: false,
             prefer_frozen_lockfile: false,
@@ -288,6 +329,8 @@ impl InstallArgs {
             update_checksums: false,
             network_concurrency: None,
             fetch_timeout: None,
+            fetch_warn_timeout_ms: None,
+            fetch_min_speed_ki_bps: None,
             user_agent: None,
             pnpr_server: None,
         }
@@ -327,18 +370,30 @@ impl InstallArgs {
         {
             return false;
         }
+        // The merge flags reach `config` only in the dispatch, after this
+        // check; and merging is work no up-to-date verdict can skip.
+        if self.merge_git_branch_lockfiles
+            || !self.merge_git_branch_lockfiles_branch_pattern.is_empty()
+        {
+            return false;
+        }
         // Dedicated per-project lockfiles run one install per workspace
         // project; a single-dir up-to-date probe can't speak for the
         // sibling projects, so the loop (whose per-project engine runs
         // each have their own optimistic short-circuit) must always run.
-        if !config.shared_workspace_lockfile && config.workspace_dir.is_some() {
+        if !config.shares_one_lockfile() && config.workspace_dir.is_some() {
             return false;
         }
         if config.config_dependencies.as_ref().is_some_and(|deps| !deps.is_empty()) {
             return false;
         }
-        let config_root = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-        if pnpm_hooks::finder::find_pnpmfile(&config_root).is_some() {
+        let config_root = config.root_project_manifest_dir(dir).to_path_buf();
+        if !pnpm_hooks::finder::find_pnpmfiles(
+            &config_root,
+            pnpm_package_manager::pnpmfile_selection(config),
+        )
+        .is_empty()
+        {
             return false;
         }
         let manifest_path = dir.join("package.json");
@@ -348,11 +403,19 @@ impl InstallArgs {
         let Ok(manifest) = pnpm_package_manifest::PackageManifest::from_path(manifest_path) else {
             return false;
         };
+        // The pin reaches the lockfile from the install pipeline, which this
+        // short-circuit returns before. This manifest is the root one unless
+        // a workspace or `lockfileDir` put the root elsewhere, in which case
+        // the check reads that one.
+        let root_manifest = (config_root == dir).then(|| manifest.value());
+        if package_manager_needs_recording(&config_root, config.pm_on_fail, root_manifest) {
+            return false;
+        }
         let node_linker = self.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
         let Some(up_to_date) = install_already_up_to_date(&UpToDateFastPathCheck {
             config,
             manifest: &manifest,
-            dependency_groups: self.dependency_options.dependency_groups().collect(),
+            dependency_groups: self.dependency_options.dependency_groups(config.optional).collect(),
             node_linker,
             supported_architectures: self
                 .supported_architectures
@@ -398,12 +461,18 @@ impl InstallArgs {
     }
 
     fn configured_frozen_lockfile(&self, config: &pnpm_config::Config) -> Option<bool> {
+        self.frozen_lockfile_flag().or(config.frozen_lockfile)
+    }
+
+    /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command
+    /// line, before the `frozenLockfile` setting is layered under it.
+    pub(crate) fn frozen_lockfile_flag(&self) -> Option<bool> {
         if self.frozen_lockfile {
             Some(true)
         } else if self.no_frozen_lockfile {
             Some(false)
         } else {
-            config.frozen_lockfile
+            None
         }
     }
 
@@ -424,6 +493,7 @@ impl InstallArgs {
         state: State,
         selection: Option<InstallFamilySelection>,
     ) -> miette::Result<()> {
+        state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let frozen_lockfile = match self.configured_frozen_lockfile(state.config) {
             Some(value) => value,
             None if state.config.ci
@@ -445,6 +515,14 @@ impl InstallArgs {
             frozen_lockfile: _,
             no_frozen_lockfile: _,
             lockfile_only,
+            // Pinned onto `config` in the dispatch (`dispatch_install.rs`)
+            // before the state is built, so the install reads it from
+            // `config`, not from here.
+            lockfile_dir: _,
+            // Resolved against `config.merge_git_branch_lockfiles` by
+            // `apply_install_cli_config` in the dispatch.
+            merge_git_branch_lockfiles: _,
+            merge_git_branch_lockfiles_branch_pattern: _,
             dry_run,
             // Resolved against config by `apply_install_cli_config` in
             // the dispatch, like `ignore_scripts` below.
@@ -474,6 +552,8 @@ impl InstallArgs {
             update_checksums,
             network_concurrency: _,
             fetch_timeout: _,
+            fetch_warn_timeout_ms: _,
+            fetch_min_speed_ki_bps: _,
             user_agent: _,
             // Read from `config.pnpr_server` (the CLI flag was already
             // merged in by the dispatch in `cli_args.rs`), not from here.
@@ -539,13 +619,16 @@ impl InstallArgs {
                 pnpr_server,
                 selection.as_ref(),
                 PnprLink {
-                    dependency_groups: dependency_options.dependency_groups().collect(),
+                    dependency_groups: dependency_options
+                        .dependency_groups(config.optional)
+                        .collect(),
                     supported_architectures,
                     node_linker,
                     skip_runtimes,
                     frozen_lockfile,
                     prefer_frozen_lockfile: prefer_frozen_lockfile
                         .unwrap_or(config.prefer_frozen_lockfile),
+                    update_patches: false,
                     lockfile_only,
                     ignore_manifest_check,
                     trust_lockfile,
@@ -565,7 +648,7 @@ impl InstallArgs {
             emit_initial_manifest: true,
             lockfile: MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: Some(&lockfile_path),
-            dependency_groups: dependency_options.dependency_groups(),
+            dependency_groups: dependency_options.dependency_groups(config.optional),
             frozen_lockfile,
             prefer_frozen_lockfile,
             ignore_manifest_check,
@@ -611,6 +694,7 @@ fn workspace_install_selection(
         ordered_groups: &selection.ordered_groups,
         ordered_dirs: &selection.ordered_dirs,
         selected_dirs: selection.selected_dirs.as_ref(),
+        install_dirs: selection.install_dirs.as_ref(),
         active_manifest_is_standin: selection.active_manifest_is_standin,
     }
 }
@@ -634,6 +718,10 @@ pub(crate) struct PnprLink<'a> {
     /// sending the raw CLI override — keeps a yaml `preferFrozenLockfile:
     /// false` honored on the pnpr path without `--no-prefer-frozen-lockfile`.
     pub(crate) prefer_frozen_lockfile: bool,
+    /// Refresh registry artifacts while retaining every locked package
+    /// version. This disables the exchange-free satisfied-lockfile path and
+    /// is forwarded to `/-/pnpr/v0/resolve`.
+    pub(crate) update_patches: bool,
     /// `--lockfile-only`. Forwarded to `/-/pnpr/v0/resolve` so the server
     /// resolves only — returning the lockfile without fetching files —
     /// after which [`install_via_pnpr`] writes the lockfile and skips
@@ -738,6 +826,15 @@ pub(crate) async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     Box::pin(install_via_pnpr_inner::<Reporter>(state, pnpr_server, None, link)).await
 }
 
+pub(crate) async fn install_selected_via_pnpr<Reporter: self::Reporter + 'static>(
+    state: &State,
+    pnpr_server: &str,
+    selection: &InstallFamilySelection,
+    link: PnprLink<'_>,
+) -> miette::Result<()> {
+    Box::pin(install_via_pnpr_inner::<Reporter>(state, pnpr_server, Some(selection), link)).await
+}
+
 async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     state: &State,
     pnpr_server: &str,
@@ -766,22 +863,24 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     } else {
         None
     };
+    // Importer ids name projects relative to the lockfile, which
+    // `lockfileDir` can pin somewhere other than the workspace the
+    // selection was resolved in. The server request, the merge below, and
+    // the lockfile on disk all have to agree on them.
     let selection_importer_ids = selection.map(|selection| {
+        let importer_root = state.config.lockfile_dir_for(&selection.workspace_root);
         let real_importer_ids = selection
             .projects
             .iter()
             .map(|project| {
-                pnpm_workspace::importer_id_from_root_dir(
-                    &selection.workspace_root,
-                    &project.root_dir,
-                )
+                pnpm_workspace::importer_id_from_root_dir(importer_root, &project.root_dir)
             })
             .collect();
         let selected_importer_ids = selection
-            .selected_dirs
+            .install_dirs
             .iter()
             .map(|project_dir| {
-                pnpm_workspace::importer_id_from_root_dir(&selection.workspace_root, project_dir)
+                pnpm_workspace::importer_id_from_root_dir(importer_root, project_dir)
             })
             .collect();
         (real_importer_ids, selected_importer_ids)
@@ -792,7 +891,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let projects = resolve_projects_for_pnpr(state, selection, link.use_state_lockfile)?;
     let full_workspace_importer_ids = (selection.is_none()
         && link.use_state_lockfile
-        && state.config.shared_workspace_lockfile
+        && state.config.shares_one_lockfile()
         && state.config.workspace_dir.is_some())
     .then(|| {
         let importer_ids: std::collections::HashSet<_> =
@@ -803,11 +902,14 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let catalogs = pnpr_catalogs(state)?;
 
     // Filtered installs keep the server exchange even when satisfied:
-    // their merge semantics live there.
+    // their merge semantics live there. A workspace-wide install has a
+    // selection too — every project — and skips the server like any
+    // single-project one.
     let satisfied_without_server = !link.frozen_lockfile
+        && !link.update_patches
         && !link.lockfile_only
         && link.prefer_frozen_lockfile
-        && selection.is_none()
+        && !partial_selection
         && match previous_wanted {
             Some(lockfile) => {
                 wanted_lockfile_satisfies_workspace(&WantedLockfileSatisfactionCheck {
@@ -829,6 +931,8 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         .map(serde_json::to_value)
         .transpose()
         .map_err(|err| miette::miette!("failed to serialize overrides: {err}"))?;
+    let patched_dependencies =
+        state.config.patched_dependency_hashes_in_config_order().map_err(miette::Report::new)?;
     let benchmark_registry_override =
         PnprBenchmarkRegistryOverride::from_env(&state.config.registry);
     let resolve_registry = benchmark_registry_override.as_ref().map_or_else(
@@ -839,15 +943,34 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let lockfile_dir = link.lockfile_path.and_then(|path| path.parent()).unwrap_or_else(|| {
         state.manifest.path().parent().expect("manifest path always has a parent dir")
     });
-    let lockfile_path = link
-        .lockfile_path
-        .map_or_else(|| lockfile_dir.join(Lockfile::FILE_NAME), std::path::Path::to_path_buf);
+    let pnpmfile_hook = if state.config.ignore_pnpmfile {
+        None
+    } else {
+        pnpm_hooks::finder::load_pnpmfiles(
+            lockfile_dir,
+            pnpm_package_manager::pnpmfile_selection(state.config),
+        )
+        .map_err(|error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"))?
+    };
+    let prefetch_allowed = match pnpmfile_hook.as_ref() {
+        Some(hook) => !hook
+            .get_custom_fetchers()
+            .await
+            .map_err(|error| miette::miette!("{error}"))?
+            .iter()
+            .any(|fetcher| fetcher.has_can_fetch() && fetcher.has_fetch()),
+        None => true,
+    };
+    let lockfile_path = link.lockfile_path.map_or_else(
+        || lockfile_dir.join(state.config.wanted_lockfile_name()),
+        std::path::Path::to_path_buf,
+    );
 
     if (satisfied_without_server
         || (link.frozen_lockfile && (selection.is_some() || !link.lockfile_only)))
         && let Some(lockfile) = previous_wanted
     {
-        let prefetcher = if link.lockfile_only {
+        let prefetcher = if link.lockfile_only || !prefetch_allowed {
             None
         } else {
             let selected_prefetch_lockfile =
@@ -992,7 +1115,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             deps_requiring_build_sink: None,
             catalogs_override: None,
             disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
+            pnpmfile_hook_override: pnpmfile_hook,
             workspace_projects_override: None,
         };
 
@@ -1046,6 +1169,9 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         // route policy, so they stay out of the request body.
         authorization: state.config.auth_headers.for_url(pnpr_server),
         overrides,
+        patched_dependencies,
+        package_extensions: state.config.package_extensions.clone(),
+        allow_unused_patches: state.config.allow_unused_patches,
         catalogs,
         auto_install_peers: Some(state.config.auto_install_peers),
         dedupe_peers: Some(state.config.dedupe_peers),
@@ -1053,6 +1179,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         lockfile: previous_wanted.cloned(),
         frozen_lockfile: link.frozen_lockfile,
         prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
+        update_patches: link.update_patches,
         ignore_manifest_check: link.ignore_manifest_check,
         trust_lockfile: link.trust_lockfile,
         resolution_mode: state.config.resolution_mode,
@@ -1076,7 +1203,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     // ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)); the
     // frozen materialization install below then finds every tarball already
     // in the shared mem cache.
-    let prefetcher = if link.lockfile_only || partial_selection {
+    let prefetcher = if link.lockfile_only || partial_selection || !prefetch_allowed {
         None
     } else {
         Some(
@@ -1105,6 +1232,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
                         &pkg.integrity,
                         pkg.unpacked_size,
                         pkg.file_count,
+                        pkg.revision.is_some(),
                     );
                 })
                 .await
@@ -1131,7 +1259,8 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         selection_importer_ids.as_ref().or(full_workspace_importer_ids.as_ref()),
         selection
             .map(|selection| selection.workspace_root.as_path())
-            .or(state.config.workspace_dir.as_deref()),
+            .or(state.config.workspace_dir.as_deref())
+            .map(|root| state.config.lockfile_dir_for(root)),
     ) {
         outcome.lockfile = merge_filtered_wanted_lockfile(
             previous_wanted,
@@ -1221,7 +1350,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         deps_requiring_build_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
+        pnpmfile_hook_override: pnpmfile_hook,
         workspace_projects_override: None,
     };
     match selection {
@@ -1269,14 +1398,20 @@ fn resolve_projects_for_pnpr(
     use_state_lockfile: bool,
 ) -> miette::Result<Vec<ResolveProject>> {
     if let Some(selection) = selection {
-        return Ok(resolve_workspace_projects(&selection.workspace_root, &selection.projects));
+        return Ok(resolve_workspace_projects(
+            state.config.lockfile_dir_for(&selection.workspace_root),
+            &selection.projects,
+        ));
     }
     if use_state_lockfile
-        && state.config.shared_workspace_lockfile
+        && state.config.shares_one_lockfile()
         && let Some(workspace_root) = state.config.workspace_dir.as_deref()
     {
-        let (projects, _) = discover_workspace_projects(workspace_root)?;
-        return Ok(resolve_workspace_projects(workspace_root, &projects));
+        let (projects, _) = discover_workspace_projects(workspace_root, state.config)?;
+        return Ok(resolve_workspace_projects(
+            state.config.lockfile_dir_for(workspace_root),
+            &projects,
+        ));
     }
     Ok(vec![resolve_project(".".to_string(), &state.manifest)])
 }

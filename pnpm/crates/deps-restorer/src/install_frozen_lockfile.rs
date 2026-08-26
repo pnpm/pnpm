@@ -24,7 +24,7 @@ pub use hoisted::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_cmd_shim::LinkBinsError;
+use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
 use pnpm_config::{Config, NodeLinker, matcher::create_matcher};
 use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pnpm_lockfile::{
@@ -41,7 +41,7 @@ use pnpm_patching::{
 };
 use pnpm_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pnpm_resolving_resolver_base::ResolutionVerifier;
-use pnpm_store_dir::StoreIndexWriter;
+use pnpm_store_dir::{StoreIndexError, StoreIndexWriter};
 use pnpm_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
@@ -71,6 +71,7 @@ where
 {
     pub http_client: &'a ThrottledClient,
     pub config: &'static Config,
+    pub pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub importers: &'a HashMap<String, ProjectSnapshot>,
     pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
@@ -177,11 +178,9 @@ where
     /// chain, matching the `nodeLinker === 'hoisted'` branch in
     /// `headlessInstall`.
     ///
-    /// Pacquet's [`NodeLinker::Pnp`] is a config / serde
-    /// placeholder today; an install request with `Pnp` reaches
-    /// the isolated linker in this branch (no `PnP` code path
-    /// exists yet). `nodeLinker: 'pnp'` is out-of-scope and tracked
-    /// separately.
+    /// [`NodeLinker::Pnp`] shares the isolated virtual-store materialization,
+    /// then replaces importer dependency links with the project-level `PnP`
+    /// loader during the link phase.
     pub node_linker: NodeLinker,
 
     /// Install-scoped shared in-flight tarball cache, threaded down to
@@ -349,6 +348,7 @@ where
         let InstallFrozenLockfile {
             http_client,
             config,
+            pnpmfile_hook,
             importers,
             packages,
             snapshots,
@@ -378,7 +378,7 @@ where
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
-        let extra_node_paths = crate::shim_extra_node_paths(config, node_linker);
+        let link_options = crate::shim_link_options(config, node_linker);
         // Cloned so the iterator can be reused below for hoist's
         // direct-deps map. `Vec<DependencyGroup>` is tiny (≤4 enum
         // variants) so the clone is essentially free.
@@ -601,11 +601,7 @@ where
             .await
             .map_err(InstallFrozenLockfileError::LockfileVerification)
         };
-        let custom_fetcher_picker = if config.ignore_pnpmfile {
-            None
-        } else {
-            load_custom_fetcher_picker(workspace_root).await?
-        };
+        let custom_fetcher_session = load_custom_fetcher_session(pnpmfile_hook).await?;
         let create_virtual_store_fut = async {
             CreateVirtualStore {
                 http_client,
@@ -618,6 +614,7 @@ where
                 logged_methods,
                 requester,
                 store_index_writer: &store_index_writer,
+                store_context: None,
                 allow_build_policy: &allow_build_policy,
                 skipped: &skipped,
                 include_optional_dependencies: include_optional,
@@ -626,7 +623,7 @@ where
                 node_linker,
                 progress_reported: &progress_reported,
                 tarball_mem_cache,
-                custom_fetcher_picker: custom_fetcher_picker.as_ref(),
+                custom_fetcher_session: custom_fetcher_session.as_ref(),
                 planned_canonical_fetches,
                 #[cfg(test)]
                 link_concurrency_probe: None,
@@ -647,6 +644,7 @@ where
             package_manifests,
             side_effects_maps_by_snapshot,
             requires_build_by_snapshot,
+            materialized_snapshots,
             fetch_failed,
             cas_paths_by_pkg_id,
         } = {
@@ -725,6 +723,9 @@ where
                 lockfile,
                 current_lockfile,
                 snapshots,
+                materialized_snapshots: rebuild
+                    .is_none()
+                    .then_some(materialized_snapshots.as_slice()),
                 packages,
                 importers,
                 project_manifests,
@@ -732,7 +733,7 @@ where
                 dependency_groups: &dependency_groups,
                 package_manifests: &package_manifests,
                 cas_paths_by_pkg_id,
-                extra_node_paths: &extra_node_paths,
+                link_options: &link_options,
                 workspace_root,
                 requester,
                 node_linker,
@@ -769,6 +770,16 @@ where
         };
 
         let mut build_extra_env = config.extra_env_with_node_options();
+        if matches!(node_linker, NodeLinker::Pnp) {
+            let node_options = build_extra_env.get("NODE_OPTIONS").map(String::as_str);
+            build_extra_env.insert(
+                "NODE_OPTIONS".to_string(),
+                crate::make_node_require_option(
+                    &workspace_root.join(crate::PNP_FILENAME),
+                    node_options,
+                ),
+            );
+        }
         if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
             let package_map_path =
                 config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
@@ -801,6 +812,7 @@ where
                 allow_build_policy: &allow_build_policy,
                 side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
                 requires_build_by_snapshot: &requires_build_by_snapshot,
+                materialized_snapshots: &materialized_snapshots,
                 engine_name: engine_name.as_deref(),
                 extra_env: &build_extra_env,
                 store_index_writer: &store_index_writer,
@@ -810,18 +822,18 @@ where
                 publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
                 logged_methods,
                 rebuild,
-                extra_node_paths: &extra_node_paths,
+                link_options: &link_options,
             })
             .map_err(InstallFrozenLockfileError::BuildPhase)?;
 
         // Drop the orchestrator's clone of the writer so the channel
-        // closes once every per-snapshot clone has also been dropped;
-        // then await the task so the final batch flushes before
-        // returning. Swallow any error with `warn!` — the install is
-        // complete and a missed cache write just forces a re-fetch
-        // on the next install.
+        // closes once every per-snapshot clone has also been dropped
+        // and the task starts its final flush and connection close.
+        // Nothing after this point reads the index, so the task is
+        // handed back as
+        // [`InstallFrozenLockfileOutput::store_index_teardown`] and
+        // awaited by the install driver after its own tail writes.
         drop(store_index_writer);
-        StoreIndexWriter::drain(writer_task, "; some rows may not be persisted").await;
 
         // The injectedDeps payload for `.modules.yaml`: every `file:`
         // snapshot is a materialized copy of an injected workspace
@@ -845,6 +857,7 @@ where
             skipped,
             ignored_builds,
             deferred_builds,
+            store_index_teardown: writer_task,
         })
     }
 }
@@ -888,6 +901,13 @@ pub struct InstallFrozenLockfileOutput {
     /// [`crate::BuildModulesOutput::deferred_builds`]. The caller folds
     /// them into `.modules.yaml.pendingBuilds`.
     pub deferred_builds: Vec<String>,
+    /// The store-index writer task, already winding down: every writer
+    /// handle was dropped before this output was built. Await it via
+    /// [`StoreIndexWriter::drain`] after any tail writes it can
+    /// overlap with; dropping it instead (error paths) detaches the
+    /// teardown, which is safe. The full rationale lives at the await
+    /// site in the install driver.
+    pub store_index_teardown: tokio::task::JoinHandle<Result<(), StoreIndexError>>,
 }
 
 impl From<HoistedLinkerError> for InstallFrozenLockfileError {
@@ -909,20 +929,15 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
     }
 }
 
-/// Load custom fetchers from the pnpmfile at `lockfile_dir`, if any.
+/// Load custom fetchers from the install's pnpmfiles, if any.
 /// Returns `Ok(None)` when no pnpmfile exists or it exports no
 /// fetchers, so the install path can skip the IPC overhead entirely.
 /// A pnpmfile that fails to load or evaluate aborts the install, like
 /// the custom-resolver load on the fresh-lockfile path.
-async fn load_custom_fetcher_picker(
-    lockfile_dir: &Path,
-) -> Result<
-    Option<Arc<pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker>>,
-    InstallFrozenLockfileError,
-> {
-    let Some(hook) = pnpm_hooks::finder::load_pnpmfile(lockfile_dir) else {
-        return Ok(None);
-    };
+async fn load_custom_fetcher_session(
+    hook: Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+) -> Result<Option<Arc<crate::CustomFetcherSession>>, InstallFrozenLockfileError> {
+    let Some(hook) = hook else { return Ok(None) };
     let fetchers = hook.get_custom_fetchers().await.map_err(|err| {
         tracing::error!(
             target: "pacquet::install",
@@ -933,7 +948,7 @@ async fn load_custom_fetcher_picker(
     if fetchers.is_empty() {
         return Ok(None);
     }
-    Ok(Some(Arc::new(pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(fetchers))))
+    Ok(Some(Arc::new(crate::CustomFetcherSession::new(fetchers))))
 }
 
 #[cfg(test)]

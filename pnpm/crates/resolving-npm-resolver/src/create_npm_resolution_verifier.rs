@@ -29,7 +29,10 @@ use dashmap::DashMap;
 use miette::Diagnostic as _;
 use pipe_trait::Pipe;
 use pnpm_config::{TrustPolicy, version_policy::PackageVersionPolicy};
-use pnpm_lockfile::{LockfileResolution, PkgName, is_git_hosted_tarball_url};
+use pnpm_lockfile::{
+    LockfileResolution, PkgName, TarballRevision, is_git_hosted_tarball_url,
+    is_integrity_addressed_registry_tarball_url,
+};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
 use pnpm_registry::{
     Approver, DerivedPackuments, NpmUser, Package, PackageDistribution, PackageVersion,
@@ -46,13 +49,13 @@ use crate::{
     fetch_attestation_published_at, fetch_full_metadata_cached,
     lookup_context::{PublishedAtLookupContext, PublishedAtTimeMap, package_key, version_key},
     named_registry::{named_registry_tarball_prefixes, pick_registry_for_package},
-    pick_package::PackageMetaCache,
+    pick_package::{PackageMetaCache, SkippedTimeCheck, warn_missing_time_once},
     registry_url::to_registry_url,
     trust_checks::fail_if_trust_downgraded,
     violation_codes::{
         MINIMUM_RELEASE_AGE_VIOLATION_CODE, MISSING_NAMED_REGISTRY_VIOLATION_CODE,
-        MISSING_TARBALL_INTEGRITY_VIOLATION_CODE, TARBALL_URL_MISMATCH_VIOLATION_CODE,
-        TRUST_DOWNGRADE_VIOLATION_CODE,
+        MISSING_TARBALL_INTEGRITY_VIOLATION_CODE, TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+        TARBALL_URL_MISMATCH_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE,
     },
 };
 
@@ -99,8 +102,20 @@ pub struct CreateNpmResolutionVerifierOptions {
     pub minimum_release_age_exclude_patterns: Vec<String>,
     /// Backs the `minimumReleaseAgeIgnoreMissingTime` opt-in: when
     /// `true` and the registry strips per-version `time`, the verifier
-    /// passes the entry instead of failing closed. Default `false`.
+    /// passes the entry instead of failing closed. Applies to the
+    /// maturity cutoff and to the trust check, which has no publish
+    /// order to walk without the field either. Scoped to a packument
+    /// with no usable `time` map: one that dates every version it lists
+    /// is saying it never published this pin, which fails closed either
+    /// way. Default `false`.
     pub ignore_missing_time_field: bool,
+    /// Backs `registrySupportsTimeField`: the registry serves the
+    /// per-version `time` map in abbreviated metadata (Verdaccio
+    /// 5.15.1+, pnpr), so the verifier can take a version's publish
+    /// timestamp from the document it already fetched instead of
+    /// paying an attestation round-trip and a full-packument download
+    /// per cold-cache package. Default `false`.
+    pub registry_supports_time_field: bool,
     /// `'no-downgrade'` enables the trust check;
     /// [`TrustPolicy::Off`] disables it. Stored as an [`Option`] so
     /// `None` and `Some(Off)` both disable the check while still
@@ -171,6 +186,7 @@ pub struct NpmResolutionVerifier {
     cutoff: Option<DateTime<Utc>>,
     minimum_release_age_exclude: Option<PackageVersionPolicy>,
     ignore_missing_time_field: bool,
+    registry_supports_time_field: bool,
     trust_policy: Option<TrustPolicy>,
     trust_policy_exclude: Option<PackageVersionPolicy>,
     trust_policy_ignore_after: Option<u64>,
@@ -204,6 +220,7 @@ impl std::fmt::Debug for NpmResolutionVerifier {
             .field("minimum_release_age_minutes", &self.minimum_release_age_minutes)
             .field("cutoff", &self.cutoff)
             .field("ignore_missing_time_field", &self.ignore_missing_time_field)
+            .field("registry_supports_time_field", &self.registry_supports_time_field)
             .field("trust_policy", &self.trust_policy)
             .field("trust_policy_ignore_after", &self.trust_policy_ignore_after)
             .field("offline", &self.offline)
@@ -248,20 +265,22 @@ pub fn create_npm_resolution_verifier(
     let sorted_trust_excludes = sorted_unique(&opts.trust_policy_exclude_patterns);
     let named_registries_routing = named_registries_routing_digest(&registries_by_prefix);
 
-    let policy_snapshot = build_policy_snapshot(
-        opts.minimum_release_age.unwrap_or(0),
-        &sorted_min_age_excludes,
-        opts.trust_policy,
-        &sorted_trust_excludes,
-        opts.trust_policy_ignore_after,
-        &named_registries_routing,
-    );
+    let policy_snapshot = build_policy_snapshot(&BuildPolicySnapshot {
+        minimum_release_age: opts.minimum_release_age.unwrap_or(0),
+        sorted_min_age_excludes: &sorted_min_age_excludes,
+        ignore_missing_time_field: opts.ignore_missing_time_field,
+        trust_policy: opts.trust_policy,
+        sorted_trust_excludes: &sorted_trust_excludes,
+        trust_policy_ignore_after: opts.trust_policy_ignore_after,
+        named_registries_routing: &named_registries_routing,
+    });
 
     NpmResolutionVerifier {
         minimum_release_age_minutes: opts.minimum_release_age,
         cutoff,
         minimum_release_age_exclude: opts.minimum_release_age_exclude,
         ignore_missing_time_field: opts.ignore_missing_time_field,
+        registry_supports_time_field: opts.registry_supports_time_field,
         trust_policy: opts.trust_policy,
         trust_policy_exclude: opts.trust_policy_exclude,
         trust_policy_ignore_after: opts.trust_policy_ignore_after,
@@ -315,6 +334,9 @@ impl ResolutionVerifier for NpmResolutionVerifier {
         // that didn't record it (e.g. written before this rule existed)
         // can't be trusted to have enforced it, so force a re-check.
         if cached_policy.get("tarballUrlBinding").and_then(JsonValue::as_bool) != Some(true) {
+            return false;
+        }
+        if cached_policy.get("revisionHistoryBinding").and_then(JsonValue::as_bool) != Some(true) {
             return false;
         }
 
@@ -378,6 +400,20 @@ impl ResolutionVerifier for NpmResolutionVerifier {
             return false;
         }
 
+        // Missing-time tolerance: a cached run that failed closed on an
+        // absent `time` field accepted a subset of what today's tolerant
+        // policy accepts, so it stays trustworthy. Turning the tolerance
+        // off invalidates it — entries the past run waved through are the
+        // ones today's policy exists to reject. Older records (no field)
+        // read as intolerant, which is the safe direction.
+        let past_ignore_missing_time = cached_policy
+            .get("minimumReleaseAgeIgnoreMissingTime")
+            .and_then(JsonValue::as_bool)
+            .unwrap_or(false);
+        if past_ignore_missing_time && !self.ignore_missing_time_field {
+            return false;
+        }
+
         true
     }
 }
@@ -420,7 +456,7 @@ impl NpmResolutionVerifier {
                     return ResolutionVerification::Err {
                         code: MISSING_NAMED_REGISTRY_VIOLATION_CODE,
                         reason: format!(
-                            "was resolved from the named registry '{registry_name}:', which is not present in the namedRegistries setting",
+                            "has registry prefix '{registry_name}:', which is not declared by the registries setting",
                         ),
                     };
                 }
@@ -435,7 +471,6 @@ impl NpmResolutionVerifier {
         if tarball_url.is_none() && !age_applies && !trust_applies {
             return ResolutionVerification::Ok;
         }
-
         let registry = named_registry.unwrap_or_else(|| self.pick_registry(ctx.name, tarball_url));
 
         // A registry entry that pins an explicit tarball URL must point at
@@ -445,9 +480,17 @@ impl NpmResolutionVerifier {
         // it does not depend on the minimum-release-age / trust policies and
         // isn't narrowed by their exclude lists, since it guards integrity
         // rather than maturity/trust.
-        if let Some(url) = tarball_url
-            && let Some(violation) =
-                self.run_tarball_url_check(&registry, ctx.name, ctx.version, url).await
+        if (tarball_url.is_some()
+            || (lockfile_revision(resolution).is_some() && (age_applies || trust_applies)))
+            && let Some(violation) = self
+                .run_registry_artifact_check(
+                    &registry,
+                    ctx.name,
+                    ctx.version,
+                    resolution,
+                    tarball_url,
+                )
+                .await
         {
             return violation;
         }
@@ -513,14 +556,15 @@ impl NpmResolutionVerifier {
     /// `dist.tarball`, the entry can't be confirmed and is rejected —
     /// otherwise a tampered lockfile could smuggle a malicious URL past the
     /// check by pointing it at a `name@version` the registry can't vouch for.
-    async fn run_tarball_url_check(
+    async fn run_registry_artifact_check(
         &self,
         registry: &str,
         name: &PkgName,
         version: &str,
-        lockfile_tarball: &str,
+        resolution: &LockfileResolution,
+        lockfile_tarball: Option<&str>,
     ) -> Option<ResolutionVerification> {
-        let registry_tarball = match self.fetch_abbreviated_meta(registry, name).await {
+        let artifact = match self.fetch_abbreviated_meta(registry, name).await {
             Ok(meta) => {
                 if let Some(sink) = self.observed_dist_stats.as_ref()
                     && let Some(stats) =
@@ -528,7 +572,7 @@ impl NpmResolutionVerifier {
                 {
                     sink.insert((name.to_string(), version.to_string()), *stats);
                 }
-                meta.version_tarballs.and_then(|tarballs| tarballs.get(version).cloned())
+                meta.version_artifacts.and_then(|artifacts| artifacts.get(version).cloned())
             }
             Err(message) => {
                 // Couldn't reach the registry to verify (auth/network/5xx).
@@ -540,19 +584,153 @@ impl NpmResolutionVerifier {
                 return Some(ResolutionVerification::FetchFailed { message });
             }
         };
-        match registry_tarball {
-            Some(url) if same_tarball_url(lockfile_tarball, &url) => None,
-            Some(url) => Some(ResolutionVerification::Err {
+        let Some(artifact) = artifact else {
+            if lockfile_tarball.is_none() && lockfile_revision(resolution).is_none() {
+                return None;
+            }
+            return Some(ResolutionVerification::Err {
+                code: if lockfile_tarball.is_some() {
+                    TARBALL_URL_MISMATCH_VIOLATION_CODE
+                } else {
+                    TARBALL_REVISION_MISMATCH_VIOLATION_CODE
+                },
+                reason: "could not be verified against the registry's published metadata"
+                    .to_string(),
+            });
+        };
+        let revision_aware = lockfile_revision(resolution).is_some()
+            || artifact.current.revision.is_some()
+            || !artifact.revisions.is_empty();
+        if !revision_aware {
+            return match (lockfile_tarball, artifact.current.tarball) {
+                (None, _) => None,
+                (Some(lockfile), Some(registry)) if same_tarball_url(lockfile, &registry) => None,
+                (Some(lockfile), Some(registry)) => Some(ResolutionVerification::Err {
+                    code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+                    reason: format!(
+                        "has a tarball URL ({lockfile}) that does not match the registry's published metadata ({registry})",
+                    ),
+                }),
+                (Some(_), None) => Some(ResolutionVerification::Err {
+                    code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+                    reason: "could not be verified against the registry's published metadata"
+                        .to_string(),
+                }),
+            };
+        }
+        let current_revision = match artifact.current.revision.as_ref() {
+            None => 0,
+            Some(raw_revision) => match raw_revision
+                .as_u64()
+                .and_then(|revision| TarballRevision::try_from(revision).ok())
+            {
+                Some(revision) => revision.get(),
+                None => {
+                    return Some(ResolutionVerification::Err {
+                        code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+                        reason: format!(
+                            "registry metadata has an invalid current revision ({raw_revision})",
+                        ),
+                    });
+                }
+            },
+        };
+        if current_revision > 0 {
+            let current_history: Vec<_> = artifact
+                .revisions
+                .iter()
+                .filter(|candidate| {
+                    candidate.revision.as_ref().and_then(JsonValue::as_u64)
+                        == Some(current_revision)
+                })
+                .collect();
+            if current_history.len() != 1
+                || current_history[0].integrity != artifact.current.integrity
+                || !matches!(
+                    (
+                        artifact.current.tarball.as_deref(),
+                        artifact.current.integrity.as_ref(),
+                    ),
+                    (Some(tarball), Some(integrity))
+                        if is_integrity_addressed_registry_tarball_url(
+                            tarball, integrity, registry,
+                        ),
+                )
+                || !matches!(
+                    (
+                        current_history[0].tarball.as_deref(),
+                        artifact.current.tarball.as_deref(),
+                    ),
+                    (Some(history), Some(current)) if same_tarball_url(history, current),
+                )
+            {
+                return Some(ResolutionVerification::Err {
+                    code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+                    reason: format!(
+                        "registry metadata revision {current_revision} does not have exactly one matching history entry",
+                    ),
+                });
+            }
+        }
+        let requested = lockfile_revision(resolution).unwrap_or(0);
+        let integrity = resolution.checkable_integrity().expect("checked before artifact binding");
+        let current_matches = current_revision == requested;
+        let historical: Vec<_> = artifact
+            .revisions
+            .iter()
+            .filter(|candidate| {
+                candidate.revision.as_ref().and_then(JsonValue::as_u64) == Some(requested)
+            })
+            .collect();
+        if historical.len() > 1 {
+            return Some(ResolutionVerification::Err {
+                code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+                reason: format!(
+                    "revision {requested} is advertised more than once in the registry's history",
+                ),
+            });
+        }
+        let historical = historical.first().copied();
+        let selected = if current_matches { Some(&artifact.current) } else { historical };
+        let Some(selected) = selected.filter(|selected| {
+            selected.integrity.as_ref() == Some(integrity)
+                && (!current_matches
+                    || historical
+                        .is_none_or(|historical| historical.integrity.as_ref() == Some(integrity)))
+        }) else {
+            return Some(ResolutionVerification::Err {
+                code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+                reason: format!(
+                    "has revision {requested} with an integrity that does not match the registry's current or historical metadata",
+                ),
+            });
+        };
+        if (requested > 0 || !current_matches)
+            && !selected.tarball.as_deref().is_some_and(|tarball| {
+                is_integrity_addressed_registry_tarball_url(tarball, integrity, registry)
+            })
+        {
+            return Some(ResolutionVerification::Err {
+                code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+                reason: format!(
+                    "has revision {requested} that is not addressed by its complete sha512 integrity",
+                ),
+            });
+        }
+        match (lockfile_tarball, selected.tarball.as_deref()) {
+            (Some(lockfile), Some(registry)) if same_tarball_url(lockfile, registry) => None,
+            (Some(lockfile), Some(registry)) => Some(ResolutionVerification::Err {
                 code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
                 reason: format!(
-                    "has a tarball URL ({lockfile_tarball}) that does not match the registry's published metadata ({url})",
+                    "has a tarball URL ({lockfile}) that does not match the registry's published metadata ({registry})",
                 ),
             }),
-            None => Some(ResolutionVerification::Err {
+            (Some(_), None) => Some(ResolutionVerification::Err {
                 code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
                 reason: "could not be verified against the registry's published metadata"
                     .to_string(),
             }),
+            (None, _) => None,
         }
     }
 
@@ -590,9 +768,23 @@ impl NpmResolutionVerifier {
             Err(message) => return Some(ResolutionVerification::FetchFailed { message }),
         };
         let Some(published) = published else {
-            // No source surfaced a publish timestamp; mirror the
-            // resolver's `minimumReleaseAgeIgnoreMissingTime` opt-in.
-            if self.ignore_missing_time_field {
+            // No source surfaced a publish timestamp. What
+            // `minimumReleaseAgeIgnoreMissingTime` opts out of is a
+            // registry that cannot date its releases, so the skip is
+            // granted only when the packument carries no usable `time`
+            // map at all — the same shape the picker warns and skips on,
+            // so the verifier can't be stricter than fresh resolution. A
+            // packument that does date every version it lists is instead
+            // telling us this pin is not one of them
+            // (`Package::drop_incomplete_publish_times` leaves no partial
+            // maps for that to be ambiguous), and an unpublished
+            // or never-published pin must fail closed however the flag is
+            // set.
+            if self.ignore_missing_time_field
+                // Already awaited by the lookup above, so this is a cache hit.
+                && matches!(self.fetch_full_meta_time(registry, name).await, Ok(None))
+            {
+                warn_missing_time_once(&name.to_string(), SkippedTimeCheck::MinimumReleaseAge);
                 return None;
             }
             return Some(ResolutionVerification::Err {
@@ -640,6 +832,7 @@ impl NpmResolutionVerifier {
             trust_policy_exclude: self.trust_policy_exclude.as_ref(),
             trust_policy_ignore_after_minutes: self.trust_policy_ignore_after,
             now: self.now,
+            ignore_missing_time_field: self.ignore_missing_time_field,
         };
         match fail_if_trust_downgraded(&meta, version, &trust_opts) {
             Ok(()) => None,
@@ -736,13 +929,19 @@ impl NpmResolutionVerifier {
     ///    timestamps. Costs at most one abbreviated GET per name on
     ///    cold cache; the full-meta fallback below is hundreds of KB
     ///    bigger per package.
-    /// 2. **On-disk full-meta mirror.** If a previous verification
+    /// 2. **Abbreviated per-version `time`** — only with
+    ///    `registrySupportsTimeField`. Registries that serve the `time`
+    ///    map in abbreviated metadata (Verdaccio 5.15.1+, pnpr) already
+    ///    gave us the exact per-version timestamp in the document step 1
+    ///    fetched, so a recent `modified` does not have to escalate to
+    ///    the per-version fallbacks below.
+    /// 3. **On-disk full-meta mirror.** If a previous verification
     ///    populated `<cache_dir>/v11/metadata-full/.../<name>.jsonl`,
     ///    take the per-version timestamp from there with no network.
-    /// 3. **Npm attestation endpoint.** Small payload, just this
+    /// 4. **Npm attestation endpoint.** Small payload, just this
     ///    version's Sigstore-anchored timestamp. Wins on cold cache
     ///    when the package was published with provenance.
-    /// 4. **Full metadata fetch.** Last resort.
+    /// 5. **Full metadata fetch.** Last resort.
     async fn resolve_published_at(
         &self,
         registry: &str,
@@ -750,6 +949,11 @@ impl NpmResolutionVerifier {
         version: &str,
     ) -> Result<Option<String>, String> {
         if let Some(value) = self.try_abbreviated_modified_shortcut(registry, name, version).await {
+            return Ok(Some(value));
+        }
+        if self.registry_supports_time_field
+            && let Some(value) = self.abbreviated_version_time(registry, name, version).await
+        {
             return Ok(Some(value));
         }
         if let Some(map) = self.read_local_meta_time(registry, name).await
@@ -790,10 +994,26 @@ impl NpmResolutionVerifier {
         if parsed >= cutoff {
             return None;
         }
-        if !meta.version_tarballs.as_ref().is_some_and(|map| map.contains_key(version)) {
+        if !meta.version_artifacts.as_ref().is_some_and(|map| map.contains_key(version)) {
             return None;
         }
         Some(modified)
+    }
+
+    /// The pinned version's publish timestamp from the abbreviated
+    /// document's `time` map. Reuses the same cached projection as the
+    /// `modified` shortcut, so with `registrySupportsTimeField` the
+    /// whole lookup stays within the one document the verifier already
+    /// holds. A fetch failure or an absent entry falls through to the
+    /// per-version fallbacks, exactly like the shortcut above.
+    async fn abbreviated_version_time(
+        &self,
+        registry: &str,
+        name: &PkgName,
+        version: &str,
+    ) -> Option<String> {
+        let meta = self.fetch_abbreviated_meta(registry, name).await.ok()?;
+        meta.version_time.as_ref()?.get(version).cloned()
     }
 
     /// Per-`(registry, name)` abbreviated-meta lookup. The result is
@@ -828,7 +1048,10 @@ impl NpmResolutionVerifier {
         let value = cell
             .get_or_init(|| async {
                 if let Some(shared) = self.read_shared_meta(registry, name) {
-                    return Ok(project_abbreviated_meta(&shared));
+                    return Ok(project_abbreviated_meta(
+                        &shared,
+                        self.registry_supports_time_field,
+                    ));
                 }
                 let opts = FetchFullMetadataCachedOptions {
                     registry,
@@ -847,7 +1070,9 @@ impl NpmResolutionVerifier {
                 // from a version genuinely absent from the metadata, otherwise
                 // it reports a 403 as a tampering-style mismatch.
                 match fetch_full_metadata_cached(&name.to_string(), &opts).await {
-                    Ok(meta) => Ok(project_abbreviated_meta(&meta)),
+                    Ok(meta) => {
+                        Ok(project_abbreviated_meta(&meta, self.registry_supports_time_field))
+                    }
                     Err(error) => Err(render_fetch_metadata_error(&error)),
                 }
             })
@@ -1116,18 +1341,33 @@ fn named_registries_routing_digest(registries_by_prefix: &HashMap<String, String
     format!("{:x}", Sha256::digest(encoded))
 }
 
-fn build_policy_snapshot(
+/// Argument bundle for [`build_policy_snapshot`].
+#[derive(Clone, Copy)]
+struct BuildPolicySnapshot<'a> {
     minimum_release_age: u64,
-    sorted_min_age_excludes: &[String],
+    sorted_min_age_excludes: &'a [String],
+    ignore_missing_time_field: bool,
     trust_policy: Option<TrustPolicy>,
-    sorted_trust_excludes: &[String],
+    sorted_trust_excludes: &'a [String],
     trust_policy_ignore_after: Option<u64>,
-    named_registries_routing: &str,
-) -> serde_json::Map<String, JsonValue> {
+    named_registries_routing: &'a str,
+}
+
+fn build_policy_snapshot(opts: &BuildPolicySnapshot<'_>) -> serde_json::Map<String, JsonValue> {
+    let &BuildPolicySnapshot {
+        minimum_release_age,
+        sorted_min_age_excludes,
+        ignore_missing_time_field,
+        trust_policy,
+        sorted_trust_excludes,
+        trust_policy_ignore_after,
+        named_registries_routing,
+    } = opts;
     let mut map = serde_json::Map::new();
     // Marks runs that enforced the (unconditional) tarball-URL binding so
     // `can_trust_past_check` rejects pre-rule cache records and re-verifies.
     map.insert("tarballUrlBinding".to_string(), JsonValue::Bool(true));
+    map.insert("revisionHistoryBinding".to_string(), JsonValue::Bool(true));
     // Same cache identity rule for the missing-integrity structural check.
     map.insert("integrityRequired".to_string(), JsonValue::Bool(true));
     map.insert(
@@ -1160,6 +1400,10 @@ fn build_policy_snapshot(
             Some(value) => JsonValue::from(value),
             None => JsonValue::Null,
         },
+    );
+    map.insert(
+        "minimumReleaseAgeIgnoreMissingTime".to_string(),
+        JsonValue::Bool(ignore_missing_time_field),
     );
     map
 }
@@ -1196,7 +1440,6 @@ fn project_trust_meta(meta: &Package) -> Package {
         // bounded by the trust-evidence footprint (see the fn doc).
         homepage: None,
         mutex: std::sync::Arc::new(std::sync::Mutex::new(0)),
-        release_age_upgrade_checked: false,
         derived: DerivedPackuments::default(),
     }
 }
@@ -1233,6 +1476,8 @@ fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
             integrity: None,
             shasum: None,
             tarball: String::new(),
+            revision: None,
+            revisions: None,
             file_count: None,
             unpacked_size: None,
             attestations,
@@ -1252,11 +1497,45 @@ fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
 /// needs out of a packument document. Works against either the
 /// abbreviated or the full form — both carry `modified` and a
 /// `versions` map with per-version `dist.tarball`.
-fn project_abbreviated_meta(meta: &Package) -> crate::lookup_context::AbbreviatedMetaProjection {
-    let version_tarballs = meta
+fn project_abbreviated_meta(
+    meta: &Package,
+    include_time: bool,
+) -> crate::lookup_context::AbbreviatedMetaProjection {
+    let version_artifacts = meta
         .versions
         .iter()
-        .map(|(version, manifest)| (version.clone(), manifest.dist.tarball.clone()))
+        .map(|(version, manifest)| {
+            let revisions = manifest
+                .dist
+                .revisions
+                .as_ref()
+                .and_then(JsonValue::as_array)
+                .into_iter()
+                .flatten()
+                .map(|revision| crate::lookup_context::RegistryArtifact {
+                    revision: revision.get("revision").cloned(),
+                    integrity: revision
+                        .get("integrity")
+                        .and_then(JsonValue::as_str)
+                        .and_then(|integrity| integrity.parse().ok()),
+                    tarball: revision
+                        .get("tarball")
+                        .and_then(JsonValue::as_str)
+                        .map(str::to_string),
+                })
+                .collect();
+            (
+                version.clone(),
+                crate::lookup_context::RegistryArtifactHistory {
+                    current: crate::lookup_context::RegistryArtifact {
+                        revision: manifest.dist.revision.clone(),
+                        integrity: manifest.dist.integrity.clone(),
+                        tarball: Some(manifest.dist.tarball.clone()),
+                    },
+                    revisions,
+                },
+            )
+        })
         .collect();
     let version_dist_stats = meta
         .versions
@@ -1270,15 +1549,34 @@ fn project_abbreviated_meta(meta: &Package) -> crate::lookup_context::Abbreviate
                 .then(|| (version.clone(), stats))
         })
         .collect();
+    // `time` also carries package-level `created`/`modified` keys; keeping
+    // them is harmless (lookups are by exact version) and cheaper than
+    // filtering against the versions map.
+    let version_time = include_time.then(|| {
+        meta.time
+            .iter()
+            .flatten()
+            .filter_map(|(key, value)| Some((key.clone(), value.as_str()?.to_owned())))
+            .collect()
+    });
     crate::lookup_context::AbbreviatedMetaProjection {
         modified: meta.modified.clone(),
-        version_tarballs: Some(version_tarballs),
+        version_artifacts: Some(version_artifacts),
         version_dist_stats: Some(version_dist_stats),
+        version_time,
     }
 }
 
 fn same_tarball_url(left: &str, right: &str) -> bool {
     canonical_tarball_url(left) == canonical_tarball_url(right)
+}
+
+fn lockfile_revision(resolution: &LockfileResolution) -> Option<u64> {
+    match resolution {
+        LockfileResolution::Registry(registry) => registry.revision.map(TarballRevision::get),
+        LockfileResolution::Tarball(tarball) => tarball.revision.map(TarballRevision::get),
+        _ => None,
+    }
 }
 
 /// Canonicalize a tarball URL: parse-and-reserialize to drop default

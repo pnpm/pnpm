@@ -119,10 +119,11 @@ interface AddFilesResult {
   filesMap: FilesMap
   manifest?: BundledManifest
   requiresBuild: boolean
+  requiresPrepare?: boolean
   integrity?: string
 }
 
-type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files' | 'appendManifest' | 'includeNodeModules'> & {
+type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files' | 'appendManifest' | 'includeNodeModules' | 'requiresPrepare'> & {
   storeIndex: StoreIndex
 }
 
@@ -164,6 +165,7 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
       appendManifest: opts.appendManifest,
       files: opts.files,
       includeNodeModules: opts.includeNodeModules,
+      requiresPrepare: opts.requiresPrepare,
     })
   })
 }

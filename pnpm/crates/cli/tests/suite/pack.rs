@@ -1,5 +1,6 @@
-//! Single-project `pack` integration tests, focused on the
-//! `beforePacking` pnpmfile hook: the published manifest a package is
+//! Single-project `pack` integration tests, covering the `beforePacking`
+//! pnpmfile hook and the settings that suppress the pack lifecycle
+//! scripts. For the hook: the published manifest a package is
 //! packed with must reflect what the hook returns, exactly as pnpm's
 //! `pnpm pack` / `pnpm publish` apply it. This is the mechanism the pnpm
 //! CLI's own release relies on to strip its bundled dependency fields
@@ -10,6 +11,35 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{fs, path::Path};
+
+#[test]
+fn pack_uses_embed_readme_and_manifest_obfuscation_settings() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "scripts": { "prepublishOnly": "echo kept" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(workspace.join("README.md"), "# Packed README\n").unwrap();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "embedReadme: true\nskipManifestObfuscation: true\n",
+    )
+    .unwrap();
+
+    pacquet.with_arg("pack").assert().success();
+
+    let manifest = read_manifest_from_tarball(&workspace.join("pkg-1.0.0.tgz"));
+    assert_eq!(manifest["readme"], "# Packed README\n");
+    assert_eq!(manifest["scripts"]["prepublishOnly"], "echo kept");
+
+    drop(root);
+}
 
 /// A `beforePacking` hook that deletes `devDependencies` and stamps a
 /// marker rewrites the manifest packed into the tarball.
@@ -168,6 +198,55 @@ fn recursive_pack_applies_before_packing_hook_to_every_project() {
     }
 
     drop(root);
+}
+
+/// `--config.ignore-scripts=true` suppresses the pack lifecycle scripts
+/// just like the bare `--ignore-scripts` flag does for the commands that
+/// declare it. `pack` has no such flag, so the dotted override is the only
+/// way to skip its `prepack` (pnpm/pnpm#13986).
+#[test]
+fn config_ignore_scripts_override_suppresses_prepack() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "scripts": {
+                "prepack": r#"node -e "require('fs').writeFileSync('prepack-ran.txt','ran')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let out = workspace.join("tarballs");
+    fs::create_dir_all(&out).expect("create out dir");
+    let marker = workspace.join("prepack-ran.txt");
+
+    pacquet
+        .with_arg("pack")
+        .with_arg("--pack-destination")
+        .with_arg(out.to_str().expect("utf8 out dir"))
+        .assert()
+        .success();
+    assert!(marker.exists(), "prepack must run when nothing suppresses it");
+    let tarball = out.join("pkg-1.0.0.tgz");
+    fs::remove_file(&marker).expect("remove marker");
+    fs::remove_file(&tarball).expect("remove the first tarball");
+
+    let CommandTempCwd { pacquet: ignoring, root: ignoring_root, .. } = CommandTempCwd::init();
+    ignoring
+        .with_current_dir(&workspace)
+        .with_arg("pack")
+        .with_arg("--config.ignore-scripts=true")
+        .with_arg("--pack-destination")
+        .with_arg(out.to_str().expect("utf8 out dir"))
+        .assert()
+        .success();
+    assert!(!marker.exists(), "--config.ignore-scripts=true must suppress prepack");
+    assert!(tarball.exists(), "the tarball must still be packed");
+
+    drop((root, ignoring_root));
 }
 
 /// Extract `package/package.json` from a packed tarball.

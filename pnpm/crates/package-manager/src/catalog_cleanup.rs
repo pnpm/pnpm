@@ -124,30 +124,29 @@ fn derive_workspace_dir(
 ///
 /// The pass may only drop an entry it can prove nothing resolves, so it
 /// needs a lockfile covering every project `minimumReleaseAgeExclude`
-/// governs — only a workspace-shared one does. Under dedicated
-/// per-project lockfiles (`sharedWorkspaceLockfile: false`, pnpm's
-/// `lockfileDir = sharedWorkspaceLockfile ? workspaceDir : projectDir`)
-/// every entry a sibling project needs would look unresolved, so the pass
-/// no-ops. It also no-ops when the setting is off, when lockfile
-/// persistence is disabled (`lockfile: false` — the on-disk lockfile
-/// would be stale), and when no lockfile exists, mirroring the
-/// `all_projects` guard of the catalog cleanup.
-pub(crate) fn prune_minimum_release_age_excludes(
+/// governs — only a shared one does. Under dedicated per-project
+/// lockfiles (`sharedWorkspaceLockfile: false` with no `lockfileDir`
+/// pinning them back together) every entry a sibling project needs would
+/// look unresolved, so the pass no-ops. It also no-ops when the setting
+/// is off, when lockfile persistence is disabled (`lockfile: false` — the
+/// on-disk lockfile would be stale), and when no lockfile exists,
+/// mirroring the `all_projects` guard of the catalog cleanup.
+pub(crate) fn post_install_prune(
     config: &Config,
     workspace_dir: Option<&Path>,
     current_manifest: &PackageManifest,
 ) -> Result<(), WriteWorkspaceCatalogsError> {
-    if !config.minimum_release_age_exclude_prune
-        || !config.lockfile
-        || !config.shared_workspace_lockfile
-    {
+    if !config.lockfile || !config.shares_one_lockfile() {
         return Ok(());
     }
     let workspace_dir = match workspace_dir {
         Some(dir) => dir.to_path_buf(),
         None => derive_workspace_dir(current_manifest)?,
     };
-    let Some(lockfile) = Lockfile::load_wanted_from_dir(&workspace_dir)
+    // The entries live in the workspace's `pnpm-workspace.yaml`; the
+    // lockfile that proves what still resolves sits wherever
+    // `lockfileDir` put it.
+    let Some(lockfile) = Lockfile::load_wanted_from_dir(config.lockfile_dir_for(&workspace_dir))
         .map_err(WriteWorkspaceCatalogsError::LoadLockfile)?
     else {
         return Ok(());
@@ -156,6 +155,8 @@ pub(crate) fn prune_minimum_release_age_excludes(
     update_workspace_manifest(
         &workspace_dir,
         &UpdateWorkspaceManifestOptions {
+            prune_minimum_release_age_excludes: config.minimum_release_age_exclude_prune,
+            prune_allow_builds: true,
             resolved_package_versions: Some(&resolved),
             ..Default::default()
         },

@@ -10,7 +10,7 @@ use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
     PackageKey, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
-    TarballResolution,
+    TarballResolution, TarballRevision,
 };
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_reporter::{LogEvent, ProgressMessage, Reporter};
@@ -56,13 +56,102 @@ fn registry_resolution_uses_scoped_registry_tarball_base() {
         .insert("@private".to_string(), "https://private.example/npm/".to_string());
 
     let integrity = DUMMY_SHA512.parse().expect("parse integrity");
-    let resolution = LockfileResolution::Registry(RegistryResolution { integrity });
+    let resolution = LockfileResolution::Registry(RegistryResolution { integrity, revision: None });
     let package_key: PackageKey = "@private/foo@1.0.0".parse().expect("parse package key");
 
     let (tarball_url, _) = tarball_url_and_integrity(&resolution, &package_key, &config)
         .expect("a registry resolution is always fetchable");
 
     assert_eq!(tarball_url.as_ref(), "https://private.example/npm/@private/foo/-/foo-1.0.0.tgz");
+}
+
+#[test]
+fn registry_revision_uses_the_scoped_registry_digest_route() {
+    let mut config = Config::new();
+    config.registry = "https://default.example/npm/".to_string();
+    config
+        .registries_by_scope
+        .insert("@private".to_string(), "https://private.example/npm/".to_string());
+    let resolution = LockfileResolution::Registry(RegistryResolution {
+        integrity: DUMMY_SHA512.parse().expect("parse integrity"),
+        revision: Some(TarballRevision::try_from(2).unwrap()),
+    });
+    let package_key: PackageKey = "@private/foo@1.0.0".parse().expect("parse package key");
+
+    let (tarball_url, _) = tarball_url_and_integrity(&resolution, &package_key, &config)
+        .expect("a revision with complete integrity is fetchable");
+
+    assert_eq!(
+        tarball_url.as_ref(),
+        format!("https://private.example/npm/-/tarballs/sha512/{}", "A".repeat(86)),
+    );
+}
+
+#[test]
+fn registry_revision_uses_the_registry_declared_for_its_prefix() {
+    let mut config = Config::new();
+    config
+        .registries_by_prefix
+        .insert("work".to_string(), "https://registry.example/workspace/npm/".to_string());
+    let resolution = LockfileResolution::Registry(RegistryResolution {
+        integrity: DUMMY_SHA512.parse().expect("parse integrity"),
+        revision: Some(TarballRevision::try_from(4).unwrap()),
+    });
+    let package_key: PackageKey = "foo@work:1.0.0".parse().expect("parse package key");
+
+    let (tarball_url, _) = tarball_url_and_integrity(&resolution, &package_key, &config)
+        .expect("a prefixed registry revision is fetchable");
+
+    assert_eq!(
+        tarball_url.as_ref(),
+        format!("https://registry.example/workspace/npm/-/tarballs/sha512/{}", "A".repeat(86)),
+    );
+}
+
+#[test]
+fn tarball_revision_rejects_a_url_outside_its_effective_registry() {
+    let config = Config::new();
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("https://attacker.example/-/tarballs/sha512/{}", "A".repeat(86)),
+        integrity: Some(DUMMY_SHA512.parse().expect("parse integrity")),
+        revision: Some(TarballRevision::try_from(1).unwrap()),
+        git_hosted: None,
+        path: None,
+    });
+    let package_key: PackageKey = "foo@1.0.0".parse().expect("parse package key");
+
+    let err = tarball_url_and_integrity(&resolution, &package_key, &config)
+        .expect_err("a revision URL from another registry must be rejected");
+
+    assert!(
+        matches!(err, InstallPackageBySnapshotError::InvalidTarballRevision { .. }),
+        "got {err:?}",
+    );
+}
+
+#[test]
+fn tarball_revision_rejects_non_registry_tarballs() {
+    let config = Config::new();
+    let package_key: PackageKey = "foo@1.0.0".parse().expect("parse package key");
+    for (tarball, git_hosted) in
+        [("file:../foo.tgz", None), ("https://codeload.github.com/foo/bar/tar.gz/abc", Some(true))]
+    {
+        let resolution = LockfileResolution::Tarball(TarballResolution {
+            tarball: tarball.to_string(),
+            integrity: Some(DUMMY_SHA512.parse().expect("parse integrity")),
+            revision: Some(TarballRevision::try_from(1).unwrap()),
+            git_hosted,
+            path: None,
+        });
+
+        let err = tarball_url_and_integrity(&resolution, &package_key, &config)
+            .expect_err("a revision must identify a registry tarball");
+
+        assert!(
+            matches!(err, InstallPackageBySnapshotError::InvalidTarballRevision { .. }),
+            "got {err:?}",
+        );
+    }
 }
 
 /// The exemption follows the URL, not the lockfile's `gitHosted`
@@ -89,6 +178,7 @@ fn tarball_resolution_without_integrity_resolves_to_an_unverified_download() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: tarball.to_string(),
         integrity: None,
+        revision: None,
         git_hosted: Some(true),
         path: None,
     });
@@ -111,6 +201,7 @@ fn remote_tarball_resolution_without_integrity_is_refused() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: tarball.to_string(),
         integrity: None,
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -143,13 +234,17 @@ fn empty_integrity_is_refused_like_a_missing_one() {
             LockfileResolution::Tarball(TarballResolution {
                 tarball: tarball.to_string(),
                 integrity: Some(empty.clone()),
+                revision: None,
                 git_hosted: None,
                 path: None,
             }),
             format!("pkg-from-tarball@{tarball}"),
         ),
         (
-            LockfileResolution::Registry(pnpm_lockfile::RegistryResolution { integrity: empty }),
+            LockfileResolution::Registry(pnpm_lockfile::RegistryResolution {
+                integrity: empty,
+                revision: None,
+            }),
             "acme@1.0.0".to_string(),
         ),
     ];
@@ -232,18 +327,45 @@ fn host_platform_selector_omits_libc_on_non_linux_hosts() {
 }
 
 #[test]
-fn runtime_platform_selector_uses_the_first_configured_target() {
+fn runtime_platform_selector_falls_back_to_the_first_configured_target_the_host_is_absent_from() {
     let supported = SupportedArchitectures {
-        os: Some(vec!["win32".to_string(), "linux".to_string()]),
-        cpu: Some(vec!["x64".to_string(), "arm64".to_string()]),
+        os: Some(vec!["freebsd".to_string(), "openbsd".to_string()]),
+        cpu: Some(vec!["ppc64".to_string(), "s390x".to_string()]),
         libc: Some(vec!["current".to_string(), "musl".to_string()]),
     };
 
     let selector = runtime_platform_selector(Some(&supported));
 
-    assert_eq!(selector.os, "win32");
-    assert_eq!(selector.cpu, "x64");
+    assert_eq!(selector.os, "freebsd");
+    assert_eq!(selector.cpu, "ppc64");
     assert_eq!(selector.libc, host_platform_selector().libc);
+}
+
+#[test]
+fn runtime_platform_selector_prefers_the_host_over_the_other_configured_targets() {
+    let host = host_platform_selector();
+    let supported = SupportedArchitectures {
+        os: Some(vec!["freebsd".to_string(), host.os.clone()]),
+        cpu: Some(vec!["ppc64".to_string(), host.cpu.clone()]),
+        libc: None,
+    };
+
+    let selector = runtime_platform_selector(Some(&supported));
+
+    assert_eq!(selector, host);
+}
+
+#[test]
+fn runtime_platform_selector_expands_current_to_the_host() {
+    let supported = SupportedArchitectures {
+        os: Some(vec!["freebsd".to_string(), "current".to_string()]),
+        cpu: Some(vec!["current".to_string()]),
+        libc: Some(vec!["current".to_string()]),
+    };
+
+    let selector = runtime_platform_selector(Some(&supported));
+
+    assert_eq!(selector, host_platform_selector());
 }
 
 #[test]
@@ -436,12 +558,13 @@ fn synthesize_runtime_manifest_preserves_scoped_name() {
 /// fixtures below. The download never runs in these tests (the mem
 /// cache short-circuits, or `offline` blocks), so the exact digest is
 /// irrelevant — it only has to satisfy [`ssri::Integrity`]'s parser.
-const DUMMY_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+const DUMMY_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
 fn registry_metadata() -> pnpm_lockfile::PackageMetadata {
     pnpm_lockfile::PackageMetadata {
         resolution: LockfileResolution::Registry(pnpm_lockfile::RegistryResolution {
             integrity: DUMMY_SHA512.parse().expect("parse integrity"),
+            revision: None,
         }),
         version: None,
         engines: None,
@@ -543,7 +666,7 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
         // only the download-coordination branch and gets the CAS map
         // back directly.
         node_linker: pnpm_config::NodeLinker::Hoisted,
-        custom_fetcher_picker: None,
+        custom_fetcher_session: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -619,7 +742,7 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
         runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
         node_linker: pnpm_config::NodeLinker::Hoisted,
-        custom_fetcher_picker: None,
+        custom_fetcher_session: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -695,7 +818,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
         runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
         node_linker: pnpm_config::NodeLinker::Hoisted,
-        custom_fetcher_picker: None,
+        custom_fetcher_session: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -743,23 +866,23 @@ impl pnpm_hooks::CustomFetcher for ScriptedCustomFetcher {
     }
 }
 
-fn scripted_picker(
+fn scripted_session(
     claims: bool,
     response: Result<serde_json::Value, pnpm_hooks::HookError>,
-) -> std::sync::Arc<pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker> {
-    std::sync::Arc::new(pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(vec![
-        std::sync::Arc::new(ScriptedCustomFetcher { claims, response }),
-    ]))
+) -> std::sync::Arc<crate::CustomFetcherSession> {
+    std::sync::Arc::new(crate::CustomFetcherSession::new(vec![std::sync::Arc::new(
+        ScriptedCustomFetcher { claims, response },
+    )]))
 }
 
 /// Run one snapshot install for `foo@1.0.0` with the given custom
-/// fetcher picker. Hoisted linker + no store index keeps the run to the
+/// fetcher session. Hoisted linker + no store index keeps the run to the
 /// fetch-dispatch branch under test, mirroring the mem-cache tests
 /// above.
-async fn run_snapshot_install_with_picker(
+async fn run_snapshot_install_with_session(
     config: &'static Config,
     metadata: &pnpm_lockfile::PackageMetadata,
-    picker: &std::sync::Arc<pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker>,
+    session: &std::sync::Arc<crate::CustomFetcherSession>,
     tarball_mem_cache: Option<&std::sync::Arc<pnpm_tarball::MemCache>>,
     workspace_root: &std::path::Path,
 ) -> Result<super::InstalledPackage, InstallPackageBySnapshotError> {
@@ -796,7 +919,7 @@ async fn run_snapshot_install_with_picker(
         runtime_platform_selector: &host_platform_selector(),
         workspace_root,
         node_linker: pnpm_config::NodeLinker::Hoisted,
-        custom_fetcher_picker: Some(picker),
+        custom_fetcher_session: Some(session),
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -822,6 +945,7 @@ async fn custom_fetcher_delegate_rewrites_the_resolution() {
     metadata.resolution = LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
         tarball: "https://original.test/foo-1.0.0.tgz".to_string(),
         integrity: Some(DUMMY_SHA512.parse().expect("parse integrity")),
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -834,13 +958,15 @@ async fn custom_fetcher_delegate_rewrites_the_resolution() {
         Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
     );
 
-    let picker =
-        scripted_picker(true, Ok(serde_json::json!({ "delegate": { "integrity": DUMMY_SHA512 } })));
+    let session = scripted_session(
+        true,
+        Ok(serde_json::json!({ "delegate": { "integrity": DUMMY_SHA512 } })),
+    );
 
-    let cas_paths = run_snapshot_install_with_picker(
+    let cas_paths = run_snapshot_install_with_session(
         config,
         &metadata,
-        &picker,
+        &session,
         Some(&mem_cache),
         store_tmp.path(),
     )
@@ -873,7 +999,7 @@ async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
         Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
     );
 
-    let picker = scripted_picker(
+    let session = scripted_session(
         false,
         Err(pnpm_hooks::HookError::Execution {
             pnpmfile: ".pnpmfile.cjs".to_string(),
@@ -881,10 +1007,10 @@ async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
         }),
     );
 
-    let cas_paths = run_snapshot_install_with_picker(
+    let cas_paths = run_snapshot_install_with_session(
         config,
         &metadata,
-        &picker,
+        &session,
         Some(&mem_cache),
         store_tmp.path(),
     )
@@ -896,21 +1022,19 @@ async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
     drop(store_tmp);
 }
 
-/// A claiming fetcher that answers with anything other than
-/// `{ "delegate": ... }` fails the install — direct content fetch is
-/// not supported yet, so silently ignoring the response would make the
-/// fetcher a no-op.
+/// A claiming fetcher must return a delegate or verified native files.
 #[tokio::test]
 async fn custom_fetcher_unhandled_response_fails_the_install() {
     let store_tmp = tempfile::tempdir().expect("tempdir");
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
     let metadata = registry_metadata();
 
-    let picker = scripted_picker(true, Ok(serde_json::json!({ "filesIndex": {} })));
+    let session = scripted_session(true, Ok(serde_json::json!({ "filesIndex": {} })));
 
-    let err = run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
-        .await
-        .expect_err("a non-delegate response must fail the install");
+    let err =
+        run_snapshot_install_with_session(config, &metadata, &session, None, store_tmp.path())
+            .await
+            .expect_err("a non-delegate response must fail the install");
 
     assert!(
         matches!(
@@ -933,11 +1057,13 @@ async fn custom_fetcher_invalid_delegate_fails_the_install() {
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
     let metadata = registry_metadata();
 
-    let picker = scripted_picker(true, Ok(serde_json::json!({ "delegate": { "garbage": true } })));
+    let session =
+        scripted_session(true, Ok(serde_json::json!({ "delegate": { "garbage": true } })));
 
-    let err = run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
-        .await
-        .expect_err("a malformed delegate must fail the install");
+    let err =
+        run_snapshot_install_with_session(config, &metadata, &session, None, store_tmp.path())
+            .await
+            .expect_err("a malformed delegate must fail the install");
 
     assert!(
         matches!(
@@ -958,14 +1084,15 @@ async fn custom_fetcher_invalid_delegate_fails_the_install() {
 async fn custom_fetcher_custom_typed_delegate_is_rejected() {
     let store_tmp = tempfile::tempdir().expect("tempdir");
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
-    let metadata = registry_metadata();
+    let metadata = custom_resolution_metadata("custom:cdn");
 
-    let picker =
-        scripted_picker(true, Ok(serde_json::json!({ "delegate": { "type": "custom:other" } })));
+    let session =
+        scripted_session(true, Ok(serde_json::json!({ "delegate": { "type": "custom:other" } })));
 
-    let err = run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
-        .await
-        .expect_err("a custom-typed delegate must fail the install");
+    let err =
+        run_snapshot_install_with_session(config, &metadata, &session, None, store_tmp.path())
+            .await
+            .expect_err("a custom-typed delegate must fail the install");
 
     assert!(
         matches!(
@@ -989,7 +1116,7 @@ async fn custom_fetcher_hook_error_propagates() {
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
     let metadata = registry_metadata();
 
-    let picker = scripted_picker(
+    let session = scripted_session(
         true,
         Err(pnpm_hooks::HookError::Execution {
             pnpmfile: ".pnpmfile.cjs".to_string(),
@@ -997,9 +1124,10 @@ async fn custom_fetcher_hook_error_propagates() {
         }),
     );
 
-    let err = run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
-        .await
-        .expect_err("a throwing fetcher must fail the install");
+    let err =
+        run_snapshot_install_with_session(config, &metadata, &session, None, store_tmp.path())
+            .await
+            .expect_err("a throwing fetcher must fail the install");
 
     assert!(
         matches!(
@@ -1124,7 +1252,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
         node_linker: pnpm_config::NodeLinker::Hoisted,
-        custom_fetcher_picker: None,
+        custom_fetcher_session: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -1187,7 +1315,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
         node_linker: pnpm_config::NodeLinker::Hoisted,
-        custom_fetcher_picker: None,
+        custom_fetcher_session: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -1238,13 +1366,15 @@ async fn custom_typed_resolution_installs_via_delegating_fetcher() {
         Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
     );
 
-    let picker =
-        scripted_picker(true, Ok(serde_json::json!({ "delegate": { "integrity": DUMMY_SHA512 } })));
+    let session = scripted_session(
+        true,
+        Ok(serde_json::json!({ "delegate": { "integrity": DUMMY_SHA512 } })),
+    );
 
-    let cas_paths = run_snapshot_install_with_picker(
+    let cas_paths = run_snapshot_install_with_session(
         config,
         &metadata,
-        &picker,
+        &session,
         Some(&mem_cache),
         store_tmp.path(),
     )
@@ -1266,11 +1396,12 @@ async fn custom_typed_resolution_without_a_claiming_fetcher_fails() {
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
     let metadata = custom_resolution_metadata("custom:cdn");
 
-    let picker = scripted_picker(false, Ok(serde_json::Value::Null));
+    let session = scripted_session(false, Ok(serde_json::Value::Null));
 
-    let err = run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
-        .await
-        .expect_err("an unclaimed custom resolution must fail the install");
+    let err =
+        run_snapshot_install_with_session(config, &metadata, &session, None, store_tmp.path())
+            .await
+            .expect_err("an unclaimed custom resolution must fail the install");
 
     assert!(
         matches!(
@@ -1304,9 +1435,9 @@ async fn a_delegated_directory_resolution_reports_mutable_source() {
     .expect("write the source manifest");
 
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
-    let metadata = registry_metadata();
+    let metadata = custom_resolution_metadata("custom:cdn");
 
-    let picker = scripted_picker(
+    let session = scripted_session(
         true,
         Ok(serde_json::json!({
             "delegate": { "type": "directory", "directory": "local-src" },
@@ -1314,7 +1445,7 @@ async fn a_delegated_directory_resolution_reports_mutable_source() {
     );
 
     let installed =
-        run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
+        run_snapshot_install_with_session(config, &metadata, &session, None, store_tmp.path())
             .await
             .expect("the delegated directory resolution must drive the fetch");
 
@@ -1323,5 +1454,64 @@ async fn a_delegated_directory_resolution_reports_mutable_source() {
         "a delegated directory resolution must report mutable source",
     );
 
+    drop(store_tmp);
+}
+
+/// A fresh install computing a missing tarball digest lets a hook point the
+/// package at a source that has no digest to compute. The install pass
+/// materializes a directory through its own dispatch, so refusing here would
+/// fail a resolution that a frozen install of the same lockfile accepts.
+#[tokio::test]
+async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
+    let store_tmp = tempfile::tempdir().expect("tempdir");
+    let config = leaked_offline_config("https://registry.test", store_tmp.path());
+    let session = scripted_session(
+        true,
+        Ok(serde_json::json!({
+            "delegate": { "type": "directory", "directory": "/synthetic/pkg" },
+        })),
+    );
+    let unpinned = LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
+        tarball: "https://registry.test/pkg.tgz".to_string(),
+        integrity: None,
+        revision: None,
+        git_hosted: None,
+        path: None,
+    });
+
+    let resolution = session
+        .resolve_tarball_integrity::<pnpm_reporter::SilentReporter>(
+            pnpm_tarball::DownloadTarballToStore {
+                http_client: &pnpm_network::ThrottledClient::default(),
+                store_dir: &config.store_dir,
+                store_index: None,
+                store_index_writer: None,
+                verify_store_integrity: config.verify_store_integrity,
+                strict_store_pkg_content_check: config.strict_store_pkg_content_check,
+                verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
+                package_integrity: None,
+                package_unpacked_size: None,
+                package_file_count: None,
+                package_url: "https://registry.test/pkg.tgz",
+                package_id: "pkg@1.0.0",
+                requester: "",
+                prefetched_cas_paths: None,
+                retry_opts: pnpm_tarball::RetryOpts { retries: 0, ..Default::default() },
+                auth_headers: &config.auth_headers,
+                ignore_file_pattern: None,
+                offline: true,
+                progress_reported: None,
+                append_manifest: None,
+            },
+            &unpinned,
+            serde_json::json!({ "lockfileDir": store_tmp.path() }),
+        )
+        .await
+        .expect("a digest-less delegate is not an integrity failure");
+
+    assert!(
+        matches!(resolution, LockfileResolution::Tarball(ref tarball) if tarball.integrity.is_none()),
+        "the unpinned resolution is recorded unchanged: {resolution:?}",
+    );
     drop(store_tmp);
 }

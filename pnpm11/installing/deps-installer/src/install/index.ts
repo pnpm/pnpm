@@ -150,6 +150,7 @@ const COMPOSABLE_CHANGED_FIELDS = new Set<ChangedField>([
 
 interface InstallMutationOptions {
   update?: boolean
+  updatePatches?: boolean
   updateToLatest?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest?: boolean
@@ -210,7 +211,7 @@ export async function install (
 
   // When a pnpr server is configured, use server-side resolution
   // instead of the normal resolution flow.
-  if (opts.pnprServer) {
+  if (opts.pnprServer && canUsePnprForInstall(opts)) {
     return installViaPnprServer(manifest, rootDir, opts)
   }
 
@@ -221,6 +222,7 @@ export async function install (
         pruneDirectDependencies: opts.pruneDirectDependencies,
         rootDir,
         update: opts.update,
+        updatePatches: opts.updatePatches,
         updateMatching: opts.updateMatching,
         updateToLatest: opts.updateToLatest,
         updatePackageManifest: opts.updatePackageManifest,
@@ -282,6 +284,7 @@ export async function mutateModulesInSingleProject (
       {
         ...project,
         update: maybeOpts.update,
+        updatePatches: maybeOpts.updatePatches,
         updateToLatest: maybeOpts.updateToLatest,
         updateMatching: maybeOpts.updateMatching,
         updatePackageManifest: maybeOpts.updatePackageManifest,
@@ -362,10 +365,11 @@ export async function mutateModules (
   const verifiedFileIntegrityBaseline = verifiedFileIntegritySnapshot()
 
   // When a pnpr server is configured, use server-side resolution. The pnpr server
-  // path supports `install`, `installSome` (pnpm add), and `uninstallSome`
-  // (pnpm remove). Mutations that need full client-side resolution (update
-  // flags) still fall through to the normal flow.
-  if (opts.pnprServer && canUsePnprForMutations(projects)) {
+  // path supports `install`, `installSome` (pnpm add), `uninstallSome`
+  // (pnpm remove), and complete-project revision refreshes. Mutations that
+  // need other client-side update behavior still fall through to the normal
+  // flow.
+  if (opts.pnprServer && canUsePnprForMutations(projects, opts)) {
     const pnprResult = await mutateModulesViaPnpr(projects, opts)
     if (pnprResult) {
       // This path materializes packages of its own, so it verifies the
@@ -554,7 +558,15 @@ export async function mutateModules (
 
   reportVerifiedFileIntegrity(verifiedFileIntegritySince(verifiedFileIntegrityBaseline))
 
-  if (opts.mergeGitBranchLockfiles) {
+  // The branch lockfiles become disposable only once the merge has been
+  // written for good. An install that never saves a lockfile did not merge
+  // them, and a `--dry-run` / `lockfileCheck` run only reports what it would
+  // do — deleting them in either case drops resolutions no file is left
+  // holding.
+  if (
+    opts.mergeGitBranchLockfiles && opts.useLockfile && opts.saveLockfile &&
+    !isCheckOnlyInstall(opts)
+  ) {
     await cleanGitBranchLockfiles(ctx.lockfileDir)
   }
 
@@ -696,20 +708,7 @@ export async function mutateModules (
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
       : (resolvedPatchedDeps ? await calcPatchHashes(resolvedPatchedDeps) : {})
-    const patchGroupInput = resolvedPatchedDeps
-      ? Object.fromEntries(
-        Object.entries(patchedDependencies ?? {}).map(([key, hash]) => {
-          let patchFilePath: string | undefined = resolvedPatchedDeps[key]
-          if (!patchFilePath) {
-            const lastAt = key.lastIndexOf('@')
-            const pkgName = lastAt > 0 ? key.slice(0, lastAt) : key
-            patchFilePath = resolvedPatchedDeps[pkgName]
-          }
-          return [key, { hash, patchFilePath }]
-        })
-      )
-      : patchedDependencies
-    const patchGroups = patchGroupInput ? groupPatchedDependencies(patchGroupInput) : undefined
+    const patchGroups = groupPatchedDependenciesWithPaths(patchedDependencies, resolvedPatchedDeps)
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     // `uninstallSome` edits the manifests here, ahead of the fast-path
@@ -1116,6 +1115,7 @@ export async function mutateModules (
     | 'dependencySelectors'
     | 'targetDependenciesField'
     | 'update'
+    | 'updatePatches'
     | 'updateToLatest'
     >
 
@@ -1737,6 +1737,7 @@ export async function addDependenciesToPackage (
         rootDir,
         targetDependenciesField: opts.targetDependenciesField,
         update: opts.update,
+        updatePatches: opts.updatePatches,
         updateMatching: opts.updateMatching,
         updatePackageManifest: opts.updatePackageManifest,
         updateToLatest: opts.updateToLatest,
@@ -1953,7 +1954,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dedupeInjectedDeps: opts.dedupeInjectedDeps,
       dedupePeerDependents: opts.dedupePeerDependents,
       dedupePeers: opts.dedupePeers,
-      dryRun: opts.lockfileOnly,
+      dryRun: opts.lockfileOnly || isCheckOnlyInstall(opts),
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       engineStrict: opts.engineStrict,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
@@ -2176,6 +2177,18 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     ctx.pendingBuilds = ctx.pendingBuilds
       .filter((relDepPath) => !result.removedDepPaths.has(relDepPath))
 
+    if (ctx.modulesFile?.ignoredBuilds?.size && result.currentLockfile.packages != null) {
+      for (const ignoredBuild of ctx.modulesFile.ignoredBuilds.values()) {
+        // `Object.hasOwn` keeps a `.modules.yaml` entry named like an
+        // `Object.prototype` key from matching a package the lockfile
+        // doesn't contain.
+        if (Object.hasOwn(result.currentLockfile.packages, ignoredBuild) && !isBuildExplicitlyDisallowed(ignoredBuild, opts.allowBuild)) {
+          ignoredBuilds ??= new Set()
+          ignoredBuilds.add(ignoredBuild)
+        }
+      }
+    }
+
     if (result.newDepPaths?.length) {
       if (opts.ignoreScripts) {
         // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
@@ -2206,7 +2219,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         }
         // Dependency lifecycle scripts must not run on an unverified lockfile.
         await opts.verifyLockfile?.()
-        ignoredBuilds = (await buildModules(dependenciesGraph, rootNodes, {
+        const ignoredBuildsFromBuild = (await buildModules(dependenciesGraph, rootNodes, {
           allowBuild: opts.allowBuild,
           childConcurrency: opts.childConcurrency,
           depsStateCache,
@@ -2229,12 +2242,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
           frozenStore: opts.frozenStore,
         })).ignoredBuilds
-        if (ctx.modulesFile?.ignoredBuilds?.size) {
+        if (ignoredBuildsFromBuild?.size) {
           ignoredBuilds ??= new Set()
-          for (const ignoredBuild of ctx.modulesFile.ignoredBuilds.values()) {
-            if (result.currentLockfile.packages?.[ignoredBuild] && !isBuildExplicitlyDisallowed(ignoredBuild, opts.allowBuild)) {
-              ignoredBuilds.add(ignoredBuild)
-            }
+          for (const ignoredBuild of ignoredBuildsFromBuild.values()) {
+            ignoredBuilds.add(ignoredBuild)
           }
         }
       }
@@ -2765,18 +2776,60 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
 /**
  * Whether the pnpr server path can handle this batch of mutations. The pnpr server flow
  * supports installing the manifest as-is (`install`), adding new deps
- * (`installSome`), and removing deps (`uninstallSome`). It cannot model the
- * client-side update-flag behavior (`update`/`updateMatching`/`updateToLatest`)
- * yet, so those still go through the normal client-side resolver.
+ * (`installSome`), removing deps (`uninstallSome`), and refreshing registry
+ * revisions for a complete project set. Other client-side update behavior
+ * (`update`/`updateMatching`/`updateToLatest`) still uses the local resolver.
  */
-function canUsePnprForMutations (projects: MutatedProject[]): boolean {
+function canUsePnprForMutations (
+  projects: MutatedProject[],
+  opts: Pick<MutateModulesOptions, 'allProjects' | 'depth' | 'includeDirect'>
+): boolean {
   if (projects.length === 0) return false
+  const refreshesRevisions = projects.some(project =>
+    (project.mutation === 'install' || project.mutation === 'installSome') && project.updatePatches === true
+  )
+  if (refreshesRevisions) {
+    if (projects.some(project =>
+      project.mutation !== 'uninstallSome' &&
+      !canUsePnprForPatchRefresh(opts, project.update)
+    )) return false
+    const { allProjects } = opts
+    if (allProjects == null || projects.length !== allProjects.length) return false
+    const mutatedRootDirs = new Set(projects.map(project => project.rootDir))
+    if (!allProjects.every(project => mutatedRootDirs.has(project.rootDir))) return false
+    return projects.every(project =>
+      project.mutation === 'install' &&
+      project.updatePatches === true &&
+      !project.updateToLatest &&
+      project.updateMatching == null
+    )
+  }
   return projects.every((p) => {
     if (p.mutation === 'uninstallSome') return true
     if (p.mutation !== 'install' && p.mutation !== 'installSome') return false
     const m = p as InstallDepsMutation | InstallSomeDepsMutation
     return !m.update && !m.updateToLatest && m.updateMatching == null
   })
+}
+
+function canUsePnprForInstall (opts: Opts): boolean {
+  if (opts.updatePatches) {
+    return !opts.updateToLatest &&
+      opts.updateMatching == null &&
+      canUsePnprForPatchRefresh(opts, opts.update)
+  }
+  return !opts.update && !opts.updateToLatest && opts.updateMatching == null
+}
+
+function canUsePnprForPatchRefresh (
+  opts: Pick<InstallOptions, 'depth' | 'includeDirect'>,
+  update: boolean | undefined
+): boolean {
+  if (update !== true) return true
+  return opts.depth === Infinity &&
+    opts.includeDirect?.dependencies !== false &&
+    opts.includeDirect?.devDependencies !== false &&
+    opts.includeDirect?.optionalDependencies !== false
 }
 
 interface PnprNewDep {
@@ -2982,7 +3035,12 @@ async function mutateModulesViaPnpr (
   const result = await installViaPnprServer(
     pnprProjects[0].manifest,
     pnprProjects[0].rootDir,
-    opts,
+    {
+      ...opts,
+      updatePatches: projects.every(project =>
+        project.mutation === 'install' && project.updatePatches === true
+      ),
+    },
     pnprProjects.map((p) => ({ rootDir: p.rootDir, manifest: p.manifest }))
   )
 
@@ -3054,6 +3112,16 @@ async function installViaPnprServer (
     const existingLockfile = await readWantedLockfileFile(lockfileDir, {
       ignoreIncompatible: true,
     }).catch(() => null)
+    const resolvedPatchedDependencies = resolvePatchedDependencies(opts.patchedDependencies, lockfileDir)
+    const patchedDependencies = opts.ignorePackageManifest
+      ? existingLockfile?.patchedDependencies
+      : resolvedPatchedDependencies == null
+        ? undefined
+        : await calcPatchHashes(resolvedPatchedDependencies)
+    const patchGroups = groupPatchedDependenciesWithPaths(
+      patchedDependencies,
+      resolvedPatchedDependencies
+    )
 
     logger.info({ message: 'Resolving dependencies via the pnpr server', prefix: rootDir })
 
@@ -3084,6 +3152,9 @@ async function installViaPnprServer (
       registries: toRegistryDeclarations(opts),
       authorization: pnprAuthorization,
       overrides: opts.overrides,
+      patchedDependencies,
+      packageExtensions: opts.packageExtensions,
+      allowUnusedPatches: opts.allowUnusedPatches,
       // The reconstructed workspace the server builds from this request has no
       // catalog sections, so forward the catalogs for the server to resolve
       // `catalog:` specifiers in both dependencies and overrides.
@@ -3104,6 +3175,7 @@ async function installViaPnprServer (
       // lockfile it promises to leave alone.
       frozenLockfile: opts.frozenLockfile === true || (opts.frozenLockfileIfExists === true && existingLockfile != null),
       preferFrozenLockfile: opts.preferFrozenLockfile,
+      updatePatches: opts.updatePatches,
       lockfile: existingLockfile ?? undefined,
     })
 
@@ -3173,6 +3245,7 @@ async function installViaPnprServer (
       ),
       hoistedDependencies: {},
       pendingBuilds: [] as string[],
+      patchedDependencies: patchGroups,
       skipped: new Set<DepPath>(),
       wantedLockfile: lockfile,
     }
@@ -3204,4 +3277,23 @@ async function installViaPnprServer (
     // pending writes on disk and diverge from lifecycle expectations.
     await opts.storeController.close()
   }
+}
+
+function groupPatchedDependenciesWithPaths (
+  patchedDependencies: Record<string, string> | undefined,
+  resolvedPatchedDependencies: Record<string, string> | undefined
+): PatchGroupRecord | undefined {
+  if (!patchedDependencies) return undefined
+  if (!resolvedPatchedDependencies) return groupPatchedDependencies(patchedDependencies)
+  return groupPatchedDependencies(Object.fromEntries(
+    Object.entries(patchedDependencies).map(([key, hash]) => {
+      let patchFilePath: string | undefined = resolvedPatchedDependencies[key]
+      if (!patchFilePath) {
+        const lastAt = key.lastIndexOf('@')
+        const pkgName = lastAt > 0 ? key.slice(0, lastAt) : key
+        patchFilePath = resolvedPatchedDependencies[pkgName]
+      }
+      return [key, { hash, patchFilePath }]
+    })
+  ))
 }

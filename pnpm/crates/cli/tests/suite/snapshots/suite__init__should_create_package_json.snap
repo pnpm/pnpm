@@ -1,7 +1,6 @@
 ---
-source: crates/cli/tests/init.rs
-assertion_line: 20
-expression: package_json_content
+source: pnpm/crates/cli/tests/suite/init.rs
+expression: "package_json_content.replace(pnpm_config::PNPM_VERSION, \"<pnpm-version>\")"
 ---
 {
   "name": "workspace",
@@ -13,5 +12,14 @@ expression: package_json_content
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "<pnpm-version>",
+      "onFail": "download"
+    }
+  },
+  "packageManager": "pnpm@<pnpm-version>",
+  "type": "module"
 }

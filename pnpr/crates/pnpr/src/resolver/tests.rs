@@ -15,7 +15,8 @@ use std::{
 use super::{
     MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY, cached_resolution,
     protocol::{ResolveRequest, ResolveRequestProject},
-    reject_inline_url_auth, reject_off_allowlist_fetches, resolution_cache_key, store_resolution,
+    reject_inline_url_auth, reject_invalid_patch_hashes, reject_off_allowlist_fetches,
+    resolution_cache_key, store_resolution,
 };
 use crate::{
     config::{Config as RegistryConfig, PublicRoute, UpstreamConfig},
@@ -205,6 +206,21 @@ fn a_scope_routed_registries_map_does_not_parse() {
 }
 
 #[test]
+fn patch_hashes_must_be_lowercase_sha256_digests() {
+    let request = |hash: &str| {
+        serde_json::from_value::<ResolveRequest>(serde_json::json!({
+            "patchedDependencies": { "foo@1.0.0": hash }
+        }))
+        .expect("resolve request parses")
+    };
+
+    assert!(reject_invalid_patch_hashes(&request(&"a".repeat(64))).is_none());
+    for invalid in ["abc".to_string(), "A".repeat(64), "g".repeat(64)] {
+        assert!(reject_invalid_patch_hashes(&request(&invalid)).is_some(), "accepted {invalid}");
+    }
+}
+
+#[test]
 fn resolution_cache_key_changes_with_catalogs() {
     let request = |version: &str| {
         serde_json::from_value::<ResolveRequest>(serde_json::json!({
@@ -287,6 +303,56 @@ fn resolution_cache_key_changes_with_dependencies_and_policy() {
     assert_ne!(base_key, resolution_cache_key(&config, &different_dep));
     assert_ne!(base_key, resolution_cache_key(&config, &different_policy));
     assert_ne!(base_key, resolution_cache_key(&config, &different_mode));
+}
+
+#[test]
+fn resolution_cache_key_changes_with_project_transforms() {
+    let request = |patch_hash: &str, extension_version: &str, allow_unused_patches: bool| {
+        serde_json::from_value::<ResolveRequest>(serde_json::json!({
+            "patchedDependencies": { "foo@1.0.0": patch_hash },
+            "packageExtensions": {
+                "foo@1.0.0": { "dependencies": { "bar": extension_version } }
+            },
+            "allowUnusedPatches": allow_unused_patches,
+        }))
+        .expect("resolve request parses")
+    };
+    let config = config();
+    let base = request("hash-one", "1.0.0", false);
+    let base_key = resolution_cache_key(&config, &base);
+
+    assert_ne!(base_key, resolution_cache_key(&config, &request("hash-two", "1.0.0", false)));
+    assert_ne!(base_key, resolution_cache_key(&config, &request("hash-one", "2.0.0", false)));
+    assert_ne!(base_key, resolution_cache_key(&config, &request("hash-one", "1.0.0", true)));
+}
+
+#[test]
+fn revision_refresh_bypasses_the_resolution_cache() {
+    let ordinary = ResolveRequest {
+        dependencies: Some(deps(&[("foo", "1.0.0")])),
+        ..ResolveRequest::default()
+    };
+    let refresh = ResolveRequest {
+        dependencies: ordinary.dependencies.clone(),
+        update_patches: true,
+        ..ResolveRequest::default()
+    };
+
+    assert!(resolution_cache_key(&config(), &ordinary).is_some());
+    assert!(resolution_cache_key(&config(), &refresh).is_none());
+}
+
+#[test]
+fn update_patches_defaults_to_false_for_older_clients() {
+    let request = serde_json::from_value::<ResolveRequest>(serde_json::json!({}))
+        .expect("legacy request parses");
+    let refresh = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "updatePatches": true
+    }))
+    .expect("refresh request parses");
+
+    assert!(!request.update_patches);
+    assert!(refresh.update_patches);
 }
 
 #[test]
@@ -830,6 +896,34 @@ fn reject_inline_url_auth_scans_catalogs() {
 }
 
 #[test]
+fn package_extensions_stay_inside_the_fetch_boundary() {
+    let context = RouteContext::from_config(&registry_config());
+    let off_allowlist = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "packageExtensions": {
+            "foo@1.0.0": {
+                "optionalDependencies": {
+                    "bar": "https://169.254.169.254/bar.tgz"
+                }
+            }
+        }
+    }))
+    .expect("package extension request parses");
+    let inline_auth = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "packageExtensions": {
+            "foo@1.0.0": {
+                "peerDependencies": {
+                    "bar": "https://user:pass@registry.example.test/bar.tgz"
+                }
+            }
+        }
+    }))
+    .expect("package extension request parses");
+
+    assert!(reject_off_allowlist_fetches(&off_allowlist, &context).is_some());
+    assert!(reject_inline_url_auth(&inline_auth).is_some());
+}
+
+#[test]
 fn private_cached_resolution_keeps_routed_tarball_urls() {
     let cache = Mutex::new(HashMap::new());
     let key = "base".to_string();
@@ -905,7 +999,7 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
         tarball_router: tarball_router(&registry, Identity::Anonymous),
     };
 
-    let hint = |unpacked_size, file_count| ResolvedPackageHint {
+    let hint = |unpacked_size, file_count, revision| ResolvedPackageHint {
         id: "acme@1.0.0",
         name: "acme",
         version: "1.0.0",
@@ -913,20 +1007,23 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
         tarball_url: "https://r.test/acme/-/acme-1.0.0.tgz",
         unpacked_size,
         file_count,
+        revision,
         from_registry: false,
     };
-    observer.on_resolved(hint(Some(123_456), Some(42)));
-    observer.on_resolved(hint(None, None));
+    observer.on_resolved(hint(Some(123_456), Some(42), Some(3)));
+    observer.on_resolved(hint(None, None, None));
 
     let sized: serde_json::Value =
         serde_json::from_slice(&rx.try_recv().expect("sized frame sent")).unwrap();
     assert_eq!(sized["unpackedSize"], serde_json::json!(123_456));
     assert_eq!(sized["fileCount"], serde_json::json!(42));
+    assert_eq!(sized["revision"], serde_json::json!(3));
 
     let unsized_frame: serde_json::Value =
         serde_json::from_slice(&rx.try_recv().expect("unsized frame sent")).unwrap();
     assert!(unsized_frame.get("unpackedSize").is_none());
     assert!(unsized_frame.get("fileCount").is_none());
+    assert!(unsized_frame.get("revision").is_none());
     assert_eq!(unsized_frame["tarball"], serde_json::json!("https://r.test/acme/-/acme-1.0.0.tgz"));
 }
 
@@ -950,6 +1047,7 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
             tarball_url: "https://npm.corp.example/acme/-/acme-1.0.0.tgz",
             unpacked_size: None,
             file_count: None,
+            revision: Some(3),
             from_registry: false,
         },
     );
@@ -957,6 +1055,7 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
 
     assert!(tarball.contains("/~corp/acme/-/acme-1.0.0.tgz"));
     assert!(!tarball.contains("npm.corp.example"));
+    assert!(frame.get("revision").is_none());
 }
 
 #[test]
@@ -983,6 +1082,7 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
             tarball_url: "https://cdn.split-domain.example/acme-1.0.0.tgz",
             unpacked_size: None,
             file_count: None,
+            revision: None,
             from_registry: true,
         },
     );
@@ -1013,6 +1113,7 @@ fn package_frame_strips_signed_token_from_public_registry_tarball() {
             tarball_url: "https://registry.npmjs.org/acme/-/acme-1.0.0.tgz?token=secret",
             unpacked_size: None,
             file_count: None,
+            revision: None,
             from_registry: true,
         },
     );
@@ -1103,6 +1204,7 @@ fn osv_checkable_tarball_does_not_trust_git_hosted_flag_or_strict_url_parsing() 
         LockfileResolution::Tarball(TarballResolution {
             tarball: url.to_string(),
             integrity: None,
+            revision: None,
             git_hosted,
             path: None,
         })
@@ -1152,6 +1254,39 @@ fn tarball_url_version_extracts_conventional_names_only() {
     // Non-conventional naming yields None (fall back, don't misjudge).
     assert_eq!(tarball_url_version("https://r/weird.tgz", "foo"), None);
     assert_eq!(tarball_url_version("https://r/foo/-/foo.tgz", "foo"), None);
+}
+
+#[test]
+fn intern_config_applies_project_transforms() {
+    use super::intern_config;
+    use pnpm_store_dir::StoreDir;
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-transform-settings-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-transform-settings-cache");
+    let request = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "patchedDependencies": { "foo@1.0.0": "abc123" },
+        "packageExtensions": {
+            "foo@1.0.0": { "dependencies": { "bar": "1.0.0" } }
+        },
+        "allowUnusedPatches": true,
+    }))
+    .expect("resolve request parses");
+
+    let config = intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
+        .expect("intern config");
+
+    assert!(config.allow_unused_patches);
+    assert_eq!(
+        config.patched_dependency_hashes().expect("read precomputed hashes").expect("patch hashes")
+            ["foo@1.0.0"],
+        "abc123",
+    );
+    let extensions = config.package_extensions.as_ref().expect("package extensions");
+    assert_eq!(
+        extensions["foo@1.0.0"].dependencies.as_ref().expect("extension dependencies")["bar"],
+        "1.0.0",
+    );
 }
 
 #[test]

@@ -21,9 +21,11 @@ use std::collections::{BTreeMap, HashSet};
 
 use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
+use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{RegistryDeclaration, ResolutionMode, TrustPolicy};
-use pnpm_lockfile::Lockfile;
+use pnpm_config::{PackageExtension, RegistryDeclaration, ResolutionMode, TrustPolicy};
+use pnpm_graph_hasher::hash_object_nullable_with_prefix;
+use pnpm_lockfile::{Lockfile, TarballRevision};
 use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
 use reqwest::Client;
 
@@ -65,6 +67,13 @@ pub struct ResolveOptions {
     /// at resolve time server-side. Sent unresolved: `catalog:` references
     /// in them are resolved server-side against [`Self::catalogs`].
     pub overrides: Option<serde_json::Value>,
+    /// The client's `patchedDependencies`, with paths replaced by their
+    /// SHA-256 hashes. The server uses these to key patched snapshots;
+    /// materialization and patch application remain client-side.
+    pub patched_dependencies: Option<IndexMap<String, String>>,
+    /// The client's manifest extensions, applied during server resolution.
+    pub package_extensions: Option<IndexMap<String, PackageExtension>>,
+    pub allow_unused_patches: bool,
     /// The client's workspace catalogs (`catalog:` / `catalogs:` from
     /// `pnpm-workspace.yaml`). The workspace the server reconstructs from
     /// this request carries no catalog sections, so without these it
@@ -89,6 +98,9 @@ pub struct ResolveOptions {
     /// `preferFrozenLockfile`. `Some(false)` forces the server to
     /// re-resolve; `None` lets it default to reuse.
     pub prefer_frozen_lockfile: Option<bool>,
+    /// Refresh registry artifacts while retaining every locked package
+    /// version.
+    pub update_patches: bool,
     /// `ignoreManifestCheck`: skip the manifest ↔ lockfile freshness
     /// comparison during the frozen resolve.
     pub ignore_manifest_check: bool,
@@ -135,6 +147,9 @@ pub struct ResolveProjectsOptions {
     pub registries: RegistryDeclarations,
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
+    pub patched_dependencies: Option<IndexMap<String, String>>,
+    pub package_extensions: Option<IndexMap<String, PackageExtension>>,
+    pub allow_unused_patches: bool,
     pub catalogs: Option<Catalogs>,
     pub auto_install_peers: Option<bool>,
     pub dedupe_peers: Option<bool>,
@@ -142,6 +157,7 @@ pub struct ResolveProjectsOptions {
     pub lockfile: Option<Lockfile>,
     pub frozen_lockfile: bool,
     pub prefer_frozen_lockfile: Option<bool>,
+    pub update_patches: bool,
     pub ignore_manifest_check: bool,
     pub trust_lockfile: bool,
     /// See [`ResolveOptions::resolution_mode`].
@@ -169,6 +185,9 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
             registries: opts.registries,
             authorization: opts.authorization,
             overrides: opts.overrides,
+            patched_dependencies: opts.patched_dependencies,
+            package_extensions: opts.package_extensions,
+            allow_unused_patches: opts.allow_unused_patches,
             catalogs: opts.catalogs,
             auto_install_peers: opts.auto_install_peers,
             dedupe_peers: opts.dedupe_peers,
@@ -176,6 +195,7 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
             lockfile: opts.lockfile,
             frozen_lockfile: opts.frozen_lockfile,
             prefer_frozen_lockfile: opts.prefer_frozen_lockfile,
+            update_patches: opts.update_patches,
             ignore_manifest_check: opts.ignore_manifest_check,
             trust_lockfile: opts.trust_lockfile,
             resolution_mode: opts.resolution_mode,
@@ -278,6 +298,9 @@ pub struct ResolvedPackage {
     /// published one. The per-file term of the download priority's
     /// pipeline-work estimate.
     pub file_count: Option<usize>,
+    /// Registry artifact revision, when the server resolved an immutable
+    /// integrity-addressed artifact.
+    pub revision: Option<TarballRevision>,
 }
 
 #[derive(Debug, Display, Error, From)]
@@ -466,11 +489,15 @@ impl PnprClient {
             .map(|project| project.dir.clone())
             .chain(opts.lockfile.iter().flat_map(|lockfile| lockfile.importers.keys().cloned()))
             .collect();
+        let project_transforms_requested = has_project_transforms(&opts);
         let request = serde_json::json!({
             "projects": opts.projects,
             "registry": opts.registry,
             "registries": opts.registries,
             "overrides": opts.overrides,
+            "patchedDependencies": opts.patched_dependencies,
+            "packageExtensions": opts.package_extensions,
+            "allowUnusedPatches": opts.allow_unused_patches,
             "catalogs": opts.catalogs,
             "autoInstallPeers": opts.auto_install_peers,
             "dedupePeers": opts.dedupe_peers,
@@ -478,6 +505,7 @@ impl PnprClient {
             "lockfile": opts.lockfile,
             "frozenLockfile": opts.frozen_lockfile,
             "preferFrozenLockfile": opts.prefer_frozen_lockfile,
+            "updatePatches": opts.update_patches,
             "ignoreManifestCheck": opts.ignore_manifest_check,
             "trustLockfile": opts.trust_lockfile,
             "resolutionMode": opts.resolution_mode,
@@ -502,10 +530,24 @@ impl PnprClient {
             )));
         }
 
-        // Consume the NDJSON stream line by line. `package` frames feed
-        // `on_package` as they arrive (overlapping the server's
-        // resolution); the first terminal frame ends the loop. reqwest's
-        // `gzip` feature transparently inflates the byte stream if a
+        if project_transforms_requested
+            && response
+                .headers()
+                .get(PROJECT_TRANSFORMS_HEADER)
+                .and_then(|value| value.to_str().ok())
+                != Some(PROJECT_TRANSFORMS_VERSION)
+        {
+            return Err(PnprClientError::Protocol(
+                "pnpr server /-/pnpr/v0/resolve does not advertise project-transform support"
+                    .to_string(),
+            ));
+        }
+
+        // Consume the NDJSON stream line by line. The response header above
+        // proves transform support before any package frame is consumed, so
+        // current servers preserve resolution/fetch overlap while older
+        // servers fail without triggering downloads or buffering hints.
+        // reqwest's `gzip` feature transparently inflates the byte stream if a
         // proxy compressed it, so the frames arrive as plain JSON lines.
         let mut stream = response.bytes_stream();
         let mut buf: Vec<u8> = Vec::new();
@@ -526,6 +568,7 @@ impl PnprClient {
                         tarball,
                         unpacked_size,
                         file_count,
+                        revision,
                     } => {
                         on_package(ResolvedPackage {
                             id,
@@ -535,6 +578,7 @@ impl PnprClient {
                             tarball,
                             unpacked_size,
                             file_count,
+                            revision,
                         });
                     }
                     Frame::Done { lockfile, stats } => {
@@ -547,6 +591,7 @@ impl PnprClient {
                                 "/-/pnpr/v0/resolve returned an importer that was not requested: {unexpected:?}",
                             )));
                         }
+                        assert_transform_metadata(&lockfile, &opts)?;
                         return Ok(ResolveOutcome { lockfile: *lockfile, stats });
                     }
                     Frame::Error { message } => return Err(PnprClientError::Server(message)),
@@ -560,6 +605,53 @@ impl PnprClient {
             "/-/pnpr/v0/resolve stream ended without a terminal frame".to_string(),
         ))
     }
+}
+
+fn has_project_transforms(opts: &ResolveProjectsOptions) -> bool {
+    opts.patched_dependencies.as_ref().is_some_and(|patches| !patches.is_empty())
+        || opts.package_extensions.as_ref().is_some_and(|extensions| !extensions.is_empty())
+}
+
+const PROJECT_TRANSFORMS_HEADER: &str = "pnpr-project-transforms";
+const PROJECT_TRANSFORMS_VERSION: &str = "1";
+
+fn assert_transform_metadata(
+    lockfile: &Lockfile,
+    opts: &ResolveProjectsOptions,
+) -> Result<(), PnprClientError> {
+    if let Some(expected) = opts.patched_dependencies.as_ref().filter(|patches| !patches.is_empty())
+        && !equal_patch_hashes(lockfile.patched_dependencies.as_ref(), expected)
+    {
+        return Err(PnprClientError::Protocol(
+            "/-/pnpr/v0/resolve returned patchedDependencies that do not match the request; the server may not support project transforms".to_string(),
+        ));
+    }
+
+    if let Some(package_extensions) =
+        opts.package_extensions.as_ref().filter(|extensions| !extensions.is_empty())
+    {
+        let value = serde_json::to_value(package_extensions)
+            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        let expected = hash_object_nullable_with_prefix(&value)
+            .expect("a non-empty packageExtensions map has a checksum");
+        if lockfile.package_extensions_checksum.as_deref() != Some(expected.as_str()) {
+            return Err(PnprClientError::Protocol(
+                "/-/pnpr/v0/resolve returned packageExtensionsChecksum that does not match the request; the server may not support project transforms".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn equal_patch_hashes(
+    actual: Option<&BTreeMap<String, String>>,
+    expected: &IndexMap<String, String>,
+) -> bool {
+    actual.is_some_and(|actual| {
+        actual.len() == expected.len()
+            && expected.iter().all(|(selector, hash)| actual.get(selector) == Some(hash))
+    })
 }
 
 fn parse_frame(line: &[u8]) -> Result<Frame, PnprClientError> {
@@ -586,6 +678,8 @@ enum Frame {
         unpacked_size: Option<usize>,
         #[serde(rename = "fileCount", default)]
         file_count: Option<usize>,
+        #[serde(default)]
+        revision: Option<TarballRevision>,
     },
     /// Boxed: the lockfile dwarfs the other variants, so keeping it
     /// behind a pointer keeps the enum small.

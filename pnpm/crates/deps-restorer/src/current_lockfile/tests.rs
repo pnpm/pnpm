@@ -58,6 +58,7 @@ fn package_metadata(name: &str) -> PackageMetadata {
         resolution: LockfileResolution::Tarball(TarballResolution {
             integrity: None,
             tarball: format!("https://example.test/{name}.tgz"),
+            revision: None,
             git_hosted: None,
             path: None,
         }),
@@ -89,6 +90,7 @@ fn empty_lockfile() -> Lockfile {
         packages: None,
         snapshots: None,
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 
@@ -132,6 +134,7 @@ fn lockfile_with_top_level(marker: &str, minor: u16) -> Lockfile {
         packages: None,
         snapshots: None,
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 

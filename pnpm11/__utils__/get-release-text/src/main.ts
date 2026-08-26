@@ -17,11 +17,21 @@ export const BumpLevels = {
   major: 3,
 } as const
 
-const dirname = path.dirname(fileURLToPath(import.meta.url))
-const repoRoot = path.resolve(dirname, '../../../..')
+// The sponsors table is shared with the v12 release job, which cats this same
+// fragment onto its RELEASE.md. It is regenerated from pnpm.io's sponsors.json.
+// A missing fragment means someone moved it, not that there are no sponsors —
+// warn rather than throw, since the workflow falls back to a diagnostic
+// description when this script fails, and no sponsors beats no release notes.
+const SPONSORS_FRAGMENT = '.github/release-sponsors.md'
 
-if (process.argv[1] != null && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  await writeReleaseText(repoRoot)
+async function readSponsors (workspaceDir: string): Promise<string> {
+  try {
+    return await fs.readFile(path.join(workspaceDir, SPONSORS_FRAGMENT), 'utf8')
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+    console.warn(`::warning::No sponsors fragment at ${SPONSORS_FRAGMENT}; writing the release description without the sponsors table`)
+    return ''
+  }
 }
 
 export async function writeReleaseText (workspaceDir: string): Promise<void> {
@@ -32,9 +42,11 @@ export async function writeReleaseText (workspaceDir: string): Promise<void> {
     throw new PnpmError('MISSING_CHANGELOG', `No pending changelog found for pnpm ${pnpm.version}`)
   }
   const release = getChangelogEntry(changelog, pnpm.version)
+  const sponsors = await readSponsors(workspaceDir)
+  const content = sponsors === '' ? release.content : `${release.content}\n${sponsors}`
   const releasePath = path.join(workspaceDir, 'RELEASE.md')
   const temporaryPath = `${releasePath}.${process.pid}.tmp`
-  await fs.writeFile(temporaryPath, release.content)
+  await fs.writeFile(temporaryPath, content)
   await fs.rename(temporaryPath, releasePath)
 }
 
@@ -91,114 +103,15 @@ export function getChangelogEntry (changelog: string, version: string): Changelo
     endIndex
   )
   return {
-    content: `${unified().use(remarkStringify).stringify(ast)}
-
-<!-- sponsors -->
-
-## Platinum Sponsors
-
-<table>
-  <tbody>
-    <tr>
-      <td align="center" valign="middle">
-        <a href="https://bit.cloud/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/bit.svg" width="80" alt="Bit"></a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="middle">
-        <a href="https://openai.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/openai_dark.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/openai_light.svg" />
-            <img src="https://pnpm.io/img/users/openai_dark.svg" width="160" alt="OpenAI" />
-          </picture>
-        </a>
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-## Gold Sponsors
-
-<table>
-  <tbody>
-    <tr>
-      <td align="center" valign="middle">
-        <a href="https://sanity.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/sanity.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/sanity_light.svg" />
-            <img src="https://pnpm.io/img/users/sanity.svg" width="120" alt="Sanity" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
-        <a href="https://discord.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/discord.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/discord_light.svg" />
-            <img src="https://pnpm.io/img/users/discord.svg" width="220" alt="Discord" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
-        <a href="https://vite.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/vitejs.svg" width="42" alt="Vite"></a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="middle">
-        <a href="https://serpapi.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/serpapi_dark.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/serpapi_light.svg" />
-            <img src="https://pnpm.io/img/users/serpapi_dark.svg" width="160" alt="SerpApi" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
-        <a href="https://coderabbit.ai/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/coderabbit.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/coderabbit_light.svg" />
-            <img src="https://pnpm.io/img/users/coderabbit.svg" width="220" alt="CodeRabbit" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
-        <a href="https://stackblitz.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/stackblitz.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/stackblitz_light.svg" />
-            <img src="https://pnpm.io/img/users/stackblitz.svg" width="190" alt="Stackblitz" />
-          </picture>
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="middle">
-        <a href="https://workleap.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/workleap.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/workleap_light.svg" />
-            <img src="https://pnpm.io/img/users/workleap.svg" width="190" alt="Workleap" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
-        <a href="https://nx.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/nx.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/nx_light.svg" />
-            <img src="https://pnpm.io/img/users/nx.svg" width="50" alt="Nx" />
-          </picture>
-        </a>
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-<!-- sponsors end -->
-`,
+    content: unified().use(remarkStringify).stringify(ast),
     highestLevel,
   }
+}
+
+// The entry point stays at the bottom: a top-level `await` above a module-level
+// constant runs before that constant is initialized, and the release job only
+// finds out when the description fails to generate.
+if (process.argv[1] != null && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const dirname = path.dirname(fileURLToPath(import.meta.url))
+  await writeReleaseText(process.argv[2] ?? path.resolve(dirname, '../../../..'))
 }

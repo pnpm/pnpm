@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
+import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { RegistriesByScope } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
@@ -246,6 +247,145 @@ test('re-fetch full metadata when abbreviated modified date is recent', async ()
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   // 1.0.0 was published 2015-06-02, which is before publishedBy (2015-06-05)
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
+})
+
+test('re-fetch full metadata when per-version publish times are incomplete', async () => {
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, partialTimeMeta(), { headers: { 'content-type': 'application/json' } })
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '>=1 <3' }, {
+    publishedBy: new Date('2015-07-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@2.0.0')
+})
+
+test('scopes a 304 full-metadata upgrade marker to one resolver', async () => {
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, partialTimeMeta(), { headers: { etag: '"partial-time"' } })
+  agent.intercept({
+    path: '/is-positive',
+    method: 'GET',
+    headers: { 'if-none-match': '"partial-time"' },
+  }).reply(304, '')
+  agent.intercept({
+    path: '/is-positive',
+    method: 'GET',
+    headers: { 'if-none-match': '"partial-time"' },
+  }).reply(304, '')
+
+  const metaCache = new Map<string, PackageMeta>()
+  const cacheDir = temporaryDirectory()
+  const { clearCache, resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+    ignoreMissingTimeField: true,
+    metaCache,
+  })
+  const wantedDependency = { alias: 'is-positive', bareSpecifier: '^3.0.0' }
+
+  // Seed the install-scoped cache with an incomplete time map, then make two
+  // release-age picks. The first gets a 304 while trying to upgrade it; the
+  // second must reuse that outcome instead of repeating the registry request.
+  await resolveFromNpm(wantedDependency, {})
+  const first = await resolveFromNpm(wantedDependency, {
+    publishedBy: new Date('2015-07-01T00:00:00.000Z'),
+  })
+  // Drop the resolver's fetch memo while keeping the caller-owned packument
+  // cache, so the second pick reaches the release-age upgrade again with the
+  // very packument the first pick got a 304 for.
+  clearCache()
+  const second = await resolveFromNpm(wantedDependency, {
+    publishedBy: new Date('2015-07-01T00:00:00.000Z'),
+  })
+
+  // A new resolver represents a new install. Reusing the caller-owned
+  // metadata cache must not carry the first install's 304 marker forward.
+  const nextInstall = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+    ignoreMissingTimeField: true,
+    metaCache,
+  })
+  const third = await nextInstall.resolveFromNpm(wantedDependency, {
+    publishedBy: new Date('2015-07-01T00:00:00.000Z'),
+  })
+
+  expect(first!.id).toBe('is-positive@3.1.0')
+  expect(second!.id).toBe('is-positive@3.1.0')
+  expect(third!.id).toBe('is-positive@3.1.0')
+  getMockAgent().assertNoPendingInterceptors()
+})
+
+test('an upgrade answered with 200 is not repeated for later picks', async () => {
+  // A registry whose full representation is no more complete than its
+  // abbreviated one: the upgrade succeeds but changes nothing, so it must
+  // still be remembered or every pick re-asks for the same document.
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, partialTimeMeta())
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, partialTimeMeta())
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+    ignoreMissingTimeField: true,
+  })
+  const wantedDependency = { alias: 'is-positive', bareSpecifier: '^3.0.0' }
+  const publishedBy = new Date('2015-07-01T00:00:00.000Z')
+
+  const first = await resolveFromNpm(wantedDependency, { publishedBy })
+  const second = await resolveFromNpm(wantedDependency, { publishedBy })
+
+  expect(first!.id).toBe('is-positive@3.1.0')
+  expect(second!.id).toBe('is-positive@3.1.0')
+  // One abbreviated fetch and one upgrade, not one upgrade per pick.
+  getMockAgent().assertNoPendingInterceptors()
+})
+
+test('a replacement packument under the same cache key gets its own upgrade', async () => {
+  // updateChecksums bypasses the in-memory cache to force a conditional
+  // request, so a second document can arrive under the key the first one
+  // was marked against. Identity-keyed marking must not suppress it.
+  // Four requests: an abbreviated fetch and its upgrade per resolve. The
+  // second resolve gets a fresh document, so its upgrade must run again.
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  for (let i = 0; i < 4; i++) {
+    agent.intercept({ path: '/is-positive', method: 'GET' })
+      .reply(200, partialTimeMeta(), { headers: { etag: `"partial-time-${i}"` } })
+  }
+
+  const { clearCache, resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+    ignoreMissingTimeField: true,
+    // Caller-owned, so `clearCache()` drops only the request memo and the
+    // second resolve reaches the registry for a document of its own.
+    metaCache: new Map<string, PackageMeta>(),
+  })
+  const wantedDependency = { alias: 'is-positive', bareSpecifier: '^3.0.0' }
+  const publishedBy = new Date('2015-07-01T00:00:00.000Z')
+
+  await resolveFromNpm(wantedDependency, { publishedBy })
+  clearCache()
+  await resolveFromNpm(wantedDependency, { publishedBy, updateChecksums: true })
+
+  getMockAgent().assertNoPendingInterceptors()
 })
 
 test('ignoreMissingTimeField=true skips maturity check when full metadata has no time field', async () => {
@@ -725,3 +865,19 @@ test('latest is suppressed when all versions are immature (fallback case)', asyn
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
   expect(resolveResult!.latest).toBeUndefined()
 })
+
+/**
+ * The abbreviated packument as a registry that reports publish times for only
+ * some of the versions it serves would answer, with `modified` recent enough
+ * to make the release-age check ask for the full document.
+ */
+function partialTimeMeta (): PackageMeta {
+  return {
+    ...isPositiveAbbreviatedMeta,
+    time: {
+      '3.0.0': isPositiveMeta.time['3.0.0'],
+      '3.1.0': isPositiveMeta.time['3.1.0'],
+    },
+    modified: isPositiveMeta.time.modified,
+  }
+}

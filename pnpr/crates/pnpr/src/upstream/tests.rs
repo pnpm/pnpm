@@ -1,6 +1,7 @@
 use super::{
-    CacheValidators, CircuitBreaker, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
-    extract_version_manifest, rewrite_tarball_urls, tarball_basename,
+    CacheValidators, CircuitBreaker, FetchOutcome, PackumentFetch, UPSTREAM_ERROR_BODY_LIMIT,
+    Upstream, abbreviate_packument, extract_version_manifest, rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls, tarball_basename,
 };
 use crate::{config::UpstreamConfig, error::RegistryError, package_name::PackageName};
 use chrono::{DateTime, TimeZone, Utc};
@@ -72,6 +73,33 @@ async fn fetch_tarball_response_forwards_configured_headers() {
 
     assert!(matches!(outcome, FetchOutcome::Ok(_)));
     mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_revision_tarball_rejects_redirects_and_forwards_headers() {
+    let mut server = mockito::Server::new_async().await;
+    let redirect = server
+        .mock("GET", "/-/tarballs/sha512/digest")
+        .match_header("authorization", "Bearer secret-token")
+        .match_header("x-org", "acme")
+        .with_status(302)
+        .with_header("location", "/redirected.tgz")
+        .with_body("x".repeat(UPSTREAM_ERROR_BODY_LIMIT + 1))
+        .expect(1)
+        .create_async()
+        .await;
+    let redirected = server.mock("GET", "/redirected.tgz").expect(0).create_async().await;
+
+    let upstream = upstream(server.url(), auth_and_custom_headers());
+    let result = upstream.fetch_revision_tarball_response("digest").await;
+
+    assert!(matches!(
+        result,
+        Err(RegistryError::UpstreamStatus { status: 302, body, .. })
+            if body == format!("{} (response body truncated)", "x".repeat(UPSTREAM_ERROR_BODY_LIMIT))
+    ));
+    redirect.assert_async().await;
+    redirected.assert_async().await;
 }
 
 #[tokio::test]
@@ -197,6 +225,110 @@ fn rewrites_npm_form_tarball() {
         "http://127.0.0.1:4873/foo/-/foo-1.0.0.tgz",
     );
     assert_eq!(doc["versions"]["1.0.0"]["dist"]["shasum"], "abc");
+}
+
+#[test]
+fn preserves_valid_upstream_revision_route_on_the_public_registry() {
+    let current_digest = "A".repeat(86);
+    let original_digest = "Q".repeat(86);
+    let mut doc = json!({
+        "versions": {
+            "1.0.0": {
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": format!("https://upstream.test/npm/-/tarballs/sha512/{current_digest}"),
+                    "integrity": format!("sha512-{current_digest}=="),
+                    "revision": 2,
+                    "revisions": [{
+                        "revision": 0,
+                        "integrity": format!("sha512-{original_digest}=="),
+                        "tarball": format!("https://upstream.test/npm/-/tarballs/sha512/{original_digest}"),
+                        "manifest": { "dependencies": { "bar": "1" } },
+                    }, {
+                        "revision": 2,
+                        "integrity": format!("sha512-{current_digest}=="),
+                        "tarball": format!("https://upstream.test/npm/-/tarballs/sha512/{current_digest}"),
+                        "manifest": {},
+                    }],
+                }
+            }
+        }
+    });
+    let name = PackageName::parse("foo").unwrap();
+
+    rewrite_upstream_tarball_urls(
+        &mut doc,
+        &name,
+        "https://upstream.test/npm/",
+        "http://pnpr.test/~corp/",
+    );
+
+    assert_eq!(
+        doc["versions"]["1.0.0"]["dist"]["tarball"],
+        format!("http://pnpr.test/~corp/-/tarballs/sha512/{current_digest}"),
+    );
+    assert_eq!(doc["versions"]["1.0.0"]["dist"]["revision"], 2);
+    assert_eq!(
+        doc["versions"]["1.0.0"]["dist"]["revisions"][0]["tarball"],
+        format!("http://pnpr.test/~corp/-/tarballs/sha512/{original_digest}"),
+    );
+    assert_eq!(
+        doc["versions"]["1.0.0"]["dist"]["revisions"][1]["tarball"],
+        format!("http://pnpr.test/~corp/-/tarballs/sha512/{current_digest}"),
+    );
+}
+
+#[test]
+fn drops_invalid_upstream_revision_history_entries() {
+    let digest = "A".repeat(86);
+    let mut doc = json!({
+        "version": "1.0.0",
+        "dist": {
+            "tarball": format!("https://upstream.test/-/tarballs/sha512/{digest}"),
+            "integrity": format!("sha512-{digest}=="),
+            "revision": 2,
+            "revisions": [{
+                "revision": 1,
+                "integrity": format!("sha512-{digest}=="),
+                "tarball": format!("https://other.test/-/tarballs/sha512/{digest}"),
+                "manifest": {},
+            }],
+        },
+    });
+    let name = PackageName::parse("foo").unwrap();
+
+    rewrite_upstream_tarball_urls(&mut doc, &name, "https://upstream.test/", "http://pnpr.test/");
+
+    assert_eq!(doc["dist"]["revisions"], json!([]));
+}
+
+#[test]
+fn does_not_preserve_an_invalid_upstream_revision_route() {
+    let digest = "A".repeat(86);
+    let name = PackageName::parse("foo").unwrap();
+    for (revision, tarball) in [
+        (json!(0), format!("https://upstream.test/-/tarballs/sha512/{digest}")),
+        (json!(2), format!("https://other.test/-/tarballs/sha512/{digest}")),
+    ] {
+        let mut doc = json!({
+            "version": "1.0.0",
+            "dist": {
+                "tarball": tarball,
+                "integrity": format!("sha512-{digest}=="),
+                "revision": revision,
+            }
+        });
+
+        rewrite_upstream_tarball_urls(
+            &mut doc,
+            &name,
+            "https://upstream.test/",
+            "http://pnpr.test/~corp/",
+        );
+
+        assert_eq!(doc["dist"]["tarball"], format!("http://pnpr.test/~corp/foo/-/{digest}"));
+        assert!(doc["dist"].get("revision").is_none());
+    }
 }
 
 #[test]

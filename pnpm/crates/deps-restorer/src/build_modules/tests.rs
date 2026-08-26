@@ -1,6 +1,7 @@
 use super::{
     BuildModules,
     allow_build_policy::{AllowBuildPolicy, allow_build_key_from_ignored_build},
+    deferred_builds,
     slots::{is_contained_descendant, parse_name_version_from_key},
 };
 // Only the `#[cfg(unix)]` rebuild-selection test uses this; importing it
@@ -33,6 +34,18 @@ use tempfile::tempdir;
 /// to it through the side-effects re-materialization path; tests don't
 /// assert on it, so one shared static is enough.
 static TEST_LOGGED_METHODS: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+#[test]
+fn deferred_builds_uses_only_the_supplied_snapshots() {
+    let first = key("first", "1.0.0");
+    let second = key("second", "1.0.0");
+    let requires_build = HashMap::from([(first.clone(), true), (second, true)]);
+
+    assert_eq!(
+        deferred_builds(requires_build.iter().filter(|(key, _)| *key == &first), true),
+        [first.to_string()],
+    );
+}
 
 /// Build an [`AllowBuildPolicy`] from a list of `(spec, allowed)`
 /// pairs, mirroring how `pnpm-workspace.yaml`'s `allowBuilds` map
@@ -80,6 +93,7 @@ fn side_effects_key_for_git_hosted_tarball_matches_warm_lookup() {
     let resolution = pnpm_lockfile::LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
         tarball: pkg_id.to_string(),
         integrity: Some(integrity.parse().expect("parse integrity")),
+        revision: None,
         git_hosted: Some(true),
         path: None,
     });
@@ -458,6 +472,7 @@ fn build_modules_collects_ignored_builds() {
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -527,6 +542,7 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -585,6 +601,7 @@ fn cached_requires_build_false_skips_package_dir_probe() {
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -663,6 +680,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -733,6 +751,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -820,6 +839,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -897,6 +917,7 @@ fn using_side_effects_cache_skips_rebuild() {
                         integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                             .parse()
                             .expect("parse integrity"),
+                        revision: None,
                     },
                 ),
                 version: None,
@@ -984,6 +1005,7 @@ fn using_side_effects_cache_skips_rebuild() {
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -1039,6 +1061,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
                         integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                             .parse()
                             .expect("parse integrity"),
+                        revision: None,
                     },
                 ),
                 version: None,
@@ -1113,6 +1136,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -1154,6 +1178,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
                         integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                             .parse()
                             .expect("parse integrity"),
+                        revision: None,
                     },
                 ),
                 version: None,
@@ -1233,6 +1258,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -1303,6 +1329,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -1371,6 +1398,7 @@ fn fail_when_failing_postinstall_is_required() {
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -1463,6 +1491,7 @@ fn frozen_backstop_run(
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -1683,6 +1712,7 @@ async fn write_path_populates_side_effects_row() {
                 resolution: pnpm_lockfile::LockfileResolution::Registry(
                     pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),
+                        revision: None,
                     },
                 ),
                 version: None,
@@ -1735,6 +1765,7 @@ async fn write_path_populates_side_effects_row() {
     let base_row = PackageFilesIndex {
         manifest: None,
         requires_build: Some(true),
+        requires_prepare: None,
         algo: HASH_ALGORITHM.to_string(),
         files: base_files,
         side_effects: None,
@@ -1787,6 +1818,7 @@ async fn write_path_populates_side_effects_row() {
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -1843,6 +1875,7 @@ async fn write_path_disabled_skips_upload() {
                 resolution: pnpm_lockfile::LockfileResolution::Registry(
                     pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),
+                        revision: None,
                     },
                 ),
                 version: None,
@@ -1875,6 +1908,7 @@ async fn write_path_disabled_skips_upload() {
     let base_row = PackageFilesIndex {
         manifest: None,
         requires_build: Some(true),
+        requires_prepare: None,
         algo: HASH_ALGORITHM.to_string(),
         files: HashMap::new(),
         side_effects: None,
@@ -1910,6 +1944,7 @@ async fn write_path_disabled_skips_upload() {
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -1949,6 +1984,7 @@ async fn frozen_store_skips_side_effects_upload() {
                 resolution: pnpm_lockfile::LockfileResolution::Registry(
                     pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),
+                        revision: None,
                     },
                 ),
                 version: None,
@@ -2005,6 +2041,7 @@ async fn frozen_store_skips_side_effects_upload() {
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -2077,6 +2114,7 @@ async fn upload_error_does_not_interrupt_install() {
                 resolution: pnpm_lockfile::LockfileResolution::Registry(
                     pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),
+                        revision: None,
                     },
                 ),
                 version: None,
@@ -2113,6 +2151,7 @@ async fn upload_error_does_not_interrupt_install() {
     let base_row = PackageFilesIndex {
         manifest: None,
         requires_build: Some(true),
+        requires_prepare: None,
         algo: HASH_ALGORITHM.to_string(),
         files: HashMap::new(),
         side_effects: None,
@@ -2149,6 +2188,7 @@ async fn upload_error_does_not_interrupt_install() {
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -2281,6 +2321,7 @@ async fn write_path_cache_key_includes_patch_hash() {
                 resolution: pnpm_lockfile::LockfileResolution::Registry(
                     pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),
+                        revision: None,
                     },
                 ),
                 version: None,
@@ -2322,6 +2363,7 @@ async fn write_path_cache_key_includes_patch_hash() {
     let base_row = PackageFilesIndex {
         manifest: None,
         requires_build: Some(true),
+        requires_prepare: None,
         algo: HASH_ALGORITHM.to_string(),
         files: base_files,
         side_effects: None,
@@ -2407,6 +2449,7 @@ new file mode 100644
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -2523,6 +2566,7 @@ new file mode 100644
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -2611,6 +2655,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
 
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -2872,6 +2917,7 @@ fn rebuild_selection_runs_only_selected_scripts() {
         patches: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         script_shell: None,
+        shell_emulator: false,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,

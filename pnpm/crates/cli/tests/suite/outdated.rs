@@ -1,4 +1,7 @@
-use crate::_utils::append_workspace_yaml_key;
+use crate::_utils::{
+    append_workspace_yaml_key, bravo_dep_mature_up_to_1_0_1_minimum_release_age,
+    set_ignore_dependencies, set_minimum_release_age,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
@@ -8,6 +11,7 @@ use tempfile::TempDir;
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const FOO: &str = "@pnpm.e2e/foo";
 const DEPRECATED: &str = "@pnpm.e2e/deprecated";
+const BRAVO_DEP: &str = "@pnpm.e2e/bravo-dep";
 
 fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -144,6 +148,33 @@ fn outdated_up_to_date_exits_zero() {
     assert_eq!(output.status.code(), Some(0), "up-to-date deps should exit 0");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(!stdout.contains(DEP), "no outdated dep should be reported: {stdout}");
+
+    drop((root, anchor));
+}
+
+/// Covers <https://github.com/pnpm/pnpm/issues/14004>: `outdated` must offer
+/// mature releases without offering newer versions blocked by `minimumReleaseAge`.
+#[test]
+fn outdated_respects_minimum_release_age() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "1.0.0" }}"#));
+    set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+    assert_eq!(output.status.code(), Some(1), "the mature release should be offered");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(BRAVO_DEP), "report should include the package: {stdout}");
+    assert!(stdout.contains("1.0.1"), "report should offer the mature release: {stdout}");
+    assert!(!stdout.contains("1.1.0"), "report should omit the immature release: {stdout}");
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "1.0.1" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+    assert_eq!(output.status.code(), Some(0), "immature releases should not be offered");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains(BRAVO_DEP), "report should omit immature releases: {stdout}");
 
     drop((root, anchor));
 }
@@ -513,6 +544,26 @@ fn outdated_prod_dev_filtering() {
     let dev_out = String::from_utf8_lossy(&dev.stdout);
     assert!(dev_out.contains(FOO), "--dev includes the dev dep: {dev_out}");
     assert!(!dev_out.contains(DEP), "--dev excludes the prod dep: {dev_out}");
+
+    drop((root, anchor));
+}
+
+/// Ports `ignore packages in package.json > pnpm.updateConfig.ignoreDependencies
+/// in outdated command`.
+#[test]
+fn outdated_leaves_out_ignored_dependencies() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    set_ignore_dependencies(&workspace, &[FOO]);
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+
+    assert_eq!(output.status.code(), Some(1), "the unignored dependency is still outdated");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(DEP), "report should mention the unignored package: {stdout}");
+    assert!(!stdout.contains(FOO), "report should leave out the ignored package: {stdout}");
 
     drop((root, anchor));
 }

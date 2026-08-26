@@ -41,7 +41,10 @@ pnpm-network-web-auth                  = { workspace = true }
 pnpm-config                            = { workspace = true }
 pnpm-config-parse-overrides            = { workspace = true }
 pnpm-default-reporter                  = { workspace = true }
+pnpm-deps-inspection                   = { workspace = true }
+pnpm-deps-inspection-peers             = { workspace = true }
 pnpm-deps-path                         = { workspace = true }
+pnpm-deps-restorer                     = { workspace = true }
 pnpm-pack                              = { workspace = true }
 pnpm-publish                           = { workspace = true }
 pnpm-package-manifest                  = { workspace = true }
@@ -50,12 +53,14 @@ pnpm-patching                          = { workspace = true }
 pnpm-package-is-installable            = { workspace = true }
 pnpm-registry                          = { workspace = true }
 pnpm-reporter                          = { workspace = true }
+pnpm-resolving-default-resolver        = { workspace = true }
 pnpm-resolving-git-resolver            = { workspace = true }
 pnpm-resolving-npm-resolver            = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }
 pnpm-resolving-resolver-base           = { workspace = true }
 pnpm-store-dir                         = { workspace = true }
 pnpm-tarball                           = { workspace = true }
+pnpm-text-sanitize                     = { workspace = true }
 pnpm-diagnostics                       = { workspace = true }
 pnpm-directory-fetcher                 = { workspace = true }
 pnpm-versioning                        = { workspace = true }
@@ -95,7 +100,7 @@ ssri                 = { workspace = true }
 tabled               = { workspace = true }
 tar                  = { workspace = true }
 tempfile             = { workspace = true }
-tokio                = { workspace = true }
+tokio                = { workspace = true, features = ["process"] }
 tracing              = { workspace = true }
 url                  = { workspace = true }
 which                = { workspace = true }

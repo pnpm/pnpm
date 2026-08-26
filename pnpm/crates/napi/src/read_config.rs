@@ -72,6 +72,8 @@ pub struct ResolvedConfig {
     pub fetch_retry_mintimeout: u32,
     pub fetch_retry_maxtimeout: u32,
     pub fetch_timeout: u32,
+    pub fetch_warn_timeout_ms: u32,
+    pub fetch_min_speed_ki_bps: u32,
     /// The explicitly configured user agent, when the cascade set one.
     /// The engine's own computed default is omitted — an embedder that
     /// passes nothing back to `install` gets that same default.
@@ -167,6 +169,8 @@ fn project_config(config: &pnpm_config::Config) -> ResolvedConfig {
         fetch_retry_mintimeout: u32::try_from(config.fetch_retry_mintimeout).unwrap_or(u32::MAX),
         fetch_retry_maxtimeout: u32::try_from(config.fetch_retry_maxtimeout).unwrap_or(u32::MAX),
         fetch_timeout: u32::try_from(config.fetch_timeout).unwrap_or(u32::MAX),
+        fetch_warn_timeout_ms: u32::try_from(config.fetch_warn_timeout_ms).unwrap_or(u32::MAX),
+        fetch_min_speed_ki_bps: u32::try_from(config.fetch_min_speed_ki_bps).unwrap_or(u32::MAX),
         user_agent: config
             .explicit_settings
             .contains_key("userAgent")

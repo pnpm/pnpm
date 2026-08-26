@@ -5,6 +5,9 @@ import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import {
   type AllowedDeprecatedVersions,
+  type AuditConfig,
+  type AuditLevel,
+  type AuditSettings,
   DEFAULT_REGISTRY_SCOPE,
   type PackageExtension,
   type PeerDependencyRules,
@@ -13,6 +16,7 @@ import {
   type RegistryDeclaration,
   type RegistryOptions,
   type SupportedArchitectures,
+  type UpdateSettings,
   type VirtualStoreType,
 } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
@@ -35,6 +39,7 @@ export type OptionsFromRootManifest = {
   registriesByScope?: Record<string, string>
   registriesByPrefix?: Record<string, string>
   registryOptionsByUrl?: Record<string, RegistryOptions>
+  auditIgnorePrune?: boolean
 } & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'updateConfig'>
 
 interface GetOptionsFromPnpmSettingsOptions {
@@ -328,6 +333,9 @@ function translateUpdateSettings (pnpmSettings: PnpmSettings, settings: OptionsF
  */
 function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFromRootManifest): void {
   delete (settings as { audit?: unknown }).audit
+  // `auditIgnorePrune` is derived from `audit.ignorePrune` below; a raw
+  // top-level key of that name is not a setting in either CLI.
+  delete settings.auditIgnorePrune
   const audit = pnpmSettings.audit
   if (audit == null) return
   assertObjectSetting(audit, 'audit')
@@ -347,6 +355,44 @@ function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFr
     }
     ;(settings as { auditLevel?: string }).auditLevel = audit.level
   }
+  if (audit.ignorePrune != null) {
+    assertBoolean(audit.ignorePrune, 'audit.ignorePrune')
+    settings.auditIgnorePrune = audit.ignorePrune
+  }
+}
+
+/**
+ * The `update` settings the CLI acts on, re-joined from the internal
+ * `updateConfig` shape {@link translateUpdateSettings} splits the section
+ * into — the view `pnpm config get update` prints. `undefined` when nothing
+ * is set.
+ */
+export function toUpdateSettings (updateConfig: OptionsFromRootManifest['updateConfig']): UpdateSettings | undefined {
+  if (updateConfig == null) return undefined
+  const update: UpdateSettings = {
+    ...(updateConfig.ignoreDependencies != null ? { ignoreDeps: updateConfig.ignoreDependencies } : {}),
+    ...(updateConfig.changeset != null ? { changeset: updateConfig.changeset } : {}),
+    ...(updateConfig.githubActions != null ? { githubActions: updateConfig.githubActions } : {}),
+    ...(updateConfig.githubActionsServer != null ? { githubActionsServer: updateConfig.githubActionsServer } : {}),
+  }
+  return Object.keys(update).length > 0 ? update : undefined
+}
+
+/**
+ * The `audit` settings the CLI acts on, re-joined from the internal
+ * `auditConfig` / `auditLevel` / `auditIgnorePrune` settings
+ * {@link translateAuditSettings} splits the section into — the view
+ * `pnpm config get audit` prints. An empty ignore list reads as unset.
+ * `undefined` when nothing is set.
+ */
+export function toAuditSettings ({ auditConfig, auditLevel, auditIgnorePrune }: { auditConfig?: AuditConfig, auditLevel?: AuditLevel, auditIgnorePrune?: boolean }): AuditSettings | undefined {
+  const ignore = auditConfig?.ignoreGhsas
+  const audit: AuditSettings = {
+    ...(auditLevel != null ? { level: auditLevel } : {}),
+    ...(ignore != null && ignore.length > 0 ? { ignore } : {}),
+    ...(auditIgnorePrune != null ? { ignorePrune: auditIgnorePrune } : {}),
+  }
+  return Object.keys(audit).length > 0 ? audit : undefined
 }
 
 /**

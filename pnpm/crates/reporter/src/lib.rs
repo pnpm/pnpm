@@ -123,6 +123,13 @@ pub enum LogEvent {
     #[serde(rename = "pnpm:ignored-scripts")]
     IgnoredScripts(IgnoredScriptsLog),
 
+    /// The latest pnpm the registry offers, next to the running one
+    /// (`pnpm:update-check`). Emitted at most once a day by the
+    /// install-family commands the update notifier covers; the default
+    /// reporter prints a notice only when the latest version is newer.
+    #[serde(rename = "pnpm:update-check")]
+    UpdateCheck(UpdateCheckLog),
+
     /// One per optional-dependency pacquet decided to skip rather
     /// than fail the install over. Reason discriminates the cause —
     /// pacquet currently only emits `build_failure` (from
@@ -207,6 +214,16 @@ pub enum LogEvent {
     /// `pnpm:stage` time.
     #[serde(rename = "pnpm:deprecation")]
     Deprecation(DeprecationLog),
+
+    /// Unmet peer dependencies left behind by a resolving install
+    /// (`pnpm:peer-dependency-issues`). Emitted once per install that
+    /// resolved, and only when at least one issue survives the
+    /// project's `peerDependencyRules`; the default reporter renders a
+    /// single line pointing at `pnpm peers check`. Under
+    /// `strictPeerDependencies` the install fails instead of emitting
+    /// this, matching pnpm.
+    #[serde(rename = "pnpm:peer-dependency-issues")]
+    PeerDependencyIssues(PeerDependencyIssuesLog),
 }
 
 /// `pnpm:context` payload.
@@ -591,6 +608,16 @@ pub struct IgnoredScriptsLog {
     pub strict_dep_builds: bool,
 }
 
+/// `pnpm:update-check` payload: the running pnpm version and the latest
+/// one the registry resolved for the `latest` tag.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCheckLog {
+    pub level: LogLevel,
+    pub current_version: String,
+    pub latest_version: String,
+}
+
 /// `pnpm:skipped-optional-dependency` payload.
 ///
 /// The wire shape is a discriminated union over `reason` with two
@@ -818,6 +845,19 @@ pub struct DedupeCheckLog {
     pub rendered: String,
 }
 
+/// `pnpm:peer-dependency-issues` payload.
+///
+/// `issues_by_projects` is the same `importerId -> issues` map pnpm's
+/// `peerDependencyIssuesLogger` carries, already filtered through
+/// `peerDependencyRules`, so an NDJSON consumer sees the detail the
+/// one-line terminal rendering leaves out.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeerDependencyIssuesLog {
+    pub level: LogLevel,
+    pub issues_by_projects: serde_json::Value,
+}
+
 /// `pnpm:scope` payload: how many workspace projects the command
 /// selected, out of how many the workspace has.
 ///
@@ -931,6 +971,14 @@ pub enum LogLevel {
 /// satisfy them automatically.
 pub trait Reporter: Send + Sync + 'static {
     fn emit(event: &LogEvent);
+}
+
+/// Adapt a [`Reporter`] into the warning callback used by the network client.
+pub fn emit_global_warning<Sink: Reporter>(message: &str) {
+    Sink::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Warn,
+        message: message.to_string(),
+    }));
 }
 
 /// `--reporter=silent`: every event is dropped.

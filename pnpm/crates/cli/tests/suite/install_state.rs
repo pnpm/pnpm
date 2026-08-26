@@ -84,7 +84,26 @@ fn pnp_install_without_symlinks_still_writes_modules_manifest_and_bin_directory(
             "--require",
             "./.pnp.cjs",
             "--eval",
-            "const api = require('module').findPnpApi(); const resolved = api.resolveRequest('#x', __filename); if (require(resolved) !== 42) process.exit(1)",
+            r"const assert = require('assert');
+const api = require('pnpapi');
+assert.strictEqual(require('module').findPnpApi(__filename), api);
+assert.strictEqual(api.VERSIONS.std, 3);
+assert.deepStrictEqual(api.getDependencyTreeRoots(), []);
+assert.deepStrictEqual(api.getLocator('alias', ['target', 'reference']), { name: 'target', reference: 'reference' });
+assert.deepStrictEqual(api.findPackageLocator(__filename), api.topLevel);
+assert.strictEqual(api.getPackageInformation(api.topLevel).linkType, 'SOFT');
+const resolved = api.resolveRequest('#x', __filename);
+assert.strictEqual(require(resolved), 42);
+const packageJson = api.resolveRequest('@pnpm.e2e/pkg-with-1-dep/package.json', __filename);
+const locator = api.findPackageLocator(packageJson);
+assert.strictEqual(locator.name, '@pnpm.e2e/pkg-with-1-dep');
+assert.strictEqual(locator.reference, '100.0.0');
+const information = api.getPackageInformation(locator);
+assert(information.packageDependencies instanceof Map);
+assert(information.packagePeers instanceof Set);
+assert.strictEqual(information.linkType, 'HARD');
+assert(api.getAllLocators().some((candidate) => candidate.name === locator.name && candidate.reference === locator.reference));
+assert.strictEqual(api.resolveVirtual(packageJson), null);",
         ])
         .assert()
         .success();
@@ -111,6 +130,154 @@ fn pnp_install_without_symlinks_still_writes_modules_manifest_and_bin_directory(
         .assert()
         .success();
     assert!(workspace.join(".pnp.cjs").exists());
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn pnp_loader_is_preloaded_for_lifecycle_run_and_exec_commands() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "project",
+            "version": "1.0.0",
+            "scripts": {
+                "postinstall": r#"node -e "require('@pnpm.e2e/pkg-with-1-dep'); require('fs').writeFileSync('postinstall-pnp', '')""#,
+                "check-pnp": r#"node -e "require('@pnpm.e2e/pkg-with-1-dep'); require('fs').writeFileSync('run-pnp', '')""#,
+            },
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+                "@pnpm.e2e/write-lifecycle-env": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let member_dir = workspace.join("packages/member");
+    fs::create_dir_all(&member_dir).expect("create workspace member");
+    fs::write(
+        member_dir.join("package.json"),
+        serde_json::json!({
+            "name": "member",
+            "version": "1.0.0",
+            "scripts": {
+                "check-pnp": r#"node -e "require('@pnpm.e2e/pkg-with-1-dep'); require('fs').writeFileSync('recursive-run-pnp', '')""#,
+            },
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write workspace member package.json");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    yaml.push_str(
+        "packages:\n  - packages/*\nnodeLinker: pnp\nsymlink: false\nnodeOptions: --trace-warnings\nallowBuilds:\n  '@pnpm.e2e/write-lifecycle-env': true\n",
+    );
+    fs::write(&yaml_path, yaml).expect("enable PnP lifecycle scripts");
+
+    pacquet.with_arg("install").assert().success();
+    assert!(
+        workspace.join("postinstall-pnp").exists(),
+        "the project postinstall should resolve its dependency through PnP",
+    );
+
+    let dependency_env_path = workspace.join(
+        "node_modules/.pnpm/@pnpm.e2e+write-lifecycle-env@1.0.0/node_modules/@pnpm.e2e/write-lifecycle-env/env.json",
+    );
+    let dependency_node_options = || {
+        let dependency_env: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(&dependency_env_path)
+                .expect("read dependency lifecycle environment"),
+        )
+        .expect("parse dependency lifecycle environment");
+        dependency_env["NODE_OPTIONS"]
+            .as_str()
+            .expect("dependency lifecycle NODE_OPTIONS")
+            .to_string()
+    };
+    let fresh_node_options = dependency_node_options();
+    eprintln!("FRESH DEPENDENCY NODE_OPTIONS: {fresh_node_options}");
+    assert!(fresh_node_options.contains("--trace-warnings"));
+    assert!(fresh_node_options.contains("--require="));
+    assert!(fresh_node_options.contains(".pnp.cjs"));
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    fs::remove_file(workspace.join("postinstall-pnp")).expect("remove postinstall marker");
+    Command::cargo_bin("pnpm")
+        .expect("find pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(
+        workspace.join("postinstall-pnp").exists(),
+        "the frozen project postinstall should resolve its dependency through PnP",
+    );
+    let frozen_node_options = dependency_node_options();
+    eprintln!("FROZEN DEPENDENCY NODE_OPTIONS: {frozen_node_options}");
+    assert!(frozen_node_options.contains("--trace-warnings"));
+    assert!(frozen_node_options.contains("--require="));
+    assert!(frozen_node_options.contains(".pnp.cjs"));
+
+    Command::cargo_bin("pnpm")
+        .expect("find pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["run", "check-pnp"])
+        .assert()
+        .success();
+    assert!(
+        workspace.join("run-pnp").exists(),
+        "pnpm run should resolve the project dependency through PnP",
+    );
+
+    Command::cargo_bin("pnpm")
+        .expect("find pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args([
+            "exec",
+            "node",
+            "--eval",
+            "require('@pnpm.e2e/pkg-with-1-dep'); require('fs').writeFileSync('exec-pnp', '')",
+        ])
+        .assert()
+        .success();
+    assert!(
+        workspace.join("exec-pnp").exists(),
+        "pnpm exec should resolve the project dependency through PnP",
+    );
+
+    Command::cargo_bin("pnpm")
+        .expect("find pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["-r", "run", "check-pnp"])
+        .assert()
+        .success();
+    assert!(
+        member_dir.join("recursive-run-pnp").exists(),
+        "recursive pnpm run should preload the workspace PnP loader",
+    );
+
+    Command::cargo_bin("pnpm")
+        .expect("find pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args([
+            "-r",
+            "exec",
+            "node",
+            "--eval",
+            "require('@pnpm.e2e/pkg-with-1-dep'); require('fs').writeFileSync('recursive-exec-pnp', '')",
+        ])
+        .assert()
+        .success();
+    assert!(
+        member_dir.join("recursive-exec-pnp").exists(),
+        "recursive pnpm exec should preload the workspace PnP loader",
+    );
 
     drop((root, mock_instance));
 }
@@ -161,6 +328,49 @@ fn public_hoist_uses_the_project_root_when_the_lockfile_is_external() {
     assert!(
         project.join("node_modules/@pnpm.e2e/pkg-with-1-dep/package.json").exists(),
         "the selected project must keep its direct dependency link",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A `.modules.yaml` the reader cannot parse must fail the install
+/// rather than read as layout drift: the drift path purges
+/// `node_modules` and relinks the whole tree on every run, taking the
+/// user's own entries with it (<https://github.com/pnpm/pnpm/issues/14062>).
+#[test]
+fn unreadable_modules_manifest_fails_the_install_without_purging_node_modules() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/hello-world-js-bin":"1.0.0"}}"#,
+    )
+    .expect("write manifest");
+    pacquet.with_arg("install").assert().success();
+
+    let modules_dir = workspace.join("node_modules");
+    let vendored = modules_dir.join("vendored");
+    fs::create_dir(&vendored).expect("create a directory pnpm does not manage");
+    fs::write(modules_dir.join(".modules.yaml"), "not: [valid").expect("corrupt modules manifest");
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .output()
+        .expect("run pnpm install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "an unparsable .modules.yaml must fail the install");
+    assert!(
+        stderr.contains("ERR_PNPM_MODULES_YAML_PARSE_YAML") && stderr.contains(".modules.yaml"),
+        "the install must report the unparsable modules manifest:\n{stderr}",
+    );
+    assert!(vendored.is_dir(), "the failed install must not purge node_modules:\n{stderr}");
+    assert!(
+        modules_dir.join("@pnpm.e2e/hello-world-js-bin/package.json").exists(),
+        "the failed install must leave the materialized tree alone:\n{stderr}",
     );
 
     drop((root, mock_instance));

@@ -10,6 +10,7 @@ import { esmNodePathLoaderImportFlag } from '@pnpm/exec.esm-node-path-loader'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { isCI } from 'ci-info'
+import isWindows from 'is-windows'
 import PATH from 'path-name'
 import { symlinkDir } from 'symlink-dir'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -33,6 +34,7 @@ for (const suffix of [
 ]) {
   delete process.env[`npm_config_${suffix}`]
   delete process.env[`pnpm_config_${suffix}`]
+  delete process.env[`PNPM_CONFIG_${suffix.toUpperCase()}`]
 }
 
 const env = {
@@ -40,6 +42,7 @@ const env = {
   [PATH]: path.join(import.meta.dirname, 'bin'),
 }
 const f = fixtures(import.meta.dirname)
+const testOnPosix = isWindows() ? test.skip : test
 
 test('getConfig()', async () => {
   const { config } = await getConfig({
@@ -108,6 +111,186 @@ test('nodeVersion from config takes priority over devEngines.runtime', async () 
   })
 
   expect(config.nodeVersion).toBe('20.0.0')
+})
+
+test('nodeVersion is read from the PNPM_CONFIG_NODE_VERSION environment variable', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_NODE_VERSION: '20.0.0',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.nodeVersion).toBe('20.0.0')
+})
+
+test('nodeVersion from PNPM_CONFIG_NODE_VERSION takes priority over devEngines.runtime', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '22.20.0',
+        onFail: 'download',
+      },
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_NODE_VERSION: '20.0.0',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.nodeVersion).toBe('20.0.0')
+})
+
+test('nodeVersion from config takes priority over PNPM_CONFIG_NODE_VERSION', async () => {
+  const { config } = await getConfig({
+    cliOptions: {
+      'node-version': '20.0.0',
+    },
+    env: {
+      PNPM_CONFIG_NODE_VERSION: '22.20.0',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.nodeVersion).toBe('20.0.0')
+})
+
+test('initVersion is read from the PNPM_CONFIG_INIT_VERSION environment variable', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_INIT_VERSION: '2.0.0',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.initVersion).toBe('2.0.0')
+})
+
+test('maxSockets falls back to npm\'s default', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.maxSockets).toBe(50)
+})
+
+test('maxSockets is read from npm\'s lowercase spelling of the setting', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_MAXSOCKETS: '7',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.maxSockets).toBe(7)
+})
+
+test('maxSockets is read from the canonical spelling of the setting', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_MAX_SOCKETS: '9',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.maxSockets).toBe(9)
+})
+
+test('the canonical spelling of maxSockets wins over npm\'s in the environment', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_MAXSOCKETS: '7',
+      PNPM_CONFIG_MAX_SOCKETS: '9',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.maxSockets).toBe(9)
+})
+
+test('maxSockets from the command line wins over the environment, whichever spelling each used', async () => {
+  const { config } = await getConfig({
+    cliOptions: { maxsockets: 4 },
+    env: {
+      PNPM_CONFIG_MAX_SOCKETS: '9',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.maxSockets).toBe(4)
+})
+
+test('maxSockets from the command line wins over pnpm-workspace.yaml, whichever spelling each used', async () => {
+  prepareEmpty()
+  fs.writeFileSync('pnpm-workspace.yaml', 'maxSockets: 4\n', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { dir: process.cwd(), maxsockets: 6 },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.maxSockets).toBe(6)
+})
+
+test('maxSockets from the environment wins over pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+  fs.writeFileSync('pnpm-workspace.yaml', 'maxSockets: 4\n', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { dir: process.cwd() },
+    env: {
+      PNPM_CONFIG_MAX_SOCKETS: '8',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.maxSockets).toBe(8)
 })
 
 test('runtimeOnFail=download overrides devEngines.runtime.onFail and adds node to devDependencies', async () => {
@@ -831,6 +1014,138 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect((config as { otp?: string }).otp).toBe('123456')
   })
 
+  test('a setting unknown to this version of pnpm in pnpm-workspace.yaml is reported', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      $schema: 'https://json.schemastore.org/pnpm-workspace.json',
+      globalShims: { node: true },
+      minimumReleaseAg: 100,
+      zzzNotASettingZzz: true,
+      nodeLinker: 'hoisted',
+      packages: ['packages/*'],
+      overrides: { foo: '1.0.0' },
+    })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    const unrecognized = warnings.find((warning) => warning.includes('in pnpm-workspace.yaml are not recognized by this version of pnpm'))
+    expect(unrecognized).toContain('"globalShims" (a pnpm v12 setting)')
+    expect(unrecognized).toContain('"minimumReleaseAg" (did you mean "minimumReleaseAge"?)')
+    expect(unrecognized).toContain('"zzzNotASettingZzz"')
+    expect(unrecognized).not.toContain('"nodeLinker"')
+    expect(unrecognized).not.toContain('"packages"')
+    expect(unrecognized).not.toContain('"overrides"')
+    expect(unrecognized).not.toContain('$schema')
+    // Reported, not dropped: `pnpm config list` still prints this file's
+    // unknown camelCase keys, which `test/config/list.ts` pins.
+    expect((config as unknown as Record<string, unknown>)['zzzNotASettingZzz']).toBe(true)
+  })
+
+  test('confirmModulesPurge is recognized in pnpm-workspace.yaml', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { confirmModulesPurge: false })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect((config as unknown as Record<string, unknown>)['confirmModulesPurge']).toBe(false)
+    expect(warnings).not.toContainEqual(expect.stringContaining('confirmModulesPurge'))
+  })
+
+  test('a null-valued key sets nothing, so it is not reported', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { zzzNotASettingZzz: null, configDir: null, 'store-dir': null })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(warnings).not.toContainEqual(expect.stringContaining('zzzNotASettingZzz'))
+    expect(warnings).not.toContainEqual(expect.stringContaining('configDir'))
+    expect(warnings).not.toContainEqual(expect.stringContaining('store-dir'))
+    // Reporting decides nothing about what reaches the config: the null is
+    // retained here exactly as a non-null unknown key is.
+    expect(Object.hasOwn(config, 'zzzNotASettingZzz')).toBe(true)
+    expect((config as unknown as Record<string, unknown>)['zzzNotASettingZzz']).toBeNull()
+  })
+
+  // `pnprServer` is typed `[null, String]`, so a null is a value the setting
+  // takes, not an absent one. Asserted through `explicitlySetKeys` because the
+  // merge is what the null has to survive; what each setting then does with it
+  // is its own business.
+  test('a null a setting accepts still reaches the config', async () => {
+    prepareEmpty()
+
+    const xdgConfigHome = process.cwd()
+    const configDir = path.join(xdgConfigHome, 'pnpm')
+    fs.mkdirSync(configDir, { recursive: true })
+    writeYamlFileSync(path.join(configDir, 'config.yaml'), { pnprServer: null })
+
+    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
+    process.env.XDG_CONFIG_HOME = xdgConfigHome
+    let context: { explicitlySetKeys: Set<string> }
+    let warnings: string[]
+    try {
+      ;({ context, warnings } = await getConfig({
+        cliOptions: {},
+        packageManager: { name: 'pnpm', version: '1.0.0' },
+        workspaceDir: process.cwd(),
+      }))
+    } finally {
+      if (previousXdgConfigHome == null) {
+        delete process.env.XDG_CONFIG_HOME
+      } else {
+        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
+      }
+    }
+
+    expect(context.explicitlySetKeys.has('pnprServer')).toBe(true)
+    expect(warnings).not.toContainEqual(expect.stringContaining('pnprServer'))
+  })
+
+  test('a key carrying terminal escapes is sanitized before it is reported', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { 'nope\u001b[31mRED\r': true })
+
+    const { warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    const unrecognized = warnings.find((warning) => warning.includes('are not recognized by this version of pnpm'))
+    expect(unrecognized).toContain('nope[31mRED')
+    expect(unrecognized).not.toContain('\u001b')
+    expect(unrecognized).not.toContain('\r')
+  })
+
+  test('a kebab-case spelling of a known setting in pnpm-workspace.yaml is reported', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { 'store-dir': '/tmp/some-store' })
+
+    const { warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(warnings).toContainEqual(expect.stringContaining('in pnpm-workspace.yaml were ignored because they are not written in camelCase: "store-dir" (use "storeDir")'))
+  })
+
   test('auth and the bootstrap download routes stay out of the manifest', async () => {
     prepareEmpty()
 
@@ -964,6 +1279,44 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     for (const warning of aboutOtp) {
       expect(warning).not.toContain('Move them to a project-level pnpm-workspace.yaml')
     }
+  })
+
+  test('the global config file distinguishes settings unknown to this version from workspace-only ones', async () => {
+    prepareEmpty()
+
+    const xdgConfigHome = process.cwd()
+    const configDir = path.join(xdgConfigHome, 'pnpm')
+    fs.mkdirSync(configDir, { recursive: true })
+    writeYamlFileSync(path.join(configDir, 'config.yaml'), {
+      globalShims: { node: true },
+      minimumReleaseAg: 100,
+      nodeLinker: 'hoisted',
+      bail: false,
+    })
+
+    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
+    process.env.XDG_CONFIG_HOME = xdgConfigHome
+    let warnings: string[]
+    try {
+      ;({ warnings } = await getConfig({
+        cliOptions: {},
+        packageManager: { name: 'pnpm', version: '1.0.0' },
+        workspaceDir: process.cwd(),
+      }))
+    } finally {
+      if (previousXdgConfigHome == null) {
+        delete process.env.XDG_CONFIG_HOME
+      } else {
+        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
+      }
+    }
+
+    const unrecognized = warnings.find((warning) => warning.includes('in the global config file') && warning.includes('are not recognized by this version of pnpm'))
+    expect(unrecognized).toContain('"globalShims" (a pnpm v12 setting)')
+    expect(unrecognized).toContain('"minimumReleaseAg" (did you mean "minimumReleaseAge"?)')
+    const movable = warnings.find((warning) => warning.includes('Move them to a project-level pnpm-workspace.yaml'))
+    expect(movable).toContain('"nodeLinker"')
+    expect(movable).not.toContain('"globalShims"')
   })
 
   // The global config file's own contents are filtered before the merge, but
@@ -3783,6 +4136,28 @@ test('preferSymlinkedExecutables should be true when nodeLinker is hoisted', asy
   expect(config.preferSymlinkedExecutables).toBeTruthy()
 })
 
+testOnPosix('NODE_PATH points to the virtual store of the workspace root when pnpm runs from a workspace package', async () => {
+  prepareEmpty()
+
+  const workspaceDir = process.cwd()
+  const pkgDir = path.join(workspaceDir, 'packages/app')
+  fs.mkdirSync(pkgDir, { recursive: true })
+
+  const { config } = await getConfig({
+    cliOptions: {
+      dir: pkgDir,
+      'prefer-symlinked-executables': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir,
+  })
+
+  expect(config.extraEnv['NODE_PATH']).toBe(path.join(workspaceDir, 'node_modules/.pnpm/node_modules'))
+})
+
 test('return a warning when the .npmrc has an env variable that does not exist', async () => {
   prepare()
 
@@ -4000,6 +4375,36 @@ test('loads setting from environment variable pnpm_config_*', async () => {
   expect(config.trustPolicyExclude).toStrictEqual(['foo', 'bar'])
   expect(config.registry).toBe('https://registry.example.com/')
   expect(config.registriesByScope.default).toBe('https://registry.example.com/')
+})
+
+// The two boolean rows only pin down parsing, not runtime meaning. `false` turns the
+// check off. Bare `true` turns the check on but selects none of the four actions, because
+// `runDepsStatusCheck` switches on the string modes alone. That is the behavior pnpm has
+// always had for this setting, and `VerifyDepsBeforeRun` in `Config.ts` keeps `true` out of
+// the type on purpose. The Rust config crate models it the same way, as a `True` variant that
+// maps to no action (`pnpm/crates/config/src/lib.rs`). Keep these rows as a record of what the
+// parser returns; do not read them as a promise that bare `true` does an install.
+test.each([
+  ['install', 'install'],
+  ['warn', 'warn'],
+  ['error', 'error'],
+  ['prompt', 'prompt'],
+  ['true', true],
+  ['false', false],
+])('loads verifyDepsBeforeRun=%s from environment variable pnpm_config_*', async (envValue: string, expectedValue: string | boolean) => {
+  prepareEmpty()
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: envValue,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+  expect(config.verifyDepsBeforeRun).toBe(expectedValue)
 })
 
 test('environment variable pnpm_config_* should override pnpm-workspace.yaml', async () => {

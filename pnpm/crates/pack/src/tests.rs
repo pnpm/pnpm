@@ -79,6 +79,21 @@ fn tarball_entry_names(tarball: &Path) -> Vec<String> {
         .collect()
 }
 
+// Read the raw 512-byte tar header for one entry. The `tar` crate accepts
+// every header form (NUL or `0` typeflags, GNU or POSIX magic), so checking
+// decoded values would not catch an archive-format regression here.
+fn tarball_entry_header(tarball: &Path, entry_name: &str) -> [u8; 512] {
+    let file = std::fs::File::open(tarball).unwrap();
+    let mut archive = tar::Archive::new(GzDecoder::new(file));
+    for entry in archive.entries().unwrap() {
+        let entry = entry.unwrap();
+        if entry.path().unwrap().to_str() == Some(entry_name) {
+            return *entry.header().as_bytes();
+        }
+    }
+    panic!("entry {entry_name:?} not found in {}", tarball.display());
+}
+
 /// Read one entry's UTF-8 contents out of a written `.tgz`.
 fn tarball_entry_content(tarball: &Path, entry_name: &str) -> Option<String> {
     let file = std::fs::File::open(tarball).unwrap();
@@ -151,6 +166,26 @@ fn packs_a_basic_package_to_a_tarball() {
     let mut names = tarball_entry_names(&tarball);
     names.sort();
     assert_eq!(names, vec!["package/index.js".to_string(), "package/package.json".into()]);
+}
+
+#[test]
+fn packs_regular_files_with_posix_ustar_headers() {
+    let (dir, opts) = fixture(&json!({ "name": "foo", "version": "1.2.3" }));
+    touch(dir.path(), "index.js", "module.exports = 1\n");
+
+    api::<SilentReporter, Host>(&opts).unwrap();
+
+    let tarball = dir.path().join("foo-1.2.3.tgz");
+    for entry_name in ["package/index.js", "package/package.json"] {
+        let header = tarball_entry_header(&tarball, entry_name);
+        assert_eq!(header[156], b'0', "{entry_name} should use the POSIX regular-file typeflag");
+        assert_eq!(
+            &header[257..263],
+            b"ustar\0",
+            "{entry_name} should carry the POSIX ustar magic",
+        );
+        assert_eq!(&header[263..265], b"00", "{entry_name} should carry the POSIX ustar version");
+    }
 }
 
 /// A symlink planted at the output `.tgz` path must not be followed:
@@ -290,6 +325,20 @@ fn files_field_restricts_the_tarball_contents() {
 }
 
 #[test]
+fn files_field_entries_do_not_match_at_depth() {
+    let (dir, opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "files": ["src"],
+    }));
+    touch(dir.path(), "src/index.js", "x\n");
+    touch(dir.path(), "example/src/App.js", "x\n");
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+    assert_eq!(result.contents, vec!["package.json".to_string(), "src/index.js".into()]);
+}
+
+#[test]
 fn missing_name_is_rejected() {
     let (_dir, opts) = fixture(&json!({ "version": "1.0.0" }));
     assert!(matches!(api::<SilentReporter, Host>(&opts), Err(PackError::PackageNameNotFound)));
@@ -403,6 +452,12 @@ fn workspace_license_is_injected_into_a_sub_package() {
         serde_json::to_string(&json!({ "name": "foo", "version": "1.0.0" })).unwrap(),
     )
     .unwrap();
+    std::fs::write(pkg_dir.join("sublicense.txt"), "this is not a license").unwrap();
+    std::fs::write(
+        pkg_dir.join("licenseX.json"),
+        serde_json::to_string(&json!({ "foo": "content" })).unwrap(),
+    )
+    .unwrap();
 
     let opts = PackOptions {
         dir: pkg_dir.clone(),
@@ -425,9 +480,14 @@ fn workspace_license_is_injected_into_a_sub_package() {
     };
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
+    dbg!(&result.contents);
     assert!(result.contents.contains(&"LICENSE".to_string()));
+    assert!(result.contents.contains(&"sublicense.txt".to_string()));
+    assert!(result.contents.contains(&"licenseX.json".to_string()));
     let names = tarball_entry_names(&pkg_dir.join("foo-1.0.0.tgz"));
     assert!(names.contains(&"package/LICENSE".to_string()));
+    assert!(names.contains(&"package/sublicense.txt".to_string()));
+    assert!(names.contains(&"package/licenseX.json".to_string()));
 }
 
 /// A symlinked workspace-root `LICENSE` must not be injected: following

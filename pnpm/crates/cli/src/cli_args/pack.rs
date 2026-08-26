@@ -6,12 +6,11 @@
 //! over the workspace the same way the other recursive commands do.
 //!
 //! `--workspace-concurrency` is accepted but the recursive sweep runs
-//! sequentially (matching pacquet's other recursive commands), and the
-//! `embedReadme` / `extraEnv` config keys are not surfaced by `Config`
-//! yet, so they take their `false` / empty defaults.
+//! sequentially (matching pacquet's other recursive commands).
 
 use crate::cli_args::{
     catalogs::configured_catalogs,
+    install::resolve_bool_override,
     recursive::{
         AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
         sort_filtered_projects,
@@ -64,8 +63,15 @@ pub struct PackArgs {
 
     /// Keep the original `packageManager` field and publish-lifecycle
     /// scripts in the packed manifest instead of stripping them.
-    #[clap(long = "skip-manifest-obfuscation")]
+    #[clap(long = "skip-manifest-obfuscation", overrides_with = "no_skip_manifest_obfuscation")]
     pub skip_manifest_obfuscation: bool,
+    /// Apply pnpm's normal packed-manifest filtering.
+    #[clap(
+        long = "no-skip-manifest-obfuscation",
+        hide = true,
+        overrides_with = "skip_manifest_obfuscation"
+    )]
+    pub no_skip_manifest_obfuscation: bool,
 
     /// Maximum number of projects to pack at once in recursive mode.
     /// Currently has no effect; packing runs one project at a time.
@@ -92,7 +98,9 @@ impl PackArgs {
                 configured_catalogs(config)?,
                 self.out.clone(),
                 self.pack_destination.clone(),
-                crate::config_deps::load_before_packing_hooks(config, pnpmfile_root),
+                crate::config_deps::load_before_packing_hooks(config, pnpmfile_root).map_err(
+                    |error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"),
+                )?,
             );
             set_injected_changelog(&mut options, config, dir).await?;
             let result = api::<Reporter, Host>(&options)
@@ -121,7 +129,7 @@ impl PackArgs {
         // `pack` is not in pnpm's root-auto-exclusion command set, so the
         // workspace root stays in the selection (its own name/version
         // eligibility check still applies below).
-        let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
+        let (projects, _patterns) = discover_workspace_projects(workspace_root, config)?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let graph = &selection.selected;
@@ -142,7 +150,9 @@ impl PackArgs {
         // workspace root); cloning the Arcs into each project shares one
         // worker per pnpmfile instead of re-spawning it per packed project.
         let before_packing_hooks =
-            crate::config_deps::load_before_packing_hooks(config, workspace_root);
+            crate::config_deps::load_before_packing_hooks(config, workspace_root).map_err(
+                |error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"),
+            )?;
 
         let mut packed: Vec<PackResultJson> = Vec::new();
         for chunk in &chunks {
@@ -219,10 +229,14 @@ impl PackArgs {
             catalogs,
             ignore_scripts: config.ignore_scripts,
             unsafe_perm: config.unsafe_perm,
-            embed_readme: false,
+            embed_readme: config.embed_readme,
             pack_gzip_level: self.pack_gzip_level,
             node_linker: config.node_linker,
-            skip_manifest_obfuscation: self.skip_manifest_obfuscation,
+            skip_manifest_obfuscation: resolve_bool_override(
+                self.skip_manifest_obfuscation,
+                self.no_skip_manifest_obfuscation,
+                config.skip_manifest_obfuscation,
+            ),
             user_agent: config.user_agent.clone(),
             extra_bin_paths: config.extra_bin_paths.clone(),
             extra_env: config.extra_env.clone(),

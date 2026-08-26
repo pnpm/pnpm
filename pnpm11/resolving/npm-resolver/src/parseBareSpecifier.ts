@@ -9,7 +9,13 @@ export interface RegistryPackageSpec {
   type: 'tag' | 'version' | 'range'
   name: string
   fetchSpec: string
+  revision?: number
   normalizedBareSpecifier?: string
+}
+
+interface VersionSelector {
+  type: RegistryPackageSpec['type']
+  normalized: string
 }
 
 export function parseBareSpecifier (
@@ -42,9 +48,8 @@ export function parseBareSpecifier (
     const selector = getVersionSelectorType(bareSpecifier)
     if (selector != null) {
       return {
-        fetchSpec: selector.normalized,
+        ...parseRevisionSelector(selector, bareSpecifier),
         name,
-        type: selector.type,
       }
     }
   }
@@ -78,9 +83,8 @@ export function parseJsrSpecifierToRegistryPackageSpec (
   if (selector == null) return null
 
   return {
-    fetchSpec: selector.normalized,
+    ...parseRevisionSelector(selector, spec.versionSelector ?? defaultTag),
     name: spec.npmPkgName,
-    type: selector.type,
     jsrPkgName: spec.jsrPkgName,
   }
 }
@@ -161,9 +165,39 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
   if (selector == null) return null
 
   return {
-    fetchSpec: selector.normalized,
+    ...parseRevisionSelector(selector, versionSelector ?? defaultTag),
     name: pkgName,
-    type: selector.type,
     registryName,
+  }
+}
+
+function parseRevisionSelector (
+  selector: VersionSelector,
+  rawSelector: string
+): Pick<RegistryPackageSpec, 'fetchSpec' | 'revision' | 'type'> {
+  if (selector.type !== 'version') {
+    return { fetchSpec: selector.normalized, type: selector.type }
+  }
+  const normalizedInput = rawSelector.trim()
+  const buildIndex = normalizedInput.indexOf('+')
+  if (buildIndex === -1) {
+    return { fetchSpec: selector.normalized, type: selector.type }
+  }
+  const build = normalizedInput.slice(buildIndex + 1)
+  if (build.length < 2 || build[0] !== 'r' || build.includes('.')) {
+    return { fetchSpec: selector.normalized, type: selector.type }
+  }
+  const digits = build.slice(1)
+  if (![...digits].every((char) => char >= '0' && char <= '9')) {
+    return { fetchSpec: selector.normalized, type: selector.type }
+  }
+  const revision = Number(digits)
+  if ((digits.length > 1 && digits[0] === '0') || !Number.isSafeInteger(revision)) {
+    throw new PnpmError('INVALID_REVISION_SPEC', `Invalid registry revision in version specifier "${rawSelector}"`)
+  }
+  return {
+    fetchSpec: selector.normalized,
+    revision,
+    type: selector.type,
   }
 }

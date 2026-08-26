@@ -327,7 +327,7 @@ fn windows_file_id(path: &Path) -> io::Result<FileId> {
     let mut info = MaybeUninit::<BY_HANDLE_FILE_INFORMATION>::uninit();
     // SAFETY: `file` owns a valid handle for this call and `info` points to
     // writable storage of the exact structure the API initializes.
-    if unsafe { GetFileInformationByHandle(file.as_raw_handle() as _, info.as_mut_ptr()) } == 0 {
+    if unsafe { GetFileInformationByHandle(file.as_raw_handle().cast(), info.as_mut_ptr()) } == 0 {
         return Err(io::Error::last_os_error());
     }
     // SAFETY: a successful `GetFileInformationByHandle` initializes `info`.

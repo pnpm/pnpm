@@ -5,8 +5,8 @@ use futures_util::StreamExt as _;
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
 use pnpm_config::Config;
 use pnpm_network::{
-    NetworkSettings, RedirectGuard, RetryOpts, ThrottledClient, encode_uri_component,
-    redact_url_credentials, send_with_retry,
+    RedirectGuard, RetryOpts, ThrottledClient, encode_uri_component, redact_url_credentials,
+    send_with_retry,
 };
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use reqwest::Response;
@@ -614,11 +614,7 @@ fn build_http_client(
         &config.proxy,
         &config.tls,
         &config.tls_by_uri,
-        &NetworkSettings {
-            network_concurrency: config.network_concurrency,
-            fetch_timeout: Duration::from_millis(config.fetch_timeout),
-            user_agent: config.user_agent.clone(),
-        },
+        &config.network_settings(),
         redirect_guard,
     )
     .into_diagnostic()

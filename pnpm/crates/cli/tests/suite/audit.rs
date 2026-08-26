@@ -422,6 +422,71 @@ fn audit_level_info_includes_info_advisories() {
 }
 
 #[test]
+fn audit_reports_the_lowest_non_deprecated_published_patch() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    // 2.0.0 is deprecated, so the inferred >=2.0.0 patch resolves to 2.0.1.
+    let packument_mock = registry
+        .mock("GET", "/vulnerable")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"time":{"2.0.0":"2020-01-01T00:00:00.000Z","2.0.1":"2020-02-01T00:00:00.000Z"},"versions":{"2.0.0":{"deprecated":"do not use"},"2.0.1":{}}}"#,
+        )
+        .create();
+    write_audit_workspace(&workspace, &registry.url(), "");
+
+    let output = pacquet.arg("audit").output().expect("run pacquet audit");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = stdout(&output);
+    assert!(
+        stdout.contains(">=2.0.1"),
+        "the report should name the lowest non-deprecated published patch:\n{stdout}",
+    );
+    mock.assert();
+    packument_mock.assert();
+}
+
+#[test]
+fn audit_reports_no_patched_version_when_none_was_published() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    let packument_mock = registry
+        .mock("GET", "/vulnerable")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"time":{"1.0.0":"2020-01-01T00:00:00.000Z"}}"#)
+        .create();
+    write_audit_workspace(&workspace, &registry.url(), "");
+
+    let output = pacquet.arg("audit").output().expect("run pacquet audit");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = stdout(&output);
+    assert!(
+        stdout.contains("Patched versions") && stdout.contains("None"),
+        "an unpublished patch renders as None:\n{stdout}",
+    );
+    assert!(
+        !stdout.contains("(unknown)"),
+        "unpublished must not render as the inference-failed fallback:\n{stdout}",
+    );
+    mock.assert();
+    packument_mock.assert();
+}
+
+#[test]
 fn audit_defaults_to_low_and_ignores_info_for_exit_code() {
     let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
@@ -729,9 +794,11 @@ fn audit_fix_override_skips_age_exclude_when_patched_version_is_old() {
     )
     .create();
     // The patched version predates the cutoff, so the age gate would not
-    // block it and no exclusion entry is needed.
+    // block it and no exclusion entry is needed. The packument is fetched
+    // once: validation and the age-gate check share the same publish-time map.
     let packument_mock = registry
         .mock("GET", "/vulnerable")
+        .expect(1)
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(r#"{"time":{"2.0.0":"2020-01-01T00:00:00.000Z"}}"#)
@@ -763,10 +830,49 @@ fn audit_fix_override_skips_age_exclude_when_patched_version_is_old() {
 }
 
 #[test]
+fn audit_fix_override_makes_no_changes_when_patched_version_is_unpublished() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    // The packument names no 2.0.0: the patched release was never published,
+    // so the inferred range is dropped and nothing is written.
+    let packument_mock = registry
+        .mock("GET", "/vulnerable")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"time":{"1.0.0":"2020-01-01T00:00:00.000Z"}}"#)
+        .create();
+    write_audit_workspace(&workspace, &registry.url(), "minimumReleaseAge: 1440\n");
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    assert!(
+        stdout(&output).contains("No fixes were made"),
+        "an unpublished patch has no fix to apply:\n{}",
+        stdout(&output),
+    );
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(!manifest.contains("overrides:"), "manifest should hold no override:\n{manifest}");
+    assert!(
+        !manifest.contains("minimumReleaseAgeExclude:"),
+        "manifest should hold no exclusion:\n{manifest}",
+    );
+    mock.assert();
+    packument_mock.assert();
+}
+
+#[test]
 fn audit_fix_override_writes_age_exclude_when_patched_version_is_within_the_window() {
     let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
-    // Two advisories on one package: the packument is fetched once.
+    // Two advisories on one package: the packument is fetched once and shared
+    // between validation and the age-gate check.
     let mock = audit_mock(
         &mut registry,
         r#"{
@@ -842,6 +948,260 @@ fn audit_fix_override_with_no_fixable_vulnerabilities_makes_no_changes() {
 
     assert_success(&output);
     assert_eq!(stdout(&output), "No fixes were made");
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_ignore_prune_removes_unused_ignored_ghsas() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    // GHSA-test-1111-2222 exists in the report; GHSA-test-9999-9999 doesn't.
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "audit:\n  ignorePrune: true\nauditConfig:\n  ignoreGhsas:\n    - GHSA-test-1111-2222\n    - GHSA-test-9999-9999\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    assert!(
+        stdout(&output).contains("Removed 1 unused ignored GHSA: GHSA-test-9999-9999"),
+        "stdout should report the removed GHSA:\n{}",
+        stdout(&output),
+    );
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(
+        manifest.contains("GHSA-test-1111-2222") && !manifest.contains("GHSA-test-9999-9999"),
+        "manifest should retain the still-relevant GHSA and drop the unused one:\n{manifest}",
+    );
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_ignore_prune_disabled_by_default_keeps_all_ignored_ghsas() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "auditConfig:\n  ignoreGhsas:\n    - GHSA-test-1111-2222\n    - GHSA-test-9999-9999\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    assert!(!stdout(&output).contains("unused ignored GHSA"));
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(
+        manifest.contains("GHSA-test-9999-9999"),
+        "manifest should keep the unused GHSA since pruning is disabled:\n{manifest}",
+    );
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_ignore_prune_normalizes_ghsa_casing() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "audit:\n  ignorePrune: true\nauditConfig:\n  ignoreGhsas:\n    - ghsa-test-1111-2222\n    - GHSA-TEST-9999-9999\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    // Retained entries are rewritten to their canonical spelling regardless
+    // of the casing the user originally ignored them with, and deduplicated
+    // — the exact list must be just the one canonical, still-relevant id.
+    assert_eq!(audit_config_ignore_ghsas(&workspace), vec!["GHSA-test-1111-2222".to_string()]);
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_ignore_prune_persists_canonical_form_even_when_nothing_is_removed() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    // Both entries match the same advisory (a differently-cased duplicate)
+    // — nothing gets removed, but the stored list should still collapse to
+    // the single canonical entry.
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "audit:\n  ignorePrune: true\nauditConfig:\n  ignoreGhsas:\n    - ghsa-test-1111-2222\n    - GHSA-TEST-1111-2222\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    assert!(!stdout(&output).contains("unused ignored GHSA"));
+    assert_eq!(audit_config_ignore_ghsas(&workspace), vec!["GHSA-test-1111-2222".to_string()]);
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_ignore_prune_removes_a_comment_attached_to_the_removed_entry() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "audit:\n  ignorePrune: true\nauditConfig:\n  ignoreGhsas:\n    - GHSA-test-1111-2222\n    # Expired GHSA, should not be ignored\n    - GHSA-test-9999-9999 # trailing comment, should also go\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    // Both the preceding comment and the trailing same-line comment attached
+    // to the removed entry must go with it.
+    assert!(
+        !manifest.contains("Expired GHSA") && !manifest.contains("trailing comment"),
+        "manifest should drop the comments along with the entry they were attached to:\n{manifest}",
+    );
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_ignore_prune_removes_all_when_none_are_relevant() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "audit:\n  ignorePrune: true\nauditConfig:\n  ignoreGhsas:\n    - GHSA-test-9999-0001\n    - GHSA-test-9999-0002\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(
+        !manifest.contains("ignoreGhsas:"),
+        "manifest should drop ignoreGhsas once every entry is pruned:\n{manifest}",
+    );
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_ignore_prune_edits_an_inline_audit_config_in_place() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "audit:\n  ignorePrune: true\nauditConfig: { ignoreGhsas: [GHSA-test-1111-2222, GHSA-test-9999-9999] }\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    let actual_manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    let expected_manifest = "fetchRetries: 0\naudit:\n  ignorePrune: true\nauditConfig: { ignoreGhsas: [ GHSA-test-1111-2222 ] }\n";
+    eprintln!("actual manifest:\n{actual_manifest}\nexpected manifest:\n{expected_manifest}");
+    assert_eq!(actual_manifest, expected_manifest);
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_ignore_prune_updates_the_canonical_audit_ignore_list() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "audit:\n  ignorePrune: true\n  ignore:\n    - GHSA-test-1111-2222\n    - GHSA-test-9999-9999\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    let actual_manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    // The retained list must land back on the canonical `audit.ignore` that
+    // supplied it — writing the deprecated `auditConfig.ignoreGhsas` instead
+    // would let the unchanged canonical list shadow the prune on the next
+    // read and restore the stale id.
+    let expected_manifest =
+        "fetchRetries: 0\naudit:\n  ignorePrune: true\n  ignore:\n    - GHSA-test-1111-2222\n";
+    eprintln!("actual manifest:\n{actual_manifest}\nexpected manifest:\n{expected_manifest}");
+    assert_eq!(actual_manifest, expected_manifest);
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_ignore_prune_sanitizes_the_removed_ids_in_output() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    // The stale entry carries an ANSI escape from the repository-controlled
+    // manifest; the removal message must strip it before the terminal.
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "audit:\n  ignorePrune: true\nauditConfig:\n  ignoreGhsas:\n    - GHSA-test-1111-2222\n    - \"GHSA-test-9999-9999\\e[31m\"\n",
+    );
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    let out = stdout(&output);
+    assert!(
+        out.contains("Removed 1 unused ignored GHSA: GHSA-test-9999-9999[31m"),
+        "stdout should report the removed GHSA with its control characters stripped:\n{out}",
+    );
+    assert!(!out.contains('\u{1b}'), "stdout must not carry the escape character:\n{out}");
     mock.assert();
 }
 
@@ -1013,10 +1373,10 @@ fn audit_fix_update_moves_to_a_non_vulnerable_version() {
 }
 
 /// `--fix update` with `minimumReleaseAge`: the inferred patched version
-/// (3.0.0) has no entry in the packument's `time` map, so its publish time is
-/// unknown and the exclusion fails open — it must be written and reported.
+/// (3.0.0) has no entry in the packument's `time` map because it was never
+/// published, so no exclusion entry is written for it.
 #[test]
-fn audit_fix_update_writes_age_exclude_when_patched_publish_time_is_unknown() {
+fn audit_fix_update_skips_age_exclude_when_patched_version_is_unpublished() {
     const PKG: &str = "@pnpm.e2e/audit-multi-version";
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -1068,15 +1428,14 @@ fn audit_fix_update_writes_age_exclude_when_patched_publish_time_is_unknown() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("vulnerability was fixed"), "stdout should report the fix:\n{stdout}");
     assert!(
-        stdout.contains("entries were added to minimumReleaseAgeExclude"),
-        "stdout should report the exclusion:\n{stdout}",
+        !stdout.contains("entries were added to minimumReleaseAgeExclude"),
+        "no exclusion should be reported:\n{stdout}",
     );
     let manifest =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
     assert!(
-        manifest.contains("minimumReleaseAgeExclude:")
-            && manifest.contains("@pnpm.e2e/audit-multi-version@3.0.0"),
-        "manifest should hold the patched-version exclusion:\n{manifest}",
+        !manifest.contains("minimumReleaseAgeExclude:"),
+        "manifest should hold no exclusion:\n{manifest}",
     );
     mock.assert();
     drop((root, npmrc_info));
@@ -1112,6 +1471,28 @@ fn advisory_response(
   ]
 }}"#,
     )
+}
+
+/// Parse `workspace`'s `pnpm-workspace.yaml` and return the exact
+/// `auditConfig.ignoreGhsas` list (empty when the key is absent).
+fn audit_config_ignore_ghsas(workspace: &Path) -> Vec<String> {
+    #[derive(Default, serde::Deserialize)]
+    #[serde(rename_all = "camelCase", default)]
+    struct OnlyAuditConfig {
+        audit_config: AuditConfig,
+    }
+    #[derive(Default, serde::Deserialize)]
+    #[serde(rename_all = "camelCase", default)]
+    struct AuditConfig {
+        ignore_ghsas: Vec<String>,
+    }
+
+    let text =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    serde_saphyr::from_str::<OnlyAuditConfig>(&text)
+        .expect("parse pnpm-workspace.yaml")
+        .audit_config
+        .ignore_ghsas
 }
 
 fn write_audit_workspace(workspace: &Path, registry_url: &str, workspace_yaml: &str) {

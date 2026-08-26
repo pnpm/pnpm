@@ -19,9 +19,11 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_config::{
-    Config, GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME, config_types, naming_cases,
+    Config, DEFAULT_JSR_REGISTRY, GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME,
+    config_types, naming_cases,
     property_path::{self, Segment},
     protected_settings,
+    refused_keys::where_refused_key_belongs,
 };
 use pnpm_workspace_manifest_writer::update_manifest_field;
 use serde_json::{Map, Value};
@@ -144,11 +146,8 @@ pub enum ConfigError {
     SetUnsupportedWorkspaceKey { key: String, camel: String },
 
     #[display("The key {key:?} holds a per-invocation value, so no config file can carry it")]
-    #[diagnostic(
-        code(ERR_PNPM_CONFIG_SET_NOT_A_FILE_SETTING),
-        help("Pass it per run instead: `--{key}` on the command line, or PNPM_CONFIG_{env}")
-    )]
-    SetNotAFileSetting { key: String, env: String },
+    #[diagnostic(code(ERR_PNPM_CONFIG_SET_NOT_A_FILE_SETTING), help("{hint}"))]
+    SetNotAFileSetting { key: String, hint: String },
 
     #[display("The key {key:?} isn't supported by the global config.yaml file")]
     #[diagnostic(
@@ -448,7 +447,7 @@ fn reject_non_file_setting(key: &str) -> Result<(), ConfigError> {
     let kebab = naming_cases::to_kebab_case(key);
     if config_types::is_never_a_file_setting(&kebab) {
         return Err(ConfigError::SetNotAFileSetting {
-            env: kebab.to_uppercase().replace('-', "_"),
+            hint: where_refused_key_belongs(&naming_cases::to_camel_case(&kebab)),
             key: kebab,
         });
     }
@@ -499,6 +498,45 @@ fn config_get(config: &Config, flags: ConfigFlags, key: &str) -> Result<String, 
     Ok(display_config(&value, flags.json))
 }
 
+/// pnpm resolves relative patch paths against the workspace root when it
+/// reads the setting, so its record shows the resolved paths; pacquet keeps
+/// them as written and resolves lazily — mirror the resolved display.
+fn absolutize_patch_paths(result: &mut Map<String, Value>, config: &Config) {
+    let Some(workspace_dir) = &config.workspace_dir else { return };
+    let Some(Value::Object(patched)) = result.get_mut("patchedDependencies") else { return };
+    for value in patched.values_mut() {
+        if let Value::String(path) = value
+            && !Path::new(path.as_str()).is_absolute()
+        {
+            *value =
+                Value::String(workspace_dir.join(path.as_str()).to_string_lossy().into_owned());
+        }
+    }
+}
+
+/// `catalogs` shows the complete resolved catalog set — the singular
+/// `catalog` block is its `default` entry, listed first — whichever spelling
+/// declared it.
+fn merge_default_catalog(result: &mut Map<String, Value>) {
+    let named = match result.remove("catalogs") {
+        Some(Value::Object(named)) => named,
+        _ => Map::new(),
+    };
+    let default = result.get("catalog").or_else(|| named.get("default")).cloned();
+    let mut merged = Map::new();
+    if let Some(default) = default {
+        merged.insert("default".to_string(), default);
+    }
+    for (name, catalog) in named {
+        if name != "default" {
+            merged.insert(name, catalog);
+        }
+    }
+    if !merged.is_empty() {
+        result.insert("catalogs".to_string(), Value::Object(merged));
+    }
+}
+
 /// `configList`: the full config record as pretty JSON. Port of `configList`.
 fn config_list(config: &Config) -> String {
     serde_json::to_string_pretty(&Value::Object(config_to_record(config)))
@@ -516,6 +554,10 @@ fn lookup_config(config: &Config, key: &str, is_scoped: bool) -> Option<Value> {
             if let Some(merged) = config.registries_by_scope.get(scope) {
                 return Some(Value::String(merged.clone()));
             }
+            // The built-in `@jsr` route, which pnpm merges into its scope map.
+            if scope == "@jsr" && !config.raw_auth_config.contains_key(key) {
+                return Some(Value::String(DEFAULT_JSR_REGISTRY.to_string()));
+            }
         }
         return Some(auth_value(config, key));
     }
@@ -532,6 +574,12 @@ fn lookup_config(config: &Config, key: &str, is_scoped: bool) -> Option<Value> {
     } else {
         key.to_string()
     };
+    // The merged default is what resolvers use, so `registry` answers the
+    // same URL the resolved `registries` view declares as the bare `@`
+    // scope — a raw `.npmrc` value would contradict it.
+    if kebab == "registry" {
+        return Some(Value::String(config.registry.clone()));
+    }
     if config_types::is_type_key(&kebab) {
         let camel = naming_cases::to_camel_case(&kebab);
         if let Some(value) = config.explicit_settings.get(&camel) {
@@ -611,14 +659,55 @@ fn plain_string(value: &Value) -> String {
 /// `configToRecord`: build the camelCase record shown by `list` / `get` — the
 /// explicitly-set settings, then the raw auth keys (original casing), then
 /// `userAgent` — sorted by key and with protected settings censored.
+/// `registries` is always present and holds the resolved view: the registries
+/// the CLI resolves from, merged across every source, in place of the raw
+/// `registries` / `namedRegistries` values a single source set.
 fn config_to_record(config: &Config) -> Map<String, Value> {
     let mut result: Map<String, Value> = Map::new();
     for (key, value) in &config.explicit_settings {
         result.insert(key.clone(), value.clone());
     }
+    result.remove("namedRegistries");
+    result.insert(
+        "registries".to_string(),
+        serde_json::to_value(config.resolved_registry_declarations())
+            .expect("serializing registry declarations to JSON never fails"),
+    );
+    // Likewise the raw `update` / `audit` sections and their deprecated
+    // spellings: the record shows the settings the CLI acts on, re-joined
+    // under the documented names.
+    for key in ["update", "updateConfig", "audit", "auditConfig", "auditLevel"] {
+        result.remove(key);
+    }
+    if let Some(update) = config.resolved_update_settings() {
+        result.insert(
+            "update".to_string(),
+            serde_json::to_value(update).expect("serializing update settings to JSON never fails"),
+        );
+    }
+    if let Some(audit) = config.resolved_audit_settings() {
+        result.insert(
+            "audit".to_string(),
+            serde_json::to_value(audit).expect("serializing audit settings to JSON never fails"),
+        );
+    }
+    merge_default_catalog(&mut result);
+    absolutize_patch_paths(&mut result, config);
     for (key, value) in &config.raw_auth_config {
         result.entry(key.clone()).or_insert_with(|| Value::String(value.clone()));
     }
+    // The `registry` / `@scope:registry` rows show the merged routes — the
+    // values `config get` answers — so a raw `.npmrc` row cannot contradict
+    // the resolved `registries` view.
+    result.insert("registry".to_string(), Value::String(config.registry.clone()));
+    for (scope, url) in &config.registries_by_scope {
+        if scope != "default" {
+            result.insert(format!("{scope}:registry"), Value::String(url.clone()));
+        }
+    }
+    result
+        .entry("@jsr:registry".to_string())
+        .or_insert_with(|| Value::String(DEFAULT_JSR_REGISTRY.to_string()));
     if !config.user_agent.is_empty() {
         result.insert("userAgent".to_string(), Value::String(config.user_agent.clone()));
     }

@@ -1,11 +1,13 @@
 import { checkbox, Separator } from '@inquirer/prompts'
 import { docsUrl, interactivePromptPageSize, TABLE_OPTIONS } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
+import { writeSettings } from '@pnpm/config.writer'
 import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
 import { globalInfo } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import type { RegistriesByScope } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
@@ -17,6 +19,8 @@ import { fix } from './fix.js'
 import { fixWithUpdate, type FixWithUpdateResult } from './fixWithUpdate.js'
 import { getAuditFixChoices } from './getAuditFixChoices.js'
 import { ignore } from './ignore.js'
+import { pruneIgnoredGhsas } from './pruneIgnoredGhsas.js'
+import { correctInferredPatchedVersions, createPublishTimesFetcher, type PublishTimesFetcher } from './publishTimes.js'
 import { auditSignatures } from './signatures.js'
 
 const AUDIT_LEVEL_NUMBER = {
@@ -157,6 +161,8 @@ export function help (): string {
   })
 }
 
+export type { PublishTimesFetcher } from './publishTimes.js'
+
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   fix?: boolean | 'override' | 'update'
   ignoreRegistryErrors?: boolean
@@ -166,7 +172,15 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   registriesByScope: RegistriesByScope
   ignore?: string[]
   ignoreUnfixable?: boolean
+  /**
+   * Memoized packument publish-time lookup shared between patched-version
+   * validation and the age-gate exclusion flow so each package is fetched at
+   * most once per `pnpm audit` run. When unset, each consumer creates its own
+   * fetcher.
+   */
+  getPublishTimes?: PublishTimesFetcher
 } & Pick<Config, 'auditConfig'
+| 'auditIgnorePrune'
 | 'auditLevel'
 | 'minimumReleaseAge'
 | 'ca'
@@ -244,6 +258,12 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
 
     throw err
   }
+  // The inferred patched range is syntactic: verify a published version
+  // actually satisfies it before the report and any fix flow can claim one.
+  // One fetcher is shared with the fix flows below so each affected package
+  // is requested at most once.
+  const getPublishTimes = createPublishTimesFetcher(opts)
+  await correctInferredPatchedVersions(auditReport.advisories, getPublishTimes)
   let fixMethod: 'update' | 'override' | undefined
   if (opts.fix === 'update' || opts.fix === 'override') {
     fixMethod = opts.fix
@@ -255,6 +275,37 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
     throw new PnpmError('INVALID_FIX_OPTION', `Invalid value for --fix: ${opts.fix as string}. Should be one of "override" or "update"`)
   }
   if (fixMethod != null) {
+    if (opts.auditIgnorePrune && opts.auditConfig?.ignoreGhsas?.length) {
+      const configuredGhsas = opts.auditConfig.ignoreGhsas
+      const { pruned, retained } = pruneIgnoredGhsas(configuredGhsas, auditReport)
+      if (pruned.length > 0) {
+        // The pruned ids keep their original spelling from the
+        // repository-controlled workspace manifest, so strip control
+        // characters before they reach the terminal.
+        globalInfo(`Removed ${pruned.length} unused ignored GHSA${pruned.length === 1 ? '' : 's'}: ${pruned.map(sanitizeInline).join(', ')}`)
+      }
+      // Persist even when nothing was removed: `retained` may still differ
+      // from the configured list (deduplicated or case-normalized), and the
+      // file should always reflect the canonical form.
+      const retainedDiffers = retained.length !== configuredGhsas.length ||
+        retained.some((ghsa, index) => ghsa !== configuredGhsas[index])
+      if (retainedDiffers) {
+        // Written through the dedicated ignore-list update so the retained
+        // list lands on whichever spelling the manifest uses — replacing
+        // only `auditConfig` would let a canonical `audit.ignore` list
+        // shadow the pruned result on the next read.
+        await writeSettings({
+          ...opts,
+          workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+          updatedAuditIgnoreGhsas: retained,
+        })
+        // Update opts for subsequent operations
+        opts.auditConfig = {
+          ...opts.auditConfig,
+          ignoreGhsas: retained.length > 0 ? retained : undefined,
+        }
+      }
+    }
     // Pre-filter by auditLevel and ignoreGhsas so the interactive prompt
     // and the update-method path see the same set of advisories that
     // fix.ts's getFixableAdvisories filters for the override path.
@@ -266,7 +317,7 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
       filteredAuditReport = await interactiveAuditFix(filteredAuditReport)
     }
     if (fixMethod === 'update') {
-      const result = await fixWithUpdate(filteredAuditReport, { ...opts, include })
+      const result = await fixWithUpdate(filteredAuditReport, { ...opts, getPublishTimes, include })
       let output = formatFixWithUpdateOutput(result, filteredAuditReport)
       if (result.addedAgeExcludes.length > 0) {
         output += `\n${result.addedAgeExcludes.length} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n${result.addedAgeExcludes.join('\n')}\n`
@@ -276,7 +327,7 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
         output,
       }
     }
-    const { vulnOverrides, addedAgeExcludes } = await fix(filteredAuditReport, opts)
+    const { vulnOverrides, addedAgeExcludes } = await fix(filteredAuditReport, { ...opts, getPublishTimes })
     if (Object.values(vulnOverrides).length === 0) {
       return {
         exitCode: 0,
@@ -361,7 +412,7 @@ ${newIgnores.join('\n')}`,
       [AUDIT_COLOR[advisory.severity](advisory.severity), chalk.bold(advisory.title)],
       ['Package', advisory.module_name],
       ['Vulnerable versions', advisory.vulnerable_versions],
-      ['Patched versions', advisory.patched_versions ?? '(unknown)'],
+      ['Patched versions', advisory.patched_versions ?? (advisory.patched_versions_unpublished === true ? 'None' : '(unknown)')],
       [
         'Paths',
         (paths.length > MAX_PATHS_COUNT

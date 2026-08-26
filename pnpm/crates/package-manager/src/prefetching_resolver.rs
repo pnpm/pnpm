@@ -25,7 +25,8 @@
 //! That prefetch is speculative, and a run may switch it off
 //! ([`PrefetchContext::prefetch_downloads`]). Hashing a resolution
 //! that carries no integrity is not speculative — the lockfile records
-//! that hash — so it runs either way.
+//! that hash. A custom fetcher must decline an unpinned tarball before
+//! native integrity discovery can download it.
 
 use crate::{
     install_package_from_registry::{extract_tarball, manifest_file_count, manifest_unpacked_size},
@@ -33,6 +34,7 @@ use crate::{
 };
 use dashmap::{DashMap, DashSet};
 use pnpm_config::Config;
+use pnpm_deps_restorer::CustomFetcherSession;
 use pnpm_lockfile::{LockfileResolution, is_git_hosted_tarball_url};
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_package_is_installable::{
@@ -50,8 +52,7 @@ use pnpm_tarball::{
     DownloadTarballToStore, FetchTarballForResolution, MemCache, RetryOpts,
     SharedReportedProgressKeys,
 };
-use ssri::Integrity;
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, path::Path, sync::Arc};
 use tokio::sync::OnceCell;
 
 /// Borrowed-data bag handed to [`PrefetchingResolver::new`]. Everything
@@ -75,10 +76,10 @@ pub struct PrefetchContext<'a> {
     /// consults the set so prefetch progress is visible immediately
     /// without being counted again.
     pub progress_reported: &'a SharedReportedProgressKeys,
-    /// Whether a resolved tarball is prefetched. `false` for a run
-    /// whose install pass will never ask for those bytes, so the store
-    /// isn't filled with tarballs nobody installs.
+    /// Whether native speculative tarball downloads are allowed.
     pub prefetch_downloads: bool,
+    /// Consulted before downloading a tarball to learn its missing hash.
+    pub custom_fetcher_session: Option<&'a Arc<CustomFetcherSession>>,
 }
 
 /// Owned, `'static`-friendly clones of [`PrefetchContext`] stored on
@@ -98,6 +99,7 @@ struct OwnedFetchCtx {
     requester: Arc<str>,
     offline: bool,
     verify_store_integrity: bool,
+    strict_store_pkg_content_check: bool,
     supported_architectures: Option<SupportedArchitectures>,
     current_os: &'static str,
     current_cpu: &'static str,
@@ -114,11 +116,11 @@ struct OwnedFetchCtx {
     /// without this gate the bench saw ~3-5k redundant spawns per
     /// install on the alotta-files fixture (one per dependent edge).
     spawned_urls: Arc<DashSet<String>>,
-    /// Per-URL singleflight cache for integrity-less tarballs. The first
-    /// edge downloads and computes the integrity; later edges await the
-    /// same cell instead of fetching the URL again.
-    integrity_cache: Arc<DashMap<String, Arc<OnceCell<Integrity>>>>,
+    /// Shares completed integrity discovery, including custom resolution rewrites.
+    integrity_cache: Arc<DashMap<String, Arc<OnceCell<LockfileResolution>>>>,
     prefetch_downloads: bool,
+    custom_fetcher_session: Option<Arc<CustomFetcherSession>>,
+    ignore_scripts: bool,
 }
 
 /// Wraps an inner [`Resolver`] and, after each successful resolve that
@@ -160,6 +162,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             supported_architectures,
             progress_reported,
             prefetch_downloads,
+            custom_fetcher_session,
         } = prefetch_ctx;
         let ctx = OwnedFetchCtx {
             http_client: Arc::clone(http_client),
@@ -173,6 +176,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             requester: Arc::<str>::from(requester),
             offline: config.offline,
             verify_store_integrity: config.verify_store_integrity,
+            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
             supported_architectures: supported_architectures.cloned(),
             current_os: pnpm_graph_hasher::host_platform(),
             current_cpu: pnpm_graph_hasher::host_arch(),
@@ -181,6 +185,8 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             spawned_urls: Arc::new(DashSet::new()),
             integrity_cache: Arc::new(DashMap::new()),
             prefetch_downloads,
+            custom_fetcher_session: custom_fetcher_session.cloned(),
+            ignore_scripts: config.ignore_scripts,
         };
         PrefetchingResolver { inner, ctx, _phantom: PhantomData }
     }
@@ -191,6 +197,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     async fn populate_missing_integrity(
         &self,
         result: &mut ResolveResult,
+        lockfile_dir: &Path,
     ) -> Result<(), ResolveError> {
         let LockfileResolution::Tarball(tarball) = &result.resolution else {
             return Ok(());
@@ -213,13 +220,57 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             .name_ver
             .as_ref()
             .map_or_else(|| package_url.clone(), |nv| format!("{}@{}", nv.name, nv.suffix));
-
-        // Singleflight per URL: the same integrity-less tarball can arrive on many edges,
-        // so compute its integrity once and share it. Clone the cell's `Arc` out of the map
-        // before awaiting so the shard lock isn't held across the download.
-        let cell = Arc::clone(&self.ctx.integrity_cache.entry(package_url.clone()).or_default());
-        let integrity = cell
+        // Hooks can select different content for the same URL. Native discovery
+        // shares by URL; custom discovery also includes the package and resolution.
+        let cache_key = if self.ctx.custom_fetcher_session.is_some() {
+            format!("{package_id}:{}", serde_json::to_string(&result.resolution)?)
+        } else {
+            package_url.clone()
+        };
+        let cell = Arc::clone(&self.ctx.integrity_cache.entry(cache_key).or_default());
+        let resolution = cell
             .get_or_try_init(|| async {
+                if let Some(session) = self.ctx.custom_fetcher_session.as_ref() {
+                    let download = DownloadTarballToStore {
+                        http_client: &self.ctx.http_client,
+                        store_dir: self.ctx.store_dir,
+                        store_index: self.ctx.store_index.clone(),
+                        store_index_writer: self.ctx.store_index_writer.clone(),
+                        verify_store_integrity: self.ctx.verify_store_integrity,
+                        strict_store_pkg_content_check: self.ctx.strict_store_pkg_content_check,
+                        verified_files_cache: Arc::clone(&self.ctx.verified_files_cache),
+                        package_integrity: None,
+                        package_unpacked_size: None,
+                        package_file_count: None,
+                        package_url: &package_url,
+                        package_id: &package_id,
+                        requester: &self.ctx.requester,
+                        prefetched_cas_paths: None,
+                        retry_opts: self.ctx.retry_opts,
+                        auth_headers: &self.ctx.auth_headers,
+                        ignore_file_pattern: None,
+                        offline: self.ctx.offline,
+                        progress_reported: Some(Arc::clone(&self.ctx.progress_reported)),
+                        append_manifest: None,
+                    };
+                    let opts = serde_json::json!({
+                        "pkg": result.name_ver.as_ref().map_or_else(
+                            || serde_json::json!({}),
+                            |nv| serde_json::json!({
+                                "name": nv.name.to_string(), "version": nv.suffix.to_string(),
+                            }),
+                        ),
+                        "lockfileDir": lockfile_dir,
+                        "readManifest": true,
+                        "filesIndexFile": pnpm_store_dir::pick_store_index_key(
+                            None, false, &package_id, !self.ctx.ignore_scripts,
+                        ),
+                    });
+                    return session
+                        .resolve_tarball_integrity::<Reporter>(download, &result.resolution, opts)
+                        .await
+                        .map_err(|error| Box::new(error) as ResolveError);
+                }
                 // This fetch warms the mem cache, so the prefetch path should not
                 // spawn another task for the same URL.
                 self.ctx.spawned_urls.insert(package_url.clone());
@@ -239,12 +290,16 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 .run::<SilentReporter>(Some(&self.ctx.mem_cache))
                 .await
                 .map_err(|err| Box::new(err) as ResolveError)?;
-                Ok::<_, ResolveError>(resolved.integrity)
+                let mut resolution = tarball.clone();
+                resolution.integrity = Some(resolved.integrity);
+                Ok::<_, ResolveError>(LockfileResolution::Tarball(resolution))
             })
-            .await?
-            .clone();
-        if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
-            tarball.integrity = Some(integrity);
+            .await?;
+        if self.ctx.custom_fetcher_session.is_some() {
+            result.resolution = resolution.clone();
+        } else if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
+            // The native cache is URL-keyed; each edge keeps its other fields.
+            tarball.integrity = resolution.integrity().cloned();
         }
         Ok(())
     }
@@ -274,6 +329,10 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let Ok((package_url, integrity)) = extract_tarball(&result.resolution) else {
             return;
         };
+        let revision_addressed = matches!(
+            &result.resolution,
+            LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
+        );
         // The npm picker's `dist.tarball` is the canonical URL the
         // install path will look up in `MemCache`. Tarball-resolver
         // and git-resolver paths can leave `name_ver` unset (they
@@ -315,6 +374,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let requester = Arc::clone(&self.ctx.requester);
         let offline = self.ctx.offline;
         let verify_store_integrity = self.ctx.verify_store_integrity;
+        let strict_store_pkg_content_check = self.ctx.strict_store_pkg_content_check;
         let progress_reported = SharedReportedProgressKeys::clone(&self.ctx.progress_reported);
 
         tokio::spawn(async move {
@@ -329,12 +389,13 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             //
             // Result is intentionally discarded — the `MemCache`
             // carries success / failure state to the install path.
-            let _ = DownloadTarballToStore {
+            let download = DownloadTarballToStore {
                 http_client: &http_client,
                 store_dir,
                 store_index,
                 store_index_writer,
                 verify_store_integrity,
+                strict_store_pkg_content_check,
                 verified_files_cache,
                 package_integrity: Some(&integrity),
                 package_unpacked_size,
@@ -349,9 +410,12 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 offline,
                 progress_reported: Some(progress_reported),
                 append_manifest: None,
-            }
-            .run_with_mem_cache::<Reporter>(&mem_cache)
-            .await;
+            };
+            let _ = if revision_addressed {
+                download.run_revision_addressed_with_mem_cache::<Reporter>(&mem_cache).await
+            } else {
+                download.run_with_mem_cache::<Reporter>(&mem_cache).await
+            };
         });
     }
 
@@ -391,7 +455,7 @@ impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Report
         Box::pin(async move {
             let mut result = self.inner.resolve(wanted_dependency, opts).await?;
             if let Some(result_mut) = result.as_mut() {
-                self.populate_missing_integrity(result_mut).await?;
+                self.populate_missing_integrity(result_mut, &opts.lockfile_dir).await?;
                 if self.ctx.prefetch_downloads
                     && !self.should_skip_prefetch(wanted_dependency, result_mut)
                 {

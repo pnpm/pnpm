@@ -1,6 +1,6 @@
 use crate::{
-    AllowBuildPolicy, CreateVirtualDirBySnapshot, CreateVirtualDirError, VirtualStoreLayout,
-    retry_config::retry_opts_from_config,
+    AllowBuildPolicy, CreateVirtualDirBySnapshot, CreateVirtualDirError, CustomFetcherSession,
+    VirtualStoreLayout, custom_fetcher::CustomFetchOutcome, retry_config::retry_opts_from_config,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -11,10 +11,11 @@ use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pnpm_fs::lexical_normalize;
 use pnpm_git_fetcher::{GitFetchOutput, GitFetcher, GitFetcherError, GitHostedTarballFetcher};
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
-use pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker;
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
-    PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry, is_git_hosted_tarball_url,
+    PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry, TarballUrlOptions,
+    integrity_addressed_registry_tarball_url, is_git_hosted_tarball_url,
+    is_integrity_addressed_registry_tarball_url, npm_tarball_url, registry_server_type,
     select_platform_variant,
 };
 use pnpm_network::ThrottledClient;
@@ -134,7 +135,7 @@ pub struct InstallPackageBySnapshot<'a> {
     /// Custom fetchers from the pnpmfile's `fetchers` export.
     /// Consulted before the built-in resolution-type dispatch; `None`
     /// when no pnpmfile exports fetchers.
-    pub custom_fetcher_picker: Option<&'a Arc<CustomFetcherPicker>>,
+    pub custom_fetcher_session: Option<&'a Arc<CustomFetcherSession>>,
     /// When `true`, return the fetched CAS paths without populating the
     /// virtual-store slot ([`CreateVirtualDirBySnapshot`]) — the caller
     /// links them itself in a separate parallel pass. The cold batch in
@@ -177,13 +178,19 @@ pub enum InstallPackageBySnapshotError {
     MissingTarballIntegrity { package_key: String },
 
     #[display(
-        "Cannot install package \"{package_key}\": it was resolved from the named registry '{registry_name}:', which is not present in the namedRegistries setting."
+        "Cannot install package \"{package_key}\": its registry prefix '{registry_name}:' is not declared by the registries setting."
     )]
     #[diagnostic(
         code(ERR_PNPM_MISSING_NAMED_REGISTRY),
-        help("Add '{registry_name}' to the namedRegistries setting in pnpm-workspace.yaml.")
+        help("Add a registries entry with \"prefix: {registry_name}\" to pnpm-workspace.yaml.")
     )]
     MissingNamedRegistry { package_key: String, registry_name: String },
+
+    #[display(
+        "Cannot install package \"{package_key}\": its lockfile entry with a revision {reason}."
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_TARBALL_REVISION))]
+    InvalidTarballRevision { package_key: String, reason: &'static str },
 
     #[display(
         "Package `{package_key}` uses a `{resolution_kind}` resolution, which pnpm does not yet support."
@@ -213,6 +220,12 @@ pub enum InstallPackageBySnapshotError {
     #[display("Custom fetcher failed: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CUSTOM_FETCHER_FAILED))]
     CustomFetcher(#[error(not(source))] String),
+
+    #[display(
+        "Custom fetcher delegated package \"{package_id}\" to a resolution that cannot verify its locked integrity"
+    )]
+    #[diagnostic(code(ERR_PNPM_TARBALL_INTEGRITY))]
+    CustomFetcherIntegrityMismatch { package_id: String },
 
     /// A custom-typed resolution reached the built-in dispatch — no
     /// pnpmfile custom fetcher claimed it. Message and code mirror the
@@ -328,7 +341,7 @@ impl InstallPackageBySnapshot<'_> {
             runtime_platform_selector,
             workspace_root,
             node_linker,
-            custom_fetcher_picker,
+            custom_fetcher_session,
             defer_link,
             #[cfg(test)]
             link_concurrency_probe,
@@ -355,49 +368,55 @@ impl InstallPackageBySnapshot<'_> {
             pnpm_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
         };
 
-        let effective_resolution: Option<LockfileResolution> = if let Some(picker) =
-            custom_fetcher_picker
-        {
-            let resolution_value = serde_json::to_value(&metadata.resolution).map_err(|err| {
-                InstallPackageBySnapshotError::CustomFetcher(format!(
-                    "failed to serialize resolution for {package_id}: {err}",
-                ))
-            })?;
-            // Shaped like the TypeScript `FetchOptions` subset a
-            // delegating fetcher can use (`pkg`, `lockfileDir`), so one
-            // pnpmfile works on both stacks.
-            let opts_value = serde_json::json!({
+        let download = DownloadTarballToStore {
+            http_client,
+            store_dir: &config.store_dir,
+            store_index: store_index.cloned(),
+            store_index_writer: store_index_writer.cloned(),
+            verify_store_integrity: config.verify_store_integrity,
+            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
+            verified_files_cache: Arc::clone(verified_files_cache),
+            package_integrity: metadata.resolution.checkable_integrity(),
+            package_unpacked_size: None,
+            package_file_count: None,
+            package_url: "",
+            package_id: &package_id,
+            requester,
+            prefetched_cas_paths,
+            retry_opts: retry_opts_from_config(config),
+            auth_headers: &config.auth_headers,
+            ignore_file_pattern: None,
+            offline: config.offline,
+            progress_reported: progress_reported.cloned(),
+            append_manifest: None,
+        };
+        let custom_fetch = if let Some(session) = custom_fetcher_session {
+            let opts = serde_json::json!({
                 "pkg": {
                     "name": package_key.name.to_string(),
-                    "version": metadata
-                        .version
-                        .clone()
+                    "version": metadata.version.clone()
                         .unwrap_or_else(|| package_key.suffix.version().to_string()),
                 },
                 "lockfileDir": workspace_root,
+                "readManifest": true,
+                "filesIndexFile": pnpm_store_dir::pick_store_index_key(
+                    metadata.resolution.checkable_integrity().map(ToString::to_string).as_deref(),
+                    false, &package_id, !config.ignore_scripts,
+                ),
             });
-            match picker.try_fetch(&package_id, &resolution_value, &opts_value).await {
-                Ok(Some(result)) => {
-                    if let Some(delegate) = result.get("delegate") {
-                        Some(serde_json::from_value(delegate.clone()).map_err(|err| {
-                            InstallPackageBySnapshotError::CustomFetcher(format!(
-                                "invalid delegate resolution for {package_id}: {err}",
-                            ))
-                        })?)
-                    } else {
-                        return Err(InstallPackageBySnapshotError::CustomFetcher(format!(
-                            "custom fetcher claimed {package_id} but returned an unhandled \
-                             response (expected {{ \"delegate\": ... }})",
-                        )));
-                    }
-                }
-                Ok(None) => None,
-                Err(err) => {
-                    return Err(InstallPackageBySnapshotError::CustomFetcher(err.to_string()));
-                }
-            }
+            Some(session.fetch::<Reporter>(download.clone(), &metadata.resolution, opts).await?)
         } else {
             None
+        };
+        let (effective_resolution, custom_cas_paths) = match custom_fetch {
+            Some(
+                CustomFetchOutcome::Declined(resolution)
+                | CustomFetchOutcome::Delegate { delegate: resolution, .. },
+            ) => (Some(resolution), None),
+            Some(CustomFetchOutcome::Fetched { tarball, .. }) => {
+                (None, Some(tarball.files_map.clone()))
+            }
+            None => (None, None),
         };
         let resolution = effective_resolution.as_ref().unwrap_or(&metadata.resolution);
         // Derived from the effective resolution, not the lockfile's: a
@@ -406,31 +425,21 @@ impl InstallPackageBySnapshot<'_> {
         // lockfile entry says otherwise.
         let source_is_mutable = matches!(resolution, LockfileResolution::Directory(_));
 
-        let cas_paths: HashMap<String, PathBuf> = match resolution {
-            LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
+        let cas_paths = match (custom_cas_paths, resolution) {
+            (Some(paths), _) => paths,
+            (None, LockfileResolution::Tarball(_) | LockfileResolution::Registry(_)) => {
+                let revision_addressed = match resolution {
+                    LockfileResolution::Tarball(tarball) => tarball.revision.is_some(),
+                    LockfileResolution::Registry(registry) => registry.revision.is_some(),
+                    _ => false,
+                };
                 let (tarball_url, integrity) =
                     tarball_url_and_integrity(resolution, package_key, config)?;
                 let tarball_url = local_file_tarball_install_url(tarball_url, self.workspace_root);
                 let download = DownloadTarballToStore {
-                    http_client,
-                    store_dir: &config.store_dir,
-                    store_index: store_index.cloned(),
-                    store_index_writer: store_index_writer.cloned(),
-                    verify_store_integrity: config.verify_store_integrity,
-                    verified_files_cache: Arc::clone(verified_files_cache),
-                    package_integrity: integrity,
-                    package_unpacked_size: None,
-                    package_file_count: None,
                     package_url: &tarball_url,
-                    package_id: &package_id,
-                    requester,
-                    prefetched_cas_paths,
-                    retry_opts: retry_opts_from_config(config),
-                    auth_headers: &config.auth_headers,
-                    ignore_file_pattern: None,
-                    offline: config.offline,
-                    progress_reported: progress_reported.cloned(),
-                    append_manifest: None,
+                    package_integrity: integrity,
+                    ..download.clone()
                 };
                 // Reuse an in-flight or completed background download
                 // through the shared mem cache when one is provided;
@@ -454,13 +463,24 @@ impl InstallPackageBySnapshot<'_> {
                         // `clone()` is cheap (refs + `Arc`s) and lets us
                         // retry through `run_without_mem_cache` below if
                         // the shared download failed.
-                        match download.clone().run_with_mem_cache::<Reporter>(mem_cache).await {
+                        let result = if revision_addressed {
+                            download
+                                .clone()
+                                .run_revision_addressed_with_mem_cache::<Reporter>(mem_cache)
+                                .await
+                        } else {
+                            download.clone().run_with_mem_cache::<Reporter>(mem_cache).await
+                        };
+                        match result {
                             Ok(cas_paths) => Ok((*cas_paths).clone()),
-                            Err(TarballError::SiblingFetchFailed { .. }) => {
+                            Err(TarballError::SiblingFetchFailed { .. }) if !revision_addressed => {
                                 download.run_without_mem_cache::<Reporter>().await
                             }
                             Err(err) => Err(err),
                         }
+                    }
+                    _ if revision_addressed => {
+                        download.run_revision_addressed_without_mem_cache::<Reporter>().await
                     }
                     _ => download.run_without_mem_cache::<Reporter>().await,
                 }
@@ -510,7 +530,7 @@ impl InstallPackageBySnapshot<'_> {
                     raw_cas_paths
                 }
             }
-            LockfileResolution::Directory(dir_resolution) => {
+            (None, LockfileResolution::Directory(dir_resolution)) => {
                 // Injected workspace dep (`file:./local-pkg` with
                 // `dependenciesMeta[*].injected = true`). The source
                 // dir resolves as
@@ -538,7 +558,7 @@ impl InstallPackageBySnapshot<'_> {
             // platform wrapper: pick the variant whose `targets`
             // includes the host triple, then route through the same
             // `BinaryResolution` extractor.
-            LockfileResolution::Binary(binary) => {
+            (None, LockfileResolution::Binary(binary)) => {
                 fetch_binary_resolution_to_cas::<Reporter>(
                     binary,
                     http_client,
@@ -553,7 +573,7 @@ impl InstallPackageBySnapshot<'_> {
                 )
                 .await?
             }
-            LockfileResolution::Variations(variations) => {
+            (None, LockfileResolution::Variations(variations)) => {
                 let Some(variant) =
                     select_platform_variant(&variations.variants, runtime_platform_selector)
                 else {
@@ -610,7 +630,7 @@ impl InstallPackageBySnapshot<'_> {
                 )
                 .await?
             }
-            LockfileResolution::Git(git_resolution) => {
+            (None, LockfileResolution::Git(git_resolution)) => {
                 // Same `built = !ignore_scripts` rationale as the
                 // git-hosted tarball branch above — key shape stays in
                 // lock-step with `snapshot_cache_key`.
@@ -644,10 +664,9 @@ impl InstallPackageBySnapshot<'_> {
                 .map_err(InstallPackageBySnapshotError::GitFetch)?;
                 cas_paths
             }
-            // A custom fetcher had its chance above (`try_fetch`) and
-            // either declined or wasn't loaded; without one there is
-            // no way to materialize a custom-typed resolution.
-            LockfileResolution::Custom(custom) => {
+            // A custom-typed resolution cannot be materialized without
+            // a custom fetcher that claims it.
+            (None, LockfileResolution::Custom(custom)) => {
                 return Err(InstallPackageBySnapshotError::UnsupportedResolutionType {
                     resolution_type: custom.resolution_type.to_string(),
                 });
@@ -672,6 +691,7 @@ impl InstallPackageBySnapshot<'_> {
                 package_key,
                 snapshot,
                 source_is_mutable,
+                force_import: false,
                 include_optional_dependencies,
                 symlink: config.symlink,
                 skipped,
@@ -707,7 +727,7 @@ fn fetch_directory_resolution(
     Ok(output.files_map)
 }
 
-fn local_file_tarball_install_url<'a>(
+pub(crate) fn local_file_tarball_install_url<'a>(
     tarball_url: Cow<'a, str>,
     workspace_root: &Path,
 ) -> Cow<'a, str> {
@@ -749,6 +769,27 @@ pub fn tarball_url_and_integrity<'a>(
         LockfileResolution::Tarball(tarball_resolution) => {
             let tarball_url = tarball_resolution.tarball.as_str();
             let integrity = resolution.checkable_integrity();
+            if tarball_resolution.revision.is_some() {
+                if tarball_url.starts_with("file:") || tarball_resolution.is_git_hosted() {
+                    return Err(invalid_tarball_revision(
+                        package_key,
+                        "does not identify a registry tarball",
+                    ));
+                }
+                let Some(integrity) = integrity else {
+                    return Err(invalid_tarball_revision(
+                        package_key,
+                        "has invalid or missing integrity",
+                    ));
+                };
+                let (registry, _) = registry_and_version(package_key, config)?;
+                if !is_integrity_addressed_registry_tarball_url(tarball_url, integrity, &registry) {
+                    return Err(invalid_tarball_revision(
+                        package_key,
+                        "has a mismatched tarball URL",
+                    ));
+                }
+            }
             if integrity.is_none() && !unverified_fetch_is_allowed(tarball_url) {
                 return Err(InstallPackageBySnapshotError::MissingTarballIntegrity {
                     package_key: package_key.to_string(),
@@ -756,41 +797,36 @@ pub fn tarball_url_and_integrity<'a>(
             }
             Ok((tarball_url.pipe(Cow::Borrowed), integrity))
         }
-        LockfileResolution::Registry(_) => {
+        LockfileResolution::Registry(registry_resolution) => {
             let Some(integrity) = resolution.checkable_integrity() else {
+                if registry_resolution.revision.is_some() {
+                    return Err(invalid_tarball_revision(
+                        package_key,
+                        "has invalid or missing integrity",
+                    ));
+                }
                 return Err(InstallPackageBySnapshotError::MissingTarballIntegrity {
                     package_key: package_key.to_string(),
                 });
             };
-            let name = package_key.name.to_string();
-            // A registry-qualified key (`<name>@<registryName>:<version>`)
-            // reconstructs its tarball from its named registry; everything
-            // else routes by scope.
-            let (registry, version) =
-                if let Some((registry_name, version)) = package_key.suffix.registry_qualified() {
-                    let registry = pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX
-                        .iter()
-                        .find(|(name, _)| *name == registry_name)
-                        .map(|(_, url)| (*url).to_string())
-                        .pipe(|builtin| {
-                            config.registries_by_prefix.get(registry_name).cloned().or(builtin)
-                        })
-                        .ok_or_else(|| InstallPackageBySnapshotError::MissingNamedRegistry {
-                            package_key: package_key.to_string(),
-                            registry_name: registry_name.to_string(),
-                        })?;
-                    (registry, version.to_string())
-                } else {
-                    let registries: HashMap<String, String> =
-                        config.resolved_registries().into_iter().collect();
-                    (
-                        pick_registry_for_package(&registries, &name, None),
-                        package_key.suffix.version().to_string(),
-                    )
-                };
-            let registry = registry.strip_suffix('/').unwrap_or(&registry);
-            let bare_name = package_key.name.bare.as_str();
-            let tarball_url = format!("{registry}/{name}/-/{bare_name}-{version}.tgz");
+            let (registry, version) = registry_and_version(package_key, config)?;
+            let tarball_url = match registry_resolution.revision {
+                Some(_) => integrity_addressed_registry_tarball_url(integrity, &registry)
+                    .ok_or_else(|| {
+                        invalid_tarball_revision(package_key, "has invalid or missing integrity")
+                    })?,
+                None => npm_tarball_url(
+                    &package_key.name.to_string(),
+                    &version,
+                    TarballUrlOptions {
+                        registry: &registry,
+                        server_type: registry_server_type(
+                            &config.registry_options_by_url,
+                            &registry,
+                        ),
+                    },
+                ),
+            };
             Ok((Cow::Owned(tarball_url), Some(integrity)))
         }
         // Caller (`run`) only invokes this helper for the tarball /
@@ -803,6 +839,40 @@ pub fn tarball_url_and_integrity<'a>(
         | LockfileResolution::Custom(_) => {
             unreachable!("tarball_url_and_integrity called with non-tarball resolution");
         }
+    }
+}
+
+fn registry_and_version(
+    package_key: &PackageKey,
+    config: &Config,
+) -> Result<(String, String), InstallPackageBySnapshotError> {
+    if let Some((registry_name, version)) = package_key.suffix.registry_qualified() {
+        let registry = pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX
+            .iter()
+            .find(|(name, _)| *name == registry_name)
+            .map(|(_, url)| (*url).to_string())
+            .pipe(|builtin| config.registries_by_prefix.get(registry_name).cloned().or(builtin))
+            .ok_or_else(|| InstallPackageBySnapshotError::MissingNamedRegistry {
+                package_key: package_key.to_string(),
+                registry_name: registry_name.to_string(),
+            })?;
+        return Ok((registry, version.to_string()));
+    }
+    let name = package_key.name.to_string();
+    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
+    Ok((
+        pick_registry_for_package(&registries, &name, None),
+        package_key.suffix.version().to_string(),
+    ))
+}
+
+fn invalid_tarball_revision(
+    package_key: &PackageKey,
+    reason: &'static str,
+) -> InstallPackageBySnapshotError {
+    InstallPackageBySnapshotError::InvalidTarballRevision {
+        package_key: package_key.to_string(),
+        reason,
     }
 }
 
@@ -843,33 +913,42 @@ pub fn host_platform_selector() -> PlatformSelector {
     PlatformSelector { os: host_platform().to_string(), cpu: host_arch().to_string(), libc }
 }
 
-/// Resolve the runtime archive selector from `supportedArchitectures`, using
-/// the first requested value on each axis and expanding `current` to the host.
+/// Resolve the runtime archive selector from `supportedArchitectures`.
+///
+/// Exactly one archive is installed per runtime, so each axis prefers
+/// the host's own value: an archive built for another platform cannot
+/// run here.
+///
+/// <https://github.com/pnpm/pnpm/issues/13898>
 #[must_use]
 pub fn runtime_platform_selector(
     supported: Option<&pnpm_package_is_installable::SupportedArchitectures>,
 ) -> PlatformSelector {
     let host = host_platform_selector();
-    let pick = |values: Option<&Vec<String>>, current: &str| {
-        values.and_then(|values| values.first()).map_or_else(
-            || current.to_string(),
-            |value| {
-                if value == "current" { current.to_string() } else { value.clone() }
-            },
-        )
+    let (requested_os, requested_cpu, requested_libc) = match supported {
+        Some(supported) => {
+            (supported.os.as_deref(), supported.cpu.as_deref(), supported.libc.as_deref())
+        }
+        None => (None, None, None),
     };
     PlatformSelector {
-        os: pick(supported.and_then(|value| value.os.as_ref()), &host.os),
-        cpu: pick(supported.and_then(|value| value.cpu.as_ref()), &host.cpu),
-        libc: match supported
-            .and_then(|value| value.libc.as_ref())
-            .and_then(|values| values.first())
-        {
-            None => host.libc,
-            Some(value) if value == "current" => host.libc,
-            Some(value) => Some(value.clone()),
-        },
+        os: pick_supported(requested_os, Some(&host.os)).unwrap_or(&host.os).to_string(),
+        cpu: pick_supported(requested_cpu, Some(&host.cpu)).unwrap_or(&host.cpu).to_string(),
+        libc: pick_supported(requested_libc, host.libc.as_deref()).map(str::to_string),
     }
+}
+
+fn pick_supported<'a>(
+    requested: Option<&'a [String]>,
+    host_value: Option<&'a str>,
+) -> Option<&'a str> {
+    let Some(requested) = requested.filter(|requested| !requested.is_empty()) else {
+        return host_value;
+    };
+    if requested.iter().any(|value| value == "current" || Some(value.as_str()) == host_value) {
+        return host_value;
+    }
+    requested.first().map(String::as_str)
 }
 
 /// Hand-coded matcher for the
@@ -989,6 +1068,7 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             store_index: store_index.cloned(),
             store_index_writer: store_index_writer.cloned(),
             verify_store_integrity: config.verify_store_integrity,
+            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
             verified_files_cache: Arc::clone(verified_files_cache),
             package_integrity: Some(&binary.integrity),
             package_unpacked_size: None,
@@ -1015,6 +1095,7 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             store_index: store_index.cloned(),
             store_index_writer: store_index_writer.cloned(),
             verify_store_integrity: config.verify_store_integrity,
+            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
             verified_files_cache: Arc::clone(verified_files_cache),
             package_integrity: &binary.integrity,
             package_url: &binary.url,

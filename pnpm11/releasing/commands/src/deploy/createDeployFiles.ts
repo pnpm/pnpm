@@ -106,6 +106,10 @@ export function createDeployFiles ({
   }
 
   for (const field of DEPENDENCIES_FIELD) {
+    // An excluded group's direct dependencies are left out of both the
+    // deployed manifest and the deployed importer, because the graph filter
+    // below drops the packages they would point at.
+    if (!include[field]) continue
     const targetDependencies = targetSnapshot[field] ?? {}
     const targetSpecifiers = targetSnapshot.specifiers
     const inputDependencies = inputSnapshot[field] ?? {}
@@ -197,9 +201,9 @@ function filterDeployPackageSnapshots (
     }
   }
 
-  if (include.dependencies) enqueue(importer.dependencies)
-  if (include.devDependencies) enqueue(importer.devDependencies)
-  if (include.optionalDependencies) enqueue(importer.optionalDependencies)
+  enqueue(importer.dependencies)
+  enqueue(importer.devDependencies)
+  enqueue(importer.optionalDependencies)
 
   const reachable = new Set<DepPath>()
   let head = 0

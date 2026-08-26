@@ -34,6 +34,7 @@ impl Resolver for StubResolver {
                 resolution: LockfileResolution::Tarball(TarballResolution {
                     tarball: "https://registry.npmjs.org/target/-/target-2.0.0.tgz".to_string(),
                     integrity: Some("sha512-dGFyZ2V0LTI=".parse().expect("integrity")),
+                    revision: None,
                     git_hosted: None,
                     path: None,
                 }),

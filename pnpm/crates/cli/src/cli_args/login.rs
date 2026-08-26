@@ -3,14 +3,14 @@
 //! `pnpm-auth-commands`; this module is the thin CLI adapter that resolves
 //! config into [`LoginOptions`].
 
-use std::{path::Path, time::Duration};
+use std::path::Path;
 
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_auth_commands::login::{Host as AuthHost, LoginHost, LoginOptions, login};
 use pnpm_config::Config;
-use pnpm_network::{NetworkSettings, ThrottledClient};
+use pnpm_network::ThrottledClient;
 use pnpm_reporter::Reporter;
 
 /// Log in to an npm registry.
@@ -63,11 +63,7 @@ impl LoginArgs {
             &config.proxy,
             &config.tls,
             &config.tls_by_uri,
-            &NetworkSettings {
-                network_concurrency: config.network_concurrency,
-                fetch_timeout: Duration::from_millis(config.fetch_timeout),
-                user_agent: config.user_agent.clone(),
-            },
+            &config.network_settings(),
         )
         .into_diagnostic()?;
 

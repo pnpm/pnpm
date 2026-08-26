@@ -32,7 +32,7 @@ use crate::{
     npm_resolver::{
         BuildResolveResult, PickFromRegistryOptions, RegistryPick, build_resolve_result,
         calc_specifier_from, no_matching_version, pick_from_registry_with_guard,
-        swallowed_as_no_latest,
+        revision_specifier, swallowed_as_no_latest, validate_revision_selector,
     },
     parse_bare_specifier::{
         NamedRegistryPackageSpec, parse_named_registry_specifier_to_registry_package_spec,
@@ -137,6 +137,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         let Some(NamedRegistryPackageSpec { spec, registry_name }) = parsed else {
             return Ok(None);
         };
+        validate_revision_selector(&spec)?;
 
         // Defensive: should never trigger because the parser checks
         // the alias set first, but kept as a belt-and-braces guard.
@@ -165,18 +166,28 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             picked_manifest_cache: &self.picked_manifest_cache,
             // The entry stays a named-registry dependency, so it
             // round-trips under the `<alias>:` protocol prefix.
-            calculated_specifier: calc_specifier_from(wanted_dependency, opts, &spec).map(
-                |(bare_specifier, default_pin)| {
-                    crate::calc_prefixed_specifier(
-                        &format!("{registry_name}:"),
-                        &spec.name,
-                        bare_specifier,
-                        wanted_dependency.alias.as_deref(),
-                        &picked.version,
-                        default_pin,
-                    )
-                },
-            ),
+            calculated_specifier: revision_specifier(
+                wanted_dependency,
+                opts,
+                &spec,
+                Some(&format!("{registry_name}:")),
+                &spec.name,
+                &picked.version.version,
+            )
+            .or_else(|| {
+                calc_specifier_from(wanted_dependency, opts, &spec).map(
+                    |(bare_specifier, default_pin)| {
+                        crate::calc_prefixed_specifier(
+                            &format!("{registry_name}:"),
+                            &spec.name,
+                            bare_specifier,
+                            wanted_dependency.alias.as_deref(),
+                            &picked.version,
+                            default_pin,
+                        )
+                    },
+                )
+            }),
         })?;
 
         Ok(Some(result))
@@ -253,7 +264,8 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
                 include_latest_tag: opts.update == UpdateBehavior::Latest,
                 dry_run: opts.dry_run,
                 optional,
-                update_checksums: opts.update_checksums,
+                update_checksums: opts.update_checksums || opts.update == UpdateBehavior::Patches,
+                trust_policy: opts.trust_policy,
                 package_version_guard: opts.package_version_guard.as_ref(),
             },
         )

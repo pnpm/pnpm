@@ -170,6 +170,7 @@ fn graph_resolver(shape: Shape, size: Size) -> GraphResolver {
                     resolution: LockfileResolution::Tarball(TarballResolution {
                         tarball: format!("https://registry.example/{name}-1.0.0.tgz"),
                         integrity: None,
+                        revision: None,
                         git_hosted: None,
                         path: None,
                     }),
@@ -204,6 +205,7 @@ fn graph_resolver(shape: Shape, size: Size) -> GraphResolver {
                 resolution: LockfileResolution::Tarball(TarballResolution {
                     tarball: format!("https://registry.example/{name}-1.0.0.tgz"),
                     integrity: None,
+                    revision: None,
                     git_hosted: None,
                     path: None,
                 }),

@@ -5,9 +5,11 @@
 //! Each resolver in the chain returns `Ok(None)` to defer to the next
 //! one and `Ok(Some(_))` to claim the wanted dependency.
 //!
-//! Today the chain is empty until the per-protocol resolvers
-//! (npm/jsr/git/tarball/local/runtimes/named-registry/workspace) land
-//! in subsequent PRs.
+//! The install path assembles its own chain around install-scoped
+//! resources; [`standalone::build_standalone_chain`] assembles the one a
+//! single resolve outside an install gets.
+
+pub mod standalone;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -18,10 +20,6 @@ use pnpm_resolving_resolver_base::{
 
 /// Composed chain that wraps an ordered list of per-protocol
 /// resolvers.
-///
-/// Wiring of the actual resolvers (npm, jsr, git, tarball, local,
-/// runtimes, named-registry, workspace) lands in subsequent PRs as
-/// each per-protocol crate is ported.
 pub struct DefaultResolver {
     chain: Vec<Box<dyn Resolver>>,
 }

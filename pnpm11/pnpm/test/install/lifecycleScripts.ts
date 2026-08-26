@@ -183,6 +183,24 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   })
 })
 
+test('--allow-build flag keeps the packages already listed in allowBuilds', async () => {
+  const project = prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': true,
+      'some-string-package': 'reason',
+    },
+  })
+  execPnpmSync(['add', '--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], { expectSuccess: true })
+
+  const workspaceManifest = await readWorkspaceManifest(project.dir())
+  expect(workspaceManifest?.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/install-script-example': true,
+    'some-string-package': 'reason',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+  })
+})
+
 test('--allow-build flag should specify the package', async () => {
   const project = prepare({})
   const result = execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '--allow-build'])
@@ -465,6 +483,42 @@ test('approve-builds works after stashing and re-adding a dependency (#12221)', 
   const secondApprove = execPnpmSync(['approve-builds', '--all'])
   expect(secondApprove.status).toBe(0)
   expect(secondApprove.stdout.toString()).not.toContain('No packages awaiting approval')
+})
+
+test('approve-builds works after removing an unrelated dependency (#13891)', async () => {
+  const project = prepare({})
+
+  const pendingPkg = '@pnpm.e2e/pre-and-postinstall-scripts-example'
+  const removedPkg = '@pnpm.e2e/install-script-example'
+
+  const firstAdd = execPnpmSync(['add', `${pendingPkg}@1.0.0`])
+  expect(firstAdd.status).toBe(1)
+  expect(firstAdd.stdout.toString()).toContain('Ignored build scripts:')
+
+  const secondAdd = execPnpmSync(['add', `${removedPkg}@1.0.0`])
+  expect(secondAdd.status).toBe(1)
+  expect(secondAdd.stdout.toString()).toContain('Ignored build scripts:')
+
+  const remove = execPnpmSync(['remove', removedPkg])
+  expect(remove.status).toBe(0)
+
+  const modulesManifest = project.readModulesManifest()
+  const ignoredNames = Array.from(modulesManifest?.ignoredBuilds ?? []).map((depPath) => parse(depPath).name)
+  expect(ignoredNames).toContain(pendingPkg)
+  expect(ignoredNames).not.toContain(removedPkg)
+  expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-preinstall.js`)).toBeFalsy()
+  expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-postinstall.js`)).toBeFalsy()
+  expect(fs.existsSync(`node_modules/${removedPkg}/generated-by-install.js`)).toBeFalsy()
+
+  const approve = execPnpmSync(['approve-builds', '--all'])
+  expect(approve.status).toBe(0)
+  expect(approve.stdout.toString()).not.toContain('There are no packages awaiting approval')
+  expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-preinstall.js`)).toBeTruthy()
+  expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-postinstall.js`)).toBeTruthy()
+  expect(fs.existsSync(`node_modules/${removedPkg}/generated-by-install.js`)).toBeFalsy()
+
+  const wsManifest = await readWorkspaceManifest(process.cwd())
+  expect(wsManifest!.allowBuilds?.[pendingPkg]).toBe(true)
 })
 
 // Which projects run their own lifecycle scripts is decided by the

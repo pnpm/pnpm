@@ -186,7 +186,7 @@ where
             entry_projects = Some(match_projects_by_path(
                 projects_graph,
                 parent_dir,
-                opts.use_glob_dir_filtering,
+                selector.use_glob_dir_filtering.unwrap_or(opts.use_glob_dir_filtering),
             ));
         }
 

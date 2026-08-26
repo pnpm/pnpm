@@ -22,7 +22,7 @@ export function help (): string {
             name: 'view',
           },
           {
-            description: 'Approve a staged package, publishing it to the npm registry.',
+            description: 'Approve staged packages, publishing them to the npm registry. Run without arguments to choose them interactively.',
             name: 'approve',
           },
           {
@@ -59,7 +59,7 @@ export function help (): string {
             name: '--dry-run',
           },
           {
-            description: 'One-time password for approve and reject.',
+            description: 'One-time password for approve and reject. One password covers a whole batch of approvals; pnpm asks for a new one when the registry stops accepting it.',
             name: '--otp',
           },
           {
@@ -76,7 +76,7 @@ export function help (): string {
       'pnpm stage publish [<tarball>|<dir>] [--tag <tag>] [--access <public|restricted>] [options]',
       'pnpm stage list [<package-spec>]',
       'pnpm stage view <stage-id>',
-      'pnpm stage approve <stage-id>',
+      'pnpm stage approve [<stage-id> ...]',
       'pnpm stage reject <stage-id>',
       'pnpm stage download <stage-id>',
     ],

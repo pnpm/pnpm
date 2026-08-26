@@ -1,4 +1,7 @@
-use crate::State;
+use crate::{
+    State,
+    cli_args::{install::resolve_bool_override, sanitize::sanitize_inline},
+};
 use chrono::{DateTime, Utc};
 use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
@@ -36,8 +39,9 @@ mod request;
 mod version_ranges;
 
 pub(crate) use fix::{
-    AuditFixObserver, VulnerabilityGuard, filter_advisories_for_fix, fix_override, fix_with_update,
-    format_fix_with_update_output, ignore_vulnerabilities, interactive_select,
+    AuditFixObserver, PackumentPublishInfo, VulnerabilityGuard, fetch_publish_times,
+    filter_advisories_for_fix, fix_override, fix_with_update, format_fix_with_update_output,
+    ignore_vulnerabilities, interactive_select, prune_ignored_ghsas,
 };
 pub(crate) use paths::{AuditPathIndex, PathInfo, build_audit_path_index, package_version};
 pub(crate) use render::{
@@ -144,15 +148,19 @@ pub struct AuditDependencyOptions {
     #[clap(short = 'D', long)]
     dev: bool,
     /// Don't audit "optionalDependencies".
-    #[clap(long)]
+    #[clap(long, overrides_with = "optional")]
     no_optional: bool,
+    /// Include "optionalDependencies".
+    #[clap(long, overrides_with = "no_optional")]
+    optional: bool,
 }
 
 impl AuditDependencyOptions {
-    fn include(&self) -> Include {
+    fn include(&self, include_optional: bool) -> Include {
         let mut dependencies = true;
         let mut dev_dependencies = true;
-        let mut optional_dependencies = !self.no_optional;
+        let mut optional_dependencies =
+            resolve_bool_override(self.optional, self.no_optional, include_optional);
         if self.prod {
             dev_dependencies = false;
         } else if self.dev {
@@ -193,7 +201,7 @@ impl AuditArgs {
             return Err(AuditError::UnknownSubcommand { subcommand: subcommand.clone() }.into());
         }
 
-        let include = self.dependency_options.include();
+        let include = self.dependency_options.include(state.config.optional);
         let audit_level = self
             .audit_level
             .map(ConfigAuditLevel::from)
@@ -210,7 +218,7 @@ impl AuditArgs {
         // `--fix update` path can re-borrow `state` mutably. Registry errors
         // are swallowed (per `--ignore-registry-errors`) the same way for
         // every path, matching pnpm's catch around the `audit()` call.
-        let report = {
+        let mut report = {
             let lockfile = state
                 .lockfile
                 .get()
@@ -243,8 +251,57 @@ impl AuditArgs {
                 Err(err) => return Err(err.into()),
             }
         };
+        // The inferred patched range is syntactic: verify a published version
+        // actually satisfies it before the report and any fix flow can claim
+        // one. The fetched publish-time maps are reused by the fix flows for
+        // the age-gate exclusion check.
+        let publish_infos = correct_inferred_patched_versions(
+            &mut report,
+            state.config,
+            state.http_client.as_ref(),
+        )
+        .await;
 
         if let Some(fix_method) = fix_method {
+            // Remove ignored GHSAs that no longer appear in the report before
+            // filtering. Mirrors pnpm's `audit.ignorePrune` handling in the
+            // `audit` command handler.
+            if state.config.audit_ignore_prune.unwrap_or(false)
+                && !state.config.audit_config.ignore_ghsas.is_empty()
+            {
+                let configured_ghsas = &state.config.audit_config.ignore_ghsas;
+                let prune = prune_ignored_ghsas(configured_ghsas, &report);
+                if !prune.pruned.is_empty() {
+                    // The pruned ids keep their original spelling from the
+                    // repository-controlled workspace manifest, so strip
+                    // control characters before they reach the terminal.
+                    println!(
+                        "Removed {} unused ignored GHSA{}: {}",
+                        prune.pruned.len(),
+                        if prune.pruned.len() == 1 { "" } else { "s" },
+                        prune
+                            .pruned
+                            .iter()
+                            .map(|ghsa| sanitize_inline(ghsa))
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    );
+                }
+                // Persist even when nothing was removed: `retained` may
+                // still differ from the configured list (deduplicated or
+                // case-normalized), and the file should always reflect the
+                // canonical form.
+                if &prune.retained != configured_ghsas {
+                    pnpm_workspace_manifest_writer::set_audit_ignore_ghsas(
+                        &settings_dir,
+                        &prune.retained,
+                    )
+                    .map_err(|err| {
+                        miette::Report::new(err)
+                            .wrap_err("write auditConfig.ignoreGhsas to pnpm-workspace.yaml")
+                    })?;
+                }
+            }
             // Pre-filter by audit-level and ignored GHSAs so the interactive
             // prompt and both fix methods see the same advisory set the
             // override path's fixable filter would.
@@ -260,13 +317,9 @@ impl AuditArgs {
             };
             return match fix_method {
                 FixMethod::Override => {
-                    let output = fix_override(
-                        &filtered,
-                        &settings_dir,
-                        state.config,
-                        state.http_client.as_ref(),
-                    )
-                    .await?;
+                    let output =
+                        fix_override(&filtered, &settings_dir, state.config, &publish_infos)
+                            .await?;
                     print!("{output}");
                     let _ = std::io::stdout().flush();
                     Ok(AuditOutcome::Clean)
@@ -277,6 +330,7 @@ impl AuditArgs {
                         &filtered,
                         &lockfile_dir,
                         &settings_dir,
+                        &publish_infos,
                     )
                     .await?;
                     let mut output = format_fix_with_update_output(&fixed, &remaining, &filtered);
@@ -312,7 +366,6 @@ impl AuditArgs {
             return Ok(AuditOutcome::Clean);
         }
 
-        let mut report = report;
         let total_vulnerability_count = report.metadata.vulnerabilities.total();
         let ignored = filter_ignored_advisories(&mut report, state.config);
 
@@ -356,7 +409,7 @@ impl AuditArgs {
     /// [`AuditOutcome::Vulnerable`]) when any signature is missing or invalid.
     /// Ports pnpm's `auditSignatures`.
     async fn run_signatures(&self, state: State) -> miette::Result<AuditOutcome> {
-        let include = self.dependency_options.include();
+        let include = self.dependency_options.include(state.config.optional);
         let lockfile_dir = state.lockfile_dir().to_path_buf();
 
         let packages = {
@@ -473,6 +526,58 @@ fn retry_opts_from_config(config: &Config) -> RetryOpts {
         min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
         max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
     }
+}
+
+/// Corrects inferred `patched_versions` ranges against the registry: the
+/// inference from `vulnerable_versions` is purely syntactic, so the inferred
+/// minimum may not be a viable fix — it may never have been published, been
+/// skipped, been yanked, or been deprecated. When the inferred range is
+/// satisfiable, it is narrowed to the lowest non-deprecated published version
+/// (e.g. `>=4.17.24` becomes `>=4.18.1` when 4.17.24 does not exist and
+/// 4.18.0 is deprecated). When no published version satisfies it, the range
+/// is dropped entirely. A failed packument lookup leaves the range untouched
+/// (fail open). Ports pnpm's `correctInferredPatchedVersions`.
+///
+/// Returns the fetched publish-time maps so the fix flows can reuse them for
+/// the age-gate exclusion check instead of re-fetching each packument.
+async fn correct_inferred_patched_versions(
+    report: &mut AuditReport,
+    config: &Config,
+    http_client: &pnpm_network::ThrottledClient,
+) -> HashMap<String, Option<PackumentPublishInfo>> {
+    let names: HashSet<&str> = report
+        .advisories
+        .values()
+        .filter(|advisory| advisory.patched_versions.is_some())
+        .map(|advisory| advisory.module_name.trim())
+        .collect();
+    if names.is_empty() {
+        return HashMap::new();
+    }
+    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
+    let fetches = names.into_iter().map(|name| {
+        let registry = pick_registry_for_package(&registries, name, None);
+        async move {
+            (name.to_string(), fetch_publish_times(name, &registry, config, http_client).await)
+        }
+    });
+    let publish_infos: HashMap<String, Option<PackumentPublishInfo>> =
+        futures_util::future::join_all(fetches).await.into_iter().collect();
+    for advisory in report.advisories.values_mut() {
+        let Some(patched) = advisory.patched_versions.as_deref() else { continue };
+        let Some(Some(info)) = publish_infos.get(advisory.module_name.trim()) else { continue };
+        let Ok(range) = patched.parse::<Range>() else { continue };
+        match info.lowest_non_deprecated_version(&range) {
+            None => {
+                advisory.patched_versions = None;
+                advisory.patched_versions_unpublished = Some(true);
+            }
+            Some((_, lowest)) => {
+                advisory.patched_versions = Some(format!(">={lowest}"));
+            }
+        }
+    }
+    publish_infos
 }
 
 impl<'a> AuditGraph<'a> {

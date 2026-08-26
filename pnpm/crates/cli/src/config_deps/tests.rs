@@ -1,6 +1,6 @@
 use std::{fs, path::Path};
 
-use pnpm_config::{Config, Host, TrustPolicy};
+use pnpm_config::{Config, Host, PNPM_VERSION, TrustPolicy};
 use pnpm_reporter::SilentReporter;
 
 use super::{resolve_engine_version, run_update_config_hooks};
@@ -390,4 +390,71 @@ async fn resolve_pnpm_version_forces_full_metadata_for_no_downgrade_despite_regi
         report.contains("trust downgrade"),
         "expected a trust-downgrade rejection, got: {report}",
     );
+}
+
+/// pnpm/pnpm#13883: a dist-tag pointing at the running pnpm, published
+/// within the `minimumReleaseAge` cutoff, must still resolve to it. The
+/// maturity filter moved such a tag back to the previous mature release,
+/// so `pnpm self-update <tag>` downgraded instead of doing nothing.
+#[tokio::test]
+async fn resolve_pnpm_version_keeps_a_dist_tag_on_the_running_version() {
+    let running = node_semver::Version::parse(PNPM_VERSION).expect("parse the running version");
+    let older = if running.pre_release.is_empty() {
+        format!("{}.0.0", running.major - 1)
+    } else {
+        format!("{}.{}.{}-0", running.major, running.minor, running.patch)
+    };
+    let body = format!(
+        r#"{{
+    "name": "pnpm",
+    "dist-tags": {{ "latest": "{PNPM_VERSION}" }},
+    "time": {{
+        "{older}": "2024-01-10T08:30:00.000Z",
+        "{PNPM_VERSION}": "{fresh}"
+    }},
+    "versions": {{
+        "{older}": {{
+            "name": "pnpm",
+            "version": "{older}",
+            "dist": {{
+                "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                "shasum": "0000000000000000000000000000000000000000",
+                "tarball": "https://registry/pnpm-{older}.tgz"
+            }}
+        }},
+        "{PNPM_VERSION}": {{
+            "name": "pnpm",
+            "version": "{PNPM_VERSION}",
+            "dist": {{
+                "integrity": "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+                "shasum": "1111111111111111111111111111111111111111",
+                "tarball": "https://registry/pnpm-{PNPM_VERSION}.tgz"
+            }}
+        }}
+    }}
+}}"#,
+        fresh = chrono::Utc::now().to_rfc3339(),
+    );
+    let mut server = mockito::Server::new_async().await;
+    let _packument = server
+        .mock("GET", "/pnpm")
+        .with_status(200)
+        .with_body(&body)
+        .expect_at_least(1)
+        .create_async()
+        .await;
+    let cache_dir = tempfile::TempDir::new().expect("cache tempdir");
+    let mut config = Config {
+        minimum_release_age: Some(24 * 60),
+        cache_dir: cache_dir.path().to_path_buf(),
+        ..Config::default()
+    };
+    config.package_manager_bootstrap.registry = format!("{}/", server.url());
+
+    let resolved = resolve_engine_version(&config, "pnpm", "latest")
+        .await
+        .expect("the tag must resolve")
+        .expect("a matching pnpm version resolves");
+
+    assert_eq!(resolved.version, PNPM_VERSION);
 }

@@ -1,7 +1,9 @@
 use super::{
     create_hash, create_hash_from_file, create_hex_hash, create_hex_hash_bytes,
-    create_hex_hash_from_file, create_short_hash, shorten_virtual_store_name,
+    create_hex_hash_from_file, create_short_hash, integrity_addressed_tarball_integrity,
+    integrity_addressed_tarball_path, shorten_virtual_store_name,
 };
+use ssri::Integrity;
 
 /// Pinned vector against the shell oracle:
 ///
@@ -77,4 +79,45 @@ fn shorten_triggered_by_uppercase_unless_file_protocol() {
 
     let file_proto = "file+path+with+Caps".to_string();
     assert_eq!(shorten_virtual_store_name(file_proto.clone(), 120), file_proto);
+}
+
+#[test]
+fn integrity_address_requires_one_complete_canonical_sha512_hash() {
+    let digest = format!("{}==", "A".repeat(86));
+    let integrity: Integrity = format!("sha512-{digest}").parse().unwrap();
+    assert_eq!(
+        integrity_addressed_tarball_path(&integrity),
+        Some(format!("-/tarballs/sha512/{}", "A".repeat(86))),
+    );
+
+    for malformed in [
+        "sha512-AAAA",
+        &format!("sha512-{}", "A".repeat(1024 * 1024)),
+        &format!("sha512-{}", "A".repeat(86)),
+        &format!("sha256-{}=", "A".repeat(43)),
+        &format!("sha512-{digest} sha512-{digest}"),
+    ] {
+        let integrity: Integrity = malformed.parse().unwrap();
+        assert_eq!(integrity_addressed_tarball_path(&integrity), None, "{malformed}");
+    }
+}
+
+#[test]
+fn integrity_address_digest_round_trips_to_canonical_sha512() {
+    let digest = "A".repeat(86);
+    let integrity = integrity_addressed_tarball_integrity(&digest).unwrap();
+    assert_eq!(
+        integrity_addressed_tarball_path(&integrity),
+        Some(format!("-/tarballs/sha512/{digest}")),
+    );
+
+    for malformed in [
+        "A".repeat(85),
+        "A".repeat(87),
+        format!("{}=", "A".repeat(85)),
+        format!("{}+", "A".repeat(85)),
+        format!("{}!", "A".repeat(85)),
+    ] {
+        assert_eq!(integrity_addressed_tarball_integrity(&malformed), None, "{malformed}");
+    }
 }

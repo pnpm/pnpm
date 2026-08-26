@@ -380,6 +380,86 @@ fn undecodable_prior_version_fails_closed() {
     assert!(matches!(err, TrustViolation::TrustCheckFailed { .. }), "got {err:?}");
 }
 
+mod ignore_missing_time_field {
+    use pnpm_registry::Package;
+
+    use super::{
+        Evidence, TrustCheckOptions, TrustViolation, fail_if_trust_downgraded, make_package,
+    };
+
+    /// A downgrade candidate (provenance → nothing) whose `time` map is
+    /// absent as a whole: a registry that strips the field, or one whose
+    /// partial map `Package::drop_incomplete_publish_times` normalized
+    /// away.
+    fn time_free_package() -> Package {
+        let mut meta = make_package(
+            "timeless",
+            &[
+                ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::Provenance),
+                ("2.0.0", "2025-02-01T00:00:00.000Z", Evidence::None),
+            ],
+        );
+        meta.time = None;
+        meta
+    }
+
+    #[test]
+    fn fails_when_the_flag_is_off() {
+        let meta = time_free_package();
+        let err = fail_if_trust_downgraded(&meta, "2.0.0", &TrustCheckOptions::default())
+            .expect_err("a time-free packument fails closed without the opt-in");
+        let TrustViolation::TrustCheckFailed { reason } = err else {
+            panic!("expected TrustCheckFailed, got {err:?}");
+        };
+        assert!(reason.contains(r#"missing the "time" field"#), "got reason: {reason}");
+    }
+
+    #[test]
+    fn skips_the_check_when_the_flag_is_on() {
+        let meta = time_free_package();
+        let opts = TrustCheckOptions { ignore_missing_time_field: true, ..Default::default() };
+        fail_if_trust_downgraded(&meta, "2.0.0", &opts)
+            .expect("the opt-in skips the check on a packument with no time map");
+    }
+
+    /// A packument that dates the versions it lists is saying it does
+    /// not have this one, so the gap stays a hard failure no matter how
+    /// the flag is set.
+    #[test]
+    fn still_fails_when_the_time_map_omits_the_version() {
+        let mut meta = make_package(
+            "timeless",
+            &[
+                ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::Provenance),
+                ("2.0.0", "2025-02-01T00:00:00.000Z", Evidence::None),
+            ],
+        );
+        meta.time.as_mut().expect("fixture builds a time map").remove("2.0.0");
+        let opts = TrustCheckOptions { ignore_missing_time_field: true, ..Default::default() };
+        let err = fail_if_trust_downgraded(&meta, "2.0.0", &opts)
+            .expect_err("a per-version hole is not a registry that omits the field");
+        let TrustViolation::TrustCheckFailed { reason } = err else {
+            panic!("expected TrustCheckFailed, got {err:?}");
+        };
+        assert!(reason.contains("missing time for version 2.0.0"), "got reason: {reason}");
+    }
+
+    #[test]
+    fn still_reports_a_downgrade_when_the_time_map_is_complete() {
+        let meta = make_package(
+            "timeless",
+            &[
+                ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::Provenance),
+                ("2.0.0", "2025-02-01T00:00:00.000Z", Evidence::None),
+            ],
+        );
+        let opts = TrustCheckOptions { ignore_missing_time_field: true, ..Default::default() };
+        let err = fail_if_trust_downgraded(&meta, "2.0.0", &opts)
+            .expect_err("the opt-in must not blind a check that has the dates it needs");
+        assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
+    }
+}
+
 mod get_trust_evidence {
     use pnpm_registry::PackageVersion;
 

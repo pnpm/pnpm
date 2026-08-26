@@ -3,12 +3,16 @@ import path from 'node:path'
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
-import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
+import {
+  createNpmResolver,
+} from '@pnpm/resolving.npm-resolver'
+import { EXISTING_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { RegistriesByScope } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
+import { getPkgMirrorPath, prepareJsonForDisk, saveMeta } from '../src/pickPackage.js'
 import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -91,6 +95,7 @@ test('resolveFromJsr() on jsr with alias renaming', async () => {
     cacheDir,
     registriesByScope,
   })
+
   const resolveResult = await resolveFromJsr({ alias: 'greet', bareSpecifier: 'jsr:@rus/greet@0.0.3' }, {})
 
   expect(resolveResult).toMatchObject({
@@ -115,6 +120,41 @@ test('resolveFromJsr() on jsr with alias renaming', async () => {
     versions: expect.any(Object),
     'dist-tags': expect.any(Object),
   })
+})
+
+test('resolveFromJsr() revalidates cached ranges under trust downgrade protection', async () => {
+  const slash = '%2F'
+  const jsrPool = getMockAgent().get(registriesByScope['@jsr'].replace(/\/$/, ''))
+  jsrPool.intercept({ path: `/@jsr${slash}rus__greet`, method: 'GET' }).reply(200, jsrRusGreetMeta)
+  const cacheDir = temporaryDirectory()
+  await saveMeta(
+    getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, registriesByScope['@jsr'], '@jsr/rus__greet'),
+    prepareJsonForDisk(jsrRusGreetMeta, undefined)
+  )
+  const fetchedUrls: string[] = []
+  const countingFetch: typeof fetch = async (url, opts) => {
+    fetchedUrls.push(url.toString())
+    return fetch(url, opts)
+  }
+  const { resolveFromJsr } = createNpmResolver(countingFetch, getAuthHeader, {
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+
+  await resolveFromJsr(
+    { alias: '@rus/greet', bareSpecifier: 'jsr:^0.0.1' },
+    {
+      preferredVersions: {
+        '@jsr/rus__greet': {
+          '0.0.3': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+        },
+      },
+      trustPolicy: 'no-downgrade',
+    }
+  )
+
+  expect(fetchedUrls).toEqual(['https://npm.jsr.io/@jsr%2Frus__greet'])
 })
 
 test('resolveFromJsr() on jsr with packages without scope', async () => {
