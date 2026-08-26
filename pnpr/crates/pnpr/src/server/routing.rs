@@ -27,17 +27,15 @@ use super::{
     MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES,
     MAX_CONCURRENT_ARTIFACT_BLOB_VERIFICATIONS, MAX_LOGIN_BODY_BYTES, MAX_PUBLISH_BODY_BYTES,
     StripedLocks, authenticate, compute_upstream_cache_namespace, default_registry_target,
-    delete_package, delete_session_token, delete_session_token_prefixed, delete_tarball,
-    delete_token_by_key, delete_token_by_key_prefixed, get_dist_tags, get_org_teams, get_profile,
-    get_profile_prefixed, get_team_members, get_token_list, get_token_list_prefixed, get_whoami,
-    get_whoami_prefixed, loggable_uri, not_found, private_if_caller_gated, private_no_cache,
-    publish_package, put_login, put_login_prefixed, reject_team_mutation, remove_dist_tag,
-    require_resolver_caller, resolver_disabled, serve_artifact_blob, serve_batch_publish,
-    serve_packument, serve_ping, serve_pnpr_handshake, serve_publish_artifact,
-    serve_registry_packument, serve_registry_tarball, serve_registry_version_manifest,
-    serve_resolve, serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
-    serve_verify_lockfile, serve_version_manifest, set_dist_tag, staged, update_packument,
-    upstream_tarball_base,
+    delete_package, delete_session_token, delete_tarball, delete_token_by_key, get_dist_tags,
+    get_org_teams, get_profile, get_team_members, get_token_list, get_whoami, loggable_uri,
+    not_found, private_if_caller_gated, private_no_cache, publish_package, put_login,
+    reject_team_mutation, remove_dist_tag, require_resolver_caller, resolver_disabled,
+    serve_artifact_blob, serve_batch_publish, serve_packument, serve_ping, serve_pnpr_handshake,
+    serve_publish_artifact, serve_registry_packument, serve_registry_tarball,
+    serve_registry_version_manifest, serve_resolve, serve_resolve_artifacts,
+    serve_revision_tarball, serve_search, serve_tarball, serve_verify_lockfile,
+    serve_version_manifest, set_dist_tag, staged, update_packument, upstream_tarball_base,
 };
 
 pub(super) fn router_with_auth_and_osv(
@@ -104,23 +102,23 @@ pub(super) fn router_with_auth_and_osv(
     // carefully mask.
     router = router
         .route("/-/whoami", get(get_whoami))
-        .route("/{prefix}/-/whoami", get(get_whoami_prefixed))
+        .route("/{prefix}/-/whoami", get(get_whoami))
         .route(
             "/-/user/{user}",
             put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
         )
         .route(
             "/{prefix}/-/user/{user}",
-            put(put_login_prefixed).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
+            put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
         )
         .route("/-/user/token/{token}", delete(delete_session_token))
-        .route("/{prefix}/-/user/token/{token}", delete(delete_session_token_prefixed))
+        .route("/{prefix}/-/user/token/{token}", delete(delete_session_token))
         .route("/-/npm/v1/user", get(get_profile))
-        .route("/{prefix}/-/npm/v1/user", get(get_profile_prefixed))
+        .route("/{prefix}/-/npm/v1/user", get(get_profile))
         .route("/-/npm/v1/tokens", get(get_token_list))
-        .route("/{prefix}/-/npm/v1/tokens", get(get_token_list_prefixed))
+        .route("/{prefix}/-/npm/v1/tokens", get(get_token_list))
         .route("/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key))
-        .route("/{prefix}/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key_prefixed));
+        .route("/{prefix}/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key));
     // The install-accelerator (resolver) surface, all under the reserved
     // `/-/pnpr` namespace. `/-/pnpr` is the capability handshake (404 on a
     // plain registry); `/-/pnpr/v0/resolve` and `/-/pnpr/v0/verify-lockfile`
@@ -207,14 +205,11 @@ pub(super) fn router_with_auth_and_osv(
             .route("/-/stage/{id}", get(staged::get_staged).delete(staged::reject_staged))
             .route("/-/stage/{id}/approve", post(staged::approve_staged))
             .route("/-/stage/{id}/tarball", get(staged::get_staged_tarball))
-            .route("/{prefix}/-/stage", get(staged::list_staged_prefixed))
-            .route("/{prefix}/-/stage/package/{name}", post(staged::post_staged_publish_prefixed))
-            .route(
-                "/{prefix}/-/stage/{id}",
-                get(staged::get_staged_prefixed).delete(staged::reject_staged_prefixed),
-            )
-            .route("/{prefix}/-/stage/{id}/approve", post(staged::approve_staged_prefixed))
-            .route("/{prefix}/-/stage/{id}/tarball", get(staged::get_staged_tarball_prefixed))
+            .route("/{prefix}/-/stage", get(staged::list_staged))
+            .route("/{prefix}/-/stage/package/{name}", post(staged::post_staged_publish))
+            .route("/{prefix}/-/stage/{id}", get(staged::get_staged).delete(staged::reject_staged))
+            .route("/{prefix}/-/stage/{id}/approve", post(staged::approve_staged))
+            .route("/{prefix}/-/stage/{id}/tarball", get(staged::get_staged_tarball))
             .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
             .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
             .route(

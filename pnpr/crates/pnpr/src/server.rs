@@ -39,8 +39,11 @@ use crate::{
 use axum::{
     Router,
     body::Body,
-    extract::{Path, Request, State, connect_info::Connected},
-    http::{HeaderMap, StatusCode, header},
+    extract::{
+        FromRequestParts, Path, RawPathParams, Request, State, connect_info::Connected,
+        rejection::RawPathParamsRejection,
+    },
+    http::{HeaderMap, StatusCode, header, request::Parts},
     middleware::Next,
     response::{IntoResponse, Response},
     serve::IncomingStream,
@@ -49,6 +52,7 @@ use chrono::Utc;
 use indexmap::IndexMap;
 use pnpm_crypto_hash::{integrity_addressed_tarball_integrity, integrity_addressed_tarball_path};
 use pnpm_lockfile::TarballRevision;
+use serde::Deserialize;
 use serde_json::{Value, json};
 use ssri::Integrity;
 use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
@@ -403,23 +407,62 @@ async fn shutdown_signal() {
 // non-`~` login path is the body cap's 413, not a 404).
 // --------------------------------------------------------------------
 
-/// Whether `prefix` is a `/~<prefix>/`-style first segment — the only
-/// shape the prefixed account routes serve.
-fn is_tilde_prefix(prefix: &str) -> bool {
-    prefix.strip_prefix('~').is_some_and(|rest| !rest.is_empty())
-}
+/// The registry a request addressed through a leading `/~<name>/`, or `None`
+/// when it arrived on the path-less base.
+///
+/// Every route that answers under a registry prefix is registered twice — once
+/// bare, once under `/{prefix}` — pointing at the same handler. This extractor
+/// is what tells the two apart, so a handler states once that it is
+/// prefix-aware instead of needing a near-identical twin.
+///
+/// A `{prefix}` segment that is present but is not a well-formed `~<name>`
+/// rejects with 404: the prefixed registration exists only to serve that
+/// shape, and falling through to the base behaviour would let any first
+/// segment reach an endpoint the route never meant to expose.
+pub(super) struct TargetRegistry(pub(super) Option<String>);
 
-async fn get_whoami(AuthedCaller(identity): AuthedCaller) -> Response {
-    private_no_cache(serve_whoami(&identity))
-}
+impl<RouterState: Send + Sync> FromRequestParts<RouterState> for TargetRegistry {
+    type Rejection = Response;
 
-async fn get_whoami_prefixed(
-    AuthedCaller(identity): AuthedCaller,
-    Path(prefix): Path<String>,
-) -> Response {
-    if !is_tilde_prefix(&prefix) {
-        return not_found();
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _state: &RouterState,
+    ) -> Result<Self, Self::Rejection> {
+        // `RawPathParams` reports only what the matched route captured, so an
+        // absent `prefix` means this is the bare registration rather than a
+        // prefixed request that happened to omit the segment.
+        let params = RawPathParams::from_request_parts(parts, &()).await.map_err(|err| {
+            match err {
+                // The client sent a segment that percent-decodes to invalid
+                // UTF-8. It cannot be a well-formed `~<name>`, so answer it the
+                // same 404 every other malformed prefix gets rather than a 500
+                // — a bad URL is not a server fault, and rendering it as one
+                // would also let a client fill the error log.
+                RawPathParamsRejection::InvalidUtf8InPathParam(_) => RegistryError::NotFound,
+                // The matched route registered no path parameters at all, which
+                // means the route table and this extractor disagree. Fail closed
+                // rather than serve the request as if it named no registry.
+                rejection => RegistryError::Internal {
+                    reason: format!("path params unavailable: {rejection}"),
+                },
+            }
+            .into_response()
+        })?;
+        let Some((_, prefix)) = params.iter().find(|(name, _)| *name == "prefix") else {
+            return Ok(Self(None));
+        };
+        prefix
+            .strip_prefix('~')
+            .filter(|registry| !registry.is_empty())
+            .map(|registry| Self(Some(registry.to_string())))
+            .ok_or_else(|| RegistryError::NotFound.into_response())
     }
+}
+
+async fn get_whoami(
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(_): TargetRegistry,
+) -> Response {
     private_no_cache(serve_whoami(&identity))
 }
 
@@ -427,94 +470,66 @@ async fn get_whoami_prefixed(
 /// from the request body, not the caller's existing identity.
 async fn put_login(
     State(state): State<AppState>,
-    Path(user): Path<String>,
+    TargetRegistry(_): TargetRegistry,
+    Path(path): Path<UserPath>,
     body: axum::body::Bytes,
 ) -> Response {
-    match user.strip_prefix("org.couchdb.user:") {
+    match path.user.strip_prefix("org.couchdb.user:") {
         Some(name) => add_user(&state, name, &body).await,
         None => not_found(),
     }
 }
 
-async fn put_login_prefixed(
-    State(state): State<AppState>,
-    Path((prefix, user)): Path<(String, String)>,
-    body: axum::body::Bytes,
-) -> Response {
-    if !is_tilde_prefix(&prefix) {
-        return not_found();
-    }
-    put_login(State(state), Path(user), body).await
-}
-
 async fn delete_session_token(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path(token): Path<String>,
+    TargetRegistry(_): TargetRegistry,
+    Path(path): Path<TokenPath>,
 ) -> Response {
-    private_no_cache(logout(&state, &identity, &token).await)
+    private_no_cache(logout(&state, &identity, &path.token).await)
 }
 
-async fn delete_session_token_prefixed(
-    State(state): State<AppState>,
+async fn get_profile(
     AuthedCaller(identity): AuthedCaller,
-    Path((prefix, token)): Path<(String, String)>,
+    TargetRegistry(_): TargetRegistry,
 ) -> Response {
-    if !is_tilde_prefix(&prefix) {
-        return not_found();
-    }
-    private_no_cache(logout(&state, &identity, &token).await)
-}
-
-async fn get_profile(AuthedCaller(identity): AuthedCaller) -> Response {
-    private_no_cache(serve_profile(&identity))
-}
-
-async fn get_profile_prefixed(
-    AuthedCaller(identity): AuthedCaller,
-    Path(prefix): Path<String>,
-) -> Response {
-    if !is_tilde_prefix(&prefix) {
-        return not_found();
-    }
     private_no_cache(serve_profile(&identity))
 }
 
 async fn get_token_list(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(_): TargetRegistry,
 ) -> Response {
-    private_no_cache(list_tokens(&state, &identity).await)
-}
-
-async fn get_token_list_prefixed(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    Path(prefix): Path<String>,
-) -> Response {
-    if !is_tilde_prefix(&prefix) {
-        return not_found();
-    }
     private_no_cache(list_tokens(&state, &identity).await)
 }
 
 async fn delete_token_by_key(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path(key): Path<String>,
+    TargetRegistry(_): TargetRegistry,
+    Path(path): Path<TokenKeyPath>,
 ) -> Response {
-    private_no_cache(revoke_token_by_key(&state, &identity, &key).await)
+    private_no_cache(revoke_token_by_key(&state, &identity, &path.key).await)
 }
 
-async fn delete_token_by_key_prefixed(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    Path((prefix, key)): Path<(String, String)>,
-) -> Response {
-    if !is_tilde_prefix(&prefix) {
-        return not_found();
-    }
-    private_no_cache(revoke_token_by_key(&state, &identity, &key).await)
+/// The account routes capture their own parameter alongside the optional
+/// `{prefix}`, so each needs a named shape rather than a bare `Path<String>`:
+/// the prefixed registration captures two segments and a single-value `Path`
+/// would refuse to deserialize it.
+#[derive(Deserialize)]
+struct UserPath {
+    user: String,
+}
+
+#[derive(Deserialize)]
+struct TokenPath {
+    token: String,
+}
+
+#[derive(Deserialize)]
+struct TokenKeyPath {
+    key: String,
 }
 
 // --------------------------------------------------------------------
