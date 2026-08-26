@@ -9,8 +9,7 @@ use node_semver::{Range, Version};
 use pnpm_resolving_resolver_base::{
     PreferredVersions, VersionSelectorEntry, VersionSelectorType, get_peer_version_range,
 };
-
-use crate::include_prerelease_range::IncludePrereleaseRange;
+use pnpm_semver_include_prerelease::IncludePrereleaseRange;
 
 /// One workspace-root dep the loop can satisfy a peer with.
 #[derive(Debug, Clone)]

@@ -4451,6 +4451,7 @@ dependencies = [
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
+ "pnpm-semver-include-prerelease",
  "pnpm-store-dir",
  "pnpm-tarball",
  "pnpm-testing-utils",
@@ -5305,6 +5306,7 @@ dependencies = [
  "derive_more",
  "miette 7.6.0",
  "node-semver",
+ "pnpm-semver-include-prerelease",
  "pnpm-testing-utils",
  "pretty_assertions",
  "serde",
@@ -5600,6 +5602,7 @@ dependencies = [
  "pnpm-resolving-jsr-specifier-parser",
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
+ "pnpm-semver-include-prerelease",
  "pretty_assertions",
  "rustc-hash 2.1.2",
  "serde_json",
@@ -5736,6 +5739,13 @@ dependencies = [
  "serde_json",
  "ssri",
  "tokio",
+]
+
+[[package]]
+name = "pnpm-semver-include-prerelease"
+version = "0.0.1"
+dependencies = [
+ "node-semver",
 ]
 
 [[package]]

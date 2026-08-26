@@ -309,6 +309,31 @@ fn pre_command_plan_records_a_pin_whose_specifier_the_lockfile_no_longer_matches
     );
 }
 
+/// A range pin resolves once; from then on the lockfile names the one pnpm
+/// every contributor on the project runs. A running pnpm the range would
+/// also have allowed is not that one.
+#[test]
+fn pre_command_plan_switches_to_the_version_the_pin_resolved_to() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), ">=0.0.0");
+    write_lockfile(root.path(), &locked_package_manager(">=0.0.0", "99.0.0"));
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::Switch(plan)) = plan else {
+        panic!("expected a switch plan, got {plan:?}");
+    };
+    let SwitchSource::LockedEnv { version, .. } = plan.target.source else {
+        panic!("expected the locked resolution to be switched to");
+    };
+    assert_eq!(version, "99.0.0");
+}
+
 #[test]
 fn pre_command_plan_records_a_pin_the_pm_on_fail_setting_reactivated() {
     let root = TempDir::new().expect("tmp dir");

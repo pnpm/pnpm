@@ -17,7 +17,7 @@ use node_semver::{MAX_SAFE_INTEGER, Range, Version};
 ///
 /// [`Range::satisfies`] hardcodes the eligibility rule and exposes no
 /// options, so neither half can be reached through it.
-pub(crate) struct IncludePrereleaseRange {
+pub struct IncludePrereleaseRange {
     /// The `||`-separated alternatives. A version satisfies the range
     /// when it satisfies every comparator of any one alternative; an
     /// alternative with no comparators is npm's `*`.
@@ -30,12 +30,19 @@ impl IncludePrereleaseRange {
     /// is nothing but such comparators is dropped whole, so a range no
     /// parser accepts is satisfied by nothing rather than by everything.
     #[must_use]
-    pub(crate) fn parse(range: &str) -> Self {
+    pub fn parse(range: &str) -> Self {
         IncludePrereleaseRange { alternatives: range.split("||").filter_map(comparators).collect() }
     }
 
+    /// Whether `version` lies inside any one of the range's
+    /// `||`-separated alternatives.
+    ///
+    /// A prerelease is eligible wherever its own release would be, and
+    /// clears a lower bound npm synthesized for an omitted component
+    /// exactly when that release clears it — the two halves of
+    /// `includePrerelease` [`IncludePrereleaseRange`] describes.
     #[must_use]
-    pub(crate) fn satisfies(&self, version: &Version) -> bool {
+    pub fn satisfies(&self, version: &Version) -> bool {
         // The eligibility rule `includePrerelease` drops only ever
         // excludes prereleases, so for a release `node_semver` already
         // answers with the endpoint test — and answers it without the

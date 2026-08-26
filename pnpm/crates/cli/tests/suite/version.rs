@@ -91,6 +91,55 @@ fn version_flag_records_a_pinned_package_manager_it_does_not_need_to_switch_to()
     drop((root, mock_instance));
 }
 
+/// A range pin is resolved once, and the lockfile then names the one pnpm
+/// every contributor on the project runs. A running pnpm that satisfies the
+/// range as well is not automatically that one.
+#[test]
+fn version_flag_switches_to_the_version_a_range_pin_resolved_to() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_dev_engine_pin(&workspace, "9.3.0");
+
+    let output = version_output(root.path(), &workspace, &mock_instance.url());
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet --version should succeed");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
+
+    write_dev_engine_pin(&workspace, ">=0.0.0");
+
+    let output = version_output(root.path(), &workspace, &mock_instance.url());
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet --version should succeed");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
+
+    drop((root, mock_instance));
+}
+
+fn write_dev_engine_pin(workspace: &Path, version: &str) {
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{version}","onFail":"download"}}}}}}"#,
+        ),
+    )
+    .expect("write package.json");
+}
+
+fn version_output(root: &Path, workspace: &Path, registry: &str) -> std::process::Output {
+    use assert_cmd::cargo::CommandCargoExt as _;
+    use pnpm_testing_utils::command_env::CommandTestExt as _;
+    let command = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .without_ambient_pnpm_config();
+    test_command(command, root)
+        .env("PNPM_CONFIG_REGISTRY", registry)
+        .arg("--version")
+        .output()
+        .expect("run pacquet --version")
+}
+
 fn test_command(mut command: Command, root: &Path) -> Command {
     command.env("PNPM_HOME", root.join("pnpm-home"));
     command.env("HOME", root);
