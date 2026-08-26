@@ -27,10 +27,8 @@ use tokio::{
     io::{AsyncSeekExt, AsyncWriteExt},
 };
 
-pub use self::backend::{HostedPackumentForUpdate, HostedPackumentVersion, TarballFinalize};
-// The trait is the backend contract: implemented and dispatched only inside
-// this crate.
 pub(crate) use self::backend::HostedBackend;
+pub use self::backend::{HostedPackumentForUpdate, HostedPackumentVersion, TarballFinalize};
 
 const PACKUMENT_FILE: &str = "package.json";
 pub(crate) const HOSTED_REVISION_REFS_DIR: &str = ".revisions/sha512";
