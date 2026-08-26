@@ -131,9 +131,10 @@ pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<Comma
     if ctx.recursive {
         let dir = ctx.dir;
         let emit = reporter_emit(ctx.reporter);
-        Ok(Box::pin(async move { args.run_recursive(config, dir, emit).await }))
+        let silent = matches!(ctx.reporter, ReporterType::Silent);
+        Ok(Box::pin(async move { args.run_recursive(config, dir, emit, silent).await }))
     } else {
-        args.run(ctx.dir, config)?;
+        args.run(ctx.dir, config, matches!(ctx.reporter, ReporterType::Silent))?;
         Ok(Box::pin(std::future::ready(Ok(()))))
     }
 }

@@ -174,7 +174,7 @@ impl RunArgs {
             Err(ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
                 if fallback_to_exec =>
             {
-                return exec_fallback(script_name, args, dir, config);
+                return exec_fallback(script_name, args, dir, config, silent);
             }
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
@@ -193,7 +193,7 @@ impl RunArgs {
                 return Ok(());
             }
             if fallback_to_exec {
-                return exec_fallback(script_name, args, dir, config);
+                return exec_fallback(script_name, args, dir, config, silent);
             }
             return Err(RunError::NoScript {
                 script: script_name.clone(),
@@ -259,7 +259,7 @@ impl RunArgs {
         emit: fn(&LogEvent),
         silent: bool,
     ) -> miette::Result<()> {
-        super::verify_deps::verify_deps_before_run(dir, config, false)?;
+        super::verify_deps::verify_deps_before_run(dir, config, silent)?;
         recursive::run_recursive(self, config, dir, emit, silent)
     }
 }
@@ -269,6 +269,7 @@ fn exec_fallback(
     args: &[String],
     dir: &Path,
     config: &Config,
+    silent: bool,
 ) -> miette::Result<()> {
     ExecArgs {
         command: RunArgs::script(script_name, args.iter().cloned()),
@@ -280,7 +281,7 @@ fn exec_fallback(
         reverse: false,
         parallel: false,
     }
-    .run(dir, config)
+    .run(dir, config, silent)
 }
 
 /// Shared inputs for running a script, threaded through

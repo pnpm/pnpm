@@ -154,25 +154,25 @@ fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
         .with_args(["run", "hello"])
         .output()
         .expect("run script after lockfile regeneration");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    eprintln!("STDOUT:\n{stdout}\n");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}\n");
     assert!(output.status.success(), "the script must run successfully");
     assert!(
-        stdout.contains("Lockfile is up to date, resolution step is skipped"),
-        "the verifier install must reuse the regenerated lockfile:\n{stdout}",
+        stderr.contains("Lockfile is up to date, resolution step is skipped"),
+        "the verifier install must reuse the regenerated lockfile:\n{stderr}",
     );
-    let policy_verdict = stdout
+    let policy_verdict = stderr
         .find("Lockfile passes supply-chain policies")
         .expect("the verifier must report its lockfile policy verdict");
-    let frozen_install = stdout
+    let frozen_install = stderr
         .find("Lockfile is up to date, resolution step is skipped")
         .expect("the verifier must report the frozen install");
-    let up_to_date = stdout
+    let up_to_date = stderr
         .find("Already up to date")
         .expect("the verifier must report that no packages changed");
     assert!(
         policy_verdict < frozen_install && frozen_install < up_to_date,
-        "the verifier messages must match pnpm's order:\n{stdout}",
+        "the verifier messages must match pnpm's order:\n{stderr}",
     );
     assert_eq!(
         fs::read_to_string(workspace.join("pnpm-lock.yaml"))
@@ -469,6 +469,119 @@ fn exec_runs_the_gate_too() {
         .with_args(["--config.verify-deps-before-run=error", "exec", "true"])
         .assert()
         .success();
+
+    drop(root);
+}
+
+#[test]
+fn exec_keeps_verifier_output_out_of_child_stdout() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "workspace-root", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let project = workspace.join("packages/project");
+    fs::create_dir_all(&project).expect("create workspace project");
+    write_manifest(&project, &project.join("marker.txt"));
+
+    let output = pacquet_in(&project)
+        .with_args([
+            "exec",
+            "node",
+            "-e",
+            r#"process.stdout.write(JSON.stringify({workspace:"test"}))"#,
+        ])
+        .output()
+        .expect("spawn pacquet exec");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n");
+    assert!(output.status.success(), "exec failed");
+    assert_eq!(stdout, r#"{"workspace":"test"}"#);
+    assert!(
+        stderr.contains("Scope: all 2 workspace projects") && stderr.contains("Done in"),
+        "the verifier install must report on stderr:\n{stderr}",
+    );
+
+    drop(root);
+}
+
+#[test]
+fn silent_exec_suppresses_verifier_output() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &workspace.join("marker.txt"));
+
+    let output = pacquet
+        .with_args([
+            "exec",
+            "--silent",
+            "node",
+            "-e",
+            r#"process.stdout.write(JSON.stringify({workspace:"test"}))"#,
+        ])
+        .output()
+        .expect("spawn silent pacquet exec");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n");
+    assert!(output.status.success(), "silent exec failed");
+    assert_eq!(stdout, r#"{"workspace":"test"}"#);
+    assert_eq!(stderr, "");
+
+    drop(root);
+}
+
+#[test]
+fn silent_recursive_exec_suppresses_verifier_output() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &workspace.join("marker.txt"));
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - .\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let output = pacquet
+        .with_args([
+            "--silent",
+            "--recursive",
+            "exec",
+            "node",
+            "-e",
+            r#"process.stdout.write(JSON.stringify({workspace:"test"}))"#,
+        ])
+        .output()
+        .expect("spawn silent recursive pacquet exec");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n");
+    assert!(output.status.success(), "silent recursive exec failed");
+    assert_eq!(stdout, r#"{"workspace":"test"}"#);
+    assert_eq!(stderr, "");
+
+    drop(root);
+}
+
+#[test]
+#[cfg_attr(not(unix), ignore = "the fixture script uses the POSIX `touch` command")]
+fn silent_recursive_run_suppresses_verifier_output() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("marker.txt");
+    write_manifest(&workspace, &marker);
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - .\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let output = pacquet
+        .with_args(["--silent", "--recursive", "run", "hello"])
+        .output()
+        .expect("spawn silent recursive pacquet run");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n");
+    assert!(output.status.success(), "silent recursive run failed");
+    assert_eq!(stdout, "");
+    assert_eq!(stderr, "");
+    assert!(marker.exists(), "the script must run after the verifier install");
 
     drop(root);
 }
