@@ -18,7 +18,10 @@
 //! its own private namespace. The opt-in shared-artifact `PoC` is a separate
 //! stateful protocol surface.
 
-use std::collections::{BTreeMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashSet},
+    time::Duration,
+};
 
 use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
@@ -54,6 +57,7 @@ pub type DepMap = BTreeMap<String, String>;
 pub struct PnprClient {
     http: Client,
     base_url: String,
+    artifact_request_timeout: Duration,
 }
 
 /// Inputs for a single-project resolution.
@@ -370,6 +374,9 @@ pub enum PnprClientError {
 /// Protocol version this client speaks. The server advertises the
 /// versions it supports at `GET /-/pnpr`; today only v0 exists.
 const PROTOCOL_VERSION: u32 = 0;
+/// Match the TypeScript client's generous ceiling for large artifact transfers
+/// while still letting a stalled pnpr fail the install or publication.
+const ARTIFACT_REQUEST_TIMEOUT: Duration = Duration::from_mins(10);
 
 #[derive(Default, Deserialize)]
 struct HandshakeResponse {
@@ -391,20 +398,25 @@ impl PnprClient {
         if !base_url.ends_with('/') {
             base_url.push('/');
         }
-        PnprClient { http: Client::new(), base_url }
+        PnprClient {
+            http: Client::new(),
+            base_url,
+            artifact_request_timeout: ARTIFACT_REQUEST_TIMEOUT,
+        }
     }
 
     /// Confirm the server speaks a compatible protocol version. Errors
     /// if it's unreachable, isn't a pnpr (404 at `/-/pnpr`), or shares
     /// no protocol version with this client.
     pub async fn handshake(&self) -> Result<(), PnprClientError> {
-        self.fetch_compatible_handshake().await?;
+        self.fetch_compatible_handshake(None).await?;
         Ok(())
     }
 
     /// Confirm that the server enabled the v0 signed-artifact `PoC`.
     pub async fn handshake_artifacts(&self) -> Result<(), PnprClientError> {
-        let capability = self.fetch_compatible_handshake().await?;
+        let capability =
+            self.fetch_compatible_handshake(Some(self.artifact_request_timeout)).await?;
         if !capability.artifacts.contains(&PROTOCOL_VERSION) {
             return Err(PnprClientError::Server(format!(
                 "pnpr server does not advertise shared artifact protocol v{PROTOCOL_VERSION}",
@@ -413,8 +425,15 @@ impl PnprClient {
         Ok(())
     }
 
-    async fn fetch_compatible_handshake(&self) -> Result<HandshakeCapability, PnprClientError> {
-        let response = self.http.get(format!("{}-/pnpr", self.base_url)).send().await?;
+    async fn fetch_compatible_handshake(
+        &self,
+        timeout: Option<Duration>,
+    ) -> Result<HandshakeCapability, PnprClientError> {
+        let mut get = self.http.get(format!("{}-/pnpr", self.base_url));
+        if let Some(timeout) = timeout {
+            get = get.timeout(timeout);
+        }
+        let response = get.send().await?;
         if !response.status().is_success() {
             return Err(PnprClientError::Server(format!(
                 "{} is not a pnpr server (GET /-/pnpr returned {})",
@@ -440,7 +459,11 @@ impl PnprClient {
         authorization: Option<&str>,
     ) -> Result<(), PnprClientError> {
         request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        let mut put = self.http.put(format!("{}-/pnpr/v0/artifacts", self.base_url)).json(request);
+        let mut put = self
+            .http
+            .put(format!("{}-/pnpr/v0/artifacts", self.base_url))
+            .timeout(self.artifact_request_timeout)
+            .json(request);
         if let Some(authorization) = authorization {
             put = put.header("authorization", authorization);
         }
@@ -491,8 +514,11 @@ impl PnprClient {
             }
         }
         let request = ResolveArtifactsRequest { candidates: opts.candidates.clone() };
-        let mut post =
-            self.http.post(format!("{}-/pnpr/v0/artifacts/resolve", self.base_url)).json(&request);
+        let mut post = self
+            .http
+            .post(format!("{}-/pnpr/v0/artifacts/resolve", self.base_url))
+            .timeout(self.artifact_request_timeout)
+            .json(&request);
         if let Some(authorization) = opts.authorization.as_deref() {
             post = post.header("authorization", authorization);
         }
@@ -577,8 +603,11 @@ impl PnprClient {
         authorization: Option<&str>,
     ) -> Result<Vec<u8>, PnprClientError> {
         request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        let mut post =
-            self.http.post(format!("{}-/pnpr/v0/artifacts/blob", self.base_url)).json(request);
+        let mut post = self
+            .http
+            .post(format!("{}-/pnpr/v0/artifacts/blob", self.base_url))
+            .timeout(self.artifact_request_timeout)
+            .json(request);
         if let Some(authorization) = authorization {
             post = post.header("authorization", authorization);
         }

@@ -23,7 +23,7 @@ use crate::{
 };
 use axum::{
     Router,
-    body::Body,
+    body::{Body, Bytes},
     extract::{
         ConnectInfo, DefaultBodyLimit, FromRequestParts, OriginalUri, Path, Request, State,
         connect_info::Connected,
@@ -35,6 +35,7 @@ use axum::{
     serve::IncomingStream,
 };
 use chrono::Utc;
+use futures_util::Stream;
 use indexmap::IndexMap;
 use pnpm_crypto_hash::{
     create_hex_hash, integrity_addressed_tarball_integrity, integrity_addressed_tarball_path,
@@ -44,10 +45,14 @@ use serde_json::{Value, json};
 use ssri::Integrity;
 use std::{
     collections::HashSet,
+    convert::Infallible,
     net::{IpAddr, SocketAddr},
+    pin::Pin,
     sync::{Arc, LazyLock},
+    task::{Context, Poll},
     time::Duration,
 };
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tower_http::{
     compression::{
         CompressionLayer,
@@ -89,6 +94,8 @@ const MAX_LOGIN_BODY_BYTES: usize = 64 * 1024;
 const MAX_ARTIFACT_PUBLISH_BODY_BYTES: usize = MAX_PUBLISH_BODY_BYTES;
 const MAX_ARTIFACT_RESOLVE_BODY_BYTES: usize = 16 * 1024 * 1024;
 const MAX_ARTIFACT_BLOB_BODY_BYTES: usize = 8 * 1024;
+/// Four maximum-sized blobs cap verified response buffers at 256 MiB per pnpr.
+const MAX_CONCURRENT_ARTIFACT_BLOB_READS: usize = 4;
 
 #[derive(Clone)]
 struct AppState {
@@ -113,6 +120,7 @@ struct AppInner {
     /// two concurrent writers to the same package on this instance can't
     /// lose each other's changes.
     package_locks: StripedLocks,
+    artifact_blob_reads: Arc<Semaphore>,
     /// Lazily-built engine backing the `/-/pnpr/v0/resolve` endpoint. Built on
     /// first such request so servers that never receive one pay nothing.
     resolver: std::sync::OnceLock<crate::resolver::Resolver>,
@@ -282,6 +290,7 @@ fn router_with_auth_and_osv(
             config,
             auth,
             package_locks: StripedLocks::new(),
+            artifact_blob_reads: Arc::new(Semaphore::new(MAX_CONCURRENT_ARTIFACT_BLOB_READS)),
             resolver: std::sync::OnceLock::new(),
             osv_index,
         }),
@@ -4989,17 +4998,45 @@ async fn serve_artifact_blob(
         Ok(username) => username,
         Err(err) => return error_response(&err),
     };
+    let permit = Arc::clone(&state.inner.artifact_blob_reads)
+        .acquire_owned()
+        .await
+        .expect("the artifact blob read semaphore is never closed");
     match crate::shared_artifacts::read_blob(&state.inner.config.cache_storage, &username, &body)
         .await
     {
-        Ok(Some(bytes)) => Response::builder()
-            .status(StatusCode::OK)
-            .header(header::CONTENT_TYPE, "application/octet-stream")
-            .header(header::CACHE_CONTROL, "private, max-age=31536000, immutable")
-            .header(header::VARY, "Authorization")
-            .body(Body::from(bytes))
-            .expect("static artifact blob response always builds"),
+        Ok(Some(bytes)) => {
+            let content_length = bytes.len().to_string();
+            Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, "application/octet-stream")
+                .header(header::CONTENT_LENGTH, content_length)
+                .header(header::CACHE_CONTROL, "private, max-age=31536000, immutable")
+                .header(header::VARY, "Authorization")
+                .body(artifact_blob_response_body(bytes, permit))
+                .expect("static artifact blob response always builds")
+        }
         Ok(None) => private_no_cache(StatusCode::NOT_FOUND.into_response()),
         Err(err) => private_no_cache(error_response(&err)),
+    }
+}
+
+fn artifact_blob_response_body(bytes: Vec<u8>, permit: OwnedSemaphorePermit) -> Body {
+    Body::from_stream(ArtifactBlobResponseStream {
+        bytes: Some(Bytes::from(bytes)),
+        _permit: permit,
+    })
+}
+
+struct ArtifactBlobResponseStream {
+    bytes: Option<Bytes>,
+    _permit: OwnedSemaphorePermit,
+}
+
+impl Stream for ArtifactBlobResponseStream {
+    type Item = Result<Bytes, Infallible>;
+
+    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Poll::Ready(self.bytes.take().map(Ok))
     }
 }

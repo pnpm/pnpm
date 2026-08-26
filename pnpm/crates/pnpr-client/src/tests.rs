@@ -1,16 +1,34 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, future::pending, time::Duration};
 
 use indexmap::IndexMap;
 use pnpm_config::{PackageExtension, ResolutionMode, TrustPolicy};
 use pnpm_graph_hasher::hash_object_nullable_with_prefix;
 use pnpm_lockfile::TarballRevision;
 use serde_json::{Value, json};
+use tokio::net::TcpListener;
 
 use super::{
     Frame, PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION, PnprClient, PnprClientError,
     ResolveOutcome, ResolveProject, ResolveProjectsOptions, ResolvedPackage, VerifyError,
     build_verify_error, parse_frame,
 };
+
+#[tokio::test]
+async fn artifact_handshake_times_out() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (_connection, _) = listener.accept().await.unwrap();
+        pending::<()>().await;
+    });
+    let mut client = PnprClient::new(format!("http://{address}"));
+    client.artifact_request_timeout = Duration::from_millis(25);
+
+    let error = client.handshake_artifacts().await.unwrap_err();
+
+    assert!(matches!(error, PnprClientError::Http(error) if error.is_timeout()));
+    server.abort();
+}
 
 /// The request body is the whole contract with the server: a field the
 /// client omits is not defaulted server-side but cleared, so the server
