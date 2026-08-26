@@ -844,7 +844,10 @@ fn load_all_tokens(conn: &Connection) -> Result<HashMap<String, TokenRecord>> {
         let last_used_at: i64 = row.get(3)?;
         let readonly: i64 = row.get(4)?;
         let cidr_json: String = row.get(5)?;
-        let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json).unwrap_or_default();
+        let cidr_whitelist: Vec<String> =
+            serde_json::from_str(&cidr_json).map_err(|err| RegistryError::Internal {
+                reason: format!("token {hash} has an unreadable cidr_whitelist: {err}"),
+            })?;
         out.insert(
             hash,
             TokenRecord {

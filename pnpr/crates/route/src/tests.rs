@@ -272,7 +272,7 @@ fn rotated_credential() -> String {
 
 fn upstream_with_access(registry: &str, access: &str) -> UpstreamConfig {
     let mut headers = HeaderMap::new();
-    headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer upstream-secret"));
+    headers.insert(AUTHORIZATION, HeaderValue::from_static(UPSTREAM_TOKEN));
     let mut upstream = UpstreamConfig::with_defaults(registry.to_string(), headers);
     upstream.access = Some(AccessList::from_tokens([access]));
     upstream
@@ -424,7 +424,7 @@ fn self_endpoint_recognized_when_pnpr_is_served_under_a_path_prefix() {
 fn upstream_without_access_is_an_anonymous_route() {
     let mut config = base_config();
     let mut headers = HeaderMap::new();
-    headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer upstream-secret"));
+    headers.insert(AUTHORIZATION, HeaderValue::from_static(UPSTREAM_TOKEN));
     // A plain proxy upstream that does not declare `access:` is never offered
     // as a resolver private-route credential, but its origin is still
     // allowlisted (a configured registry) and fetched anonymously.

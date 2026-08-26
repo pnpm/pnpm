@@ -408,7 +408,10 @@ fn row_to_keyed_record(row: &Row) -> Result<(String, TokenRecord)> {
     let last_used_at: i64 = row.get(3)?;
     let readonly: i64 = row.get(4)?;
     let cidr_json: String = row.get(5)?;
-    let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json).unwrap_or_default();
+    let cidr_whitelist: Vec<String> =
+        serde_json::from_str(&cidr_json).map_err(|err| RegistryError::Internal {
+            reason: format!("token {token_hash} has an unreadable cidr_whitelist: {err}"),
+        })?;
     Ok((
         token_hash,
         TokenRecord {
