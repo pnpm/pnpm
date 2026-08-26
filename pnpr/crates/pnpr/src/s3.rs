@@ -354,13 +354,18 @@ impl S3Store {
             index.ref_ids().iter().map(|ref_id| self.revision_ref_key(digest, ref_id)).collect();
         let mut pending = futures_util::stream::iter(locations)
             .map(|location| async move {
-                let bytes = self.store.get(&location).await?.bytes().await?;
-                Ok::<_, object_store::Error>(bytes.to_vec())
+                match self.store.get(&location).await {
+                    Ok(result) => Ok(Some(result.bytes().await?.to_vec())),
+                    Err(object_store::Error::NotFound { .. }) => Ok(None),
+                    Err(err) => Err(err),
+                }
             })
             .buffered(REVISION_REF_READ_CONCURRENCY);
         let mut refs = Vec::new();
         while let Some(bytes) = pending.next().await {
-            refs.push(bytes?);
+            if let Some(bytes) = bytes? {
+                refs.push(bytes);
+            }
         }
         Ok(refs)
     }

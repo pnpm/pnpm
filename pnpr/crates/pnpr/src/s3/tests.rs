@@ -217,6 +217,19 @@ async fn revision_refs_roundtrip_under_the_configured_prefix() {
 }
 
 #[tokio::test]
+async fn missing_indexed_revision_ref_body_is_skipped() {
+    let (store, _staging) = store_with_prefix("packages");
+    let digest = "A".repeat(86);
+    let existing_ref_id = "a".repeat(64);
+    let missing_ref_id = "b".repeat(64);
+    store.write_revision_ref(&digest, &existing_ref_id, b"existing").await.unwrap();
+    store.write_revision_ref(&digest, &missing_ref_id, b"missing").await.unwrap();
+    store.store.delete(&store.revision_ref_key(&digest, &missing_ref_id)).await.unwrap();
+
+    assert_eq!(store.read_revision_refs(&digest).await.unwrap(), vec![b"existing".to_vec()]);
+}
+
+#[tokio::test]
 async fn revision_ref_writes_enforce_the_read_bound() {
     let (store, _staging) = store_with_prefix("packages");
     let digest = "A".repeat(86);
