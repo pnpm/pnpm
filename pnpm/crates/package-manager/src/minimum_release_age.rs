@@ -236,7 +236,7 @@ fn format_dependent_chain(violation: &ResolutionPolicyViolation) -> String {
     }
     format!(
         " (required by {})",
-        violation.parents.iter().map(ToString::to_string).collect::<Vec<_>>().join(" > ")
+        violation.parents.iter().map(ToString::to_string).collect::<Vec<_>>().join(" > "),
     )
 }
 

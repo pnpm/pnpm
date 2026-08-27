@@ -586,11 +586,21 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
     })
 }
 
-/// Upper bound on resolution passes. The blocked-version set only grows over a
-/// finite set of registry versions, so the loop terminates on its own; this
-/// caps how long an install can keep trying on a dependency graph where the
-/// blame walks up a very deep chain.
-const MAX_RESOLUTION_PASSES: usize = 8;
+/// Upper bound on resolution passes.
+///
+/// The loop already terminates on its own — every pass blocks at least one
+/// more version, over a finite set — but "finite" is not "small": a package
+/// whose every version in range pins something too young would be walked one
+/// version per pass, and each pass is a full tree resolution. The bound is
+/// what stops that from running for minutes.
+///
+/// It is set well above the depth any real dependency chain reaches, since
+/// blame only climbs one ancestor per pass and a tree deep enough to need more
+/// has an unusual number of consecutive exact pins. Hitting it is reported
+/// rather than passed over silently — the install then answers with the first
+/// pass, and the user has no other way to tell that a later attempt might have
+/// found a tree.
+const MAX_RESOLUTION_PASSES: usize = 32;
 
 /// Resolve the workspace, backing out of subtrees that no
 /// `minimumReleaseAge` cutoff can satisfy.
@@ -628,7 +638,7 @@ pub(super) async fn resolve_mature_dependency_tree<Reporter: pnpm_reporter::Repo
     for _ in 1..MAX_RESOLUTION_PASSES {
         let source = last_pass.as_ref().unwrap_or(&first_pass);
         if !block_dead_end_parents(&source.merged_tree.policy_violations, &mut blocked_versions) {
-            break;
+            return Ok(first_pass);
         }
         let mut pass_inputs = inputs.clone();
         pass_inputs.shared_resolve_options.blocked_versions =
@@ -640,6 +650,19 @@ pub(super) async fn resolve_mature_dependency_tree<Reporter: pnpm_reporter::Repo
         }
         last_pass = Some(pass);
     }
+    // Fell out of the loop with ancestors still left to try, so the report
+    // below is the first pass's, not a proof that no installable tree exists.
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        prefix: inputs.lockfile_dir.display().to_string(),
+        message: format!(
+            "Stopped after {} resolution attempts while backing off from versions whose \
+             dependencies do not satisfy minimumReleaseAge. The versions reported are the ones \
+             the first attempt resolved to; an installable combination may still exist further \
+             down their ranges.",
+            MAX_RESOLUTION_PASSES,
+        ),
+    }));
     Ok(first_pass)
 }
 
@@ -713,7 +736,7 @@ fn report_held_back_parents<Reporter: pnpm_reporter::Reporter>(
         message: format!(
             "minimumReleaseAge held back the following versions because a package they \
              depend on is younger than the cutoff:\n{}",
-            lines.join("\n")
+            lines.join("\n"),
         ),
     }));
 }
