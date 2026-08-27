@@ -37,6 +37,21 @@ fn version_flag_accepts_shamefully_hoist() {
 }
 
 #[test]
+fn version_flag_rejects_invalid_shamefully_hoist_value() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+
+    let output = pacquet
+        .with_args(["--shamefully-hoist=yes", "--version"])
+        .output()
+        .expect("run pacquet with an invalid shamefully-hoist value");
+    dbg!(&output);
+    assert!(!output.status.success(), "pacquet should reject an invalid shamefully-hoist value");
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unexpected argument"));
+
+    drop(root);
+}
+
+#[test]
 fn short_version_flag_prints_the_bare_version() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 

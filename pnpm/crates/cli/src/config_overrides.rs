@@ -480,6 +480,7 @@ fn classify(arg: &OsStr) -> ConfigToken<'_> {
         _ => {}
     }
     match arg.strip_prefix("--").and_then(|flag| flag.split_once('=')) {
+        Some(("shamefully-hoist", value)) if parse_bool(value).is_none() => ConfigToken::NotOurs,
         Some((key, value)) if BARE_SETTING_FLAGS.contains(&key) => {
             ConfigToken::WellFormed { key, value }
         }

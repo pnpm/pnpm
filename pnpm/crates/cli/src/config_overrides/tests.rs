@@ -108,6 +108,18 @@ fn shamefully_hoist_override_preserves_virtual_store_only_precedence() {
 }
 
 #[test]
+fn extract_leaves_invalid_shamefully_hoist_values_for_clap() {
+    for flag in ["--shamefully-hoist=yes", "--shamefully-hoist="] {
+        let (overrides, remaining) = ConfigOverrides::extract(argv(["pacquet", flag, "--version"]));
+        assert_eq!(remaining, argv(["pacquet", flag, "--version"]));
+
+        let mut config = Config::default();
+        overrides.apply(&mut config);
+        assert!(!config.explicit_settings.contains_key("shamefullyHoist"));
+    }
+}
+
+#[test]
 fn extract_leaves_config_tokens_after_the_separator_for_the_child() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
         "pacquet",
