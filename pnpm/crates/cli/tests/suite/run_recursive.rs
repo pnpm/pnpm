@@ -1424,6 +1424,71 @@ fn recursive_run_resumes_from_exactly_the_tasks_that_passed_before_a_failure() {
     drop(root);
 }
 
+#[test]
+fn recursive_run_does_not_persist_a_task_skipped_by_the_recursion_guard() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "origin",
+                json!({
+                    "name": "origin",
+                    "version": "1.0.0",
+                    "scripts": {
+                        "build": r#"node -e "require('fs').appendFileSync('../order.log', 'origin\n')""#,
+                    },
+                }),
+            ),
+            (
+                "anchor",
+                json!({
+                    "name": "anchor",
+                    "version": "1.0.0",
+                    "dependencies": { "origin": "workspace:*" },
+                    "scripts": {
+                        "build": r#"node -e "require('fs').appendFileSync('../order.log', 'anchor\n')""#,
+                    },
+                }),
+            ),
+            (
+                "failure",
+                json!({
+                    "name": "failure",
+                    "version": "1.0.0",
+                    "scripts": {
+                        "build": r#"node -e "const fs=require('fs');fs.appendFileSync('../order.log','failure\n');if(fs.existsSync('../fail'))process.exit(1)""#,
+                    },
+                }),
+            ),
+        ],
+    );
+    fs::write(workspace.join("fail"), "").expect("write failure marker");
+    let origin = fs::canonicalize(workspace.join("origin")).expect("canonicalize origin");
+
+    pacquet
+        .with_env("npm_lifecycle_event", "build")
+        .with_env("PNPM_SCRIPT_SRC_DIR", origin.to_string_lossy().as_ref())
+        .with_args(["--no-bail", "--workspace-concurrency=1", "-r", "run", "build"])
+        .assert()
+        .failure();
+    let first_run = fs::read_to_string(workspace.join("order.log")).expect("read first run");
+    assert!(!first_run.lines().any(|task| task == "origin"), "origin must be recursion-guarded");
+
+    fs::remove_file(workspace.join("fail")).expect("remove failure marker");
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["--workspace-concurrency=1", "--resume-from=anchor", "-r", "run", "build"])
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read resumed run");
+    assert_eq!(order.lines().filter(|task| *task == "origin").count(), 1, "{order}");
+
+    drop(root);
+}
+
 /// An unknown `--resume-from` package fails with
 /// `ERR_PNPM_RESUME_FROM_NOT_FOUND`.
 #[test]

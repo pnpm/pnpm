@@ -187,7 +187,9 @@ pub fn run_recursive(
         workspace_root,
         |node, script| {
             let manifest = &graph[&node.project].package.project.manifest;
-            let Some(main) = manifest.script(script, true).ok().flatten() else {
+            let Some(main) =
+                manifest.script(script, true).expect("if-present script lookup cannot fail")
+            else {
                 return Vec::new();
             };
             get_run_script_commands(manifest, script, main, config.enable_pre_post_scripts)
@@ -327,6 +329,7 @@ pub fn run_recursive(
         }
         let failed = execution.status.status == Status::Failure;
         let cancelled = execution.cancelled;
+        let recursion_guarded = execution.recursion_guarded;
         result.lock().expect("summary lock is not poisoned")[&summary_key] = execution.status;
         if cancelled {
             return TaskCompletion::Cancelled;
@@ -338,6 +341,8 @@ pub fn run_recursive(
                 *first_failure = Some(node.project.to_string_lossy().into_owned());
             }
             TaskCompletion::Failed
+        } else if recursion_guarded {
+            TaskCompletion::Passed
         } else if let Err(error) = task_run_state.record_passed(
             &TaskKey { project: node.project.clone(), task_name: node.task_name.clone() },
             node,
@@ -485,6 +490,7 @@ struct ProjectExecution {
     status: ExecutionStatus,
     has_command: usize,
     cancelled: bool,
+    recursion_guarded: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -538,8 +544,12 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
     // run's lifecycle events; the reporter renders `wd` and only groups
     // by this.
     let root_str = root.to_string_lossy().into_owned();
-    let mut execution =
-        ProjectExecution { status: ExecutionStatus::queued(), has_command: 0, cancelled: false };
+    let mut execution = ProjectExecution {
+        status: ExecutionStatus::queued(),
+        has_command: 0,
+        cancelled: false,
+        recursion_guarded: false,
+    };
     let mut project_failed = false;
     for selected in &node.scripts {
         let Some(script) = manifest.script(selected, true)? else {
@@ -551,6 +561,7 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
         if env::var_os("npm_lifecycle_event").is_some_and(|event| event == **selected)
             && env::var_os("PNPM_SCRIPT_SRC_DIR").is_some_and(|src_dir| Path::new(&src_dir) == root)
         {
+            execution.recursion_guarded = true;
             continue;
         }
 

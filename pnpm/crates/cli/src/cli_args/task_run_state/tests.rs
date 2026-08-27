@@ -220,7 +220,10 @@ fn rejects_a_symlinked_state_directory() {
     let Err(error) = context.start(&HashSet::new()) else {
         panic!("symlinked state directory must be rejected");
     };
-    assert!(error.to_string().contains("symbolic link or not a directory"));
+    assert!(
+        error.to_string().contains("symbolic link or not a directory"),
+        "unexpected error: {error:?}",
+    );
     assert!(!outside.path().join("latest.json").exists());
 }
 

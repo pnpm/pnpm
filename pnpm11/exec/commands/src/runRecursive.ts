@@ -196,6 +196,7 @@ export async function runRecursive (
     // would race (and TypeScript narrows it to 'running' regardless).
     let taskFailed = false
     let taskCancelled = false
+    let taskSkippedForCurrentLifecycle = false
     await Promise.all(node.scripts.map(async (script) =>
       limitRun(async () => {
         // Under --bail a failure stops dispatch, but a script already queued
@@ -205,11 +206,14 @@ export async function runRecursive (
           taskCancelled = true
           return
         }
+        if (!pkg.package.manifest.scripts?.[script]) {
+          return
+        }
         if (
-          !pkg.package.manifest.scripts?.[script] ||
           process.env.npm_lifecycle_event === script &&
           process.env.PNPM_SCRIPT_SRC_DIR === node.project
         ) {
+          taskSkippedForCurrentLifecycle = true
           return
         }
         if (!taskFailed) {
@@ -289,7 +293,9 @@ export async function runRecursive (
         }
       })))
     if (taskFailed || taskCancelled) return 'failed'
-    await taskRunState.recordPassed(key, node)
+    if (!taskSkippedForCurrentLifecycle) {
+      await taskRunState.recordPassed(key, node)
+    }
     return 'passed'
   }
 
