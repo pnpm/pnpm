@@ -45,7 +45,7 @@ function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean): void 
   for (const file of files) {
     if (file === 'node_modules') continue
     const srcFile = path.join(src, file)
-    const srcStats = fs.lstatSync(srcFile)
+    const srcStats = fs.lstatSync(srcFile, { bigint: true })
     if (srcStats.isDirectory()) {
       const destSubdirs = destDirs.map((destDir) => {
         const destSubdir = path.join(destDir, file)
@@ -75,7 +75,7 @@ function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean): void 
   }
 }
 
-function linkOrCopyFile (srcFile: string, destFile: string, srcStats: fs.Stats): void {
+function linkOrCopyFile (srcFile: string, destFile: string, srcStats: fs.BigIntStats): void {
   try {
     linkOrCopy(srcFile, destFile)
     return
@@ -97,16 +97,21 @@ function linkOrCopyFile (srcFile: string, destFile: string, srcStats: fs.Stats):
   replaceFile(srcFile, destFile)
 }
 
-function isSameFile (destFile: string, srcStats: fs.Stats): boolean {
+// Read as bigints: a 64-bit inode does not survive a JavaScript number, so two
+// unrelated files can round-trip to the same one.
+function isSameFile (destFile: string, srcStats: fs.BigIntStats): boolean {
   let destStats
   try {
-    destStats = fs.lstatSync(destFile)
+    destStats = fs.lstatSync(destFile, { bigint: true })
   } catch {
     return false
   }
-  // Filesystems that report no inode (some on Windows) make every file look
-  // like every other one.
-  return destStats.ino !== 0 && destStats.ino === srcStats.ino && destStats.dev === srcStats.dev
+  // Filesystems that report neither an inode nor a device (some on Windows)
+  // make every file look like every other one.
+  return destStats.ino !== 0n &&
+    destStats.dev !== 0n &&
+    destStats.ino === srcStats.ino &&
+    destStats.dev === srcStats.dev
 }
 
 // Swap the new file in through a temp sibling, so that whoever reads the

@@ -53,14 +53,13 @@ function withEagainRetry<T extends unknown[], R> (
 }
 
 /**
- * Renames a file over `dest`, waiting out a Windows sharing violation for up to
- * a minute. Throws whatever `fs.renameSync` threw once the budget runs out, or
- * right away for anything that waiting cannot fix.
+ * Renames `src` over `dest`, waiting out a Windows sharing violation — an
+ * EPERM, EACCES or EBUSY from whoever else holds the file open — for up to a
+ * minute before rethrowing it. Every other error is thrown right away.
  *
- * `dest` is never removed to make room, unlike `rename-overwrite`'s fallback:
- * a concurrent install may still be reading that dirent, and the point of
- * replacing a file through a rename is that a reader sees the whole old file or
- * the whole new one.
+ * `dest` is never removed to make room for the rename: a concurrent install may
+ * still be reading that dirent, and a reader has to see either the whole file
+ * that was there or the whole file replacing it.
  */
 export function renameFileWithRetry (src: string, dest: string): void {
   const startedAt = Date.now()
