@@ -34,8 +34,7 @@
   },
   "dependencies": {
     "@pnpm/fs.graceful-fs": "workspace:*",
-    "path-temp": "catalog:",
-    "rename-overwrite": "catalog:"
+    "path-temp": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

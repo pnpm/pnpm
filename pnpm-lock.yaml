@@ -4831,9 +4831,6 @@ importers:
       path-temp:
         specifier: 'catalog:'
         version: 3.0.0
-      rename-overwrite:
-        specifier: 'catalog:'
-        version: 7.0.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -21375,6 +21372,7 @@ snapshots:
       es-object-atoms: 1.1.2
       es-set-tostringtag: 2.1.0
       es-to-primitive: 1.3.4
+      for-each: 0.3.5
       function.prototype.name: 1.2.0
       get-intrinsic: 1.3.0
       get-proto: 1.0.1

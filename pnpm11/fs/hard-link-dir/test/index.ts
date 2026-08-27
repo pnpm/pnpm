@@ -50,9 +50,7 @@ test("don't fail on missing source and dest directories", () => {
 // A hoisted destination owns a node_modules that the source does not have: the
 // dependencies that could not be hoisted any higher. The copies of one build
 // chunk run concurrently, so a sibling package may be staging its own copy in
-// there while this one is written. Both were lost when the destination
-// directory was swapped out for a freshly staged copy of the source — the
-// sibling's rename then failed with ENOENT.
+// there while this one is written, and its rename needs to still find it.
 // See https://github.com/pnpm/pnpm/issues/12880
 test("the destination's own node_modules survives", () => {
   const tempDir = createTempDir()
@@ -94,4 +92,46 @@ test('a file that the destination already has is replaced', () => {
 
   expect(fs.readdirSync(destDir)).toStrictEqual(['file.txt'])
   expect(fs.readFileSync(path.join(destDir, 'file.txt'), 'utf8')).toBe('built')
+})
+
+// A build can turn one of the package's own entries into the other kind. The
+// destination still holds the pre-build copy, so the entry it has to make way
+// for is of the wrong kind.
+test('an entry that changed between a file and a directory is replaced', () => {
+  const tempDir = createTempDir()
+  const srcDir = path.join(tempDir, 'source')
+  const destDir = path.join(tempDir, 'dest')
+
+  fs.mkdirSync(path.join(srcDir, 'generated'), { recursive: true })
+  fs.writeFileSync(path.join(srcDir, 'generated/index.js'), 'built')
+  fs.writeFileSync(path.join(srcDir, 'placeholder.js'), 'built')
+
+  fs.mkdirSync(path.join(destDir, 'placeholder.js'), { recursive: true })
+  fs.writeFileSync(path.join(destDir, 'placeholder.js/leftover.js'), 'not built yet')
+  fs.writeFileSync(path.join(destDir, 'generated'), 'not built yet')
+
+  hardLinkDir(srcDir, [destDir])
+
+  expect(fs.readFileSync(path.join(destDir, 'generated/index.js'), 'utf8')).toBe('built')
+  expect(fs.readFileSync(path.join(destDir, 'placeholder.js'), 'utf8')).toBe('built')
+})
+
+test('a symlinked directory in the destination does not redirect the writes', () => {
+  const tempDir = createTempDir()
+  const srcDir = path.join(tempDir, 'source')
+  const destDir = path.join(tempDir, 'dest')
+  const outside = path.join(tempDir, 'outside')
+
+  fs.mkdirSync(path.join(srcDir, 'lib'), { recursive: true })
+  fs.writeFileSync(path.join(srcDir, 'lib/index.js'), 'built')
+
+  fs.mkdirSync(outside, { recursive: true })
+  fs.mkdirSync(destDir, { recursive: true })
+  fs.symlinkSync(outside, path.join(destDir, 'lib'), 'junction')
+
+  hardLinkDir(srcDir, [destDir])
+
+  expect(fs.readFileSync(path.join(destDir, 'lib/index.js'), 'utf8')).toBe('built')
+  expect(fs.lstatSync(path.join(destDir, 'lib')).isSymbolicLink()).toBe(false)
+  expect(fs.readdirSync(outside)).toStrictEqual([])
 })

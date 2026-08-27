@@ -3,20 +3,26 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import gfs from '@pnpm/fs.graceful-fs'
+import gfs, { renameFileWithRetry } from '@pnpm/fs.graceful-fs'
 import { globalWarn } from '@pnpm/logger'
 import { fastPathTemp } from 'path-temp'
-import { renameOverwriteSync } from 'rename-overwrite'
 
 /**
  * Hard links the contents of `src` into every directory of `destDirs`, leaving
- * out `node_modules`.
+ * out `node_modules`. A destination that is `src` itself is skipped; the rest
+ * are created if they are missing, and a missing `src` leaves them empty and
+ * warns.
  *
  * A destination is filled in place, entry by entry. Its own `node_modules` —
  * under the hoisted node linker, the dependencies that could not be hoisted any
  * higher — stays where it is, and so does anyone working inside it: the copies
  * of one build chunk run concurrently, so a sibling package may be staging its
- * own copy in there while this one is written.
+ * own copy in there while this one is written. Entries the destination has that
+ * `src` does not are left alone for the same reason.
+ *
+ * A destination entry of the kind `src` does not have is removed to make room,
+ * a file already there is replaced through a rename, and a filesystem error
+ * that neither of those resolves is thrown.
  */
 export function hardLinkDir (src: string, destDirs: string[]): void {
   const targetDirs = destDirs.filter((destDir) => path.relative(destDir, src) !== '')
@@ -39,9 +45,11 @@ function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean): void 
   for (const file of files) {
     if (file === 'node_modules') continue
     const srcFile = path.join(src, file)
-    if (fs.lstatSync(srcFile).isDirectory()) {
+    const srcStats = fs.lstatSync(srcFile)
+    if (srcStats.isDirectory()) {
       const destSubdirs = destDirs.map((destDir) => {
         const destSubdir = path.join(destDir, file)
+        clearMismatchedDirent(destSubdir, true)
         try {
           gfs.mkdirSync(destSubdir, { recursive: true })
         } catch (err: unknown) {
@@ -55,7 +63,7 @@ function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean): void 
     for (const destDir of destDirs) {
       const destFile = path.join(destDir, file)
       try {
-        linkOrCopyFile(srcFile, destFile)
+        linkOrCopyFile(srcFile, destFile, srcStats)
       } catch (err: unknown) {
         if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
           // Ignore broken symlinks
@@ -67,7 +75,7 @@ function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean): void 
   }
 }
 
-function linkOrCopyFile (srcFile: string, destFile: string): void {
+function linkOrCopyFile (srcFile: string, destFile: string, srcStats: fs.Stats): void {
   try {
     linkOrCopy(srcFile, destFile)
     return
@@ -82,7 +90,23 @@ function linkOrCopyFile (srcFile: string, destFile: string): void {
       throw err
     }
   }
+  // Most of what a destination holds is the very file the source holds: both
+  // were linked from the same store entry, and a build touches only a few of
+  // them. Replacing those again would cost a link and a rename apiece.
+  if (isSameFile(destFile, srcStats)) return
   replaceFile(srcFile, destFile)
+}
+
+function isSameFile (destFile: string, srcStats: fs.Stats): boolean {
+  let destStats
+  try {
+    destStats = fs.lstatSync(destFile)
+  } catch {
+    return false
+  }
+  // Filesystems that report no inode (some on Windows) make every file look
+  // like every other one.
+  return destStats.ino !== 0 && destStats.ino === srcStats.ino && destStats.dev === srcStats.dev
 }
 
 // Swap the new file in through a temp sibling, so that whoever reads the
@@ -91,16 +115,34 @@ function replaceFile (srcFile: string, destFile: string): void {
   const tempFile = fastPathTemp(destFile)
   // A temp file is named after the thread that writes it, so only an
   // interrupted run can leave one behind for this one to trip over.
-  fs.rmSync(tempFile, { force: true })
+  fs.rmSync(tempFile, { recursive: true, force: true })
   try {
     linkOrCopy(srcFile, tempFile)
-    renameOverwriteSync(tempFile, destFile)
+    clearMismatchedDirent(destFile, false)
+    renameFileWithRetry(tempFile, destFile)
   } catch (err: unknown) {
     try {
       fs.unlinkSync(tempFile)
     } catch {} // eslint-disable-line:no-empty
     throw err
   }
+}
+
+// A directory cannot be created where a file or a symlink is, and a rename
+// cannot put a file where a directory is. The destination holds an older copy
+// of the same package, so only a build that turned one into the other leaves it
+// with a dirent of the wrong kind. Removing it also keeps a symlinked directory
+// from redirecting the writes below out of the destination.
+function clearMismatchedDirent (destPath: string, wantDirectory: boolean): void {
+  let stats
+  try {
+    stats = fs.lstatSync(destPath)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+    throw err
+  }
+  if (stats.isDirectory() === wantDirectory) return
+  fs.rmSync(destPath, { recursive: true, force: true })
 }
 
 /*

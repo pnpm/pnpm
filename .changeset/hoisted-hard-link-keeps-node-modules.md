@@ -1,4 +1,6 @@
 ---
+"@pnpm/fs.graceful-fs": minor
+"@pnpm/fs.indexed-pkg-importer": patch
 "@pnpm/fs.hard-link-dir": patch
 "pnpm": patch
 ---
