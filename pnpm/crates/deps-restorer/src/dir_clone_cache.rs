@@ -34,11 +34,14 @@
 //! CAS content, indistinguishable from what a GVS-enabled install
 //! materializes before its build phase.
 //!
-//! The cache is strictly best-effort: any failure falls back to the
-//! per-file import for that package, and failures that indicate the
-//! volume cannot clone directories (`EXDEV`, `ENOTSUP`, ...) disable
-//! the cache for the rest of the process so each remaining package
-//! pays no probe syscall.
+//! The cache is strictly best-effort: a per-install capability probe
+//! ([`dir_clone_supported`]) declines the whole cache up front when the
+//! canonical root and the project's virtual store can't share clones
+//! (cross-volume stores, non-APFS filesystems), so no canonical slot is
+//! ever populated that the clone step can't use. Past the probe, any
+//! per-package failure falls back to the per-file import, and failures
+//! that indicate the volume cannot clone directories (`EXDEV`,
+//! `ENOTSUP`, ...) disable the cache for the rest of the process.
 
 use crate::{
     AllowBuildPolicy, VirtualStoreLayout,
@@ -105,6 +108,20 @@ impl DirCloneCache {
         lockfile_dir: Option<&Path>,
     ) -> Option<Self> {
         if !Self::eligible(config, node_linker) {
+            return None;
+        }
+        // Establish once, before any package is materialized, that a
+        // directory clone from the canonical root's volume into the
+        // project's virtual store can succeed at all. Without this, a
+        // cross-volume or clone-incapable layout would have the first
+        // wave of parallel slot links each populate a canonical slot
+        // only to fall back per-file after the clone fails. Under
+        // `frozenStore` the cache never writes canonical slots, so
+        // there is no duplicated work to prevent — and the store must
+        // not be written a probe directory either.
+        if !config.frozen_store
+            && !dir_clone_supported(&config.global_virtual_store_dir, &config.virtual_store_dir)
+        {
             return None;
         }
         Some(DirCloneCache {
@@ -217,6 +234,27 @@ impl DirCloneCache {
             }
         }
     }
+}
+
+/// Whether a directory `clonefile` from under `links_root` can land in
+/// `virtual_store_dir`: clone an empty probe directory across and
+/// remove both. Both directories are created if absent — the install
+/// creates them moments later anyway. A stale destination from a
+/// crashed probe is removed first so pid reuse can't fail the probe
+/// with `EEXIST`.
+fn dir_clone_supported(links_root: &Path, virtual_store_dir: &Path) -> bool {
+    let probe_name = format!(".pacquet-dir-clone-probe-{}", std::process::id());
+    let src = links_root.join(&probe_name);
+    let dst = virtual_store_dir.join(&probe_name);
+    if fs::create_dir_all(&src).is_err() || fs::create_dir_all(virtual_store_dir).is_err() {
+        let _ = fs::remove_dir(&src);
+        return false;
+    }
+    let _ = fs::remove_dir(&dst);
+    let supported = reflink_copy::reflink(&src, &dst).is_ok();
+    let _ = fs::remove_dir(&src);
+    let _ = fs::remove_dir(&dst);
+    supported
 }
 
 #[cfg(test)]
