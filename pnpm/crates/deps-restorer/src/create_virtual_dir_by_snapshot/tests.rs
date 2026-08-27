@@ -168,6 +168,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
         skipped: &skipped,
         removed_aliases: &[],
         needs_build_marker_source: None,
+        dir_clone_cache: None,
         link_concurrency_probe: None,
     }
     .run::<RecordingReporter>()
@@ -236,6 +237,7 @@ fn run_imports_needs_build_marker_with_a_fresh_package() {
         skipped: &skipped,
         removed_aliases: &[],
         needs_build_marker_source: Some(&marker_source),
+        dir_clone_cache: None,
         link_concurrency_probe: None,
     }
     .run::<pnpm_reporter::SilentReporter>()
@@ -281,6 +283,7 @@ fn force_import_replaces_an_existing_package_at_the_same_snapshot_key() {
         skipped: &crate::SkippedSnapshots::default(),
         removed_aliases: &[],
         needs_build_marker_source: None,
+        dir_clone_cache: None,
         link_concurrency_probe: None,
     }
     .run::<pnpm_reporter::SilentReporter>()
@@ -327,6 +330,7 @@ fn run_rejects_traversal_package_name() {
         skipped: &skipped,
         removed_aliases: &[],
         needs_build_marker_source: None,
+        dir_clone_cache: None,
         link_concurrency_probe: None,
     }
     .run::<pnpm_reporter::SilentReporter>();
@@ -381,6 +385,7 @@ async fn run_removes_obsolete_child_links() {
         skipped: &skipped,
         removed_aliases: &removed_aliases,
         needs_build_marker_source: None,
+        dir_clone_cache: None,
         link_concurrency_probe: None,
     }
     .run::<SilentReporter>()

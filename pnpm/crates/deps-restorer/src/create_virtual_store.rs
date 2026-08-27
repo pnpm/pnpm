@@ -186,6 +186,13 @@ pub struct CreateVirtualStore<'a> {
     /// Tarball downloads and CAS writes still happen for both
     /// linkers; only the slot-materialization step differs.
     pub node_linker: NodeLinker,
+    /// macOS directory-clone materialization cache, built in
+    /// [`crate::InstallFrozenLockfile::run`] when
+    /// [`crate::DirCloneCache::eligible`] holds. Threaded into every
+    /// isolated-linker slot link whose package qualifies (no build or
+    /// patch marker, immutable source, no forced re-import). See
+    /// [`crate::dir_clone_cache`].
+    pub dir_clone_cache: Option<&'a crate::DirCloneCache>,
     /// Cache keys whose package status (`fetched` or `found_in_store`)
     /// has already been emitted earlier in this install. The warm batch
     /// still emits `resolved` for those packages, but skips the second
@@ -276,6 +283,7 @@ impl CreateVirtualStore<'_> {
             supported_architectures,
             workspace_root,
             node_linker,
+            dir_clone_cache,
             progress_reported,
             tarball_mem_cache,
             custom_fetcher_session,
@@ -624,6 +632,7 @@ impl CreateVirtualStore<'_> {
                                     .map(tempfile::NamedTempFile::path),
                             )
                             .flatten(),
+                        needs_build: *needs_build_marker,
                         removed_aliases: removed_aliases_for(&removed_aliases_by_key, snapshot_key),
                     }
                 })
@@ -632,6 +641,7 @@ impl CreateVirtualStore<'_> {
                 batch: "warm",
                 slots: &warm_slots,
                 layout,
+                dir_clone_cache,
                 symlink: config.symlink,
                 import_method,
                 logged_methods,
@@ -803,6 +813,7 @@ impl CreateVirtualStore<'_> {
                             batch: "cold",
                             slots: &[],
                             layout,
+                            dir_clone_cache,
                             symlink: config.symlink,
                             import_method,
                             logged_methods,
@@ -826,6 +837,7 @@ impl CreateVirtualStore<'_> {
                         batch: "cold",
                         slots: &[],
                         layout,
+                        dir_clone_cache,
                         symlink: config.symlink,
                         import_method,
                         logged_methods,
@@ -1073,6 +1085,13 @@ struct SlotLink<'a> {
     source_is_mutable: bool,
     force_import: bool,
     needs_build_marker_source: Option<&'a Path>,
+    /// Whether the slot needs a build or patch marker
+    /// ([`snapshot_needs_build_marker`]). Carried separately from
+    /// `needs_build_marker_source` — which is `None` for every slot
+    /// when the global virtual store is off — because the
+    /// directory-clone cache must exclude these slots under exactly
+    /// that configuration.
+    needs_build: bool,
     /// Child aliases dropped since the previous install, threaded into
     /// [`crate::CreateVirtualDirBySnapshot::removed_aliases`] so their
     /// stale symlinks are unlinked during the link pass.
@@ -1166,20 +1185,20 @@ fn link_cold_chunk<Reporter: self::Reporter>(
 ) -> Result<(), CreateVirtualStoreError> {
     let cold_slots: Vec<SlotLink<'_>> = chunk
         .iter()
-        .map(|capture| SlotLink {
-            snapshot_key: capture.snapshot_key,
-            snapshot: capture.snapshot,
-            cas_paths: &capture.cas_paths,
-            warm_cache_key: None,
-            source_is_mutable: capture.source_is_mutable,
-            force_import: capture.force_import,
-            needs_build_marker_source: snapshot_needs_build_marker(
-                capture.snapshot_key,
-                capture.requires_build,
-            )
-            .then_some(marker_path)
-            .flatten(),
-            removed_aliases: removed_aliases_for(removed_aliases_by_key, capture.snapshot_key),
+        .map(|capture| {
+            let needs_build =
+                snapshot_needs_build_marker(capture.snapshot_key, capture.requires_build);
+            SlotLink {
+                snapshot_key: capture.snapshot_key,
+                snapshot: capture.snapshot,
+                cas_paths: &capture.cas_paths,
+                warm_cache_key: None,
+                source_is_mutable: capture.source_is_mutable,
+                force_import: capture.force_import,
+                needs_build_marker_source: needs_build.then_some(marker_path).flatten(),
+                needs_build,
+                removed_aliases: removed_aliases_for(removed_aliases_by_key, capture.snapshot_key),
+            }
         })
         .collect();
     link_slots_parallel::<Reporter>(LinkSlotsParallel { slots: &cold_slots, ..*template })
@@ -1190,6 +1209,7 @@ struct LinkSlotsParallel<'a> {
     batch: &'static str,
     slots: &'a [SlotLink<'a>],
     layout: &'a crate::VirtualStoreLayout,
+    dir_clone_cache: Option<&'a crate::DirCloneCache>,
     symlink: bool,
     import_method: PackageImportMethod,
     logged_methods: &'a AtomicU8,
@@ -1211,6 +1231,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
         batch,
         slots,
         layout,
+        dir_clone_cache,
         symlink,
         import_method,
         logged_methods,
@@ -1254,6 +1275,12 @@ fn link_slots_parallel<Reporter: self::Reporter>(
                 skipped,
                 removed_aliases: group.removed_aliases(),
                 needs_build_marker_source: slot.needs_build_marker_source,
+                dir_clone_cache: if slot.needs_build || slot.source_is_mutable || slot.force_import
+                {
+                    None
+                } else {
+                    dir_clone_cache
+                },
                 #[cfg(test)]
                 link_concurrency_probe,
             }

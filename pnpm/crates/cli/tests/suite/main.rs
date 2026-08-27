@@ -35,6 +35,7 @@ mod dedupe_direct_deps;
 mod dedupe_injected_deps;
 mod deploy;
 mod deprecate;
+mod dir_clone_cache;
 mod dist_tag;
 mod dlx;
 mod docs;

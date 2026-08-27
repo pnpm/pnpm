@@ -700,6 +700,10 @@ impl InstallPackageBySnapshot<'_> {
                 // against), so there are never obsolete children here.
                 removed_aliases: &[],
                 needs_build_marker_source: None,
+                // The fresh single-package path materializes one slot;
+                // there is no per-install batch to amortize a cache
+                // layout over.
+                dir_clone_cache: None,
                 #[cfg(test)]
                 link_concurrency_probe,
             }

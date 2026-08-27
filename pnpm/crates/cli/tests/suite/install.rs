@@ -79,10 +79,20 @@ fn should_install_dependencies() {
 
     eprintln!("Snapshot");
     let workspace_folders = get_all_folders(&workspace);
-    let store_files = get_all_files(&store_dir);
+    let store_files = store_files_outside_links(&store_dir);
     insta::assert_debug_snapshot!((workspace_folders, store_files));
 
     drop((root, mock_instance));
+}
+
+/// Store files excluding `v11/links/`: on macOS every clone-capable
+/// install also materializes canonical slots there (the directory-clone
+/// cache, `pnpm-deps-restorer/src/dir_clone_cache.rs`), and their paths
+/// embed a graph hash that varies with the host's Node major — useless
+/// under a platform-shared snapshot, and their files carry package
+/// modes rather than the CAFS `-exec` convention.
+fn store_files_outside_links(store_dir: &Path) -> Vec<String> {
+    get_all_files(store_dir).into_iter().filter(|path| !path.starts_with("v11/links/")).collect()
 }
 
 #[test]
@@ -381,7 +391,7 @@ fn should_install_exec_files() {
     pacquet.with_arg("install").assert().success();
 
     eprintln!("Listing all files in the store...");
-    let store_files = get_all_files(&store_dir);
+    let store_files = store_files_outside_links(&store_dir);
 
     #[cfg(unix)]
     {
