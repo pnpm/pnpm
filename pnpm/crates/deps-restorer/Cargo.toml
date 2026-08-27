@@ -59,13 +59,15 @@ tokio        = { workspace = true }
 tracing      = { workspace = true }
 
 [dev-dependencies]
-pnpm-testing-utils = { workspace = true }
+pnpm-shared-artifact-protocol = { workspace = true }
+pnpm-testing-utils            = { workspace = true }
 
 async-trait       = { workspace = true }
 dunce             = { workspace = true }
 flate2            = { workspace = true }
 insta             = { workspace = true }
 mockito           = { workspace = true }
+p256              = { workspace = true }
 pretty_assertions = { workspace = true }
 serde-saphyr      = { workspace = true }
 sha2              = { workspace = true }
