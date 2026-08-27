@@ -432,7 +432,7 @@ pub fn npmrc_auth_file_override_supplies_basic_auth_to_bootstrap() {
         &auth_file,
         format!(
             "registry=https://registry.example.com/\n\
-             //registry.example.com/:_auth={pair}\n"
+             //registry.example.com/:_auth={pair}\n",
         ),
     )
     .expect("write auth file");
