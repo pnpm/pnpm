@@ -168,7 +168,7 @@ fn lifecycle_graph_normalizes_paths_and_recovers_from_incomplete_explicit_graph(
     )
     .unwrap();
     let dependency_dir = pnpm_fs::lexical_normalize(&dependency_dir);
-    assert_eq!(graph.dependencies[&dependent_dir], vec![dependency_dir],);
+    assert_eq!(graph.dependencies[&dependent_dir], vec![dependency_dir]);
 }
 
 #[test]

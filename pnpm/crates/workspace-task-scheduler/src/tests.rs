@@ -149,7 +149,7 @@ fn project_without_the_script_becomes_a_pass_through_node_that_keeps_the_chain()
     assert_eq!(graph[&key("a", "build")].dependencies, vec![key("b", "build")]);
 
     let order = sequence(&mut graph).unwrap();
-    assert_eq!(order, vec![key("c", "build"), key("b", "build"), key("a", "build")],);
+    assert_eq!(order, vec![key("c", "build"), key("b", "build"), key("a", "build")]);
 }
 
 #[test]

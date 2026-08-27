@@ -84,7 +84,7 @@ impl RebuildArgs {
                                 .wrap_err_with(|| {
                                     format!(
                                         "initialize the rebuild state for {}",
-                                        project_dir.display()
+                                        project_dir.display(),
                                     )
                                 })?;
                         Box::pin(args.run::<Reporter>(state, None)).await

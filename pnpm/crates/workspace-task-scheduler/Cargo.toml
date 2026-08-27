@@ -11,20 +11,20 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pnpm-config        = { workspace = true }
-pnpm-fs            = { workspace = true }
-pnpm-reporter      = { workspace = true }
+pnpm-config   = { workspace = true }
+pnpm-fs       = { workspace = true }
+pnpm-reporter = { workspace = true }
 
-derive_more = { workspace = true }
+derive_more  = { workspace = true }
 futures-util = { workspace = true }
-indexmap    = { workspace = true }
-miette      = { workspace = true }
-serde       = { workspace = true }
+indexmap     = { workspace = true }
+miette       = { workspace = true }
+serde        = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
-serde_json = { workspace = true }
-tokio = { workspace = true }
+serde_json        = { workspace = true }
+tokio             = { workspace = true }
 
 [lints]
 workspace = true

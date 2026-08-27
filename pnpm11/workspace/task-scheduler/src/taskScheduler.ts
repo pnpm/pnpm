@@ -100,14 +100,14 @@ export async function scheduleGraph<Node> (
   const order = graphSequencer(graph).order
   const orderIndex = new Map(order.map((node, index) => [node, index]))
   for (const [node, dependencies] of graph) {
-    const schedulableDependencies = dependencies.filter(
+    const orderedDependencies = dependencies.filter(
       (dependency) => orderIndex.get(dependency)! < orderIndex.get(node)!
     )
-    pendingDependencyCount.set(node, schedulableDependencies.length)
-    if (schedulableDependencies.length === 0) {
+    pendingDependencyCount.set(node, orderedDependencies.length)
+    if (orderedDependencies.length === 0) {
       ready.push(node)
     }
-    for (const dependency of schedulableDependencies) {
+    for (const dependency of orderedDependencies) {
       let list = dependents.get(dependency)
       if (list == null) {
         dependents.set(dependency, list = [])

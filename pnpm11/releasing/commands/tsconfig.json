@@ -55,6 +55,9 @@
       "path": "../../core/types"
     },
     {
+      "path": "../../deps/graph-sequencer"
+    },
+    {
       "path": "../../deps/path"
     },
     {
@@ -143,9 +146,6 @@
     },
     {
       "path": "../../workspace/task-scheduler"
-    },
-    {
-      "path": "../../deps/graph-sequencer"
     },
     {
       "path": "../../workspace/workspace-manifest-writer"

@@ -28,10 +28,9 @@ use pnpm_reporter::Reporter;
 use pnpm_workspace_task_scheduler::{
     ScheduleGraphAsyncOptions, TaskCompletion, schedule_graph_async,
 };
-use std::sync::Mutex;
 use std::{
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 /// The `wrap_err` framing `pack` and `publish` attach to a failed pack.

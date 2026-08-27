@@ -34,7 +34,7 @@ fn linear_chain_runs_leaf_first() {
     let result = graph_sequencer(&graph_map, &nodes);
     dbg!(&result);
     assert!(is_safe(&result), "DAG must sort safely: {result:?}");
-    assert_eq!(result.order, vec!["c".to_string(), "b".to_string(), "a".to_string()],);
+    assert_eq!(result.order, vec!["c".to_string(), "b".to_string(), "a".to_string()]);
 }
 
 #[test]
@@ -206,11 +206,11 @@ fn dependents_of_a_cycle_sort_in_linear_time() {
     assert_eq!(result.order.len(), ring_len + dependent_count);
     assert_eq!(
         result.order[..ring_len].iter().cloned().collect::<std::collections::HashSet<_>>(),
-        ring.iter().cloned().collect()
+        ring.iter().cloned().collect(),
     );
     assert_eq!(
         result.order[ring_len..].iter().cloned().collect::<std::collections::HashSet<_>>(),
-        dependents.iter().cloned().collect()
+        dependents.iter().cloned().collect(),
     );
     assert!(
         elapsed < std::time::Duration::from_secs(5),

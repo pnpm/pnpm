@@ -129,7 +129,7 @@ fn deep_chain_orders_leaf_first() {
 
     let graph =
         build_graph(&requires_build, None, &snapshots, &importers, &SkippedSnapshots::default());
-    assert_eq!(order(&graph), vec![key("c", "1.0.0"), key("b", "1.0.0"), key("a", "1.0.0")],);
+    assert_eq!(order(&graph), vec![key("c", "1.0.0"), key("b", "1.0.0"), key("a", "1.0.0")]);
 }
 
 #[test]
@@ -153,12 +153,12 @@ fn unrelated_subgraph_excluded() {
     dbg!(&graph);
     assert!(
         graph.contains_key(&key("a", "1.0.0")),
-        "ancestor of build leaf must appear: {graph:?}"
+        "ancestor of build leaf must appear: {graph:?}",
     );
     assert!(graph.contains_key(&key("b", "1.0.0")), "build leaf must appear: {graph:?}");
     assert!(
         !graph.contains_key(&key("x", "1.0.0")),
-        "unreachable ancestor must be excluded: {graph:?}"
+        "unreachable ancestor must be excluded: {graph:?}",
     );
     assert!(
         !graph.contains_key(&key("y", "1.0.0")),

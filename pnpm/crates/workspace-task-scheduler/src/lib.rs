@@ -195,7 +195,7 @@ pub fn sequence_tasks(
 }
 
 /// Keep only dependencies that point backward in the sequencer's order,
-/// making an ignored cyclic graph deterministic and schedulable.
+/// making an ignored cyclic graph deterministic and runnable.
 fn drop_cyclic_dependencies(graph: &mut TaskGraph, order: &[TaskKey]) {
     let order_index: HashMap<&TaskKey, usize> =
         order.iter().enumerate().map(|(index, key)| (key, index)).collect();

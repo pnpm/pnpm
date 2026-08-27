@@ -75,7 +75,7 @@ fn sorts_every_project_when_only_one_graph_is_given() {
 #[test]
 fn orders_selected_projects_connected_only_through_an_unselected_project() {
     let graph = make_graph(&[("a", &["b"]), ("b", &["c"]), ("c", &[])]);
-    assert_eq!(sequence_graph(&select(&graph, &["a", "c"]), &graph).order, dirs(&["c", "a"]),);
+    assert_eq!(sequence_graph(&select(&graph, &["a", "c"]), &graph).order, dirs(&["c", "a"]));
 }
 
 #[test]
@@ -87,7 +87,7 @@ fn keeps_independent_selected_projects_in_selection_order() {
 #[test]
 fn resolves_transitive_edges_across_a_diamond_of_unselected_projects() {
     let graph = make_graph(&[("a", &["x", "y"]), ("x", &["c"]), ("y", &["c"]), ("c", &[])]);
-    assert_eq!(sequence_graph(&select(&graph, &["a", "c"]), &graph).order, dirs(&["c", "a"]),);
+    assert_eq!(sequence_graph(&select(&graph, &["a", "c"]), &graph).order, dirs(&["c", "a"]));
 }
 
 #[test]
@@ -109,7 +109,7 @@ fn does_not_reintroduce_edges_that_the_selected_graph_pruned() {
 fn filtered_projects_dependencies_resolves_transitive_order_for_regular_filters() {
     let full = make_graph(&[("a", &["b"]), ("b", &["c"]), ("c", &[])]);
     let selected = select(&full, &["a", "c"]);
-    assert_eq!(filtered_order(&selected, &full, None, &prod_only(&[])), dirs(&["c", "a"]),);
+    assert_eq!(filtered_order(&selected, &full, None, &prod_only(&[])), dirs(&["c", "a"]));
 }
 
 #[test]

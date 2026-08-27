@@ -150,7 +150,7 @@ export function sequenceTasks (graph: TaskGraph, opts: SequenceTasksOptions): Ta
 
 /**
  * Keeps only dependencies that point backward in the sequencer's order,
- * making an ignored cyclic graph deterministic and schedulable.
+ * making an ignored cyclic graph deterministic and runnable.
  */
 function dropCyclicDependencies (graph: TaskGraph, order: TaskKey[]): void {
   const orderIndex = new Map(order.map((key, index) => [key, index]))

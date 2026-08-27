@@ -58,10 +58,10 @@
       "path": "../../store/controller-types"
     },
     {
-      "path": "../../workspace/task-scheduler"
+      "path": "../../worker"
     },
     {
-      "path": "../../worker"
+      "path": "../../workspace/task-scheduler"
     }
   ]
 }
