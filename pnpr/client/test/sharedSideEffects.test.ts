@@ -314,7 +314,7 @@ describe('signed shared artifacts', () => {
         },
       })
       expect(mismatchedPackage).toEqual(new Map())
-      const selected = await resolveSharedSideEffects({
+      const resolveOptions = {
         registryUrl,
         authorization: 'Bearer token',
         candidates: [{
@@ -332,13 +332,24 @@ describe('signed shared artifacts', () => {
         trustedKeys: {
           'acme-2026': publicKey.export({ format: 'der', type: 'spki' }).toString('base64'),
         },
-      })
+      }
+      const selected = await resolveSharedSideEffects(resolveOptions)
       expect(selected.get(payload().inputKey)?.payload).toEqual(payload())
       expect(selected.get(payload().inputKey)?.envelopeDigest).toBe(
         [envelope, alternateEnvelope]
           .map(signedArtifactEnvelopeDigest)
           .sort()[0]
       )
+      const pinnedDigest = signedArtifactEnvelopeDigest(alternateEnvelope)
+      const pinned = await resolveSharedSideEffects({
+        ...resolveOptions,
+        pinnedEnvelopeDigests: new Map([[payload().inputKey, pinnedDigest]]),
+      })
+      expect(pinned.get(payload().inputKey)?.envelopeDigest).toBe(pinnedDigest)
+      await expect(resolveSharedSideEffects({
+        ...resolveOptions,
+        pinnedEnvelopeDigests: new Map([[payload().inputKey, '0'.repeat(64)]]),
+      })).resolves.toEqual(new Map())
       await expect(downloadSharedArtifactBlob({
         registryUrl,
         authorization: 'Bearer token',
@@ -346,6 +357,8 @@ describe('signed shared artifacts', () => {
       })).resolves.toEqual(contents)
       expect(requests.map(request => request.url)).toEqual([
         '/-/pnpr/v0/artifacts',
+        '/-/pnpr/v0/artifacts/resolve',
+        '/-/pnpr/v0/artifacts/resolve',
         '/-/pnpr/v0/artifacts/resolve',
         '/-/pnpr/v0/artifacts/resolve',
         '/-/pnpr/v0/artifacts/blob',

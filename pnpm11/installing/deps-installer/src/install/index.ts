@@ -369,7 +369,7 @@ export async function mutateModules (
   // (pnpm remove), and complete-project revision refreshes. Mutations that
   // need other client-side update behavior still fall through to the normal
   // flow.
-  if (opts.pnprServer && canUsePnprForMutations(projects, opts)) {
+  if (opts.pnprServer && !opts.refreshArtifactPins && canUsePnprForMutations(projects, opts)) {
     const pnprResult = await mutateModulesViaPnpr(projects, opts)
     if (pnprResult) {
       // This path materializes packages of its own, so it verifies the
@@ -404,6 +404,9 @@ export async function mutateModules (
     await safeReadProjectManifestOnly(opts.lockfileDir)
 
   let ctx = await getContext(opts)
+  if (opts.refreshArtifactPins && clearArtifactPins(ctx.wantedLockfile)) {
+    ctx.wantedLockfileIsModified = true
+  }
 
   if (!opts.lockfileOnly && !isCheckOnlyInstall(opts) && ctx.modulesFile != null) {
     const { purged } = await validateModules(ctx.modulesFile, Object.values(ctx.projects), {
@@ -1502,6 +1505,7 @@ Note that in CI environments, this setting is enabled by default.`,
         relinkChangedDependenciesOnly: didFastUpdateOverrides,
         wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
         useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
+        recordArtifactPins: opts.useLockfile && opts.saveLockfile && !frozenLockfile,
         verifyLockfile,
       })
       if (
@@ -2146,6 +2150,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         virtualStoreDir: ctx.virtualStoreDir,
         virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
         wantedLockfile: newLockfile,
+        recordArtifactPins: opts.useLockfile && opts.saveLockfile && !opts.frozenLockfile,
         wantedToBeSkippedPackageIds,
         hoistWorkspacePackages: opts.hoistWorkspacePackages,
         virtualStoreOnly: opts.virtualStoreOnly,
@@ -2617,6 +2622,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           prunedAt: ctx.modulesFile?.prunedAt,
           wantedLockfile: result.newLockfile,
           useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
+          recordArtifactPins: opts.useLockfile && opts.saveLockfile && !opts.frozenLockfile,
           hoistWorkspacePackages: opts.hoistWorkspacePackages,
         }))
         return {
@@ -2647,6 +2653,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         prunedAt: ctx.modulesFile?.prunedAt,
         wantedLockfile: result.newLockfile,
         useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
+        recordArtifactPins: opts.useLockfile && opts.saveLockfile && !opts.frozenLockfile,
         hoistWorkspacePackages: opts.hoistWorkspacePackages,
       }))
       return {
@@ -2739,6 +2746,16 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
 }
 
 const limitLinking = pLimit(16)
+
+function clearArtifactPins (lockfile: LockfileObject): boolean {
+  let changed = false
+  for (const snapshot of Object.values(lockfile.packages ?? {})) {
+    if (snapshot.artifactPins == null) continue
+    delete snapshot.artifactPins
+    changed = true
+  }
+  return changed
+}
 
 async function linkAllBins (
   depNodes: DependenciesGraphNode[],
@@ -3142,6 +3159,8 @@ async function installViaPnprServer (
       patchedDependencies,
       resolvedPatchedDependencies
     )
+    const frozenLockfile = opts.frozenLockfile === true ||
+      (opts.frozenLockfileIfExists === true && existingLockfile != null)
 
     logger.info({ message: 'Resolving dependencies via the pnpr server', prefix: rootDir })
 
@@ -3193,7 +3212,7 @@ async function installViaPnprServer (
       // Lockfile reuse. Without these the server always reuse-and-updates,
       // so `--frozen-lockfile` would silently resolve and rewrite the very
       // lockfile it promises to leave alone.
-      frozenLockfile: opts.frozenLockfile === true || (opts.frozenLockfileIfExists === true && existingLockfile != null),
+      frozenLockfile,
       preferFrozenLockfile: opts.preferFrozenLockfile,
       updatePatches: opts.updatePatches,
       lockfile: existingLockfile ?? undefined,
@@ -3268,6 +3287,7 @@ async function installViaPnprServer (
       patchedDependencies: patchGroups,
       skipped: new Set<DepPath>(),
       wantedLockfile: lockfile,
+      recordArtifactPins: opts.useLockfile !== false && opts.saveLockfile !== false && !frozenLockfile,
     }
     const { ignoredBuilds, stats } = await materializeOrDelegate(
       opts,

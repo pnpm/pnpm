@@ -1,12 +1,13 @@
 use crate::{
-    AllowBuildPolicy, BuildModules, BuildModulesError, CreateVirtualStore, CreateVirtualStoreError,
-    CreateVirtualStoreOutput, HoistedDepGraphError, HoistedDependencies, LinkHoistedModulesError,
-    LinkHoistedModulesOpts, LinkRootComponentMembersError, LinkVirtualStoreBinsError,
-    LockfileToHoistedDepGraphOptions, SkippedSnapshots, SymlinkDirectDependencies,
-    SymlinkDirectDependenciesError, SymlinkPackageError, VersionPolicyError, VirtualStoreLayout,
-    any_installability_constraint, build_direct_deps_by_importer, direct_dep_names_for_importer,
-    get_hoisted_dependencies, link_hoisted_modules, link_top_level_bins,
-    lockfile_to_hoisted_dep_graph, symlink_direct_dependencies::importer_root_dir,
+    AllowBuildPolicy, ArtifactPinRecord, BuildModules, BuildModulesError, CreateVirtualStore,
+    CreateVirtualStoreError, CreateVirtualStoreOutput, HoistedDepGraphError, HoistedDependencies,
+    LinkHoistedModulesError, LinkHoistedModulesOpts, LinkRootComponentMembersError,
+    LinkVirtualStoreBinsError, LockfileToHoistedDepGraphOptions, SkippedSnapshots,
+    SymlinkDirectDependencies, SymlinkDirectDependenciesError, SymlinkPackageError,
+    VersionPolicyError, VirtualStoreLayout, any_installability_constraint,
+    build_direct_deps_by_importer, direct_dep_names_for_importer, get_hoisted_dependencies,
+    link_hoisted_modules, link_top_level_bins, lockfile_to_hoisted_dep_graph,
+    symlink_direct_dependencies::importer_root_dir,
 };
 
 mod build_phase;
@@ -647,6 +648,7 @@ where
             materialized_snapshots,
             fetch_failed,
             cas_paths_by_pkg_id,
+            artifact_pin_records,
         } = {
             let mut verify_fut = std::pin::pin!(verify_fut);
             let mut create_virtual_store_fut = std::pin::pin!(create_virtual_store_fut);
@@ -858,6 +860,7 @@ where
             ignored_builds,
             deferred_builds,
             store_index_teardown: writer_task,
+            artifact_pin_records,
         })
     }
 }
@@ -868,6 +871,7 @@ where
 /// land without churning every call site.
 #[derive(Debug)]
 pub struct InstallFrozenLockfileOutput {
+    pub artifact_pin_records: Vec<ArtifactPinRecord>,
     /// Hoisted-dependencies map produced by the isolated-linker
     /// hoist pass — empty when both hoist patterns are `None` and
     /// always empty under `nodeLinker: hoisted` (the hoisted

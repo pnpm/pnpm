@@ -111,6 +111,7 @@ export interface Project {
 }
 
 export interface HeadlessOptions extends RegistryContext {
+  recordArtifactPins?: boolean
   projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
   allowBuilds?: Record<string, boolean | string>
   autoInstallPeers?: boolean
@@ -237,6 +238,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   if (wantedLockfile == null) {
     throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
   }
+  let artifactPinsChanged = false
 
   const depsStateCache: DepsStateCache = {}
   // `modulesDir` is conventionally a path relative to `lockfileDir`, but
@@ -448,6 +450,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     if (!skipPostImportLinking) {
       await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
         allowBuild,
+        artifactPinsLockfile: wantedLockfile,
         depsStateCache,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         force: opts.force,
@@ -457,6 +460,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
         remoteSideEffectsCache: opts.remoteSideEffectsCache,
         pnprServer: opts.pnprServer,
+        recordArtifactPins: opts.recordArtifactPins,
+        onArtifactPinsChanged: () => {
+          artifactPinsChanged = true
+        },
         configByUri: opts.configByUri,
         supportedArchitectures: opts.supportedArchitectures,
       })
@@ -490,6 +497,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           }),
         linkAllPkgs(opts.storeController, depNodes, {
           allowBuild,
+          artifactPinsLockfile: wantedLockfile,
           force: opts.force,
           disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
           depGraph: graph,
@@ -500,6 +508,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           sideEffectsCacheRead: opts.sideEffectsCacheRead,
           remoteSideEffectsCache: opts.remoteSideEffectsCache,
           pnprServer: opts.pnprServer,
+          recordArtifactPins: opts.recordArtifactPins,
+          onArtifactPinsChanged: () => {
+            artifactPinsChanged = true
+          },
           configByUri: opts.configByUri,
           storeDir: opts.storeDir,
           supportedArchitectures: opts.supportedArchitectures,
@@ -788,7 +800,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       virtualStoreOnly: opts.virtualStoreOnly,
     })
     const currentLockfileDir = path.join(rootModulesDir, '.pnpm')
-    if (opts.useLockfile) {
+    if (opts.useLockfile || artifactPinsChanged) {
       // We need to write the wanted lockfile as well.
       // Even though it will only be changed if the workspace will have new projects with no dependencies.
       await writeLockfiles({
@@ -1023,6 +1035,7 @@ async function linkAllPkgs (
   depNodes: DependenciesGraphNode[],
   opts: {
     allowBuild?: AllowBuild
+    artifactPinsLockfile?: LockfileObject
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
@@ -1033,6 +1046,8 @@ async function linkAllPkgs (
     sideEffectsCacheRead: boolean
     remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     pnprServer?: string
+    recordArtifactPins?: boolean
+    onArtifactPinsChanged?: () => void
     configByUri: Record<string, RegistryConfig>
     storeDir: string
     supportedArchitectures?: SupportedArchitectures
@@ -1056,16 +1071,19 @@ async function linkAllPkgs (
   const nodeVersion = findRuntimeNodeVersion(depNodes.map((node) => node.depPath))
   const restorer = createRemoteSideEffectsRestorer({
     allowBuild: opts.allowBuild,
+    artifactPinsLockfile: opts.artifactPinsLockfile,
     configByUri: opts.configByUri,
     depsGraph: opts.depGraph,
     depsStateCache: opts.depsStateCache,
     ignoreScripts: opts.ignoreScripts,
     nodeVersion,
     pnprServer: opts.pnprServer,
+    recordArtifactPins: opts.recordArtifactPins,
     settings: opts.remoteSideEffectsCache,
     sideEffectsCacheRead: opts.sideEffectsCacheRead,
     storeController,
     supportedArchitectures: opts.supportedArchitectures,
+    onArtifactPinsChanged: opts.onArtifactPinsChanged,
     warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
   })
   await Promise.all(

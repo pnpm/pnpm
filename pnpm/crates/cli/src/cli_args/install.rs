@@ -244,6 +244,11 @@ pub struct InstallArgs {
     #[clap(long = "update-checksums")]
     pub update_checksums: bool,
 
+    /// Replace remote build artifact pins after downloading and verifying the
+    /// currently available artifacts.
+    #[clap(long = "refresh-artifact-pins", conflicts_with_all = ["frozen_lockfile", "lockfile_only"])]
+    pub refresh_artifact_pins: bool,
+
     /// Maximum number of concurrent network requests during install.
     #[clap(long = "network-concurrency")]
     pub network_concurrency: Option<usize>,
@@ -327,6 +332,7 @@ impl InstallArgs {
             trust_lockfile: false,
             no_trust_lockfile: false,
             update_checksums: false,
+            refresh_artifact_pins: false,
             network_concurrency: None,
             fetch_timeout: None,
             fetch_warn_timeout_ms: None,
@@ -366,6 +372,7 @@ impl InstallArgs {
         if self.effective_frozen_lockfile(config)
             || self.lockfile_only
             || self.force
+            || self.refresh_artifact_pins
             || self.verify_deps_before_run_install
         {
             return false;
@@ -495,6 +502,7 @@ impl InstallArgs {
     ) -> miette::Result<()> {
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let frozen_lockfile = match self.configured_frozen_lockfile(state.config) {
+            _ if self.refresh_artifact_pins => false,
             Some(value) => value,
             None if state.config.ci
                 && !self.lockfile_only
@@ -550,6 +558,7 @@ impl InstallArgs {
             trust_lockfile,
             no_trust_lockfile,
             update_checksums,
+            refresh_artifact_pins,
             network_concurrency: _,
             fetch_timeout: _,
             fetch_warn_timeout_ms: _,
@@ -566,7 +575,9 @@ impl InstallArgs {
         // mutual `overrides_with` collapses both spellings to the
         // last-specified, so at most one is set and the precedence here
         // is straightforward.
-        let prefer_frozen_lockfile = if prefer_frozen_lockfile {
+        let prefer_frozen_lockfile = if refresh_artifact_pins {
+            Some(false)
+        } else if prefer_frozen_lockfile {
             Some(true)
         } else if no_prefer_frozen_lockfile {
             Some(false)
@@ -607,7 +618,8 @@ impl InstallArgs {
         // pnpr fast path: when a `pnprServer` URL is configured, offload
         // resolution + fetching to it, then link `node_modules` from the
         // server-produced lockfile via the normal frozen install.
-        if let Some(pnpr_server) = config.pnpr_server.as_deref() {
+        if let Some(pnpr_server) = config.pnpr_server.as_deref().filter(|_| !refresh_artifact_pins)
+        {
             // The pnpr path resolves and links through the server, so it
             // can't honor `--dry-run`'s no-write contract. Reject up front,
             // mirroring pnpm's CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER.
@@ -639,6 +651,28 @@ impl InstallArgs {
             .await;
         }
 
+        if refresh_artifact_pins && !config.lockfile {
+            return Err(RefreshArtifactPinsWithoutLockfile.into());
+        }
+        let mut refreshed_lockfile = None;
+        if refresh_artifact_pins {
+            refreshed_lockfile = lockfile
+                .get()
+                .map_err(|error| miette::Report::new(error).wrap_err("load the lockfile"))?
+                .cloned();
+            if let Some(snapshots) =
+                refreshed_lockfile.as_mut().and_then(|lockfile| lockfile.snapshots.as_mut())
+            {
+                for snapshot in snapshots.values_mut() {
+                    snapshot.clear_artifact_pins();
+                }
+            }
+        }
+        let install_lockfile = if refresh_artifact_pins {
+            MaybeLazyLockfile::Loaded(refreshed_lockfile.as_ref())
+        } else {
+            MaybeLazyLockfile::Lazy(lockfile)
+        };
         let install = Install {
             tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
             http_client,
@@ -646,7 +680,7 @@ impl InstallArgs {
             config,
             manifest,
             emit_initial_manifest: true,
-            lockfile: MaybeLazyLockfile::Lazy(lockfile),
+            lockfile: install_lockfile,
             lockfile_path: Some(&lockfile_path),
             dependency_groups: dependency_options.dependency_groups(config.optional),
             frozen_lockfile,
@@ -772,6 +806,11 @@ struct FrozenStoreIncompatibleWithPnpr;
     )
 )]
 struct DryRunIncompatibleWithPnpr;
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Cannot refresh artifact pins when lockfile is disabled.")]
+#[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_REFRESH_ARTIFACT_PINS_WITH_NO_LOCKFILE))]
+struct RefreshArtifactPinsWithoutLockfile;
 
 fn resolve_project(
     dir: String,
@@ -1119,25 +1158,13 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             workspace_projects_override: None,
         };
 
-        let result = match (selection, lockfile_verification_override) {
-            (Some(selection), Some(lockfile_verification_override)) => {
-                Box::pin(install.run_selected_with_lockfile_verification::<Reporter>(
-                    workspace_install_selection(selection),
-                    lockfile_verification_override,
-                ))
-                .await
-            }
-            (Some(selection), None) => {
-                Box::pin(install.run_selected::<Reporter>(workspace_install_selection(selection)))
-                    .await
-            }
-            (None, Some(lockfile_verification_override)) => {
-                install
-                    .run_with_lockfile_verification::<Reporter>(lockfile_verification_override)
-                    .await
-            }
-            (None, None) => install.run::<Reporter>().await,
-        };
+        let result = install
+            .run_with_artifact_pin_recording::<Reporter>(
+                selection.map(workspace_install_selection),
+                lockfile_verification_override,
+                !link.frozen_lockfile,
+            )
+            .await;
         // On failure the prefetcher is dropped, not shut down: shutdown
         // waits for every in-flight prefetch download (each task holds a
         // store-index writer handle), which would hold the fail-fast
@@ -1353,13 +1380,14 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         pnpmfile_hook_override: pnpmfile_hook,
         workspace_projects_override: None,
     };
-    match selection {
-        Some(selection) => {
-            Box::pin(install.run_selected::<Reporter>(workspace_install_selection(selection))).await
-        }
-        None => install.run::<Reporter>().await,
-    }
-    .wrap_err("linking dependencies resolved via the pnpr server")?;
+    install
+        .run_with_artifact_pin_recording::<Reporter>(
+            selection.map(workspace_install_selection),
+            None,
+            !link.frozen_lockfile,
+        )
+        .await
+        .wrap_err("linking dependencies resolved via the pnpr server")?;
 
     // The materialization install has awaited every tarball's mem-cache
     // slot, so all prefetch downloads have finished and queued their

@@ -60,6 +60,7 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub(super) deploy_manifest_hook: bool,
     pub(super) save_lockfile: bool,
+    pub(super) record_artifact_pins: bool,
     pub(super) manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
     pub(super) catalogs: &'a Catalogs,
     pub(super) prefix: &'a str,
@@ -135,6 +136,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         pnpmfile_hook,
         deploy_manifest_hook,
         save_lockfile,
+        record_artifact_pins,
         manifest_spec_bumps,
         catalogs,
         prefix,
@@ -300,11 +302,30 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         ignored_builds = frozen_result.ignored_builds;
         deferred_builds = frozen_result.deferred_builds;
         injected_deps = frozen_result.injected_deps;
+        let fresh_lockfile =
+            (record_artifact_pins && !frozen_result.artifact_pin_records.is_empty()).then(|| {
+                let mut updated = lockfile.clone();
+                for record in frozen_result.artifact_pin_records {
+                    if let Some(snapshot) = updated
+                        .snapshots
+                        .as_mut()
+                        .and_then(|snapshots| snapshots.get_mut(&record.snapshot_key))
+                    {
+                        snapshot.record_artifact_pin(
+                            record.input_key,
+                            record.owner,
+                            record.platform_fingerprint,
+                            record.envelope_digest,
+                        );
+                    }
+                }
+                updated
+            });
         (
             frozen_result.hoisted_dependencies,
             frozen_result.hoisted_locations,
             frozen_result.skipped,
-            None,
+            fresh_lockfile,
             frozen_result.store_index_teardown,
         )
     } else {

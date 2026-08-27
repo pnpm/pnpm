@@ -90,6 +90,7 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...pick(['force'], allTypes),
   'dry-run': Boolean,
   'fix-lockfile': Boolean,
+  'refresh-artifact-pins': Boolean,
   'update-checksums': Boolean,
   'resolution-only': Boolean,
   recursive: Boolean,
@@ -182,6 +183,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: 'Refresh integrity checksums recorded in the lockfile from the registry',
             name: '--update-checksums',
+          },
+          {
+            description: 'Replace remote build artifact pins after verifying and installing the currently available artifacts',
+            name: '--refresh-artifact-pins',
           },
           {
             description: 'Merge lockfiles were generated on git branch',
@@ -398,6 +403,7 @@ export type InstallCommandOptions = Pick<Config,
   }
   fixLockfile?: boolean
   updateChecksums?: boolean
+  refreshArtifactPins?: boolean
   frozenLockfileIfExists?: boolean
   useBetaCli?: boolean
   pruneDirectDependencies?: boolean
@@ -433,6 +439,16 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
     include,
     includeDirect: include,
     isInstallCommand: true,
+  }
+  if (opts.refreshArtifactPins) {
+    if (opts.cliOptions.frozenLockfile === true) {
+      throw new PnpmError('CONFIG_CONFLICT_REFRESH_ARTIFACT_PINS_WITH_FROZEN_LOCKFILE',
+        'Cannot refresh artifact pins with a frozen lockfile')
+    }
+    installDepsOptions.frozenLockfile = false
+    installDepsOptions.frozenLockfileIfExists = false
+    installDepsOptions.preferFrozenLockfile = false
+    installDepsOptions.optimisticRepeatInstall = false
   }
   if (opts.resolutionOnly) {
     installDepsOptions.lockfileOnly = true

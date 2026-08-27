@@ -20,6 +20,61 @@ use std::{
 };
 
 #[test]
+fn refresh_artifact_pins_clears_existing_pins_and_overrides_configured_frozen_lockfile() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet.with_arg("install").assert().success();
+
+    let wanted_path = workspace.join("pnpm-lock.yaml");
+    let mut wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    wanted
+        .snapshots
+        .as_mut()
+        .and_then(|snapshots| snapshots.values_mut().next())
+        .expect("dependency snapshot")
+        .record_artifact_pin(
+            "dependency-side-effects:v1:deps=old".to_string(),
+            "organization:acme".to_string(),
+            "platform".to_string(),
+            "0".repeat(64),
+        );
+    wanted.save_to_path(&wanted_path).expect("save artifact pin");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read workspace settings");
+    workspace_yaml.push_str("frozenLockfile: true\n");
+    fs::write(workspace_yaml_path, workspace_yaml).expect("write workspace settings");
+
+    new_pacquet_command(&workspace)
+        .with_args(["install", "--refresh-artifact-pins"])
+        .assert()
+        .success();
+
+    let refreshed = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load refreshed lockfile")
+        .expect("refreshed lockfile");
+    assert!(
+        refreshed
+            .snapshots
+            .as_ref()
+            .into_iter()
+            .flat_map(|snapshots| snapshots.values())
+            .all(|snapshot| snapshot.artifact_pins.is_none()),
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn package_lock_false_disables_the_pnpm_lockfile() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
