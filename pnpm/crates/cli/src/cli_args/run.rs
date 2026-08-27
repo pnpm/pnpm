@@ -6,7 +6,9 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
-use pnpm_executor::{RunScript, ScriptExit, ScriptOutput, ScriptsPrependNodePath, run_script};
+use pnpm_executor::{
+    ProcessTracker, RunScript, ScriptExit, ScriptOutput, ScriptsPrependNodePath, run_script,
+};
 use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
 use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
@@ -260,6 +262,7 @@ impl RunArgs {
             extra_env: &extra_env,
             silent,
             output: ScriptOutput::Inherit,
+            process_tracker: None,
         };
         for name in &specified {
             // Resolve the main body (with `start` → `node server.js`
@@ -338,6 +341,7 @@ pub(super) struct RunContext<'a> {
     pub(super) extra_env: &'a HashMap<String, String>,
     pub(super) silent: bool,
     pub(super) output: ScriptOutput<'a>,
+    pub(super) process_tracker: Option<&'a ProcessTracker>,
 }
 
 /// Resolve `name` to a runnable main script body, or `Ok(None)` when
@@ -502,6 +506,7 @@ pub(super) fn run_stage(
         extra_env: ctx.extra_env,
         silent: ctx.silent,
         output: ctx.output,
+        process_tracker: ctx.process_tracker,
     })
     .map_err(miette::Report::new)?;
 

@@ -25,7 +25,7 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_executor::ScriptOutput;
+use pnpm_executor::{ProcessTracker, ScriptOutput};
 use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
     pnp_path_for_execution,
@@ -219,6 +219,7 @@ pub fn run_recursive(
     let has_command = AtomicUsize::new(0);
     let first_failure: Mutex<Option<String>> = Mutex::new(None);
     let abort: Mutex<Option<miette::Report>> = Mutex::new(None);
+    let process_tracker = bail.then(ProcessTracker::default);
 
     // Compute the shared lifecycle env once. Each project adds loader
     // options for its own root before reusing that environment across
@@ -227,6 +228,11 @@ pub fn run_recursive(
     let extra_env: HashMap<String, String> = config.extra_env_with_node_options();
 
     let run_task = |node: &TaskNode| -> TaskCompletion {
+        let summary_key = task_summary_key(node);
+        let on_started = || {
+            result.lock().expect("summary lock is not poisoned")[&summary_key].status =
+                Status::Running;
+        };
         let execution = match run_project(RunProjectOptions {
             node,
             graph,
@@ -238,12 +244,17 @@ pub fn run_recursive(
             silent,
             inherit_output,
             emit,
+            process_tracker: process_tracker.as_ref(),
+            on_started: &on_started,
         }) {
             Ok(execution) => execution,
             Err(error) => {
                 let mut abort = abort.lock().expect("abort slot lock is not poisoned");
                 if abort.is_none() {
                     *abort = Some(error);
+                }
+                if let Some(process_tracker) = &process_tracker {
+                    process_tracker.cancel();
                 }
                 return TaskCompletion::Aborted;
             }
@@ -252,8 +263,11 @@ pub fn run_recursive(
             has_command.fetch_add(execution.has_command, Ordering::Relaxed);
         }
         let failed = execution.status.status == Status::Failure;
-        result.lock().expect("summary lock is not poisoned")[&task_summary_key(node)] =
-            execution.status;
+        let cancelled = execution.cancelled;
+        result.lock().expect("summary lock is not poisoned")[&summary_key] = execution.status;
+        if cancelled {
+            return TaskCompletion::Cancelled;
+        }
         if failed {
             let mut first_failure =
                 first_failure.lock().expect("first-failure slot lock is not poisoned");
@@ -396,6 +410,7 @@ fn build_run_task_graph(
 struct ProjectExecution {
     status: ExecutionStatus,
     has_command: usize,
+    cancelled: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -410,6 +425,8 @@ struct RunProjectOptions<'a, 'project> {
     silent: bool,
     inherit_output: bool,
     emit: fn(&LogEvent),
+    process_tracker: Option<&'a ProcessTracker>,
+    on_started: &'a dyn Fn(),
 }
 
 fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExecution> {
@@ -424,6 +441,8 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
         silent,
         inherit_output,
         emit,
+        process_tracker,
+        on_started,
     } = options;
     let root = node.project.as_path();
     let manifest = &graph[root].package.project.manifest;
@@ -445,7 +464,8 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
     // run's lifecycle events; the reporter renders `wd` and only groups
     // by this.
     let root_str = root.to_string_lossy().into_owned();
-    let mut execution = ProjectExecution { status: ExecutionStatus::queued(), has_command: 0 };
+    let mut execution =
+        ProjectExecution { status: ExecutionStatus::queued(), has_command: 0, cancelled: false };
     let mut project_failed = false;
     for selected in &node.scripts {
         let Some(script) = manifest.script(selected, true)? else {
@@ -460,6 +480,7 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
             continue;
         }
 
+        on_started();
         if !project_failed {
             execution.status.status = Status::Running;
         }
@@ -477,9 +498,15 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
             } else {
                 ScriptOutput::Streamed { dep_path: &root_str, emit }
             },
+            process_tracker,
         };
         let status = run_stages(&ctx, selected, script, args.script_args())?;
         let duration = start.elapsed().as_secs_f64() * 1e3;
+
+        if process_tracker.is_some_and(ProcessTracker::is_cancelled) {
+            execution.cancelled = true;
+            return Ok(execution);
+        }
 
         if status.success() {
             if !project_failed {
@@ -487,6 +514,10 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
                 execution.status.duration = Some(duration);
             }
         } else {
+            if process_tracker.is_some_and(|process_tracker| !process_tracker.cancel()) {
+                execution.cancelled = true;
+                return Ok(execution);
+            }
             project_failed = true;
             execution.status.status = Status::Failure;
             execution.status.duration = Some(duration);

@@ -2,6 +2,7 @@ use crate::{
     extend_path::{ScriptsPrependNodePath, extend_path},
     lifecycle::{StreamedScript, push_script_arg},
     make_env::{EnvOptions, build_env, path_value},
+    process_tracker::{ProcessTracker, spawn_child},
     script_exit::ScriptExit,
     shell::{ScriptShellError, SelectedShell, select_shell},
     shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
@@ -103,6 +104,8 @@ pub struct RunScript<'a> {
     pub silent: bool,
     /// Where the script's output goes.
     pub output: ScriptOutput<'a>,
+    /// Tracks this script for cancellation when a recursive command bails.
+    pub process_tracker: Option<&'a ProcessTracker>,
 }
 
 /// Run a single user script in the foreground, sending its output where
@@ -154,11 +157,17 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
         streamed.started(&command);
         let status = if opts.shell_emulator {
             let emit_line = |stdio, line| streamed.emit_line(stdio, line);
-            execute_emulated(&command, opts.pkg_root, &child_env, EmulatedOutput::Lines(&emit_line))
-                .map(ScriptExit::Emulated)
-                .map_err(RunScriptError::ShellEmulator)?
+            execute_emulated(
+                &command,
+                opts.pkg_root,
+                &child_env,
+                EmulatedOutput::Lines(&emit_line),
+                opts.process_tracker,
+            )
+            .map(ScriptExit::Emulated)
+            .map_err(RunScriptError::ShellEmulator)?
         } else {
-            run_piped(&shell, &command, opts.pkg_root, &child_env, streamed)?
+            run_piped(&shell, &command, opts.pkg_root, &child_env, streamed, opts.process_tracker)?
         };
         streamed.finished(status.code().unwrap_or(-1));
         return Ok(status);
@@ -172,9 +181,15 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
     }
 
     if opts.shell_emulator {
-        return execute_emulated(&command, opts.pkg_root, &child_env, EmulatedOutput::Inherit)
-            .map(ScriptExit::Emulated)
-            .map_err(RunScriptError::ShellEmulator);
+        return execute_emulated(
+            &command,
+            opts.pkg_root,
+            &child_env,
+            EmulatedOutput::Inherit,
+            opts.process_tracker,
+        )
+        .map(ScriptExit::Emulated)
+        .map_err(RunScriptError::ShellEmulator);
     }
 
     // The script is appended through `push_script_arg` (not a chained
@@ -184,12 +199,11 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
     push_script_arg(&mut cmd, &command, shell.windows_verbatim_args);
-    let status = cmd
-        .current_dir(opts.pkg_root)
-        .env_clear()
-        .envs(&child_env)
-        .status()
+    cmd.current_dir(opts.pkg_root).env_clear().envs(&child_env);
+    let mut child = spawn_child(&mut cmd, opts.process_tracker)
         .map_err(|source| RunScriptError::Spawn { script: command.clone(), source })?;
+    let status =
+        child.wait().map_err(|source| RunScriptError::Wait { script: command.clone(), source })?;
 
     Ok(ScriptExit::Process(status))
 }
@@ -202,21 +216,21 @@ fn run_piped(
     pkg_root: &Path,
     child_env: &HashMap<String, String>,
     streamed: StreamedScript<'_>,
+    process_tracker: Option<&ProcessTracker>,
 ) -> Result<ScriptExit, RunScriptError> {
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
     push_script_arg(&mut cmd, command, shell.windows_verbatim_args);
-    let mut child = cmd
-        .current_dir(pkg_root)
+    cmd.current_dir(pkg_root)
         .env_clear()
         .envs(child_env)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
+        .stderr(Stdio::piped());
+    let mut child = spawn_child(&mut cmd, process_tracker)
         .map_err(|source| RunScriptError::Spawn { script: command.to_string(), source })?;
 
     streamed
-        .pump(&mut child)
+        .pump(child.child_mut())
         .map(ScriptExit::Process)
         .map_err(|source| RunScriptError::Wait { script: command.to_string(), source })
 }

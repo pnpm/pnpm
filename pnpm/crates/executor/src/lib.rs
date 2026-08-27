@@ -2,6 +2,7 @@ mod bundled_node_gyp;
 mod extend_path;
 mod lifecycle;
 mod make_env;
+mod process_tracker;
 mod run_script;
 mod script_exit;
 mod shell;
@@ -16,6 +17,7 @@ pub use lifecycle::{
     run_project_lifecycle_scripts,
 };
 pub use make_env::{EnvBuild, EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env};
+pub use process_tracker::{ProcessTracker, SpawnedChild, spawn_child};
 pub use run_script::{RunScript, RunScriptError, ScriptOutput, run_script};
 pub use script_exit::ScriptExit;
 pub use shell::{ScriptShellError, SelectedShell, select_shell};

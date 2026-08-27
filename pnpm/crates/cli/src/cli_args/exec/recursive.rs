@@ -21,7 +21,7 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_config::Config;
-use pnpm_executor::ScriptOutput;
+use pnpm_executor::{ProcessTracker, ScriptOutput};
 use pnpm_reporter::LogEvent;
 use pnpm_workspace_task_scheduler::{
     ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion, TaskGraph, TaskKey, TaskNode,
@@ -163,6 +163,7 @@ pub async fn exec_recursive(
             .collect(),
     );
     let first_failure: Mutex<Option<String>> = Mutex::new(None);
+    let process_tracker = bail.then(ProcessTracker::default);
 
     let run_task = |node: &TaskNode| -> TaskCompletion {
         let root = node.project.as_path();
@@ -171,10 +172,16 @@ pub async fn exec_recursive(
         let start = Instant::now();
         let dep_path = project_dep_path(root, dir, show_prefix);
         let output = project_output(dep_path.as_deref(), emit);
-        let outcome = spawn_in_dir(&command, root, config, args.shell_mode, output);
+        let outcome =
+            spawn_in_dir(&command, root, config, args.shell_mode, output, process_tracker.as_ref());
         let execution = project_execution(start, outcome);
         let mut result = result.lock().expect("summary lock is not poisoned");
         let entry = &mut result[&prefix];
+        if process_tracker.as_ref().is_some_and(ProcessTracker::is_cancelled)
+            && execution.message.is_none()
+        {
+            return TaskCompletion::Cancelled;
+        }
         entry.duration = Some(execution.duration);
         match execution.message {
             None => {
@@ -182,6 +189,9 @@ pub async fn exec_recursive(
                 TaskCompletion::Passed
             }
             Some(message) => {
+                if process_tracker.as_ref().is_some_and(|tracker| !tracker.cancel()) {
+                    return TaskCompletion::Cancelled;
+                }
                 entry.status = Status::Failure;
                 entry.message = Some(message);
                 entry.prefix = Some(prefix.clone());

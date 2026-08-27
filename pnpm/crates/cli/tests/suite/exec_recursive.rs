@@ -7,7 +7,13 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use serde_json::{Value, json};
-use std::{collections::HashMap, fs, path::Path, process::Command};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+    process::Command,
+    time::{Duration, Instant},
+};
 
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` per name under its own subdirectory of `workspace`.
@@ -320,29 +326,40 @@ fn recursive_exec_report_summary_records_every_package_status() {
 }
 
 #[test]
-fn recursive_exec_bail_summary_records_every_completed_batch_result() {
+fn recursive_exec_bail_cancels_in_flight_processes() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(&workspace, &["fails", "passes"]);
+    write_workspace(&workspace, &["a-slow-1", "b-fails", "c-slow-2", "z-queued"]);
 
-    pacquet
+    let start = Instant::now();
+    let output = pacquet
         .with_args([
-            "--workspace-concurrency=2",
+            "--workspace-concurrency=3",
             "--no-sort",
             "--report-summary",
             "-r",
             "exec",
             "-c",
-            // `passes` has to reach the summary, and bail stops dispatching the
-            // moment `fails` returns — so `fails` waits for the marker that
-            // proves `passes` was handed to a worker before it fails.
-            r#"if [ "$(basename "$PWD")" = fails ]; then i=0; while [ ! -f ../passes/ran.txt ] && [ $i -lt 1000 ]; do i=$((i + 1)); sleep 0.01; done; exit 1; fi; touch ran.txt"#,
+            r#"name=$(basename "$PWD"); if [ "$name" = a-slow-1 ] || [ "$name" = c-slow-2 ]; then touch ran.txt; sleep 5; elif [ "$name" = b-fails ]; then i=0; while [ ! -f ../a-slow-1/ran.txt ] || [ ! -f ../c-slow-2/ran.txt ]; do i=$((i + 1)); [ $i -lt 500 ] || exit 2; sleep 0.01; done; exit 1; else touch ran.txt; fi"#,
         ])
-        .assert()
-        .failure();
+        .output()
+        .expect("spawn pacquet");
+    let elapsed = start.elapsed();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(!output.status.success(), "the failing project should fail the exec");
+    eprintln!("recursive exec elapsed: {elapsed:?}");
+    assert!(
+        elapsed < Duration::from_secs(4),
+        "bail should interrupt the five-second in-flight commands",
+    );
 
     let statuses = summary_statuses(&workspace);
-    assert_eq!(statuses.get("fails").map(String::as_str), Some("failure"));
-    assert_eq!(statuses.get("passes").map(String::as_str), Some("passed"));
+    dbg!(&statuses);
+    assert_eq!(statuses.get("a-slow-1").map(String::as_str), Some("running"));
+    assert_eq!(statuses.get("b-fails").map(String::as_str), Some("failure"));
+    assert_eq!(statuses.get("c-slow-2").map(String::as_str), Some("running"));
+    assert_eq!(statuses.get("z-queued").map(String::as_str), Some("queued"));
+    assert!(!workspace.join("z-queued").join("ran.txt").exists());
 
     drop(root);
 }

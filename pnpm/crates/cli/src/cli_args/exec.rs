@@ -5,7 +5,9 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
-use pnpm_executor::{ScriptOutput, StreamedScript, push_script_arg, select_shell};
+use pnpm_executor::{
+    ProcessTracker, ScriptOutput, StreamedScript, push_script_arg, select_shell, spawn_child,
+};
 use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
     pnp_path_for_execution,
@@ -103,7 +105,8 @@ impl ExecArgs {
     pub fn run(self, dir: &Path, config: &Config, reporter: ReporterType) -> miette::Result<()> {
         let command = prepare_command(self.command)?;
         super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
-        let status = spawn_in_dir(&command, dir, config, self.shell_mode, ScriptOutput::Inherit)?;
+        let status =
+            spawn_in_dir(&command, dir, config, self.shell_mode, ScriptOutput::Inherit, None)?;
         if !status.success() {
             // Propagate the child's exit code. A signal-terminated child
             // has no code; fall back to 1, matching pnpm's `exitCode ?? 1`.
@@ -159,22 +162,23 @@ pub(super) fn spawn_in_dir(
     config: &Config,
     shell_mode: bool,
     output: ScriptOutput<'_>,
+    process_tracker: Option<&ProcessTracker>,
 ) -> Result<ExitStatus, ExecError> {
     let mut cmd = command_in_dir(command, dir, config, shell_mode)?;
     let ScriptOutput::Streamed { dep_path, emit } = output else {
-        return cmd
-            .status()
+        let mut child = spawn_child(&mut cmd, process_tracker)
+            .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
+        return child
+            .wait()
             .map_err(|source| ExecError::Spawn { command: command[0].clone(), source });
     };
     let wd = dir.to_string_lossy();
     let streamed = StreamedScript { dep_path, stage: EXEC_STAGE, wd: &wd, emit };
-    let mut child = cmd
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child = spawn_child(&mut cmd, process_tracker)
         .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
     let status = streamed
-        .pump(&mut child)
+        .pump(child.child_mut())
         .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
     streamed.finished(status.code().unwrap_or(-1));
     Ok(status)
