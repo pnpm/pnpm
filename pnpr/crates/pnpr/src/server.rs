@@ -197,9 +197,10 @@ pub fn router(config: Config) -> Router {
     router_with_auth(config, AuthState::in_memory_with_max_users(max_users))
 }
 
-/// Fallible counterpart to [`router`]: surfaces a missing/invalid OSV
-/// database (when `osv.enabled`) as an error instead of panicking, for
-/// embedders that build the router directly rather than via [`serve`].
+/// Fallible counterpart to [`router`]: surfaces an invalid config, an
+/// unloadable OSV database (when `osv.enabled`), and a hosted object store
+/// that will not open as errors instead of panicking, for embedders that
+/// build the router directly rather than via [`serve`].
 pub fn try_router(config: Config) -> pnpr_error::Result<Router> {
     let max_users = config.auth.htpasswd.max_users;
     try_router_with_auth(config, AuthState::in_memory_with_max_users(max_users))
@@ -209,11 +210,13 @@ pub fn try_router(config: Config) -> pnpr_error::Result<Router> {
 /// by [`serve`] to wire the persistent file-backed stores, and by
 /// tests that want to override the bcrypt cost or pre-seed users.
 ///
-/// Panics if `osv.enabled` is set but the database can't load; call
-/// [`try_router_with_auth`] to handle that as a recoverable error.
+/// Panics if the config is invalid, an enabled OSV database can't load, or
+/// the hosted object store can't be opened — the last of which needs
+/// reachable credentials, so it is a real possibility at startup. Call
+/// [`try_router_with_auth`] to handle these as recoverable errors.
 pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
     try_router_with_auth(config, auth)
-        .expect("pnpr config must be valid and any enabled OSV database must load before building the router")
+        .expect("pnpr config must be valid, and any enabled OSV database and the hosted object store must open, before building the router")
 }
 
 /// Fallible counterpart to [`router_with_auth`].
