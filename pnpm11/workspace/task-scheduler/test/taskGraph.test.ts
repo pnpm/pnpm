@@ -89,6 +89,14 @@ test('a RegExp selector attaches every matching script to the task', () => {
   ])
 })
 
+test('a malformed RegExp selector becomes a pass-through task', () => {
+  const graph = buildGraph({
+    a: { scripts: ['build'] },
+  }, '/[/')
+
+  expect(graph.get(taskKey(dir('a'), '/[/'))!.scripts).toStrictEqual([])
+})
+
 test('a task cycle is an error naming the participating tasks', () => {
   expect(() => {
     sequenceTasks(buildGraph({
@@ -297,6 +305,11 @@ function buildGraph (
 function selectScripts (scripts: PackageScripts, scriptName: string): string[] {
   if (scripts[scriptName]) return [scriptName]
   if (!scriptName.startsWith('/') || !scriptName.endsWith('/')) return []
-  const selector = new RegExp(scriptName.slice(1, -1))
+  let selector: RegExp
+  try {
+    selector = new RegExp(scriptName.slice(1, -1))
+  } catch {
+    return []
+  }
   return Object.keys(scripts).filter((script) => selector.test(script))
 }
