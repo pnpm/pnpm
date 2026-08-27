@@ -1287,13 +1287,13 @@ test('pnpm recursive run report summary with --bail', async () => {
 
   const { default: { executionStatus } } = (await import(path.resolve('pnpm-exec-summary.json')))
 
-  // Scripts already running when the failure happened finish and report
-  // their outcome; a script still queued behind the concurrency limit is
-  // never started.
-  expect(executionStatus[path.resolve('project-1')].status).toBe('passed')
+  // The first failure ends the run at once: scripts still running are
+  // reported as such (the exit path terminates them), and a script still
+  // queued behind the concurrency limit is never started.
+  expect(executionStatus[path.resolve('project-1')].status).toBe('running')
   expect(executionStatus[path.resolve('project-2')].status).toBe('failure')
   expect(executionStatus[path.resolve('project-2')].duration).not.toBeFalsy()
-  expect(executionStatus[path.resolve('project-3')].status).toBe('passed')
+  expect(executionStatus[path.resolve('project-3')].status).toBe('running')
   expect(executionStatus[path.resolve('project-4')].status).toBe('queued')
   expect(executionStatus[path.resolve('project-5')].status).toBe('skipped')
 })

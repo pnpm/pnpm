@@ -4,24 +4,6 @@ import type { ProjectRootDir } from '@pnpm/types'
 import { type TaskGraph, taskKey } from '../src/taskGraph.js'
 import { scheduleTasks } from '../src/taskScheduler.js'
 
-function chainGraph (): TaskGraph {
-  const graph: TaskGraph = new Map()
-  let previous: string | undefined
-  for (const name of ['a', 'b', 'c']) {
-    const project = `/workspace/${name}` as ProjectRootDir
-    const key = taskKey(project, 'build')
-    graph.set(key, {
-      project,
-      taskName: 'build',
-      scripts: ['build'],
-      requested: true,
-      dependencies: previous == null ? [] : [previous],
-    })
-    previous = key
-  }
-  return graph
-}
-
 test('an aborted task stops dispatch and the scheduler still settles', async () => {
   const graph = chainGraph()
   const ran: string[] = []
@@ -51,3 +33,21 @@ test('a rejected runTask is treated as an abort rather than swallowed', async ()
   })
   expect(ran).toStrictEqual(['/workspace/a'])
 })
+
+function chainGraph (): TaskGraph {
+  const graph: TaskGraph = new Map()
+  let previous: string | undefined
+  for (const name of ['a', 'b', 'c']) {
+    const project = `/workspace/${name}` as ProjectRootDir
+    const key = taskKey(project, 'build')
+    graph.set(key, {
+      project,
+      taskName: 'build',
+      scripts: ['build'],
+      requested: true,
+      dependencies: previous == null ? [] : [previous],
+    })
+    previous = key
+  }
+  return graph
+}

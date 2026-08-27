@@ -12,7 +12,7 @@ export type TaskCompletion =
   | 'aborted'
 
 export interface ScheduleTasksOptions {
-  /** When `true`, the first failure stops further dispatch; tasks already running finish. */
+  /** When `true`, the first failure stops the run: nothing further is dispatched and the scheduler settles at once. */
   bail: boolean
   /**
    * Runs one task's work and resolves with how it ended. Never rejects:
@@ -31,10 +31,11 @@ export interface ScheduleTasksOptions {
 /**
  * Dispatches every task whose dependencies have all completed successfully,
  * in dependency order and nothing else — concurrency among ready tasks is the
- * caller's to limit inside `runTask`. Resolves once no task can make further
- * progress: all settled, or — after a bail or an abort — all in-flight
- * work finished. Tasks never dispatched are left untouched, so their
- * caller-side status stays whatever "queued" is.
+ * caller's to limit inside `runTask`. Resolves once all tasks settled, or as
+ * soon as a bailed failure or an abort stops the run: in-flight work is then
+ * abandoned to the caller, whose exit path terminates the running commands.
+ * Tasks never dispatched are left untouched, so their caller-side status
+ * stays whatever "queued" is.
  *
  * The graph must be acyclic ({@link sequenceTasks} proves it); a cycle would
  * hang this scheduler.
@@ -59,11 +60,13 @@ export async function scheduleTasks (graph: TaskGraph, opts: ScheduleTasksOption
   const blocked = new Set<TaskKey>()
   let stopDispatch = false
   let unsettled = graph.size
-  let inFlight = 0
 
   await new Promise<void>((resolve) => {
     const settleIfDone = (): void => {
-      if (unsettled === 0 || (stopDispatch && inFlight === 0)) {
+      // A stopped run resolves without waiting for in-flight tasks: a
+      // watch-style script never finishes, and the first failure must not
+      // leave the run hanging on it.
+      if (unsettled === 0 || stopDispatch) {
         resolve()
       }
     }
@@ -128,15 +131,12 @@ export async function scheduleTasks (graph: TaskGraph, opts: ScheduleTasksOption
           complete(key)
           continue
         }
-        inFlight++
         opts.runTask(node, key).then((completion) => {
-          inFlight--
           settle(key, completion)
           pump()
         }, () => {
           // runTask's contract is to never reject; a rejection is an
           // infrastructure failure whose details only the caller can hold.
-          inFlight--
           settle(key, 'aborted')
           pump()
         })

@@ -573,6 +573,38 @@ test('a failed upstream task is reported as the failure, not as a missing script
   expect(executionStatus[`${path.resolve('project-a')}#build`].status).toBe('failure')
 })
 
+test('the tolerated cycle warning reaches the CLI output', async () => {
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      dependencies: {
+        'project-b': 'workspace:*',
+      },
+      scripts: {
+        build: 'echo project-a',
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+      dependencies: {
+        'project-a': 'workspace:*',
+      },
+      scripts: {
+        build: 'echo project-b',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**'],
+    ignoreWorkspaceCycles: true,
+  })
+
+  const { stdout } = await execa(pnpmBin, ['run', '-r', 'build'])
+  expect(stdout).toContain('The tasks form a dependency cycle')
+})
+
 test('the tasks section of pnpm-workspace.yaml reaches the CLI run', async () => {
   await using server = await createTestIpcServer()
 
