@@ -42,7 +42,10 @@ export interface ScheduleTasksOptions {
  */
 export async function scheduleTasks (graph: TaskGraph, opts: ScheduleTasksOptions): Promise<void> {
   // A rejection violates runTask's contract; held here so the run still
-  // fails with it rather than silently resolving.
+  // fails with it rather than silently resolving. First error wins: a
+  // rejection landing only after something else already stopped the run is
+  // abandoned along with the rest of the in-flight work, exactly as a
+  // second script failure after a bail is.
   let contractViolation: unknown
   let rejected = false
   const pendingDependencyCount = new Map<TaskKey, number>()
