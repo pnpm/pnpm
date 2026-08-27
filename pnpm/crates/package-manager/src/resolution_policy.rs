@@ -19,6 +19,7 @@ use std::sync::Arc;
 /// The version-pick knobs derived purely from [`Config`]. Computed once per
 /// command so every lookup in that run shares the same cutoff and metadata
 /// policy.
+#[derive(Clone)]
 pub struct PickPolicy {
     /// `resolutionMode: time-based`.
     pub time_based: bool,
