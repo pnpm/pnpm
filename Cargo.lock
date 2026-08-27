@@ -4499,6 +4499,7 @@ dependencies = [
  "derive_more",
  "dunce",
  "miette 7.6.0",
+ "node-semver",
  "pipe-trait",
  "pnpm-fs",
  "pnpm-package-manifest",

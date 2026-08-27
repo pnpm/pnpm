@@ -12,6 +12,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use node_semver::Version;
 use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use serde_json::Value;
@@ -329,11 +330,6 @@ fn read_package<Sys: FsReadFile>(
 /// false`). When non-empty, each shim carries a `NODE_PATH` block
 /// listing the target's own `node_modules` dirs followed by these
 /// entries; when empty the shims stay `NODE_PATH`-free.
-///
-/// Pacquet's first iteration does not resolve same-package multi-version
-/// conflicts via semver (used elsewhere for hoisting), since the
-/// virtual-store layout means each bin source is a unique
-/// `(package, version)` slot already.
 pub fn link_bins_of_packages<Sys>(
     packages: &[PackageBinSource],
     bins_dir: &Path,
@@ -423,7 +419,6 @@ where
     let mut chosen: HashMap<String, (Command, &PackageBinSource)> = HashMap::new();
 
     for pkg in packages {
-        let pkg_name = pkg.manifest.get("name").and_then(Value::as_str).unwrap_or("");
         let commands = get_bins_from_package_manifest::<Sys>(&pkg.manifest, &pkg.location);
         for command in commands {
             match chosen.get(&command.name) {
@@ -431,15 +426,7 @@ where
                     chosen.insert(command.name.clone(), (command, pkg));
                 }
                 Some((_, existing)) => {
-                    let existing_name =
-                        existing.manifest.get("name").and_then(Value::as_str).unwrap_or("");
-                    if pick_winner(
-                        &command.name,
-                        existing_name,
-                        existing.origin,
-                        pkg_name,
-                        pkg.origin,
-                    ) {
+                    if pick_winner(&command.name, existing, pkg) {
                         chosen.insert(command.name.clone(), (command, pkg));
                     }
                 }
@@ -471,7 +458,7 @@ where
         } else {
             shim_node_path(pkg, &options.extra_node_paths)
         };
-        let pkg_name = pkg.manifest.get("name").and_then(Value::as_str).unwrap_or("");
+        let pkg_name = package_name(pkg);
         write_shim::<Sys>(
             &command.path,
             &bins_dir.join(bin_name),
@@ -525,26 +512,39 @@ fn wants_powershell_shim(pkg_name: &str) -> bool {
 }
 
 /// Return `true` when `candidate` should replace `existing` for `bin_name`.
-/// Applies a three-step direct-then-ownership-then-lexical comparison.
-fn pick_winner(
-    bin_name: &str,
-    existing: &str,
-    existing_origin: BinOrigin,
-    candidate: &str,
-    candidate_origin: BinOrigin,
-) -> bool {
-    match (existing_origin, candidate_origin) {
+fn pick_winner(bin_name: &str, existing: &PackageBinSource, candidate: &PackageBinSource) -> bool {
+    match (existing.origin, candidate.origin) {
         (BinOrigin::Hoisted, BinOrigin::Direct) => return true,
         (BinOrigin::Direct, BinOrigin::Hoisted) => return false,
         _ => {}
     }
-    let existing_owns = pkg_owns_bin(bin_name, existing);
-    let candidate_owns = pkg_owns_bin(bin_name, candidate);
+    let existing_name = package_name(existing);
+    let candidate_name = package_name(candidate);
+    let existing_owns = pkg_owns_bin(bin_name, existing_name);
+    let candidate_owns = pkg_owns_bin(bin_name, candidate_name);
     match (existing_owns, candidate_owns) {
-        (true, false) => false,
-        (false, true) => true,
-        _ => candidate < existing,
+        (true, false) => return false,
+        (false, true) => return true,
+        _ => {}
     }
+    if candidate_name != existing_name {
+        return candidate_name < existing_name;
+    }
+    match (package_version(existing), package_version(candidate)) {
+        (Some(existing_version), Some(candidate_version)) => candidate_version > existing_version,
+        _ => false,
+    }
+}
+
+fn package_name(pkg: &PackageBinSource) -> &str {
+    pkg.manifest.get("name").and_then(Value::as_str).unwrap_or("")
+}
+
+fn package_version(pkg: &PackageBinSource) -> Option<Version> {
+    pkg.manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .and_then(|version| Version::parse(version).ok())
 }
 
 /// Write the canonical bin shim for `target_path` at `shim_path`,
