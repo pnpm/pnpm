@@ -237,7 +237,13 @@ export function createRemoteSideEffectsRestorer<T extends string> (
         filesIndexFiles = new Set()
         filesIndexFilesByInputKey.set(inputKey, filesIndexFiles)
       }
+      const isNewFilesIndexFile = !filesIndexFiles.has(node.filesIndexFile)
       filesIndexFiles.add(node.filesIndexFile)
+      if (isNewFilesIndexFile) {
+        for (const digest of quarantinedEnvelopeDigests.get(inputKey) ?? []) {
+          persistQuarantine(node.filesIndexFile, digest)
+        }
+      }
     }
     const storedQuarantine = node.files.remoteSideEffectsQuarantine?.get(registryUrl)
     if (storedQuarantine != null) {
@@ -522,17 +528,22 @@ export function createRemoteSideEffectsRestorer<T extends string> (
     if (quarantined.has(envelopeDigest)) return
     quarantined.add(envelopeDigest)
     for (const filesIndexFile of filesIndexFilesByInputKey.get(inputKey) ?? []) {
-      try {
-        opts.storeController.quarantineRemoteSideEffects?.({
-          channel: registryUrl,
-          envelopeDigest,
-          filesIndexFile,
-        })
-      } catch (err: unknown) {
-        opts.warn?.(`Remote side-effects quarantine could not be persisted: ${errorMessage(err)}`)
-      }
+      persistQuarantine(filesIndexFile, envelopeDigest)
     }
     opts.warn?.(`Remote side-effects artifact was quarantined: ${reason}`)
+  }
+
+  function persistQuarantine (filesIndexFile: string, envelopeDigest: string): void {
+    if (registryUrl == null) return
+    try {
+      opts.storeController.quarantineRemoteSideEffects?.({
+        channel: registryUrl,
+        envelopeDigest,
+        filesIndexFile,
+      })
+    } catch (err: unknown) {
+      opts.warn?.(`Remote side-effects quarantine could not be persisted: ${errorMessage(err)}`)
+    }
   }
 
   function recordArtifactPin (depPath: DepPath, inputKey: string, envelopeDigest: string): void {

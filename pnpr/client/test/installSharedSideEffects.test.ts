@@ -642,6 +642,28 @@ describe('install remote side-effects', () => {
         filesIndexFile: 'corrupt-row',
       }])
 
+      await expect(corruptRestorer.restore({
+        graphKey,
+        depPath,
+        files: { filesMap: new Map(), requiresBuild: true, resolvedFrom: 'remote' },
+        filesIndexFile: 'late-corrupt-row',
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })).resolves.toBeUndefined()
+      expect(quarantined).toEqual([
+        {
+          channel: pnprServer,
+          envelopeDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
+          filesIndexFile: 'corrupt-row',
+        },
+        {
+          channel: pnprServer,
+          envelopeDigest: quarantined[0].envelopeDigest,
+          filesIndexFile: 'late-corrupt-row',
+        },
+      ])
+
       requestedPaths.length = 0
       const quarantinedRestorer = createRemoteSideEffectsRestorer({
         allowBuild: () => true,
