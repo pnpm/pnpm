@@ -177,7 +177,7 @@ impl TaskCache {
                     .unwrap_or_else(|_| "unreadable".to_string());
             if target_hash != artifact_hash {
                 return Err(format!(
-                    "{rel_path} in the working tree is not what the previous run produced"
+                    "{rel_path} in the working tree is not what the previous run produced",
                 ));
             }
         }
@@ -197,7 +197,7 @@ impl TaskCache {
             if create_hex_hash_from_file(&target).unwrap_or_default() != recorded.hash {
                 return Err(format!(
                     "{} was modified after the previous run produced it",
-                    recorded.path
+                    recorded.path,
                 ));
             }
             stale.push(recorded);
@@ -341,19 +341,18 @@ impl TaskCache {
         {
             return Ok(Arc::clone(files));
         }
+        let project_display = project.display();
         let output = Command::new("git")
             .args(["ls-files", "-z", "--cached", "--others", "--exclude-standard"])
             .current_dir(project)
             .output()
             .map_err(|error| {
-                miette::miette!("running git ls-files in {}: {error}", project.display())
+                miette::miette!("running git ls-files in {project_display}: {error}")
             })?;
         if !output.status.success() {
-            return Err(miette::miette!(
-                "git ls-files failed in {}: {}",
-                project.display(),
-                String::from_utf8_lossy(&output.stderr).trim(),
-            ));
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stderr = stderr.trim();
+            return Err(miette::miette!("git ls-files failed in {project_display}: {stderr}"));
         }
         let mut files: Vec<HashedFile> = Vec::new();
         for rel_path in output.stdout.split(|byte| *byte == 0) {
