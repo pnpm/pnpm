@@ -195,10 +195,16 @@ The PoC implements the main trust boundary from the
   request when `--ignore-scripts` is effective.
 - `downloadSharedArtifactBlob` recomputes SHA-512 before returning bytes.
 
-Publication serializes the variant-count check and envelope write with a
-cross-process filesystem lock, so pnpr processes sharing one local cache enforce
-the eight-variant cap together. The PoC rejects writes above 1 GiB per owner or
-10 GiB across the server's artifact cache.
+Publication reserves quota before immutable, create-only object writes. S3
+replicas coordinate the quota counter with conditional writes; local storage
+uses an advisory lock around its counter. Ambiguous object-store write failures
+remain charged because the object may have been committed before the error was
+returned. This can conservatively overcount storage, but cannot allow the 1 GiB
+per-owner or 10 GiB global limits to be exceeded. The eight-variant response cap
+is enforced while resolving artifacts. With artifact writers quiesced, operators
+can reconcile conservative overcount by removing the object-store `quota.json`
+or local `.locks/usage.json`; the next publication rebuilds it from stored
+objects.
 
 ### v0 compatibility tags
 

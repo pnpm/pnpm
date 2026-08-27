@@ -219,21 +219,55 @@ async fn quota_is_reserved_before_objects_are_written() {
 }
 
 #[tokio::test]
-async fn failed_object_writes_release_unused_quota() {
-    let backend: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites { inner: InMemory::new() });
+async fn failed_object_writes_retain_quota_for_the_ambiguous_attempt() {
+    let backend: Arc<dyn ObjectStore> =
+        Arc::new(FailArtifactWrites { inner: InMemory::new(), commit_before_error: false });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
+    let request = publication("ci/failure");
+    let expected_usage = serde_json::to_vec(&request.envelope).unwrap().len() as u64;
 
-    store.publish("acme", publication("ci/failure")).await.unwrap_err();
+    store.publish("acme", request).await.unwrap_err();
 
     let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
     let usage: ArtifactUsage =
         serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
             .unwrap();
-    assert_eq!(usage.global_bytes, 0);
-    assert_eq!(usage.owner_bytes.values().copied().sum::<u64>(), 0);
+    assert_eq!(usage.global_bytes, expected_usage);
+    assert_eq!(usage.owner_bytes.values().copied().sum::<u64>(), expected_usage);
+}
+
+#[tokio::test]
+async fn committed_object_writes_that_report_failure_remain_charged() {
+    let backend: Arc<dyn ObjectStore> =
+        Arc::new(FailArtifactWrites { inner: InMemory::new(), commit_before_error: true });
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let scratch = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
+    let request =
+        publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/ambiguous-commit");
+    let expected_usage = b"shared addon".len() as u64;
+
+    store.publish("acme", request).await.unwrap_err();
+
+    let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
+    let usage: ArtifactUsage =
+        serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
+            .unwrap();
+    assert_eq!(usage.global_bytes, expected_usage);
+    assert_eq!(usage.owner_bytes.values().copied().sum::<u64>(), expected_usage);
+    let mut objects = backend.list(None);
+    let mut physical_bytes = 0_u64;
+    while let Some(object) = objects.next().await {
+        let object = object.unwrap();
+        if !object.location.as_ref().ends_with("/quota.json") {
+            physical_bytes += object.size;
+        }
+    }
+    assert_eq!(physical_bytes, expected_usage);
 }
 
 #[tokio::test]
@@ -335,6 +369,7 @@ fn publication_request(
 #[derive(Debug)]
 struct FailArtifactWrites {
     inner: InMemory,
+    commit_before_error: bool,
 }
 
 impl fmt::Display for FailArtifactWrites {
@@ -354,6 +389,9 @@ impl ObjectStore for FailArtifactWrites {
         if location.as_ref().ends_with("/quota.json") {
             self.inner.put_opts(location, payload, options).await
         } else {
+            if self.commit_before_error {
+                self.inner.put_opts(location, payload, options).await?;
+            }
             Err(object_store::Error::Generic {
                 store: "test",
                 source: std::io::Error::other("injected artifact write failure").into(),

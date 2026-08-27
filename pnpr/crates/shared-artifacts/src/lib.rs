@@ -159,14 +159,15 @@ impl SharedArtifactStore {
         })?;
         self.reserve_quota(&owner, added_bytes).await?;
 
-        let mut created_bytes = 0_u64;
+        let mut retained_bytes = 0_u64;
         for (path, bytes) in new_blobs {
             let size = bytes.len() as u64;
             match self.create_object(&path, bytes).await {
-                Ok(true) => created_bytes += size,
+                Ok(true) => retained_bytes += size,
                 Ok(false) => {}
                 Err(error) => {
-                    self.release_uncommitted(&owner, added_bytes, created_bytes).await?;
+                    retained_bytes += size;
+                    self.release_uncommitted(&owner, added_bytes, retained_bytes).await?;
                     return Err(error);
                 }
             }
@@ -174,14 +175,15 @@ impl SharedArtifactStore {
         let created = match self.create_object(&variant_path, envelope_bytes).await {
             Ok(created) => created,
             Err(error) => {
-                self.release_uncommitted(&owner, added_bytes, created_bytes).await?;
+                retained_bytes += envelope_size;
+                self.release_uncommitted(&owner, added_bytes, retained_bytes).await?;
                 return Err(error);
             }
         };
         if created {
-            created_bytes += envelope_size;
+            retained_bytes += envelope_size;
         }
-        self.release_uncommitted(&owner, added_bytes, created_bytes).await?;
+        self.release_uncommitted(&owner, added_bytes, retained_bytes).await?;
         Ok(created)
     }
 
@@ -287,10 +289,10 @@ impl SharedArtifactStore {
         &self,
         owner: &str,
         reserved_bytes: u64,
-        created_bytes: u64,
+        retained_bytes: u64,
     ) -> Result<()> {
         let unused_bytes =
-            reserved_bytes.checked_sub(created_bytes).ok_or_else(quota_counter_underflow)?;
+            reserved_bytes.checked_sub(retained_bytes).ok_or_else(quota_counter_underflow)?;
         if unused_bytes != 0 {
             self.change_quota(owner, unused_bytes, QuotaChange::Release).await?;
         }
