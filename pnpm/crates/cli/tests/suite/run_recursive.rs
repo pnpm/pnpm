@@ -2105,11 +2105,8 @@ fn recursive_run_keeps_a_failure_when_a_later_selected_script_passes() {
     drop(root);
 }
 
-/// A selector can match a script with an empty body alongside a real
-/// one. The no-op says nothing about the script that did run, so it must
-/// not overwrite the project's recorded status.
 #[test]
-fn recursive_run_keeps_a_pass_when_a_later_selected_script_is_a_no_op() {
+fn recursive_run_keeps_a_pass_when_a_later_matching_script_is_empty() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
         &workspace,
@@ -2120,8 +2117,6 @@ fn recursive_run_keeps_a_pass_when_a_later_selected_script_is_a_no_op() {
                 "version": "1.0.0",
                 "scripts": {
                     "check:a": "true",
-                    // Sorts after `check:a`, so a regression reports the
-                    // project as skipped rather than passed.
                     "check:b": "",
                 },
             }),
@@ -2936,6 +2931,40 @@ fn missing_requested_script_errors_before_upstream_tasks_run() {
     assert!(!output.status.success(), "a script nothing declares must fail the run");
     assert!(String::from_utf8_lossy(&output.stderr).contains("RECURSIVE_RUN_NO_SCRIPT"));
     assert!(!workspace.join("order.log").exists(), "the pulled-in task must not have run");
+
+    drop(root);
+}
+
+#[test]
+fn regexp_selected_empty_script_errors_before_upstream_tasks_run() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-a",
+            json!({
+                "name": "project-a",
+                "version": "1.0.0",
+                "scripts": { "build:empty": "", "codegen": "echo codegen >> ../order.log" },
+            }),
+        )],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-a\ntasks:\n  '/^build:/':\n    dependsOn: ['codegen']\n",
+    )
+    .expect("write workspace settings");
+
+    let output =
+        pacquet.with_args(["-r", "run", "/^build:/"]).output().expect("run recursive script");
+    eprintln!("STATUS: {}", output.status);
+    assert!(!output.status.success(), "an empty selected script must fail the run");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(stderr.contains("RECURSIVE_RUN_NO_SCRIPT"));
+    let order_log_exists = workspace.join("order.log").exists();
+    eprintln!("ORDER LOG EXISTS: {order_log_exists}");
+    assert!(!order_log_exists, "the pulled-in task must not have run");
 
     drop(root);
 }

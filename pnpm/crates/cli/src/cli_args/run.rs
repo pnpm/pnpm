@@ -566,7 +566,13 @@ impl<'a> ScriptSelector<'a> {
         let (Some(pattern), Some(scripts)) = (self.pattern.as_ref(), scripts) else {
             return Vec::new();
         };
-        scripts.keys().filter(|script| pattern.is_match(script)).cloned().collect()
+        scripts
+            .iter()
+            .filter(|(script, body)| {
+                body.as_str().is_some_and(|body| !body.is_empty()) && pattern.is_match(script)
+            })
+            .map(|(script, _)| script.clone())
+            .collect()
     }
 
     /// [`Self::select`] plus single-project `run`'s `start` fallback:
