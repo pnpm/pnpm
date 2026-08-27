@@ -118,15 +118,9 @@ async fn a_non_regular_file_is_not_reused_as_store_content() {
 }
 
 /// A restore only happens where the remote cache applies at all:
-/// `linux_glibc_platform` refuses anything but linux-glibc on x64 or arm64.
-/// The cfg spells out that same contract, so on a host the feature cannot
-/// serve — musl, or a linux arch pacquet publishes no artifacts for — these
-/// tests are absent rather than failing on a platform they never described.
-#[cfg(all(
-    target_os = "linux",
-    target_env = "gnu",
-    any(target_arch = "x86_64", target_arch = "aarch64")
-))]
+/// `linux_glibc_platform` refuses anything but linux-glibc on x64 or arm64, so
+/// anywhere else — musl, or a linux arch pacquet publishes no artifacts for —
+/// there is no restore to observe and each test skips itself.
 mod restore {
     use crate::{AllowBuildPolicy, RequiresBuildBySnapshot, SideEffectsMapsBySnapshot};
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
@@ -335,6 +329,14 @@ mod restore {
     }
 
     #[tokio::test]
+    #[cfg_attr(
+        not(all(
+            target_os = "linux",
+            target_env = "gnu",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )),
+        ignore = "the remote side-effects cache only serves linux-glibc on x64 and arm64"
+    )]
     async fn content_the_store_lacks_is_downloaded() {
         let store = tempfile::tempdir().expect("tempdir");
         let store_dir = StoreDir::new(store.path());
@@ -352,6 +354,14 @@ mod restore {
     /// differs. The download it makes and this one does not is the whole
     /// difference between them.
     #[tokio::test]
+    #[cfg_attr(
+        not(all(
+            target_os = "linux",
+            target_env = "gnu",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )),
+        ignore = "the remote side-effects cache only serves linux-glibc on x64 and arm64"
+    )]
     async fn content_the_store_already_holds_is_not_downloaded() {
         let store = tempfile::tempdir().expect("tempdir");
         let store_dir = StoreDir::new(store.path());
