@@ -294,7 +294,7 @@ async fn removes_token_locally_when_fetch_errors() {
 }
 
 #[tokio::test]
-async fn warns_when_token_is_not_in_auth_ini() {
+async fn warns_when_the_token_is_in_no_file_pnpm_owns() {
     recording_reporter!(Rep, EVENTS);
     sys_fake!(
         Sys,
@@ -318,10 +318,10 @@ async fn warns_when_token_is_not_in_auth_ini() {
     .unwrap();
 
     assert_eq!(result, "Logged out of https://registry.npmjs.org/");
-    assert!(WRITES.lock().unwrap().is_empty(), "auth.ini must not be written");
+    assert!(WRITES.lock().unwrap().is_empty(), "no file pnpm owns must be written");
     let warnings = warns(&EVENTS);
     let warning = warnings.first().expect("a warning was emitted");
-    let expected_path = Path::new("/config").join("auth.ini");
+    let expected_path = Path::new("/config").join("config.yaml");
     assert!(warning.contains(&format!("was not found in {}", expected_path.display())));
     assert!(warning.contains("The token was revoked on the registry but must be removed manually"));
 }
@@ -362,7 +362,7 @@ async fn throws_when_registry_call_fails_and_token_not_in_auth_ini() {
 }
 
 #[tokio::test]
-async fn warns_when_auth_ini_does_not_exist() {
+async fn warns_when_neither_file_exists() {
     recording_reporter!(Rep, EVENTS);
     sys_fake!(
         Sys,
@@ -387,7 +387,7 @@ async fn warns_when_auth_ini_does_not_exist() {
 
     assert_eq!(result, "Logged out of https://registry.npmjs.org/");
     let warnings = warns(&EVENTS);
-    let expected_path = Path::new("/nonexistent/config").join("auth.ini");
+    let expected_path = Path::new("/nonexistent/config").join("config.yaml");
     assert!(warnings[0].contains(&format!("was not found in {}", expected_path.display())));
 }
 
@@ -415,8 +415,8 @@ async fn propagates_non_not_found_read_errors() {
     .await
     .unwrap_err();
 
-    let LogoutError::ReadAuthIni { error, .. } = &err else {
-        panic!("expected ReadAuthIni, got {err:?}");
+    let LogoutError::ReadConfigYaml { error, .. } = &err else {
+        panic!("expected ReadConfigYaml, got {err:?}");
     };
     assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
 }

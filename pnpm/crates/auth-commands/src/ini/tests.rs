@@ -1,4 +1,11 @@
-use super::IniSettings;
+use super::{IniSettings, encode_value};
+
+/// One `auth.ini` line holding `key = value`, quoted the way the writer
+/// quotes it, so a test can start from a file an earlier `pnpm login` — or a
+/// hand edit — could have left behind.
+fn line(key: &str, value: &str) -> String {
+    format!("{}={}\n", encode_value(key), encode_value(value))
+}
 
 #[test]
 fn parses_flat_key_value_lines() {
@@ -31,14 +38,16 @@ fn serialize_round_trips_remaining_entries_in_order() {
     assert_eq!(settings.serialize(), "other=value\n");
 }
 
-// A registry-controlled token with an embedded newline must not be able to
-// plant extra `auth.ini` entries. It is quoted (JSON) so it stays on one
-// physical line and round-trips to the exact value.
+// A token with an embedded newline stays one quoted line across a removal,
+// so rewriting the file cannot turn that token's own text into further
+// `auth.ini` entries.
 #[test]
-fn quotes_values_with_newlines_to_prevent_auth_ini_injection() {
+fn a_value_with_a_newline_survives_a_removal_as_one_line() {
     let injected = "x\n//registry.npmjs.org/:_authToken=attacker-token";
-    let mut settings = IniSettings::default();
-    settings.set("//evil.example/:_authToken", injected);
+    let mut text = line("//evil.example/:_authToken", injected);
+    text.push_str("other=value\n");
+    let mut settings = IniSettings::parse(&text);
+    settings.remove("other");
 
     let text = settings.serialize();
     assert_eq!(text.lines().count(), 1, "the value must stay on one line: {text:?}");
@@ -67,8 +76,7 @@ fn quotes_every_ambiguous_value_shape_for_a_faithful_round_trip() {
         "[bracketed",
         "plain-token",
     ] {
-        let mut settings = IniSettings::default();
-        settings.set("k", value);
+        let settings = IniSettings::parse(&line("k", value));
         let reparsed = IniSettings::parse(&settings.serialize());
         assert_eq!(reparsed.get("k"), Some(value), "round-trip failed for {value:?}");
     }
@@ -84,8 +92,7 @@ fn quotes_and_round_trips_keys_with_a_separator_or_newline() {
         "//npm.example.com/a\nb/:_authToken",
         "//registry.npmjs.org/:_authToken",
     ] {
-        let mut settings = IniSettings::default();
-        settings.set(key, "the-token");
+        let settings = IniSettings::parse(&line(key, "the-token"));
         let text = settings.serialize();
         assert_eq!(text.lines().count(), 1, "one physical line for {key:?}: {text:?}");
         let reparsed = IniSettings::parse(&text);
@@ -93,11 +100,11 @@ fn quotes_and_round_trips_keys_with_a_separator_or_newline() {
     }
 }
 
-// `set` collapses pre-existing duplicate keys to a single value, matching
-// `remove`'s all-duplicates handling and the `ini` object model.
+// A logout must leave no copy of the token behind, so `remove` drops every
+// duplicate of the key rather than only the first.
 #[test]
-fn set_collapses_pre_existing_duplicate_keys() {
+fn remove_drops_every_duplicate_of_the_key() {
     let mut settings = IniSettings::parse("//reg/:_authToken=old1\n//reg/:_authToken=old2\n");
-    settings.set("//reg/:_authToken", "new");
-    assert_eq!(settings.serialize(), "//reg/:_authToken=new\n");
+    assert!(settings.remove("//reg/:_authToken"));
+    assert_eq!(settings.serialize(), "");
 }

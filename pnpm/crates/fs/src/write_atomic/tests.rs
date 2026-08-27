@@ -1,4 +1,5 @@
-use super::write_atomic;
+use super::{write_atomic, write_atomic_private};
+use std::fs;
 use tempfile::TempDir;
 
 #[test]
@@ -52,4 +53,22 @@ fn does_not_follow_a_symlinked_target() {
     assert_eq!(std::fs::read_to_string(&real).unwrap(), "secret", "link target untouched");
     let mode = std::fs::metadata(&link).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode, 0o600, "a replaced symlink keeps the conservative default, got {mode:o}");
+}
+
+/// A credential must not inherit a world-readable mode from the settings file
+/// it is being written into.
+#[cfg(unix)]
+#[test]
+fn write_atomic_private_does_not_inherit_a_readable_mode() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().join("config.yaml");
+    fs::write(&path, "nodeLinker: hoisted\n").expect("seed the file");
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).expect("widen the mode");
+
+    write_atomic_private(&path, b"_auth: {}\n").expect("write the credential");
+
+    let mode = fs::metadata(&path).expect("stat").permissions().mode() & 0o777;
+    assert_eq!(mode, 0o600, "got {mode:o}");
 }

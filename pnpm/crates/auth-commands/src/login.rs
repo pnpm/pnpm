@@ -1,5 +1,5 @@
 //! `pnpm login` / `pnpm adduser` authenticates with an npm registry and
-//! records the granted token in `auth.ini`.
+//! records the granted token in the global `config.yaml`.
 //!
 //! The command first tries the registry's web-based login (`POST -/v1/login`)
 //! and, when the registry doesn't support it (HTTP 404 / 405), falls back to
@@ -17,7 +17,7 @@
 //! [`pnpm_network_web_auth`]'s capability traits (composed on the single
 //! `Sys` type parameter), the credential prompts read through the crate-local
 //! [`PromptInput`] / [`PromptPassword`] capabilities — the raw `dialoguer`
-//! terminal reads, wrapped by `prompt_line` — and `auth.ini` I/O reuses
+//! terminal reads, wrapped by `prompt_line` — and `config.yaml` I/O reuses
 //! logout's [`FsReadToString`] / [`FsWrite`]. User-facing messages flow through
 //! the `Reporter` seam on the `pnpm:global` channel, matching pnpm's
 //! `globalInfo`. The two registry requests (the web-login `POST` and the
@@ -28,15 +28,16 @@
 
 use std::{io, path::Path};
 
-use pnpm_network::{ThrottledClient, nerf_dart, redact_and_sanitize};
+use pnpm_network::{ThrottledClient, redact_and_sanitize};
 use pnpm_network_web_auth::{
     Clock, EnterKeyListener, OpenUrl, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch,
     WebAuthFetchOptions, WebAuthRetryOptions,
 };
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_workspace_manifest_writer::{ManifestEdit, edit_manifest_field};
 
 use crate::{
-    ini::IniSettings,
+    config_yaml::{self, GLOBAL_CONFIG_YAML_FILENAME},
     logout::{DEFAULT_REGISTRY, FsReadToString, FsWrite},
     registry_url::normalize_registry_url,
 };
@@ -63,7 +64,8 @@ pub struct LoginOptions<'a> {
     /// The scope to key the token to; a scope-to-registry mapping is
     /// recorded alongside it. `None` records an unscoped token.
     pub scope: Option<&'a str>,
-    /// pnpm's `configDir`; `auth.ini` lives at `<config_dir>/auth.ini`.
+    /// pnpm's `configDir`; the global config lives at
+    /// `<config_dir>/config.yaml`.
     pub config_dir: &'a Path,
     pub fetch_retries: u32,
     pub fetch_retry_factor: u32,
@@ -74,7 +76,7 @@ pub struct LoginOptions<'a> {
 
 /// The full capability set [`login`] requires from its host: the eight
 /// OTP / web-auth effects, the two credential prompts ([`PromptInput`] /
-/// [`PromptPassword`]), and `auth.ini` read / write ([`FsReadToString`] /
+/// [`PromptPassword`]), and `config.yaml` read / write ([`FsReadToString`] /
 /// [`FsWrite`]). The blanket impl covers every type that implements all of
 /// them, so the production [`Host`] and the test fakes satisfy it
 /// automatically. Bundling the bound lets a caller that re-dispatches into
@@ -113,8 +115,8 @@ impl<Sys> LoginHost for Sys where
 {
 }
 
-/// Log in to `registry`, persist the granted token in `auth.ini`, and return
-/// the `Logged in on <registry>` success line.
+/// Log in to `registry`, persist the granted token in the global
+/// `config.yaml`, and return the `Logged in on <registry>` success line.
 ///
 /// Tries web-based login first, falling back to classic
 /// username / password / email login when the registry answers the web-login
@@ -156,20 +158,7 @@ where
         Err(error) => return Err(error.into()),
     };
 
-    let config_path = opts.config_dir.join("auth.ini");
-    let mut settings = safe_read_ini::<Sys>(&config_path)?;
-    let registry_config_key = nerf_dart(&registry);
-    let scope_key = normalize_scope(opts.scope);
-    let auth_config_key = match &scope_key {
-        Some(scope) => format!("{registry_config_key}:{scope}"),
-        None => registry_config_key,
-    };
-    settings.set(&format!("{auth_config_key}:_authToken"), &token);
-    if let Some(scope) = &scope_key {
-        settings.set(&format!("{scope}:registry"), &registry);
-    }
-    Sys::write(&config_path, settings.serialize().as_bytes())
-        .map_err(move |error| LoginError::WriteAuthIni { path: config_path, error })?;
+    record_login::<Sys>(&opts, &registry, &token)?;
 
     // A registry from an untrusted `.npmrc` / `--registry` can embed
     // `user:pass@` credentials or terminal escape sequences, so redact and
@@ -187,13 +176,42 @@ fn normalize_scope(scope: Option<&str>) -> Option<String> {
     Some(if trimmed.starts_with('@') { trimmed.to_owned() } else { format!("@{trimmed}") })
 }
 
-/// Read `auth.ini`, treating a missing file as empty. Any other read error
-/// propagates.
-fn safe_read_ini<Sys: FsReadToString>(path: &Path) -> Result<IniSettings, LoginError> {
+/// Record the granted `token` in the global `config.yaml`: the credential
+/// under `_auth`, and the route to it under `registries`.
+///
+/// Each field is a separate format-preserving edit of the document as it
+/// stands after the previous one, so the second write cannot drop the first.
+fn record_login<Sys: FsReadToString + FsWrite>(
+    opts: &LoginOptions<'_>,
+    registry: &str,
+    token: &str,
+) -> Result<(), LoginError> {
+    let config_path = opts.config_dir.join(GLOBAL_CONFIG_YAML_FILENAME);
+    let mut document = read_config_yaml::<Sys>(&config_path)?;
+    let scope = normalize_scope(opts.scope);
+    let fields = config_yaml::login_fields(document.as_deref(), registry, scope.as_deref(), token)
+        .map_err(LoginError::ParseConfigYaml)?;
+
+    for (key, value) in fields {
+        let edit = edit_manifest_field(document.as_deref(), key, &value)
+            .map_err(LoginError::EditConfigYaml)?;
+        let ManifestEdit::Write(text) = edit else {
+            continue;
+        };
+        Sys::write(&config_path, text.as_bytes())
+            .map_err(|error| LoginError::WriteConfigYaml { path: config_path.clone(), error })?;
+        document = Some(text);
+    }
+    Ok(())
+}
+
+/// Read the global `config.yaml`, treating a missing file as absent. Any
+/// other read error propagates.
+fn read_config_yaml<Sys: FsReadToString>(path: &Path) -> Result<Option<String>, LoginError> {
     match Sys::read_to_string(path) {
-        Ok(text) => Ok(IniSettings::parse(&text)),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(IniSettings::default()),
-        Err(error) => Err(LoginError::ReadAuthIni { path: path.to_path_buf(), error }),
+        Ok(text) => Ok(Some(text)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(LoginError::ReadConfigYaml { path: path.to_path_buf(), error }),
     }
 }
 

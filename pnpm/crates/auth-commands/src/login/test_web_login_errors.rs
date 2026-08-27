@@ -70,8 +70,8 @@ async fn should_propagate_non_enoent_errors_from_reading_auth_ini() {
         .await
         .unwrap_err();
 
-    let LoginError::ReadAuthIni { error, .. } = &err else {
-        panic!("expected ReadAuthIni, got {err:?}");
+    let LoginError::ReadConfigYaml { error, .. } = &err else {
+        panic!("expected ReadConfigYaml, got {err:?}");
     };
     assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
     // The web-login messages are surfaced before the read is attempted.

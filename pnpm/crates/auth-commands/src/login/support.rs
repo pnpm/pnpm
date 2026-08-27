@@ -1,6 +1,6 @@
 //! Shared fixtures for the `login` tests.
 //!
-//! Holds the credential and `auth.ini` fake (`login_fake!`), its
+//! Holds the credential and `config.yaml` fake (`login_fake!`), its
 //! scripted-response type aliases, and the helper constructors the three
 //! scenario modules — non-interactive, web-login, and classic-login — build on.
 
@@ -12,7 +12,6 @@ use std::{
 use pnpm_network::ThrottledClient;
 
 use super::LoginOptions;
-use crate::ini::IniSettings;
 
 /// A scripted response for a credential prompt, keyed on the prompt message.
 /// The error half is `dialoguer::Error` — exactly what the real terminal read
@@ -21,7 +20,7 @@ use crate::ini::IniSettings;
 /// because `prompt_line` calls the fake read from a `spawn_blocking` thread.
 pub(crate) type PromptScript = Box<dyn FnMut(&str) -> Result<String, dialoguer::Error> + Send>;
 
-/// A scripted `auth.ini` read.
+/// A scripted `config.yaml` read.
 pub(crate) type ReadScript = Box<dyn FnMut(&Path) -> io::Result<String>>;
 
 /// Expand the login-specific half of the `Sys` fake at the top of a test,
@@ -36,7 +35,7 @@ pub(crate) type ReadScript = Box<dyn FnMut(&Path) -> io::Result<String>>;
 /// `prompt_line` runs `prompt_input` / `prompt_password` inside `spawn_blocking`,
 /// so they execute on a blocking-pool thread where thread-local state would be
 /// invisible. Each test's expansion has its own `static`, so tests stay
-/// isolated. `auth.ini` I/O runs on the test thread and stays `thread_local!`.
+/// isolated. `config.yaml` I/O runs on the test thread and stays `thread_local!`.
 macro_rules! login_fake {
     ($fake:ident $(, $helper:ident)* $(,)?) => {
         static PROMPT_INPUT: Mutex<Option<PromptScript>> = Mutex::new(None);
@@ -71,7 +70,7 @@ macro_rules! login_fake {
 
         impl crate::logout::FsWrite for $fake {
             fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
-                let text = String::from_utf8(bytes.to_vec()).expect("auth.ini is UTF-8");
+                let text = String::from_utf8(bytes.to_vec()).expect("config.yaml is UTF-8");
                 INI_WRITES.with(|writes| writes.borrow_mut().push((path.to_path_buf(), text)));
                 Ok(())
             }
@@ -139,10 +138,20 @@ pub(crate) fn opts<'a>(registry: &'a str, config_dir: &'a Path) -> LoginOptions<
     }
 }
 
-/// The `auth.ini` write [`login`] performed, parsed back into [`IniSettings`].
-pub(crate) fn written_settings(writes: &[(PathBuf, String)]) -> IniSettings {
-    let (_, text) = writes.first().expect("auth.ini was written");
-    IniSettings::parse(text)
+/// The `config.yaml` [`login`] left behind, parsed back into JSON. A login
+/// writes one field at a time, so the last write is the finished document.
+pub(crate) fn written_document(writes: &[(PathBuf, String)]) -> serde_json::Value {
+    let (_, text) = writes.last().expect("config.yaml was written");
+    serde_saphyr::from_str(text).expect("login writes valid YAML")
+}
+
+/// The token [`login`] recorded for `registry` itself — the `"@"` scope an
+/// unscoped login writes under.
+pub(crate) fn written_registry_token(
+    writes: &[(PathBuf, String)],
+    registry: &str,
+) -> Option<String> {
+    written_document(writes)["_auth"][registry]["@"]["authToken"].as_str().map(str::to_owned)
 }
 
 /// The classic-login prompt script the OTP tests share: username / email by

@@ -1,11 +1,12 @@
 //! A flat `key=value` INI reader/writer for `auth.ini`.
 //!
-//! `pnpm login` / `pnpm logout` keep their tokens in `auth.ini`, a file
-//! that only ever holds top-level `//host/path/:_authToken=<token>`
-//! lines (no sections, no arrays). Upstream pnpm round-trips it through
-//! `read-ini-file` / `write-ini-file`; pacquet has no INI crate, and the
-//! `.npmrc` parser in `pnpm-config` is likewise hand-rolled. This is
-//! the matching minimal reader/writer for the auth-command file.
+//! `pnpm login` writes to the global `config.yaml`, but versions before it
+//! kept their tokens in `auth.ini`, a file that only ever holds top-level
+//! `//host/path/:_authToken=<token>` lines (no sections, no arrays). This
+//! reader/writer is what lets `pnpm logout` take a token out of one without
+//! disturbing the entries around it. Upstream pnpm round-trips the file
+//! through `read-ini-file` / `write-ini-file`; pacquet has no INI crate, and
+//! the `.npmrc` parser in `pnpm-config` is likewise hand-rolled.
 //!
 //! Entries keep their on-disk order so removing one token rewrites the
 //! file without churning the rest. Section headers (`[name]`), bare keys
@@ -15,10 +16,8 @@
 //! A key or value that would be misread on the way back — one containing
 //! `=`, CR, or LF, one already `"`-wrapped, one padded with whitespace, or
 //! one starting with `[` — is written as a JSON string (the same quoting
-//! the `ini` package's `write-ini-file` applies) and decoded on read.
-//! Without this a registry-controlled auth token with an embedded newline
-//! could plant extra entries in `auth.ini`, and a registry whose path
-//! contains `=` would key its token under a truncated name.
+//! the `ini` package's `write-ini-file` applies) and decoded on read, so
+//! that removing one entry leaves every other entry saying what it said.
 //!
 //! The `ini` package additionally backslash-escapes inline `;` / `#` (which
 //! it reads as comment starts) and unwraps single-quoted values. That is
@@ -50,29 +49,6 @@ impl IniSettings {
             })
             .collect();
         IniSettings { entries }
-    }
-
-    /// Set `key` to `value`, updating the first existing entry in place
-    /// (preserving its position) and dropping any later duplicates so the
-    /// key resolves to a single value, or appending when the key is absent.
-    /// Mirrors assigning a property on the object `write-ini-file`
-    /// serializes (and the all-duplicates handling of [`remove`](Self::remove)).
-    pub fn set(&mut self, key: &str, value: &str) {
-        let mut updated = false;
-        self.entries.retain_mut(|(entry_key, entry_value)| {
-            if entry_key.as_str() != key {
-                return true;
-            }
-            if updated {
-                return false;
-            }
-            *entry_value = value.to_string();
-            updated = true;
-            true
-        });
-        if !updated {
-            self.entries.push((key.to_string(), value.to_string()));
-        }
     }
 
     /// Remove every entry whose key equals `key`. Returns `true` when at
