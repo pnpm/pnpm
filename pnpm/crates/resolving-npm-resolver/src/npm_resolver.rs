@@ -723,6 +723,11 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
     let policy_blocked = opts.policy_blocked_versions.cloned().unwrap_or_default();
     let mut blocked_versions = policy_blocked.clone();
     let mut policy_blocks_lifted = false;
+    // Counted apart from `blocked_versions`, which the policy blocks above
+    // already populate: the limit exists to bound the re-picks a *guard*
+    // forces, and charging it for blocks the pass arrived with would fail a
+    // package whose lower versions the guard is perfectly happy with.
+    let mut guard_rejections = 0_usize;
     let mut last_rejection: Option<String> = None;
     loop {
         let pick_opts = PickPackageOptions {
@@ -812,7 +817,8 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
                 // hostile packument can force. This is a safety cutoff, not
                 // proof every version is blocked, so report it as its own
                 // error rather than "all versions blocked".
-                if blocked_versions.len() >= GUARD_REPICK_LIMIT {
+                guard_rejections += 1;
+                if guard_rejections >= GUARD_REPICK_LIMIT {
                     return Err(Box::new(GuardRepickLimitError {
                         name: opts.spec.name.clone(),
                         limit: GUARD_REPICK_LIMIT,
