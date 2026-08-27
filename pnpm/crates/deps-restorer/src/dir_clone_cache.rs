@@ -195,9 +195,14 @@ impl DirCloneCache {
         }
         // A scoped package's directory sits below a `@scope/` component
         // the per-file importer would have created; the clone needs the
-        // parent in place itself.
-        if let Some(parent) = save_path.parent()
-            && fs::create_dir_all(parent).is_err()
+        // parent in place itself. Unscoped packages sit directly in the
+        // `node_modules` the caller created — probing it again would
+        // cost every slot a syscall on the APFS-serialized metadata
+        // path.
+        if package_key.name.scope.is_some()
+            && let Some(parent) = save_path.parent()
+            && let Err(error) = fs::create_dir(parent)
+            && error.kind() != io::ErrorKind::AlreadyExists
         {
             return false;
         }
