@@ -64,6 +64,11 @@ struct Args {
     /// loaded config.
     #[arg(long)]
     disable_resolver: bool,
+
+    /// Disable the signed shared-artifact surface. Overrides
+    /// `artifacts.enabled` from the loaded config.
+    #[arg(long)]
+    disable_artifacts: bool,
 }
 
 #[tokio::main]
@@ -76,6 +81,7 @@ async fn main() -> miette::Result<()> {
     let overrides = pnpr::FeatureOverrides {
         disable_registry: args.disable_registry,
         disable_resolver: args.disable_resolver,
+        disable_artifacts: args.disable_artifacts,
     };
     let (mut config, source) = Config::resolve_with_overrides(
         args.config.as_deref(),

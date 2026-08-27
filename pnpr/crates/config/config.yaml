@@ -7,11 +7,11 @@ storage: ./storage
 # to a `.pnpr-cache` subdirectory of `storage`; point it at a separate,
 # ephemeral volume to keep cached upstream content off the durable disk.
 #cache: ./cache
-# Store the hosted (published) packages in an S3-compatible object store
-# instead of the local `storage` directory. Works with AWS S3 (omit
+# Store the hosted (published) packages and enabled shared artifacts in an
+# S3-compatible object store instead of local directories. Works with AWS S3 (omit
 # `endpoint`), Cloudflare R2 (`region: auto` + the account endpoint),
-# MinIO, Backblaze B2, etc. The proxy cache and install-accelerator
-# stores always stay on local disk. Credentials fall back to the
+# MinIO, Backblaze B2, etc. The proxy cache and install-accelerator stores stay
+# on local disk. Credentials fall back to the
 # standard AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY environment
 # variables when not set here.
 #s3:
@@ -44,11 +44,12 @@ storage: ./storage
 # dist-tag, search) is served iff at least one registry is declared under
 # `registries:` below; `--disable-registry` turns it off per tier. The install
 # accelerator has its own toggle. Something must be served: registries, or the
-# resolver. (`/-/ping` and the login/token account endpoints are always
-# served.)
+# resolver, or artifacts. (`/-/ping` and the login/token account endpoints are
+# always served.)
 #resolver:           # install accelerator: /-/pnpr, /-/pnpr/v0/resolve,
 #  enabled: true     # and /-/pnpr/v0/verify-lockfile
-#  artifacts: false  # organization-scoped shared-artifact PoC endpoints
+#artifacts:          # organization-scoped shared-artifact PoC endpoints
+#  enabled: false
 secret: pnpm-registry-mock-secret-key-32
 
 auth:

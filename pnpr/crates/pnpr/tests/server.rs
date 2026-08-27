@@ -2882,6 +2882,37 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
 }
 
 #[tokio::test]
+async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
+    config.registry.enabled = false;
+    config.resolver.enabled = false;
+    config.artifacts.enabled = true;
+    let app = router(config);
+
+    let handshake =
+        app.clone().oneshot(Request::get("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(handshake.status(), StatusCode::OK);
+    assert_eq!(
+        body_json(handshake.into_body()).await,
+        json!({ "pnpr": { "versions": [], "artifacts": [0] } }),
+    );
+
+    let artifact = app
+        .clone()
+        .oneshot(Request::post("/-/pnpr/v0/artifacts/resolve").body(Body::from("{}")).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(artifact.status(), StatusCode::UNAUTHORIZED);
+
+    let resolve = app
+        .oneshot(Request::post("/-/pnpr/v0/resolve").body(Body::from("{}")).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(resolve.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
     let mut upstream = mockito::Server::new_async().await;
     let mock = upstream

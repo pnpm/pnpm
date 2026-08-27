@@ -122,6 +122,10 @@ pub struct Config {
     /// default; disable it to run a plain registry with no server-side
     /// resolution. See [`ResolverFeature`].
     pub resolver: ResolverFeature,
+    /// Organization-scoped signed build artifacts. Kept separate from the
+    /// resolver so deployments can scale the compute-bound resolver and the
+    /// I/O-bound artifact store independently. See [`ArtifactsFeature`].
+    pub artifacts: ArtifactsFeature,
     /// Which fetch routes the resolution cache treats as public (fetched
     /// anonymously and shared globally) vs. private, driving the
     /// resolver's route classification.
@@ -217,15 +221,20 @@ pub struct ResolverFeature {
     /// `/-/pnpr/v0/verify-lockfile`). When `false`, none of those routes are
     /// mounted.
     pub enabled: bool,
-    /// Organization-scoped signed artifact endpoints. Off by default while
-    /// the protocol is a proof of concept.
-    pub artifacts: bool,
 }
 
 impl Default for ResolverFeature {
     fn default() -> Self {
-        Self { enabled: true, artifacts: false }
+        Self { enabled: true }
     }
+}
+
+/// Toggle for the signed shared-artifact surface. Off by default while the
+/// protocol is a proof of concept.
+#[derive(Debug, Default, Clone)]
+pub struct ArtifactsFeature {
+    /// Master switch for the artifact publish, lookup, and blob endpoints.
+    pub enabled: bool,
 }
 
 /// CLI-level overrides for the feature toggles, applied *during* config
@@ -240,6 +249,7 @@ impl Default for ResolverFeature {
 pub struct FeatureOverrides {
     pub disable_registry: bool,
     pub disable_resolver: bool,
+    pub disable_artifacts: bool,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -248,7 +258,8 @@ pub struct OsvConfig {
     pub path: Option<PathBuf>,
 }
 
-/// The YAML `s3:` block. Selects the object-store hosted backend.
+/// The YAML `s3:` block. Selects the object store for hosted packages and
+/// enabled shared artifacts.
 /// Credentials fall back to the standard AWS environment variables
 /// (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`) when not set here,
 /// so an operator can keep secrets out of the config file. Whole-file
@@ -968,6 +979,10 @@ struct ConfigFile {
     /// deserialize into the struct.
     #[serde(default)]
     resolver: Option<FeatureFile>,
+    /// pnpr-only feature toggle for signed shared artifacts. It is a peer of
+    /// the resolver because deployments may mount either surface alone.
+    #[serde(default)]
+    artifacts: Option<ArtifactsFeatureFile>,
     /// pnpr registries: hosted, upstream, and router origins, each
     /// exposed at `/~<name>/`. The only routing surface — there is no legacy
     /// `upstreams:`/`packages: proxy:` fallback.
@@ -1119,14 +1134,19 @@ struct OsvFile {
 struct FeatureFile {
     #[serde(default = "default_true")]
     enabled: bool,
-    #[serde(default)]
-    artifacts: bool,
 }
 
 impl Default for FeatureFile {
     fn default() -> Self {
-        Self { enabled: true, artifacts: false }
+        Self { enabled: true }
     }
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ArtifactsFeatureFile {
+    #[serde(default)]
+    enabled: bool,
 }
 
 fn default_true() -> bool {
@@ -1256,6 +1276,7 @@ impl Config {
             osv: OsvConfig::default(),
             registry: RegistryFeature::default(),
             resolver: ResolverFeature::default(),
+            artifacts: ArtifactsFeature::default(),
             route_policy: RoutePolicy::default(),
             resolution_cache_secret: random_secret(),
             registries,
@@ -1304,6 +1325,7 @@ impl Config {
             osv: OsvConfig::default(),
             registry: RegistryFeature::default(),
             resolver: ResolverFeature::default(),
+            artifacts: ArtifactsFeature::default(),
             route_policy: RoutePolicy::default(),
             resolution_cache_secret: random_secret(),
             registries,
@@ -1541,10 +1563,11 @@ impl Config {
         let registry =
             RegistryFeature { enabled: !file.registries.is_empty() && !overrides.disable_registry };
         let resolver_file = file.resolver.unwrap_or_default();
-        let resolver = ResolverFeature {
-            enabled: resolver_file.enabled && !overrides.disable_resolver,
-            artifacts: resolver_file.artifacts && !overrides.disable_resolver,
-        };
+        let resolver =
+            ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver };
+        let artifacts_file = file.artifacts.unwrap_or_default();
+        let artifacts =
+            ArtifactsFeature { enabled: artifacts_file.enabled && !overrides.disable_artifacts };
         // Upstream registries (and the credentials some carry) are resolved by
         // `build_registries` below into this map. Resolving an upstream registry's
         // `auth` is strict — an unresolvable token is a config error — so a
@@ -1576,6 +1599,7 @@ impl Config {
             osv,
             registry,
             resolver,
+            artifacts,
             route_policy,
             resolution_cache_secret,
             registries,
@@ -1591,12 +1615,13 @@ impl Config {
     /// endpoints. Checked at config load and again in the serve/router
     /// entry points for programmatically built configs.
     pub fn ensure_a_feature_is_enabled(&self) -> Result<(), RegistryError> {
-        if self.registry.enabled || self.resolver.enabled {
+        if self.registry.enabled || self.resolver.enabled || self.artifacts.enabled {
             Ok(())
         } else {
             Err(RegistryError::InvalidConfig {
                 reason: "nothing to serve: the npm-registry surface is off (no `registries:` \
-                         declared, or `--disable-registry`) and the resolver is disabled"
+                         declared, or `--disable-registry`), the resolver is disabled, and \
+                         artifacts are disabled"
                     .to_string(),
             })
         }

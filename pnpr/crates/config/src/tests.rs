@@ -271,12 +271,16 @@ fn resolver_block_present_but_empty_defaults_to_enabled() {
 }
 
 #[test]
-fn cli_disabling_both_surfaces_with_bundled_config_errors_without_panicking() {
-    // No config file → the bundled branch. Disabling both surfaces via
+fn cli_disabling_all_surfaces_with_bundled_config_errors_without_panicking() {
+    // No config file → the bundled branch. Disabling all surfaces via
     // CLI must surface a clean error, not panic on the bundled `expect`.
-    let overrides = FeatureOverrides { disable_registry: true, disable_resolver: true };
+    let overrides = FeatureOverrides {
+        disable_registry: true,
+        disable_resolver: true,
+        disable_artifacts: true,
+    };
     let err = Config::resolve_with_overrides(None, None, listen(), None, overrides)
-        .expect_err("both surfaces disabled must error rather than panic");
+        .expect_err("all surfaces disabled must error rather than panic");
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
 }
 
@@ -304,15 +308,52 @@ resolver:
 }
 
 #[test]
-fn shared_artifacts_are_an_explicit_resolver_opt_in() {
+fn shared_artifacts_are_an_explicit_top_level_opt_in() {
     let default = Config::from_yaml_str("", Path::new("/x"), listen(), None).unwrap();
-    assert!(!default.resolver.artifacts);
+    assert!(!default.artifacts.enabled);
 
-    let enabled =
+    let enabled = Config::from_yaml_str(
+        "resolver:\n  enabled: false\nartifacts:\n  enabled: true\n",
+        Path::new("/x"),
+        listen(),
+        None,
+    )
+    .unwrap();
+    assert!(!enabled.resolver.enabled);
+    assert!(enabled.artifacts.enabled);
+}
+
+#[test]
+fn nested_artifacts_toggle_is_rejected() {
+    let error =
         Config::from_yaml_str("resolver:\n  artifacts: true\n", Path::new("/x"), listen(), None)
-            .unwrap();
-    assert!(enabled.resolver.enabled);
-    assert!(enabled.resolver.artifacts);
+            .unwrap_err();
+
+    assert!(error.to_string().contains("unknown field `artifacts`"), "{error}");
+}
+
+#[test]
+fn artifact_override_is_independent_from_the_resolver_override() {
+    let yaml = "resolver:\n  enabled: false\nartifacts:\n  enabled: true\n";
+    let enabled = Config::from_yaml_str_with_overrides(
+        yaml,
+        Path::new("/x"),
+        listen(),
+        None,
+        FeatureOverrides::default(),
+    )
+    .unwrap();
+    assert!(enabled.artifacts.enabled);
+
+    let error = Config::from_yaml_str_with_overrides(
+        yaml,
+        Path::new("/x"),
+        listen(),
+        None,
+        FeatureOverrides { disable_artifacts: true, ..FeatureOverrides::default() },
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("nothing to serve"), "{error}");
 }
 
 #[test]
@@ -321,7 +362,7 @@ fn nothing_to_serve_is_a_config_error() {
     // only `/-/ping` and the account endpoints — a misconfiguration.
     let yaml = "resolver:\n  enabled: false\n";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
-        .expect_err("a server with neither surface enabled must error");
+        .expect_err("a server with no surface enabled must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
     assert!(err.to_string().contains("nothing to serve"), "unexpected error: {err}");
 }
@@ -1037,7 +1078,11 @@ registries:
     type: router
     sources: [ghost]
 ";
-    let overrides = FeatureOverrides { disable_registry: true, disable_resolver: false };
+    let overrides = FeatureOverrides {
+        disable_registry: true,
+        disable_resolver: false,
+        disable_artifacts: false,
+    };
     let err =
         Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)
             .expect_err("a broken registry graph must fail even with the registry disabled");
@@ -1064,7 +1109,11 @@ registries:
     type: router
     sources: [corp]
 ";
-    let overrides = FeatureOverrides { disable_registry: true, disable_resolver: false };
+    let overrides = FeatureOverrides {
+        disable_registry: true,
+        disable_resolver: false,
+        disable_artifacts: false,
+    };
     let config =
         Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)
             .expect("a resolver-only tier must not fail on unused upstream credentials");
