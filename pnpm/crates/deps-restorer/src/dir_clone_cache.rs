@@ -246,13 +246,16 @@ impl DirCloneCache {
 /// written. A stale destination from a crashed probe is removed first
 /// so pid reuse can't fail the probe with `EEXIST`.
 fn dir_clone_supported(links_root: &Path, virtual_store_dir: &Path) -> bool {
-    let probe_name = format!(".pacquet-dir-clone-probe-{}", std::process::id());
-    let src = links_root.join(&probe_name);
+    // Distinct basenames: were the two roots to resolve to one
+    // directory, a shared name would have the destination pre-clean
+    // remove the just-created source.
+    let pid = std::process::id();
+    let src = links_root.join(format!(".pacquet-dir-clone-probe-src-{pid}"));
     if fs::create_dir_all(&src).is_err() {
         return false;
     }
     let dst_parent = deepest_existing_ancestor(virtual_store_dir);
-    let dst = dst_parent.join(&probe_name);
+    let dst = dst_parent.join(format!(".pacquet-dir-clone-probe-dst-{pid}"));
     let _ = fs::remove_dir(&dst);
     let supported = reflink_copy::reflink(&src, &dst).is_ok();
     let _ = fs::remove_dir(&src);
