@@ -655,6 +655,7 @@ fn assemble_extract_output(
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     (cas_paths, pkg_files_idx)
 }

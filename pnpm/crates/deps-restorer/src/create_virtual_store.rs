@@ -72,6 +72,14 @@ pub type PackageManifests = HashMap<PkgNameVerPeer, std::sync::Arc<serde_json::V
 pub type SideEffectsMapsBySnapshot =
     HashMap<PackageKey, std::sync::Arc<HashMap<String, HashMap<String, PathBuf>>>>;
 
+pub type SideEffectsBySnapshot =
+    HashMap<PackageKey, std::sync::Arc<HashMap<String, pnpm_store_dir::SideEffectsDiff>>>;
+
+pub type RemoteSideEffectsQuarantineBySnapshot =
+    HashMap<PackageKey, std::sync::Arc<HashMap<String, Vec<String>>>>;
+
+pub type StoreIndexKeysBySnapshot = HashMap<PackageKey, String>;
+
 /// Per-snapshot `requiresBuild` flags recovered from the store index
 /// during the warm-cache prefetch. `BuildModules` consumes this to
 /// avoid re-inspecting every package directory after materialization.
@@ -498,6 +506,9 @@ impl CreateVirtualStore<'_> {
             cold,
             package_manifests,
             mut side_effects_maps_by_snapshot,
+            side_effects_by_snapshot,
+            remote_side_effects_quarantine_by_snapshot,
+            store_index_keys_by_snapshot,
             mut requires_build_by_snapshot,
         } = partition::partition_snapshots(
             &snapshot_entries,
@@ -506,9 +517,6 @@ impl CreateVirtualStore<'_> {
             &marker_rebuilds,
             node_linker,
         );
-        if !config.side_effects_cache_read() {
-            side_effects_maps_by_snapshot.clear();
-        }
         let shared_packages = config
             .remote_side_effects_cache
             .as_ref()
@@ -868,13 +876,20 @@ impl CreateVirtualStore<'_> {
         }
 
         let artifact_pin_records = crate::shared_side_effects::apply_shared_side_effects(
-            config,
-            snapshots,
-            packages,
-            &requires_build_by_snapshot,
-            allow_build_policy,
-            &shared_base_cas_paths,
-            &mut side_effects_maps_by_snapshot,
+            crate::shared_side_effects::ApplySharedSideEffectsOptions {
+                config,
+                snapshots,
+                packages,
+                requires_build_by_snapshot: &requires_build_by_snapshot,
+                allow_build_policy,
+                base_cas_paths: &shared_base_cas_paths,
+                side_effects_maps_by_snapshot: &mut side_effects_maps_by_snapshot,
+                side_effects_by_snapshot: &side_effects_by_snapshot,
+                remote_side_effects_quarantine_by_snapshot:
+                    &remote_side_effects_quarantine_by_snapshot,
+                store_index_keys_by_snapshot: &store_index_keys_by_snapshot,
+                store_index_writer,
+            },
         )
         .await;
 

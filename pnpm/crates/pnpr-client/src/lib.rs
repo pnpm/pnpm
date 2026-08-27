@@ -337,7 +337,16 @@ pub struct ResolveArtifactsOptions {
     /// P-256 `SubjectPublicKeyInfo` DER bytes keyed by the envelope's key id.
     pub trusted_keys: BTreeMap<String, Vec<u8>>,
     pub pinned_envelope_digests: BTreeMap<String, String>,
+    pub quarantined_envelope_digests: BTreeMap<String, HashSet<String>>,
+    pub on_rejected_artifact: Option<std::sync::Arc<dyn Fn(RejectedArtifact) + Send + Sync>>,
     pub authorization: Option<String>,
+}
+
+#[derive(Clone)]
+pub struct RejectedArtifact {
+    pub input_key: String,
+    pub envelope_digest: String,
+    pub reason: String,
 }
 
 /// A variant whose signature, owner, input key, source integrity, manifest,
@@ -566,7 +575,43 @@ impl PnprClient {
                 let Some(public_key) = opts.trusted_keys.get(&variant.envelope.key_id) else {
                     continue;
                 };
-                let Ok(payload) = variant.envelope.verify(public_key) else { continue };
+                let Ok(payload_bytes) = variant.envelope.verify_signature_bytes(public_key) else {
+                    continue;
+                };
+                let envelope_digest = variant
+                    .envelope
+                    .digest()
+                    .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+                if opts
+                    .quarantined_envelope_digests
+                    .get(candidate.key.as_str())
+                    .is_some_and(|digests| digests.contains(&envelope_digest))
+                {
+                    continue;
+                }
+                let payload: ArtifactPayload = match serde_json::from_slice(&payload_bytes) {
+                    Ok(payload) => payload,
+                    Err(error) => {
+                        if let Some(on_rejected_artifact) = &opts.on_rejected_artifact {
+                            on_rejected_artifact(RejectedArtifact {
+                                input_key: candidate.key.clone(),
+                                envelope_digest,
+                                reason: format!("payload is not valid JSON: {error}"),
+                            });
+                        }
+                        continue;
+                    }
+                };
+                if let Err(error) = payload.validate() {
+                    if let Some(on_rejected_artifact) = &opts.on_rejected_artifact {
+                        on_rejected_artifact(RejectedArtifact {
+                            input_key: candidate.key.clone(),
+                            envelope_digest,
+                            reason: error.to_string(),
+                        });
+                    }
+                    continue;
+                }
                 if !artifact_matches_candidate(&payload, candidate) {
                     continue;
                 }
@@ -574,10 +619,6 @@ impl PnprClient {
                 else {
                     continue;
                 };
-                let envelope_digest = variant
-                    .envelope
-                    .digest()
-                    .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
                 if opts
                     .pinned_envelope_digests
                     .get(candidate.key.as_str())

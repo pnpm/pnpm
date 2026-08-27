@@ -1,6 +1,7 @@
 use crate::{
-    AllowBuildPolicy, ArtifactPinRecord, RequiresBuildBySnapshot, SideEffectsMapsBySnapshot,
-    build_deps_subgraph, deps_graph::in_lockfile_order,
+    AllowBuildPolicy, ArtifactPinRecord, RemoteSideEffectsQuarantineBySnapshot,
+    RequiresBuildBySnapshot, SideEffectsBySnapshot, SideEffectsMapsBySnapshot,
+    StoreIndexKeysBySnapshot, build_deps_subgraph, deps_graph::in_lockfile_order,
     install_frozen_lockfile::find_runtime_node_major,
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
@@ -9,10 +10,12 @@ use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_pnpr_client::{
     ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
     ArtifactManifest, ArtifactPayload, BuilderProfile, CompatibilityConstraints,
-    LinuxGlibcPlatform, OwnerScope, PackageIdentity, PnprClient, PublishArtifactRequest,
-    ResolveArtifactsOptions, SignedArtifactEnvelope, blob_id, linux_glibc_supported_tags,
-    linux_glibc_tag, platform_fingerprint,
+    LinuxGlibcPlatform, OwnerScope, PackageIdentity, PnprClient, PnprClientError,
+    PublishArtifactRequest, RejectedArtifact, ResolveArtifactsOptions, SignedArtifactEnvelope,
+    blob_id, linux_glibc_supported_tags, linux_glibc_tag, platform_fingerprint,
 };
+use pnpm_shared_artifact_protocol::compatibility_rank;
+use pnpm_store_dir::{CafsFileInfo, RemoteSideEffectsOrigin, SideEffectsDiff, StoreIndexWriter};
 use sha2::{Digest as _, Sha512};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -38,26 +41,48 @@ pub struct SharedSideEffectsPublisher {
 struct CandidateGroup {
     candidate: ArtifactCandidate,
     pinned_envelope_digest: Option<String>,
-    snapshots: Vec<(PackageKey, String)>,
+    snapshots: Vec<(PackageKey, String, String)>,
+}
+
+pub(crate) struct ApplySharedSideEffectsOptions<'a> {
+    pub config: &'a Config,
+    pub snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+    pub packages: &'a HashMap<PackageKey, PackageMetadata>,
+    pub requires_build_by_snapshot: &'a RequiresBuildBySnapshot,
+    pub allow_build_policy: &'a AllowBuildPolicy,
+    pub base_cas_paths: &'a BaseCasPaths,
+    pub side_effects_maps_by_snapshot: &'a mut SideEffectsMapsBySnapshot,
+    pub side_effects_by_snapshot: &'a SideEffectsBySnapshot,
+    pub remote_side_effects_quarantine_by_snapshot: &'a RemoteSideEffectsQuarantineBySnapshot,
+    pub store_index_keys_by_snapshot: &'a StoreIndexKeysBySnapshot,
+    pub store_index_writer: &'a Arc<StoreIndexWriter>,
 }
 
 pub(crate) async fn apply_shared_side_effects(
-    config: &Config,
-    snapshots: &HashMap<PackageKey, SnapshotEntry>,
-    packages: &HashMap<PackageKey, PackageMetadata>,
-    requires_build_by_snapshot: &RequiresBuildBySnapshot,
-    allow_build_policy: &AllowBuildPolicy,
-    base_cas_paths: &BaseCasPaths,
-    side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
+    options: ApplySharedSideEffectsOptions<'_>,
 ) -> Vec<ArtifactPinRecord> {
-    if config.ignore_scripts || config.frozen_store {
+    let ApplySharedSideEffectsOptions {
+        config,
+        snapshots,
+        packages,
+        requires_build_by_snapshot,
+        allow_build_policy,
+        base_cas_paths,
+        side_effects_maps_by_snapshot,
+        side_effects_by_snapshot,
+        remote_side_effects_quarantine_by_snapshot,
+        store_index_keys_by_snapshot,
+        store_index_writer,
+    } = options;
+    let mut persisted_remote =
+        take_persisted_remote_side_effects(side_effects_maps_by_snapshot, side_effects_by_snapshot);
+    if !config.side_effects_cache_read() {
+        side_effects_maps_by_snapshot.clear();
+    }
+    if config.ignore_scripts {
         return Vec::new();
     }
-    let (Some(server), Some(settings)) =
-        (config.pnpr_server.as_deref(), config.remote_side_effects_cache.as_ref())
-    else {
-        return Vec::new();
-    };
+    let Some(settings) = config.remote_side_effects_cache.as_ref() else { return Vec::new() };
     let Some(platform) = linux_glibc_platform(snapshots) else { return Vec::new() };
     let supported_tags = match linux_glibc_supported_tags(platform) {
         Ok(tags) => tags,
@@ -107,6 +132,7 @@ pub(crate) async fn apply_shared_side_effects(
     let engine_name = pnpm_graph_hasher::engine_name(platform.node_major, None, None);
     let mut groups = BTreeMap::<String, CandidateGroup>::new();
     let mut collisions = HashSet::new();
+    let mut artifact_pin_records = Vec::new();
     for snapshot_key in roots {
         let metadata_key = snapshot_key.without_peer();
         let Some(metadata) = packages.get(&metadata_key) else { continue };
@@ -134,13 +160,6 @@ pub(crate) async fn apply_shared_side_effects(
                 include_dep_graph_hash: true,
             },
         );
-        if config.side_effects_cache_read()
-            && side_effects_maps_by_snapshot
-                .get(&snapshot_key)
-                .is_some_and(|maps| maps.contains_key(&local_cache_key))
-        {
-            continue;
-        }
         let candidate = ArtifactCandidate {
             key: input_key.clone(),
             package: PackageIdentity {
@@ -157,6 +176,45 @@ pub(crate) async fn apply_shared_side_effects(
             .and_then(|owners| owners.get(&owner_namespace))
             .and_then(|platforms| platforms.get(&fingerprint))
             .cloned();
+        if let Some(overlay) =
+            persisted_remote.remove(&(snapshot_key.clone(), local_cache_key.clone()))
+            && let Some(diff) = side_effects_by_snapshot
+                .get(&snapshot_key)
+                .and_then(|diffs| diffs.get(&local_cache_key))
+            && let Some(envelope_digest) = stored_remote_side_effects_envelope_digest(
+                diff,
+                &candidate,
+                pinned_envelope_digest.as_deref(),
+                &supported_tags,
+                &trusted_keys,
+            )
+            && stored_remote_side_effects_blobs_are_valid(diff, &overlay).await
+        {
+            insert_side_effects_map(
+                side_effects_maps_by_snapshot,
+                snapshot_key.clone(),
+                local_cache_key,
+                overlay,
+            );
+            artifact_pin_records.push(ArtifactPinRecord {
+                snapshot_key,
+                input_key,
+                owner: owner_namespace.clone(),
+                platform_fingerprint: fingerprint.clone(),
+                envelope_digest,
+            });
+            continue;
+        }
+        if config.side_effects_cache_read()
+            && side_effects_maps_by_snapshot
+                .get(&snapshot_key)
+                .is_some_and(|maps| maps.contains_key(&local_cache_key))
+        {
+            continue;
+        }
+        let Some(store_index_key) = store_index_keys_by_snapshot.get(&snapshot_key).cloned() else {
+            continue;
+        };
         if let Some(group) = groups.get_mut(&input_key) {
             if group.candidate.package != candidate.package
                 || group.candidate.source_integrity != candidate.source_integrity
@@ -175,21 +233,22 @@ pub(crate) async fn apply_shared_side_effects(
             }
             group.pinned_envelope_digest =
                 group.pinned_envelope_digest.take().or(pinned_envelope_digest);
-            group.snapshots.push((snapshot_key, local_cache_key));
+            group.snapshots.push((snapshot_key, local_cache_key, store_index_key));
         } else {
             groups.insert(
                 input_key,
                 CandidateGroup {
                     candidate,
                     pinned_envelope_digest,
-                    snapshots: vec![(snapshot_key, local_cache_key)],
+                    snapshots: vec![(snapshot_key, local_cache_key, store_index_key)],
                 },
             );
         }
     }
-    if groups.is_empty() {
-        return Vec::new();
+    if groups.is_empty() || config.frozen_store {
+        return artifact_pin_records;
     }
+    let Some(server) = config.pnpr_server.as_deref() else { return artifact_pin_records };
     tracing::debug!(
         target: "pacquet::install",
         candidates = groups.len(),
@@ -199,7 +258,7 @@ pub(crate) async fn apply_shared_side_effects(
     let client = PnprClient::new(server);
     if let Err(error) = client.handshake_artifacts().await {
         tracing::warn!(target: "pacquet::install", %error, "remote side-effects cache handshake failed");
-        return Vec::new();
+        return artifact_pin_records;
     }
     let authorization = config.auth_headers.for_url(server);
     let allowed_builds =
@@ -210,15 +269,38 @@ pub(crate) async fn apply_shared_side_effects(
             group.pinned_envelope_digest.as_ref().map(|digest| (input_key.clone(), digest.clone()))
         })
         .collect();
+    let quarantined_envelope_digests = groups
+        .iter()
+        .map(|(input_key, group)| {
+            let digests = group
+                .snapshots
+                .iter()
+                .filter_map(|(snapshot_key, _, _)| {
+                    remote_side_effects_quarantine_by_snapshot
+                        .get(snapshot_key)
+                        .and_then(|channels| channels.get(server))
+                })
+                .flatten()
+                .cloned()
+                .collect();
+            (input_key.clone(), digests)
+        })
+        .collect();
+    let rejected_artifacts = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let rejected_artifacts_for_callback = Arc::clone(&rejected_artifacts);
     let resolved = match client
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: groups.values().map(|group| group.candidate.clone()).collect(),
-            supported_tags,
+            supported_tags: supported_tags.clone(),
             eligible_packages,
             allowed_builds,
             ignore_scripts: false,
-            trusted_keys,
+            trusted_keys: trusted_keys.clone(),
             pinned_envelope_digests,
+            quarantined_envelope_digests,
+            on_rejected_artifact: Some(Arc::new(move |rejected| {
+                rejected_artifacts_for_callback.lock().unwrap().push(rejected);
+            })),
             authorization: authorization.clone(),
         })
         .await
@@ -226,9 +308,13 @@ pub(crate) async fn apply_shared_side_effects(
         Ok(resolved) => resolved,
         Err(error) => {
             tracing::warn!(target: "pacquet::install", %error, "remote side-effects cache lookup failed");
-            return Vec::new();
+            return artifact_pin_records;
         }
     };
+    let rejected_artifacts = std::mem::take(&mut *rejected_artifacts.lock().unwrap());
+    for rejected in rejected_artifacts {
+        quarantine_remote_side_effects(&rejected, &groups, server, store_index_writer);
+    }
 
     for (input_key, group) in &groups {
         if group.pinned_envelope_digest.is_some() && !resolved.contains_key(input_key) {
@@ -239,23 +325,32 @@ pub(crate) async fn apply_shared_side_effects(
             );
         }
     }
-    let mut artifact_pin_records = Vec::new();
     for (input_key, artifact) in resolved {
         let Some(group) = groups.get(&input_key) else { continue };
-        let Some((first_snapshot, _)) = group.snapshots.first() else { continue };
+        let Some((first_snapshot, _, _)) = group.snapshots.first() else { continue };
         let Some(base) = base_cas_paths.get(first_snapshot) else { continue };
         let mut overlay = base.clone();
         let mut downloaded = HashMap::<String, Vec<u8>>::new();
         let mut stored = HashMap::<(String, u32), PathBuf>::new();
+        let mut added = HashMap::<String, CafsFileInfo>::new();
         for deleted in &artifact.payload.manifest.deleted {
             overlay.remove(deleted);
         }
         let mut rejected = None;
         for file in &artifact.payload.manifest.added {
-            let result: Result<PathBuf, String> = async {
+            let result: Result<(PathBuf, CafsFileInfo), (String, bool)> = async {
                 let storage_key = (file.integrity.clone(), file.mode);
                 if let Some(path) = stored.get(&storage_key) {
-                    return Ok(path.clone());
+                    return Ok((
+                        path.clone(),
+                        CafsFileInfo {
+                            digest: blob_id(&file.integrity)
+                                .map_err(|error| (error.to_string(), true))?,
+                            mode: file.mode,
+                            size: file.size,
+                            checked_at: None,
+                        },
+                    ));
                 }
                 if !downloaded.contains_key(&file.integrity) {
                     // A built package's files are mostly its own, and
@@ -268,12 +363,31 @@ pub(crate) async fn apply_shared_side_effects(
                     // by `is_executable`, so they cannot disagree about where
                     // a mode belongs. The manifest only carries 0o644 and
                     // 0o755 today, but the agreement must not rest on that.
-                    let digest = blob_id(&file.integrity).map_err(|error| error.to_string())?;
+                    let digest =
+                        blob_id(&file.integrity).map_err(|error| (error.to_string(), true))?;
                     if let Some(path) = config.store_dir.cas_file_path_by_mode(&digest, file.mode)
-                        && store_holds(&path, &digest).await?
+                        && store_holds(&path, &digest).await.map_err(|error| (error, false))?
                     {
+                        if !tokio::fs::metadata(&path)
+                            .await
+                            .is_ok_and(|metadata| metadata.len() == file.size)
+                        {
+                            return Err((
+                                "stored shared artifact blob does not match its declared size"
+                                    .to_string(),
+                                true,
+                            ));
+                        }
                         stored.insert(storage_key, path.clone());
-                        return Ok(path);
+                        return Ok((
+                            path,
+                            CafsFileInfo {
+                                digest,
+                                mode: file.mode,
+                                size: file.size,
+                                checked_at: None,
+                            },
+                        ));
                     }
                     let bytes = client
                         .download_artifact_blob(
@@ -284,7 +398,16 @@ pub(crate) async fn apply_shared_side_effects(
                             authorization.as_deref(),
                         )
                         .await
-                        .map_err(|error| error.to_string())?;
+                        .map_err(|error| {
+                            let quarantine = matches!(error, PnprClientError::Protocol(_));
+                            (error.to_string(), quarantine)
+                        })?;
+                    if bytes.len() as u64 != file.size {
+                        return Err((
+                            "shared artifact blob does not match its declared size".to_string(),
+                            true,
+                        ));
+                    }
                     downloaded.insert(file.integrity.clone(), bytes);
                 }
                 let (path, _) = config
@@ -293,22 +416,44 @@ pub(crate) async fn apply_shared_side_effects(
                         &downloaded[&file.integrity],
                         pnpm_fs::file_mode::is_executable(file.mode),
                     )
-                    .map_err(|error| error.to_string())?;
+                    .map_err(|error| (error.to_string(), false))?;
                 stored.insert(storage_key, path.clone());
-                Ok(path)
+                Ok((
+                    path,
+                    CafsFileInfo {
+                        digest: blob_id(&file.integrity)
+                            .map_err(|error| (error.to_string(), true))?,
+                        mode: file.mode,
+                        size: file.size,
+                        checked_at: None,
+                    },
+                ))
             }
             .await;
             match result {
-                Ok(path) => {
+                Ok((path, info)) => {
                     overlay.insert(file.path.clone(), path);
+                    added.insert(file.path.clone(), info);
                 }
-                Err(error) => {
-                    rejected = Some(error);
+                Err((error, quarantine)) => {
+                    rejected = Some((error, quarantine));
                     break;
                 }
             }
         }
-        if let Some(error) = rejected {
+        if let Some((error, quarantine)) = rejected {
+            if quarantine {
+                quarantine_remote_side_effects(
+                    &RejectedArtifact {
+                        input_key: input_key.clone(),
+                        envelope_digest: artifact.envelope_digest.clone(),
+                        reason: error.clone(),
+                    },
+                    &groups,
+                    server,
+                    store_index_writer,
+                );
+            }
             tracing::warn!(
                 target: "pacquet::install",
                 package = %group.candidate.package.name,
@@ -317,12 +462,30 @@ pub(crate) async fn apply_shared_side_effects(
             );
             continue;
         }
-        for (snapshot_key, local_cache_key) in &group.snapshots {
-            let mut maps = side_effects_maps_by_snapshot
-                .get(snapshot_key)
-                .map_or_else(HashMap::new, |maps| (**maps).clone());
-            maps.insert(local_cache_key.clone(), overlay.clone());
-            side_effects_maps_by_snapshot.insert(snapshot_key.clone(), Arc::new(maps));
+        let diff = SideEffectsDiff {
+            added: Some(added),
+            deleted: Some(artifact.payload.manifest.deleted.clone()),
+            remote_origin: Some(RemoteSideEffectsOrigin {
+                channel: server.to_string(),
+                owner: artifact.payload.owner.clone(),
+                signer_key_id: artifact.envelope.key_id.clone(),
+                builder_profile: artifact.payload.builder_profile.clone(),
+                envelope: artifact.envelope.clone(),
+                verification: "verified".to_string(),
+            }),
+        };
+        for (snapshot_key, local_cache_key, store_index_key) in &group.snapshots {
+            insert_side_effects_map(
+                side_effects_maps_by_snapshot,
+                snapshot_key.clone(),
+                local_cache_key.clone(),
+                overlay.clone(),
+            );
+            store_index_writer.queue_remote_side_effects(
+                store_index_key.clone(),
+                local_cache_key.clone(),
+                diff.clone(),
+            );
             artifact_pin_records.push(ArtifactPinRecord {
                 snapshot_key: snapshot_key.clone(),
                 input_key: input_key.clone(),
@@ -333,6 +496,139 @@ pub(crate) async fn apply_shared_side_effects(
         }
     }
     artifact_pin_records
+}
+
+fn take_persisted_remote_side_effects(
+    side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
+    side_effects_by_snapshot: &SideEffectsBySnapshot,
+) -> HashMap<(PackageKey, String), HashMap<String, PathBuf>> {
+    let mut persisted = HashMap::new();
+    for (snapshot_key, diffs) in side_effects_by_snapshot {
+        let remote_keys: Vec<&String> = diffs
+            .iter()
+            .filter_map(|(cache_key, diff)| diff.remote_origin.as_ref().map(|_| cache_key))
+            .collect();
+        if remote_keys.is_empty() {
+            continue;
+        }
+        let Some(existing) = side_effects_maps_by_snapshot.get(snapshot_key) else { continue };
+        let mut maps = (**existing).clone();
+        for cache_key in remote_keys {
+            if let Some(overlay) = maps.remove(cache_key) {
+                persisted.insert((snapshot_key.clone(), cache_key.clone()), overlay);
+            }
+        }
+        if maps.is_empty() {
+            side_effects_maps_by_snapshot.remove(snapshot_key);
+        } else {
+            side_effects_maps_by_snapshot.insert(snapshot_key.clone(), Arc::new(maps));
+        }
+    }
+    persisted
+}
+
+fn insert_side_effects_map(
+    side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
+    snapshot_key: PackageKey,
+    cache_key: String,
+    overlay: HashMap<String, PathBuf>,
+) {
+    let mut maps = side_effects_maps_by_snapshot
+        .get(&snapshot_key)
+        .map_or_else(HashMap::new, |maps| (**maps).clone());
+    maps.insert(cache_key, overlay);
+    side_effects_maps_by_snapshot.insert(snapshot_key, Arc::new(maps));
+}
+
+fn stored_remote_side_effects_envelope_digest(
+    diff: &SideEffectsDiff,
+    candidate: &ArtifactCandidate,
+    pinned_envelope_digest: Option<&str>,
+    supported_tags: &[String],
+    trusted_keys: &BTreeMap<String, Vec<u8>>,
+) -> Option<String> {
+    let Some(origin) = &diff.remote_origin else { return None };
+    if origin.verification != "verified" || origin.signer_key_id != origin.envelope.key_id {
+        return None;
+    }
+    let public_key = trusted_keys.get(&origin.signer_key_id)?;
+    let Ok(payload) = origin.envelope.verify(public_key) else { return None };
+    let Ok(envelope_digest) = origin.envelope.digest() else { return None };
+    if pinned_envelope_digest.is_some_and(|pinned| pinned != envelope_digest) {
+        return None;
+    }
+    if payload.input_key != candidate.key {
+        return None;
+    }
+    (payload.package == candidate.package
+        && payload.source_integrity == candidate.source_integrity
+        && payload.owner == candidate.owner
+        && payload.owner == origin.owner
+        && payload.builder_profile == origin.builder_profile
+        && compatibility_rank(&payload.compatibility, supported_tags).is_some()
+        && manifest_matches_diff(&payload.manifest, diff))
+    .then_some(envelope_digest)
+}
+
+fn manifest_matches_diff(manifest: &ArtifactManifest, diff: &SideEffectsDiff) -> bool {
+    let empty = HashMap::new();
+    let added = diff.added.as_ref().unwrap_or(&empty);
+    if added.len() != manifest.added.len() {
+        return false;
+    }
+    for file in &manifest.added {
+        let Ok(digest) = blob_id(&file.integrity) else { return false };
+        if !added.get(&file.path).is_some_and(|stored| {
+            stored.digest == digest && stored.mode == file.mode && stored.size == file.size
+        }) {
+            return false;
+        }
+    }
+    let deleted = diff.deleted.as_deref().unwrap_or_default();
+    deleted.len() == manifest.deleted.len()
+        && deleted.iter().collect::<HashSet<_>>().len() == deleted.len()
+        && deleted.iter().all(|path| manifest.deleted.contains(path))
+}
+
+async fn stored_remote_side_effects_blobs_are_valid(
+    diff: &SideEffectsDiff,
+    overlay: &HashMap<String, PathBuf>,
+) -> bool {
+    for (file_path, info) in diff.added.iter().flatten() {
+        let Some(path) = overlay.get(file_path) else { return false };
+        match store_holds(path, &info.digest).await {
+            Ok(true) => {}
+            Ok(false) | Err(_) => return false,
+        }
+        if !tokio::fs::metadata(path).await.is_ok_and(|metadata| metadata.len() == info.size) {
+            return false;
+        }
+    }
+    true
+}
+
+fn quarantine_remote_side_effects(
+    rejected: &RejectedArtifact,
+    groups: &BTreeMap<String, CandidateGroup>,
+    channel: &str,
+    store_index_writer: &StoreIndexWriter,
+) {
+    let Some(group) = groups.get(&rejected.input_key) else { return };
+    let mut rows = HashSet::new();
+    for (_, _, store_index_key) in &group.snapshots {
+        if rows.insert(store_index_key) {
+            store_index_writer.queue_remote_side_effects_quarantine(
+                store_index_key.clone(),
+                channel.to_string(),
+                rejected.envelope_digest.clone(),
+            );
+        }
+    }
+    tracing::warn!(
+        target: "pacquet::install",
+        reason = %rejected.reason,
+        "remote side-effects artifact was quarantined",
+    );
 }
 
 /// Decode the configured trust root, or `None` when it is absent or unusable.

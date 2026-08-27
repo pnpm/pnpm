@@ -1776,6 +1776,7 @@ async fn write_path_populates_side_effects_row() {
         algo: HASH_ALGORITHM.to_string(),
         files: base_files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     {
         let mut index = StoreIndex::open_in(&store_dir).expect("open index for seed");
@@ -1920,6 +1921,7 @@ async fn write_path_disabled_skips_upload() {
         algo: HASH_ALGORITHM.to_string(),
         files: HashMap::new(),
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     {
         let mut index = StoreIndex::open_in(&store_dir).expect("open index for seed");
@@ -2165,6 +2167,7 @@ async fn upload_error_does_not_interrupt_install() {
         algo: HASH_ALGORITHM.to_string(),
         files: HashMap::new(),
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     {
         let mut index = StoreIndex::open_in(&store_dir).expect("open index for seed");
@@ -2378,6 +2381,7 @@ async fn write_path_cache_key_includes_patch_hash() {
         algo: HASH_ALGORITHM.to_string(),
         files: base_files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     {
         let mut index = StoreIndex::open_in(&store_dir).expect("open index for seed");

@@ -34,9 +34,12 @@ export {
   pnprSupportsSharedSideEffects,
   publishSharedSideEffects,
   resolveSharedSideEffects,
+  SharedArtifactBlobIntegrityError,
   SIGNATURE_ALGORITHM,
   type SignedArtifactEnvelope,
   signedArtifactEnvelopeDigest,
   type VerifiedArtifact,
   verifySignedArtifactEnvelope,
+  verifyStoredSharedSideEffects,
+  type VerifyStoredSharedSideEffectsOptions,
 } from './sharedSideEffects.js'

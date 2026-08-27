@@ -115,6 +115,7 @@ pub fn calculate_diff(
     SideEffectsDiff {
         added: (!added.is_empty()).then_some(added),
         deleted: (!deleted.is_empty()).then_some(deleted),
+        remote_origin: None,
     }
 }
 

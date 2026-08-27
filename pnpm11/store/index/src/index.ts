@@ -197,6 +197,32 @@ export class StoreIndex {
     })
   }
 
+  update (key: string, updateValue: (value: unknown) => unknown): boolean {
+    this.flush()
+    return sqliteRetry(() => {
+      this.db.exec('BEGIN IMMEDIATE')
+      let committed = false
+      try {
+        const row = this.stmtGet.get(key) as { data: Uint8Array } | undefined
+        if (row == null) {
+          this.db.exec('COMMIT')
+          committed = true
+          return false
+        }
+        this.stmtSet.run(key, packr.pack(updateValue(packr.unpack(row.data))))
+        this.db.exec('COMMIT')
+        committed = true
+        return true
+      } finally {
+        if (!committed) {
+          try {
+            this.db.exec('ROLLBACK')
+          } catch {}
+        }
+      }
+    })
+  }
+
   delete (key: string): boolean {
     let result!: { changes: number | bigint }
     sqliteRetry(() => {
@@ -384,6 +410,10 @@ export class ReadOnlyStoreIndex extends StoreIndex {
   }
 
   override delete (_key: string): boolean {
+    this.throwReadOnly()
+  }
+
+  override update (_key: string, _updateValue: (value: unknown) => unknown): boolean {
     this.throwReadOnly()
   }
 

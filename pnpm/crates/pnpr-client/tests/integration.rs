@@ -897,6 +897,8 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
             ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), untrusted_public_key)]),
             pinned_envelope_digests: BTreeMap::new(),
+            quarantined_envelope_digests: BTreeMap::new(),
+            on_rejected_artifact: None,
             authorization: Some(pnpr_auth.clone()),
         })
         .await
@@ -914,6 +916,8 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
             ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key.clone())]),
             pinned_envelope_digests: BTreeMap::new(),
+            quarantined_envelope_digests: BTreeMap::new(),
+            on_rejected_artifact: None,
             authorization: Some(pnpr_auth.clone()),
         })
         .await
@@ -929,6 +933,8 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
             ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key.clone())]),
             pinned_envelope_digests: BTreeMap::new(),
+            quarantined_envelope_digests: BTreeMap::new(),
+            on_rejected_artifact: None,
             authorization: Some(pnpr_auth.clone()),
         })
         .await
@@ -937,6 +943,25 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
     assert_eq!(artifact.payload.owner, OwnerScope::organization("pnpr-client"));
     assert_eq!(artifact.envelope_digest.len(), 64);
     let pinned_digest = artifact.envelope_digest.clone();
+    let quarantined = client
+        .resolve_artifacts(ResolveArtifactsOptions {
+            candidates: vec![candidate.clone()],
+            supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
+            eligible_packages: HashSet::from([candidate.package.name.clone()]),
+            allowed_builds: HashSet::from([candidate.package.name.clone()]),
+            ignore_scripts: false,
+            trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key.clone())]),
+            pinned_envelope_digests: BTreeMap::new(),
+            quarantined_envelope_digests: BTreeMap::from([(
+                candidate.key.clone(),
+                HashSet::from([pinned_digest.clone()]),
+            )]),
+            on_rejected_artifact: None,
+            authorization: Some(pnpr_auth.clone()),
+        })
+        .await
+        .expect("a quarantined variant is a cache miss");
+    assert!(quarantined.is_empty());
     let pinned = client
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: vec![candidate.clone()],
@@ -949,6 +974,8 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
                 candidate.key.clone(),
                 pinned_digest.clone(),
             )]),
+            quarantined_envelope_digests: BTreeMap::new(),
+            on_rejected_artifact: None,
             authorization: Some(pnpr_auth.clone()),
         })
         .await
@@ -966,6 +993,8 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
             ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key)]),
             pinned_envelope_digests: BTreeMap::from([(candidate.key.clone(), "0".repeat(64))]),
+            quarantined_envelope_digests: BTreeMap::new(),
+            on_rejected_artifact: None,
             authorization: Some(pnpr_auth.clone()),
         })
         .await
@@ -1016,6 +1045,8 @@ async fn artifact_lookup_preserves_script_eligibility_and_allow_build_policy() {
                 ignore_scripts,
                 trusted_keys: trusted_keys.clone(),
                 pinned_envelope_digests: BTreeMap::new(),
+                quarantined_envelope_digests: BTreeMap::new(),
+                on_rejected_artifact: None,
                 authorization: None,
             })
             .await
@@ -1131,6 +1162,8 @@ async fn organization_artifact_existence_is_not_exposed_to_another_owner() {
             ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key)]),
             pinned_envelope_digests: BTreeMap::new(),
+            quarantined_envelope_digests: BTreeMap::new(),
+            on_rejected_artifact: None,
             authorization: Some(pnpr_auth),
         })
         .await

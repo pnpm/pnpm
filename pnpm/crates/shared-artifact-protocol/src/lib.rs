@@ -234,6 +234,13 @@ impl SignedArtifactEnvelope {
     }
 
     pub fn decode_payload(&self) -> Result<(ArtifactPayload, Vec<u8>), ArtifactProtocolError> {
+        let payload_bytes = self.decode_payload_bytes()?;
+        let payload = decode_payload_json(&payload_bytes)?;
+        payload.validate()?;
+        Ok((payload, payload_bytes))
+    }
+
+    fn decode_payload_bytes(&self) -> Result<Vec<u8>, ArtifactProtocolError> {
         validate_scalar("signature algorithm", &self.algorithm, 64)?;
         if self.algorithm != SIGNATURE_ALGORITHM {
             return Err(ArtifactProtocolError::InvalidEnvelope(format!(
@@ -260,26 +267,39 @@ impl SignedArtifactEnvelope {
                 "signed payload exceeds {MAX_SIGNED_PAYLOAD_SIZE} bytes",
             )));
         }
-        let payload: ArtifactPayload = serde_json::from_slice(&payload_bytes).map_err(|err| {
-            ArtifactProtocolError::InvalidEnvelope(format!("payload is not valid JSON: {err}"))
-        })?;
-        payload.validate()?;
-        Ok((payload, payload_bytes))
+        Ok(payload_bytes)
     }
 
     pub fn verify(&self, public_key_spki: &[u8]) -> Result<ArtifactPayload, ArtifactProtocolError> {
-        let (payload, payload_bytes) = self.decode_payload()?;
+        let payload = self.verify_signature(public_key_spki)?;
+        payload.validate()?;
+        Ok(payload)
+    }
+
+    pub fn verify_signature(
+        &self,
+        public_key_spki: &[u8],
+    ) -> Result<ArtifactPayload, ArtifactProtocolError> {
+        let payload_bytes = self.verify_signature_bytes(public_key_spki)?;
+        decode_payload_json(&payload_bytes)
+    }
+
+    pub fn verify_signature_bytes(
+        &self,
+        public_key_spki: &[u8],
+    ) -> Result<Vec<u8>, ArtifactProtocolError> {
+        let payload_bytes = self.decode_payload_bytes()?;
         let (signature, _) = self.decode_signature()?;
         let public_key = VerifyingKey::from_public_key_der(public_key_spki)
             .map_err(|_| ArtifactProtocolError::InvalidSignature)?;
         public_key
             .verify(&payload_bytes, &signature)
             .map_err(|_| ArtifactProtocolError::InvalidSignature)?;
-        Ok(payload)
+        Ok(payload_bytes)
     }
 
     pub fn digest(&self) -> Result<String, ArtifactProtocolError> {
-        let (_, payload_bytes) = self.decode_payload()?;
+        let payload_bytes = self.decode_payload_bytes()?;
         let (_, signature_bytes) = self.decode_signature()?;
         let mut hasher = Sha256::new();
         hasher.update(b"pnpm-shared-artifact-envelope-v1\0");
@@ -319,6 +339,12 @@ impl SignedArtifactEnvelope {
         }
         Ok((signature, signature_bytes))
     }
+}
+
+fn decode_payload_json(payload_bytes: &[u8]) -> Result<ArtifactPayload, ArtifactProtocolError> {
+    serde_json::from_slice(payload_bytes).map_err(|error| {
+        ArtifactProtocolError::InvalidEnvelope(format!("payload is not valid JSON: {error}"))
+    })
 }
 
 impl PublishArtifactRequest {

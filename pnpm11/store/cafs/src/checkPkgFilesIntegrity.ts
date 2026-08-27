@@ -4,7 +4,7 @@ import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
-import type { FilesMap, PackageFileInfo, PackageFiles, SideEffects } from '@pnpm/store.cafs-types'
+import type { FilesMap, PackageFileInfo, PackageFiles, RemoteSideEffectsQuarantine, SideEffects } from '@pnpm/store.cafs-types'
 import type { BundledManifest } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 
@@ -54,6 +54,8 @@ export interface VerifyResult {
   passed: boolean
   filesMap: FilesMap
   sideEffectsMaps?: Map<string, { added?: FilesMap, deleted?: string[] }>
+  sideEffectsDiffs?: SideEffects
+  remoteSideEffectsQuarantine?: RemoteSideEffectsQuarantine
 }
 
 export interface PackageFilesIndex {
@@ -64,6 +66,7 @@ export interface PackageFilesIndex {
   algo: string
   files: PackageFiles
   sideEffects?: SideEffects
+  remoteSideEffectsQuarantine?: RemoteSideEffectsQuarantine
 }
 
 export function checkPkgFilesIntegrity (
@@ -101,6 +104,8 @@ export function checkPkgFilesIntegrity (
   return {
     ...verified,
     sideEffectsMaps: sideEffectsMaps.size > 0 ? sideEffectsMaps : undefined,
+    sideEffectsDiffs: sideEffectsMaps.size > 0 ? matchingSideEffects(pkgIndex.sideEffects, sideEffectsMaps) : undefined,
+    remoteSideEffectsQuarantine: pkgIndex.remoteSideEffectsQuarantine,
   }
 }
 
@@ -145,7 +150,17 @@ export function buildFileMapsFromIndex (
     passed: true,
     filesMap,
     sideEffectsMaps: sideEffectsMaps.size > 0 ? sideEffectsMaps : undefined,
+    sideEffectsDiffs: sideEffectsMaps.size > 0 ? matchingSideEffects(pkgIndex.sideEffects, sideEffectsMaps) : undefined,
+    remoteSideEffectsQuarantine: pkgIndex.remoteSideEffectsQuarantine,
   }
+}
+
+function matchingSideEffects (
+  sideEffects: SideEffects | undefined,
+  sideEffectsMaps: Map<string, unknown>
+): SideEffects | undefined {
+  if (sideEffects == null) return undefined
+  return new Map(Array.from(sideEffects).filter(([cacheKey]) => sideEffectsMaps.has(cacheKey)))
 }
 
 function checkFilesIntegrity (

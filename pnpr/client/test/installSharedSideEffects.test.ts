@@ -18,7 +18,7 @@ import {
   type SignedArtifactEnvelope,
   verifySignedArtifactEnvelope,
 } from '@pnpm/pnpr.client'
-import type { PackageFilesResponse, StoreController } from '@pnpm/store.controller-types'
+import type { PackageFilesResponse, SideEffectsDiff, StoreController } from '@pnpm/store.controller-types'
 import type { DepPath } from '@pnpm/types'
 
 const packageName = 'native-addon'
@@ -38,6 +38,8 @@ describe('install remote side-effects', () => {
       'acme-2026': publicKey.export({ format: 'der', type: 'spki' }).toString('base64'),
     }
     const requestedPaths: string[] = []
+    const serverState = { corruptBlob: false }
+    const envelopesByKey = new Map<string, SignedArtifactEnvelope>()
     let heldResolve: { wait: Promise<void>, notifyStarted: () => void } | undefined
     const server = createServer((request, response) => {
       const chunks: Buffer[] = []
@@ -87,14 +89,17 @@ describe('install remote side-effects', () => {
                 deleted: ['src/intermediate.o'],
               },
             }
+            let envelope = envelopesByKey.get(candidate.key)
+            if (envelope == null) {
+              envelope = createSignedArtifactEnvelope(payload, {
+                keyId: 'acme-2026',
+                privateKey,
+              })
+              envelopesByKey.set(candidate.key, envelope)
+            }
             return {
               key: candidate.key,
-              variants: [{
-                envelope: createSignedArtifactEnvelope(payload, {
-                  keyId: 'acme-2026',
-                  privateKey,
-                }),
-              }],
+              variants: [{ envelope }],
             }
           })
           const sendResponse = (): void => {
@@ -112,7 +117,8 @@ describe('install remote side-effects', () => {
           return
         }
         if (request.url === '/-/pnpr/v0/artifacts/blob') {
-          response.writeHead(200, { 'content-type': 'application/octet-stream' }).end(builtFile)
+          response.writeHead(200, { 'content-type': 'application/octet-stream' })
+            .end(serverState.corruptBlob ? Buffer.from('corrupt') : builtFile)
           return
         }
         response.writeHead(404).end()
@@ -125,7 +131,14 @@ describe('install remote side-effects', () => {
       resolvedFrom: 'remote',
     }
     const storedFiles: Array<{ bytes: Buffer, mode: number }> = []
+    const persisted: Array<{ filesIndexFile: string, sideEffectsCacheKey: string, sideEffects: SideEffectsDiff }> = []
+    const quarantined: Array<{ channel: string, envelopeDigest: string, filesIndexFile: string }> = []
     const alreadyInStore = new Map<string, string>()
+    const alreadyStoredFile = path.join(
+      await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-shared-side-effects-store-')),
+      'addon.node'
+    )
+    await fs.writeFile(alreadyStoredFile, builtFile)
     const storeController = {
       addFileToStore: (bytes: Buffer, mode: number) => {
         storedFiles.push({ bytes, mode })
@@ -136,6 +149,14 @@ describe('install remote side-effects', () => {
         }
       },
       locateFileInStore: async (hexDigest: string, mode: number) => alreadyInStore.get(`${hexDigest}\0${mode}`),
+      persistRemoteSideEffects: (entry: typeof persisted[number]) => {
+        persisted.push(entry)
+        return true
+      },
+      quarantineRemoteSideEffects: (entry: typeof quarantined[number]) => {
+        quarantined.push(entry)
+        return true
+      },
     } as unknown as StoreController
     const depsGraph: DepsGraph<typeof graphKey> = {
       [graphKey]: {
@@ -184,6 +205,7 @@ describe('install remote side-effects', () => {
         graphKey,
         depPath,
         files,
+        filesIndexFile: 'package-index-row',
         name: packageName,
         resolution: { integrity: sourceIntegrity } as LockfileResolution,
         version: packageVersion,
@@ -209,6 +231,18 @@ describe('install remote side-effects', () => {
       expect(Object.keys(ownerPins ?? {})[0]).toMatch(/^[a-f0-9]{64}$/)
       expect(Object.values(ownerPins ?? {})[0]).toMatch(/^[a-f0-9]{64}$/)
       expect(artifactPinsChanged).toBe(1)
+      expect(persisted).toHaveLength(1)
+      expect(persisted[0]).toMatchObject({
+        filesIndexFile: 'package-index-row',
+        sideEffectsCacheKey: cacheKey,
+        sideEffects: {
+          remoteOrigin: {
+            channel: pnprServer,
+            signerKeyId: 'acme-2026',
+            verification: 'verified',
+          },
+        },
+      })
       expect(requestedPaths).toEqual([
         '/-/pnpr',
         '/-/pnpr/v0/artifacts/resolve',
@@ -219,7 +253,7 @@ describe('install remote side-effects', () => {
       // digest the manifest carries, so a second restore transfers nothing.
       alreadyInStore.set(
         `${createHash('sha512').update(builtFile).digest('hex')}\0${0o755}`,
-        '/store/cafs/already-there'
+        alreadyStoredFile
       )
       storedFiles.length = 0
       requestedPaths.length = 0
@@ -248,9 +282,68 @@ describe('install remote side-effects', () => {
         version: packageVersion,
       })
       expect(reusedFiles.sideEffectsMaps?.get(reusedKey!)?.added?.get('build/addon.node'))
-        .toBe('/store/cafs/already-there')
+        .toBe(alreadyStoredFile)
       expect(storedFiles).toEqual([])
       expect(requestedPaths).not.toContain('/-/pnpr/v0/artifacts/blob')
+
+      requestedPaths.length = 0
+      const persistedFiles: PackageFilesResponse = {
+        filesMap: new Map(),
+        requiresBuild: true,
+        resolvedFrom: 'store',
+        sideEffectsMaps: new Map([[cacheKey!, {
+          added: new Map([
+            ['build/addon.node', alreadyStoredFile],
+            ['build/addon-copy.node', alreadyStoredFile],
+          ]),
+          deleted: ['src/intermediate.o'],
+        }]]),
+        sideEffectsDiffs: new Map([[cacheKey!, persisted[0].sideEffects]]),
+      }
+      const offlineReuse = createRemoteSideEffectsRestorer({
+        allowBuild: candidate => candidate === depPath,
+        configByUri: {},
+        depsGraph,
+        depsStateCache: {},
+        ignoreScripts: false,
+        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        sideEffectsCacheRead: false,
+        storeController,
+      })
+      await expect(offlineReuse?.restore({
+        graphKey,
+        depPath,
+        files: persistedFiles,
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })).resolves.toBe(cacheKey)
+      expect(requestedPaths).toEqual([])
+
+      const rejectedPersistedFiles: PackageFilesResponse = {
+        ...persistedFiles,
+        sideEffectsMaps: new Map(persistedFiles.sideEffectsMaps),
+        sideEffectsDiffs: new Map(persistedFiles.sideEffectsDiffs),
+      }
+      const changedTrust = createRemoteSideEffectsRestorer({
+        allowBuild: candidate => candidate === depPath,
+        configByUri: {},
+        depsGraph,
+        depsStateCache: {},
+        ignoreScripts: false,
+        settings: { organization: 'acme', packages: [packageName], trustedKeys: { replacement: trustedKeys['acme-2026'] } },
+        sideEffectsCacheRead: true,
+        storeController,
+      })
+      await expect(changedTrust?.restore({
+        graphKey,
+        depPath,
+        files: rejectedPersistedFiles,
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })).resolves.toBeUndefined()
+      expect(rejectedPersistedFiles.sideEffectsMaps?.has(cacheKey!)).toBe(false)
 
       const platformFingerprint = Object.keys(owners['organization:acme'])[0]
       const unrelatedPinLockfile: LockfileObject = {
@@ -420,6 +513,63 @@ describe('install remote side-effects', () => {
       const restored = await Promise.all([first, second])
       expect(restored.every((key) => key != null)).toBe(true)
       expect(requestedPaths.filter((path) => path === '/-/pnpr/v0/artifacts/resolve')).toHaveLength(1)
+
+      alreadyInStore.clear()
+      serverState.corruptBlob = true
+      requestedPaths.length = 0
+      const corruptRestorer = createRemoteSideEffectsRestorer({
+        allowBuild: () => true,
+        configByUri: {},
+        depsGraph,
+        depsStateCache: {},
+        ignoreScripts: false,
+        pnprServer,
+        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        sideEffectsCacheRead: false,
+        storeController,
+      })!
+      await expect(corruptRestorer.restore({
+        graphKey,
+        depPath,
+        files: { filesMap: new Map(), requiresBuild: true, resolvedFrom: 'remote' },
+        filesIndexFile: 'corrupt-row',
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })).resolves.toBeUndefined()
+      expect(quarantined).toEqual([{
+        channel: pnprServer,
+        envelopeDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
+        filesIndexFile: 'corrupt-row',
+      }])
+
+      requestedPaths.length = 0
+      const quarantinedRestorer = createRemoteSideEffectsRestorer({
+        allowBuild: () => true,
+        configByUri: {},
+        depsGraph,
+        depsStateCache: {},
+        ignoreScripts: false,
+        pnprServer,
+        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        sideEffectsCacheRead: false,
+        storeController,
+      })!
+      await expect(quarantinedRestorer.restore({
+        graphKey,
+        depPath,
+        files: {
+          filesMap: new Map(),
+          requiresBuild: true,
+          remoteSideEffectsQuarantine: new Map([[pnprServer, [quarantined[0].envelopeDigest]]]),
+          resolvedFrom: 'store',
+        },
+        filesIndexFile: 'corrupt-row',
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })).resolves.toBeUndefined()
+      expect(requestedPaths).not.toContain('/-/pnpr/v0/artifacts/blob')
     } finally {
       await new Promise<void>((resolve, reject) => server.close(error => error == null ? resolve() : reject(error)))
     }

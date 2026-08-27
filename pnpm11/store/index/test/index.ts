@@ -48,6 +48,24 @@ test('StoreIndex entries() iterates all SQLite entries', () => {
   }
 })
 
+test('StoreIndex update mutates an existing row without creating a missing row', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const idx = new StoreIndex(storeDir)
+  try {
+    idx.set('present', { values: new Map([['one', 1]]) })
+    expect(idx.update('present', (value) => {
+      const row = value as { values: Map<string, number> }
+      row.values.set('two', 2)
+      return row
+    })).toBe(true)
+    expect(idx.get('present')).toEqual({ values: new Map([['one', 1], ['two', 2]]) })
+    expect(idx.update('missing', () => ({ created: true }))).toBe(false)
+    expect(idx.get('missing')).toBeUndefined()
+  } finally {
+    idx.close()
+  }
+})
+
 // The immutable open only works on a runtime that honors the immutable URI;
 // this is purely a Node-version property, independent of platform.
 const supportsImmutableUri = nodeSupportsImmutableSqliteUri()
@@ -85,6 +103,9 @@ testFrozenOpen('StoreIndex frozen mode reads a WAL db on a read-only directory a
       }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
       expect(() => {
         idx.delete(key)
+      }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
+      expect(() => {
+        idx.update(key, value => value)
       }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
 
       // The immutable open must not create any sidecar under the

@@ -138,7 +138,7 @@ mod restore {
     use pnpm_shared_artifact_protocol::{
         ArtifactVariant, ResolveArtifactsResponse, ResolvedArtifact,
     };
-    use pnpm_store_dir::StoreDir;
+    use pnpm_store_dir::{CafsFileInfo, RemoteSideEffectsOrigin, SideEffectsDiff, StoreDir};
     use sha2::{Digest as _, Sha512};
     use std::{
         collections::{BTreeMap, HashMap, HashSet},
@@ -267,6 +267,91 @@ mod restore {
         serde_json::to_string(&response).expect("serialize response")
     }
 
+    #[test]
+    fn persisted_remote_side_effects_are_reverified_against_current_trust() {
+        let supported_tags = vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()];
+        let candidate = pnpm_pnpr_client::ArtifactCandidate {
+            key: "dependency-side-effects:v1:fixture".to_string(),
+            package: pnpm_pnpr_client::PackageIdentity {
+                name: PACKAGE.to_string(),
+                version: "1.0.0".to_string(),
+            },
+            source_integrity: integrity_of(b"the source tarball"),
+            owner: OwnerScope::organization(ORGANIZATION),
+        };
+        let payload = ArtifactPayload {
+            kind: ARTIFACT_KIND.to_string(),
+            package: candidate.package.clone(),
+            source_integrity: candidate.source_integrity.clone(),
+            input_key: candidate.key.clone(),
+            owner: candidate.owner.clone(),
+            builder_id: "ci/main/1".to_string(),
+            builder_profile: BuilderProfile {
+                image_digest: None,
+                architecture_baseline: "x86-64-v2".to_string(),
+                environment: BTreeMap::new(),
+            },
+            compatibility: CompatibilityConstraints::Tagged { tags: supported_tags.clone() },
+            manifest: ArtifactManifest {
+                added: vec![ArtifactFile {
+                    path: BUILT_FILE.to_string(),
+                    integrity: integrity_of(built_bytes()),
+                    mode: BUILT_MODE,
+                    size: built_bytes().len() as u64,
+                }],
+                deleted: Vec::new(),
+            },
+        };
+        let envelope = SignedArtifactEnvelope::sign(
+            &payload,
+            KEY_ID,
+            secret_key().to_pkcs8_der().unwrap().as_bytes(),
+        )
+        .unwrap();
+        let diff = SideEffectsDiff {
+            added: Some(HashMap::from([(
+                BUILT_FILE.to_string(),
+                CafsFileInfo {
+                    checked_at: None,
+                    digest: pnpm_pnpr_client::blob_id(&integrity_of(built_bytes())).unwrap(),
+                    mode: BUILT_MODE,
+                    size: built_bytes().len() as u64,
+                },
+            )])),
+            deleted: Some(Vec::new()),
+            remote_origin: Some(RemoteSideEffectsOrigin {
+                channel: "https://pnpr.example/".to_string(),
+                owner: payload.owner.clone(),
+                signer_key_id: KEY_ID.to_string(),
+                builder_profile: payload.builder_profile,
+                envelope,
+                verification: "verified".to_string(),
+            }),
+        };
+        let trusted_keys =
+            BTreeMap::from([(KEY_ID.to_string(), BASE64.decode(public_key()).unwrap())]);
+        assert!(
+            super::super::stored_remote_side_effects_envelope_digest(
+                &diff,
+                &candidate,
+                None,
+                &supported_tags,
+                &trusted_keys,
+            )
+            .is_some(),
+        );
+        assert!(
+            super::super::stored_remote_side_effects_envelope_digest(
+                &diff,
+                &candidate,
+                None,
+                &supported_tags,
+                &BTreeMap::new(),
+            )
+            .is_none(),
+        );
+    }
+
     /// Restore against a server that offers the artifact, asserting that the
     /// blob endpoint was hit exactly `expected_downloads` times, and return
     /// the path the resulting overlay maps the built file to.
@@ -312,16 +397,34 @@ mod restore {
 
         let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
         let mut side_effects = SideEffectsMapsBySnapshot::new();
-        super::super::apply_shared_side_effects(
-            &config(&server.url(), store_dir),
-            &snapshots,
-            &packages,
-            &RequiresBuildBySnapshot::from([(snapshot_key.clone(), true)]),
-            &AllowBuildPolicy::new(HashSet::from([PACKAGE.to_string()]), HashSet::new(), false),
-            &HashMap::from([(snapshot_key.clone(), HashMap::new())]),
-            &mut side_effects,
-        )
+        let (store_index_writer, store_index_writer_task) =
+            pnpm_store_dir::StoreIndexWriter::spawn_disabled();
+        super::super::apply_shared_side_effects(super::super::ApplySharedSideEffectsOptions {
+            config: &config(&server.url(), store_dir),
+            snapshots: &snapshots,
+            packages: &packages,
+            requires_build_by_snapshot: &RequiresBuildBySnapshot::from([(
+                snapshot_key.clone(),
+                true,
+            )]),
+            allow_build_policy: &AllowBuildPolicy::new(
+                HashSet::from([PACKAGE.to_string()]),
+                HashSet::new(),
+                false,
+            ),
+            base_cas_paths: &HashMap::from([(snapshot_key.clone(), HashMap::new())]),
+            side_effects_maps_by_snapshot: &mut side_effects,
+            side_effects_by_snapshot: &HashMap::new(),
+            remote_side_effects_quarantine_by_snapshot: &HashMap::new(),
+            store_index_keys_by_snapshot: &HashMap::from([(
+                snapshot_key.clone(),
+                "row".to_string(),
+            )]),
+            store_index_writer: &store_index_writer,
+        })
         .await;
+        drop(store_index_writer);
+        store_index_writer_task.await.unwrap().unwrap();
 
         handshake.assert_async().await;
         resolve.assert_async().await;

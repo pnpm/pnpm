@@ -278,6 +278,7 @@ async fn shared_store_context_materializes_a_warm_package() {
                 algo: "sha512".to_string(),
                 files,
                 side_effects: None,
+                remote_side_effects_quarantine: None,
             },
         )
         .expect("seed context store index");

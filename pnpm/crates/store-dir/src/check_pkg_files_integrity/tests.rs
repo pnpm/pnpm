@@ -42,6 +42,7 @@ fn index_with(algo: &str, info: Vec<(&str, CafsFileInfo)>) -> PackageFilesIndex 
         algo: algo.to_string(),
         files: info.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
         side_effects: None,
+        remote_side_effects_quarantine: None,
     }
 }
 
@@ -386,7 +387,11 @@ fn side_effects_overlay_adds_and_drops_correctly() {
     added.insert("c.js".to_string(), info(&added_digest, 5, 0o644, None));
     side_effects.insert(
         "darwin;arm64;node20;deps=fake".to_string(),
-        SideEffectsDiff { added: Some(added), deleted: Some(vec!["b.js".to_string()]) },
+        SideEffectsDiff {
+            added: Some(added),
+            deleted: Some(vec!["b.js".to_string()]),
+            remote_origin: None,
+        },
     );
     let entry = PackageFilesIndex {
         manifest: None,
@@ -398,6 +403,7 @@ fn side_effects_overlay_adds_and_drops_correctly() {
             ("b.js".to_string(), info(&base_digest, 4, 0o644, None)),
         ]),
         side_effects: Some(side_effects),
+        remote_side_effects_quarantine: None,
     };
     let result = build_file_maps_from_index(&store_dir, entry);
     let maps = result.side_effects_maps.expect("populated");
@@ -417,7 +423,10 @@ fn side_effects_overlay_added_shadows_base_on_collision() {
     let mut added = HashMap::new();
     added.insert("collide.js".to_string(), info(&overlay_digest, 16, 0o644, None));
     let mut side_effects = HashMap::new();
-    side_effects.insert("k1".to_string(), SideEffectsDiff { added: Some(added), deleted: None });
+    side_effects.insert(
+        "k1".to_string(),
+        SideEffectsDiff { added: Some(added), deleted: None, remote_origin: None },
+    );
     let entry = PackageFilesIndex {
         manifest: None,
         requires_build: None,
@@ -425,6 +434,7 @@ fn side_effects_overlay_added_shadows_base_on_collision() {
         algo: "sha512".into(),
         files: HashMap::from([("collide.js".to_string(), info(&base_digest, 4, 0o644, None))]),
         side_effects: Some(side_effects),
+        remote_side_effects_quarantine: None,
     };
     let result = build_file_maps_from_index(&store_dir, entry);
     let overlay = result.side_effects_maps.unwrap().remove("k1").unwrap();
@@ -463,10 +473,14 @@ fn side_effects_overlay_malformed_added_digest_drops_cache_key_entry() {
     k_good_added.insert("ok.js".to_string(), info(&good_digest, 4, 0o644, None));
 
     let mut side_effects = HashMap::new();
-    side_effects
-        .insert("k-bad".to_string(), SideEffectsDiff { added: Some(k_bad_added), deleted: None });
-    side_effects
-        .insert("k-good".to_string(), SideEffectsDiff { added: Some(k_good_added), deleted: None });
+    side_effects.insert(
+        "k-bad".to_string(),
+        SideEffectsDiff { added: Some(k_bad_added), deleted: None, remote_origin: None },
+    );
+    side_effects.insert(
+        "k-good".to_string(),
+        SideEffectsDiff { added: Some(k_good_added), deleted: None, remote_origin: None },
+    );
 
     let entry = PackageFilesIndex {
         manifest: None,
@@ -475,6 +489,7 @@ fn side_effects_overlay_malformed_added_digest_drops_cache_key_entry() {
         algo: "sha512".into(),
         files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
         side_effects: Some(side_effects),
+        remote_side_effects_quarantine: None,
     };
     let result = build_file_maps_from_index(&store_dir, entry);
     let maps = result.side_effects_maps.expect("populated");
@@ -504,6 +519,7 @@ fn side_effects_overlay_unsafe_added_path_drops_cache_key_entry() {
                     (unsafe_name.to_string(), info(&good_digest, 4, 0o644, None)),
                 ])),
                 deleted: None,
+                remote_origin: None,
             },
         );
     }
@@ -515,6 +531,7 @@ fn side_effects_overlay_unsafe_added_path_drops_cache_key_entry() {
                 info(&good_digest, 4, 0o644, None),
             )])),
             deleted: None,
+            remote_origin: None,
         },
     );
 
@@ -525,6 +542,7 @@ fn side_effects_overlay_unsafe_added_path_drops_cache_key_entry() {
         algo: "sha512".into(),
         files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
         side_effects: Some(side_effects),
+        remote_side_effects_quarantine: None,
     };
     let result = build_file_maps_from_index(&store_dir, entry);
     let maps = result.side_effects_maps.expect("populated");
@@ -547,6 +565,7 @@ fn side_effects_overlay_keys_are_independent() {
         SideEffectsDiff {
             added: Some(HashMap::from([("a.js".to_string(), info(&added_k1, 1, 0o644, None))])),
             deleted: None,
+            remote_origin: None,
         },
     );
     side_effects.insert(
@@ -554,6 +573,7 @@ fn side_effects_overlay_keys_are_independent() {
         SideEffectsDiff {
             added: Some(HashMap::from([("b.js".to_string(), info(&added_k2, 1, 0o644, None))])),
             deleted: None,
+            remote_origin: None,
         },
     );
     let entry = PackageFilesIndex {
@@ -563,6 +583,7 @@ fn side_effects_overlay_keys_are_independent() {
         algo: "sha512".into(),
         files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
         side_effects: Some(side_effects),
+        remote_side_effects_quarantine: None,
     };
     let result = build_file_maps_from_index(&store_dir, entry);
     let maps = result.side_effects_maps.unwrap();
@@ -591,6 +612,7 @@ fn index_with_one_file(path: &str, content: &[u8]) -> PackageFilesIndex {
             },
         )]),
         side_effects: None,
+        remote_side_effects_quarantine: None,
     }
 }
 

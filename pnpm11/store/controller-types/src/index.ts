@@ -20,6 +20,7 @@ import type {
   ImportPackageFunctionAsync,
   PackageFileInfo,
   PackageFilesResponse,
+  RemoteSideEffectsOrigin,
   ResolvedFrom,
   SideEffectsDiff,
 } from '@pnpm/store.cafs-types'
@@ -33,7 +34,7 @@ import type {
   TrustPolicy,
 } from '@pnpm/types'
 
-export type { FilesMap, ImportPackageFunction, ImportPackageFunctionAsync, PackageFileInfo, PackageFilesResponse, ResolvedFrom, SideEffectsDiff }
+export type { FilesMap, ImportPackageFunction, ImportPackageFunctionAsync, PackageFileInfo, PackageFilesResponse, RemoteSideEffectsOrigin, ResolvedFrom, SideEffectsDiff }
 
 export * from '@pnpm/resolving.resolver-base'
 export type { BundledManifest }
@@ -69,6 +70,16 @@ export interface StoreController {
    * the store keeps executable and non-executable content apart.
    */
   locateFileInStore?: (hexDigest: string, mode: number) => Promise<string | undefined>
+  persistRemoteSideEffects?: (opts: {
+    filesIndexFile: string
+    sideEffectsCacheKey: string
+    sideEffects: SideEffectsDiff
+  }) => boolean
+  quarantineRemoteSideEffects?: (opts: {
+    channel: string
+    envelopeDigest: string
+    filesIndexFile: string
+  }) => boolean
   clearResolutionCache: () => void
 }
 

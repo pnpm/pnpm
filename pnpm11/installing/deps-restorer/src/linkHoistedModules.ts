@@ -164,6 +164,7 @@ async function linkAllPkgsInOrder (
           graphKey: dir,
           depPath: depNode.depPath,
           files: filesResponse,
+          filesIndexFile: depNode.filesIndexFile,
           name: depNode.name,
           patchFileHash: depNode.patch?.hash,
           resolution: depNode.resolution,
@@ -171,12 +172,15 @@ async function linkAllPkgsInOrder (
         })
         if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
           if (opts.allowBuild?.(depNode.depPath) === true) {
-            sideEffectsCacheKey = calcDepState(graph, opts.depsStateCache, dir, {
+            const localCacheKey = calcDepState(graph, opts.depsStateCache, dir, {
               includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,
               patchFileHash: depNode.patch?.hash,
               supportedArchitectures: opts.supportedArchitectures,
               nodeVersion: opts.nodeVersion,
             })
+            if (filesResponse.sideEffectsDiffs?.get(localCacheKey)?.remoteOrigin == null) {
+              sideEffectsCacheKey = localCacheKey
+            }
           }
         }
         // Limiting the concurrency here fixes an out of memory error.
