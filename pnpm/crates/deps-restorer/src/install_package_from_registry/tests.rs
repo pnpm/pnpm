@@ -218,6 +218,8 @@ fn create_config(
         allowed_deprecated_versions: Default::default(),
         update_config: Default::default(),
         tasks: Default::default(),
+        pipelines: Default::default(),
+        pipeline_base: Default::default(),
         peer_dependency_rules: Default::default(),
         auth_headers: Default::default(),
         auth_tokens_by_uri: Default::default(),
