@@ -468,6 +468,9 @@ fn classify(arg: &OsStr) -> ConfigToken<'_> {
         if key.is_empty() {
             return ConfigToken::Malformed;
         }
+        if key == "shamefully-hoist" && parse_bool(value).is_none() {
+            return ConfigToken::NotOurs;
+        }
         return ConfigToken::WellFormed { key, value };
     }
     match arg {

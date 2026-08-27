@@ -38,17 +38,17 @@ fn version_flag_accepts_shamefully_hoist() {
 
 #[test]
 fn version_flag_rejects_invalid_shamefully_hoist_value() {
-    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
-
-    let output = pacquet
-        .with_args(["--shamefully-hoist=yes", "--version"])
-        .output()
-        .expect("run pacquet with an invalid shamefully-hoist value");
-    dbg!(&output);
-    assert!(!output.status.success(), "pacquet should reject an invalid shamefully-hoist value");
-    assert!(String::from_utf8_lossy(&output.stderr).contains("unexpected argument"));
-
-    drop(root);
+    for flag in ["--shamefully-hoist=yes", "--config.shamefully-hoist=yes"] {
+        let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+        let output = pacquet
+            .with_args([flag, "--version"])
+            .output()
+            .expect("run pacquet with an invalid shamefully-hoist value");
+        dbg!(&output);
+        assert!(!output.status.success(), "pacquet should reject {flag}");
+        assert!(String::from_utf8_lossy(&output.stderr).contains("unexpected argument"));
+        drop(root);
+    }
 }
 
 #[test]

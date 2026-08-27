@@ -109,7 +109,12 @@ fn shamefully_hoist_override_preserves_virtual_store_only_precedence() {
 
 #[test]
 fn extract_leaves_invalid_shamefully_hoist_values_for_clap() {
-    for flag in ["--shamefully-hoist=yes", "--shamefully-hoist="] {
+    for flag in [
+        "--shamefully-hoist=yes",
+        "--shamefully-hoist=",
+        "--config.shamefully-hoist=yes",
+        "--config.shamefully-hoist=",
+    ] {
         let (overrides, remaining) = ConfigOverrides::extract(argv(["pacquet", flag, "--version"]));
         assert_eq!(remaining, argv(["pacquet", flag, "--version"]));
 
