@@ -137,9 +137,9 @@ function blamedParent (
   resolvedPkgsById: ResolvedPkgsById
 ): { name: string, version: string } | undefined {
   const parentIds = violation.parentIds
-  // The first entry is the importer, which is not a package that can be
-  // resolved to a different version.
-  if (parentIds == null || parentIds.length < 2) return undefined
+  // Empty means the importer asked for this package itself, and no
+  // ancestor's choice can widen a range the manifest fixes.
+  if (parentIds == null || parentIds.length === 0) return undefined
   const parentId = parentIds[parentIds.length - 1] as PkgResolutionId
   const parent = resolvedPkgsById[parentId]
   if (parent == null) return undefined
