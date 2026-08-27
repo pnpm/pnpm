@@ -2458,6 +2458,16 @@ pub struct Config {
     /// none.
     pub tasks: IndexMap<String, workspace_yaml::TaskSettings>,
 
+    /// `pipelines` from `pnpm-workspace.yaml`: named sets of task requests
+    /// for `pnpm pipeline`, keyed by pipeline name. Empty when the
+    /// workspace declares none.
+    pub pipelines: IndexMap<String, Vec<String>>,
+
+    /// `pipelineBase` from `pnpm-workspace.yaml`: the git ref
+    /// `pnpm pipeline` resolves its affected-selection merge base against.
+    /// `None` falls back to the command's default.
+    pub pipeline_base: Option<String>,
+
     /// `peerDependencyRules` from `pnpm-workspace.yaml`: customizations
     /// applied when reporting peer-dependency issues. See
     /// [`PeerDependencyRules`].
