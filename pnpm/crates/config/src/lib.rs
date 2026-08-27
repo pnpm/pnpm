@@ -3029,7 +3029,7 @@ impl Config {
     /// This runs after all config sources have been merged because an explicit
     /// `shamefullyHoist` value takes precedence over `publicHoistPattern`
     /// regardless of which source supplied either setting.
-    fn apply_shamefully_hoist_derivation(&mut self) {
+    pub fn apply_shamefully_hoist_derivation(&mut self) {
         match self.explicit_settings.get("shamefullyHoist").and_then(serde_json::Value::as_bool) {
             Some(true) => self.public_hoist_pattern = Some(vec!["*".to_string()]),
             Some(false) => self.public_hoist_pattern = None,

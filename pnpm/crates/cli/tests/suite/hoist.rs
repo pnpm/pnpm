@@ -272,6 +272,32 @@ fn shamefully_hoist_legacy_publicly_hoists_everything() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn shamefully_hoist_cli_option_publicly_hoists_everything() {
+    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
+    );
+    generate_lockfile(pnpm);
+
+    pacquet
+        .with_args(["--shamefully-hoist=true", "install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    let public_hoist = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
+    assert!(
+        is_symlink_or_junction(&public_hoist).unwrap(),
+        "--shamefully-hoist should publicly hoist everything at {public_hoist:?}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// `.modules.yaml` records `hoistedDependencies` when the hoist pass
 /// runs.
 #[test]

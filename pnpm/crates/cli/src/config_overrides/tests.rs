@@ -62,6 +62,69 @@ fn extract_accepts_the_on_fail_settings_as_bare_flags() {
 }
 
 #[test]
+fn extract_accepts_shamefully_hoist_cli_spellings() {
+    for (flag, expected) in [
+        ("--shamefully-hoist", true),
+        ("--shamefully-hoist=true", true),
+        ("--shamefully-hoist=false", false),
+        ("--shamefully-hoist=1", true),
+        ("--shamefully-hoist=0", false),
+        ("--config.shamefully-hoist=true", true),
+        ("--config.shamefully-hoist=false", false),
+        ("--config.shamefully-hoist=1", true),
+        ("--config.shamefully-hoist=0", false),
+        ("--no-shamefully-hoist", false),
+    ] {
+        let (overrides, remaining) = ConfigOverrides::extract(argv(["pacquet", flag, "--version"]));
+        assert_eq!(remaining, argv(["pacquet", "--version"]));
+
+        let mut config = Config::default();
+        overrides.apply(&mut config);
+        assert_eq!(config.shamefully_hoist, expected);
+        let expected_public_hoist_pattern = expected.then(|| vec!["*".to_string()]);
+        assert_eq!(config.public_hoist_pattern, expected_public_hoist_pattern);
+        assert_eq!(
+            config.explicit_settings.get("shamefullyHoist"),
+            Some(&serde_json::Value::Bool(expected)),
+        );
+    }
+}
+
+#[test]
+fn shamefully_hoist_override_preserves_virtual_store_only_precedence() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--shamefully-hoist=true", "install"]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let mut config = Config {
+        virtual_store_only: true,
+        hoist_pattern: Some(vec!["*".to_string()]),
+        ..Config::default()
+    };
+    overrides.apply(&mut config);
+
+    assert_eq!(config.hoist_pattern, Some(Vec::new()));
+    assert_eq!(config.public_hoist_pattern, Some(Vec::new()));
+}
+
+#[test]
+fn extract_leaves_invalid_shamefully_hoist_values_for_clap() {
+    for flag in [
+        "--shamefully-hoist=yes",
+        "--shamefully-hoist=",
+        "--config.shamefully-hoist=yes",
+        "--config.shamefully-hoist=",
+    ] {
+        let (overrides, remaining) = ConfigOverrides::extract(argv(["pacquet", flag, "--version"]));
+        assert_eq!(remaining, argv(["pacquet", flag, "--version"]));
+
+        let mut config = Config::default();
+        overrides.apply(&mut config);
+        assert!(!config.explicit_settings.contains_key("shamefullyHoist"));
+    }
+}
+
+#[test]
 fn extract_leaves_config_tokens_after_the_separator_for_the_child() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
         "pacquet",

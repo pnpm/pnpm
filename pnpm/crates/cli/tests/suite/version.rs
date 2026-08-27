@@ -22,6 +22,36 @@ fn version_flag_prints_the_bare_version() {
 }
 
 #[test]
+fn version_flag_accepts_shamefully_hoist() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+
+    let output = pacquet
+        .with_args(["--shamefully-hoist=true", "--version"])
+        .output()
+        .expect("run pacquet --shamefully-hoist=true --version");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet should accept --shamefully-hoist");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{}\n", pnpm_config::PNPM_VERSION));
+
+    drop(root);
+}
+
+#[test]
+fn version_flag_rejects_invalid_shamefully_hoist_value() {
+    for flag in ["--shamefully-hoist=yes", "--config.shamefully-hoist=yes"] {
+        let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+        let output = pacquet
+            .with_args([flag, "--version"])
+            .output()
+            .expect("run pacquet with an invalid shamefully-hoist value");
+        dbg!(&output);
+        assert!(!output.status.success(), "pacquet should reject {flag}");
+        assert!(String::from_utf8_lossy(&output.stderr).contains("unexpected argument"));
+        drop(root);
+    }
+}
+
+#[test]
 fn short_version_flag_prints_the_bare_version() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
