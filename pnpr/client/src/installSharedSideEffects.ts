@@ -470,7 +470,8 @@ export function createRemoteSideEffectsRestorer<T extends string> (
     if (
       origin == null ||
       origin.verification !== 'verified' ||
-      origin.signerKeyId !== origin.envelope.keyId
+      origin.signerKeyId !== origin.envelope.keyId ||
+      (registryUrl != null && origin.channel !== registryUrl)
     ) return undefined
     const publicKey = trustedKeys[origin.signerKeyId]
     if (publicKey == null) return undefined

@@ -185,6 +185,7 @@ pub(crate) async fn apply_shared_side_effects(
                 diff,
                 &candidate,
                 pinned_envelope_digest.as_deref(),
+                config.pnpr_server.as_deref(),
                 &supported_tags,
                 &trusted_keys,
             )
@@ -544,11 +545,15 @@ fn stored_remote_side_effects_envelope_digest(
     diff: &SideEffectsDiff,
     candidate: &ArtifactCandidate,
     pinned_envelope_digest: Option<&str>,
+    configured_channel: Option<&str>,
     supported_tags: &[String],
     trusted_keys: &BTreeMap<String, Vec<u8>>,
 ) -> Option<String> {
     let Some(origin) = &diff.remote_origin else { return None };
-    if origin.verification != "verified" || origin.signer_key_id != origin.envelope.key_id {
+    if origin.verification != "verified"
+        || origin.signer_key_id != origin.envelope.key_id
+        || configured_channel.is_some_and(|channel| origin.channel != channel)
+    {
         return None;
     }
     let public_key = trusted_keys.get(&origin.signer_key_id)?;

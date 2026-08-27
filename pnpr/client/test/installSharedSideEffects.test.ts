@@ -320,6 +320,34 @@ describe('install remote side-effects', () => {
       })).resolves.toBe(cacheKey)
       expect(requestedPaths).toEqual([])
 
+      requestedPaths.length = 0
+      const changedChannelFiles: PackageFilesResponse = {
+        ...persistedFiles,
+        sideEffectsMaps: new Map(persistedFiles.sideEffectsMaps),
+        sideEffectsDiffs: new Map(persistedFiles.sideEffectsDiffs),
+      }
+      const changedChannel = createRemoteSideEffectsRestorer({
+        allowBuild: candidate => candidate === depPath,
+        configByUri: {},
+        depsGraph,
+        depsStateCache: {},
+        ignoreScripts: false,
+        pnprServer: `${pnprServer}/other`,
+        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        sideEffectsCacheRead: true,
+        storeController,
+      })
+      await expect(changedChannel?.restore({
+        graphKey,
+        depPath,
+        files: changedChannelFiles,
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })).resolves.toBeUndefined()
+      expect(changedChannelFiles.sideEffectsMaps?.has(cacheKey!)).toBe(false)
+      expect(requestedPaths).toEqual(['/other/-/pnpr'])
+
       const rejectedPersistedFiles: PackageFilesResponse = {
         ...persistedFiles,
         sideEffectsMaps: new Map(persistedFiles.sideEffectsMaps),

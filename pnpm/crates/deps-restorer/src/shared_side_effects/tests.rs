@@ -335,6 +335,7 @@ mod restore {
                 &diff,
                 &candidate,
                 None,
+                Some("https://pnpr.example/"),
                 &supported_tags,
                 &trusted_keys,
             )
@@ -345,8 +346,20 @@ mod restore {
                 &diff,
                 &candidate,
                 None,
+                Some("https://pnpr.example/"),
                 &supported_tags,
                 &BTreeMap::new(),
+            )
+            .is_none(),
+        );
+        assert!(
+            super::super::stored_remote_side_effects_envelope_digest(
+                &diff,
+                &candidate,
+                None,
+                Some("https://other-pnpr.example/"),
+                &supported_tags,
+                &trusted_keys,
             )
             .is_none(),
         );
