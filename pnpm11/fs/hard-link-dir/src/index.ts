@@ -5,37 +5,35 @@ import util from 'node:util'
 
 import gfs from '@pnpm/fs.graceful-fs'
 import { globalWarn } from '@pnpm/logger'
-import { pathTemp } from 'path-temp'
+import { fastPathTemp } from 'path-temp'
 import { renameOverwriteSync } from 'rename-overwrite'
 
+/**
+ * Hard links the contents of `src` into every directory of `destDirs`, leaving
+ * out `node_modules`.
+ *
+ * A destination is filled in place, entry by entry. Its own `node_modules` —
+ * under the hoisted node linker, the dependencies that could not be hoisted any
+ * higher — stays where it is, and so does anyone working inside it: the copies
+ * of one build chunk run concurrently, so a sibling package may be staging its
+ * own copy in there while this one is written.
+ */
 export function hardLinkDir (src: string, destDirs: string[]): void {
-  if (destDirs.length === 0) return
-  const filteredDestDirs: string[] = []
-  const tempDestDirs: string[] = []
-  for (const destDir of destDirs) {
-    if (path.relative(destDir, src) === '') {
-      // Don't try to hard link the source directory to itself
-      continue
-    }
-    filteredDestDirs.push(destDir)
-    tempDestDirs.push(pathTemp(path.dirname(destDir)))
+  const targetDirs = destDirs.filter((destDir) => path.relative(destDir, src) !== '')
+  if (targetDirs.length === 0) return
+  for (const targetDir of targetDirs) {
+    gfs.mkdirSync(targetDir, { recursive: true })
   }
-  _hardLinkDir(src, tempDestDirs, true)
-  for (let i = 0; i < filteredDestDirs.length; i++) {
-    renameOverwriteSync(tempDestDirs[i], filteredDestDirs[i])
-  }
+  _hardLinkDir(src, targetDirs, true)
 }
 
-function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean) {
+function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean): void {
   let files: string[] = []
   try {
     files = fs.readdirSync(src)
   } catch (err: unknown) {
     if (!isRoot || !((util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT'))) throw err
     globalWarn(`Source directory not found when creating hardLinks for: ${src}. Creating destinations as empty: ${destDirs.join(', ')}`)
-    for (const dir of destDirs) {
-      gfs.mkdirSync(dir, { recursive: true })
-    }
     return
   }
   for (const file of files) {
@@ -72,6 +70,7 @@ function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean) {
 function linkOrCopyFile (srcFile: string, destFile: string): void {
   try {
     linkOrCopy(srcFile, destFile)
+    return
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
     if ('code' in err && err.code === 'ENOENT') {
@@ -82,6 +81,25 @@ function linkOrCopyFile (srcFile: string, destFile: string): void {
     if (!('code' in err && err.code === 'EEXIST')) {
       throw err
     }
+  }
+  replaceFile(srcFile, destFile)
+}
+
+// Swap the new file in through a temp sibling, so that whoever reads the
+// destination sees either the whole old file or the whole new one.
+function replaceFile (srcFile: string, destFile: string): void {
+  const tempFile = fastPathTemp(destFile)
+  // A temp file is named after the thread that writes it, so only an
+  // interrupted run can leave one behind for this one to trip over.
+  fs.rmSync(tempFile, { force: true })
+  try {
+    linkOrCopy(srcFile, tempFile)
+    renameOverwriteSync(tempFile, destFile)
+  } catch (err: unknown) {
+    try {
+      fs.unlinkSync(tempFile)
+    } catch {} // eslint-disable-line:no-empty
+    throw err
   }
 }
 
