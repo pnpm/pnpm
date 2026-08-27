@@ -352,11 +352,12 @@ fn an_empty_scope_is_refused_and_a_missing_one_is_not_reported() {
 
 #[test]
 fn apply_scope_overrides_an_earlier_layer() {
-    let settings: WorkspaceSettings = serde_saphyr::from_str("scope: '@from-env'\n").unwrap();
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("scope: '@from-later-layer'\n").unwrap();
     let mut config = Config::new();
     config.scope = Some("@from-global-config".to_owned());
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert_eq!(config.scope.as_deref(), Some("@from-env"));
+    assert_eq!(config.scope.as_deref(), Some("@from-later-layer"));
 }
 
 #[test]
