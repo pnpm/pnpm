@@ -6211,6 +6211,7 @@ dependencies = [
  "base64 0.23.1",
  "bytes",
  "futures-util",
+ "getrandom 0.4.3",
  "object_store",
  "pnpm-shared-artifact-protocol",
  "pnpr-config",
@@ -6220,6 +6221,7 @@ dependencies = [
  "sha2",
  "tempfile",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

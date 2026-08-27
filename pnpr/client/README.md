@@ -197,14 +197,17 @@ The PoC implements the main trust boundary from the
 
 Publication reserves quota before immutable, create-only object writes. S3
 replicas coordinate the quota counter with conditional writes; local storage
-uses an advisory lock around its counter. Ambiguous object-store write failures
-remain charged because the object may have been committed before the error was
-returned. This can conservatively overcount storage, but cannot allow the 1 GiB
-per-owner or 10 GiB global limits to be exceeded. The eight-variant response cap
-is enforced while resolving artifacts. With artifact writers quiesced, operators
-can reconcile conservative overcount by removing the object-store `quota.json`
-or local `.locks/usage.json`; the next publication rebuilds it from stored
-objects.
+uses an advisory lock around its counter. Publications register before reading
+or writing blobs. After an ambiguous object-store write failure, one replica
+waits for those registrations to drain, blocks new publications, removes blobs
+that no stored envelope references, and rebuilds quota from physical objects.
+This keeps the 1 GiB per-owner and 10 GiB global limits fail-safe without
+permanently charging ordinary failed writes. A terminated process can leave a
+registration or reclamation gate behind. With artifact writers quiesced,
+operators can recover by removing the object-store `quota.json` or local
+`.locks/usage.json`; the next publication rebuilds the counter and runs
+reclamation. The eight-variant response cap is enforced while resolving
+artifacts.
 
 ### v0 compatibility tags
 

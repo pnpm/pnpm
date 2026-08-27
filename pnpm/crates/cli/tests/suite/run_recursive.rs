@@ -1422,12 +1422,27 @@ fn recursive_run_report_summary_records_every_package_status() {
 }
 
 #[test]
-fn recursive_run_bail_summary_records_every_completed_batch_result() {
+fn recursive_run_bail_summary_records_every_in_flight_result() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let manifest = |name: &str, body: &str| json!({ "name": name, "version": "1.0.0", "scripts": { "build": body } });
     write_workspace(
         &workspace,
-        &[("fails", manifest("fails", "exit 1")), ("passes", manifest("passes", "true"))],
+        &[
+            (
+                "fails",
+                manifest(
+                    "fails",
+                    "i=0; while [ ! -f ../passes/ran.txt ] && [ $i -lt 1000 ]; do i=$((i + 1)); sleep 0.01; done; [ -f ../passes/ran.txt ] || exit 2; touch failed.txt; exit 1",
+                ),
+            ),
+            (
+                "passes",
+                manifest(
+                    "passes",
+                    "touch ran.txt; i=0; while [ ! -f ../fails/failed.txt ] && [ $i -lt 1000 ]; do i=$((i + 1)); sleep 0.01; done; [ -f ../fails/failed.txt ]",
+                ),
+            ),
+        ],
     );
 
     pacquet
