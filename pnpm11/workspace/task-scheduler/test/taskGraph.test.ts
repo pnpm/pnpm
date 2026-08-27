@@ -1,3 +1,5 @@
+import util from 'node:util'
+
 import { expect, test } from '@jest/globals'
 import type { PackageScripts, ProjectRootDir } from '@pnpm/types'
 import {
@@ -308,8 +310,9 @@ function selectScripts (scripts: PackageScripts, scriptName: string): string[] {
   let selector: RegExp
   try {
     selector = new RegExp(scriptName.slice(1, -1))
-  } catch {
-    return []
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && err.name === 'SyntaxError') return []
+    throw err
   }
   return Object.keys(scripts).filter((script) => selector.test(script))
 }
