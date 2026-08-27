@@ -1,4 +1,8 @@
+import { graphSequencer } from '@pnpm/deps.graph-sequencer'
+
 import type { TaskGraph, TaskKey, TaskNode } from './taskGraph.js'
+
+export type DependencyGraph<Node> = Map<Node, Node[]>
 
 export type TaskCompletion =
   | 'passed'
@@ -27,10 +31,23 @@ export interface ScheduleTasksOptions {
   onTaskSkipped: (node: TaskNode, key: TaskKey) => void
 }
 
+export interface ScheduleGraphOptions<Node> {
+  /** When `true`, the first failure stops the run: nothing further is dispatched and the scheduler settles at once. */
+  bail: boolean
+  /** Maximum number of graph nodes whose work may be in flight. */
+  concurrency?: number
+  /** Let dependents run after a failed node. Used by legacy `--no-bail` command loops. */
+  continueOnFailure?: boolean
+  /** Wait for already-dispatched nodes after dispatch stops. Defaults to `true`. */
+  finishInFlight?: boolean
+  runNode: (node: Node) => Promise<TaskCompletion>
+  onNodeSkipped: (node: Node) => void
+}
+
 /**
  * Dispatches every task whose dependencies have all completed successfully,
- * in dependency order and nothing else — concurrency among ready tasks is the
- * caller's to limit inside `runTask`. Resolves once all tasks settled, or as
+ * in dependency order and nothing else, with concurrency among ready tasks
+ * limited by the scheduler. Resolves once all tasks settled, or as
  * soon as a bailed failure or an abort stops the run: in-flight work is then
  * abandoned to the caller, whose exit path terminates the running commands.
  * Tasks never dispatched are left untouched, so their caller-side status
@@ -40,6 +57,35 @@ export interface ScheduleTasksOptions {
  * hang this scheduler.
  */
 export async function scheduleTasks (graph: TaskGraph, opts: ScheduleTasksOptions): Promise<void> {
+  const dependencies: DependencyGraph<TaskKey> = new Map()
+  for (const [key, node] of graph) {
+    dependencies.set(key, node.dependencies)
+  }
+  await scheduleGraph(dependencies, {
+    bail: opts.bail,
+    finishInFlight: false,
+    runNode: async (key) => {
+      const node = graph.get(key)!
+      if (node.scripts.length === 0) {
+        opts.onTaskSkipped(node, key)
+        return 'passed'
+      }
+      return opts.runTask(node, key)
+    },
+    onNodeSkipped: (key) => opts.onTaskSkipped(graph.get(key)!, key),
+  })
+}
+
+/**
+ * Dispatches graph nodes as soon as all of their dependencies settle under the
+ * configured failure policy. Independent branches do not wait for a shared
+ * topological-group barrier. Backward edges in a cycle are dropped according
+ * to the graph sequencer's deterministic order.
+ */
+export async function scheduleGraph<Node> (
+  graph: DependencyGraph<Node>,
+  opts: ScheduleGraphOptions<Node>
+): Promise<void> {
   // A rejection violates runTask's contract; held here so the run still
   // fails with it rather than silently resolving. First error wins: a
   // rejection landing only after something else already stopped the run is
@@ -47,38 +93,44 @@ export async function scheduleTasks (graph: TaskGraph, opts: ScheduleTasksOption
   // second script failure after a bail is.
   let contractViolation: unknown
   let rejected = false
-  const pendingDependencyCount = new Map<TaskKey, number>()
-  const dependents = new Map<TaskKey, TaskKey[]>()
-  const ready: TaskKey[] = []
-  for (const [key, node] of graph) {
-    pendingDependencyCount.set(key, node.dependencies.length)
-    if (node.dependencies.length === 0) {
-      ready.push(key)
+  const concurrency = Math.max(1, opts.concurrency ?? Infinity)
+  const pendingDependencyCount = new Map<Node, number>()
+  const dependents = new Map<Node, Node[]>()
+  const ready: Node[] = []
+  const order = graphSequencer(graph).order
+  const orderIndex = new Map(order.map((node, index) => [node, index]))
+  for (const [node, dependencies] of graph) {
+    const schedulableDependencies = dependencies.filter(
+      (dependency) => orderIndex.get(dependency)! < orderIndex.get(node)!
+    )
+    pendingDependencyCount.set(node, schedulableDependencies.length)
+    if (schedulableDependencies.length === 0) {
+      ready.push(node)
     }
-    for (const dependency of node.dependencies) {
+    for (const dependency of schedulableDependencies) {
       let list = dependents.get(dependency)
       if (list == null) {
         dependents.set(dependency, list = [])
       }
-      list.push(key)
+      list.push(node)
     }
   }
-  const blocked = new Set<TaskKey>()
+  const blocked = new Set<Node>()
   let stopDispatch = false
   let unsettled = graph.size
 
   await new Promise<void>((resolve) => {
     const settleIfDone = (): void => {
-      // A stopped run resolves without waiting for in-flight tasks: a
-      // watch-style script never finishes, and the first failure must not
-      // leave the run hanging on it.
-      if (unsettled === 0 || stopDispatch) {
+      // Task runs may opt out because a watch-style script never finishes.
+      // Command pipelines retain their prior Promise.all behavior by waiting
+      // for work that was already dispatched.
+      if (unsettled === 0 || (stopDispatch && (opts.finishInFlight === false || active === 0))) {
         resolve()
       }
     }
-    const complete = (key: TaskKey): void => {
+    const complete = (node: Node): void => {
       unsettled--
-      for (const dependent of dependents.get(key) ?? []) {
+      for (const dependent of dependents.get(node) ?? []) {
         const remaining = pendingDependencyCount.get(dependent)! - 1
         pendingDependencyCount.set(dependent, remaining)
         if (remaining === 0 && !blocked.has(dependent)) {
@@ -89,29 +141,32 @@ export async function scheduleTasks (graph: TaskGraph, opts: ScheduleTasksOption
     // A failed task's transitive dependents can never become ready (their
     // dependency count never reaches zero), so they are settled here as
     // skipped instead.
-    const block = (key: TaskKey): void => {
-      const stack = [key]
+    const block = (node: Node): void => {
+      const stack = [node]
       while (stack.length > 0) {
         for (const dependent of dependents.get(stack.pop()!) ?? []) {
           if (blocked.has(dependent)) continue
           blocked.add(dependent)
           unsettled--
-          opts.onTaskSkipped(graph.get(dependent)!, dependent)
+          opts.onNodeSkipped(dependent)
           stack.push(dependent)
         }
       }
     }
-    const settle = (key: TaskKey, completion: TaskCompletion): void => {
+    const settle = (node: Node, completion: TaskCompletion): void => {
       switch (completion) {
         case 'passed':
-          complete(key)
+          complete(node)
           break
         case 'failed':
-          unsettled--
           if (opts.bail) {
+            unsettled--
             stopDispatch = true
+          } else if (opts.continueOnFailure === true) {
+            complete(node)
           } else {
-            block(key)
+            unsettled--
+            block(node)
           }
           break
         case 'aborted':
@@ -125,29 +180,27 @@ export async function scheduleTasks (graph: TaskGraph, opts: ScheduleTasksOption
     // grow with chain length. Drained by index: shift() moves every
     // remaining element, which is quadratic over a workspace-sized queue.
     let head = 0
+    let active = 0
     let pumping = false
     const pump = (): void => {
       if (pumping) return
       pumping = true
-      while (!stopDispatch && head < ready.length) {
-        const key = ready[head++]
-        const node = graph.get(key)!
-        if (node.scripts.length === 0) {
-          opts.onTaskSkipped(node, key)
-          complete(key)
-          continue
-        }
-        opts.runTask(node, key).then((completion) => {
-          settle(key, completion)
+      while (!stopDispatch && active < concurrency && head < ready.length) {
+        const node = ready[head++]
+        active++
+        opts.runNode(node).then((completion) => {
+          active--
+          settle(node, completion)
           pump()
         }, (error: unknown) => {
+          active--
           // runTask's contract is to never reject; treated as an abort, and
           // the error resurfaces once the scheduler settles.
           if (!rejected) {
             rejected = true
             contractViolation = error
           }
-          settle(key, 'aborted')
+          settle(node, 'aborted')
           pump()
         })
       }

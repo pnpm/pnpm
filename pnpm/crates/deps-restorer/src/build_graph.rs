@@ -1,17 +1,10 @@
-use crate::{
-    SkippedSnapshots,
-    graph_sequencer::{GraphSequencerResult, graph_sequencer},
-};
+use crate::SkippedSnapshots;
+use indexmap::IndexMap;
 use pnpm_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
 use pnpm_patching::ExtendedPatchInfo;
 use std::collections::{HashMap, HashSet};
 
-/// Compute topologically ordered chunks of packages that need building.
-///
-/// The returned chunks are ordered children-first: every chunk may safely
-/// run only after every preceding chunk has finished. Members of the same
-/// chunk are independent and could run concurrently (pacquet currently runs
-/// them sequentially).
+/// Compute the dependency graph of packages that need building.
 ///
 /// Only nodes whose subtree contains at least one build candidate appear in
 /// the output. Snapshots not reachable from any importer are excluded.
@@ -28,13 +21,14 @@ use std::collections::{HashMap, HashSet};
 /// [`pnpm_patching::ExtendedPatchInfo`]. `None` when no
 /// `patchedDependencies` is configured. Presence of a key here makes
 /// the snapshot a build candidate even when `requires_build` is false.
-pub fn build_sequence(
+#[must_use]
+pub fn build_graph(
     requires_build: &HashMap<PackageKey, bool>,
     patches: Option<&HashMap<PackageKey, ExtendedPatchInfo>>,
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     importers: &HashMap<String, ProjectSnapshot>,
     skipped: &SkippedSnapshots,
-) -> Vec<Vec<PackageKey>> {
+) -> IndexMap<PackageKey, Vec<PackageKey>> {
     let children = build_children_map(snapshots);
     let root_dep_paths = collect_root_dep_paths(importers, snapshots);
 
@@ -51,10 +45,10 @@ pub fn build_sequence(
     );
 
     if nodes_to_build.is_empty() {
-        return Vec::new();
+        return IndexMap::new();
     }
 
-    let filtered_graph: HashMap<PackageKey, Vec<PackageKey>> = nodes_to_build
+    nodes_to_build
         .iter()
         .map(|key| {
             let edges = children
@@ -65,18 +59,7 @@ pub fn build_sequence(
                 .unwrap_or_default();
             (key.clone(), edges)
         })
-        .collect();
-
-    let GraphSequencerResult { chunks, safe, .. } =
-        graph_sequencer(&filtered_graph, &nodes_to_build);
-    if !safe {
-        tracing::warn!(
-            target: "pacquet::build",
-            "dependency cycle detected while computing build order; \
-             packages inside the cycle will run in arbitrary order",
-        );
-    }
-    chunks
+        .collect()
 }
 
 /// Build the `node → children` adjacency map from the snapshot map.
@@ -109,7 +92,7 @@ fn build_children_map(
         // sequence, and a shared transitive descendant gets trimmed
         // off whichever sibling visits it second. Both the entry
         // nodes and every child list must be in a deterministic
-        // order for the build sequence to be reproducible.
+        // order for the build graph to be reproducible.
         child_keys.sort_by_key(std::string::ToString::to_string);
         children.insert(key.clone(), child_keys);
     }

@@ -111,6 +111,7 @@ export interface Project {
 }
 
 export interface HeadlessOptions extends RegistryContext {
+  projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
   allowBuilds?: Record<string, boolean | string>
   autoInstallPeers?: boolean
   childConcurrency?: number
@@ -825,7 +826,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
       projectsToBeBuilt.filter((project) => projectsRunningScripts.some(({ rootDir }) => rootDir === project.rootDir)),
       opts.childConcurrency ?? 5,
-      scriptsOpts
+      scriptsOpts,
+      opts.projectDependencies
     )
   }
 

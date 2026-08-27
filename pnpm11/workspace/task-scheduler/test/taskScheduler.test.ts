@@ -1,6 +1,76 @@
 import { expect, test } from '@jest/globals'
 import type { ProjectRootDir } from '@pnpm/types'
-import { scheduleTasks, type TaskGraph, taskKey } from '@pnpm/workspace.task-scheduler'
+import { scheduleGraph, scheduleTasks, type TaskGraph, taskKey } from '@pnpm/workspace.task-scheduler'
+
+test('a dependent starts without waiting for an unrelated slow branch', async () => {
+  let releaseSlow!: () => void
+  const slow = new Promise<void>((resolve) => {
+    releaseSlow = resolve
+  })
+  const ran: string[] = []
+  await scheduleGraph(new Map([
+    ['slow', []],
+    ['fast', []],
+    ['dependent', ['fast']],
+  ]), {
+    bail: true,
+    concurrency: 2,
+    runNode: async (node) => {
+      ran.push(node)
+      if (node === 'slow') await slow
+      if (node === 'dependent') releaseSlow()
+      return 'passed'
+    },
+    onNodeSkipped: () => {},
+  })
+  expect(ran).toStrictEqual(['slow', 'fast', 'dependent'])
+})
+
+test('continueOnFailure preserves legacy no-bail command behavior', async () => {
+  const ran: string[] = []
+  await scheduleGraph(new Map([
+    ['dependency', []],
+    ['dependent', ['dependency']],
+  ]), {
+    bail: false,
+    concurrency: 1,
+    continueOnFailure: true,
+    runNode: async (node) => {
+      ran.push(node)
+      return node === 'dependency' ? 'failed' : 'passed'
+    },
+    onNodeSkipped: () => {},
+  })
+  expect(ran).toStrictEqual(['dependency', 'dependent'])
+})
+
+test('a bailed graph waits for work that was already dispatched', async () => {
+  let releaseSlow!: () => void
+  const slow = new Promise<void>((resolve) => {
+    releaseSlow = resolve
+  })
+  let finished = false
+  const scheduled = scheduleGraph(new Map([
+    ['slow', []],
+    ['failed', []],
+    ['queued', []],
+  ]), {
+    bail: true,
+    concurrency: 2,
+    runNode: async (node) => {
+      if (node === 'slow') await slow
+      return node === 'failed' ? 'failed' : 'passed'
+    },
+    onNodeSkipped: () => {},
+  }).then(() => {
+    finished = true
+  })
+  await Promise.resolve()
+  await Promise.resolve()
+  expect(finished).toBe(false)
+  releaseSlow()
+  await scheduled
+})
 
 test('an aborted task stops dispatch and the scheduler still settles', async () => {
   const graph = chainGraph()

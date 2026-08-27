@@ -20,14 +20,12 @@ fn item(id: &str, package_name: Option<&str>, version: Option<&str>) -> StageApp
     }
 }
 
-fn order(chunks: &[&[&str]], dependencies: &[(&str, &[&str])]) -> WorkspaceApprovalOrder {
+fn order(package_names: &[&str], dependencies: &[(&str, &[&str])]) -> WorkspaceApprovalOrder {
     WorkspaceApprovalOrder {
-        chunk_index_by_package_name: chunks
+        order_index_by_package_name: package_names
             .iter()
             .enumerate()
-            .flat_map(|(chunk_index, chunk)| {
-                chunk.iter().map(move |name| ((*name).to_owned(), chunk_index))
-            })
+            .map(|(order_index, name)| ((*name).to_owned(), order_index))
             .collect(),
         dependency_names_by_package_name: dependencies
             .iter()
@@ -44,7 +42,7 @@ fn workspace_dependencies_are_approved_before_their_dependents() {
         item("id-dependent", Some("dependent"), Some("1.0.0")),
         item("id-dependency", Some("dependency"), Some("1.0.0")),
     ];
-    let order = order(&[&["dependency"], &["dependent"]], &[("dependent", &["dependency"])]);
+    let order = order(&["dependency", "dependent"], &[("dependent", &["dependency"])]);
     let sorted = sort_items_for_approval(items, Some(&order));
     assert_eq!(
         sorted.iter().map(|item| item.id.as_str()).collect::<Vec<_>>(),
@@ -59,7 +57,7 @@ fn packages_outside_the_workspace_keep_their_order_after_the_workspace_ones() {
         item("id-unlisted", None, None),
         item("id-dependency", Some("dependency"), Some("1.0.0")),
     ];
-    let order = order(&[&["dependency"]], &[]);
+    let order = order(&["dependency"], &[]);
     let sorted = sort_items_for_approval(items, Some(&order));
     assert_eq!(
         sorted.iter().map(|item| item.id.as_str()).collect::<Vec<_>>(),
@@ -82,7 +80,7 @@ fn selection_order_is_kept_outside_a_workspace() {
 
 #[test]
 fn a_dependent_of_an_unpublished_package_is_blocked() {
-    let order = order(&[&["dependency"], &["dependent"]], &[("dependent", &["dependency"])]);
+    let order = order(&["dependency", "dependent"], &[("dependent", &["dependency"])]);
     let unpublished: HashSet<String> = std::iter::once("dependency".to_owned()).collect();
     assert_eq!(
         unavailable_dependencies(

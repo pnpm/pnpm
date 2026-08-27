@@ -96,7 +96,7 @@ impl RemoveArgs {
         let InstallFamilySelection {
             workspace_root: _,
             mut projects,
-            ordered_groups,
+            project_dependencies,
             ordered_dirs,
             selected_dirs,
             install_dirs,
@@ -124,7 +124,7 @@ impl RemoveArgs {
         }
         .run_selected::<Reporter>(
             &mut projects,
-            &ordered_groups,
+            &project_dependencies,
             &ordered_dirs,
             selected_dirs.as_ref(),
             install_dirs.as_ref(),

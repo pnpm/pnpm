@@ -6,17 +6,13 @@ use std::{
 /// Output of [`graph_sequencer`].
 #[derive(Debug)]
 pub struct GraphSequencerResult<Node> {
-    /// `false` when at least one cycle of length > 1 was found.
-    pub safe: bool,
-    /// Topologically ordered groups. Every node in chunk `i` has all of its
-    /// outgoing edges (within the included subset) pointing into earlier
-    /// chunks `0..i`, so chunk `i` may run only after chunks `0..i` finish.
-    pub chunks: Vec<Vec<Node>>,
+    /// One topological order, dependencies before dependents.
+    pub order: Vec<Node>,
     /// Cycles encountered while sorting. Each cycle is a list of nodes.
     pub cycles: Vec<Vec<Node>>,
 }
 
-/// Topologically sort a graph into chunks.
+/// Return one deterministic topological order and any cycles in a graph.
 ///
 /// `graph` is a node → outgoing-edges map. `included` selects the subset of
 /// nodes to be sorted. Edges to nodes outside the included set are ignored.
@@ -24,11 +20,10 @@ pub struct GraphSequencerResult<Node> {
 /// Iteration order follows `included`, so the output is deterministic for a
 /// given input order.
 ///
-/// The nodes are interned to indices up front and each chunk is gathered
-/// from the nodes whose degree a removal drops to zero, so a workspace-scale
-/// graph (thousands of projects in thousands of chunks) sorts in
-/// `O(V log V + E)` instead of scanning — and hashing — every node once per
-/// chunk. Cycle discovery is confined to each strongly connected component:
+/// The nodes are interned to indices up front and each ready set is gathered
+/// from nodes whose degree a removal drops to zero, so a workspace-scale graph
+/// sorts in `O(V log V + E)` instead of repeatedly scanning and hashing every
+/// node. Cycle discovery is confined to each strongly connected component:
 /// nodes that merely lead into a cycle cost nothing extra, and only
 /// enumerating the cycles *inside* one component pays that component's size
 /// per reported cycle (the price of the established cycle-reporting
@@ -42,7 +37,7 @@ where
 {
     let mut interner = Interner::with_capacity(included.len() + graph.len());
     // Included nodes are interned first, so an id below `included_count` is
-    // an included node and ids order chunks the way `included` orders them.
+    // an included node and id order follows `included`.
     for node in included {
         interner.intern(node);
     }
@@ -72,17 +67,16 @@ where
         }
     }
 
-    // A non-included node is born removed: chunks never contain it and the
+    // A non-included node is born removed: the order never contains it and the
     // cycle search does not walk through it.
     let mut removed: Vec<bool> = (0..node_count).map(|id| !is_included(id)).collect();
 
-    let mut chunks: Vec<Vec<Node>> = Vec::new();
+    let mut order: Vec<usize> = Vec::with_capacity(included_count);
     let mut cycles: Vec<Vec<Node>> = Vec::new();
-    let mut safe = true;
 
     let mut remaining = included_count;
-    // The ids whose degree is zero, i.e. the next chunk. Kept sorted so a
-    // chunk lists its nodes in `included` order.
+    // The ids whose degree is zero, i.e. the next ready set. Kept sorted in
+    // `included` order.
     let mut current: Vec<usize> = (0..included_count).filter(|&id| out_degree[id] == 0).collect();
     while remaining > 0 {
         let mut next: Vec<usize> = Vec::new();
@@ -118,9 +112,6 @@ where
                 if cycle.is_empty() {
                     continue;
                 }
-                if cycle.len() > 1 {
-                    safe = false;
-                }
                 for &node in &cycle {
                     remove_node(node, &mut removed, &mut next);
                 }
@@ -128,24 +119,24 @@ where
                 cycles.push(interner.to_nodes(&cycle));
             }
             remaining -= cycle_ids.len();
-            chunks.push(interner.to_nodes(&cycle_ids));
+            order.extend(cycle_ids);
         } else {
             for &id in &current {
                 remove_node(id, &mut removed, &mut next);
             }
             remaining -= current.len();
-            chunks.push(interner.to_nodes(&current));
+            order.extend(&current);
         }
         // Breaking a cycle removes its members one by one, so an earlier
         // member's removal can drop a later member to degree zero right
         // before that member is removed too — filter those out of the
-        // zero-degree set instead of re-chunking them.
+        // zero-degree set instead of adding them to the order twice.
         next.retain(|&id| !removed[id]);
         next.sort_unstable();
         current = next;
     }
 
-    GraphSequencerResult { safe, chunks, cycles }
+    GraphSequencerResult { order: interner.to_nodes(&order), cycles }
 }
 
 /// Node ↔ index mapping: every hash lookup the sort needs happens once

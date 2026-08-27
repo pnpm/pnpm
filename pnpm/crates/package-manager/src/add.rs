@@ -342,7 +342,7 @@ where
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
         projects: &mut [pnpm_workspace::Project],
-        ordered_groups: &[Vec<PathBuf>],
+        project_dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
         ordered_dirs: &[PathBuf],
         selected_dirs: &HashSet<PathBuf>,
         install_dirs: &HashSet<PathBuf>,
@@ -476,7 +476,7 @@ where
             }
             .run_selected::<Reporter>(WorkspaceInstallSelection {
                 all_projects: projects,
-                ordered_groups,
+                project_dependencies,
                 ordered_dirs,
                 selected_dirs,
                 install_dirs,

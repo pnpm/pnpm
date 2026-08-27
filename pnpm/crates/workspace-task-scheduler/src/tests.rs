@@ -1,7 +1,8 @@
 use super::{
-    BuildTaskGraphOptions, ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion, TaskCycle,
-    TaskGraph, TaskKey, build_task_graph, is_serial_task_graph, render_task_graph_dry_run,
-    resume_task_graph_from, reverse_task_graph, schedule_tasks, sequence_tasks, task_graph_to_json,
+    BuildTaskGraphOptions, ScheduleGraphAsyncOptions, ScheduleGraphOptions, ScheduleTasksOptions,
+    SequenceTasksOptions, TaskCompletion, TaskCycle, TaskGraph, TaskKey, build_task_graph,
+    is_serial_task_graph, render_task_graph_dry_run, resume_task_graph_from, reverse_task_graph,
+    schedule_graph, schedule_graph_async, schedule_tasks, sequence_tasks, task_graph_to_json,
 };
 use indexmap::IndexMap;
 use pnpm_config::TaskSettings;
@@ -9,7 +10,7 @@ use pnpm_reporter::LogEvent;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{Condvar, Mutex},
 };
 
 const WORKSPACE_DIR: &str = "/workspace";
@@ -24,7 +25,7 @@ fn key(name: &str, task_name: &str) -> TaskKey {
 
 fn drop_event(_: &LogEvent) {}
 
-fn sequence(graph: &mut TaskGraph) -> Result<Vec<Vec<TaskKey>>, TaskCycle> {
+fn sequence(graph: &mut TaskGraph) -> Result<Vec<TaskKey>, TaskCycle> {
     sequence_tasks(
         graph,
         &SequenceTasksOptions {
@@ -147,11 +148,8 @@ fn project_without_the_script_becomes_a_pass_through_node_that_keeps_the_chain()
     assert_eq!(pass_through.dependencies, vec![key("c", "build")]);
     assert_eq!(graph[&key("a", "build")].dependencies, vec![key("b", "build")]);
 
-    let groups = sequence(&mut graph).unwrap();
-    assert_eq!(
-        groups,
-        vec![vec![key("c", "build")], vec![key("b", "build")], vec![key("a", "build")]],
-    );
+    let order = sequence(&mut graph).unwrap();
+    assert_eq!(order, vec![key("c", "build"), key("b", "build"), key("a", "build")],);
 }
 
 #[test]
@@ -333,6 +331,69 @@ fn scheduler_runs_tasks_in_dependency_order() {
 }
 
 #[test]
+fn graph_scheduler_does_not_wait_for_an_unrelated_slow_branch() {
+    let graph =
+        IndexMap::from([("slow", Vec::new()), ("fast", Vec::new()), ("dependent", vec!["fast"])]);
+    let release_slow = (Mutex::new(false), Condvar::new());
+    let ran = Mutex::new(Vec::new());
+    let on_node_skipped: fn(&&str) = |_| {};
+    schedule_graph(
+        &graph,
+        &ScheduleGraphOptions {
+            concurrency: 2,
+            bail: true,
+            continue_on_failure: false,
+            run_node: &|node| {
+                ran.lock().unwrap().push(node);
+                if node == "slow" {
+                    let (released, progress) = &release_slow;
+                    let mut released = released.lock().unwrap();
+                    while !*released {
+                        released = progress.wait(released).unwrap();
+                    }
+                } else if node == "dependent" {
+                    let (released, progress) = &release_slow;
+                    *released.lock().unwrap() = true;
+                    progress.notify_one();
+                }
+                TaskCompletion::Passed
+            },
+            on_node_skipped: &on_node_skipped,
+        },
+    )
+    .unwrap();
+    assert_eq!(ran.into_inner().unwrap(), vec!["slow", "fast", "dependent"]);
+}
+
+#[tokio::test]
+async fn async_graph_scheduler_does_not_wait_for_an_unrelated_slow_branch() {
+    let graph =
+        IndexMap::from([("slow", Vec::new()), ("fast", Vec::new()), ("dependent", vec!["fast"])]);
+    let release_slow = tokio::sync::Notify::new();
+    let ran = Mutex::new(Vec::new());
+    let run_node = |node| {
+        let ran = &ran;
+        let release_slow = &release_slow;
+        async move {
+            ran.lock().unwrap().push(node);
+            if node == "slow" {
+                release_slow.notified().await;
+            } else if node == "dependent" {
+                release_slow.notify_one();
+            }
+            TaskCompletion::Passed
+        }
+    };
+    let on_node_skipped: fn(&&str) = |_| {};
+    schedule_graph_async(
+        &graph,
+        &ScheduleGraphAsyncOptions::new(2, true, &run_node, &on_node_skipped),
+    )
+    .await;
+    assert_eq!(ran.into_inner().unwrap(), vec!["slow", "fast", "dependent"]);
+}
+
+#[test]
 fn scheduler_without_bail_skips_transitive_dependents_of_a_failure() {
     let graph = build_graph(
         &[
@@ -404,7 +465,7 @@ fn scheduler_with_bail_dispatches_nothing_after_a_failure() {
 }
 
 #[test]
-fn ignored_cycles_are_downgraded_and_their_edges_dropped() {
+fn ignored_cycles_are_downgraded_and_backward_edges_are_dropped() {
     let mut graph = build_graph(
         &[
             ("a", project(&["b"], &["build"])),
@@ -424,10 +485,10 @@ fn ignored_cycles_are_downgraded_and_their_edges_dropped() {
     )
     .unwrap();
     dbg!(&groups);
-    // The cycle members lost their mutual edges and may run concurrently;
-    // the task outside the cycle still waits for its dependency.
+    // The backward cycle edge is dropped while the forward edge preserves
+    // a deterministic order; the task outside the cycle still waits.
     assert!(graph[&key("a", "build")].dependencies.is_empty());
-    assert!(graph[&key("b", "build")].dependencies.is_empty());
+    assert_eq!(graph[&key("b", "build")].dependencies, vec![key("a", "build")]);
     assert_eq!(graph[&key("c", "build")].dependencies, vec![key("a", "build")]);
 }
 

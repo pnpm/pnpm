@@ -124,7 +124,6 @@
     "path-absolute": "catalog:",
     "path-exists": "catalog:",
     "ramda": "catalog:",
-    "run-groups": "catalog:",
     "semver": "catalog:"
   },
   "peerDependencies": {

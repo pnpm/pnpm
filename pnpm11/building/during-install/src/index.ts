@@ -24,11 +24,11 @@ import type {
   SupportedArchitectures,
 } from '@pnpm/types'
 import { hardLinkDir } from '@pnpm/worker'
+import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import { pickBy } from 'ramda'
-import { runGroups } from 'run-groups'
 
-import { buildSequence, type DependenciesGraph, type DependenciesGraphNode } from './buildSequence.js'
+import { buildGraph, type DependenciesGraph, type DependenciesGraphNode } from './buildGraph.js'
 
 export type { DepsStateCache }
 
@@ -81,8 +81,8 @@ export async function buildModules<T extends string> (
     nodeVersion,
     warn,
   }
-  const chunks = buildSequence<T>(depGraph, rootDepPaths)
-  if (!chunks.length) return {}
+  const dependencyGraph = buildGraph<T>(depGraph, rootDepPaths)
+  if (dependencyGraph.size === 0) return {}
   const ignoredBuilds = new Set<DepPath>()
   const allowBuild = opts.allowBuild ?? (() => undefined)
   // Under the global virtual store a package's directory lives inside the store
@@ -92,7 +92,7 @@ export async function buildModules<T extends string> (
   // build step — built and patched packages are imported from the side-effects
   // cache with `isBuilt` set and filtered out just below — so any package still
   // wanting to write means the seed is missing its build output. We collect
-  // those off the same filtered chunk and refuse up front (see
+  // those off the same filtered graph and refuse up front (see
   // `throwFrozenStoreNeedsBuild`) instead of failing cryptically once a script
   // starts. Bin-linking reuses existing symlinks write-free, and non-allowlisted
   // scripts never run, so neither counts as a blocking write. Optional
@@ -101,23 +101,16 @@ export async function buildModules<T extends string> (
   const frozenStoreBlocked = (opts.frozenStore && opts.enableGlobalVirtualStore)
     ? new Set<string>()
     : undefined
-  const groups = chunks.map((chunk) => {
-    chunk = chunk.filter((depPath) => {
-      const node = depGraph[depPath]
-      return (node.requiresBuild || node.patch != null) && !node.isBuilt
-    })
-    if (opts.depsToBuild != null) {
-      chunk = chunk.filter((depPath) => opts.depsToBuild!.has(depPath))
-    }
-    if (frozenStoreBlocked != null) {
-      chunk = chunk.filter((depPath) => {
+  if (frozenStoreBlocked != null) {
+    for (const depPath of dependencyGraph.keys()) {
+      if (shouldBuild(depPath)) {
         const node = depGraph[depPath]
         // A patch is applied even under `ignoreScripts`, but a lifecycle script
         // is not — so only the patch write counts as blocking when scripts are
         // suppressed.
         const willPatch = node.patch != null
         const willRunScripts = !opts.ignoreScripts && Boolean(node.requiresBuild) && allowBuild(node.depPath) === true
-        if (!willPatch && !willRunScripts) return true
+        if (!willPatch && !willRunScripts) continue
         if (node.optional) {
           // A build/patch failure on an optional dependency is non-fatal at
           // runtime (see the catch in `buildDependency`), so a seed missing an
@@ -133,15 +126,23 @@ export async function buildModules<T extends string> (
             prefix: opts.lockfileDir,
             reason: 'build_failure',
           })
-          return false
+          continue
         }
         frozenStoreBlocked.add(`${node.name}@${node.version}`)
-        return true
-      })
+      }
     }
-
-    return chunk.map((depPath) =>
-      () => {
+  }
+  if (frozenStoreBlocked?.size) {
+    throwFrozenStoreNeedsBuild(frozenStoreBlocked)
+  }
+  const patchErrors: Error[] = []
+  let firstError: unknown
+  await scheduleGraph(dependencyGraph, {
+    bail: true,
+    concurrency: getWorkspaceConcurrency(opts.childConcurrency),
+    runNode: async (depPath): Promise<TaskCompletion> => {
+      if (!shouldBuild(depPath)) return 'passed'
+      try {
         let ignoreScripts = Boolean(buildDepOpts.ignoreScripts)
         if (!ignoreScripts) {
           const node = depGraph[depPath]
@@ -161,35 +162,33 @@ export async function buildModules<T extends string> (
             // allowed === true means build is permitted
           }
         }
-        return buildDependency(depPath, depGraph, {
+        await buildDependency(depPath, depGraph, {
           ...buildDepOpts,
           ignoreScripts,
         })
-      }
-    )
-  })
-  if (frozenStoreBlocked?.size) {
-    throwFrozenStoreNeedsBuild(frozenStoreBlocked)
-  }
-  const patchErrors: Error[] = []
-  const groupsWithPatchErrors = groups.map((group) =>
-    group.map((task) => async () => {
-      try {
-        await task()
+        return 'passed'
       } catch (err: unknown) {
         if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_PATCH_FAILED') {
           patchErrors.push(err)
-        } else {
-          throw err
+          return 'passed'
         }
+        firstError ??= err
+        return 'aborted'
       }
-    })
-  )
-  await runGroups(getWorkspaceConcurrency(opts.childConcurrency), groupsWithPatchErrors)
+    },
+    onNodeSkipped: () => {},
+  })
+  if (firstError != null) throw firstError
   if (patchErrors.length > 0) {
     throw patchErrors[0]
   }
   return { ignoredBuilds }
+
+  function shouldBuild (depPath: T): boolean {
+    const node = depGraph[depPath]
+    return (node.requiresBuild || node.patch != null) && !node.isBuilt &&
+      (opts.depsToBuild == null || opts.depsToBuild.has(depPath))
+  }
 }
 
 /** Refuse a build under a read-only global virtual store. See the call site. */

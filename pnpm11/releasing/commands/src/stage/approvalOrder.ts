@@ -1,7 +1,7 @@
 import type { ProjectRootDir } from '@pnpm/types'
 import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
-import { sortProjects } from '@pnpm/workspace.projects-sorter'
+import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 
 import { publishedName } from '../publishedNames.js'
 import type { ApprovalItem, StageOptions } from './types.js'
@@ -12,12 +12,8 @@ import type { ApprovalItem, StageOptions } from './types.js'
  * a staged version carries.
  */
 export interface WorkspaceApprovalOrder {
-  /**
-   * Index of the topological chunk a package belongs to. A package only ever
-   * depends on packages in lower-indexed chunks, so approving in ascending
-   * index order publishes every dependency before its dependents.
-   */
-  chunkIndexByPackageName: Map<string, number>
+  /** Each package's index in one topological order. */
+  orderIndexByPackageName: Map<string, number>
   /** The workspace siblings a package directly depends on. */
   dependencyNamesByPackageName: Map<string, string[]>
 }
@@ -42,22 +38,20 @@ export async function readWorkspaceApprovalOrder (opts: StageOptions): Promise<W
     const name = publishedName(graph[rootDir].package.manifest)
     if (name) publishedNameByRootDir.set(rootDir, name)
   }
-  const chunkIndexByPackageName = new Map<string, number>()
+  const orderIndexByPackageName = new Map<string, number>()
   const dependencyNamesByPackageName = new Map<string, string[]>()
-  sortProjects(graph).forEach((chunk, chunkIndex) => {
-    for (const rootDir of chunk) {
-      const name = publishedNameByRootDir.get(rootDir)
-      if (!name) continue
-      chunkIndexByPackageName.set(name, chunkIndex)
-      dependencyNamesByPackageName.set(
-        name,
-        graph[rootDir].dependencies
-          .map((dependencyRootDir) => publishedNameByRootDir.get(dependencyRootDir))
-          .filter((dependencyName) => dependencyName != null)
-      )
-    }
+  sequenceGraph(graph).order.forEach((rootDir, orderIndex) => {
+    const name = publishedNameByRootDir.get(rootDir)
+    if (!name) return
+    orderIndexByPackageName.set(name, orderIndex)
+    dependencyNamesByPackageName.set(
+      name,
+      graph[rootDir].dependencies
+        .map((dependencyRootDir) => publishedNameByRootDir.get(dependencyRootDir))
+        .filter((dependencyName) => dependencyName != null)
+    )
   })
-  return { chunkIndexByPackageName, dependencyNamesByPackageName }
+  return { orderIndexByPackageName, dependencyNamesByPackageName }
 }
 
 /**
@@ -67,8 +61,8 @@ export async function readWorkspaceApprovalOrder (opts: StageOptions): Promise<W
  */
 export function sortStageItemsForApproval (items: ApprovalItem[], order?: WorkspaceApprovalOrder): ApprovalItem[] {
   return items
-    .map((item, index) => ({ item, index, chunkIndex: chunkIndexOf(item, order) }))
-    .sort((left, right) => left.chunkIndex - right.chunkIndex || left.index - right.index)
+    .map((item, index) => ({ item, index, orderIndex: orderIndexOf(item, order) }))
+    .sort((left, right) => left.orderIndex - right.orderIndex || left.index - right.index)
     .map(({ item }) => item)
 }
 
@@ -86,7 +80,7 @@ export function unavailableDependencies (
     .filter((dependencyName) => unpublishedPackageNames.has(dependencyName))
 }
 
-function chunkIndexOf (item: ApprovalItem, order?: WorkspaceApprovalOrder): number {
-  const chunkIndex = item.packageName ? order?.chunkIndexByPackageName.get(item.packageName) : undefined
-  return chunkIndex ?? Number.MAX_SAFE_INTEGER
+function orderIndexOf (item: ApprovalItem, order?: WorkspaceApprovalOrder): number {
+  const orderIndex = item.packageName ? order?.orderIndexByPackageName.get(item.packageName) : undefined
+  return orderIndex ?? Number.MAX_SAFE_INTEGER
 }

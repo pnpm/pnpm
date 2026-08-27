@@ -38,6 +38,7 @@ pnpm-resolving-resolver-base = { workspace = true }
 pnpm-store-dir               = { workspace = true }
 pnpm-tarball                 = { workspace = true }
 pnpm-workspace               = { workspace = true }
+pnpm-workspace-task-scheduler = { workspace = true }
 
 derive_more  = { workspace = true }
 base64       = { workspace = true }

@@ -49,11 +49,11 @@ import type {
   ProjectsGraph,
   RangeSpecStyle,
 } from '@pnpm/types'
-import { sortProjects } from '@pnpm/workspace.projects-sorter'
+import { filteredProjectsDependencies, projectsDependencies } from '@pnpm/workspace.projects-sorter'
+import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { isSubdir } from 'is-subdir'
 import pFilter from 'p-filter'
-import pLimit from 'p-limit'
 import getVersionSelectorType from 'version-selector-type'
 
 import { getSaveType } from './getSaveType.js'
@@ -119,6 +119,8 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   useBetaCli?: boolean
   allProjectsGraph: ProjectsGraph
   selectedProjectsGraph: ProjectsGraph
+  prodAllProjectsGraph?: ProjectsGraph
+  prodOnlySelectedProjectDirs?: ProjectRootDir[]
   preferredVersions?: PreferredVersions
   pruneDirectDependencies?: boolean
   pruneLockfileImporters?: boolean
@@ -196,8 +198,11 @@ export async function recursive (
   // existing list, so a single drain at the end captures additions across
   // every project.
   const policyHandlers = setupPolicyHandlers(opts)
+  const projectDependencies = opts.sort !== false
+    ? projectsDependencies(opts.allProjectsGraph)
+    : new Map((Object.keys(opts.allProjectsGraph) as ProjectRootDir[]).sort().map((rootDir) => [rootDir, []]))
   const installOpts = Object.assign(opts, {
-    allProjects: getAllProjects(manifestsByPath, opts.allProjectsGraph, opts.sort),
+    allProjects: getAllProjects(manifestsByPath, opts.allProjectsGraph),
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     ownLifecycleHooksStdio: 'pipe',
     peer: opts.savePeer,
@@ -210,6 +215,7 @@ export async function recursive (
     storeDir: store.dir,
     targetDependenciesField,
     resolutionVerifiers: store.resolutionVerifiers,
+    projectDependencies,
     workspacePackages,
     handleResolutionPolicyViolations: policyHandlers?.handleResolutionPolicyViolations,
   }) as InstallOptions
@@ -384,6 +390,9 @@ export async function recursive (
   }
 
   const pkgPaths = (Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()
+  const selectedProjectDependencies = opts.sort !== false
+    ? filteredProjectsDependencies(opts)
+    : new Map(pkgPaths.map((rootDir) => [rootDir, []]))
 
   let updatedCatalogs: Catalogs | undefined
 
@@ -392,9 +401,12 @@ export async function recursive (
   // violations; accumulate them here so the post-loop persist step can
   // dedup and write a single batch to the workspace manifest.
   const allResolutionPolicyViolations: PolicyViolation[] = []
-  const limitInstallation = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
-  await Promise.all(pkgPaths.map(async (rootDir) =>
-    limitInstallation(async () => {
+  let firstError: Error | undefined
+  await scheduleGraph(selectedProjectDependencies, {
+    bail: opts.bail !== false,
+    concurrency: getWorkspaceConcurrency(opts.workspaceConcurrency),
+    continueOnFailure: opts.bail === false,
+    runNode: async (rootDir): Promise<TaskCompletion> => {
       const hooks = opts.ignorePnpmfile
         ? {}
         : await (async () => {
@@ -408,14 +420,14 @@ export async function recursive (
         })()
       try {
         if (opts.ignoredPackages?.has(rootDir)) {
-          return
+          return 'passed'
         }
         result[rootDir] = { status: 'running' }
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...params]
         if (updateMatch != null) {
           currentInput = matchDependencies(updateMatch, manifest, includeDirect)
-          if (currentInput.length === 0) return
+          if (currentInput.length === 0) return 'passed'
         }
         if (updateToLatest && (!params || (params.length === 0))) {
           currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
@@ -516,6 +528,7 @@ export async function recursive (
           }
         }
         result[rootDir].status = 'passed'
+        return 'passed'
       } catch (err: any) { // eslint-disable-line
         logger.info(err)
 
@@ -526,14 +539,17 @@ export async function recursive (
             message: err.message,
             prefix: rootDir,
           }
-          return
+          return 'failed'
         }
 
         err['prefix'] = rootDir
-        throw err
+        firstError ??= err
+        return 'aborted'
       }
-    })
-  ))
+    },
+    onNodeSkipped: () => {},
+  })
+  if (firstError != null) throw firstError
   await handleIgnoredBuilds(opts, allIgnoredBuilds.size ? allIgnoredBuilds : undefined)
   if (opts.save !== false) {
     // Only pick entries when we'll actually persist. Otherwise the
@@ -775,20 +791,17 @@ export function makeIgnorePatterns (ignoredDependencies: string[]): string[] {
   return ignoredDependencies.map(depName => `!${depName}`)
 }
 
-function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: ProjectsGraph, sort?: boolean): ProjectOptions[] {
-  const chunks = sort !== false
-    ? sortProjects(allProjectsGraph)
-    : [(Object.keys(allProjectsGraph) as ProjectRootDir[]).sort()]
-  return chunks.map((prefixes, buildIndex) => prefixes.map((rootDir) => {
+function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: ProjectsGraph): ProjectOptions[] {
+  return (Object.keys(allProjectsGraph) as ProjectRootDir[]).map((rootDir) => {
     const { rootDirRealPath, modulesDir } = allProjectsGraph[rootDir].package
     return {
-      buildIndex,
+      buildIndex: 0,
       manifest: manifestsByPath[rootDir].manifest,
       rootDir,
       rootDirRealPath,
       modulesDir,
     }
-  })).flat()
+  })
 }
 
 interface ManifestsByPath {

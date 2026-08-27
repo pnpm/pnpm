@@ -2392,7 +2392,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       await runLifecycleHooksConcurrently(['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
         projectsToBeBuilt,
         opts.childConcurrency,
-        opts.scriptsOpts
+        opts.scriptsOpts,
+        opts.projectDependencies
       )
     }
   } else {

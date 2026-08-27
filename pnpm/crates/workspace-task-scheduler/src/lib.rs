@@ -8,10 +8,10 @@
 //! `taskScheduler.ts` in pnpm's `@pnpm/workspace.task-scheduler`.
 
 use derive_more::{Display, Error};
+use futures_util::{StreamExt, stream::FuturesUnordered};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_config::TaskSettings;
-use pnpm_deps_restorer::graph_sequencer;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
 use serde::Serialize;
 use std::{
@@ -19,6 +19,9 @@ use std::{
     path::{Path, PathBuf},
     sync::{Condvar, Mutex},
 };
+
+mod graph_sequencer;
+pub use graph_sequencer::{GraphSequencerResult, graph_sequencer};
 
 /// The stable identifier of a task: the project directory and the task
 /// (script) name. The scheduler, the summary, and the dry-run output agree
@@ -144,21 +147,20 @@ pub struct SequenceTasksOptions<'a> {
     pub workspace_dir: &'a Path,
     /// The `ignoreWorkspaceCycles` setting: the workspace has declared its
     /// cycles deliberate, so a cyclic task graph is downgraded from an
-    /// error to a warning, the edges among a cycle's members are dropped,
-    /// and the members run in an arbitrary order relative to each other.
+    /// error to a warning, backward edges are dropped, and the members run
+    /// in the graph sequencer's deterministic order.
     pub ignore_cycles: bool,
     pub emit: fn(&LogEvent),
 }
 
-/// Topologically sequence the task graph into ready-together groups —
-/// dependencies always in an earlier group — erroring when the tasks form
-/// a cycle (unless `ignore_cycles` tolerates it, which rewrites the
-/// graph's edges acyclic). Detection is scoped to this graph: a cycle
-/// among tasks the filter did not select cannot fail the run.
+/// Topologically order the task graph, erroring when the tasks form a cycle
+/// unless `ignore_cycles` tolerates it and rewrites the graph's edges
+/// acyclic. Detection is scoped to this graph: a cycle among tasks the
+/// filter did not select cannot fail the run.
 pub fn sequence_tasks(
     graph: &mut TaskGraph,
     options: &SequenceTasksOptions<'_>,
-) -> Result<Vec<Vec<TaskKey>>, TaskCycle> {
+) -> Result<Vec<TaskKey>, TaskCycle> {
     let edges: HashMap<TaskKey, Vec<TaskKey>> =
         graph.iter().map(|(key, node)| (key.clone(), node.dependencies.clone())).collect();
     let included: Vec<TaskKey> = graph.keys().cloned().collect();
@@ -187,22 +189,16 @@ pub fn sequence_tasks(
             ),
             prefix: options.workspace_dir.to_string_lossy().into_owned(),
         }));
-        drop_cyclic_dependencies(graph, &result.chunks);
+        drop_cyclic_dependencies(graph, &result.order);
     }
-    Ok(result.chunks)
+    Ok(result.order)
 }
 
-/// Keep only the dependencies the group assignment proved acyclic: an edge
-/// into the same group is part of a cycle (an acyclic edge always crosses
-/// into an earlier group), so a cycle's members end up running
-/// concurrently, ordered against everything outside the cycle but not each
-/// other.
-fn drop_cyclic_dependencies(graph: &mut TaskGraph, groups: &[Vec<TaskKey>]) {
-    let group_index: HashMap<&TaskKey, usize> = groups
-        .iter()
-        .enumerate()
-        .flat_map(|(index, group)| group.iter().map(move |key| (key, index)))
-        .collect();
+/// Keep only dependencies that point backward in the sequencer's order,
+/// making an ignored cyclic graph deterministic and schedulable.
+fn drop_cyclic_dependencies(graph: &mut TaskGraph, order: &[TaskKey]) {
+    let order_index: HashMap<&TaskKey, usize> =
+        order.iter().enumerate().map(|(index, key)| (key, index)).collect();
     let filtered: Vec<(TaskKey, Vec<TaskKey>)> = graph
         .iter()
         .map(|(key, node)| {
@@ -210,7 +206,7 @@ fn drop_cyclic_dependencies(graph: &mut TaskGraph, groups: &[Vec<TaskKey>]) {
                 key.clone(),
                 node.dependencies
                     .iter()
-                    .filter(|dependency| group_index[*dependency] < group_index[key])
+                    .filter(|dependency| order_index[*dependency] < order_index[key])
                     .cloned()
                     .collect(),
             )
@@ -300,7 +296,7 @@ pub fn resume_task_graph_from(
 /// `sequenced_tasks` is [`sequence_tasks`]'s result — the proof the graph
 /// is acyclic, and the evaluation order for the longest-chain scan.
 #[must_use]
-pub fn is_serial_task_graph(graph: &TaskGraph, sequenced_tasks: &[Vec<TaskKey>]) -> bool {
+pub fn is_serial_task_graph(graph: &TaskGraph, sequenced_tasks: &[TaskKey]) -> bool {
     let mut script_task_count = 0_usize;
     for node in graph.values() {
         if node.scripts.len() > 1 {
@@ -313,20 +309,17 @@ pub fn is_serial_task_graph(graph: &TaskGraph, sequenced_tasks: &[Vec<TaskKey>])
     }
     let mut chain_length: HashMap<&TaskKey, usize> = HashMap::new();
     let mut longest_chain = 0_usize;
-    for group in sequenced_tasks {
-        for key in group {
-            let node = &graph[key];
-            let via_dependencies = node
-                .dependencies
-                .iter()
-                .map(|dependency| chain_length.get(dependency).copied().unwrap_or(0))
-                .max()
-                .unwrap_or(0);
-            let length = via_dependencies + node.scripts.len();
-            chain_length
-                .insert(graph.get_key_value(key).expect("sequenced key is in graph").0, length);
-            longest_chain = longest_chain.max(length);
-        }
+    for key in sequenced_tasks {
+        let node = &graph[key];
+        let via_dependencies = node
+            .dependencies
+            .iter()
+            .map(|dependency| chain_length.get(dependency).copied().unwrap_or(0))
+            .max()
+            .unwrap_or(0);
+        let length = via_dependencies + node.scripts.len();
+        chain_length.insert(graph.get_key_value(key).expect("sequenced key is in graph").0, length);
+        longest_chain = longest_chain.max(length);
     }
     longest_chain == script_task_count
 }
@@ -406,23 +399,17 @@ pub fn task_graph_to_json(graph: &TaskGraph, workspace_dir: &Path) -> DryRunDocu
 #[must_use]
 pub fn render_task_graph_dry_run(
     graph: &TaskGraph,
-    sequenced_tasks: &[Vec<TaskKey>],
+    sequenced_tasks: &[TaskKey],
     workspace_dir: &Path,
 ) -> String {
     let mut lines: Vec<String> = Vec::new();
-    for group in sequenced_tasks {
-        let mut rendered: Vec<(String, bool)> = group
-            .iter()
-            .map(|key| (format_task(key, workspace_dir), graph[key].scripts.is_empty()))
-            .collect();
-        rendered.sort();
-        for (task, missing_script) in rendered {
-            lines.push(if missing_script {
-                format!("{task} (skipped: no such script)")
-            } else {
-                task
-            });
-        }
+    for key in sequenced_tasks {
+        let task = format_task(key, workspace_dir);
+        lines.push(if graph[key].scripts.is_empty() {
+            format!("{task} (skipped: no such script)")
+        } else {
+            task
+        });
     }
     lines.join("\n")
 }
@@ -455,6 +442,39 @@ where
     pub on_task_skipped: &'a Skip,
 }
 
+pub struct ScheduleGraphOptions<'a, Run, Skip> {
+    pub concurrency: usize,
+    pub bail: bool,
+    pub continue_on_failure: bool,
+    pub run_node: &'a Run,
+    pub on_node_skipped: &'a Skip,
+}
+
+pub struct ScheduleGraphAsyncOptions<'a, Run, Skip> {
+    pub concurrency: usize,
+    pub bail: bool,
+    pub continue_on_failure: bool,
+    pub run_node: &'a Run,
+    pub on_node_skipped: &'a Skip,
+}
+
+impl<'a, Run, Skip> ScheduleGraphAsyncOptions<'a, Run, Skip> {
+    pub fn new(
+        concurrency: usize,
+        bail: bool,
+        run_node: &'a Run,
+        on_node_skipped: &'a Skip,
+    ) -> Self {
+        Self { concurrency, bail, continue_on_failure: false, run_node, on_node_skipped }
+    }
+
+    #[must_use]
+    pub fn continue_on_failure(mut self, continue_on_failure: bool) -> Self {
+        self.continue_on_failure = continue_on_failure;
+        self
+    }
+}
+
 struct SchedulerState {
     ready: VecDeque<usize>,
     pending_dependencies: Vec<usize>,
@@ -477,16 +497,64 @@ where
     Run: Fn(&TaskNode) -> TaskCompletion + Sync,
     Skip: Fn(&TaskNode) + Sync,
 {
+    let dependencies: IndexMap<TaskKey, Vec<TaskKey>> =
+        graph.iter().map(|(key, node)| (key.clone(), node.dependencies.clone())).collect();
+    let run_node = |key: TaskKey| {
+        let node = &graph[&key];
+        if node.scripts.is_empty() {
+            (options.on_task_skipped)(node);
+            TaskCompletion::Passed
+        } else {
+            (options.run_task)(node)
+        }
+    };
+    let on_node_skipped = |key: &TaskKey| (options.on_task_skipped)(&graph[key]);
+    schedule_graph(
+        &dependencies,
+        &ScheduleGraphOptions {
+            concurrency: options.concurrency,
+            bail: options.bail,
+            continue_on_failure: false,
+            run_node: &run_node,
+            on_node_skipped: &on_node_skipped,
+        },
+    )
+    .expect("failed to start a task scheduler worker");
+}
+
+/// Dispatch graph nodes as soon as every dependency settles under the
+/// configured failure policy. Cyclic edges are broken according to the graph
+/// sequencer's deterministic order.
+pub fn schedule_graph<Node, Run, Skip>(
+    graph: &IndexMap<Node, Vec<Node>>,
+    options: &ScheduleGraphOptions<'_, Run, Skip>,
+) -> Result<(), std::io::Error>
+where
+    Node: Clone + Eq + std::hash::Hash + Sync,
+    Run: Fn(Node) -> TaskCompletion + Sync,
+    Skip: Fn(&Node) + Sync,
+{
     if graph.is_empty() {
-        return;
+        return Ok(());
     }
-    let index_of: HashMap<&TaskKey, usize> =
+    let included: Vec<Node> = graph.keys().cloned().collect();
+    let edges: HashMap<Node, Vec<Node>> =
+        graph.iter().map(|(node, dependencies)| (node.clone(), dependencies.clone())).collect();
+    let order = graph_sequencer(&edges, &included).order;
+    let order_index: HashMap<&Node, usize> =
+        order.iter().enumerate().map(|(index, node)| (node, index)).collect();
+    let index_of: HashMap<&Node, usize> =
         graph.keys().enumerate().map(|(index, key)| (key, index)).collect();
     let mut dependents: Vec<Vec<usize>> = vec![Vec::new(); graph.len()];
     let mut pending_dependencies: Vec<usize> = vec![0; graph.len()];
-    for (index, node) in graph.values().enumerate() {
-        pending_dependencies[index] = node.dependencies.len();
-        for dependency in &node.dependencies {
+    for (index, (node, dependencies)) in graph.iter().enumerate() {
+        let dependencies = dependencies.iter().filter(|dependency| {
+            order_index
+                .get(*dependency)
+                .is_some_and(|dependency_index| *dependency_index < order_index[node])
+        });
+        for dependency in dependencies {
+            pending_dependencies[index] += 1;
             dependents[index_of[dependency]].push(index);
         }
     }
@@ -529,84 +597,176 @@ where
                 state.blocked[dependent] = true;
                 state.settled[dependent] = true;
                 state.unsettled -= 1;
-                (options.on_task_skipped)(&graph[dependent]);
+                (options.on_node_skipped)(
+                    graph.get_index(dependent).expect("graph index exists").0,
+                );
                 stack.push(dependent);
             }
         }
     };
 
-    // Pass-through tasks are settled inline by whichever worker pops them,
-    // so only tasks with scripts need a worker of their own.
-    let script_tasks = graph.values().filter(|node| !node.scripts.is_empty()).count();
-    let workers = options.concurrency.max(1).min(script_tasks.max(1));
-    std::thread::scope(|scope| {
+    let workers = options.concurrency.max(1).min(graph.len());
+    std::thread::scope(|scope| -> Result<(), std::io::Error> {
         for _ in 0..workers {
-            std::thread::Builder::new()
-                .spawn_scoped(scope, || {
-                    let mut guard =
-                        state.lock().expect("task scheduler state lock is not poisoned");
-                    loop {
-                        if guard.stop_dispatch {
-                            if guard.in_flight == 0 {
-                                progress.notify_all();
-                                return;
-                            }
-                            guard = progress
-                                .wait(guard)
-                                .expect("task scheduler state lock is not poisoned");
-                            continue;
-                        }
-                        let Some(index) = guard.ready.pop_front() else {
-                            if guard.unsettled == 0 {
-                                progress.notify_all();
-                                return;
-                            }
-                            guard = progress
-                                .wait(guard)
-                                .expect("task scheduler state lock is not poisoned");
-                            continue;
-                        };
-                        let node = &graph[index];
-                        if node.scripts.is_empty() {
-                            (options.on_task_skipped)(node);
-                            complete(&mut guard, index);
+            std::thread::Builder::new().spawn_scoped(scope, || {
+                let mut guard = state.lock().expect("task scheduler state lock is not poisoned");
+                loop {
+                    if guard.stop_dispatch {
+                        if guard.in_flight == 0 {
                             progress.notify_all();
-                            continue;
+                            return;
                         }
-                        guard.in_flight += 1;
-                        drop(guard);
-                        // A panic in `run_task` must not strand the other
-                        // workers: without this guard they would wait forever
-                        // on a Condvar nobody signals, and `thread::scope`
-                        // would never finish joining them.
-                        let panic_guard = AbortOnUnwind { state: &state, progress: &progress };
-                        let completion = (options.run_task)(node);
-                        drop(panic_guard);
-                        guard = state.lock().expect("task scheduler state lock is not poisoned");
-                        guard.in_flight -= 1;
-                        match completion {
-                            TaskCompletion::Passed => complete(&mut guard, index),
-                            TaskCompletion::Failed => {
-                                guard.settled[index] = true;
-                                guard.unsettled -= 1;
-                                if options.bail {
-                                    guard.stop_dispatch = true;
-                                } else {
-                                    block(&mut guard, index);
-                                }
-                            }
-                            TaskCompletion::Aborted => {
+                        guard = progress
+                            .wait(guard)
+                            .expect("task scheduler state lock is not poisoned");
+                        continue;
+                    }
+                    let Some(index) = guard.ready.pop_front() else {
+                        if guard.unsettled == 0 {
+                            progress.notify_all();
+                            return;
+                        }
+                        guard = progress
+                            .wait(guard)
+                            .expect("task scheduler state lock is not poisoned");
+                        continue;
+                    };
+                    let node = graph.get_index(index).expect("graph index exists").0.clone();
+                    guard.in_flight += 1;
+                    drop(guard);
+                    // A panic in `run_task` must not strand the other
+                    // workers: without this guard they would wait forever
+                    // on a Condvar nobody signals, and `thread::scope`
+                    // would never finish joining them.
+                    let panic_guard = AbortOnUnwind { state: &state, progress: &progress };
+                    let completion = (options.run_node)(node);
+                    drop(panic_guard);
+                    guard = state.lock().expect("task scheduler state lock is not poisoned");
+                    guard.in_flight -= 1;
+                    match completion {
+                        TaskCompletion::Passed => complete(&mut guard, index),
+                        TaskCompletion::Failed => {
+                            if options.bail {
                                 guard.settled[index] = true;
                                 guard.unsettled -= 1;
                                 guard.stop_dispatch = true;
+                            } else if options.continue_on_failure {
+                                complete(&mut guard, index);
+                            } else {
+                                guard.settled[index] = true;
+                                guard.unsettled -= 1;
+                                block(&mut guard, index);
                             }
                         }
-                        progress.notify_all();
+                        TaskCompletion::Aborted => {
+                            guard.settled[index] = true;
+                            guard.unsettled -= 1;
+                            guard.stop_dispatch = true;
+                        }
                     }
-                })
-                .expect("failed to start a task scheduler worker");
+                    progress.notify_all();
+                }
+            })?;
         }
-    });
+        Ok(())
+    })
+}
+
+/// Async counterpart of [`schedule_graph`], used by command pipelines whose
+/// per-project work is itself asynchronous.
+pub async fn schedule_graph_async<Node, Run, Skip, Fut>(
+    graph: &IndexMap<Node, Vec<Node>>,
+    options: &ScheduleGraphAsyncOptions<'_, Run, Skip>,
+) where
+    Node: Clone + Eq + std::hash::Hash + Send + Sync,
+    Run: Fn(Node) -> Fut + Sync,
+    Skip: Fn(&Node) + Sync,
+    Fut: std::future::Future<Output = TaskCompletion> + Send,
+{
+    if graph.is_empty() {
+        return;
+    }
+    let included: Vec<Node> = graph.keys().cloned().collect();
+    let edges: HashMap<Node, Vec<Node>> =
+        graph.iter().map(|(node, dependencies)| (node.clone(), dependencies.clone())).collect();
+    let order = graph_sequencer(&edges, &included).order;
+    let order_index: HashMap<&Node, usize> =
+        order.iter().enumerate().map(|(index, node)| (node, index)).collect();
+    let index_of: HashMap<&Node, usize> =
+        graph.keys().enumerate().map(|(index, key)| (key, index)).collect();
+    let mut dependents = vec![Vec::new(); graph.len()];
+    let mut pending_dependencies = vec![0_usize; graph.len()];
+    for (index, (node, dependencies)) in graph.iter().enumerate() {
+        for dependency in dependencies.iter().filter(|dependency| {
+            order_index
+                .get(*dependency)
+                .is_some_and(|dependency_index| *dependency_index < order_index[node])
+        }) {
+            pending_dependencies[index] += 1;
+            dependents[index_of[dependency]].push(index);
+        }
+    }
+    let mut ready: VecDeque<usize> = pending_dependencies
+        .iter()
+        .enumerate()
+        .filter(|(_, pending)| **pending == 0)
+        .map(|(index, _)| index)
+        .collect();
+    let mut blocked = vec![false; graph.len()];
+    let mut settled = vec![false; graph.len()];
+    let mut in_flight = FuturesUnordered::new();
+    let mut stop_dispatch = false;
+    let mut unsettled = graph.len();
+    let concurrency = options.concurrency.max(1);
+
+    while unsettled > 0 && (!stop_dispatch || !in_flight.is_empty()) {
+        while !stop_dispatch && in_flight.len() < concurrency {
+            let Some(index) = ready.pop_front() else { break };
+            let node = graph.get_index(index).expect("graph index exists").0.clone();
+            let future = (options.run_node)(node);
+            in_flight.push(async move { (index, future.await) });
+        }
+        let Some((index, completion)) = in_flight.next().await else { break };
+        settled[index] = true;
+        unsettled -= 1;
+        match completion {
+            TaskCompletion::Passed => {
+                for &dependent in &dependents[index] {
+                    pending_dependencies[dependent] -= 1;
+                    if pending_dependencies[dependent] == 0 && !blocked[dependent] {
+                        ready.push_back(dependent);
+                    }
+                }
+            }
+            TaskCompletion::Failed if options.bail => stop_dispatch = true,
+            TaskCompletion::Aborted => stop_dispatch = true,
+            TaskCompletion::Failed if options.continue_on_failure => {
+                for &dependent in &dependents[index] {
+                    pending_dependencies[dependent] -= 1;
+                    if pending_dependencies[dependent] == 0 && !blocked[dependent] {
+                        ready.push_back(dependent);
+                    }
+                }
+            }
+            TaskCompletion::Failed => {
+                let mut stack = vec![index];
+                while let Some(failed) = stack.pop() {
+                    for &dependent in &dependents[failed] {
+                        if blocked[dependent] || settled[dependent] {
+                            continue;
+                        }
+                        blocked[dependent] = true;
+                        settled[dependent] = true;
+                        unsettled -= 1;
+                        (options.on_node_skipped)(
+                            graph.get_index(dependent).expect("graph index exists").0,
+                        );
+                        stack.push(dependent);
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Settles a panicking worker's in-flight slot and stops dispatch, so the

@@ -14,9 +14,9 @@ import { logger } from '@pnpm/logger'
 import { createExportableManifest, type ExportedManifest, readReadmeFile } from '@pnpm/releasing.exportable-manifest'
 import { changelogStorage, readPendingChangelog, renderChangelog } from '@pnpm/releasing.versioning'
 import type { DependencyManifest, Project, ProjectManifest, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
-import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
+import { filteredProjectsDependencies } from '@pnpm/workspace.projects-sorter'
+import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 import chalk from 'chalk'
-import pLimit from 'p-limit'
 import { pick } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 import { renderHelp } from 'render-help'
@@ -178,14 +178,13 @@ export async function handler (opts: PackOptions): Promise<string> {
       })
     }
 
-    const chunks = sortFilteredProjects({
+    const projectDependencies = filteredProjectsDependencies({
       selectedProjectsGraph,
       allProjectsGraph: opts.allProjectsGraph,
       prodAllProjectsGraph: opts.prodAllProjectsGraph,
       prodOnlySelectedProjectDirs: opts.prodOnlySelectedProjectDirs,
     })
 
-    const limitPack = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
     const resolvedOpts = { ...opts }
     if (opts.out) {
       resolvedOpts.out = path.resolve(opts.dir, opts.out)
@@ -194,20 +193,28 @@ export async function handler (opts: PackOptions): Promise<string> {
     } else {
       resolvedOpts.packDestination = path.resolve(opts.dir)
     }
-    for (const chunk of chunks) {
-      // eslint-disable-next-line no-await-in-loop
-      await Promise.all(chunk.map(pkgDir =>
-        limitPack(async () => {
-          if (!packedPkgDirs.has(pkgDir)) return
+    let firstError: unknown
+    await scheduleGraph(projectDependencies, {
+      bail: true,
+      concurrency: getWorkspaceConcurrency(opts.workspaceConcurrency),
+      runNode: async (pkgDir): Promise<TaskCompletion> => {
+        try {
+          if (!packedPkgDirs.has(pkgDir)) return 'passed'
           const pkg = selectedProjectsGraph[pkgDir].package
           const packResult = await api({
             ...resolvedOpts,
             dir: pkg.rootDir,
           })
           packedPackages.push(toPackResultJson(packResult))
-        })
-      ))
-    }
+          return 'passed'
+        } catch (error: unknown) {
+          firstError ??= error
+          return 'aborted'
+        }
+      },
+      onNodeSkipped: () => {},
+    })
+    if (firstError != null) throw firstError
   } else {
     const packResult = await api(opts)
     packedPackages.push(toPackResultJson(packResult))

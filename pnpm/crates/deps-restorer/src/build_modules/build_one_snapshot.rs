@@ -11,8 +11,8 @@ use super::{
     slot_carries_overlay, store_index_key_for_resolution,
 };
 
-/// Per-snapshot build work, called once per chunk member by the
-/// bounded-parallelism `par_iter().try_for_each(...)` dispatch in
+/// Per-snapshot build work, called once per ready node by the
+/// bounded-parallelism scheduler in
 /// [`crate::build_modules::BuildModules::run`].
 #[expect(
     clippy::too_many_arguments,
@@ -142,7 +142,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     // `None` when the cache gate can't fire (no engine, no graph,
     // etc.); both downstream consumers short-circuit on `None`.
     //
-    // The `deps_state_cache` is shared across all chunk members via
+    // The `deps_state_cache` is shared across all scheduled nodes via
     // `Mutex` because `calc_dep_state` is recursive and memoizes —
     // a per-task cache would defeat the memoization for
     // diamond-shaped subgraphs.

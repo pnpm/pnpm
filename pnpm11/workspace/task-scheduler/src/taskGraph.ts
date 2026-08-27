@@ -115,20 +115,19 @@ export interface SequenceTasksOptions {
   /**
    * The `ignoreWorkspaceCycles` setting: the workspace has declared its
    * cycles deliberate, so a cyclic task graph is downgraded from an error
-   * to a warning, the edges among a cycle's members are dropped, and the
-   * members run in an arbitrary order relative to each other.
+   * to a warning, backward edges are dropped, and the members run in the
+   * graph sequencer's deterministic order.
    */
   ignoreCycles?: boolean
 }
 
 /**
- * Topologically sequences the task graph into ready-together groups —
- * dependencies always in an earlier group — throwing when the tasks form a
- * cycle (unless `ignoreCycles` tolerates it, which mutates the graph's
- * edges acyclic). Detection is scoped to this graph: a cycle among tasks
- * the filter did not select cannot fail the run.
+ * Topologically orders the task graph, throwing when the tasks form a cycle
+ * unless `ignoreCycles` tolerates it and mutates the graph's edges acyclic.
+ * Detection is scoped to this graph: a cycle among tasks the filter did not
+ * select cannot fail the run.
  */
-export function sequenceTasks (graph: TaskGraph, opts: SequenceTasksOptions): TaskKey[][] {
+export function sequenceTasks (graph: TaskGraph, opts: SequenceTasksOptions): TaskKey[] {
   const edges = new Map<TaskKey, TaskKey[]>()
   for (const [key, node] of graph) {
     edges.set(key, node.dependencies)
@@ -144,27 +143,20 @@ export function sequenceTasks (graph: TaskGraph, opts: SequenceTasksOptions): Ta
       })
     }
     globalWarn(`The tasks form a dependency cycle and run in an arbitrary order relative to each other because ignoreWorkspaceCycles is set: ${cycles}`)
-    dropCyclicDependencies(graph, result.chunks)
+    dropCyclicDependencies(graph, result.order)
   }
-  return result.chunks
+  return result.order
 }
 
 /**
- * Keeps only the dependencies the group assignment proved acyclic: an edge
- * into the same group is part of a cycle (an acyclic edge always crosses
- * into an earlier group), so a cycle's members end up running concurrently,
- * ordered against everything outside the cycle but not each other.
+ * Keeps only dependencies that point backward in the sequencer's order,
+ * making an ignored cyclic graph deterministic and schedulable.
  */
-function dropCyclicDependencies (graph: TaskGraph, groups: TaskKey[][]): void {
-  const groupIndex = new Map<TaskKey, number>()
-  for (const [index, group] of groups.entries()) {
-    for (const key of group) {
-      groupIndex.set(key, index)
-    }
-  }
+function dropCyclicDependencies (graph: TaskGraph, order: TaskKey[]): void {
+  const orderIndex = new Map(order.map((key, index) => [key, index]))
   for (const [key, node] of graph) {
     node.dependencies = node.dependencies.filter(
-      (dependency) => groupIndex.get(dependency)! < groupIndex.get(key)!
+      (dependency) => orderIndex.get(dependency)! < orderIndex.get(key)!
     )
   }
 }
@@ -242,7 +234,7 @@ export function resumeTaskGraphFrom (graph: TaskGraph, opts: ResumeTaskGraphOpti
  * `sequencedTasks` is {@link sequenceTasks}'s result — the proof the graph is
  * acyclic, and the evaluation order for the longest-chain scan.
  */
-export function isSerialTaskGraph (graph: TaskGraph, sequencedTasks: TaskKey[][]): boolean {
+export function isSerialTaskGraph (graph: TaskGraph, sequencedTasks: TaskKey[]): boolean {
   let scriptTaskCount = 0
   for (const node of graph.values()) {
     if (node.scripts.length > 1) return false
@@ -251,17 +243,15 @@ export function isSerialTaskGraph (graph: TaskGraph, sequencedTasks: TaskKey[][]
   if (scriptTaskCount <= 1) return true
   const chainLength = new Map<TaskKey, number>()
   let longestChain = 0
-  for (const group of sequencedTasks) {
-    for (const key of group) {
-      const node = graph.get(key)!
-      let viaDependencies = 0
-      for (const dependency of node.dependencies) {
-        viaDependencies = Math.max(viaDependencies, chainLength.get(dependency) ?? 0)
-      }
-      const length = viaDependencies + node.scripts.length
-      chainLength.set(key, length)
-      longestChain = Math.max(longestChain, length)
+  for (const key of sequencedTasks) {
+    const node = graph.get(key)!
+    let viaDependencies = 0
+    for (const dependency of node.dependencies) {
+      viaDependencies = Math.max(viaDependencies, chainLength.get(dependency) ?? 0)
     }
+    const length = viaDependencies + node.scripts.length
+    chainLength.set(key, length)
+    longestChain = Math.max(longestChain, length)
   }
   return longestChain === scriptTaskCount
 }
@@ -311,16 +301,11 @@ function compareTaskIds (left: DryRunTaskDependency, right: DryRunTaskDependency
  * tasks are broken by project directory, so two dry runs of one workspace
  * print the same thing and their diff is meaningful.
  */
-export function renderTaskGraphDryRun (graph: TaskGraph, sequencedTasks: TaskKey[][], workspaceDir: string): string {
-  const lines: string[] = []
-  for (const group of sequencedTasks) {
-    const nodes = group.map((key) => graph.get(key)!)
-    nodes.sort((left, right) => lexCompare(left.project, right.project) || lexCompare(left.taskName, right.taskName))
-    for (const node of nodes) {
-      lines.push(node.scripts.length === 0
-        ? `${formatTask(node, workspaceDir)} (skipped: no such script)`
-        : formatTask(node, workspaceDir))
-    }
-  }
-  return lines.join('\n')
+export function renderTaskGraphDryRun (graph: TaskGraph, sequencedTasks: TaskKey[], workspaceDir: string): string {
+  return sequencedTasks.map((key) => {
+    const node = graph.get(key)!
+    return node.scripts.length === 0
+      ? `${formatTask(node, workspaceDir)} (skipped: no such script)`
+      : formatTask(node, workspaceDir)
+  }).join('\n')
 }

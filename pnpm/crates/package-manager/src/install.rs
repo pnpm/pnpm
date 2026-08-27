@@ -62,7 +62,7 @@ mod workspace_state;
 
 use apply_materialization::{ApplyMaterializationInputs, apply_materialization_result};
 use lifecycle::{
-    dev_preinstall_already_ran, load_workspace_projects, order_project_lifecycle_groups,
+    dev_preinstall_already_ran, load_workspace_projects, project_lifecycle_graph,
     run_dev_preinstall, run_projects_lifecycle_scripts,
 };
 pub(crate) use lockfile_freshness::{
@@ -228,7 +228,7 @@ pub type DepsRequiringBuildSink = Arc<std::sync::Mutex<Option<BTreeSet<String>>>
 
 pub struct WorkspaceInstallSelection<'a> {
     pub all_projects: &'a [pnpm_workspace::Project],
-    pub ordered_groups: &'a [Vec<PathBuf>],
+    pub project_dependencies: &'a indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
     pub ordered_dirs: &'a [PathBuf],
     /// Projects chosen by the original filter. Manifest mutations stay
     /// scoped to these projects.
@@ -634,9 +634,9 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     ProjectBinLink(#[error(source)] LinkBinsError),
 
-    #[display("Failed to create the workspace lifecycle thread pool: {_0}")]
+    #[display("Failed to create the workspace lifecycle scheduler: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_LIFECYCLE_THREAD_POOL))]
-    ProjectLifecycleThreadPool(#[error(source)] rayon::ThreadPoolBuildError),
+    ProjectLifecycleThreadPool(#[error(source)] std::io::Error),
 
     #[display("Unable to determine lifecycle order for workspace projects: {projects}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_LIFECYCLE_ORDER))]

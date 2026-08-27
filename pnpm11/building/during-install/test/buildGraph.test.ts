@@ -1,9 +1,9 @@
 import { expect, test } from '@jest/globals'
 
-import { buildSequence } from '../lib/buildSequence.js'
+import { buildGraph } from '../lib/buildGraph.js'
 
-test('buildSequence() test 1', () => {
-  const chunks = buildSequence({
+test('buildGraph() test 1', () => {
+  const graph = buildGraph({
     '/a/1.0.0': {
       children: {
         c: '/c/1.0.0',
@@ -21,14 +21,15 @@ test('buildSequence() test 1', () => {
       requiresBuild: true,
     },
   }, ['/a/1.0.0', '/b/1.0.0'])
-  expect(chunks).toStrictEqual([
-    ['/c/1.0.0'],
-    ['/a/1.0.0', '/b/1.0.0'],
-  ])
+  expect(graph).toStrictEqual(new Map([
+    ['/c/1.0.0', []],
+    ['/a/1.0.0', ['/c/1.0.0']],
+    ['/b/1.0.0', ['/c/1.0.0']],
+  ]))
 })
 
-test('buildSequence() test 2', () => {
-  const chunks = buildSequence({
+test('buildGraph() test 2', () => {
+  const graph = buildGraph({
     '/a/1.0.0': {
       children: {
         c: '/c/1.0.0',
@@ -45,14 +46,14 @@ test('buildSequence() test 2', () => {
       requiresBuild: true,
     },
   }, ['/a/1.0.0', '/b/1.0.0'])
-  expect(chunks).toStrictEqual([
-    ['/c/1.0.0'],
-    ['/a/1.0.0'],
-  ])
+  expect(graph).toStrictEqual(new Map([
+    ['/c/1.0.0', []],
+    ['/a/1.0.0', ['/c/1.0.0']],
+  ]))
 })
 
-test('buildSequence() test 3', () => {
-  const chunks = buildSequence({
+test('buildGraph() test 3', () => {
+  const graph = buildGraph({
     '/a/1.0.0': {
       children: {
         c: '/c/1.0.0',
@@ -75,9 +76,10 @@ test('buildSequence() test 3', () => {
       requiresBuild: true,
     },
   }, ['/a/1.0.0', '/b/1.0.0'])
-  expect(chunks).toStrictEqual([
-    ['/c/1.0.0'],
-    ['/a/1.0.0', '/d/1.0.0'],
-    ['/b/1.0.0'],
-  ])
+  expect(graph).toStrictEqual(new Map([
+    ['/c/1.0.0', []],
+    ['/a/1.0.0', ['/c/1.0.0']],
+    ['/d/1.0.0', ['/c/1.0.0']],
+    ['/b/1.0.0', ['/d/1.0.0']],
+  ]))
 })

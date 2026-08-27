@@ -12,8 +12,8 @@ use crate::cli_args::{
     catalogs::configured_catalogs,
     install::resolve_bool_override,
     recursive::{
-        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
-        sort_filtered_projects,
+        AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
+        select_recursive_projects,
     },
 };
 use clap::Args;
@@ -25,6 +25,10 @@ use pnpm_pack::{
     Host, PackError, PackOptions, PackResultJson, api, format_pack_output, to_pack_result_json,
 };
 use pnpm_reporter::Reporter;
+use pnpm_workspace_task_scheduler::{
+    ScheduleGraphAsyncOptions, TaskCompletion, schedule_graph_async,
+};
+use std::sync::Mutex;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -133,7 +137,7 @@ impl PackArgs {
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let graph = &selection.selected;
-        let chunks = sort_filtered_projects(
+        let project_dependencies = filtered_projects_dependencies(
             graph,
             selection.full_graph(),
             selection.prod_all.as_ref(),
@@ -154,10 +158,17 @@ impl PackArgs {
                 |error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"),
             )?;
 
-        let mut packed: Vec<PackResultJson> = Vec::new();
-        for chunk in &chunks {
-            for root in chunk {
-                let project = graph[root].package.project;
+        let packed: Mutex<Vec<PackResultJson>> = Mutex::new(Vec::new());
+        let first_error: Mutex<Option<miette::Report>> = Mutex::new(None);
+        let run_node = |root: PathBuf| {
+            let catalogs = catalogs.clone();
+            let out = out.clone();
+            let pack_destination = pack_destination.clone();
+            let before_packing_hooks = before_packing_hooks.clone();
+            let packed = &packed;
+            let first_error = &first_error;
+            async move {
+                let project = graph[&root].package.project;
                 let manifest = project.manifest.value();
                 let has_name = manifest
                     .get("name")
@@ -168,7 +179,7 @@ impl PackArgs {
                     .and_then(|version| version.as_str())
                     .is_some_and(|version| !version.is_empty());
                 if !has_name || !has_version {
-                    continue;
+                    return TaskCompletion::Passed;
                 }
                 let mut options = self.pack_options(
                     project.root_dir.clone(),
@@ -178,14 +189,47 @@ impl PackArgs {
                     pack_destination.clone(),
                     before_packing_hooks.clone(),
                 );
-                set_injected_changelog(&mut options, config, &project.root_dir).await?;
-                let result = api::<Reporter, Host>(&options)
-                    .await
-                    .map_err(miette::Report::new)
-                    .wrap_err_with(|| format!("pack {}", project.root_dir.display()))?;
-                packed.push(to_pack_result_json(&result));
+                let result = async {
+                    set_injected_changelog(&mut options, config, &project.root_dir).await?;
+                    api::<Reporter, Host>(&options)
+                        .await
+                        .map_err(miette::Report::new)
+                        .wrap_err_with(|| format!("pack {}", project.root_dir.display()))
+                }
+                .await;
+                match result {
+                    Ok(result) => {
+                        packed
+                            .lock()
+                            .expect("packed results lock is not poisoned")
+                            .push(to_pack_result_json(&result));
+                        TaskCompletion::Passed
+                    }
+                    Err(error) => {
+                        first_error
+                            .lock()
+                            .expect("pack error lock is not poisoned")
+                            .get_or_insert(error);
+                        TaskCompletion::Failed
+                    }
+                }
             }
+        };
+        let on_node_skipped: fn(&PathBuf) = |_| {};
+        schedule_graph_async(
+            &project_dependencies,
+            &ScheduleGraphAsyncOptions::new(
+                usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1),
+                true,
+                &run_node,
+                &on_node_skipped,
+            ),
+        )
+        .await;
+        if let Some(error) = first_error.into_inner().expect("pack error lock is not poisoned") {
+            return Err(error);
         }
+        let packed = packed.into_inner().expect("packed results lock is not poisoned");
 
         if packed.is_empty() {
             tracing::info!(

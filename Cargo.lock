@@ -4706,6 +4706,7 @@ dependencies = [
  "pnpm-tarball",
  "pnpm-testing-utils",
  "pnpm-workspace",
+ "pnpm-workspace-task-scheduler",
  "pretty_assertions",
  "rayon",
  "reflink-copy",
@@ -5136,7 +5137,6 @@ dependencies = [
  "node-semver",
  "pipe-trait",
  "pnpm-catalogs-types",
- "pnpm-deps-restorer",
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-package-manifest",
@@ -5147,6 +5147,7 @@ dependencies = [
  "pnpm-store-dir",
  "pnpm-tarball",
  "pnpm-workspace-projects-graph",
+ "pnpm-workspace-task-scheduler",
  "project-root",
  "serde_json",
  "ssri",
@@ -5387,8 +5388,8 @@ dependencies = [
  "pnpm-workspace-range-resolver",
  "pnpm-workspace-spec",
  "pnpm-workspace-state",
+ "pnpm-workspace-task-scheduler",
  "pretty_assertions",
- "rayon",
  "reflink-copy",
  "rustc-hash 2.1.2",
  "serde",
@@ -5970,14 +5971,16 @@ name = "pnpm-workspace-task-scheduler"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "futures-util",
  "indexmap 2.14.0",
  "miette 7.6.0",
  "pnpm-config",
- "pnpm-deps-restorer",
  "pnpm-fs",
  "pnpm-reporter",
+ "pretty_assertions",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

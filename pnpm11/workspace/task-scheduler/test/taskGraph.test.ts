@@ -72,11 +72,11 @@ test('a project without the script becomes a pass-through node that keeps the ch
   expect(passThrough.dependencies).toStrictEqual([taskKey(dir('c'), 'build')])
   expect(graph.get(taskKey(dir('a'), 'build'))!.dependencies).toStrictEqual([taskKey(dir('b'), 'build')])
 
-  const groups = sequenceTasks(graph, { workspaceDir: WORKSPACE_DIR })
-  expect(groups).toStrictEqual([
-    [taskKey(dir('c'), 'build')],
-    [taskKey(dir('b'), 'build')],
-    [taskKey(dir('a'), 'build')],
+  const order = sequenceTasks(graph, { workspaceDir: WORKSPACE_DIR })
+  expect(order).toStrictEqual([
+    taskKey(dir('c'), 'build'),
+    taskKey(dir('b'), 'build'),
+    taskKey(dir('a'), 'build'),
   ])
 })
 
@@ -255,7 +255,7 @@ test('a script named like an Object prototype member gets the default dependsOn'
   }
 })
 
-test('ignored cycles are downgraded and their edges dropped', () => {
+test('ignored cycles are downgraded and their backward edges dropped', () => {
   const graph = buildGraph({
     a: { dependencies: ['b'], scripts: ['build'] },
     b: { dependencies: ['a'], scripts: ['build'] },
@@ -263,10 +263,10 @@ test('ignored cycles are downgraded and their edges dropped', () => {
   }, 'build')
 
   expect(() => sequenceTasks(graph, { workspaceDir: WORKSPACE_DIR, ignoreCycles: true })).not.toThrow()
-  // The cycle members lost their mutual edges and may run concurrently; the
-  // task outside the cycle still waits for its dependency.
+  // The backward cycle edge is dropped while the forward edge preserves a
+  // deterministic order; the task outside the cycle still waits.
   expect(graph.get(taskKey(dir('a'), 'build'))!.dependencies).toStrictEqual([])
-  expect(graph.get(taskKey(dir('b'), 'build'))!.dependencies).toStrictEqual([])
+  expect(graph.get(taskKey(dir('b'), 'build'))!.dependencies).toStrictEqual([taskKey(dir('a'), 'build')])
   expect(graph.get(taskKey(dir('c'), 'build'))!.dependencies).toStrictEqual([taskKey(dir('a'), 'build')])
 })
 
