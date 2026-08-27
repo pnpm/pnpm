@@ -1,8 +1,10 @@
 import { expect, jest, test } from '@jest/globals'
 import { isPackageManagerResolved } from '@pnpm/installing.env-installer'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
+import type { ProjectManifest } from '@pnpm/types'
 
-const resolveManifestDependencies = jest.fn<() => Promise<LockfileObject>>()
+const resolveManifestDependencies =
+  jest.fn<(manifest: ProjectManifest, opts: unknown) => Promise<LockfileObject>>()
 jest.unstable_mockModule('../src/resolveManifestDependencies.js', () => ({
   resolveManifestDependencies,
 }))
@@ -32,6 +34,15 @@ test('an env lockfile pinning another pnpm version is not resolved', () => {
 // or Artifactory-style mirror) must still yield integrity-only
 // package-manager entries, or the bootstrap validation rejects them.
 // See https://github.com/pnpm/pnpm/issues/13619.
+test('an entry recording the wanted version under a stale specifier is not resolved', () => {
+  // Changing an exact pin to a range that still includes the recorded version
+  // leaves the version alone but not the specifier, so the entry still has to
+  // be rewritten.
+  const lockfile = envLockfile({ pnpm: '12.0.0' })
+  expect(isPackageManagerResolved(lockfile, '12.0.0')).toBe(true)
+  expect(isPackageManagerResolved(lockfile, '12.0.0', '^12.0.0')).toBe(false)
+})
+
 test('registry tarball URLs are dropped from package-manager resolutions; file:, git-hosted, and subdir tarballs are kept', async () => {
   resolveManifestDependencies.mockResolvedValueOnce({
     lockfileVersion: '9.0',
@@ -205,6 +216,38 @@ test('an in-memory resolution is performed under frozenLockfile', async () => {
 
   expect(result.importers['.'].packageManagerDependencies).toEqual({
     pnpm: { specifier: '12.0.0', version: '12.0.0' },
+  })
+})
+
+test('a range pin records the range it asked for, not the version it resolved to', async () => {
+  resolveManifestDependencies.mockResolvedValueOnce({
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        specifiers: { pnpm: '^12.0.0' },
+        dependencies: { pnpm: '12.0.0' },
+      },
+    },
+    packages: {
+      'pnpm@12.0.0': { resolution: { integrity: 'sha512-pnpm' } },
+    },
+  } as unknown as LockfileObject)
+
+  const result = await resolvePackageManagerIntegrities('12.0.0', {
+    registriesByScope: { default: 'https://mirror.example.com/' },
+    rootDir: '/repo',
+    storeController: {} as never,
+    storeDir: '/store',
+    save: false,
+    specifier: '^12.0.0',
+  })
+
+  expect(resolveManifestDependencies).toHaveBeenCalledWith(
+    { dependencies: { pnpm: '^12.0.0' } },
+    expect.anything()
+  )
+  expect(result.importers['.'].packageManagerDependencies).toEqual({
+    pnpm: { specifier: '^12.0.0', version: '12.0.0' },
   })
 })
 
