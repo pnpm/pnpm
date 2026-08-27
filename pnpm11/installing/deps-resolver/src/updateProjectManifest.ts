@@ -86,7 +86,7 @@ export async function updateProjectManifest (
  *
  * An override that repeats the declared range verbatim governs it just the
  * same, so a hook that rewrote nothing is recognized through
- * `overriddenDependencyNames` rather than by comparing the two manifests.
+ * `isOverriddenDependency` rather than by comparing the two manifests.
  *
  * A dependency this run names with a specifier of its own (`pnpm add foo@2`)
  * is exempt: that request is the manifest's new specifier.
@@ -100,7 +100,7 @@ function getDeclaredSpecifierOwnedByHook (
   if (hookedSpecifier === '' || hookedSpecifier !== rdd.wantedDependency?.bareSpecifier) return undefined
   const declaredSpecifier = getSpecFromPackageManifest(importer.originalManifest, rdd.alias)
   if (declaredSpecifier === '') return undefined
-  return declaredSpecifier !== hookedSpecifier || importer.overriddenDependencyNames?.has(rdd.alias) === true
+  return declaredSpecifier !== hookedSpecifier || importer.isOverriddenDependency?.(rdd.alias, declaredSpecifier) === true
     ? declaredSpecifier
     : undefined
 }

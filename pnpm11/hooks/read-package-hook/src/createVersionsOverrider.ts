@@ -63,16 +63,25 @@ export function createDependencyOverrider (
 export type OverridableManifest = Pick<ProjectManifest, 'name' | 'version' | DependenciesOrPeersField>
 
 /**
- * The names of a manifest's declared dependencies that an override claims —
- * whether or not it rewrites their specifier text.
+ * Whether an override claims a dependency declared as `bareSpecifier` —
+ * whether or not it rewrites the text. The specifier is part of the question:
+ * a range-scoped override (`foo@^2`) claims one declaration of `foo` and not
+ * another, so an alias alone cannot answer it.
+ */
+export type OverriddenDependencyMatcher = (alias: string, bareSpecifier: string) => boolean
+
+/**
+ * Builds an {@link OverriddenDependencyMatcher} for a manifest, so the
+ * parent-scoped overrides that manifest answers to are selected once rather
+ * than per dependency.
  *
  * `undefined` when no override could claim anything, so a caller with no
- * overrides configured skips the walk.
+ * overrides configured skips the work.
  */
-export function createOverriddenDependencyFinder (
+export function createOverriddenDependencyMatcher (
   overrides: VersionOverrideWithoutRawSelector[],
   rootDir: string
-): ((manifest: OverridableManifest) => Set<string>) | undefined {
+): ((manifest: OverridableManifest) => OverriddenDependencyMatcher) | undefined {
   const { versionOverrides, genericVersionOverrides, convergeVersions } = splitOverrides(overrides, rootDir)
   if (versionOverrides.length === 0 && genericVersionOverrides.length === 0 && convergeVersions.size === 0) {
     return undefined
@@ -82,18 +91,9 @@ export function createOverriddenDependencyFinder (
       versionOverrides: pickOverridesOfParent(versionOverrides, manifest),
       genericVersionOverrides,
     }
-    const overridden = new Set<string>()
-    for (const depsField of DEPENDENCIES_OR_PEER_FIELDS) {
-      for (const [name, bareSpecifier] of Object.entries(manifest[depsField] ?? {})) {
-        if (
-          pickVersionOverride(overridesForManifest, name, bareSpecifier) != null ||
-          convergeBareSpecifier(convergeVersions, name, bareSpecifier) != null
-        ) {
-          overridden.add(name)
-        }
-      }
-    }
-    return overridden
+    return (alias, bareSpecifier) =>
+      pickVersionOverride(overridesForManifest, alias, bareSpecifier) != null ||
+      convergeBareSpecifier(convergeVersions, alias, bareSpecifier) != null
   }
 }
 

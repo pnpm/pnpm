@@ -1,5 +1,5 @@
 ---
-"@pnpm/hooks.read-package-hook": patch
+"@pnpm/hooks.read-package-hook": minor
 "@pnpm/installing.deps-installer": patch
 "@pnpm/installing.deps-resolver": patch
 "pacquet": patch

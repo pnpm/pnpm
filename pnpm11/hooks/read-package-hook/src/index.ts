@@ -1,2 +1,2 @@
 export { createReadPackageHook, getEffectivePackageExtensions } from './createReadPackageHook.js'
-export { createDependencyOverrider, createOverriddenDependencyFinder, type DependencyOverrider } from './createVersionsOverrider.js'
+export { createDependencyOverrider, createOverriddenDependencyMatcher, type DependencyOverrider, type OverriddenDependencyMatcher } from './createVersionsOverrider.js'

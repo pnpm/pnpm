@@ -3,7 +3,7 @@ import path from 'node:path'
 import { describe, expect, test } from '@jest/globals'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 
-import { createDependencyOverrider, createOverriddenDependencyFinder, createVersionsOverrider } from '../src/createVersionsOverrider.js'
+import { createDependencyOverrider, createOverriddenDependencyMatcher, createVersionsOverrider } from '../src/createVersionsOverrider.js'
 
 test('createVersionsOverrider() matches sub-ranges', () => {
   const overrider = createVersionsOverrider([
@@ -978,56 +978,45 @@ describe('createDependencyOverrider()', () => {
   })
 })
 
-describe('createOverriddenDependencyFinder()', () => {
-  test('reports a dependency an override repeats verbatim', () => {
-    const findOverriddenDependencies = createOverriddenDependencyFinder(
+describe('createOverriddenDependencyMatcher()', () => {
+  test('claims a dependency an override repeats verbatim, and no other', () => {
+    const isOverridden = createOverriddenDependencyMatcher(
       parseOverrides({ foo: '^1.0.0' }, {}),
       process.cwd()
-    )!
-    expect(findOverriddenDependencies({
-      dependencies: { foo: '^1.0.0', bar: '^1.0.0' },
-    })).toStrictEqual(new Set(['foo']))
+    )!({})
+    expect(isOverridden('foo', '^1.0.0')).toBe(true)
+    expect(isOverridden('bar', '^1.0.0')).toBe(false)
   })
 
-  test('skips an override whose selector cannot claim the declared range', () => {
-    const findOverriddenDependencies = createOverriddenDependencyFinder(
+  test('answers per declared range, so a range-scoped override claims only the declaration it matches', () => {
+    const isOverridden = createOverriddenDependencyMatcher(
       parseOverrides({ 'foo@^2.0.0': '2.1.0' }, {}),
       process.cwd()
-    )!
-    expect(findOverriddenDependencies({ dependencies: { foo: '^1.0.0' } })).toStrictEqual(new Set())
-    expect(findOverriddenDependencies({ dependencies: { foo: '^2.0.0' } })).toStrictEqual(new Set(['foo']))
+    )!({})
+    expect(isOverridden('foo', '^1.0.0')).toBe(false)
+    expect(isOverridden('foo', '^2.0.0')).toBe(true)
   })
 
   test('scopes a parent-qualified override to the project it names', () => {
-    const findOverriddenDependencies = createOverriddenDependencyFinder(
+    const matcherFor = createOverriddenDependencyMatcher(
       parseOverrides({ 'parent>foo': '1.0.0' }, {}),
       process.cwd()
     )!
-    expect(findOverriddenDependencies({
-      name: 'parent',
-      version: '1.0.0',
-      devDependencies: { foo: '^1.0.0' },
-    })).toStrictEqual(new Set(['foo']))
-    expect(findOverriddenDependencies({
-      name: 'other',
-      version: '1.0.0',
-      devDependencies: { foo: '^1.0.0' },
-    })).toStrictEqual(new Set())
+    expect(matcherFor({ name: 'parent', version: '1.0.0' })('foo', '^1.0.0')).toBe(true)
+    expect(matcherFor({ name: 'other', version: '1.0.0' })('foo', '^1.0.0')).toBe(false)
   })
 
-  test('reports a dependency a convergence override can move, and no others', () => {
-    const findOverriddenDependencies = createOverriddenDependencyFinder(
+  test('claims a dependency a convergence override can move, and no others', () => {
+    const isOverridden = createOverriddenDependencyMatcher(
       parseOverrides({ 'foo@': '1.5.0' }, {}),
       process.cwd()
-    )!
-    expect(findOverriddenDependencies({
-      dependencies: { foo: '^1.0.0' },
-      peerDependencies: { bar: '^1.0.0' },
-    })).toStrictEqual(new Set(['foo']))
-    expect(findOverriddenDependencies({ dependencies: { foo: '^2.0.0' } })).toStrictEqual(new Set())
+    )!({})
+    expect(isOverridden('foo', '^1.0.0')).toBe(true)
+    expect(isOverridden('foo', '^2.0.0')).toBe(false)
+    expect(isOverridden('bar', '^1.0.0')).toBe(false)
   })
 
   test('is undefined when no override could claim anything', () => {
-    expect(createOverriddenDependencyFinder([], process.cwd())).toBeUndefined()
+    expect(createOverriddenDependencyMatcher([], process.cwd())).toBeUndefined()
   })
 })

@@ -1,6 +1,6 @@
 //! Moving an update's declared ranges onto the versions it resolved.
 
-use crate::VersionsOverrider;
+use crate::{OverriddenDependencyMatcher, VersionsOverrider};
 use node_semver::Range;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_lockfile::{
@@ -74,11 +74,11 @@ pub(crate) struct OverriddenDeclarations<'a> {
     pub importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
 }
 
-impl OverriddenDeclarations<'_> {
-    fn governs(&self, importer_id: &str, alias: &str, declared: &str) -> bool {
-        self.importer_manifests.get(importer_id).is_some_and(|manifest| {
-            self.overrider.overrides_dependency(manifest.value(), alias, declared)
-        })
+impl<'a> OverriddenDeclarations<'a> {
+    fn matcher_for(&self, importer_id: &str) -> Option<OverriddenDependencyMatcher<'a>> {
+        self.importer_manifests
+            .get(importer_id)
+            .map(|manifest| self.overrider.dependency_matcher(manifest.value()))
     }
 }
 
@@ -101,6 +101,8 @@ pub(crate) fn apply_manifest_spec_bumps(
 
     for (importer_id, targets) in &bumps.targets {
         let Some(importer) = lockfile.importers.get(importer_id) else { continue };
+        let override_matcher =
+            overridden.and_then(|overridden| overridden.matcher_for(importer_id));
         for (alias, (manifest_group, manifest_specifier)) in targets {
             // An override — or another manifest hook — governs this entry, so
             // the version the run resolved answers the override rather than
@@ -110,9 +112,10 @@ pub(crate) fn apply_manifest_spec_bumps(
             // that repeats the declaration verbatim rewrites nothing, which
             // is why the text comparison below cannot stand in for this
             // (pnpm/pnpm#14224).
-            if overridden.is_some_and(|overridden| {
-                overridden.governs(importer_id, alias, manifest_specifier)
-            }) {
+            if override_matcher
+                .as_ref()
+                .is_some_and(|matcher| matcher.matches(alias, manifest_specifier))
+            {
                 continue;
             }
             let Ok(alias) = PkgName::parse(alias.as_str()) else { continue };
