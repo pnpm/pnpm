@@ -118,6 +118,7 @@ pub async fn exec_recursive(
             let node = TaskNode {
                 project: project.clone(),
                 task_name: command_name.clone(),
+                concurrency: None,
                 scripts: vec![command_name.clone()],
                 requested: true,
                 dependencies: dependencies

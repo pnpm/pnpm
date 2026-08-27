@@ -2884,7 +2884,7 @@ fn parses_a_valid_tasks_section_and_applies_it() {
         concat!(
             "packages:\n  - packages/*\n",
             "tasks:\n",
-            "  build:\n    dependsOn: ['^build']\n",
+            "  build:\n    concurrency: 2\n    dependsOn: ['^build']\n",
             "  test:\n    dependsOn: ['build']\n",
             "  lint: {}\n",
         ),
@@ -2902,6 +2902,7 @@ fn parses_a_valid_tasks_section_and_applies_it() {
         config.tasks.get("build").unwrap().depends_on.as_deref(),
         Some(&["^build".to_string()][..]),
     );
+    assert_eq!(config.tasks.get("build").unwrap().concurrency, Some(2));
     assert_eq!(
         config.tasks.get("test").unwrap().depends_on.as_deref(),
         Some(&["build".to_string()][..]),
@@ -2921,7 +2922,6 @@ fn rejects_an_unknown_task_setting_field() {
     .unwrap();
 
     let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
-    dbg!(&error);
     assert!(matches!(
         error,
         LoadWorkspaceYamlError::UnknownTaskSettingField { ref task, ref field }
@@ -2939,10 +2939,77 @@ fn rejects_a_depends_on_entry_with_no_task_name() {
     .unwrap();
 
     let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
-    dbg!(&error);
     assert!(matches!(
         error,
         LoadWorkspaceYamlError::EmptyTaskDependsOnEntry { ref task, ref entry }
             if task == "build" && entry == "^"
+    ));
+}
+
+#[test]
+fn rejects_zero_task_concurrency() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    concurrency: 0\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+    assert!(matches!(
+        error,
+        LoadWorkspaceYamlError::InvalidTaskConcurrency { ref task, ref concurrency }
+            if task == "build" && concurrency == "0"
+    ));
+}
+
+#[test]
+fn rejects_negative_task_concurrency() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    concurrency: -1\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+    assert!(matches!(
+        error,
+        LoadWorkspaceYamlError::InvalidTaskConcurrency { ref task, ref concurrency }
+            if task == "build" && concurrency == "-1"
+    ));
+}
+
+#[test]
+fn rejects_fractional_task_concurrency_as_an_invalid_setting() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    concurrency: 1.5\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+    assert!(matches!(
+        error,
+        LoadWorkspaceYamlError::InvalidTaskConcurrency { ref task, ref concurrency }
+            if task == "build" && concurrency == "1.5"
+    ));
+}
+
+#[test]
+fn rejects_string_task_concurrency_as_an_invalid_setting() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    concurrency: '2'\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+    assert!(matches!(
+        error,
+        LoadWorkspaceYamlError::InvalidTaskConcurrency { ref task, ref concurrency }
+            if task == "build" && concurrency == r#""2""#
     ));
 }

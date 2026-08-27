@@ -144,6 +144,49 @@ test('a task with an explicitly empty dependsOn starts without waiting for anyth
   expect(server.getLines()).toStrictEqual(['dependent', 'dependency'])
 })
 
+test('a task concurrency limit applies across workspace projects', async () => {
+  preparePackages(['project-a', 'project-b', 'project-c'].map((name) => ({
+    name,
+    version: '1.0.0',
+    scripts: {
+      build: `node ../concurrency-probe.cjs ${name}`,
+    },
+  })))
+  fs.writeFileSync(path.join(process.cwd(), 'concurrency-probe.cjs'), `const fs = require('fs')
+const path = require('path')
+const lock = path.join(__dirname, 'build-active')
+let ownsLock = false
+try {
+  fs.mkdirSync(lock)
+  ownsLock = true
+} catch (error) {
+  if (error.code !== 'EEXIST') throw error
+  fs.writeFileSync(path.join(__dirname, 'exceeded-task-concurrency'), '')
+}
+setTimeout(() => {
+  if (ownsLock) fs.rmdirSync(lock)
+  fs.writeFileSync(path.join(__dirname, 'ran-' + process.argv[2]), '')
+}, 200)
+`)
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    tasks: {
+      build: { concurrency: 1 },
+    },
+    workspaceConcurrency: 4,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  expect(fs.existsSync(path.join(process.cwd(), 'exceeded-task-concurrency'))).toBe(false)
+  for (const name of ['project-a', 'project-b', 'project-c']) {
+    expect(fs.existsSync(path.join(process.cwd(), `ran-${name}`))).toBe(true)
+  }
+})
+
 test('a project without the script is reported skipped and does not sever the chain', async () => {
   await using server = await createTestIpcServer()
 

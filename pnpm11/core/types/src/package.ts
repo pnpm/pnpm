@@ -246,6 +246,7 @@ export interface WorkspaceTasks {
 }
 
 export interface WorkspaceTaskSettings {
+  concurrency?: number
   /**
    * The tasks that must complete before this one may start. A `^name` entry
    * names the task in each of the project's workspace dependencies; a bare

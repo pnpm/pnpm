@@ -61,7 +61,7 @@ export async function scheduleTasks (graph: TaskGraph, opts: ScheduleTasksOption
   for (const [key, node] of graph) {
     dependencies.set(key, node.dependencies)
   }
-  await scheduleGraph(dependencies, {
+  await scheduleGraphWithConcurrencyLimits(dependencies, {
     bail: opts.bail,
     finishInFlight: false,
     runNode: async (key) => {
@@ -73,6 +73,11 @@ export async function scheduleTasks (graph: TaskGraph, opts: ScheduleTasksOption
       return opts.runTask(node, key)
     },
     onNodeSkipped: (key) => opts.onTaskSkipped(graph.get(key)!, key),
+  }, (key) => {
+    const node = graph.get(key)!
+    return node.concurrency == null || node.scripts.length === 0
+      ? undefined
+      : { group: node.taskName, limit: normalizeConcurrency(node.concurrency) }
   })
 }
 
@@ -86,6 +91,26 @@ export async function scheduleGraph<Node> (
   graph: DependencyGraph<Node>,
   opts: ScheduleGraphOptions<Node>
 ): Promise<void> {
+  await scheduleGraphWithConcurrencyLimits(graph, opts)
+}
+
+interface ConcurrencyLimit {
+  group: string
+  limit: number
+}
+
+interface ConcurrencyGroup<Node> {
+  limit: number
+  reserved: number
+  waiting: Node[]
+  waitingHead: number
+}
+
+async function scheduleGraphWithConcurrencyLimits<Node> (
+  graph: DependencyGraph<Node>,
+  opts: ScheduleGraphOptions<Node>,
+  concurrencyLimit?: (node: Node) => ConcurrencyLimit | undefined
+): Promise<void> {
   // A rejection violates runTask's contract; held here so the run still
   // fails with it rather than silently resolving. First error wins: a
   // rejection landing only after something else already stopped the run is
@@ -97,6 +122,8 @@ export async function scheduleGraph<Node> (
   const pendingDependencyCount = new Map<Node, number>()
   const dependents = new Map<Node, Node[]>()
   const ready: Node[] = []
+  const nodeConcurrencyGroups = new Map<Node, string>()
+  const concurrencyGroups = new Map<string, ConcurrencyGroup<Node>>()
   const order = graphSequencer(graph).order
   const orderIndex = new Map(order.map((node, index) => [node, index]))
   for (const [node, dependencies] of graph) {
@@ -104,9 +131,6 @@ export async function scheduleGraph<Node> (
       (dependency) => orderIndex.get(dependency)! < orderIndex.get(node)!
     )
     pendingDependencyCount.set(node, orderedDependencies.length)
-    if (orderedDependencies.length === 0) {
-      ready.push(node)
-    }
     for (const dependency of orderedDependencies) {
       let list = dependents.get(dependency)
       if (list == null) {
@@ -118,6 +142,45 @@ export async function scheduleGraph<Node> (
   const blocked = new Set<Node>()
   let stopDispatch = false
   let unsettled = graph.size
+
+  const makeReady = (node: Node): void => {
+    const concurrency = concurrencyLimit?.(node)
+    if (concurrency == null) {
+      ready.push(node)
+      return
+    }
+    nodeConcurrencyGroups.set(node, concurrency.group)
+    let group = concurrencyGroups.get(concurrency.group)
+    if (group == null) {
+      concurrencyGroups.set(concurrency.group, group = {
+        limit: concurrency.limit,
+        reserved: 0,
+        waiting: [],
+        waitingHead: 0,
+      })
+    }
+    if (group.reserved < group.limit) {
+      group.reserved++
+      ready.push(node)
+    } else {
+      group.waiting.push(node)
+    }
+  }
+
+  const releaseConcurrency = (node: Node): void => {
+    const groupName = nodeConcurrencyGroups.get(node)
+    if (groupName == null) return
+    const group = concurrencyGroups.get(groupName)!
+    group.reserved--
+    if (group.waitingHead < group.waiting.length) {
+      group.reserved++
+      ready.push(group.waiting[group.waitingHead++])
+    }
+  }
+
+  for (const [node, count] of pendingDependencyCount) {
+    if (count === 0) makeReady(node)
+  }
 
   await new Promise<void>((resolve) => {
     const settleIfDone = (): void => {
@@ -134,7 +197,7 @@ export async function scheduleGraph<Node> (
         const remaining = pendingDependencyCount.get(dependent)! - 1
         pendingDependencyCount.set(dependent, remaining)
         if (remaining === 0 && !blocked.has(dependent)) {
-          ready.push(dependent)
+          makeReady(dependent)
         }
       }
     }
@@ -190,10 +253,12 @@ export async function scheduleGraph<Node> (
         active++
         opts.runNode(node).then((completion) => {
           active--
+          releaseConcurrency(node)
           settle(node, completion)
           pump()
         }, (error: unknown) => {
           active--
+          releaseConcurrency(node)
           // runTask's contract is to never reject; treated as an abort, and
           // the error resurfaces once the scheduler settles.
           if (!rejected) {
