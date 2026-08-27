@@ -38,6 +38,7 @@ use std::collections::BTreeMap;
 ///   callers.
 /// * `q=` is a *fallback*: when both `text` and `q` are present
 ///   `text` wins regardless of order.
+#[must_use]
 pub fn parse_query(query_string: &str) -> Option<String> {
     let mut fallback: Option<String> = None;
     for pair in query_string.split('&') {
@@ -58,6 +59,7 @@ pub fn parse_query(query_string: &str) -> Option<String> {
 }
 
 /// `size=` URL param; bounded the same way npm bounds it (1..=250).
+#[must_use]
 pub fn parse_size(query_string: &str, default_size: usize) -> usize {
     for pair in query_string.split('&') {
         if let Some((key, value)) = pair.split_once('=')
@@ -161,7 +163,8 @@ fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
 /// Decode a percent-encoded query value. ASCII-oriented: multi-byte UTF-8
 /// sequences decode byte-by-byte, which is lossless for the ASCII values
 /// (package names, numbers) the query parsers here feed it.
-pub(crate) fn percent_decode(input: &str) -> String {
+#[must_use]
+pub fn percent_decode(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     let mut bytes = input.bytes();
     while let Some(byte) = bytes.next() {

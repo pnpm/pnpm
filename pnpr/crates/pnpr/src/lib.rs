@@ -7,11 +7,8 @@
 //!
 //! See <https://github.com/pnpm/pnpm> for the parent project.
 
-mod osv;
 mod resolver;
-mod search;
 mod server;
-mod shared_artifacts;
 
 pub use pnpr_auth::{
     AuthState, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend, UserStore,

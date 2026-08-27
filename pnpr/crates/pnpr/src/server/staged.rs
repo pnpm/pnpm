@@ -29,9 +29,9 @@ use super::{
     commit_publishes, json_response, not_found, private_no_cache, resolve_write_target,
     stage_publish, validate_publish_doc,
 };
-use crate::search::percent_decode;
 use pnpr_error::RegistryError;
 use pnpr_package_name::PackageName;
+use pnpr_search::percent_decode;
 use pnpr_storage::publish::{extract_attachments, now_iso};
 
 /// One staged publish's metadata, stored next to the held publish body and

@@ -123,7 +123,7 @@ struct AppInner {
     resolver: std::sync::OnceLock<crate::resolver::Resolver>,
     /// Local OSV index, loaded before the server accepts requests when
     /// `osv.enabled` is set and a mounted surface consults it.
-    osv_index: Option<Arc<crate::osv::OsvIndex>>,
+    osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -231,9 +231,9 @@ pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> pnpr_error::
 /// both mounted surfaces disabled rejected earlier, that means any
 /// enabled `osv` config now applies to the resolver, the registry, or
 /// both.
-fn load_active_osv_index(config: &Config) -> pnpr_error::Result<Option<Arc<crate::osv::OsvIndex>>> {
+fn load_active_osv_index(config: &Config) -> pnpr_error::Result<Option<Arc<pnpr_osv::OsvIndex>>> {
     if config.resolver.enabled || config.registry.enabled {
-        crate::osv::load_osv_index(config)
+        pnpr_osv::load_osv_index(config)
     } else {
         Ok(None)
     }
@@ -2256,14 +2256,14 @@ async fn serve_search(
             .body(Body::from(bytes))
             .expect("static-shape response always builds")
     };
-    let Some(text) = crate::search::parse_query(query_string) else {
+    let Some(text) = pnpr_search::parse_query(query_string) else {
         return result(Vec::new());
     };
     let Some(registry) = registry.map(str::to_string).or_else(|| default_registry_target(state))
     else {
         return result(Vec::new());
     };
-    let size = crate::search::parse_size(query_string, 20);
+    let size = pnpr_search::parse_size(query_string, 20);
     let mut objects: Vec<Value> = Vec::new();
     for source in hosted_search_sources(state, &registry) {
         if objects.len() >= size {
@@ -2291,7 +2291,7 @@ async fn serve_search(
                 RegistrySource::Hosted(resolved) if resolved == source,
             ) && matches!(hosted_gate(state, identity, &source, name), HostedGate::Allowed(_))
         };
-        match crate::search::run_local_search(&storage, &text, size - objects.len(), keep).await {
+        match pnpr_search::run_local_search(&storage, &text, size - objects.len(), keep).await {
             Ok(mut entries) => objects.append(&mut entries),
             Err(err) => return err.into_response(),
         }
@@ -2475,7 +2475,7 @@ fn packument_response(
     bytes: &[u8],
     tarball_base: &str,
     revision_registry: Option<&str>,
-    osv_index: Option<&Arc<crate::osv::OsvIndex>>,
+    osv_index: Option<&Arc<pnpr_osv::OsvIndex>>,
     abbreviated: bool,
 ) -> Result<Response, RegistryError> {
     let mut doc: Value = serde_json::from_slice(bytes)?;
@@ -2499,7 +2499,7 @@ fn packument_response(
 fn filter_osv_vulnerable_versions(
     packument: &mut Value,
     name: &PackageName,
-    osv_index: Option<&Arc<crate::osv::OsvIndex>>,
+    osv_index: Option<&Arc<pnpr_osv::OsvIndex>>,
 ) {
     let Some(osv_index) = osv_index else { return };
     let package_name = name.as_str();
@@ -2545,7 +2545,7 @@ fn filter_osv_vulnerable_dist_tags(
     tags: &mut Value,
     packument: &Value,
     name: &PackageName,
-    osv_index: Option<&Arc<crate::osv::OsvIndex>>,
+    osv_index: Option<&Arc<pnpr_osv::OsvIndex>>,
 ) {
     let Some(osv_index) = osv_index else { return };
     let Some(tags) = tags.as_object_mut() else {
@@ -2563,7 +2563,7 @@ fn is_osv_vulnerable_packument_version(
     packument: &Value,
     package_name: &str,
     version: &str,
-    osv_index: &crate::osv::OsvIndex,
+    osv_index: &pnpr_osv::OsvIndex,
 ) -> bool {
     if osv_index.is_vulnerable(package_name, version) {
         return true;
@@ -2601,7 +2601,7 @@ fn ensure_osv_allowed(
     Err(RegistryError::OsvVulnerability {
         package: name.as_str().to_string(),
         version: version.to_string(),
-        advisories: crate::osv::format_advisory_ids(&ids),
+        advisories: pnpr_osv::format_advisory_ids(&ids),
     })
 }
 
@@ -2750,17 +2750,13 @@ async fn serve_publish_artifact(
         Ok(username) => username,
         Err(err) => return private_no_cache(err.into_response()),
     };
-    let request = match crate::shared_artifacts::parse_publish(&body) {
+    let request = match pnpr_shared_artifacts::parse_publish(&body) {
         Ok(request) => request,
         Err(err) => return private_no_cache(err.into_response()),
     };
     private_no_cache(
-        match crate::shared_artifacts::publish(
-            &state.inner.config.cache_storage,
-            &username,
-            request,
-        )
-        .await
+        match pnpr_shared_artifacts::publish(&state.inner.config.cache_storage, &username, request)
+            .await
         {
             Ok(true) => StatusCode::CREATED.into_response(),
             Ok(false) => StatusCode::OK.into_response(),
@@ -2779,7 +2775,7 @@ async fn serve_resolve_artifacts(
         Err(err) => return private_no_cache(err.into_response()),
     };
     private_no_cache(
-        match crate::shared_artifacts::resolve(&state.inner.config.cache_storage, &username, &body)
+        match pnpr_shared_artifacts::resolve(&state.inner.config.cache_storage, &username, &body)
             .await
         {
             Ok(response) => (StatusCode::OK, axum::Json(response)).into_response(),
@@ -2801,7 +2797,7 @@ async fn serve_artifact_blob(
         .acquire_owned()
         .await
         .expect("the artifact blob verification semaphore is never closed");
-    match crate::shared_artifacts::read_blob(&state.inner.config.cache_storage, &username, &body)
+    match pnpr_shared_artifacts::read_blob(&state.inner.config.cache_storage, &username, &body)
         .await
     {
         Ok(Some((file, size))) => Response::builder()

@@ -14,7 +14,7 @@ use pnpm_resolving_resolver_base::{
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-use crate::Config;
+use pnpr_config::Config;
 use pnpr_error::RegistryError;
 
 const OSV_POLICY_KEY: &str = "osvNpmDatabase";
@@ -44,7 +44,7 @@ const MAX_RANGES_PER_AFFECTED: usize = 10_000;
 const MAX_EVENTS_PER_RANGE: usize = 10_000;
 
 #[derive(Debug)]
-pub(crate) struct OsvIndex {
+pub struct OsvIndex {
     packages: HashMap<String, Vec<Advisory>>,
     fingerprint: String,
 }
@@ -90,7 +90,8 @@ impl OsvIndex {
         )))
     }
 
-    pub(crate) fn policy(&self) -> serde_json::Map<String, serde_json::Value> {
+    #[must_use]
+    pub fn policy(&self) -> serde_json::Map<String, serde_json::Value> {
         let mut policy = serde_json::Map::new();
         policy.insert(
             OSV_POLICY_KEY.to_string(),
@@ -99,15 +100,14 @@ impl OsvIndex {
         policy
     }
 
-    pub(crate) fn can_trust_policy(
-        &self,
-        policy: &serde_json::Map<String, serde_json::Value>,
-    ) -> bool {
+    #[must_use]
+    pub fn can_trust_policy(&self, policy: &serde_json::Map<String, serde_json::Value>) -> bool {
         policy.get(OSV_POLICY_KEY).and_then(serde_json::Value::as_str)
             == Some(self.fingerprint.as_str())
     }
 
-    pub(crate) fn is_vulnerable(&self, name: &str, version: &str) -> bool {
+    #[must_use]
+    pub fn is_vulnerable(&self, name: &str, version: &str) -> bool {
         let Some(advisories) = self.advisories(name) else {
             return false;
         };
@@ -115,7 +115,8 @@ impl OsvIndex {
         advisories.iter().any(|advisory| advisory.affects(version, parsed.as_ref()))
     }
 
-    pub(crate) fn vulnerability_ids(&self, name: &str, version: &str) -> Vec<String> {
+    #[must_use]
+    pub fn vulnerability_ids(&self, name: &str, version: &str) -> Vec<String> {
         let Some(advisories) = self.advisories(name) else {
             return Vec::new();
         };
@@ -285,7 +286,7 @@ struct OsvEvent {
     limit: Option<String>,
 }
 
-pub(crate) fn load_osv_index(config: &Config) -> Result<Option<Arc<OsvIndex>>, RegistryError> {
+pub fn load_osv_index(config: &Config) -> Result<Option<Arc<OsvIndex>>, RegistryError> {
     OsvIndex::load_from_config(config)
 }
 
@@ -571,7 +572,8 @@ fn parse_osv_version(raw: &str) -> Option<Version> {
 /// Join advisory ids for a human-facing reason, capped so a package that
 /// matches a huge number of advisories can't inflate response or log
 /// payloads (which feed NDJSON frames and error messages).
-pub(crate) fn format_advisory_ids(ids: &[String]) -> String {
+#[must_use]
+pub fn format_advisory_ids(ids: &[String]) -> String {
     const MAX: usize = 20;
     if ids.len() <= MAX {
         return ids.join(", ");
