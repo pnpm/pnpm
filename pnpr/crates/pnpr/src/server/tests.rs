@@ -3,7 +3,7 @@ use super::{
     authentication::{
         bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows, is_write_method,
     },
-    original_integrity, router_with_auth, token_timestamp_millis,
+    original_integrity, router_with_auth, tilde_registry, token_timestamp_millis,
 };
 use async_trait::async_trait;
 use axum::{
@@ -578,4 +578,20 @@ fn packument_last_modified_formats_the_documents_modified_time() {
         super::packument_last_modified(&serde_json::json!({"time": {"modified": "not-a-date"}}),),
         None,
     );
+}
+
+/// Every `/~<name>/` route reads its segment through this, so the two edges
+/// are worth stating once: a bare `~` names no registry and must read as an
+/// ordinary segment rather than as an empty name, and a `~` anywhere but the
+/// front is part of a package name.
+#[test]
+fn tilde_registry_names_a_registry_only_for_a_leading_tilde_and_a_name() {
+    assert_eq!(tilde_registry("~corp"), Some("corp"));
+    assert_eq!(tilde_registry("~a"), Some("a"));
+
+    assert_eq!(tilde_registry("~"), None, "a bare tilde names no registry");
+    assert_eq!(tilde_registry("corp"), None);
+    assert_eq!(tilde_registry(""), None);
+    assert_eq!(tilde_registry("pkg~name"), None, "a tilde inside a name is part of it");
+    assert_eq!(tilde_registry("@scope/pkg"), None);
 }

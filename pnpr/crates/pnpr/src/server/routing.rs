@@ -38,7 +38,8 @@ use super::{
     serve_publish_artifact, serve_registry_packument, serve_registry_tarball,
     serve_registry_version_manifest, serve_resolve, serve_resolve_artifacts,
     serve_revision_tarball, serve_search, serve_tarball, serve_verify_lockfile,
-    serve_version_manifest, set_dist_tag, staged, update_packument, upstream_tarball_base,
+    serve_version_manifest, set_dist_tag, staged, tilde_registry, update_packument,
+    upstream_tarball_base,
 };
 
 pub(super) fn router_with_auth_and_osv(
@@ -324,7 +325,7 @@ async fn get_two_segments(
     // `/~<name>/<pkg>` — unscoped packument through a registry endpoint. The
     // tarball base is the client's `/~<name>/` URL so the rewritten URLs stay
     // canonical for the registry the client actually addressed.
-    if let Some(registry) = first.strip_prefix('~').filter(|registry| !registry.is_empty()) {
+    if let Some(registry) = tilde_registry(&first) {
         let base = upstream_tarball_base(&state.inner.config.public_url, registry);
         return private_no_cache(
             serve_registry_packument(&state, &identity, &headers, registry, &second, &base).await,
@@ -355,7 +356,7 @@ async fn get_three_segments(
         // ACL), so they must never land in a shared HTTP cache.
         return private_no_cache(serve_search(&state, &identity, None, query).await);
     }
-    if let Some(registry) = first.strip_prefix('~').filter(|registry| !registry.is_empty()) {
+    if let Some(registry) = tilde_registry(&first) {
         // The account endpoints (whoami, adduser, logout, profile, tokens)
         // live on dedicated always-mounted routes; a `/~<name>/-/...` path
         // that still reaches this handler names no registry content.
@@ -404,7 +405,7 @@ async fn get_tarball_scoped(
     Path((scope, name, filename)): Path<(String, String, String)>,
 ) -> Response {
     // `/~<name>/<pkg>/-/<file>` — unscoped tarball through a registry endpoint.
-    if let Some(registry) = scope.strip_prefix('~').filter(|registry| !registry.is_empty()) {
+    if let Some(registry) = tilde_registry(&scope) {
         return private_no_cache(
             serve_registry_tarball(&state, &identity, registry, &name, &filename).await,
         );
@@ -440,7 +441,7 @@ async fn get_four_segments(
     if a == "-" && b == "org" && d == "team" {
         return private_no_cache(get_org_teams(&state, &identity, None, &c));
     }
-    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
+    if let Some(registry) = tilde_registry(&a) {
         if b == "-" && c == "v1" && d == "search" {
             let query = uri.query().unwrap_or("");
             return private_no_cache(serve_search(&state, &identity, Some(registry), query).await);
@@ -476,7 +477,7 @@ async fn get_five_segments(
     if a == "-" && b == "team" && e == "user" {
         return private_no_cache(get_team_members(&state, &identity, None, &c, &d));
     }
-    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
+    if let Some(registry) = tilde_registry(&a) {
         if b == "-" && c == "tarballs" && d == "sha512" {
             return serve_revision_tarball(&state, &identity, registry, &e).await;
         }
@@ -504,7 +505,7 @@ async fn get_six_segments(
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
 ) -> Response {
-    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+    if let Some(registry) = tilde_registry(&a)
         && b == "-"
         && c == "team"
         && f == "user"
@@ -539,7 +540,7 @@ async fn put_two_segments(
     body: axum::body::Bytes,
 ) -> Response {
     // `PUT /~<name>/<pkg>` — publish an unscoped package through a registry.
-    if let Some(registry) = first.strip_prefix('~').filter(|registry| !registry.is_empty()) {
+    if let Some(registry) = tilde_registry(&first) {
         return publish_package(&state, &identity, Some(registry), &second, body).await;
     }
     if first.starts_with('@') {
@@ -557,7 +558,7 @@ async fn put_three_segments(
     body: axum::body::Bytes,
 ) -> Response {
     // `PUT /~<name>/@scope/<pkg>` — publish a scoped package through a registry.
-    if let Some(registry) = first.strip_prefix('~').filter(|registry| !registry.is_empty())
+    if let Some(registry) = tilde_registry(&first)
         && second.starts_with('@')
     {
         let full = format!("{second}/{third}");
@@ -587,7 +588,7 @@ async fn put_four_segments(
     if a == "-" && b == "org" && d == "team" {
         return reject_team_mutation(&state, &identity, None, &c, "create a team");
     }
-    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+    if let Some(registry) = tilde_registry(&a)
         && c == "-rev"
     {
         let _ = d; // revision token is unused
@@ -630,7 +631,7 @@ async fn put_five_segments(
     if a == "-" && b == "team" && e == "user" {
         return reject_team_mutation(&state, &identity, None, &c, "add a team member");
     }
-    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+    if let Some(registry) = tilde_registry(&a)
         && b == "-"
         && c == "org"
         && e == "team"
@@ -651,7 +652,7 @@ async fn put_six_segments(
     Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
-    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+    if let Some(registry) = tilde_registry(&a)
         && b == "-"
     {
         if c == "package" && e == "dist-tags" {
@@ -684,7 +685,7 @@ async fn delete_four_segments(
         let _ = d; // team name — the mutation is rejected regardless
         return reject_team_mutation(&state, &identity, None, &c, "destroy a team");
     }
-    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+    if let Some(registry) = tilde_registry(&a)
         && c == "-rev"
     {
         let _ = d; // revision token is unused
@@ -712,7 +713,7 @@ async fn delete_five_segments(
     if a == "-" && b == "team" && e == "user" {
         return reject_team_mutation(&state, &identity, None, &c, "remove a team member");
     }
-    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+    if let Some(registry) = tilde_registry(&a)
         && b == "-"
         && c == "team"
     {
@@ -749,7 +750,7 @@ async fn delete_six_segments(
         let full = format!("{a}/{b}");
         return delete_tarball(&state, &identity, None, &full, &d).await;
     }
-    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
+    if let Some(registry) = tilde_registry(&a) {
         if b == "-" && c == "package" && e == "dist-tags" {
             return remove_dist_tag(&state, &identity, Some(registry), &d, &f).await;
         }
@@ -779,7 +780,7 @@ async fn delete_seven_segments(
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e, f, g)): Path<(String, String, String, String, String, String, String)>,
 ) -> Response {
-    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+    if let Some(registry) = tilde_registry(&a)
         && b.starts_with('@')
         && d == "-"
         && f == "-rev"
