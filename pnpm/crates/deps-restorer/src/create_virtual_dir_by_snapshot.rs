@@ -103,9 +103,17 @@ pub struct CreateVirtualDirBySnapshot<'a> {
 /// Error type of [`CreateVirtualDirBySnapshot`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum CreateVirtualDirError {
-    #[display("Failed to recursively create node_modules directory at {dir:?}: {error}")]
+    #[display("Failed to create node_modules directory at {dir:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CREATE_NODE_MODULES_DIR))]
     CreateNodeModulesDir {
+        dir: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
+    #[display("Failed to create virtual store slot directory at {dir:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CREATE_SLOT_DIR))]
+    CreateSlotDir {
         dir: PathBuf,
         #[error(source)]
         error: io::Error,
@@ -174,11 +182,11 @@ impl CreateVirtualDirBySnapshot<'_> {
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 fs::create_dir_all(&slot_dir).map_err(|error| {
-                    CreateVirtualDirError::CreateNodeModulesDir { dir: slot_dir.clone(), error }
+                    CreateVirtualDirError::CreateSlotDir { dir: slot_dir.clone(), error }
                 })?;
             }
             Err(error) => {
-                return Err(CreateVirtualDirError::CreateNodeModulesDir { dir: slot_dir, error });
+                return Err(CreateVirtualDirError::CreateSlotDir { dir: slot_dir, error });
             }
         }
         match fs::create_dir(&virtual_node_modules_dir) {
