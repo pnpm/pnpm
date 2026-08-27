@@ -4,6 +4,7 @@ use super::{
 };
 use crate::{
     package_manifest_prefix,
+    resolve_latest::MaturePinsGuard,
     resolution_policy::{PickPolicy, create_configured_registry_resolver},
 };
 use chrono::{DateTime, Utc};
@@ -20,7 +21,7 @@ use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_resolver_base::{
-    ResolveOptions, Resolver, UpdateBehavior, VersionSelectorType, WantedDependency,
+    PackageVersionGuard, ResolveOptions, Resolver, UpdateBehavior, VersionSelectorType, WantedDependency,
 };
 use std::sync::Arc;
 
@@ -137,6 +138,7 @@ pub(super) async fn tag_version(
         policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
             published_by: chain.published_by,
             published_by_exclude: chain.published_by_exclude.clone(),
+                package_version_guard: chain.mature_pins_guard.clone(),
             ..Default::default()
         },
         ..ResolveOptions::default()
@@ -159,6 +161,7 @@ pub(super) struct LatestResolverChain {
     resolver: DefaultResolver,
     published_by: Option<DateTime<Utc>>,
     published_by_exclude: Option<PackageVersionPolicy>,
+    mature_pins_guard: Option<Arc<dyn PackageVersionGuard>>,
 }
 pub(super) fn ensure_latest_resolver_chain<'chain>(
     chain: &'chain mut Option<LatestResolverChain>,
@@ -195,7 +198,11 @@ pub(super) fn ensure_latest_resolver_chain<'chain>(
                 ctx.config.tls.strict_ssl.unwrap_or(true),
             )),
         ]);
+        let mature_pins_guard = policy.published_by.is_some().then(|| {
+            Arc::new(MaturePinsGuard::new(ctx.config, Arc::clone(ctx.http_client_arc), policy.clone(), ctx.lockfile_only)) as Arc<dyn PackageVersionGuard>
+        });
         *chain = Some(LatestResolverChain {
+            mature_pins_guard,
             resolver,
             published_by: policy.published_by,
             published_by_exclude: policy.published_by_exclude,
@@ -262,6 +269,7 @@ impl LatestRewriteCtx<'_, '_> {
             policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
                 published_by: chain.published_by,
                 published_by_exclude: chain.published_by_exclude.clone(),
+                package_version_guard: chain.mature_pins_guard.clone(),
                 ..Default::default()
             },
             specifier: pnpm_resolving_resolver_base::ResolverSpecifierOptions {
