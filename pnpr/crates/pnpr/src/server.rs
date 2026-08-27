@@ -406,6 +406,14 @@ async fn shutdown_signal() {
 // non-`~` login path is the body cap's 413, not a 404).
 // --------------------------------------------------------------------
 
+/// The registry a `~<name>` path segment addresses, or `None` for a segment
+/// that is not one. A bare `~` names no registry, so it reads as "not a
+/// registry prefix" rather than as an empty name — every caller then treats
+/// it the way it treats `foo`.
+pub(super) fn tilde_registry(segment: &str) -> Option<&str> {
+    segment.strip_prefix('~').filter(|registry| !registry.is_empty())
+}
+
 /// The registry a request addressed through a leading `/~<name>/`, or `None`
 /// when it arrived on the path-less base.
 ///
@@ -450,9 +458,7 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for TargetRegistry 
         let Some((_, prefix)) = params.iter().find(|(name, _)| *name == "prefix") else {
             return Ok(Self(None));
         };
-        prefix
-            .strip_prefix('~')
-            .filter(|registry| !registry.is_empty())
+        tilde_registry(prefix)
             .map(|registry| Self(Some(registry.to_string())))
             .ok_or_else(|| RegistryError::NotFound.into_response())
     }
