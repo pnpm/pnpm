@@ -71,12 +71,14 @@ export type OverridableManifest = Pick<ProjectManifest, 'name' | 'version' | Dep
 export type OverriddenDependencyMatcher = (alias: string, bareSpecifier: string) => boolean
 
 /**
- * Builds an {@link OverriddenDependencyMatcher} for a manifest, so the
- * parent-scoped overrides that manifest answers to are selected once rather
- * than per dependency.
+ * Builds an {@link OverriddenDependencyMatcher} for one manifest: a
+ * `parent>child` override key is matched against that manifest's own name and
+ * version, so a project asks only about the overrides that govern its own
+ * declarations. Binding to the manifest also selects those once, rather than
+ * once per dependency asked about.
  *
- * `undefined` when no override could claim anything, so a caller with no
- * overrides configured skips the work.
+ * `undefined` when no override in the set could claim anything, so a caller
+ * with none configured skips the work entirely.
  */
 export function createOverriddenDependencyMatcher (
   overrides: VersionOverrideWithoutRawSelector[],

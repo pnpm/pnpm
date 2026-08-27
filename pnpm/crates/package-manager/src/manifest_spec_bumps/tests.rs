@@ -1,8 +1,18 @@
-use super::{ManifestSpecBumps, apply_manifest_spec_bumps, bumped_range, split_npm_alias};
+use super::{
+    ManifestSpecBumps, OverriddenDeclarations, apply_manifest_spec_bumps, bumped_range,
+    split_npm_alias,
+};
+use crate::VersionsOverrider;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config_parse_overrides::parse_overrides;
 use pnpm_lockfile::{ImporterDepVersion, Lockfile, PkgName, ResolvedDependencyMap};
-use pnpm_package_manifest::DependencyGroup;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_registry::RangeSpecStyle;
-use std::collections::{BTreeMap, HashMap};
+use serde_json::json;
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::{Path, PathBuf},
+};
 
 fn lockfile(source: &str) -> Lockfile {
     serde_saphyr::from_str(source).expect("parse lockfile")
@@ -172,4 +182,56 @@ importers:
 
     assert_eq!(specifier_of(lockfile.importers["."].dependencies.as_ref(), "foo"), "^1.0.0");
     assert!(bumps.applied.into_inner().expect("never poisoned").is_empty());
+}
+
+/// Mirrors `update moves a declaration a range-scoped override does not claim`
+/// on the TypeScript side. A range-scoped override claims one declaration of
+/// an alias and not another, so ownership is decided per declared range: the
+/// `devDependencies` entry the override matches stands, and the
+/// `dependencies` entry it does not match is still the update's to move.
+#[test]
+fn a_range_scoped_override_claims_only_the_declaration_it_matches() {
+    let overrides = parse_overrides(
+        &HashMap::from([("foo@^1.0.0".to_string(), "1.0.0".to_string())]),
+        &Catalogs::new(),
+    )
+    .expect("parse the overrides");
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+    let manifest = PackageManifest::from_value(
+        PathBuf::from("package.json"),
+        json!({
+            "name": "my-app",
+            "version": "1.0.0",
+            "dependencies": { "foo": "^100.0.0" },
+            "devDependencies": { "foo": "^1.0.0" },
+        }),
+    );
+    let importer_manifests = BTreeMap::from([(".".to_string(), &manifest)]);
+    let overridden =
+        OverriddenDeclarations { overrider: &overrider, importer_manifests: &importer_manifests };
+
+    let mut lockfile = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^100.0.0
+        version: 100.1.0
+    devDependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.1.0
+",
+    );
+
+    let unclaimed = bumps(&[("foo", DependencyGroup::Prod, "^100.0.0")]);
+    apply_manifest_spec_bumps(&mut lockfile, &unclaimed, Some(&overridden));
+    assert_eq!(specifier_of(lockfile.importers["."].dependencies.as_ref(), "foo"), "^100.1.0");
+
+    let claimed = bumps(&[("foo", DependencyGroup::Dev, "^1.0.0")]);
+    apply_manifest_spec_bumps(&mut lockfile, &claimed, Some(&overridden));
+    assert_eq!(specifier_of(lockfile.importers["."].dev_dependencies.as_ref(), "foo"), "^1.0.0");
+    assert!(claimed.applied.into_inner().expect("never poisoned").is_empty());
 }
