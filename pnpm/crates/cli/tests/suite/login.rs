@@ -125,9 +125,13 @@ fn a_workspace_yaml_scope_is_ignored_and_reported_on_stderr() {
     let login = server
         .mock("POST", "/-/v1/login")
         .with_status(200)
-        .with_body(format!(
-            r#"{{"loginUrl":"{registry}/auth/login","doneUrl":"{registry}/-/v1/done"}}"#,
-        ))
+        .with_body(
+            serde_json::json!({
+                "loginUrl": format!("{registry}/auth/login"),
+                "doneUrl": format!("{registry}/-/v1/done"),
+            })
+            .to_string(),
+        )
         .create();
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     std::fs::write(workspace.join("pnpm-workspace.yaml"), "scope: '@acme'\n")
