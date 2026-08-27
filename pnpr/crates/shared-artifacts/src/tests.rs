@@ -19,7 +19,9 @@ use pnpr_config::{HostedStoreConfig, normalize_key_prefix};
 use sha2::{Digest as _, Sha512};
 use tempfile::TempDir;
 
-use super::{ArtifactUsage, ResolveBudget, SharedArtifactStore, is_variant_file};
+use super::{
+    ArtifactUsage, ResolveBudget, SharedArtifactStore, is_variant_file, is_write_conflict,
+};
 
 #[test]
 fn resolve_budget_bounds_combined_scanned_and_serialized_bytes() {
@@ -54,6 +56,16 @@ fn variant_files_have_canonical_envelope_digest_names() {
     assert!(is_variant_file(&format!("{digest}.json")));
     assert!(!is_variant_file(&format!("{digest}.json.tmp")));
     assert!(!is_variant_file(&format!("{}.json", "A".repeat(64))));
+}
+
+#[test]
+fn missing_quota_object_writes_are_not_conflicts() {
+    let error = object_store::Error::NotFound {
+        path: "quota.json".to_string(),
+        source: std::io::Error::other("missing quota object").into(),
+    };
+
+    assert!(!is_write_conflict(&error));
 }
 
 #[tokio::test]

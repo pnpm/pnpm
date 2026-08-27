@@ -827,7 +827,7 @@ async fn artifact_capability_is_disabled_by_default() {
 }
 
 #[tokio::test]
-async fn artifact_handshake_requires_the_base_protocol() {
+async fn artifact_handshake_is_independent_from_the_resolver_protocol() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/-/pnpr")
@@ -837,11 +837,10 @@ async fn artifact_handshake_requires_the_base_protocol() {
         .create_async()
         .await;
 
-    let error = PnprClient::new(server.url())
+    PnprClient::new(server.url())
         .handshake_artifacts()
         .await
-        .expect_err("artifact capability cannot outlive its base protocol");
-    assert!(error.to_string().contains("speaks protocol versions []"));
+        .expect("artifact-only capability is supported");
     mock.assert_async().await;
 }
 

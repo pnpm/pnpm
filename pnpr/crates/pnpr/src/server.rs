@@ -22,7 +22,7 @@ use self::{
 
 use axum::{
     Router,
-    body::Body,
+    body::{Body, Bytes},
     extract::{
         FromRequestParts, Path, RawPathParams, Request, State, connect_info::Connected,
         rejection::RawPathParamsRejection,
@@ -56,7 +56,7 @@ use pnpr_upstream::{
 use serde::Deserialize;
 use serde_json::{Value, json};
 use ssri::Integrity;
-use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
+use std::{collections::HashSet, convert::Infallible, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 /// MIME the npm registry uses for the abbreviated install-v1 form.
@@ -91,8 +91,9 @@ const MAX_LOGIN_BODY_BYTES: usize = 64 * 1024;
 const MAX_ARTIFACT_PUBLISH_BODY_BYTES: usize = MAX_PUBLISH_BODY_BYTES;
 const MAX_ARTIFACT_RESOLVE_BODY_BYTES: usize = 16 * 1024 * 1024;
 const MAX_ARTIFACT_BLOB_BODY_BYTES: usize = 8 * 1024;
-/// Bound concurrent verification scans without letting slow clients retain slots.
+/// Bound concurrent verified artifact responses, including slow clients.
 const MAX_CONCURRENT_ARTIFACT_BLOB_VERIFICATIONS: usize = 4;
+const ARTIFACT_BLOB_RESPONSE_CHUNK_BYTES: usize = 64 * 1024;
 
 #[derive(Clone)]
 struct AppState {
@@ -2167,11 +2168,27 @@ async fn require_resolver_caller(
     request: Request,
     next: Next,
 ) -> Response {
-    match caller_username(&state, request.headers()).await {
+    require_protocol_caller(&state, request, next, "dependency resolution").await
+}
+
+async fn require_artifact_caller(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    require_protocol_caller(&state, request, next, "shared artifacts").await
+}
+
+async fn require_protocol_caller(
+    state: &AppState,
+    request: Request,
+    next: Next,
+    resource: &str,
+) -> Response {
+    match caller_username(state, request.headers()).await {
         Ok(Some(_username)) => next.run(request).await,
         Ok(None) => {
-            RegistryError::Unauthenticated { resource: "dependency resolution".to_string() }
-                .into_response()
+            RegistryError::Unauthenticated { resource: resource.to_string() }.into_response()
         }
         Err(error) => error.into_response(),
     }
@@ -2839,6 +2856,14 @@ async fn serve_artifact_blob(
 }
 
 fn artifact_blob_response_body(bytes: Vec<u8>, permit: OwnedSemaphorePermit) -> Body {
-    drop(permit);
-    Body::from(bytes)
+    Body::from_stream(futures_util::stream::unfold(
+        (Bytes::from(bytes), permit),
+        |(mut bytes, permit)| async move {
+            if bytes.is_empty() {
+                return None;
+            }
+            let chunk = bytes.split_to(bytes.len().min(ARTIFACT_BLOB_RESPONSE_CHUNK_BYTES));
+            Some((Ok::<_, Infallible>(chunk), (bytes, permit)))
+        },
+    ))
 }

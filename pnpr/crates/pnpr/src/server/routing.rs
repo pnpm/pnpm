@@ -33,12 +33,13 @@ use super::{
     delete_package, delete_session_token, delete_tarball, delete_token_by_key, get_dist_tags,
     get_org_teams, get_profile, get_team_members, get_token_list, get_whoami, loggable_uri,
     not_found, pnpr_protocols_disabled, private_if_caller_gated, private_no_cache, publish_package,
-    put_login, reject_team_mutation, remove_dist_tag, require_resolver_caller, serve_artifact_blob,
-    serve_batch_publish, serve_packument, serve_ping, serve_pnpr_handshake, serve_publish_artifact,
-    serve_registry_packument, serve_registry_tarball, serve_registry_version_manifest,
-    serve_resolve, serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
-    serve_verify_lockfile, serve_version_manifest, set_dist_tag, staged, tilde_registry,
-    update_packument, upstream_tarball_base,
+    put_login, reject_team_mutation, remove_dist_tag, require_artifact_caller,
+    require_resolver_caller, serve_artifact_blob, serve_batch_publish, serve_packument, serve_ping,
+    serve_pnpr_handshake, serve_publish_artifact, serve_registry_packument, serve_registry_tarball,
+    serve_registry_version_manifest, serve_resolve, serve_resolve_artifacts,
+    serve_revision_tarball, serve_search, serve_tarball, serve_verify_lockfile,
+    serve_version_manifest, set_dist_tag, staged, tilde_registry, update_packument,
+    upstream_tarball_base,
 };
 
 pub(super) fn router_with_auth_and_osv(
@@ -171,7 +172,7 @@ pub(super) fn router_with_auth_and_osv(
                     .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_PUBLISH_BODY_BYTES))
                     .route_layer(middleware::from_fn_with_state(
                         state.clone(),
-                        require_resolver_caller,
+                        require_artifact_caller,
                     )),
             )
             .route(
@@ -180,7 +181,7 @@ pub(super) fn router_with_auth_and_osv(
                     .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_RESOLVE_BODY_BYTES))
                     .route_layer(middleware::from_fn_with_state(
                         state.clone(),
-                        require_resolver_caller,
+                        require_artifact_caller,
                     )),
             )
             .route(
@@ -189,7 +190,7 @@ pub(super) fn router_with_auth_and_osv(
                     .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_BLOB_BODY_BYTES))
                     .route_layer(middleware::from_fn_with_state(
                         state.clone(),
-                        require_resolver_caller,
+                        require_artifact_caller,
                     )),
             );
     }

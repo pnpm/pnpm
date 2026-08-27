@@ -2904,6 +2904,10 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
         .await
         .unwrap();
     assert_eq!(artifact.status(), StatusCode::UNAUTHORIZED);
+    assert!(
+        String::from_utf8_lossy(&body_bytes(artifact.into_body()).await)
+            .contains("shared artifacts"),
+    );
 
     let resolve = app
         .oneshot(Request::post("/-/pnpr/v0/resolve").body(Body::from("{}")).unwrap())

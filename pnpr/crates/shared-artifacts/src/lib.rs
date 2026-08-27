@@ -531,9 +531,7 @@ fn open_lock_file(path: &Path) -> std::io::Result<File> {
 fn is_write_conflict(error: &object_store::Error) -> bool {
     matches!(
         error,
-        object_store::Error::AlreadyExists { .. }
-            | object_store::Error::Precondition { .. }
-            | object_store::Error::NotFound { .. },
+        object_store::Error::AlreadyExists { .. } | object_store::Error::Precondition { .. },
     )
 }
 
