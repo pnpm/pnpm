@@ -5312,6 +5312,21 @@ fn tar_with_raw_entry_name(name: &[u8]) -> Vec<u8> {
     tar_bytes
 }
 
+#[test]
+fn extract_strips_only_one_component_from_a_dot_prefixed_entry_path() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let tar_bytes = tar_with_raw_entry_name(b"./package/package.json");
+    let (cas_paths, pkg_files_idx) =
+        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+
+    assert_eq!(cas_paths.keys().collect::<Vec<_>>(), vec!["package/package.json"]);
+    assert_eq!(pkg_files_idx.files.keys().collect::<Vec<_>>(), vec!["package/package.json"]);
+    assert!(pkg_files_idx.manifest.is_none());
+
+    drop(tempdir);
+}
+
 /// A backslash is an ordinary filename character on Unix but a
 /// separator on Windows, and these keys travel between the two through
 /// the shared `index.db`. pnpm folds `\` to `/` before validating
