@@ -14,6 +14,19 @@ import { groupStart } from '@pnpm/log.group'
 import { globalWarn } from '@pnpm/logger'
 import type { PackageScripts, ProjectRootDir } from '@pnpm/types'
 import { filteredProjectsDependencies } from '@pnpm/workspace.projects-sorter'
+import {
+  buildTaskGraph,
+  isSerialTaskGraph,
+  renderTaskGraphDryRun,
+  resumeTaskGraphFrom,
+  reverseTaskGraph,
+  scheduleTasks,
+  sequenceTasks,
+  type TaskCompletion,
+  type TaskGraph,
+  taskGraphToJson,
+  type TaskNode,
+} from '@pnpm/workspace.task-scheduler'
 import pLimit from 'p-limit'
 import { realpathMissing } from 'realpath-missing'
 
@@ -22,19 +35,6 @@ import { existsInDir } from './existsInDir.js'
 import { throwOrFilterHiddenScripts } from './hiddenScripts.js'
 import { tryBuildRegExpFromCommand } from './regexpCommand.js'
 import { runScript, type RunScriptOptions } from './run.js'
-import {
-  buildTaskGraph,
-  isSerialTaskGraph,
-  renderTaskGraphDryRun,
-  resumeTaskGraphFrom,
-  reverseTaskGraph,
-  sequenceTasks,
-  type TaskGraph,
-  taskGraphToJson,
-  type TaskNode,
-} from './taskGraph.js'
-import { scheduleTasks, type TaskCompletion } from './taskScheduler.js'
-
 export type RecursiveRunOpts = Pick<Config,
 | 'bin'
 | 'enablePrePostScripts'

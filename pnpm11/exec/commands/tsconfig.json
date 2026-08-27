@@ -55,9 +55,6 @@
       "path": "../../crypto/hash"
     },
     {
-      "path": "../../deps/graph-sequencer"
-    },
-    {
       "path": "../../deps/status"
     },
     {
@@ -101,6 +98,9 @@
     },
     {
       "path": "../../workspace/projects-sorter"
+    },
+    {
+      "path": "../../workspace/task-scheduler"
     },
     {
       "path": "../esm-node-path-loader"

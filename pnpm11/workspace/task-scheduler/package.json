@@ -1,0 +1,55 @@
+{
+  "name": "@pnpm/workspace.task-scheduler",
+  "version": "1100.0.0",
+  "description": "Builds and schedules workspace task graphs",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "tasks",
+    "workspace"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/workspace/task-scheduler",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/workspace/task-scheduler#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "tsgo --build",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/deps.graph-sequencer": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
+    "@pnpm/types": "workspace:*"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/workspace.task-scheduler": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

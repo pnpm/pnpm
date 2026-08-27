@@ -4462,6 +4462,7 @@ dependencies = [
  "pnpm-workspace-projects-filter",
  "pnpm-workspace-projects-graph",
  "pnpm-workspace-state",
+ "pnpm-workspace-task-scheduler",
  "pnpr",
  "pretty_assertions",
  "rayon",
@@ -5962,6 +5963,21 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+]
+
+[[package]]
+name = "pnpm-workspace-task-scheduler"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "indexmap 2.14.0",
+ "miette 7.6.0",
+ "pnpm-config",
+ "pnpm-deps-restorer",
+ "pnpm-fs",
+ "pnpm-reporter",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

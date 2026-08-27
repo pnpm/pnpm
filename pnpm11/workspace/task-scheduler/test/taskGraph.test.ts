@@ -1,7 +1,7 @@
+import util from 'node:util'
+
 import { expect, test } from '@jest/globals'
 import type { PackageScripts, ProjectRootDir } from '@pnpm/types'
-
-import { getSpecifiedScripts } from '../src/runRecursive.js'
 import {
   buildTaskGraph,
   isSerialTaskGraph,
@@ -12,7 +12,7 @@ import {
   type TaskGraph,
   taskGraphToJson,
   taskKey,
-} from '../src/taskGraph.js'
+} from '@pnpm/workspace.task-scheduler'
 
 const WORKSPACE_DIR = '/workspace'
 
@@ -78,6 +78,25 @@ test('a project without the script becomes a pass-through node that keeps the ch
     [taskKey(dir('b'), 'build')],
     [taskKey(dir('a'), 'build')],
   ])
+})
+
+test('a RegExp selector attaches every matching script to the task', () => {
+  const graph = buildGraph({
+    a: { scripts: ['build:client', 'build:server', 'test'] },
+  }, '/build:.*/')
+
+  expect(graph.get(taskKey(dir('a'), '/build:.*/'))!.scripts).toStrictEqual([
+    'build:client',
+    'build:server',
+  ])
+})
+
+test('a malformed RegExp selector becomes a pass-through task', () => {
+  const graph = buildGraph({
+    a: { scripts: ['build'] },
+  }, '/[/')
+
+  expect(graph.get(taskKey(dir('a'), '/[/'))!.scripts).toStrictEqual([])
 })
 
 test('a task cycle is an error naming the participating tasks', () => {
@@ -279,8 +298,21 @@ function buildGraph (
       ])
     ),
     scriptsByProject: (project) => scriptsByDir.get(project)!,
-    selectScripts: getSpecifiedScripts,
+    selectScripts,
     taskName,
     tasks,
   })
+}
+
+function selectScripts (scripts: PackageScripts, scriptName: string): string[] {
+  if (scripts[scriptName]) return [scriptName]
+  if (!scriptName.startsWith('/') || !scriptName.endsWith('/')) return []
+  let selector: RegExp
+  try {
+    selector = new RegExp(scriptName.slice(1, -1))
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && err.name === 'SyntaxError') return []
+    throw err
+  }
+  return Object.keys(scripts).filter((script) => selector.test(script))
 }

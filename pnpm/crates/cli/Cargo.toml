@@ -70,6 +70,7 @@ pnpm-workspace-manifest-writer         = { workspace = true }
 pnpm-workspace-projects-graph          = { workspace = true }
 pnpm-workspace-projects-filter         = { workspace = true }
 pnpm-workspace-state                   = { workspace = true }
+pnpm-workspace-task-scheduler          = { workspace = true }
 
 chrono               = { workspace = true }
 clap                 = { workspace = true }

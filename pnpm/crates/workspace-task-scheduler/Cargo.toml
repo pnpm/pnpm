@@ -1,0 +1,28 @@
+[package]
+name                  = "pnpm-workspace-task-scheduler"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+pnpm-config        = { workspace = true }
+pnpm-deps-restorer = { workspace = true }
+pnpm-fs            = { workspace = true }
+pnpm-reporter      = { workspace = true }
+
+derive_more = { workspace = true }
+indexmap    = { workspace = true }
+miette      = { workspace = true }
+serde       = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true
