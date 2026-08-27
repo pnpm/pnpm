@@ -287,4 +287,73 @@ mod scripts {
 
         drop(root);
     }
+
+    /// [pnpm/pnpm#14226](https://github.com/pnpm/pnpm/issues/14226)
+    #[test]
+    fn pm_clean_runs_the_builtin_when_a_clean_script_exists() {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+        write_manifest(&workspace, &serde_json::json!({ "clean": "echo script-clean-ran" }));
+        let node_modules = workspace.join("node_modules");
+        fs::create_dir_all(&node_modules).expect("create node_modules");
+        seed_package(&node_modules, "lodash");
+
+        let output = pacquet.with_args(["pm", "clean"]).output().expect("run pacquet pm clean");
+        assert!(output.status.success(), "pacquet pm clean should succeed");
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(!stdout.contains("script-clean-ran"), "the script must not run: {stdout}");
+        assert!(!node_modules.join("lodash").exists(), "the built-in must clean node_modules");
+
+        drop(root);
+    }
+
+    fn workspace_with_a_root_clean_script(workspace: &Path) {
+        write_manifest(workspace, &serde_json::json!({ "clean": "echo script-clean-ran" }));
+        fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+            .expect("write pnpm-workspace.yaml");
+        let member = workspace.join("packages").join("a");
+        fs::create_dir_all(&member).expect("create the workspace member");
+        write_manifest(&member, &serde_json::json!({}));
+        let node_modules = workspace.join("node_modules");
+        fs::create_dir_all(&node_modules).expect("create node_modules");
+        seed_package(&node_modules, "lodash");
+    }
+
+    #[test]
+    fn clean_from_a_workspace_subdirectory_refuses_when_the_root_declares_the_script() {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+        workspace_with_a_root_clean_script(&workspace);
+
+        let output = pacquet
+            .with_args(["clean", "--dir", "packages/a"])
+            .output()
+            .expect("run pacquet clean");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success(), "pacquet clean should fail: {stderr}");
+        assert!(stderr.contains("ERR_PNPM_SCRIPT_OVERRIDE_IN_WORKSPACE_ROOT"), "stderr={stderr}");
+
+        drop(root);
+    }
+
+    #[test]
+    fn pm_clean_runs_the_builtin_from_a_workspace_subdirectory() {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+        workspace_with_a_root_clean_script(&workspace);
+
+        let output = pacquet
+            .with_args(["pm", "clean", "--dir", "packages/a"])
+            .output()
+            .expect("run pacquet pm clean");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "pacquet pm clean should succeed: {stderr}");
+        assert!(
+            !workspace.join("node_modules").join("lodash").exists(),
+            "the built-in must clean node_modules",
+        );
+
+        drop(root);
+    }
 }
