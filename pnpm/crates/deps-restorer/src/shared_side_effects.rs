@@ -208,24 +208,24 @@ pub(crate) async fn apply_shared_side_effects(
                 if let Some(path) = stored.get(&storage_key) {
                     return Ok(path.clone());
                 }
-                // A built package's files are mostly its own, and artifacts
-                // share files with each other. The store addresses content by
-                // the digest this manifest entry already carries, so anything
-                // it holds is the same bytes and needs no transfer.
-                //
-                // Both this lookup and the write below address the store by
-                // `is_executable`, so they cannot disagree about where a mode
-                // belongs. The manifest only carries 0o644 and 0o755 today,
-                // but the agreement must not rest on that.
-                if !downloaded.contains_key(&file.integrity)
-                    && let Ok(digest) = blob_id(&file.integrity)
-                    && let Some(path) = config.store_dir.cas_file_path_by_mode(&digest, file.mode)
-                    && store_holds(&path, &digest).await?
-                {
-                    stored.insert(storage_key, path.clone());
-                    return Ok(path);
-                }
                 if !downloaded.contains_key(&file.integrity) {
+                    // A built package's files are mostly its own, and
+                    // artifacts share files with each other. The store
+                    // addresses content by the digest this manifest entry
+                    // already carries, so anything it holds is the same bytes
+                    // and needs no transfer.
+                    //
+                    // Both this lookup and the write below address the store
+                    // by `is_executable`, so they cannot disagree about where
+                    // a mode belongs. The manifest only carries 0o644 and
+                    // 0o755 today, but the agreement must not rest on that.
+                    let digest = blob_id(&file.integrity).map_err(|error| error.to_string())?;
+                    if let Some(path) = config.store_dir.cas_file_path_by_mode(&digest, file.mode)
+                        && store_holds(&path, &digest).await?
+                    {
+                        stored.insert(storage_key, path.clone());
+                        return Ok(path);
+                    }
                     let bytes = client
                         .download_artifact_blob(
                             &ArtifactBlobRequest {
