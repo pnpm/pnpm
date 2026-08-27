@@ -433,6 +433,8 @@ pub fn render_task_graph_dry_run(
 pub enum TaskCompletion {
     Passed,
     Failed,
+    /// The task was interrupted because another task caused the run to bail.
+    Cancelled,
     /// The task's work errored before it could run — an infrastructure
     /// failure, not a script failure. Stops dispatch like a bail.
     Aborted,
@@ -779,7 +781,7 @@ where
                                 block(&mut guard, index);
                             }
                         }
-                        TaskCompletion::Aborted => {
+                        TaskCompletion::Aborted | TaskCompletion::Cancelled => {
                             guard.settled[index] = true;
                             guard.unsettled -= 1;
                             guard.stop_dispatch = true;
@@ -860,7 +862,7 @@ pub async fn schedule_graph_async<Node, Run, Skip, Fut>(
                 }
             }
             TaskCompletion::Failed if options.bail => stop_dispatch = true,
-            TaskCompletion::Aborted => stop_dispatch = true,
+            TaskCompletion::Aborted | TaskCompletion::Cancelled => stop_dispatch = true,
             TaskCompletion::Failed if options.continue_on_failure => {
                 for &dependent in &dependents[index] {
                     pending_dependencies[dependent] -= 1;

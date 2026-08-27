@@ -7,7 +7,14 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::{Value, json};
-use std::{collections::HashMap, fs, os::unix::fs::PermissionsExt, path::Path, process::Command};
+use std::{
+    collections::HashMap,
+    fs,
+    os::unix::fs::PermissionsExt,
+    path::Path,
+    process::Command,
+    time::{Duration, Instant},
+};
 
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` per name under its own subdirectory of `workspace`.
@@ -1422,44 +1429,82 @@ fn recursive_run_report_summary_records_every_package_status() {
 }
 
 #[test]
-fn recursive_run_bail_summary_records_every_in_flight_result() {
+fn recursive_run_bail_cancels_in_flight_processes() {
+    assert_recursive_run_bail_cancels_in_flight(false);
+}
+
+#[test]
+fn recursive_run_bail_cancels_in_flight_shell_emulator_tasks() {
+    assert_recursive_run_bail_cancels_in_flight(true);
+}
+
+fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let manifest = |name: &str, body: &str| json!({ "name": name, "version": "1.0.0", "scripts": { "build": body } });
     write_workspace(
         &workspace,
         &[
             (
-                "fails",
+                "a-slow-1",
                 manifest(
-                    "fails",
-                    "i=0; while [ ! -f ../passes/ran.txt ] && [ $i -lt 1000 ]; do i=$((i + 1)); sleep 0.01; done; [ -f ../passes/ran.txt ] || exit 2; touch failed.txt; exit 1",
+                    "a-slow-1",
+                    r#"node -e "require('fs').writeFileSync('ran.txt', ''); setTimeout(() => {}, 5000)""#,
                 ),
             ),
             (
-                "passes",
+                "b-fails",
                 manifest(
-                    "passes",
-                    "touch ran.txt; i=0; while [ ! -f ../fails/failed.txt ] && [ $i -lt 1000 ]; do i=$((i + 1)); sleep 0.01; done; [ -f ../fails/failed.txt ]",
+                    "b-fails",
+                    r#"node -e "const fs = require('fs'); const wait = () => fs.existsSync('../a-slow-1/ran.txt') && fs.existsSync('../c-slow-2/ran.txt') ? process.exit(1) : setTimeout(wait, 10); wait()""#,
                 ),
             ),
+            (
+                "c-slow-2",
+                manifest(
+                    "c-slow-2",
+                    r#"node -e "require('fs').writeFileSync('ran.txt', ''); setTimeout(() => {}, 5000)""#,
+                ),
+            ),
+            ("z-queued", manifest("z-queued", "touch ran.txt")),
         ],
     );
+    if shell_emulator {
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            "packages:\n  - a-slow-1\n  - b-fails\n  - c-slow-2\n  - z-queued\nshellEmulator: true\n",
+        )
+        .expect("enable the shell emulator");
+    }
 
-    pacquet
+    let start = Instant::now();
+    let output = pacquet
         .with_args([
-            "--workspace-concurrency=2",
+            "--workspace-concurrency=3",
             "--no-sort",
             "--report-summary",
             "-r",
             "run",
             "build",
         ])
-        .assert()
-        .failure();
+        .output()
+        .expect("spawn pacquet");
+    let elapsed = start.elapsed();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(!output.status.success(), "the failing project should fail the run");
+    eprintln!("recursive run elapsed: {elapsed:?}");
+    assert!(
+        elapsed < Duration::from_secs(4),
+        "bail should interrupt the five-second in-flight scripts",
+    );
 
     let statuses = summary_statuses(&workspace);
-    assert_eq!(statuses.get("fails").map(String::as_str), Some("failure"));
-    assert_eq!(statuses.get("passes").map(String::as_str), Some("passed"));
+    dbg!(&statuses);
+    assert_eq!(statuses.get("a-slow-1").map(String::as_str), Some("running"));
+    assert_eq!(statuses.get("b-fails").map(String::as_str), Some("failure"));
+    assert_eq!(statuses.get("c-slow-2").map(String::as_str), Some("running"));
+    assert_eq!(statuses.get("z-queued").map(String::as_str), Some("queued"));
+    assert!(!workspace.join("z-queued").join("ran.txt").exists());
 
     drop(root);
 }

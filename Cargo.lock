@@ -4897,6 +4897,7 @@ version = "0.0.1"
 dependencies = [
  "deno_task_shell",
  "derive_more",
+ "libc",
  "miette 7.6.0",
  "pnpm-package-manifest",
  "pnpm-reporter",
@@ -4905,6 +4906,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
