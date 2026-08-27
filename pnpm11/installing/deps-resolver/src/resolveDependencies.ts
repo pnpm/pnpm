@@ -2040,12 +2040,14 @@ async function resolveDependency (
     // can hand the full set to the install command between
     // resolveDependencyTree and resolvePeers.
     if (pkgResponse.body.policyViolation) {
-      // `parentIds` is the resolution path that reached this pick. The
-      // install command names the dependent with it, and the retry uses its
-      // last entry to decide whose choice to revisit.
+      // The dependents that reached this pick, without the importer the
+      // walk starts at — a project id, not a package one, and nothing a
+      // version pick applies to. `getPkgsInfoFromIds` drops it the same way.
+      // The install command names the dependent with what is left, and the
+      // retry uses its last entry to decide whose choice to revisit.
       ctx.resolutionPolicyViolations.push({
         ...pkgResponse.body.policyViolation,
-        parentIds: options.parentIds,
+        parentIds: options.parentIds.slice(1),
       })
     }
 
