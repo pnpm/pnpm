@@ -610,6 +610,8 @@ impl CreateVirtualStore<'_> {
             let warm_slots: Vec<SlotLink<'_>> = warm
                 .iter()
                 .map(|(snapshot_key, snapshot, cas_paths, cache_key, needs_build_marker)| {
+                    let force_import =
+                        package_content_changed(current_packages, packages, snapshot_key);
                     SlotLink {
                         snapshot_key,
                         snapshot,
@@ -620,11 +622,7 @@ impl CreateVirtualStore<'_> {
                         // directory resolution, so a warm slot's source
                         // is immutable by construction.
                         source_is_mutable: false,
-                        force_import: package_content_changed(
-                            current_packages,
-                            packages,
-                            snapshot_key,
-                        ),
+                        force_import,
                         needs_build_marker_source: needs_build_marker
                             .then_some(
                                 needs_build_marker_source
@@ -632,7 +630,13 @@ impl CreateVirtualStore<'_> {
                                     .map(tempfile::NamedTempFile::path),
                             )
                             .flatten(),
-                        needs_build: *needs_build_marker,
+                        dir_clone_cacheable: dir_clone_cacheable(
+                            packages,
+                            snapshot_key,
+                            *needs_build_marker,
+                            false,
+                            force_import,
+                        ),
                         removed_aliases: removed_aliases_for(&removed_aliases_by_key, snapshot_key),
                     }
                 })
@@ -807,6 +811,7 @@ impl CreateVirtualStore<'_> {
                     let chunk = std::mem::take(&mut ready);
                     link_cold_chunk::<Reporter>(
                         &chunk,
+                        packages,
                         marker_path,
                         &removed_aliases_by_key,
                         &LinkSlotsParallel {
@@ -831,6 +836,7 @@ impl CreateVirtualStore<'_> {
             if !ready.is_empty() {
                 link_cold_chunk::<Reporter>(
                     &ready,
+                    packages,
                     marker_path,
                     &removed_aliases_by_key,
                     &LinkSlotsParallel {
@@ -1085,13 +1091,9 @@ struct SlotLink<'a> {
     source_is_mutable: bool,
     force_import: bool,
     needs_build_marker_source: Option<&'a Path>,
-    /// Whether the slot needs a build or patch marker
-    /// ([`snapshot_needs_build_marker`]). Carried separately from
-    /// `needs_build_marker_source` — which is `None` for every slot
-    /// when the global virtual store is off — because the
-    /// directory-clone cache must exclude these slots under exactly
-    /// that configuration.
-    needs_build: bool,
+    /// Whether the directory-clone cache may serve this slot — see
+    /// [`dir_clone_cacheable`].
+    dir_clone_cacheable: bool,
     /// Child aliases dropped since the previous install, threaded into
     /// [`crate::CreateVirtualDirBySnapshot::removed_aliases`] so their
     /// stale symlinks are unlinked during the link pass.
@@ -1179,6 +1181,7 @@ const COLD_LINK_CHUNK: usize = 32;
 /// fields; its `slots` are ignored.
 fn link_cold_chunk<Reporter: self::Reporter>(
     chunk: &[ColdCapture<'_>],
+    packages: &HashMap<PackageKey, PackageMetadata>,
     marker_path: Option<&Path>,
     removed_aliases_by_key: &HashMap<PackageKey, Vec<PkgName>>,
     template: &LinkSlotsParallel<'_>,
@@ -1196,7 +1199,13 @@ fn link_cold_chunk<Reporter: self::Reporter>(
                 source_is_mutable: capture.source_is_mutable,
                 force_import: capture.force_import,
                 needs_build_marker_source: needs_build.then_some(marker_path).flatten(),
-                needs_build,
+                dir_clone_cacheable: dir_clone_cacheable(
+                    packages,
+                    capture.snapshot_key,
+                    needs_build,
+                    capture.source_is_mutable,
+                    capture.force_import,
+                ),
                 removed_aliases: removed_aliases_for(removed_aliases_by_key, capture.snapshot_key),
             }
         })
@@ -1275,12 +1284,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
                 skipped,
                 removed_aliases: group.removed_aliases(),
                 needs_build_marker_source: slot.needs_build_marker_source,
-                dir_clone_cache: if slot.needs_build || slot.source_is_mutable || slot.force_import
-                {
-                    None
-                } else {
-                    dir_clone_cache
-                },
+                dir_clone_cache: if slot.dir_clone_cacheable { dir_clone_cache } else { None },
                 #[cfg(test)]
                 link_concurrency_probe,
             }
@@ -1490,6 +1494,37 @@ fn integrity_equal(current: Option<&PackageMetadata>, wanted: Option<&PackageMet
     let current_integrity = current.and_then(|meta| meta.resolution.integrity());
     let wanted_integrity = wanted.and_then(|meta| meta.resolution.integrity());
     current_integrity == wanted_integrity
+}
+
+/// Whether a slot may be served by the macOS directory-clone cache
+/// ([`crate::DirCloneCache`]).
+///
+/// The canonical slot is trusted by its completion marker alone, so
+/// everything that identifies the slot's contents must be inside its
+/// graph-hash path. That rules out:
+///
+/// - slots that need a build or patch marker — the canonical copy must
+///   stay plain pre-build CAS content;
+/// - mutable local sources, which reuse one slot for changing contents;
+/// - forced re-imports, whose existing slot is known stale;
+/// - any resolution without a checkable integrity. A git dependency
+///   hashes to the same slot whether or not its fetch-time `prepare`
+///   ran (`--ignore-scripts` versus a build-allowed install), so a
+///   cached copy could serve the wrong variant.
+fn dir_clone_cacheable(
+    packages: &HashMap<PackageKey, PackageMetadata>,
+    snapshot_key: &PackageKey,
+    needs_build: bool,
+    source_is_mutable: bool,
+    force_import: bool,
+) -> bool {
+    !needs_build
+        && !source_is_mutable
+        && !force_import
+        && packages
+            .get(&snapshot_key.without_peer())
+            .and_then(|metadata| metadata.resolution.checkable_integrity())
+            .is_some()
 }
 
 fn package_content_changed(

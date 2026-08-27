@@ -23,12 +23,16 @@
 //! only when the resolved import method may clone (`auto`, `clone`,
 //! `clone-or-copy`): an explicit `hardlink` promises store-shared
 //! inodes and an explicit `copy` promises independent data, and a
-//! clone of the canonical copy would deliver neither. Packages that
-//! need a build or patch marker, come from mutable local sources, or
-//! must be force-re-imported skip the cache — their slots go through
-//! the per-file path exactly as before, so cached slots are always
-//! plain pre-build CAS content, indistinguishable from what a
-//! GVS-enabled install materializes before its build phase.
+//! clone of the canonical copy would deliver neither. Per-slot
+//! qualification is decided by the caller (see
+//! `create_virtual_store::dir_clone_cacheable`): packages that need a
+//! build or patch marker, come from mutable local sources, must be
+//! force-re-imported, or resolve without a checkable integrity (git
+//! dependencies, whose slot hash cannot see whether their fetch-time
+//! `prepare` ran) skip the cache — their slots go through the per-file
+//! path exactly as before, so cached slots are always plain pre-build
+//! CAS content, indistinguishable from what a GVS-enabled install
+//! materializes before its build phase.
 //!
 //! The cache is strictly best-effort: any failure falls back to the
 //! per-file import for that package, and failures that indicate the
