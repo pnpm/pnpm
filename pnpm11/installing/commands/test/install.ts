@@ -48,6 +48,20 @@ test('install --refresh-artifact-pins rejects a frozen lockfile', async () => {
   })).rejects.toMatchObject({ code: 'ERR_PNPM_CONFIG_CONFLICT_REFRESH_ARTIFACT_PINS_WITH_FROZEN_LOCKFILE' })
 })
 
+test.each([
+  ['a disabled lockfile', { useLockfile: false }, 'ERR_PNPM_CONFIG_CONFLICT_REFRESH_ARTIFACT_PINS_WITH_NO_LOCKFILE'],
+  ['a lockfile-only install', { lockfileOnly: true }, 'ERR_PNPM_CONFIG_CONFLICT_REFRESH_ARTIFACT_PINS_WITH_LOCKFILE_ONLY'],
+  ['a resolution-only install', { resolutionOnly: true }, 'ERR_PNPM_CONFIG_CONFLICT_REFRESH_ARTIFACT_PINS_WITH_LOCKFILE_ONLY'],
+] as const)('install --refresh-artifact-pins rejects %s', async (_description, conflictingOptions, code) => {
+  prepare({})
+  await expect(install.handler({
+    ...DEFAULT_OPTS,
+    ...conflictingOptions,
+    dir: process.cwd(),
+    refreshArtifactPins: true,
+  })).rejects.toMatchObject({ code })
+})
+
 test('install fails if no package.json is found', async () => {
   prepareEmpty()
 

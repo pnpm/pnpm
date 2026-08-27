@@ -441,6 +441,14 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
     isInstallCommand: true,
   }
   if (opts.refreshArtifactPins) {
+    if (opts.useLockfile === false) {
+      throw new PnpmError('CONFIG_CONFLICT_REFRESH_ARTIFACT_PINS_WITH_NO_LOCKFILE',
+        'Cannot refresh artifact pins when lockfile is set to false')
+    }
+    if (opts.lockfileOnly || opts.resolutionOnly) {
+      throw new PnpmError('CONFIG_CONFLICT_REFRESH_ARTIFACT_PINS_WITH_LOCKFILE_ONLY',
+        'Cannot refresh artifact pins without downloading and verifying artifacts')
+    }
     if (opts.cliOptions.frozenLockfile === true) {
       throw new PnpmError('CONFIG_CONFLICT_REFRESH_ARTIFACT_PINS_WITH_FROZEN_LOCKFILE',
         'Cannot refresh artifact pins with a frozen lockfile')
