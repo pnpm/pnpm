@@ -99,7 +99,7 @@ interface RestoredArtifact {
 
 interface QueuedLookup {
   candidate: ArtifactCandidate
-  resolve: (artifact: RestoredArtifact | undefined) => void
+  resolve: (artifact: VerifiedArtifact | undefined) => void
 }
 
 export function canRestoreRemoteSideEffects (opts: RemoteSideEffectsPrerequisites): boolean {
@@ -148,7 +148,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
   const storedBlobs = new Map<string, Promise<{ filePath: string, fileInfo: { checkedAt?: number, digest: string, mode: number, size: number } }>>()
   const identityByInputKey = new Map<string, string>()
   const collisions = new Set<string>()
-  const lookups = new Map<string, Promise<RestoredArtifact | undefined>>()
+  const lookups = new Map<string, Promise<VerifiedArtifact | undefined>>()
   const filesIndexFilesByInputKey = new Map<string, Set<string>>()
   const quarantinedEnvelopeDigests = new Map<string, Set<string>>()
   let queued: QueuedLookup[] = []
@@ -249,13 +249,19 @@ export function createRemoteSideEffectsRestorer<T extends string> (
       lookup = enqueue(candidate)
       lookups.set(inputKey, lookup)
     }
-    const artifact = await lookup
-    if (artifact == null) {
+    const resolvedArtifact = await lookup
+    if (resolvedArtifact == null) {
       if (pinnedEnvelopeDigests.has(inputKey)) {
         opts.warn?.(`Pinned remote side-effects artifact for ${node.name}@${node.version} is unavailable; building locally`)
       }
       return undefined
     }
+    if (pinnedEnvelopeDigest != null && resolvedArtifact.envelopeDigest !== pinnedEnvelopeDigest) {
+      opts.warn?.(`Pinned remote side-effects artifact for ${node.name}@${node.version} is unavailable; building locally`)
+      return undefined
+    }
+    const artifact = await artifactLimit(async () => hydrate(resolvedArtifact, candidate))
+    if (artifact == null) return undefined
     recordArtifactPin(node.depPath, inputKey, artifact.envelopeDigest)
     node.files.sideEffectsMaps ??= new Map()
     node.files.sideEffectsMaps.set(localCacheKey, { added: artifact.added, deleted: artifact.deleted })
@@ -275,9 +281,9 @@ export function createRemoteSideEffectsRestorer<T extends string> (
     return localCacheKey
   }
 
-  async function enqueue (candidate: ArtifactCandidate): Promise<RestoredArtifact | undefined> {
-    let resolve!: (artifact: RestoredArtifact | undefined) => void
-    const promise = new Promise<RestoredArtifact | undefined>((settle) => {
+  async function enqueue (candidate: ArtifactCandidate): Promise<VerifiedArtifact | undefined> {
+    let resolve!: (artifact: VerifiedArtifact | undefined) => void
+    const promise = new Promise<VerifiedArtifact | undefined>((settle) => {
       resolve = settle
     })
     queued.push({ candidate, resolve })
@@ -358,7 +364,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
         resolve(undefined)
         return
       }
-      resolve(await artifactLimit(async () => hydrate(artifact, candidate)))
+      resolve(artifact)
     }))
   }
 

@@ -416,6 +416,77 @@ describe('install remote side-effects', () => {
       })
       expect(snapshotScopedKey).toBeDefined()
 
+      let releaseLatePinResolve!: () => void
+      const waitForLatePinRelease = new Promise<void>((resolve) => {
+        releaseLatePinResolve = resolve
+      })
+      let notifyLatePinResolveStarted!: () => void
+      const latePinResolveStarted = new Promise<void>((resolve) => {
+        notifyLatePinResolveStarted = resolve
+      })
+      heldResolve = { wait: waitForLatePinRelease, notifyStarted: notifyLatePinResolveStarted }
+      const latePinnedDepPath = `${depPath}(peer@2.0.0)` as DepPath
+      const latePinsLockfile: LockfileObject = {
+        lockfileVersion: '9.0',
+        importers: {},
+        packages: {
+          [depPath]: { resolution: { integrity: sourceIntegrity } },
+          [latePinnedDepPath]: {
+            artifactPins: {
+              [inputKey]: {
+                'organization:acme': { [platformFingerprint]: '0'.repeat(64) },
+              },
+            },
+            resolution: { integrity: sourceIntegrity },
+          },
+        },
+      }
+      const latePinRestorer = createRemoteSideEffectsRestorer({
+        allowBuild: candidate => candidate === depPath || candidate === latePinnedDepPath,
+        artifactPinsLockfile: latePinsLockfile,
+        configByUri: {},
+        depsGraph,
+        depsStateCache: {},
+        ignoreScripts: false,
+        pnprServer,
+        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        sideEffectsCacheRead: false,
+        storeController,
+      })!
+      const unpinnedFiles: PackageFilesResponse = {
+        filesMap: new Map(),
+        requiresBuild: true,
+        resolvedFrom: 'remote',
+      }
+      const unpinnedRestore = latePinRestorer.restore({
+        graphKey,
+        depPath,
+        files: unpinnedFiles,
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })
+      await latePinResolveStarted
+      const latePinnedFiles: PackageFilesResponse = {
+        filesMap: new Map(),
+        requiresBuild: true,
+        resolvedFrom: 'remote',
+      }
+      const latePinnedRestore = latePinRestorer.restore({
+        graphKey,
+        depPath: latePinnedDepPath,
+        files: latePinnedFiles,
+        filesIndexFile: 'late-pin-row',
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })
+      releaseLatePinResolve()
+      await expect(unpinnedRestore).resolves.toBeDefined()
+      await expect(latePinnedRestore).resolves.toBeUndefined()
+      expect(latePinnedFiles.sideEffectsMaps).toBeUndefined()
+      expect(persisted.some(({ filesIndexFile }) => filesIndexFile === 'late-pin-row')).toBe(false)
+
       let releaseResolve!: () => void
       const waitForRelease = new Promise<void>((resolve) => {
         releaseResolve = resolve
