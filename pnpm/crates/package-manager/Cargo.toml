@@ -60,6 +60,7 @@ pnpm-workspace-manifest-writer         = { workspace = true }
 pnpm-workspace-range-resolver          = { workspace = true }
 pnpm-workspace-spec                    = { workspace = true }
 pnpm-workspace-state                   = { workspace = true }
+pnpm-workspace-task-scheduler          = { workspace = true }
 
 async-recursion = { workspace = true }
 chrono          = { workspace = true }
@@ -74,7 +75,6 @@ is_ci           = { workspace = true }
 node-semver     = { workspace = true }
 pathdiff        = { workspace = true }
 pipe-trait      = { workspace = true }
-rayon           = { workspace = true }
 reflink-copy    = { workspace = true }
 serde           = { workspace = true }
 serde_json      = { workspace = true }

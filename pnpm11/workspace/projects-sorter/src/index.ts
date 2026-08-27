@@ -3,24 +3,22 @@ import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import type { ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 
 /**
- * Topologically sequences the projects in `projectsGraph` into chunks that can
- * run concurrently. The result's `safe` is false when the projects form a
- * dependency cycle.
+ * Returns a deterministic topological order and any dependency cycles in
+ * `projectsGraph`.
  */
 export function sequenceGraph (projectsGraph: ProjectsGraph): GraphSequencerResult<ProjectRootDir> {
-  const projectDirs = Object.keys(projectsGraph) as ProjectRootDir[]
-  const sorted = new Set(projectDirs)
-  const graph = new Map<ProjectRootDir, ProjectRootDir[]>(
-    projectDirs.map((projectDir) => [
-      projectDir,
-      projectsGraph[projectDir].dependencies.filter((dep) => dep !== projectDir && sorted.has(dep)),
-    ])
-  )
+  const graph = projectsDependencies(projectsGraph)
+  const projectDirs = [...graph.keys()]
   return graphSequencer(graph, projectDirs)
 }
 
-export function sortProjects (projectsGraph: ProjectsGraph): ProjectRootDir[][] {
-  return sequenceGraph(projectsGraph).chunks
+export function projectsDependencies (projectsGraph: ProjectsGraph): Map<ProjectRootDir, ProjectRootDir[]> {
+  const projectDirs = Object.keys(projectsGraph) as ProjectRootDir[]
+  const included = new Set(projectDirs)
+  return new Map(projectDirs.map((projectDir) => [
+    projectDir,
+    projectsGraph[projectDir].dependencies.filter((dependency) => dependency !== projectDir && included.has(dependency)),
+  ]))
 }
 
 export interface FilteredProjectsGraphOptions {
@@ -28,15 +26,6 @@ export interface FilteredProjectsGraphOptions {
   allProjectsGraph?: ProjectsGraph
   prodAllProjectsGraph?: ProjectsGraph
   prodOnlySelectedProjectDirs?: ProjectRootDir[]
-}
-
-/**
- * Topologically chunks the projects selected by a `--filter`ed recursive
- * command, over the edges {@link filteredProjectsDependencies} resolves.
- */
-export function sortFilteredProjects (opts: FilteredProjectsGraphOptions): ProjectRootDir[][] {
-  const graph = filteredProjectsDependencies(opts)
-  return graphSequencer(graph, [...graph.keys()]).chunks
 }
 
 /**

@@ -96,7 +96,7 @@ pub(crate) type SnapshotWithCacheKey<'a> = (&'a PackageKey, &'a SnapshotEntry, O
 /// tarball / metadata / extract step blew up during this install.
 /// The caller (`InstallFrozenLockfile::run`) folds these into its
 /// own [`crate::SkippedSnapshots`] so downstream consumers
-/// (`build_sequence`, `link_bins`, hoisting, etc.) treat them as
+/// (`build_graph`, `link_bins`, hoisting, etc.) treat them as
 /// absent — a failed-fetch optional snapshot is simply not present
 /// in the install graph.
 pub struct CreateVirtualStoreOutput {
@@ -654,7 +654,7 @@ impl CreateVirtualStore<'_> {
         //   dropped rather than aborting the install.
         //   Aggregated into `fetch_failed` for the caller to fold into
         //   its [`crate::SkippedSnapshots`] so downstream walkers
-        //   (`build_sequence`, `link_bins`, hoist) treat the snapshot
+        //   (`build_graph`, `link_bins`, hoist) treat the snapshot
         //   as absent.
         // - The second slot is the per-snapshot CAS index returned by
         //   [`InstallPackageBySnapshot::run`], threaded into

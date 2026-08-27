@@ -14,9 +14,9 @@ import {
 } from '@pnpm/config.reader'
 import { logger } from '@pnpm/logger'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
-import type { Project, ProjectManifest, ProjectRootDir } from '@pnpm/types'
-import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
-import pLimit from 'p-limit'
+import type { Project, ProjectRootDir } from '@pnpm/types'
+import { filteredProjectsDependencies } from '@pnpm/workspace.projects-sorter'
+import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'enableGlobalVirtualStore'
@@ -61,9 +61,9 @@ export async function recursiveRebuild (
 
   const throwOnFail = throwOnCommandFail.bind(null, 'pnpm recursive rebuild')
 
-  const chunks = opts.sort !== false
-    ? sortFilteredProjects(opts)
-    : [Object.keys(opts.selectedProjectsGraph).sort() as ProjectRootDir[]]
+  const projectDependencies = opts.sort !== false
+    ? filteredProjectsDependencies(opts)
+    : new Map((Object.keys(opts.selectedProjectsGraph).sort() as ProjectRootDir[]).map((rootDir) => [rootDir, []]))
 
   const store = await createStoreController(opts)
 
@@ -73,6 +73,7 @@ export async function recursiveRebuild (
       pkgs.length === allProjects.length,
     storeController: store.ctrl,
     storeDir: store.dir,
+    projectDependencies,
   }) as BuildOptions
 
   const result: RecursiveSummary = {}
@@ -80,22 +81,13 @@ export async function recursiveRebuild (
   const projectConfigRecord = createProjectConfigRecord(opts) ?? {}
 
   async function getImporters () {
-    const importers = [] as Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: ProjectRootDir }>
-    await Promise.all(chunks.map(async (prefixes, buildIndex) => {
-      if (opts.ignoredPackages != null) {
-        prefixes = prefixes.filter((prefix) => !opts.ignoredPackages!.has(prefix))
-      }
-      return Promise.all(
-        prefixes.map(async (prefix) => {
-          importers.push({
-            buildIndex,
-            manifest: manifestsByPath[prefix].manifest,
-            rootDir: prefix,
-          })
-        })
-      )
-    }))
-    return importers
+    return [...projectDependencies.keys()]
+      .filter((rootDir) => !opts.ignoredPackages?.has(rootDir))
+      .map((rootDir) => ({
+        buildIndex: 0,
+        manifest: manifestsByPath[rootDir].manifest,
+        rootDir,
+      }))
   }
 
   const rebuild = (
@@ -114,56 +106,45 @@ export async function recursiveRebuild (
     )
     return
   }
-  const limitRebuild = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
-  for (const chunk of chunks) {
-    // eslint-disable-next-line no-await-in-loop
-    await Promise.all(chunk.map(async (rootDir) =>
-      limitRebuild(async () => {
-        try {
-          if (opts.ignoredPackages?.has(rootDir)) {
-            return
+  let firstError: Error | undefined
+  await scheduleGraph(projectDependencies, {
+    bail: opts.bail !== false,
+    concurrency: getWorkspaceConcurrency(opts.workspaceConcurrency),
+    continueOnFailure: opts.bail === false,
+    runNode: async (rootDir): Promise<TaskCompletion> => {
+      try {
+        if (opts.ignoredPackages?.has(rootDir)) return 'passed'
+        result[rootDir] = { status: 'running' }
+        const { manifest } = opts.selectedProjectsGraph[rootDir].package
+        const localConfig = manifest.name ? projectConfigRecord[manifest.name] : undefined
+        await rebuild(
+          [{ buildIndex: 0, manifest: manifestsByPath[rootDir].manifest, rootDir }],
+          {
+            ...rebuildOpts,
+            ...localConfig,
+            dir: rootDir,
+            pending: opts.pending === true,
           }
-          result[rootDir] = { status: 'running' }
-          const { manifest } = opts.selectedProjectsGraph[rootDir].package
-          const localConfig = manifest.name ? projectConfigRecord[manifest.name] : undefined
-          await rebuild(
-            [
-              {
-                buildIndex: 0,
-                manifest: manifestsByPath[rootDir].manifest,
-                rootDir,
-              },
-            ],
-            {
-              ...rebuildOpts,
-              ...localConfig,
-              dir: rootDir,
-              pending: opts.pending === true,
-            }
-          )
-          result[rootDir].status = 'passed'
-        } catch (err: unknown) {
-          assert(util.types.isNativeError(err))
-          const errWithPrefix = Object.assign(err, {
-            prefix: rootDir,
-          })
-          logger.info(errWithPrefix)
-
-          if (!opts.bail) {
-            result[rootDir] = {
-              status: 'failure',
-              error: errWithPrefix,
-              message: err.message,
-              prefix: rootDir,
-            }
-            return
-          }
-
-          throw err
+        )
+        result[rootDir].status = 'passed'
+        return 'passed'
+      } catch (err: unknown) {
+        assert(util.types.isNativeError(err))
+        const errWithPrefix = Object.assign(err, { prefix: rootDir })
+        logger.info(errWithPrefix)
+        result[rootDir] = {
+          status: 'failure',
+          error: errWithPrefix,
+          message: err.message,
+          prefix: rootDir,
         }
-      })
-    ))
-  }
+        firstError ??= errWithPrefix
+        return opts.bail === false ? 'failed' : 'aborted'
+      }
+    },
+    onNodeSkipped: () => {},
+  })
+  if (opts.bail !== false && firstError != null) throw firstError
 
   throwOnFail(result)
 }

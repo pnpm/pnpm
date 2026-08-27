@@ -1,4 +1,3 @@
-import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import type { LockfileResolution } from '@pnpm/lockfile.types'
 import type { PatchInfo } from '@pnpm/patching.types'
 import type { PkgRequestFetchResult } from '@pnpm/store.controller-types'
@@ -30,21 +29,18 @@ export interface DependenciesGraphNode<T extends string> {
 
 export type DependenciesGraph<T extends string> = Record<T, DependenciesGraphNode<T>>
 
-export function buildSequence<T extends string> (
+export function buildGraph<T extends string> (
   depGraph: Record<string, Pick<DependenciesGraphNode<T>, 'children' | 'requiresBuild'>>,
   rootDepPaths: T[]
-): T[][] {
-  const nodesToBuild = new Set<string>()
+): Map<T, T[]> {
+  const nodesToBuild = new Set<T>()
   getSubgraphToBuild(depGraph, rootDepPaths, nodesToBuild, new Set<T>())
   const onlyFromBuildGraph = filter((depPath: T) => nodesToBuild.has(depPath))
   const nodesToBuildArray = Array.from(nodesToBuild)
-  const graph = new Map(
+  return new Map(
     nodesToBuildArray
       .map((depPath) => [depPath, onlyFromBuildGraph(Object.values(depGraph[depPath].children))])
   )
-  const graphSequencerResult = graphSequencer(graph, nodesToBuildArray)
-  const chunks = graphSequencerResult.chunks as T[][]
-  return chunks
 }
 
 function getSubgraphToBuild<T extends string> (

@@ -7,18 +7,16 @@ export interface Options<T> {
 }
 
 export interface Result<T> {
-  safe: boolean
-  chunks: Groups<T>
+  order: T[]
   cycles: Groups<T>
 }
 
 /**
  * Performs topological sorting on a graph while supporting node restrictions.
  *
- * The nodes are interned to indices up front and each chunk is gathered from
- * the nodes whose degree a removal drops to zero, so a workspace-scale graph
- * (thousands of projects in thousands of chunks) sorts in O(V log V + E)
- * instead of scanning every node once per chunk. Cycle discovery is confined
+ * The nodes are interned to indices up front and each ready set is gathered
+ * from nodes whose degree a removal drops to zero, so a workspace-scale graph
+ * sorts in O(V log V + E) instead of repeatedly scanning every node. Cycle discovery is confined
  * to each strongly connected component: nodes that merely lead into a cycle
  * cost nothing extra, and only enumerating the cycles inside one component
  * pays that component's size per reported cycle (the price of the
@@ -26,11 +24,11 @@ export interface Result<T> {
  *
  * @param {Graph<T>}  graph - The graph represented as a Map where keys are nodes and values are their outgoing edges.
  * @param {T[]} includedNodes - An array of nodes that should be included in the sorting process. Other nodes will be ignored.
- * @returns {Result<T>} An object containing the result of the sorting, including safe, chunks, and cycles.
+ * @returns {Result<T>} An object containing one deterministic order and the cycles encountered.
  */
 export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...graph.keys()]): Result<T> {
   // Included nodes are interned first, so an id below includedCount is an
-  // included node and id order chunks the way includedNodes orders them.
+  // included node and id order follows includedNodes.
   const indexOf = new Map<T, number>()
   const nodes: T[] = []
   for (const node of includedNodes) {
@@ -59,17 +57,16 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
     }
   }
 
-  // A non-included node is born removed: chunks never contain it and the
+  // A non-included node is born removed: the order never contains it and the
   // cycle search does not walk through it.
   const removed: boolean[] = nodes.map((_, id) => id >= includedCount)
 
-  const chunks: number[][] = []
+  const order: number[] = []
   const cycles: number[][] = []
-  let safe = true
 
   let remaining = includedCount
-  // The ids whose degree is zero, i.e. the next chunk. Kept sorted so a
-  // chunk lists its nodes in includedNodes order.
+  // The ids whose degree is zero, i.e. the next ready set. Kept sorted in
+  // includedNodes order.
   let current: number[] = []
   for (let id = 0; id < includedCount; id++) {
     if (outDegree[id] === 0) {
@@ -109,9 +106,6 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
         if (cycle.length === 0) {
           continue
         }
-        if (cycle.length > 1) {
-          safe = false
-        }
         for (const node of cycle) {
           removeNode(node)
         }
@@ -124,24 +118,23 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
         cycles.push(cycle)
       }
       remaining -= cycleIds.length
-      chunks.push(cycleIds)
+      for (const id of cycleIds) order.push(id)
     } else {
       for (const id of current) {
         removeNode(id)
       }
       remaining -= current.length
-      chunks.push(current)
+      for (const id of current) order.push(id)
     }
     // Breaking a cycle removes its members one by one, so an earlier
     // member's removal can drop a later member to degree zero right before
     // that member is removed too — filter those out of the zero-degree set
-    // instead of re-chunking them.
+    // instead of adding them to the order twice.
     current = next.filter((id) => !removed[id]).sort((left, right) => left - right)
   }
 
   return {
-    safe,
-    chunks: chunks.map((chunk) => chunk.map((id) => nodes[id])),
+    order: order.map((id) => nodes[id]),
     cycles: cycles.map((cycle) => cycle.map((id) => nodes[id])),
   }
 

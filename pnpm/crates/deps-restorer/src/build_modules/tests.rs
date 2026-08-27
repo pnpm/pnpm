@@ -626,19 +626,14 @@ fn cached_requires_build_false_skips_package_dir_probe() {
 }
 
 /// Parallel-path variant of [`build_modules_collects_ignored_builds`]
-/// running under `child_concurrency: 2` so the rayon
-/// `chunk.par_iter().try_for_each(...)` dispatch is actually
-/// exercised. The other `BuildModules` tests all run with
-/// `child_concurrency: 1`, which is the sequential codepath; this
-/// test pins the concurrent codepath against a fixture that places
-/// two policy-denied build candidates in the same chunk (no
-/// dependency edges between them, so the topo sort puts them both
-/// in chunk 0).
+/// running under `child_concurrency: 2`. The other `BuildModules`
+/// tests all run with `child_concurrency: 1`; this test pins the
+/// concurrent codepath against two independent policy-denied build
+/// candidates.
 ///
 /// The assertion is the same sorted ignored-set as the sequential
-/// test — a regression that dropped the `pool.install` /
-/// `try_for_each` wrapping would still collect both names but in
-/// non-deterministic order on insertion. The
+/// test. The concurrently scheduled nodes may insert in a
+/// non-deterministic order. The
 /// `BTreeSet`-backed `ignored_builds` ordering hides that, so
 /// breakage would more likely show up as a lock contention bug
 /// (e.g. dropping the `Mutex` wrapping) which would manifest as a
@@ -703,9 +698,9 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
     .ignored_builds;
     dbg!(&ignored);
 
-    // Same expected output as the sequential test — both members of
-    // the same chunk insert into the `Mutex<BTreeSet>` concurrently
-    // and the BTreeSet's iteration order normalizes the result.
+    // Same expected output as the sequential test. Both independent
+    // nodes may insert concurrently, and the BTreeSet's iteration
+    // order normalizes the result.
     assert_eq!(
         ignored,
         vec!["aaa@2.0.0".to_string(), "zzz@1.0.0".to_string()],

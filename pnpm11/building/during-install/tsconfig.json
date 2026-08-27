@@ -34,9 +34,6 @@
       "path": "../../deps/graph-hasher"
     },
     {
-      "path": "../../deps/graph-sequencer"
-    },
-    {
       "path": "../../deps/path"
     },
     {
@@ -62,6 +59,9 @@
     },
     {
       "path": "../../worker"
+    },
+    {
+      "path": "../../workspace/task-scheduler"
     }
   ]
 }

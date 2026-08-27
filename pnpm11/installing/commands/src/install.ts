@@ -365,6 +365,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'tag'
 | 'trustLockfile'
+| 'tryLoadDefaultPnpmfile'
 | 'allowBuilds'
 | 'optional'
 | 'virtualStoreDir'

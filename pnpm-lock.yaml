@@ -695,9 +695,6 @@ catalogs:
     root-link-target:
       specifier: ^4.0.0
       version: 4.0.0
-    run-groups:
-      specifier: ^5.0.0
-      version: 5.0.0
     rxjs:
       specifier: ^7.8.2
       version: 7.8.2
@@ -1597,9 +1594,6 @@ importers:
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
         version: link:../../deps/graph-hasher
-      '@pnpm/deps.graph-sequencer':
-        specifier: workspace:*
-        version: link:../../deps/graph-sequencer
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
@@ -1654,15 +1648,15 @@ importers:
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
+      '@pnpm/workspace.task-scheduler':
+        specifier: workspace:*
+        version: link:../../workspace/task-scheduler
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
       p-limit:
         specifier: 'catalog:'
         version: 7.3.1
-      run-groups:
-        specifier: 'catalog:'
-        version: 5.0.0
       semver:
         specifier: 'catalog:'
         version: 7.8.5
@@ -1730,6 +1724,9 @@ importers:
       '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
         version: link:../../workspace/projects-sorter
+      '@pnpm/workspace.task-scheduler':
+        specifier: workspace:*
+        version: link:../../workspace/task-scheduler
       '@pnpm/workspace.workspace-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/workspace-manifest-reader
@@ -1739,9 +1736,6 @@ importers:
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0
-      p-limit:
-        specifier: 'catalog:'
-        version: 7.3.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -1824,9 +1818,6 @@ importers:
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
         version: link:../../deps/graph-hasher
-      '@pnpm/deps.graph-sequencer':
-        specifier: workspace:*
-        version: link:../../deps/graph-sequencer
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
@@ -1863,15 +1854,15 @@ importers:
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
+      '@pnpm/workspace.task-scheduler':
+        specifier: workspace:*
+        version: link:../../workspace/task-scheduler
       p-defer:
         specifier: 'catalog:'
         version: 4.0.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
-      run-groups:
-        specifier: 'catalog:'
-        version: 5.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -4409,6 +4400,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      '@pnpm/workspace.task-scheduler':
+        specifier: workspace:*
+        version: link:../../workspace/task-scheduler
       chalk:
         specifier: 'catalog:'
         version: 6.0.0
@@ -4416,9 +4410,6 @@ importers:
         specifier: 'catalog:'
         version: 1.0.2
       path-exists:
-        specifier: 'catalog:'
-        version: 5.0.0
-      run-groups:
         specifier: 'catalog:'
         version: 5.0.0
       shlex:
@@ -5427,6 +5418,9 @@ importers:
       '@pnpm/workspace.state':
         specifier: workspace:*
         version: link:../../workspace/state
+      '@pnpm/workspace.task-scheduler':
+        specifier: workspace:*
+        version: link:../../workspace/task-scheduler
       '@pnpm/workspace.workspace-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/workspace-manifest-reader
@@ -5469,9 +5463,6 @@ importers:
       p-filter:
         specifier: 'catalog:'
         version: 4.1.0
-      p-limit:
-        specifier: 'catalog:'
-        version: 7.3.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -5875,9 +5866,6 @@ importers:
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
-      run-groups:
-        specifier: 'catalog:'
-        version: 5.0.0
       semver:
         specifier: 'catalog:'
         version: 7.8.5
@@ -8370,6 +8358,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
+      '@pnpm/deps.graph-sequencer':
+        specifier: workspace:*
+        version: link:../../deps/graph-sequencer
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
@@ -8463,6 +8454,9 @@ importers:
       '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
         version: link:../../workspace/projects-sorter
+      '@pnpm/workspace.task-scheduler':
+        specifier: workspace:*
+        version: link:../../workspace/task-scheduler
       '@pnpm/workspace.workspace-manifest-writer':
         specifier: workspace:*
         version: link:../../workspace/workspace-manifest-writer
@@ -16415,10 +16409,6 @@ packages:
   run-groups@3.0.1:
     resolution: {integrity: sha512-2hIL01Osd6FWsQVhVGqJ7drNikmTaUg2A/VBR98+LuhQ1jV1Xlh43BQH4gJiNaOzfHJTasD0pw5YviIfdVVY4g==}
     engines: {node: '>=10'}
-
-  run-groups@5.0.0:
-    resolution: {integrity: sha512-IpIAITIDF5m1FyL6ccgG2WbnXUpVKOOAgMuZz3E/MPV6s60YWnqu9P0ijSyDSMeLXQ+nTLdGevqIDOzup0BF6Q==}
-    engines: {node: '>=22.13'}
 
   run-parallel@1.2.0:
     resolution: {integrity: sha512-5l4VyZR86LZ/lDxZTR6jqL8AFE2S0IFLMP26AbjsLVADxHdhB/c0GUsH+y39UfCi3dzz8OlQuPmnaJOMoDHQBA==}
@@ -24376,10 +24366,6 @@ snapshots:
   run-groups@3.0.1:
     dependencies:
       p-limit: 3.1.0
-
-  run-groups@5.0.0:
-    dependencies:
-      p-limit: 7.3.1
 
   run-parallel@1.2.0:
     dependencies:

@@ -1,6 +1,6 @@
 //! Shared machinery for the recursive (`-r`) variants of `run` and
 //! `exec`: workspace-project discovery, `--filter` selection,
-//! topological sorting, the `--resume-from` chunk trimming, and the
+//! dependency graph construction, `--resume-from` trimming, and the
 //! `pnpm-exec-summary.json` execution-status report.
 //!
 //! The per-command pieces (which action runs per project, and the
@@ -58,38 +58,10 @@ pub struct NoMatchingProjects {
     pub message: String,
 }
 
-/// Sort the `--filter`-selected workspace projects into topologically
-/// ordered chunks: every project in chunk `i` depends only on projects in
-/// earlier chunks, so chunk `i` may run after chunks `0..i`.
-///
-/// Order is resolved through the full workspace graph, so two selected
-/// projects connected only through an unselected one are still ordered
-/// correctly. `--filter-prod` projects in `prod_only_selected` resolve
-/// through `prod_all` instead, so the dev edges that selection pruned are
-/// not pulled back into the order. Unrelated projects share a chunk and
-/// stay concurrent.
-pub fn sort_filtered_projects<Pkg>(
-    selected: &ProjectGraph<Pkg>,
-    all: &ProjectGraph<Pkg>,
-    prod_all: Option<&ProjectGraph<Pkg>>,
-    prod_only_selected: &HashSet<PathBuf>,
-) -> Vec<Vec<PathBuf>> {
-    match prod_all {
-        None => sort_projects(selected, Some(all)),
-        Some(prod_all) => {
-            sequence_graph_by_project(selected, |project_dir| {
-                if prod_only_selected.contains(project_dir) { prod_all } else { all }
-            })
-            .chunks
-        }
-    }
-}
-
 /// The dependency edges among the `--filter`-selected projects, resolved
 /// through the full workspace graph so a relationship between two selected
-/// projects via an unselected one becomes a direct edge — the same edges
-/// [`sort_filtered_projects`] chunks by, handed to the task-graph builder
-/// unflattened. Keys keep the selection order.
+/// projects via an unselected one becomes a direct edge. Keys keep the
+/// selection order.
 pub fn filtered_projects_dependencies<Pkg>(
     selected: &ProjectGraph<Pkg>,
     all: &ProjectGraph<Pkg>,
@@ -109,24 +81,9 @@ pub fn filtered_projects_dependencies<Pkg>(
         .collect()
 }
 
-/// Sort `graph` into topologically ordered chunks: every project in chunk
-/// `i` depends only on projects in earlier chunks, so chunk `i` may run
-/// after chunks `0..i`.
-///
-/// `full_graph` resolves edges that pass through projects outside `graph`,
-/// so two selected projects connected only through an unselected one are
-/// still ordered correctly; `None` resolves only the edges among `graph`'s
-/// own projects.
-pub fn sort_projects<Pkg>(
-    graph: &ProjectGraph<Pkg>,
-    full_graph: Option<&ProjectGraph<Pkg>>,
-) -> Vec<Vec<PathBuf>> {
-    sequence_graph(graph, full_graph.unwrap_or(graph)).chunks
-}
-
-/// Sequence `projects_graph` into topologically ordered chunks, resolving
-/// transitive edges through `full_projects_graph`. See [`sort_projects`].
-fn sequence_graph<Pkg>(
+/// Sequence `projects_graph` into one deterministic topological order,
+/// resolving transitive edges through `full_projects_graph`.
+pub fn sequence_graph<Pkg>(
     projects_graph: &ProjectGraph<Pkg>,
     full_projects_graph: &ProjectGraph<Pkg>,
 ) -> GraphSequencerResult<PathBuf> {
@@ -291,7 +248,7 @@ impl<'a> RecursiveSelection<'a> {
 }
 
 /// Build the `--filter`-selected workspace projects the recursive command
-/// runs over, together with the graphs [`sort_filtered_projects`] resolves
+/// runs over, together with the graphs [`filtered_projects_dependencies`] resolves
 /// order through. `prefix` is where path selectors resolve; `auto_exclude_root`
 /// applies the main-dispatch `!{<workspace-root>}` augmentation for
 /// `run` / `exec`.
@@ -385,7 +342,7 @@ pub fn select_recursive_projects<'a>(
     // dropped. A project also matched by a regular selector keeps this earlier
     // position but has its node overwritten with the full-graph one below, and
     // is left out of `prod_only_selected`. Insertion order is user-visible: the
-    // recursive runners execute and print a topological chunk's projects in it.
+    // recursive runners use it as the dispatch tie-break order.
     if let Some(prod_all) = &prod_all {
         let regular: HashSet<&PathBuf> = regular_selected.iter().collect();
         for dir in &prod_selected {

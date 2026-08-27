@@ -187,6 +187,9 @@
       "path": "../../workspace/state"
     },
     {
+      "path": "../../workspace/task-scheduler"
+    },
+    {
       "path": "../../workspace/workspace-manifest-reader"
     },
     {

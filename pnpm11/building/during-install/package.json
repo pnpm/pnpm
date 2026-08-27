@@ -37,7 +37,6 @@
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/deps.graph-hasher": "workspace:*",
-    "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
@@ -49,9 +48,9 @@
     "@pnpm/pnpr.client": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.task-scheduler": "workspace:*",
     "p-defer": "catalog:",
-    "ramda": "catalog:",
-    "run-groups": "catalog:"
+    "ramda": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:",

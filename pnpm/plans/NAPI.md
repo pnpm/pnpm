@@ -114,8 +114,8 @@ Implementation notes:
   `(id, manifest)` pairs instead of on-disk workspace discovery. This is the one real
   pacquet-side feature addition; it mirrors what the TS `mutateModules` has always
   accepted (`allProjects` with in-memory manifests).
-- Build ordering: Rust's `graph_sequencer`/`build_sequence` handles lifecycle ordering;
-  callers do not pass `buildIndex` (Bit's `groupPkgs`/`sortProjects` dance is dropped).
+- Build ordering: Rust's `graph_sequencer`/`build_graph` handles lifecycle ordering;
+  callers pass project dependencies instead of a `buildIndex`.
 - `readPackageHook` maps onto the existing `PnpmfileHooks` seam via a `ThreadsafeFunction`
   that serializes the manifest to JSON and deserializes the synchronous JS result. The JS
   side receives `(manifest)` for dependency manifests. Importer-manifest transforms that

@@ -691,7 +691,7 @@ fn workspace_install_selection(
 ) -> WorkspaceInstallSelection<'_> {
     WorkspaceInstallSelection {
         all_projects: &selection.projects,
-        ordered_groups: &selection.ordered_groups,
+        project_dependencies: &selection.project_dependencies,
         ordered_dirs: &selection.ordered_dirs,
         selected_dirs: selection.selected_dirs.as_ref(),
         install_dirs: selection.install_dirs.as_ref(),

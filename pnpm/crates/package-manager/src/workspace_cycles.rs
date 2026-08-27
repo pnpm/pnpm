@@ -26,8 +26,8 @@ use std::{
 /// project depending on an unselected one — is dropped rather than
 /// followed, so two selected projects joined only through a third are
 /// not a cycle. pnpm sequences its selected graph the same way. The
-/// cycle list can be empty for an unorderable set, which is why the
-/// verdict is the `Option` rather than the list's emptiness.
+/// Self-references are reported by the sequencer but do not make a workspace
+/// unorderable, so only cycles with more than one project are returned.
 #[must_use]
 pub fn workspace_cycles<Pkg>(graph: &ProjectGraph<Pkg>) -> Option<Vec<Vec<PathBuf>>> {
     let dirs: Vec<PathBuf> = graph.keys().cloned().collect();
@@ -44,8 +44,12 @@ pub fn workspace_cycles<Pkg>(graph: &ProjectGraph<Pkg>) -> Option<Vec<Vec<PathBu
             (dir.clone(), dependencies)
         })
         .collect();
-    let sequenced = graph_sequencer(&edges, &dirs);
-    (!sequenced.safe).then_some(sequenced.cycles)
+    let cycles = graph_sequencer(&edges, &dirs)
+        .cycles
+        .into_iter()
+        .filter(|cycle| cycle.len() > 1)
+        .collect::<Vec<_>>();
+    (!cycles.is_empty()).then_some(cycles)
 }
 
 /// The cycles among the projects an install covers: `selected_dirs`

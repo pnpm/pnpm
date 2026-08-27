@@ -170,7 +170,7 @@ impl Remove<'_> {
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
         projects: &mut [pnpm_workspace::Project],
-        ordered_groups: &[Vec<std::path::PathBuf>],
+        project_dependencies: &indexmap::IndexMap<std::path::PathBuf, Vec<std::path::PathBuf>>,
         ordered_dirs: &[std::path::PathBuf],
         selected_dirs: &HashSet<std::path::PathBuf>,
         install_dirs: &HashSet<std::path::PathBuf>,
@@ -243,7 +243,7 @@ impl Remove<'_> {
         }
         .run_selected::<Reporter>(WorkspaceInstallSelection {
             all_projects: projects,
-            ordered_groups,
+            project_dependencies,
             ordered_dirs,
             selected_dirs,
             install_dirs,

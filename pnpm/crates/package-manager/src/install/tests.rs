@@ -7,7 +7,7 @@ use super::{
     Install, InstallError, ProjectMutation, UpToDateFastPathCheck, apply_deploy_manifest_hook,
     apply_deploy_manifest_hook_to_arc, apply_materialization::report_verified_file_integrity,
     install_already_up_to_date, load_workspace_projects,
-    lockfile_freshness::exclude_linked_dependencies, order_project_lifecycle_groups,
+    lockfile_freshness::exclude_linked_dependencies, project_lifecycle_graph,
     project_requires_lifecycle_scripts,
 };
 use crate::{
@@ -119,7 +119,7 @@ fn project_lifecycle_detection_includes_scripts_and_binding_gyp_fallback() {
 }
 
 #[test]
-fn lifecycle_groups_normalize_paths_and_recover_from_incomplete_explicit_groups() {
+fn lifecycle_graph_normalizes_paths_and_recovers_from_incomplete_explicit_graph() {
     let temp = tempdir().unwrap();
     let workspace_root = temp.path().join("workspace");
     let dependency_dir = workspace_root.join("packages/holding/../dependency");
@@ -142,36 +142,33 @@ fn lifecycle_groups_normalize_paths_and_recover_from_incomplete_explicit_groups(
         "        version: link:../dependency"
     })
     .unwrap();
-    let incomplete_groups = vec![vec![dependent_dir.clone()]];
+    let incomplete_dependencies = indexmap::IndexMap::from([(dependent_dir.clone(), Vec::new())]);
 
-    let Err(missing_order_error) = order_project_lifecycle_groups(
+    let Err(missing_order_error) = project_lifecycle_graph(
         &[
             (dependent_dir.clone(), &dependent_manifest),
             (dependency_dir.clone(), &dependency_manifest),
         ],
-        Some(&incomplete_groups),
+        Some(&incomplete_dependencies),
         &workspace_root,
         None,
     ) else {
-        panic!("incomplete groups without a lockfile must fail");
+        panic!("incomplete graph without a lockfile must fail");
     };
     assert!(matches!(missing_order_error, InstallError::ProjectLifecycleOrder { .. }));
 
-    let groups = order_project_lifecycle_groups(
+    let graph = project_lifecycle_graph(
         &[
             (dependent_dir.clone(), &dependent_manifest),
             (dependency_dir.clone(), &dependency_manifest),
         ],
-        Some(&incomplete_groups),
+        Some(&incomplete_dependencies),
         &workspace_root,
         Some(&lockfile),
     )
     .unwrap();
-    let grouped_dirs = groups
-        .into_iter()
-        .map(|group| group.into_iter().map(|(project_dir, _)| project_dir).collect::<Vec<_>>())
-        .collect::<Vec<_>>();
-    assert_eq!(grouped_dirs, vec![vec![dependency_dir], vec![dependent_dir]]);
+    let dependency_dir = pnpm_fs::lexical_normalize(&dependency_dir);
+    assert_eq!(graph.dependencies[&dependent_dir], vec![dependency_dir]);
 }
 
 #[test]
