@@ -41,6 +41,10 @@ export interface ScheduleTasksOptions {
  * hang this scheduler.
  */
 export async function scheduleTasks (graph: TaskGraph, opts: ScheduleTasksOptions): Promise<void> {
+  // A rejection violates runTask's contract; held here so the run still
+  // fails with it rather than silently resolving.
+  let contractViolation: unknown
+  let rejected = false
   const pendingDependencyCount = new Map<TaskKey, number>()
   const dependents = new Map<TaskKey, TaskKey[]>()
   const ready: TaskKey[] = []
@@ -75,7 +79,7 @@ export async function scheduleTasks (graph: TaskGraph, opts: ScheduleTasksOption
       for (const dependent of dependents.get(key) ?? []) {
         const remaining = pendingDependencyCount.get(dependent)! - 1
         pendingDependencyCount.set(dependent, remaining)
-        if (remaining === 0) {
+        if (remaining === 0 && !blocked.has(dependent)) {
           ready.push(dependent)
         }
       }
@@ -134,9 +138,13 @@ export async function scheduleTasks (graph: TaskGraph, opts: ScheduleTasksOption
         opts.runTask(node, key).then((completion) => {
           settle(key, completion)
           pump()
-        }, () => {
-          // runTask's contract is to never reject; a rejection is an
-          // infrastructure failure whose details only the caller can hold.
+        }, (error: unknown) => {
+          // runTask's contract is to never reject; treated as an abort, and
+          // the error resurfaces once the scheduler settles.
+          if (!rejected) {
+            rejected = true
+            contractViolation = error
+          }
           settle(key, 'aborted')
           pump()
         })
@@ -146,4 +154,7 @@ export async function scheduleTasks (graph: TaskGraph, opts: ScheduleTasksOption
     }
     pump()
   })
+  if (rejected) {
+    throw contractViolation
+  }
 }

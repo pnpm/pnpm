@@ -20,17 +20,17 @@ test('an aborted task stops dispatch and the scheduler still settles', async () 
   expect(ran).toStrictEqual(['/workspace/a'])
 })
 
-test('a rejected runTask is treated as an abort rather than swallowed', async () => {
+test('a rejected runTask stops dispatch and resurfaces as the scheduler\'s failure', async () => {
   const graph = chainGraph()
   const ran: string[] = []
-  await scheduleTasks(graph, {
+  await expect(scheduleTasks(graph, {
     bail: false,
     runTask: async (node) => {
       ran.push(node.project)
       throw new Error('boom')
     },
     onTaskSkipped: () => {},
-  })
+  })).rejects.toThrow('boom')
   expect(ran).toStrictEqual(['/workspace/a'])
 })
 
