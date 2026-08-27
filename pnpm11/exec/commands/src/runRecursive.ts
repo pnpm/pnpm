@@ -25,6 +25,7 @@ import {
   type TaskCompletion,
   type TaskGraph,
   taskGraphToJson,
+  type TaskKey,
   type TaskNode,
 } from '@pnpm/workspace.task-scheduler'
 import pLimit from 'p-limit'
@@ -35,6 +36,7 @@ import { existsInDir } from './existsInDir.js'
 import { throwOrFilterHiddenScripts } from './hiddenScripts.js'
 import { tryBuildRegExpFromCommand } from './regexpCommand.js'
 import { runScript, type RunScriptOptions } from './run.js'
+import { TaskRunStateContext } from './taskRunState.js'
 export type RecursiveRunOpts = Pick<Config,
 | 'bin'
 | 'enablePrePostScripts'
@@ -72,7 +74,42 @@ export async function runRecursive (
     throw new PnpmError('SCRIPT_NAME_IS_REQUIRED', 'You must specify the script you want to run')
   }
 
-  const taskGraph = buildRunTaskGraph(scriptName, opts)
+  const fullTaskGraph = buildRunTaskGraph(scriptName, opts)
+  const taskRunStateContext = new TaskRunStateContext({
+    command: 'run',
+    params,
+    settings: [
+      `enable-pre-post-scripts=${Boolean(opts.enablePrePostScripts)}`,
+      `script-shell=${opts.scriptShell ?? ''}`,
+      `scripts-prepend-node-path=${String(opts.scriptsPrependNodePath ?? false)}`,
+      `shell-emulator=${Boolean(opts.shellEmulator)}`,
+      `sync-injected-deps-after-scripts=${JSON.stringify([...(opts.syncInjectedDepsAfterScripts ?? [])].sort())}`,
+    ],
+    graph: fullTaskGraph,
+    workspaceDir: opts.workspaceDir,
+    scriptCommands: (node, script) => {
+      const scripts = opts.selectedProjectsGraph[node.project].package.manifest.scripts ?? {}
+      const main = scripts[script]
+      if (main == null) return []
+      if (!opts.enablePrePostScripts) return [main]
+      return [`pre${script}`, script, `post${script}`]
+        .filter((stage) => scripts[stage] != null && (stage === script || !main.includes(stage)))
+        .map((stage) => scripts[stage]!)
+    },
+  })
+  let taskGraph = fullTaskGraph
+  if (opts.resumeFrom != null) {
+    const resumeOptions = {
+      resumeFrom: opts.resumeFrom,
+      selectedProjectsGraph: opts.selectedProjectsGraph,
+      taskName: scriptName,
+    }
+    taskGraph = resumeTaskGraphFrom(fullTaskGraph, resumeOptions)
+    const completedTasks = await taskRunStateContext.readCompletedTasks()
+    if (completedTasks != null) {
+      taskGraph = resumeTaskGraphFrom(fullTaskGraph, { ...resumeOptions, completedTasks })
+    }
+  }
   // Also the cycle check: a cyclic graph cannot be scheduled, and sequenced
   // into an arbitrary order it would succeed or fail by luck.
   const sequencedTasks = sequenceTasks(taskGraph, {
@@ -113,6 +150,12 @@ export async function runRecursive (
     throw noRequestedScriptError(scriptName, opts)
   }
 
+  const initiallyCompleted = new Set<TaskKey>()
+  for (const key of fullTaskGraph.keys()) {
+    if (!taskGraph.has(key)) initiallyCompleted.add(key)
+  }
+  const taskRunState = await taskRunStateContext.start(initiallyCompleted)
+
   const limitRun = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   const stdio =
     !opts.stream &&
@@ -132,9 +175,9 @@ export async function runRecursive (
   let firstError: Error | undefined
   let abortError: unknown
 
-  const runTask = async (node: TaskNode): Promise<TaskCompletion> => {
+  const runTask = async (node: TaskNode, key: TaskKey): Promise<TaskCompletion> => {
     try {
-      return await runTaskScripts(node)
+      return await runTaskScripts(node, key)
     } catch (err: unknown) {
       // An error the per-script handling could not absorb is an
       // infrastructure failure: hold it for rethrow and stop the run.
@@ -143,7 +186,7 @@ export async function runRecursive (
     }
   }
 
-  const runTaskScripts = async (node: TaskNode): Promise<TaskCompletion> => {
+  const runTaskScripts = async (node: TaskNode, key: TaskKey): Promise<TaskCompletion> => {
     const pkg = opts.selectedProjectsGraph[node.project]
     const summaryKey = taskSummaryKey(node)
     // A RegExp selector can match several scripts in one task, but the
@@ -154,12 +197,14 @@ export async function runRecursive (
     // scripts settle concurrently, so reading back the recorded status
     // would race (and TypeScript narrows it to 'running' regardless).
     let taskFailed = false
+    let taskCancelled = false
     await Promise.all(node.scripts.map(async (script) =>
       limitRun(async () => {
         // Under --bail a failure stops dispatch, but a script already queued
         // behind the concurrency limit has been dispatched in name only —
         // starting it now would grow the failed run. It stays 'queued'.
         if (opts.bail && firstError != null) {
+          taskCancelled = true
           return
         }
         if (
@@ -245,7 +290,9 @@ export async function runRecursive (
           }
         }
       })))
-    return taskFailed ? 'failed' : 'passed'
+    if (taskFailed || taskCancelled) return 'failed'
+    await taskRunState.recordPassed(key, node)
+    return 'passed'
   }
 
   await scheduleTasks(taskGraph, {
@@ -274,6 +321,7 @@ export async function runRecursive (
   // must report that failure, not claim the script does not exist.
   const hasFailures = Object.values(result).some(({ status }) => status === 'failure')
   if (scriptName !== 'test' && !hasCommand && !hasFailures && !opts.ifPresent) {
+    await taskRunState.finish()
     throw noRequestedScriptError(scriptName, opts)
   }
   if (opts.reportSummary) {
@@ -283,13 +331,13 @@ export async function runRecursive (
     })
   }
   throwOnCommandFail('pnpm recursive run', result)
+  await taskRunState.finish()
   return undefined
 }
 
 /**
  * The task graph of one `pnpm -r run` invocation: `scriptName` in every
- * selected project plus what `dependsOn` pulls in, with `--reverse` and
- * `--resume-from` already applied.
+ * selected project plus what `dependsOn` pulls in, with `--reverse` applied.
  *
  * `--no-sort` keeps its meaning of disregarding ordering entirely: tasks get
  * no edges, and the `tasks` declarations do not apply.
@@ -310,13 +358,6 @@ function buildRunTaskGraph (scriptName: string, opts: RecursiveRunOpts): TaskGra
   })
   if (opts.reverse) {
     taskGraph = reverseTaskGraph(taskGraph)
-  }
-  if (opts.resumeFrom) {
-    taskGraph = resumeTaskGraphFrom(taskGraph, {
-      resumeFrom: opts.resumeFrom,
-      selectedProjectsGraph: opts.selectedProjectsGraph,
-      taskName: scriptName,
-    })
   }
   return taskGraph
 }

@@ -72,6 +72,7 @@
     "render-help": "catalog:",
     "symlink-dir": "catalog:",
     "which": "catalog:",
+    "write-file-atomic": "catalog:",
     "write-json-file": "catalog:"
   },
   "peerDependencies": {
@@ -89,6 +90,7 @@
     "@types/is-windows": "catalog:",
     "@types/ramda": "catalog:",
     "@types/which": "catalog:",
+    "@types/write-file-atomic": "catalog:",
     "is-windows": "catalog:",
     "write-yaml-file": "catalog:"
   },

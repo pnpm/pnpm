@@ -1354,6 +1354,69 @@ fn recursive_run_resume_from_starts_at_the_given_package() {
     drop(root);
 }
 
+#[test]
+fn recursive_run_resumes_from_exactly_the_tasks_that_passed_before_a_failure() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "dependency",
+                json!({
+                    "name": "dependency",
+                    "version": "1.0.0",
+                    "scripts": { "build": "echo dependency >> ../order.log; [ ! -e ../fail ]" },
+                }),
+            ),
+            (
+                "anchor",
+                json!({
+                    "name": "anchor",
+                    "version": "1.0.0",
+                    "dependencies": { "dependency": "workspace:*" },
+                    "scripts": { "build": "echo anchor >> ../order.log" },
+                }),
+            ),
+            (
+                "completed",
+                json!({
+                    "name": "completed",
+                    "version": "1.0.0",
+                    "scripts": { "build": "echo completed >> ../order.log" },
+                }),
+            ),
+        ],
+    );
+    fs::write(workspace.join("fail"), "").expect("write failure marker");
+
+    pacquet
+        .with_args(["--no-bail", "--workspace-concurrency=1", "-r", "run", "build"])
+        .assert()
+        .failure();
+    let first_run = fs::read_to_string(workspace.join("order.log")).expect("read first run");
+    let mut first_tasks: Vec<&str> = first_run.lines().collect();
+    first_tasks.sort_unstable();
+    assert_eq!(first_tasks, ["completed", "dependency"]);
+
+    fs::remove_file(workspace.join("fail")).expect("remove failure marker");
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["--workspace-concurrency=1", "--resume-from=anchor", "-r", "run", "build"])
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read resumed run");
+    assert!(order.ends_with("dependency\nanchor\n"), "unfinished dependency must rerun: {order}");
+    assert_eq!(order.lines().filter(|task| *task == "completed").count(), 1);
+    let state_files = fs::read_dir(workspace.join("node_modules").join(".pnpm-task-run-state-v1"))
+        .expect("read state directory")
+        .count();
+    assert_eq!(state_files, 0, "successful resume removes its checkpoint");
+
+    drop(root);
+}
+
 /// An unknown `--resume-from` package fails with
 /// `ERR_PNPM_RESUME_FROM_NOT_FOUND`.
 #[test]

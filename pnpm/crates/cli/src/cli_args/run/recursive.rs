@@ -16,10 +16,13 @@ use super::{
     RunArgs, RunContext, ScriptSelector, render_project_commands, run_stages,
     throw_or_filter_hidden_scripts,
 };
-use crate::cli_args::recursive::{
-    AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-    filtered_projects_dependencies, find_resume_root, select_recursive_projects,
-    write_recursive_summary,
+use crate::cli_args::{
+    recursive::{
+        AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
+        filtered_projects_dependencies, find_resume_root, select_recursive_projects,
+        write_recursive_summary,
+    },
+    task_run_state::TaskRunStateContext,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -35,12 +38,12 @@ use pnpm_workspace::GraphPkg;
 use pnpm_workspace_projects_graph::ProjectGraph;
 use pnpm_workspace_task_scheduler::{
     BuildTaskGraphOptions, ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion, TaskGraph,
-    TaskNode, build_task_graph, is_serial_task_graph, render_task_graph_dry_run,
+    TaskKey, TaskNode, build_task_graph, is_serial_task_graph, render_task_graph_dry_run,
     resume_task_graph_from, reverse_task_graph, schedule_tasks, sequence_tasks, task_graph_to_json,
     task_summary_key,
 };
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env,
     path::{Path, PathBuf},
     sync::{
@@ -148,8 +151,79 @@ pub fn run_recursive(
 
     // Compiled once for the whole run, not per project or task.
     let selector = ScriptSelector::new(script_name)?;
-    let mut task_graph =
+    let full_task_graph =
         build_run_task_graph(script_name, &selector, args, config, graph, &selection, emit)?;
+    let mut sync_injected = config.sync_injected_deps_after_scripts.clone();
+    sync_injected.sort();
+    let scripts_prepend_node_path = match config.scripts_prepend_node_path {
+        pnpm_config::ScriptsPrependNodePath::Always => "true",
+        pnpm_config::ScriptsPrependNodePath::Never => "false",
+        pnpm_config::ScriptsPrependNodePath::WarnOnly => "warn-only",
+    };
+    let state_settings = vec![
+        format!("enable-pre-post-scripts={}", config.enable_pre_post_scripts),
+        format!("script-shell={}", config.script_shell.as_deref().unwrap_or_default()),
+        format!("scripts-prepend-node-path={scripts_prepend_node_path}"),
+        format!("shell-emulator={}", config.shell_emulator),
+        format!(
+            "sync-injected-deps-after-scripts={}",
+            serde_json::to_string(&sync_injected).expect("script names serialize")
+        ),
+    ];
+    let task_run_state_context = TaskRunStateContext::new(
+        "run",
+        &args.script,
+        &state_settings,
+        &full_task_graph,
+        workspace_root,
+        |node, script| {
+            let scripts = graph[&node.project]
+                .package
+                .project
+                .manifest
+                .value()
+                .get("scripts")
+                .and_then(serde_json::Value::as_object);
+            let Some(main) =
+                scripts.and_then(|scripts| scripts.get(script)).and_then(serde_json::Value::as_str)
+            else {
+                return Vec::new();
+            };
+            if !config.enable_pre_post_scripts {
+                return vec![main.to_string()];
+            }
+            [format!("pre{script}"), script.to_string(), format!("post{script}")]
+                .into_iter()
+                .filter(|stage| stage == script || !main.contains(stage.as_str()))
+                .filter_map(|stage| {
+                    scripts
+                        .and_then(|scripts| scripts.get(&stage))
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_string)
+                })
+                .collect()
+        },
+    );
+    let resume_anchor = args
+        .resume_from
+        .as_ref()
+        .map(|resume_from| find_resume_root(resume_from, graph))
+        .transpose()?;
+    let completed_tasks = resume_anchor
+        .as_ref()
+        .map(|_| task_run_state_context.read_completed_tasks())
+        .transpose()?
+        .flatten();
+    let mut task_graph = if let Some(anchor) = resume_anchor {
+        resume_task_graph_from(
+            full_task_graph.clone(),
+            &anchor,
+            script_name,
+            completed_tasks.as_ref(),
+        )
+    } else {
+        full_task_graph.clone()
+    };
     // Also the cycle check: a cyclic graph cannot be scheduled, and
     // sequenced into an arbitrary order it would succeed or fail by luck.
     let sequenced_tasks = sequence_tasks(
@@ -195,6 +269,10 @@ pub fn run_recursive(
     {
         return Err(no_requested_script_error(script_name, graph.len() == projects.len()).into());
     }
+
+    let initially_completed: HashSet<TaskKey> =
+        full_task_graph.keys().filter(|key| !task_graph.contains_key(*key)).cloned().collect();
+    let task_run_state = task_run_state_context.start(&initially_completed)?;
 
     let bail = !args.no_bail;
     let concurrency = if args.parallel {
@@ -275,6 +353,19 @@ pub fn run_recursive(
                 *first_failure = Some(node.project.to_string_lossy().into_owned());
             }
             TaskCompletion::Failed
+        } else if let Err(error) = task_run_state.record_passed(
+            &TaskKey { project: node.project.clone(), task_name: node.task_name.clone() },
+            node,
+            workspace_root,
+        ) {
+            let mut abort = abort.lock().expect("abort slot lock is not poisoned");
+            if abort.is_none() {
+                *abort = Some(error);
+            }
+            if let Some(process_tracker) = &process_tracker {
+                process_tracker.cancel();
+            }
+            TaskCompletion::Aborted
         } else {
             TaskCompletion::Passed
         }
@@ -320,6 +411,7 @@ pub fn run_recursive(
         && failures == 0
         && !args.if_present
     {
+        task_run_state.finish()?;
         return Err(no_requested_script_error(script_name, graph.len() == projects.len()).into());
     }
 
@@ -330,12 +422,13 @@ pub fn run_recursive(
     if failures > 0 {
         return Err(RecursiveRunError::RecursiveFail { count: failures }.into());
     }
+    task_run_state.finish()?;
     Ok(())
 }
 
 /// The task graph of this invocation: `script_name` in every selected
 /// project plus what the `tasks` declarations pull in, with `--reverse`
-/// and `--resume-from` already applied.
+/// applied.
 ///
 /// `--no-sort` keeps its meaning of disregarding ordering entirely: tasks
 /// get no edges, and the `tasks` declarations do not apply.
@@ -399,10 +492,6 @@ fn build_run_task_graph(
     });
     if args.reverse {
         task_graph = reverse_task_graph(&task_graph);
-    }
-    if let Some(resume_from) = &args.resume_from {
-        let anchor = find_resume_root(resume_from, graph)?;
-        task_graph = resume_task_graph_from(task_graph, &anchor, script_name);
     }
     Ok(task_graph)
 }

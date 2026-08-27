@@ -197,13 +197,16 @@ export interface ResumeTaskGraphOptions {
   selectedProjectsGraph: ProjectsGraph
   /** The task of the anchor project the invocation resolves to. */
   taskName: string
+  /** Tasks durably completed by the matching previous invocation. */
+  completedTasks?: ReadonlySet<TaskKey>
 }
 
 /**
- * The graph without the anchor's transitive dependencies — the tasks known to
- * have finished before a run would reach the anchor. Everything else stays,
- * including work unrelated to the anchor, and edges into the dropped set are
- * treated as satisfied.
+ * When durable state is available, the graph without exactly those completed
+ * tasks. Otherwise, the graph without the anchor's transitive dependencies —
+ * the tasks inferred to have finished before a run would reach the anchor.
+ * The anchor itself and unfinished work stay, and edges into the dropped set
+ * are treated as satisfied.
  */
 export function resumeTaskGraphFrom (graph: TaskGraph, opts: ResumeTaskGraphOptions): TaskGraph {
   const anchorProject = (Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[])
@@ -217,20 +220,28 @@ export function resumeTaskGraphFrom (graph: TaskGraph, opts: ResumeTaskGraphOpti
     // non-recursive invocation): there is nothing to skip.
     return graph
   }
-  const dropped = new Set<TaskKey>()
-  const stack = [...anchor.dependencies]
-  while (stack.length > 0) {
-    const key = stack.pop()!
-    if (dropped.has(key)) continue
-    dropped.add(key)
-    stack.push(...graph.get(key)!.dependencies)
-  }
+  const anchorKey = taskKey(anchorProject, opts.taskName)
+  const dropped = opts.completedTasks == null
+    ? transitiveDependencies(graph, anchor)
+    : new Set([...opts.completedTasks].filter((key) => key !== anchorKey && graph.has(key)))
   const resumed: TaskGraph = new Map()
   for (const [key, node] of graph) {
     if (dropped.has(key)) continue
     resumed.set(key, { ...node, dependencies: node.dependencies.filter((dependency) => !dropped.has(dependency)) })
   }
   return resumed
+}
+
+function transitiveDependencies (graph: TaskGraph, anchor: TaskNode): Set<TaskKey> {
+  const dependencies = new Set<TaskKey>()
+  const stack = [...anchor.dependencies]
+  while (stack.length > 0) {
+    const key = stack.pop()!
+    if (dependencies.has(key)) continue
+    dependencies.add(key)
+    stack.push(...graph.get(key)!.dependencies)
+  }
+  return dependencies
 }
 
 /**

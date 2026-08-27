@@ -1085,6 +1085,60 @@ test('`pnpm -r --resume-from run` should executed from given package', async () 
   expect(server.getLines().sort()).toEqual(['project-2', 'project-3'])
 })
 
+test('recursive run resumes from exactly the tasks that passed before a failure', async () => {
+  preparePackages([
+    {
+      name: 'dependency',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "const fs = require(\'fs\'); fs.appendFileSync(\'../order.log\', \'dependency\\n\'); if (fs.existsSync(\'../fail\')) process.exit(1)"',
+      },
+    },
+    {
+      name: 'anchor',
+      version: '1.0.0',
+      dependencies: {
+        dependency: '1',
+      },
+      scripts: {
+        build: 'node -e "require(\'fs\').appendFileSync(\'../order.log\', \'anchor\\n\')"',
+      },
+    },
+    {
+      name: 'completed',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "require(\'fs\').appendFileSync(\'../order.log\', \'completed\\n\')"',
+      },
+    },
+  ])
+  await fs.promises.writeFile('fail', '')
+  const selection = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const opts = {
+    ...DEFAULT_OPTS,
+    ...selection,
+    bail: false,
+    dir: process.cwd(),
+    recursive: true,
+    workspaceConcurrency: 1,
+    workspaceDir: process.cwd(),
+  }
+
+  await expect(run.handler(opts, ['build'])).rejects.toMatchObject({ code: 'ERR_PNPM_RECURSIVE_FAIL' })
+  const firstRun = (await fs.promises.readFile('order.log', 'utf8')).trim().split('\n')
+  expect([...firstRun].sort()).toStrictEqual(['completed', 'dependency'])
+
+  await fs.promises.rm('fail')
+  await run.handler({ ...opts, bail: true, resumeFrom: 'anchor' }, ['build'])
+
+  expect((await fs.promises.readFile('order.log', 'utf8')).trim().split('\n')).toStrictEqual([
+    ...firstRun,
+    'dependency',
+    'anchor',
+  ])
+  await expect(fs.promises.readdir(path.join('node_modules', '.pnpm-task-run-state-v1'))).resolves.toStrictEqual([])
+})
+
 test('pnpm run with RegExp script selector should work on recursive', async () => {
   preparePackages([
     {
