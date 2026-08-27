@@ -332,7 +332,10 @@ fn recursive_exec_bail_summary_records_every_completed_batch_result() {
             "-r",
             "exec",
             "-c",
-            r#"if [ "$(basename "$PWD")" = fails ]; then exit 1; fi"#,
+            // `passes` has to reach the summary, and bail stops dispatching the
+            // moment `fails` returns — so `fails` waits for the marker that
+            // proves `passes` was handed to a worker before it fails.
+            r#"if [ "$(basename "$PWD")" = fails ]; then i=0; while [ ! -f ../passes/ran.txt ] && [ $i -lt 1000 ]; do i=$((i + 1)); sleep 0.01; done; exit 1; fi; touch ran.txt"#,
         ])
         .assert()
         .failure();

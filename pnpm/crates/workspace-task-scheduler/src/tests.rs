@@ -496,7 +496,16 @@ fn graph_scheduler_does_not_wait_for_an_unrelated_slow_branch() {
         },
     )
     .unwrap();
-    assert_eq!(ran.into_inner().unwrap(), vec!["slow", "fast", "dependent"]);
+    // `slow` blocks until `dependent` starts, so a scheduler that waited for
+    // the unrelated branch would never return here. Which of the two branches
+    // records itself first is up to the workers.
+    let ran = ran.into_inner().unwrap();
+    let mut started = ran.clone();
+    started.sort_unstable();
+    assert_eq!(started, vec!["dependent", "fast", "slow"]);
+    let fast = ran.iter().position(|node| *node == "fast").unwrap();
+    let dependent = ran.iter().position(|node| *node == "dependent").unwrap();
+    assert!(fast < dependent, "dependent starts after the dependency it waits on: {ran:?}");
 }
 
 #[tokio::test]
