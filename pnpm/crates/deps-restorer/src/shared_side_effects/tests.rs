@@ -50,9 +50,9 @@ fn an_artifact_digest_addresses_the_file_the_store_wrote() {
     assert_eq!(&located_by_mode[2].1, executable, "any executable bit files as executable");
 }
 
-/// Reuse answers to `verifyStoreIntegrity`: content that does not hash to the
-/// digest it is filed under is not offered, so the caller falls back to its own
-/// verified download rather than installing whatever happens to sit there.
+/// Content that does not hash to the digest it is filed under is not offered,
+/// so the caller falls back to its own verified download rather than
+/// installing whatever happens to sit there.
 #[tokio::test]
 async fn corrupted_store_content_is_not_reused() {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
@@ -74,4 +74,35 @@ async fn corrupted_store_content_is_not_reused() {
 
     std::fs::remove_file(&path).unwrap();
     assert!(!super::store_holds(&path, &digest).await.unwrap());
+}
+
+/// The store addresses its own regular files, so anything else at the digest
+/// path is a miss the download and CAS write can repair.
+#[tokio::test]
+async fn a_non_regular_file_is_not_reused_as_store_content() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use sha2::{Digest as _, Sha512};
+
+    let store = tempfile::tempdir().unwrap();
+    let store_dir = pnpm_store_dir::StoreDir::new(store.path());
+    let bytes = b"addon".as_slice();
+    let (path, _) = store_dir.write_cas_file(bytes, true).unwrap();
+    let integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(bytes)));
+    let digest = pnpm_pnpr_client::blob_id(&integrity).unwrap();
+
+    std::fs::remove_file(&path).unwrap();
+    std::fs::create_dir(&path).unwrap();
+    assert!(!super::store_holds(&path, &digest).await.unwrap());
+
+    #[cfg(unix)]
+    {
+        let outside = store.path().join("outside");
+        std::fs::write(&outside, bytes).unwrap();
+        std::fs::remove_dir(&path).unwrap();
+        std::os::unix::fs::symlink(&outside, &path).unwrap();
+        assert!(
+            !super::store_holds(&path, &digest).await.unwrap(),
+            "a link naming correct bytes still imports content the store does not own",
+        );
+    }
 }

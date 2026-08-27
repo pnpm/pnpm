@@ -10,6 +10,8 @@ import { rimrafSync } from '@zkochan/rimraf'
 
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 
+const CHUNK_SIZE = 64 * 1024
+
 export interface Integrity {
   digest: string
   algorithm: string
@@ -228,6 +230,42 @@ export function verifyFileIntegrity (
   const data = readFileForIntegrity(filename)
   if (data == null) return false
   return hashMatches(data, integrity) ?? false
+}
+
+/**
+ * Whether the file at `filename` hashes to `integrity`, read in 64 KiB
+ * chunks off the event loop.
+ *
+ * The synchronous {@link verifyFileIntegrity} reads and hashes a whole blob
+ * before yielding, which stalls everything else for the length of a large
+ * CAS file. Prefer this wherever the caller is already asynchronous.
+ *
+ * A path that is absent or is not a regular file is `false`, so the caller
+ * falls back to fetching it; any other read failure is thrown.
+ */
+export async function verifyFileIntegrityAsync (
+  filename: string,
+  integrity: Integrity
+): Promise<boolean> {
+  let hasher: crypto.Hash
+  try {
+    hasher = crypto.createHash(integrity.algorithm)
+  } catch {
+    // An unusable algorithm, e.g. from a corrupted index file, is a
+    // verification failure rather than an error, as in `hashMatches`.
+    return false
+  }
+  try {
+    for await (const chunk of fs.createReadStream(filename, { highWaterMark: CHUNK_SIZE })) {
+      hasher.update(chunk as Buffer)
+    }
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'EISDIR')) {
+      return false
+    }
+    throw err
+  }
+  return hasher.digest('hex') === integrity.digest
 }
 
 /** The file's content, or `null` if it is no longer there. */

@@ -306,34 +306,48 @@ fn decoded_trusted_keys(
     Some(trusted_keys)
 }
 
-/// Whether the store holds `path` as the content `digest` names.
-///
-/// Reusing content is a read of the store like any other, so it answers to
-/// `verifyStoreIntegrity`: asked to verify, content that does not hash to the
-/// digest it is filed under is not reused, and the caller falls back to its
-/// own verified download. A missing file is an ordinary miss; any other
-/// failure is reported rather than quietly redownloaded.
+/// Reads the store in chunks this size while hashing, so a large CAS blob
+/// is never held in memory whole.
+const STORE_READ_CHUNK: usize = 64 * 1024;
+
 /// Whether the store already holds `digest` at `path`.
 ///
 /// Verified unconditionally rather than answering to `verifyStoreIntegrity`:
 /// the download this skips would have ended in a CAS write, and that path
 /// checks content already at the destination whatever the setting says.
 /// Hashing a local file is far cheaper than the transfer it avoids.
+///
+/// A missing file is an ordinary miss; any other failure is reported rather
+/// than quietly redownloaded.
 async fn store_holds(path: &Path, digest: &str) -> Result<bool, String> {
-    let bytes = match tokio::fs::read(path).await {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(error) => return Err(format!("failed to read {}: {error}", path.display())),
-    };
-    Ok(hex_digest(&bytes) == digest)
-}
+    use tokio::io::AsyncReadExt as _;
 
-fn hex_digest(bytes: &[u8]) -> String {
-    Sha512::digest(bytes).iter().fold(String::with_capacity(128), |mut output, byte| {
-        use std::fmt::Write as _;
-        write!(output, "{byte:02x}").expect("writing to a String cannot fail");
-        output
-    })
+    // Checked without following links: the store addresses its own regular
+    // files, and a symlink here would import content from outside it that the
+    // CAS write path would have replaced.
+    match tokio::fs::symlink_metadata(path).await {
+        Ok(metadata) if metadata.is_file() => {}
+        Ok(_) => return Ok(false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(format!("failed to inspect {}: {error}", path.display())),
+    }
+    let file = match tokio::fs::File::open(path).await {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(format!("failed to open {}: {error}", path.display())),
+    };
+    let mut reader = tokio::io::BufReader::with_capacity(STORE_READ_CHUNK, file);
+    let mut hasher = Sha512::new();
+    let mut buffer = vec![0u8; STORE_READ_CHUNK];
+    loop {
+        match reader.read(&mut buffer).await {
+            Ok(0) => break,
+            Ok(read) => hasher.update(&buffer[..read]),
+            Err(ref error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(format!("failed to read {}: {error}", path.display())),
+        }
+    }
+    Ok(format!("{:x}", hasher.finalize()) == digest)
 }
 
 fn non_empty(value: &str) -> Option<&str> {

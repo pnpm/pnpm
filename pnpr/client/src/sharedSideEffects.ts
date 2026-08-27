@@ -677,6 +677,8 @@ function ownersEqual (left: OwnerScope, right: OwnerScope): boolean {
  *
  * The same identity the store addresses its content by, so a caller holding a
  * manifest entry can ask the store whether it already has the bytes.
+ *
+ * @throws if `integrity` is not a `sha512-` value carrying a 64-byte digest.
  */
 export function artifactBlobDigest (integrity: string): string {
   return blobId(integrity)

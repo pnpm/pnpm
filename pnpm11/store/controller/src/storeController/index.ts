@@ -6,7 +6,7 @@ import type { Fetchers } from '@pnpm/fetching.fetcher-base'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { createPackageRequester } from '@pnpm/installing.package-requester'
 import type { ResolveFunction } from '@pnpm/resolving.resolver-base'
-import { verifyFileIntegrity } from '@pnpm/store.cafs'
+import { verifyFileIntegrityAsync } from '@pnpm/store.cafs'
 import type {
   ImportIndexedPackageAsync,
   StoreController,
@@ -109,7 +109,7 @@ export function createPackageStore (
     // the download this skips would have ended in a CAS write, and that path
     // checks content already at the destination whatever the setting says.
     // Hashing a local file is far cheaper than the transfer it avoids.
-    return verifyFileIntegrity(filePath, { algorithm: 'sha512', digest: hexDigest })
+    return await verifyFileIntegrityAsync(filePath, { algorithm: 'sha512', digest: hexDigest })
       ? filePath
       : undefined
   }

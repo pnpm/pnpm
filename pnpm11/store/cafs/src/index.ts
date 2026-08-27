@@ -20,6 +20,7 @@ import {
   takeVerifiedFileIntegrity,
   type VerifiedFileIntegrity,
   verifyFileIntegrity,
+  verifyFileIntegrityAsync,
   type VerifyResult,
 } from './checkPkgFilesIntegrity.js'
 import {
@@ -52,6 +53,7 @@ export {
   takeVerifiedFileIntegrity,
   type VerifiedFileIntegrity,
   verifyFileIntegrity,
+  verifyFileIntegrityAsync,
   type VerifyResult,
 }
 
