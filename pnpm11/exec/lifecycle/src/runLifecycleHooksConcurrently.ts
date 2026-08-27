@@ -30,12 +30,15 @@ export interface Importer {
 }
 
 export async function runLifecycleHooksConcurrently (
-  stages: string[],
-  importers: Importer[],
-  childConcurrency: number,
-  opts: RunLifecycleHooksConcurrentlyOptions,
-  projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
+  params: {
+    childConcurrency: number
+    importers: Importer[]
+    opts: RunLifecycleHooksConcurrentlyOptions
+    projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
+    stages: string[]
+  }
 ): Promise<void> {
+  const { childConcurrency, importers, opts, projectDependencies, stages } = params
   const importersByRootDir = new Map(importers.map((importer) => [importer.rootDir, importer]))
   const dependencies = projectDependencies == null
     ? dependenciesFromBuildIndexes(importers)

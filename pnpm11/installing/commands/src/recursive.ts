@@ -96,6 +96,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'tag'
 | 'trustLockfile'
+| 'tryLoadDefaultPnpmfile'
 | 'catalogPrune'
 | 'minimumReleaseAgeExcludePrune'
 | 'packageConfigs'
@@ -407,22 +408,22 @@ export async function recursive (
     concurrency: getWorkspaceConcurrency(opts.workspaceConcurrency),
     continueOnFailure: opts.bail === false,
     runNode: async (rootDir): Promise<TaskCompletion> => {
-      const hooks = opts.ignorePnpmfile
-        ? {}
-        : await (async () => {
-          const { hooks: pnpmfileHooks } = await requireHooks(rootDir, opts)
-          return {
-            ...opts.hooks,
-            ...pnpmfileHooks,
-            afterAllResolved: [...(pnpmfileHooks.afterAllResolved ?? []), ...(opts.hooks?.afterAllResolved ?? [])],
-            readPackage: [...(pnpmfileHooks.readPackage ?? []), ...(opts.hooks?.readPackage ?? [])],
-          }
-        })()
       try {
         if (opts.ignoredPackages?.has(rootDir)) {
           return 'passed'
         }
         result[rootDir] = { status: 'running' }
+        const hooks = opts.ignorePnpmfile
+          ? {}
+          : await (async () => {
+            const { hooks: pnpmfileHooks } = await requireHooks(rootDir, opts)
+            return {
+              ...opts.hooks,
+              ...pnpmfileHooks,
+              afterAllResolved: [...(pnpmfileHooks.afterAllResolved ?? []), ...(opts.hooks?.afterAllResolved ?? [])],
+              readPackage: [...(pnpmfileHooks.readPackage ?? []), ...(opts.hooks?.readPackage ?? [])],
+            }
+          })()
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...params]
         if (updateMatch != null) {

@@ -442,20 +442,53 @@ where
     pub on_task_skipped: &'a Skip,
 }
 
+/// How [`schedule_graph`] dispatches nodes and responds to failures.
 pub struct ScheduleGraphOptions<'a, Run, Skip> {
+    /// Maximum number of nodes running at once.
     pub concurrency: usize,
+    /// Stop dispatching after the first failure. Takes precedence over
+    /// [`Self::continue_on_failure`].
     pub bail: bool,
+    /// Let dependents run after a failed dependency when `bail` is false.
+    /// Otherwise those dependents are reported as skipped.
     pub continue_on_failure: bool,
+    /// Runs one ready node.
     pub run_node: &'a Run,
+    /// Reports a node blocked by a failed dependency.
     pub on_node_skipped: &'a Skip,
 }
 
+/// How [`schedule_graph_async`] dispatches nodes and responds to failures.
 pub struct ScheduleGraphAsyncOptions<'a, Run, Skip> {
+    /// Maximum number of nodes running at once.
     pub concurrency: usize,
+    /// Stop dispatching after the first failure. Takes precedence over
+    /// [`Self::continue_on_failure`].
     pub bail: bool,
+    /// Let dependents run after a failed dependency when `bail` is false.
+    /// Otherwise those dependents are reported as skipped.
     pub continue_on_failure: bool,
+    /// Starts one ready node's future.
     pub run_node: &'a Run,
+    /// Reports a node blocked by a failed dependency.
     pub on_node_skipped: &'a Skip,
+}
+
+impl<'a, Run, Skip> ScheduleGraphOptions<'a, Run, Skip> {
+    pub fn new(
+        concurrency: usize,
+        bail: bool,
+        run_node: &'a Run,
+        on_node_skipped: &'a Skip,
+    ) -> Self {
+        Self { concurrency, bail, continue_on_failure: false, run_node, on_node_skipped }
+    }
+
+    #[must_use]
+    pub fn continue_on_failure(mut self, continue_on_failure: bool) -> Self {
+        self.continue_on_failure = continue_on_failure;
+        self
+    }
 }
 
 impl<'a, Run, Skip> ScheduleGraphAsyncOptions<'a, Run, Skip> {
@@ -511,13 +544,7 @@ where
     let on_node_skipped = |key: &TaskKey| (options.on_task_skipped)(&graph[key]);
     schedule_graph(
         &dependencies,
-        &ScheduleGraphOptions {
-            concurrency: options.concurrency,
-            bail: options.bail,
-            continue_on_failure: false,
-            run_node: &run_node,
-            on_node_skipped: &on_node_skipped,
-        },
+        &ScheduleGraphOptions::new(options.concurrency, options.bail, &run_node, &on_node_skipped),
     )
     .expect("failed to start a task scheduler worker");
 }

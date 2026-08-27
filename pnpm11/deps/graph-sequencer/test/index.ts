@@ -366,7 +366,7 @@ test('deep chain sorts in linear time', () => {
   const startedAt = performance.now()
   const result = graphSequencer(graph, names)
   const elapsedMs = performance.now() - startedAt
-  expect(result.cycles.every((cycle) => cycle.length === 1)).toBe(true)
+  expect(result.cycles).toStrictEqual([])
   expect(result.order).toHaveLength(count)
   expect(result.order[0]).toBe(names[0])
   expect(result.order[count - 1]).toBe(names[count - 1])

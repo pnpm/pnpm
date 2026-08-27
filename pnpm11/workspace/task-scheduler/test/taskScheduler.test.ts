@@ -50,6 +50,7 @@ test('a bailed graph waits for work that was already dispatched', async () => {
     releaseSlow = resolve
   })
   let finished = false
+  const ran: string[] = []
   const scheduled = scheduleGraph(new Map([
     ['slow', []],
     ['failed', []],
@@ -58,6 +59,7 @@ test('a bailed graph waits for work that was already dispatched', async () => {
     bail: true,
     concurrency: 2,
     runNode: async (node) => {
+      ran.push(node)
       if (node === 'slow') await slow
       return node === 'failed' ? 'failed' : 'passed'
     },
@@ -70,6 +72,28 @@ test('a bailed graph waits for work that was already dispatched', async () => {
   expect(finished).toBe(false)
   releaseSlow()
   await scheduled
+  expect(ran).not.toContain('queued')
+})
+
+test.each([NaN, 0, -1, 1.5])('invalid concurrency %p settles with one active node', async (concurrency) => {
+  let active = 0
+  let maxActive = 0
+  await scheduleGraph(new Map([
+    ['first', []],
+    ['second', []],
+  ]), {
+    bail: true,
+    concurrency,
+    runNode: async () => {
+      active++
+      maxActive = Math.max(maxActive, active)
+      await Promise.resolve()
+      active--
+      return 'passed'
+    },
+    onNodeSkipped: () => {},
+  })
+  expect(maxActive).toBe(1)
 })
 
 test('an aborted task stops dispatch and the scheduler still settles', async () => {

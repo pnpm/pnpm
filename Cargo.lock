@@ -5292,6 +5292,7 @@ dependencies = [
  "pnpm-config",
  "pnpm-executor",
  "pnpm-exportable-manifest",
+ "pnpm-fs",
  "pnpm-fs-packlist",
  "pnpm-hooks",
  "pnpm-package-manifest",

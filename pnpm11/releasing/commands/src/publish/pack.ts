@@ -7,6 +7,7 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import { FILTERING } from '@pnpm/cli.common-cli-options-help'
 import { readProjectManifest } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, getDefaultWorkspaceConcurrency, getWorkspaceConcurrency, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
+import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import { PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
@@ -147,6 +148,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
   engineStrict?: boolean
   packDestination?: string
   out?: string
+  packDestinationLocker?: PackDestinationLocker
   json?: boolean
   unicode?: boolean
 }
@@ -193,7 +195,15 @@ export async function handler (opts: PackOptions): Promise<string> {
     } else {
       resolvedOpts.packDestination = path.resolve(opts.dir)
     }
+    const packOrder = serializeSharedPackDestinations({
+      opts: resolvedOpts,
+      packedPkgDirs,
+      projectDependencies,
+      projectsGraph: selectedProjectsGraph,
+    })
+    resolvedOpts.packDestinationLocker = createPackDestinationLocker()
     let firstError: unknown
+    const packedByDir = new Map<ProjectRootDir, PackResultJson>()
     await scheduleGraph(projectDependencies, {
       bail: true,
       concurrency: getWorkspaceConcurrency(opts.workspaceConcurrency),
@@ -205,7 +215,7 @@ export async function handler (opts: PackOptions): Promise<string> {
             ...resolvedOpts,
             dir: pkg.rootDir,
           })
-          packedPackages.push(toPackResultJson(packResult))
+          packedByDir.set(pkgDir, toPackResultJson(packResult))
           return 'passed'
         } catch (error: unknown) {
           firstError ??= error
@@ -215,6 +225,10 @@ export async function handler (opts: PackOptions): Promise<string> {
       onNodeSkipped: () => {},
     })
     if (firstError != null) throw firstError
+    for (const pkgDir of packOrder) {
+      const result = packedByDir.get(pkgDir)
+      if (result != null) packedPackages.push(result)
+    }
   } else {
     const packResult = await api(opts)
     packedPackages.push(toPackResultJson(packResult))
@@ -231,6 +245,71 @@ ${files.map(({ path }) => path).join('\n')}
 ${chalk.blueBright('Tarball Details')}
 ${filename}`
   ).join('\n\n')
+}
+
+function serializeSharedPackDestinations (
+  params: {
+    opts: PackOptions
+    packedPkgDirs: Set<ProjectRootDir>
+    projectDependencies: Map<ProjectRootDir, ProjectRootDir[]>
+    projectsGraph: ProjectsGraph
+  }
+): ProjectRootDir[] {
+  const { opts, packedPkgDirs, projectDependencies, projectsGraph } = params
+  const order = graphSequencer(projectDependencies).order
+  const outputCanChangeWhilePacking = opts.hooks?.beforePacking != null || order.some((pkgDir) => {
+    const manifest = projectsGraph[pkgDir].package.manifest
+    return manifest.publishConfig?.directory != null || (!opts.ignoreScripts &&
+      ['prepack', 'prepare'].some((script) => Boolean(manifest.scripts?.[script])))
+  })
+  const outputIsLiteral = opts.out != null && !opts.out.includes('%s') && !opts.out.includes('%v')
+  if (outputCanChangeWhilePacking && !outputIsLiteral) return order
+  const previousByOutput = new Map<string, ProjectRootDir>()
+  for (const pkgDir of order) {
+    if (!packedPkgDirs.has(pkgDir)) continue
+    const pkg = projectsGraph[pkgDir].package
+    const output = packOutputPath(opts, pkg)
+    const predecessor = output == null ? undefined : previousByOutput.get(output)
+    if (output != null) previousByOutput.set(output, pkgDir)
+    if (predecessor != null && !projectDependencies.get(pkgDir)!.includes(predecessor)) {
+      projectDependencies.get(pkgDir)!.push(predecessor)
+    }
+  }
+  return order
+}
+
+type PackDestinationLocker = (destination: string, write: () => Promise<void>) => Promise<void>
+
+function createPackDestinationLocker (): PackDestinationLocker {
+  const pending = new Map<string, Promise<void>>()
+  return async (destination, write) => {
+    const previous = pending.get(destination)
+    let release!: () => void
+    const current = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    pending.set(destination, current)
+    await previous
+    try {
+      await write()
+    } finally {
+      release()
+      if (pending.get(destination) === current) pending.delete(destination)
+    }
+  }
+}
+
+function packOutputPath (opts: PackOptions, pkg: Project): string | undefined {
+  const publishedName = pkg.manifest.publishConfig?.name ?? pkg.manifest.name
+  const publishedVersion = pkg.manifest.version == null
+    ? undefined
+    : stripBuildMetadata(pkg.manifest.version)
+  if (publishedName == null || publishedVersion == null) return undefined
+  const normalizedName = normalizePackageName(publishedName)
+  if (opts.out != null) {
+    return opts.out.replaceAll('%s', normalizedName).replaceAll('%v', publishedVersion)
+  }
+  return path.join(opts.packDestination ?? pkg.rootDir, `${normalizedName}-${publishedVersion}.tgz`)
 }
 
 export async function api (opts: PackOptions): Promise<PackResult> {
@@ -369,21 +448,29 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     ...Object.keys(injectedEntries).map((name) => name.replace(/^package\//, '')),
   ])).sort((a, b) => a.localeCompare(b, 'en'))
   if (!opts.dryRun) {
-    await packPkg({
-      destFile: path.join(destDir, tarballName),
-      filesMap,
-      injectedEntries,
-      modulesDir: path.join(opts.dir, 'node_modules'),
-      packGzipLevel: opts.packGzipLevel,
-      manifest: publishManifest,
-      bins: [
-        ...(await getBinsFromPackageManifest(publishManifest as DependencyManifest, dir)).map(({ path }) => path),
-        ...(manifest.publishConfig?.executableFiles ?? [])
-          .map((executableFile) => path.join(dir, executableFile)),
-      ],
-    })
-    if (!opts.ignoreScripts) {
-      await _runScriptsIfPresent(['postpack'], entryManifest)
+    const packAndRunPostpack = async (): Promise<void> => {
+      await packPkg({
+        destFile: path.join(destDir, tarballName),
+        filesMap,
+        injectedEntries,
+        modulesDir: path.join(opts.dir, 'node_modules'),
+        packGzipLevel: opts.packGzipLevel,
+        manifest: publishManifest,
+        bins: [
+          ...(await getBinsFromPackageManifest(publishManifest as DependencyManifest, dir)).map(({ path }) => path),
+          ...(manifest.publishConfig?.executableFiles ?? [])
+            .map((executableFile) => path.join(dir, executableFile)),
+        ],
+      })
+      if (!opts.ignoreScripts) {
+        await _runScriptsIfPresent(['postpack'], entryManifest)
+      }
+    }
+    const destination = path.resolve(destDir, tarballName)
+    if (opts.packDestinationLocker == null) {
+      await packAndRunPostpack()
+    } else {
+      await opts.packDestinationLocker(destination, packAndRunPostpack)
     }
   }
   let packedTarballPath

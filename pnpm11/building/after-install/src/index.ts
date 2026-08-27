@@ -226,13 +226,13 @@ export async function buildProjects (
     unsafePerm: opts.unsafePerm || false,
     userAgent: opts.userAgent,
   }
-  await runLifecycleHooksConcurrently(
-    ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare'],
-    Object.values(ctx.projects),
-    opts.childConcurrency || 5,
-    scriptsOpts,
-    opts.projectDependencies
-  )
+  await runLifecycleHooksConcurrently({
+    childConcurrency: opts.childConcurrency || 5,
+    importers: Object.values(ctx.projects),
+    opts: scriptsOpts,
+    projectDependencies: opts.projectDependencies,
+    stages: ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare'],
+  })
   for (const { id, manifest } of Object.values(ctx.projects)) {
     if (((manifest?.scripts) != null) && (!opts.pending || ctx.pendingBuilds.includes(id))) {
       ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(id), 1)

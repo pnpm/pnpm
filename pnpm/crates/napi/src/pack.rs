@@ -82,6 +82,7 @@ pub async fn pack(options: PackOptions, on_log: Option<LogSink>) -> napi::Result
         before_packing_hooks: Vec::new(),
         // Bit composes and injects changelogs itself; the pack bridge does not.
         injected_files: Vec::new(),
+        output_locks: None,
     };
 
     let result = tokio::task::spawn_blocking(move || {

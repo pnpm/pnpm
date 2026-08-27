@@ -93,7 +93,7 @@ export async function scheduleGraph<Node> (
   // second script failure after a bail is.
   let contractViolation: unknown
   let rejected = false
-  const concurrency = Math.max(1, opts.concurrency ?? Infinity)
+  const concurrency = normalizeConcurrency(opts.concurrency)
   const pendingDependencyCount = new Map<Node, number>()
   const dependents = new Map<Node, Node[]>()
   const ready: Node[] = []
@@ -212,4 +212,9 @@ export async function scheduleGraph<Node> (
   if (rejected) {
     throw contractViolation
   }
+}
+
+function normalizeConcurrency (concurrency: number | undefined): number {
+  if (concurrency === Infinity || concurrency == null) return Infinity
+  return Number.isInteger(concurrency) && concurrency > 0 ? concurrency : 1
 }

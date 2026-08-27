@@ -5,8 +5,8 @@
 //! [`pnpm_pack::PackOptions`], and drives the recursive (`-r`) sweep
 //! over the workspace the same way the other recursive commands do.
 //!
-//! `--workspace-concurrency` is accepted but the recursive sweep runs
-//! sequentially (matching pacquet's other recursive commands).
+//! Recursive packing dispatches dependency-ready projects up to the
+//! configured workspace concurrency.
 
 use crate::cli_args::{
     catalogs::configured_catalogs,
@@ -22,13 +22,15 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_pack::{
-    Host, PackError, PackOptions, PackResultJson, api, format_pack_output, to_pack_result_json,
+    Host, PackError, PackOptions, PackOutputLocks, PackResultJson, api, format_pack_output,
+    pack_output_path, to_pack_result_json,
 };
 use pnpm_reporter::Reporter;
 use pnpm_workspace_task_scheduler::{
-    ScheduleGraphAsyncOptions, TaskCompletion, schedule_graph_async,
+    ScheduleGraphAsyncOptions, TaskCompletion, graph_sequencer, schedule_graph_async,
 };
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -75,11 +77,6 @@ pub struct PackArgs {
         overrides_with = "skip_manifest_obfuscation"
     )]
     pub no_skip_manifest_obfuscation: bool,
-
-    /// Maximum number of projects to pack at once in recursive mode.
-    /// Currently has no effect; packing runs one project at a time.
-    #[clap(long = "workspace-concurrency")]
-    pub workspace_concurrency: Option<u32>,
 }
 
 impl PackArgs {
@@ -136,7 +133,7 @@ impl PackArgs {
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let graph = &selection.selected;
-        let project_dependencies = filtered_projects_dependencies(
+        let mut project_dependencies = filtered_projects_dependencies(
             graph,
             selection.full_graph(),
             selection.prod_all.as_ref(),
@@ -156,14 +153,81 @@ impl PackArgs {
             crate::config_deps::load_before_packing_hooks(config, workspace_root).map_err(
                 |error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"),
             )?;
+        let output_can_change_while_packing = !before_packing_hooks.is_empty()
+            || (!config.ignore_scripts
+                && graph.values().any(|node| {
+                    let manifest = node.package.project.manifest.value();
+                    ["prepack", "prepare"].iter().any(|script| {
+                        manifest
+                            .pointer(&format!("/scripts/{script}"))
+                            .and_then(serde_json::Value::as_str)
+                            .is_some_and(|body| !body.is_empty())
+                    })
+                }))
+            || graph.values().any(|node| {
+                node.package.project.manifest.value().pointer("/publishConfig/directory").is_some()
+            });
+        let dependency_order = graph_sequencer(
+            &project_dependencies
+                .iter()
+                .map(|(project, dependencies)| (project.clone(), dependencies.clone()))
+                .collect::<HashMap<_, _>>(),
+            &project_dependencies.keys().cloned().collect::<Vec<_>>(),
+        )
+        .order;
+        let output_is_literal =
+            out.as_ref().is_some_and(|out| !out.contains("%s") && !out.contains("%v"));
+        if !output_can_change_while_packing || output_is_literal {
+            let mut previous_by_output = HashMap::<PathBuf, PathBuf>::new();
+            for root in &dependency_order {
+                let project = graph[root].package.project;
+                let manifest = project.manifest.value();
+                let Some(name) = manifest.get("name").and_then(serde_json::Value::as_str) else {
+                    continue;
+                };
+                let Some(version) = manifest.get("version").and_then(serde_json::Value::as_str)
+                else {
+                    continue;
+                };
+                let published_name = manifest
+                    .pointer("/publishConfig/name")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or(name);
+                let predecessor = pack_output_path(
+                    &project.root_dir,
+                    out.as_deref(),
+                    pack_destination.as_deref(),
+                    published_name,
+                    version,
+                )
+                .ok()
+                .and_then(|output| previous_by_output.insert(output, root.clone()));
+                if let Some(predecessor) = predecessor {
+                    let dependencies = project_dependencies
+                        .get_mut(root)
+                        .expect("ordered project exists in dependency graph");
+                    if !dependencies.contains(&predecessor) {
+                        dependencies.push(predecessor);
+                    }
+                }
+            }
+        }
+        let order_index: HashMap<PathBuf, usize> = dependency_order
+            .into_iter()
+            .enumerate()
+            .map(|(index, project)| (project, index))
+            .collect();
 
-        let packed: Mutex<Vec<PackResultJson>> = Mutex::new(Vec::new());
+        let packed: Mutex<Vec<(usize, PackResultJson)>> = Mutex::new(Vec::new());
         let first_error: Mutex<Option<miette::Report>> = Mutex::new(None);
+        let output_locks = Arc::new(PackOutputLocks::default());
         let run_node = |root: PathBuf| {
+            let project_order = order_index[&root];
             let catalogs = catalogs.clone();
             let out = out.clone();
             let pack_destination = pack_destination.clone();
             let before_packing_hooks = before_packing_hooks.clone();
+            let output_locks = Arc::clone(&output_locks);
             let packed = &packed;
             let first_error = &first_error;
             async move {
@@ -188,6 +252,7 @@ impl PackArgs {
                     pack_destination.clone(),
                     before_packing_hooks.clone(),
                 );
+                options.output_locks = Some(output_locks);
                 let result = async {
                     set_injected_changelog(&mut options, config, &project.root_dir).await?;
                     api::<Reporter, Host>(&options)
@@ -201,7 +266,7 @@ impl PackArgs {
                         packed
                             .lock()
                             .expect("packed results lock is not poisoned")
-                            .push(to_pack_result_json(&result));
+                            .push((project_order, to_pack_result_json(&result)));
                         TaskCompletion::Passed
                     }
                     Err(error) => {
@@ -228,7 +293,9 @@ impl PackArgs {
         if let Some(error) = first_error.into_inner().expect("pack error lock is not poisoned") {
             return Err(error);
         }
-        let packed = packed.into_inner().expect("packed results lock is not poisoned");
+        let mut packed = packed.into_inner().expect("packed results lock is not poisoned");
+        packed.sort_unstable_by_key(|(index, _)| *index);
+        let packed = packed.into_iter().map(|(_, result)| result).collect::<Vec<_>>();
 
         if packed.is_empty() {
             tracing::info!(
@@ -289,6 +356,7 @@ impl PackArgs {
             pack_destination,
             before_packing_hooks,
             injected_files: Vec::new(),
+            output_locks: None,
         }
     }
 }
@@ -312,9 +380,6 @@ pub(crate) async fn set_injected_changelog(
 /// Resolve `path` against `base` when it is relative, mirroring node's
 /// `path.resolve(base, path)`.
 fn absolute_against(base: &Path, path: &str) -> String {
-    if Path::new(path).is_absolute() {
-        path.to_string()
-    } else {
-        base.join(path).to_string_lossy().into_owned()
-    }
+    let path = if Path::new(path).is_absolute() { PathBuf::from(path) } else { base.join(path) };
+    pnpm_fs::lexical_normalize(&path).to_string_lossy().into_owned()
 }

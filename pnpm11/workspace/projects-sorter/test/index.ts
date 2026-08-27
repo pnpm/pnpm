@@ -3,31 +3,7 @@ import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import type { ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 import { filteredProjectsDependencies, projectsDependencies, sequenceGraph } from '@pnpm/workspace.projects-sorter'
 
-function makeGraph (adjacency: Record<string, string[]>): ProjectsGraph {
-  const graph: ProjectsGraph = {}
-  for (const [dir, dependencies] of Object.entries(adjacency)) {
-    graph[dir as ProjectRootDir] = {
-      dependencies: dependencies as ProjectRootDir[],
-    } as ProjectsGraph[ProjectRootDir]
-  }
-  return graph
-}
-
-// Mirrors how the real selected graph is built: a subset of nodes that keep
-// their original `dependencies` arrays (still referencing unselected projects).
-function select (graph: ProjectsGraph, names: string[]): ProjectsGraph {
-  const selected: ProjectsGraph = {}
-  for (const name of names) {
-    selected[name as ProjectRootDir] = graph[name as ProjectRootDir]
-  }
-  return selected
-}
-
 const dirs = (...names: string[]): ProjectRootDir[] => names as ProjectRootDir[]
-
-function graphOrder (graph: Map<ProjectRootDir, ProjectRootDir[]>): ProjectRootDir[] {
-  return graphSequencer(graph, [...graph.keys()]).order
-}
 
 test('projectsDependencies orders every project after its dependencies', () => {
   const graph = makeGraph({ a: ['b'], b: ['c'], c: [] })
@@ -164,3 +140,27 @@ test('detects a cycle that passes through unselected projects', () => {
   expect(result.cycles.some((cycle) => cycle.length > 1)).toBe(true)
   expect(new Set(result.order)).toStrictEqual(new Set(dirs('a', 'c')))
 })
+
+function makeGraph (adjacency: Record<string, string[]>): ProjectsGraph {
+  const graph: ProjectsGraph = {}
+  for (const [dir, dependencies] of Object.entries(adjacency)) {
+    graph[dir as ProjectRootDir] = {
+      dependencies: dependencies as ProjectRootDir[],
+    } as ProjectsGraph[ProjectRootDir]
+  }
+  return graph
+}
+
+// Mirrors how the real selected graph is built: a subset of nodes that keep
+// their original `dependencies` arrays (still referencing unselected projects).
+function select (graph: ProjectsGraph, names: string[]): ProjectsGraph {
+  const selected: ProjectsGraph = {}
+  for (const name of names) {
+    selected[name as ProjectRootDir] = graph[name as ProjectRootDir]
+  }
+  return selected
+}
+
+function graphOrder (graph: Map<ProjectRootDir, ProjectRootDir[]>): ProjectRootDir[] {
+  return graphSequencer(graph, [...graph.keys()]).order
+}
