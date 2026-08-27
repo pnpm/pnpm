@@ -974,11 +974,14 @@ pub struct UpdateSettings {
 /// One task's entry in the `tasks` section. A task name is a script name:
 /// `pnpm -r run <name>` runs the task named `<name>` in every selected
 /// project.
-#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct TaskSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub concurrency: Option<i64>,
+
+    #[serde(skip)]
+    invalid_concurrency: Option<serde_json::Value>,
 
     /// The tasks that must complete before this one may start. A `^name`
     /// entry names the task in each of the project's workspace
@@ -996,6 +999,29 @@ pub struct TaskSettings {
     /// reject a typo instead of silently ignoring it.
     #[serde(flatten, skip_serializing_if = "IndexMap::is_empty")]
     pub unknown: IndexMap<String, serde_json::Value>,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct RawTaskSettings {
+    concurrency: Option<serde_json::Value>,
+    depends_on: Option<Vec<String>>,
+    #[serde(flatten)]
+    unknown: IndexMap<String, serde_json::Value>,
+}
+
+impl<'de> Deserialize<'de> for TaskSettings {
+    fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
+        let raw = RawTaskSettings::deserialize(deserializer)?;
+        let concurrency = raw.concurrency.as_ref().and_then(serde_json::Value::as_i64);
+        let invalid_concurrency = raw.concurrency.filter(|value| value.as_i64().is_none());
+        Ok(Self {
+            concurrency,
+            invalid_concurrency,
+            depends_on: raw.depends_on,
+            unknown: raw.unknown,
+        })
+    }
 }
 
 /// `updateConfig` entry: settings that tune `pnpm update`.
@@ -1171,7 +1197,7 @@ pub enum LoadWorkspaceYamlError {
         "The \"tasks['{task}'].concurrency\" setting should be a positive integer, but got {concurrency}"
     )]
     #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
-    InvalidTaskConcurrency { task: String, concurrency: i64 },
+    InvalidTaskConcurrency { task: String, concurrency: String },
     #[display(
         "The \"tasks['{task}'].dependsOn\" setting contains an entry with no task name: {entry:?}"
     )]
@@ -1292,7 +1318,13 @@ impl WorkspaceSettings {
             {
                 return Err(LoadWorkspaceYamlError::InvalidTaskConcurrency {
                     task: task.clone(),
-                    concurrency,
+                    concurrency: concurrency.to_string(),
+                });
+            }
+            if let Some(concurrency) = settings.invalid_concurrency.as_ref() {
+                return Err(LoadWorkspaceYamlError::InvalidTaskConcurrency {
+                    task: task.clone(),
+                    concurrency: concurrency.to_string(),
                 });
             }
             for entry in settings.depends_on.iter().flatten() {

@@ -1,8 +1,9 @@
 use super::{
     BuildTaskGraphOptions, ScheduleGraphAsyncOptions, ScheduleGraphOptions, ScheduleTasksOptions,
-    SequenceTasksOptions, TaskCompletion, TaskCycle, TaskGraph, TaskKey, build_task_graph,
-    is_serial_task_graph, render_task_graph_dry_run, resume_task_graph_from, reverse_task_graph,
-    schedule_graph, schedule_graph_async, schedule_tasks, sequence_tasks, task_graph_to_json,
+    SequenceTasksOptions, TaskCompletion, TaskCycle, TaskGraph, TaskKey, TaskNode,
+    build_task_graph, is_serial_task_graph, render_task_graph_dry_run, resume_task_graph_from,
+    reverse_task_graph, schedule_graph, schedule_graph_async, schedule_tasks, sequence_tasks,
+    task_graph_to_json,
 };
 use indexmap::IndexMap;
 use pnpm_config::TaskSettings;
@@ -53,16 +54,10 @@ fn tasks(entries: &[(&str, Option<&[&str]>)]) -> IndexMap<String, TaskSettings> 
     entries
         .iter()
         .map(|(name, depends_on)| {
-            (
-                name.to_string(),
-                TaskSettings {
-                    concurrency: None,
-                    depends_on: depends_on.map(|entries| {
-                        entries.iter().map(std::string::ToString::to_string).collect()
-                    }),
-                    unknown: IndexMap::new(),
-                },
-            )
+            let mut settings = TaskSettings::default();
+            settings.depends_on = depends_on
+                .map(|entries| entries.iter().map(std::string::ToString::to_string).collect());
+            (name.to_string(), settings)
         })
         .collect()
 }
@@ -380,6 +375,63 @@ fn scheduler_respects_task_concurrency_across_projects() {
     );
 
     assert_eq!(max_active.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn task_concurrency_does_not_block_an_independent_task_group() {
+    let task_node = |project: &str, task_name: &str| TaskNode {
+        project: dir(project),
+        task_name: task_name.to_string(),
+        concurrency: Some(1),
+        scripts: vec![task_name.to_string()],
+        requested: true,
+        dependencies: Vec::new(),
+    };
+    let graph = IndexMap::from([
+        (key("a", "build"), task_node("a", "build")),
+        (key("b", "build"), task_node("b", "build")),
+        (key("c", "lint"), task_node("c", "lint")),
+    ]);
+    let first_build_project = dir("a");
+    let lint_project = dir("c");
+    let first_build = (Mutex::new((false, false)), Condvar::new());
+    let ran = Mutex::new(Vec::new());
+    schedule_tasks(
+        &graph,
+        &ScheduleTasksOptions {
+            concurrency: 3,
+            bail: true,
+            run_task: &|node| {
+                if node.project == first_build_project && node.task_name == "build" {
+                    ran.lock().unwrap().push("a#build");
+                    let (state, progress) = &first_build;
+                    let mut state = state.lock().unwrap();
+                    state.0 = true;
+                    progress.notify_all();
+                    let (_state, timeout) = progress
+                        .wait_timeout_while(state, Duration::from_secs(5), |state| !state.1)
+                        .unwrap();
+                    assert!(!timeout.timed_out(), "the independent lint task did not run");
+                } else if node.project == lint_project && node.task_name == "lint" {
+                    let (state, progress) = &first_build;
+                    let state = state.lock().unwrap();
+                    let (mut state, timeout) = progress
+                        .wait_timeout_while(state, Duration::from_secs(5), |state| !state.0)
+                        .unwrap();
+                    assert!(!timeout.timed_out(), "the first build task did not run");
+                    ran.lock().unwrap().push("c#lint");
+                    state.1 = true;
+                    progress.notify_all();
+                } else {
+                    ran.lock().unwrap().push("b#build");
+                }
+                TaskCompletion::Passed
+            },
+            on_task_skipped: &|_| {},
+        },
+    );
+
+    assert_eq!(ran.into_inner().unwrap(), vec!["a#build", "c#lint", "b#build"]);
 }
 
 #[test]
