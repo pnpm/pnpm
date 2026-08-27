@@ -121,6 +121,58 @@ fn clean_lockfile_removes_lockfile() {
     drop(root);
 }
 
+fn write_workspace(workspace: &Path, settings: &str) {
+    fs::write(workspace.join("pnpm-workspace.yaml"), format!("packages:\n  - pkg1\n{settings}"))
+        .expect("write pnpm-workspace.yaml");
+    let pkg1 = workspace.join("pkg1");
+    fs::create_dir_all(&pkg1).expect("create pkg1");
+    fs::write(pkg1.join("package.json"), "{}").expect("write pkg1 manifest");
+    fs::write(workspace.join("package.json"), "{}").expect("write root manifest");
+}
+
+/// Every project's own modules dir is cleaned no matter which directory
+/// the command runs from
+/// ([pnpm/pnpm#14239](https://github.com/pnpm/pnpm/issues/14239)).
+#[test]
+fn clean_from_a_workspace_subdirectory_cleans_every_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+    write_workspace(&workspace, "");
+    seed_package(&workspace.join("node_modules"), "a");
+    seed_package(&workspace.join("pkg1").join("node_modules"), "b");
+
+    let output = pacquet.with_args(["clean", "--dir", "pkg1"]).output().expect("run pacquet clean");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "pacquet clean should succeed: {stderr}");
+
+    assert!(!workspace.join("node_modules").join("a").exists(), "root package removed");
+    assert!(
+        !workspace.join("pkg1").join("node_modules").join("b").exists(),
+        "pkg1 package removed",
+    );
+
+    drop(root);
+}
+
+/// A custom `modulesDir` is resolved against each project directory too.
+#[test]
+fn clean_from_a_workspace_subdirectory_honors_a_custom_modules_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+    write_workspace(&workspace, "modulesDir: custom_nm\n");
+    seed_package(&workspace.join("custom_nm"), "a");
+    seed_package(&workspace.join("pkg1").join("custom_nm"), "b");
+
+    let output = pacquet.with_args(["clean", "--dir", "pkg1"]).output().expect("run pacquet clean");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "pacquet clean should succeed: {stderr}");
+
+    assert!(!workspace.join("custom_nm").join("a").exists(), "root package removed");
+    assert!(!workspace.join("pkg1").join("custom_nm").join("b").exists(), "pkg1 package removed");
+
+    drop(root);
+}
+
 #[test]
 fn clean_works_in_a_workspace() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
