@@ -1,4 +1,11 @@
-use std::{collections::BTreeMap, fmt, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    fmt,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
@@ -236,6 +243,7 @@ async fn failed_object_writes_reconcile_quota_to_physical_storage() {
         inner: InMemory::new(),
         commit_before_error: false,
         fail_deletes: false,
+        fail_next_quota_write: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -257,6 +265,7 @@ async fn committed_blob_writes_without_an_envelope_are_reclaimed() {
         inner: InMemory::new(),
         commit_before_error: true,
         fail_deletes: false,
+        fail_next_quota_write: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -289,6 +298,7 @@ async fn committed_envelope_writes_that_report_failure_remain_charged() {
         inner: InMemory::new(),
         commit_before_error: true,
         fail_deletes: false,
+        fail_next_quota_write: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -305,6 +315,33 @@ async fn committed_envelope_writes_that_report_failure_remain_charged() {
             .unwrap();
     assert_eq!(usage.global_bytes, expected_usage);
     assert_eq!(usage.owner_bytes.values().copied().sum::<u64>(), expected_usage);
+}
+
+#[tokio::test]
+async fn publication_finish_retries_a_transient_quota_write_failure() {
+    let fail_next_quota_write = Arc::new(AtomicBool::new(false));
+    let backend: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+        inner: InMemory::new(),
+        commit_before_error: false,
+        fail_deletes: false,
+        fail_next_quota_write: Some(Arc::clone(&fail_next_quota_write)),
+    });
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let scratch = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
+    let publication = artifact_operation_id().unwrap();
+    store.begin_publication(&publication).await.unwrap();
+    fail_next_quota_write.store(true, Ordering::SeqCst);
+
+    store.finish_publication(&publication, true).await.unwrap();
+
+    let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
+    let usage: ArtifactUsage =
+        serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
+            .unwrap();
+    assert!(usage.active_publications.is_empty());
+    assert!(usage.reclamation_needed);
 }
 
 #[tokio::test]
@@ -383,8 +420,12 @@ async fn failed_reclamation_releases_its_gate_for_later_retries() {
     let owner = owner_key("acme", &OwnerScope::organization("acme")).unwrap();
     let orphan = ObjectPath::from(format!(".pnpr-artifacts/v0/{owner}/blobs/orphan"));
     inner.put(&orphan, PutPayload::from_static(b"orphan")).await.unwrap();
-    let backend: Arc<dyn ObjectStore> =
-        Arc::new(FailArtifactWrites { inner, commit_before_error: false, fail_deletes: true });
+    let backend: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+        inner,
+        commit_before_error: false,
+        fail_deletes: true,
+        fail_next_quota_write: None,
+    });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
     let scratch = TempDir::new().unwrap();
@@ -506,6 +547,7 @@ struct FailArtifactWrites {
     inner: InMemory,
     commit_before_error: bool,
     fail_deletes: bool,
+    fail_next_quota_write: Option<Arc<AtomicBool>>,
 }
 
 impl fmt::Display for FailArtifactWrites {
@@ -523,6 +565,16 @@ impl ObjectStore for FailArtifactWrites {
         options: PutOptions,
     ) -> object_store::Result<PutResult> {
         if location.as_ref().ends_with("/quota.json") {
+            if self
+                .fail_next_quota_write
+                .as_ref()
+                .is_some_and(|fail| fail.swap(false, Ordering::SeqCst))
+            {
+                return Err(object_store::Error::Generic {
+                    store: "test",
+                    source: std::io::Error::other("injected quota write failure").into(),
+                });
+            }
             self.inner.put_opts(location, payload, options).await
         } else {
             if self.commit_before_error {

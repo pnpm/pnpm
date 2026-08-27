@@ -32,6 +32,7 @@ const ARTIFACT_QUOTA_OBJECT: &str = "quota.json";
 const MAX_OWNER_ARTIFACT_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_GLOBAL_ARTIFACT_BYTES: u64 = 10 * MAX_OWNER_ARTIFACT_BYTES;
 const MAX_ACTIVE_PUBLICATIONS: usize = 1024;
+const PUBLICATION_FINISH_RETRIES: usize = 8;
 const QUOTA_WRITE_RETRIES: usize = 32;
 const RECLAMATION_WAIT_RETRIES: usize = 600;
 
@@ -363,30 +364,43 @@ impl SharedArtifactStore {
     }
 
     async fn finish_publication(&self, publication: &str, reclamation_needed: bool) -> Result<()> {
-        let finished = self
-            .mutate_usage(|usage| {
-                if !usage.active_publications.remove(publication) {
+        for attempt in 0..PUBLICATION_FINISH_RETRIES {
+            let finished = self
+                .mutate_usage(|usage| {
+                    if !usage.active_publications.remove(publication) {
+                        return Err(RegistryError::Internal {
+                            reason: "shared artifact publication is not registered as active"
+                                .to_string(),
+                        });
+                    }
+                    usage.reclamation_needed |= reclamation_needed;
+                    Ok(true)
+                })
+                .await;
+            match finished {
+                Ok(true) => return Ok(()),
+                Ok(false) => {
                     return Err(RegistryError::Internal {
-                        reason: "shared artifact publication is not registered as active"
+                        reason: "shared artifact publication finish did not update usage"
                             .to_string(),
                     });
                 }
-                usage.reclamation_needed |= reclamation_needed;
-                Ok(true)
-            })
-            .await;
-        match finished {
-            Ok(true) => Ok(()),
-            Ok(false) => Err(RegistryError::Internal {
-                reason: "shared artifact publication finish did not update usage".to_string(),
-            }),
-            Err(error) => {
-                if !self.load_usage().await?.0.active_publications.contains(publication) {
-                    return Ok(());
+                Err(error) => {
+                    let retry_error = match self.load_usage().await {
+                        Ok((usage, _)) if !usage.active_publications.contains(publication) => {
+                            return Ok(());
+                        }
+                        Ok(_) => error,
+                        Err(read_error) => read_error,
+                    };
+                    if attempt + 1 == PUBLICATION_FINISH_RETRIES {
+                        return Err(retry_error);
+                    }
+                    sleep(quota_write_retry_delay(attempt)).await;
                 }
-                Err(error)
             }
         }
+        unreachable!("publication finish loop returns on its final attempt")
     }
 
     async fn try_reclaim_unreferenced_blobs(&self) -> Result<()> {
@@ -874,7 +888,10 @@ fn is_digest_segment(segment: &str) -> bool {
 }
 
 fn quota_write_retry_delay(attempt: usize) -> Duration {
-    Duration::from_millis(1 << attempt.min(6))
+    let base = 1_u64 << attempt.min(6);
+    let mut random = [0_u8; 1];
+    let jitter = if getrandom::fill(&mut random).is_ok() { u64::from(random[0]) % base } else { 0 };
+    Duration::from_millis(base + jitter)
 }
 
 fn artifact_operation_id() -> Result<String> {

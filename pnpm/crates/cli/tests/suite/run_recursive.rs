@@ -1373,9 +1373,18 @@ fn recursive_run_bail_summary_records_every_in_flight_result() {
         &[
             (
                 "fails",
-                manifest("fails", "while [ ! -f ../passes/ran.txt ]; do sleep 0.01; done; exit 1"),
+                manifest(
+                    "fails",
+                    "i=0; while [ ! -f ../passes/ran.txt ] && [ $i -lt 1000 ]; do i=$((i + 1)); sleep 0.01; done; [ -f ../passes/ran.txt ] || exit 2; touch failed.txt; exit 1",
+                ),
             ),
-            ("passes", manifest("passes", "touch ran.txt")),
+            (
+                "passes",
+                manifest(
+                    "passes",
+                    "touch ran.txt; i=0; while [ ! -f ../fails/failed.txt ] && [ $i -lt 1000 ]; do i=$((i + 1)); sleep 0.01; done; [ -f ../fails/failed.txt ]",
+                ),
+            ),
         ],
     );
 
