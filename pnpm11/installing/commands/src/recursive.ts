@@ -234,7 +234,7 @@ export async function recursive (
   // remember whether the user named any package. `--workspace` only insists
   // that a dependency exists in the workspace when it was asked for by name.
   const userNamedDeps = params.length > 0
-  if (cmdFullName === 'update') {
+  if (cmdFullName === 'update' || cmdFullName === 'remove') {
     if (params.length === 0) {
       const ignoreDeps = opts.updateConfig?.ignoreDependencies
       if (ignoreDeps?.length) {
@@ -279,11 +279,19 @@ export async function recursive (
       const modulesDir = localConfig.modulesDir ?? opts.modulesDir
       let currentInput = [...params]
       if (updateMatch != null) {
-        currentInput = matchDependencies(updateMatch, manifest, includeDirect)
-        if ((currentInput.length === 0) && (typeof opts.depth === 'undefined' || opts.depth <= 0)) {
+        const matchInclude = cmdFullName === 'remove' && targetDependenciesField != null
+          ? {
+            dependencies: targetDependenciesField === 'dependencies',
+            devDependencies: targetDependenciesField === 'devDependencies',
+            optionalDependencies: targetDependenciesField === 'optionalDependencies',
+          }
+          : includeDirect
+        currentInput = matchDependencies(updateMatch, manifest, matchInclude)
+        if ((currentInput.length === 0) && cmdFullName === 'update' && (typeof opts.depth === 'undefined' || opts.depth <= 0)) {
           installOpts.pruneLockfileImporters = false
           return
         }
+        if ((currentInput.length === 0) && cmdFullName === 'remove') return
       }
       if (updateToLatest && (!params || (params.length === 0))) {
         currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
@@ -414,7 +422,14 @@ export async function recursive (
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...params]
         if (updateMatch != null) {
-          currentInput = matchDependencies(updateMatch, manifest, includeDirect)
+          const matchInclude = cmdFullName === 'remove' && targetDependenciesField != null
+            ? {
+              dependencies: targetDependenciesField === 'dependencies',
+              devDependencies: targetDependenciesField === 'devDependencies',
+              optionalDependencies: targetDependenciesField === 'optionalDependencies',
+            }
+            : includeDirect
+          currentInput = matchDependencies(updateMatch, manifest, matchInclude)
           if (currentInput.length === 0) return
         }
         if (updateToLatest && (!params || (params.length === 0))) {
@@ -454,6 +469,7 @@ export async function recursive (
                   dependencyNames: currentInput,
                   mutation: 'uninstallSome',
                   rootDir,
+                  targetDependenciesField,
                 },
               ], opts)
               return {
