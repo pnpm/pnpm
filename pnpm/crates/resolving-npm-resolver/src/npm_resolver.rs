@@ -722,6 +722,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
     // dependencies are old enough.
     let policy_blocked = opts.policy_blocked_versions.cloned().unwrap_or_default();
     let mut blocked_versions = policy_blocked.clone();
+    let mut policy_blocks_lifted = false;
     let mut last_rejection: Option<String> = None;
     loop {
         let pick_opts = PickPackageOptions {
@@ -752,8 +753,17 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             // caller report the violation. That keeps the failure attached
             // to a concrete pick the next pass can blame an ancestor for,
             // instead of aborting on a range the manifests never wrote.
-            if last_rejection.is_none() && !policy_blocked.is_empty() {
-                return pick_ignoring_policy_blocks(ctx, &opts).await;
+            //
+            // Lifting inside the loop rather than picking separately keeps
+            // the fallback candidate facing `package_version_guard`: a
+            // version the guard forbids must not slip through just because
+            // the maturity policy is what emptied the range. No guard
+            // rejection has been recorded yet here, so the set being
+            // cleared holds only the policy's own blocks.
+            if last_rejection.is_none() && !policy_blocked.is_empty() && !policy_blocks_lifted {
+                policy_blocks_lifted = true;
+                blocked_versions.clear();
+                continue;
             }
             return match last_rejection {
                 Some(reason) => Err(all_versions_blocked(opts.spec, reason)),
@@ -813,43 +823,6 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             }
         }
     }
-}
-
-/// Re-run the pick with the pass-wide policy blocks lifted, for the case
-/// where they are the only reason nothing matched.
-///
-/// The version this returns is one `minimumReleaseAge` has ruled out, and
-/// [`detect_min_release_age_violation`] reports it as such. Handing it back
-/// rather than failing mirrors the maturity filter's own fallback: the
-/// install layer owns what to do about a policy it cannot satisfy, and the
-/// next resolution pass needs a concrete pick to trace back to the ancestor
-/// whose choice put it there.
-async fn pick_ignoring_policy_blocks<Cache: PackageMetaCache>(
-    ctx: &PickPackageContext<'_, Cache>,
-    opts: &PickFromRegistryOptions<'_>,
-) -> Result<RegistryPick, ResolveError> {
-    let pick_opts = PickPackageOptions {
-        registry: opts.registry,
-        preferred_version_selectors: opts.preferred_version_selectors,
-        published_by: opts.published_by,
-        published_by_exclude: opts.published_by_exclude,
-        pick_lowest_version: opts.pick_lowest_version,
-        include_latest_tag: opts.include_latest_tag,
-        dry_run: opts.dry_run,
-        optional: opts.optional,
-        update_checksums: opts.update_checksums,
-        trust_policy: opts.trust_policy,
-        blocked_versions: None,
-    };
-    let pick_result = pick_package(ctx, opts.spec, &pick_opts)
-        .await
-        .map_err(|err| map_pick_error(ctx, opts, err))?;
-    Ok(match pick_result.picked_package {
-        Some(version) => {
-            RegistryPick::Picked(PickedFromRegistry { meta: pick_result.meta, version })
-        }
-        None => RegistryPick::NoMatchingVersion(pick_result.meta),
-    })
 }
 
 /// The packument key for a picked version, so the guard loop can block the

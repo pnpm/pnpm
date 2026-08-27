@@ -656,11 +656,10 @@ pub(super) async fn resolve_mature_dependency_tree<Reporter: pnpm_reporter::Repo
         level: LogLevel::Warn,
         prefix: inputs.lockfile_dir.display().to_string(),
         message: format!(
-            "Stopped after {} resolution attempts while backing off from versions whose \
-             dependencies do not satisfy minimumReleaseAge. The versions reported are the ones \
-             the first attempt resolved to; an installable combination may still exist further \
-             down their ranges.",
-            MAX_RESOLUTION_PASSES,
+            "Stopped after {MAX_RESOLUTION_PASSES} resolution attempts while backing off from \
+             versions whose dependencies do not satisfy minimumReleaseAge. The versions reported \
+             are the ones the first attempt resolved to; an installable combination may still \
+             exist further down their ranges.",
         ),
     }));
     Ok(first_pass)
@@ -740,3 +739,6 @@ fn report_held_back_parents<Reporter: pnpm_reporter::Reporter>(
         ),
     }));
 }
+
+#[cfg(test)]
+mod tests;

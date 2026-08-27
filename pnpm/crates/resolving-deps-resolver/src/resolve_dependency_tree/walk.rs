@@ -1416,18 +1416,26 @@ pub(super) fn level_versions(ctx: &TreeCtx, seeds: &[NodeSeed]) -> BTreeMap<Stri
 /// counterpart of pnpm's `getPkgsInfoFromIds`).
 /// Resolve an ancestor chain to `name@version` pairs.
 ///
-/// An ancestor whose resolution carries no `name@version` — a link, or a
-/// dependency resolved through a protocol that mints no version — is
-/// dropped rather than guessed at. That only ever shortens the chain, and a
-/// chain whose last entry is missing reads as "nothing above this pick can
-/// be moved", which is the safe answer for a dependent no version pick
-/// applies to.
+/// An ancestor that resolved but carries no `name@version` — a link, or a
+/// dependency resolved through a protocol that mints no version — abandons
+/// the whole chain. Dropping just that entry would leave the ancestor above
+/// it looking like the immediate parent, and the retry would then block a
+/// version that is not the one standing between this pick and an installable
+/// tree. An empty chain reads as "nothing above this pick can be moved",
+/// which is the answer that holds when the package that could move has no
+/// version to block.
+///
+/// Ids absent from `packages` are skipped rather than fatal: they are not
+/// resolved packages at all.
 fn parent_chain_from_ids(ctx: &TreeCtx, ancestor_ids: &[String]) -> Vec<PkgNameVer> {
     let packages = lock_recoverable(&ctx.workspace.packages);
-    ancestor_ids
-        .iter()
-        .filter_map(|id| packages.get(id.as_str())?.result.name_ver.clone())
-        .collect()
+    let mut parents = Vec::new();
+    for id in ancestor_ids {
+        let Some(package) = packages.get(id.as_str()) else { continue };
+        let Some(name_ver) = package.result.name_ver.as_ref() else { return Vec::new() };
+        parents.push(name_ver.clone());
+    }
+    parents
 }
 
 fn pkgs_info_from_ids(

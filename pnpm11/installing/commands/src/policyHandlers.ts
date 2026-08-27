@@ -25,8 +25,8 @@ export interface PolicyViolation {
   code: string
   reason: string
   /**
-   * Package ids of the resolution path that reached this pick, the
-   * importer's direct dependency first and the immediate parent last.
+   * The resolution path that reached this pick: the importer's own id
+   * first, then one entry per package walked, the immediate parent last.
    * Absent for a violation raised outside a dependency walk.
    */
   parentIds?: string[]
@@ -235,9 +235,10 @@ function pickImmatureEntries (
 }
 
 /**
- * The chain of dependents that pulled a pick into the tree, without the
- * importer the path starts at. Empty when the importer asked for the package
- * itself, which the message already makes clear by naming no dependent.
+ * The chain of dependents that pulled a pick into the tree. The leading
+ * entry is the importer, which is a project rather than a dependent, so it
+ * is dropped: a path of just that one entry is the importer asking for the
+ * package itself, and the message names no dependent at all.
  */
 function formatDependentChain (violation: PolicyViolation): string {
   const dependents = violation.parentIds?.slice(1) ?? []
