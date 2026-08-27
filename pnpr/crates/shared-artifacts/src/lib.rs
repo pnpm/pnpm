@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     fs::{File, OpenOptions, TryLockError},
     path::{Path, PathBuf},
     sync::Arc,
@@ -31,12 +31,20 @@ const ARTIFACT_USAGE_FILE: &str = ".locks/usage.json";
 const ARTIFACT_QUOTA_OBJECT: &str = "quota.json";
 const MAX_OWNER_ARTIFACT_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_GLOBAL_ARTIFACT_BYTES: u64 = 10 * MAX_OWNER_ARTIFACT_BYTES;
+const MAX_ACTIVE_PUBLICATIONS: usize = 1024;
 const QUOTA_WRITE_RETRIES: usize = 32;
+const RECLAMATION_WAIT_RETRIES: usize = 600;
 
-#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
 struct ArtifactUsage {
     global_bytes: u64,
     owner_bytes: BTreeMap<String, u64>,
+    #[serde(default)]
+    active_publications: BTreeSet<String>,
+    #[serde(default)]
+    reclamation_needed: bool,
+    #[serde(default)]
+    reclamation: Option<String>,
 }
 
 #[derive(Debug)]
@@ -56,10 +64,20 @@ pub struct ArtifactBlob {
     pub stream: BoxStream<'static, object_store::Result<Bytes>>,
 }
 
+struct PreparedPublication {
+    payload: ArtifactPayload,
+    uploads: BTreeMap<String, Vec<u8>>,
+    owner: String,
+    envelope_bytes: Vec<u8>,
+    variant_path: String,
+}
+
 /// Shared build-artifact storage. Local deployments use the
 /// `cache/shared-artifacts/v0` layout. Object-store deployments use the same
 /// configured bucket as hosted packages under a reserved namespace, allowing
-/// every replica to observe the same immutable blobs and envelopes.
+/// every replica to observe the same immutable blobs and envelopes. The quota
+/// document also acts as a distributed reclamation gate: publications register
+/// before reading objects, and a collector can start only after that set drains.
 #[derive(Debug)]
 pub struct SharedArtifactStore {
     store: Arc<dyn ObjectStore>,
@@ -107,15 +125,29 @@ impl SharedArtifactStore {
     }
 
     pub async fn publish(&self, username: &str, request: PublishArtifactRequest) -> Result<bool> {
-        let validated = request.validate().map_err(|err| protocol_error(&err))?;
-        let payload = validated.payload;
-        let mut uploads = validated.blobs;
-        let owner = owner_key(username, &payload.owner)?;
-        let entry = entry_digest(&request.key, &payload.package, &payload.source_integrity);
-        let envelope = request.envelope.digest().map_err(|err| protocol_error(&err))?;
-        let envelope_bytes = serde_json::to_vec(&request.envelope)?;
+        let prepared = prepare_publication(username, &request)?;
+        let publication = artifact_operation_id()?;
+        self.begin_publication(&publication).await?;
+        let mut reclamation_needed = false;
+        let result = self.publish_active(prepared, &mut reclamation_needed).await;
+        let finish = self.finish_publication(&publication, reclamation_needed).await;
+        if finish.is_ok()
+            && let Err(error) = self.try_reclaim_unreferenced_blobs().await
+        {
+            tracing::warn!(%error, "shared artifact reclamation failed");
+        }
+        finish?;
+        result
+    }
+
+    async fn publish_active(
+        &self,
+        prepared: PreparedPublication,
+        reclamation_needed: &mut bool,
+    ) -> Result<bool> {
+        let PreparedPublication { payload, mut uploads, owner, envelope_bytes, variant_path } =
+            prepared;
         let envelope_size = envelope_bytes.len() as u64;
-        let variant_path = format!("{owner}/entries/{entry}/{envelope}.json");
 
         if self.object_exists(&variant_path).await? {
             return Ok(false);
@@ -157,7 +189,10 @@ impl SharedArtifactStore {
         let added_bytes = new_blobs.iter().try_fold(envelope_size, |total, entry| {
             total.checked_add(entry.1.len() as u64).ok_or_else(storage_quota_error)
         })?;
-        self.reserve_quota(&owner, added_bytes).await?;
+        if let Err(error) = self.reserve_quota(&owner, added_bytes).await {
+            *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
+            return Err(error);
+        }
 
         let mut retained_bytes = 0_u64;
         for (path, bytes) in new_blobs {
@@ -166,6 +201,7 @@ impl SharedArtifactStore {
                 Ok(true) => retained_bytes += size,
                 Ok(false) => {}
                 Err(error) => {
+                    *reclamation_needed = true;
                     retained_bytes += size;
                     self.release_uncommitted(&owner, added_bytes, retained_bytes).await?;
                     return Err(error);
@@ -175,6 +211,7 @@ impl SharedArtifactStore {
         let created = match self.create_object(&variant_path, envelope_bytes).await {
             Ok(created) => created,
             Err(error) => {
+                *reclamation_needed = true;
                 retained_bytes += envelope_size;
                 self.release_uncommitted(&owner, added_bytes, retained_bytes).await?;
                 return Err(error);
@@ -183,7 +220,10 @@ impl SharedArtifactStore {
         if created {
             retained_bytes += envelope_size;
         }
-        self.release_uncommitted(&owner, added_bytes, retained_bytes).await?;
+        if let Err(error) = self.release_uncommitted(&owner, added_bytes, retained_bytes).await {
+            *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
+            return Err(error);
+        }
         Ok(created)
     }
 
@@ -281,6 +321,205 @@ impl SharedArtifactStore {
             .then(|| ResolvedArtifact { key: candidate.key.clone(), variants }))
     }
 
+    async fn begin_publication(&self, publication: &str) -> Result<()> {
+        for _ in 0..RECLAMATION_WAIT_RETRIES {
+            let begun = match self
+                .mutate_usage(|usage| {
+                    if usage.reclamation.is_some() {
+                        return Ok(false);
+                    }
+                    if usage.active_publications.len() >= MAX_ACTIVE_PUBLICATIONS {
+                        return Err(RegistryError::Internal {
+                            reason: "shared artifact publication concurrency limit reached"
+                                .to_string(),
+                        });
+                    }
+                    if !usage.active_publications.insert(publication.to_string()) {
+                        return Err(RegistryError::Internal {
+                            reason: "shared artifact publication is already active".to_string(),
+                        });
+                    }
+                    Ok(true)
+                })
+                .await
+            {
+                Ok(begun) => begun,
+                Err(error) => {
+                    if self.load_usage().await?.0.active_publications.contains(publication) {
+                        return Ok(());
+                    }
+                    return Err(error);
+                }
+            };
+            if begun {
+                return Ok(());
+            }
+            sleep(ARTIFACT_LOCK_POLL_INTERVAL).await;
+        }
+        Err(RegistryError::Internal {
+            reason: "shared artifact reclamation did not finish before publication timed out"
+                .to_string(),
+        })
+    }
+
+    async fn finish_publication(&self, publication: &str, reclamation_needed: bool) -> Result<()> {
+        let finished = self
+            .mutate_usage(|usage| {
+                if !usage.active_publications.remove(publication) {
+                    return Err(RegistryError::Internal {
+                        reason: "shared artifact publication is not registered as active"
+                            .to_string(),
+                    });
+                }
+                usage.reclamation_needed |= reclamation_needed;
+                Ok(true)
+            })
+            .await;
+        match finished {
+            Ok(true) => Ok(()),
+            Ok(false) => Err(RegistryError::Internal {
+                reason: "shared artifact publication finish did not update usage".to_string(),
+            }),
+            Err(error) => {
+                if !self.load_usage().await?.0.active_publications.contains(publication) {
+                    return Ok(());
+                }
+                Err(error)
+            }
+        }
+    }
+
+    async fn try_reclaim_unreferenced_blobs(&self) -> Result<()> {
+        let reclamation = artifact_operation_id()?;
+        let acquired = match self
+            .mutate_usage(|usage| {
+                if !usage.reclamation_needed
+                    || !usage.active_publications.is_empty()
+                    || usage.reclamation.is_some()
+                {
+                    return Ok(false);
+                }
+                usage.reclamation = Some(reclamation.clone());
+                Ok(true)
+            })
+            .await
+        {
+            Ok(acquired) => acquired,
+            Err(error) => {
+                if self.load_usage().await?.0.reclamation.as_deref() == Some(reclamation.as_str()) {
+                    true
+                } else {
+                    return Err(error);
+                }
+            }
+        };
+        if !acquired {
+            return Ok(());
+        }
+
+        match self.reclaim_unreferenced_blobs().await {
+            Ok(usage) => {
+                if let Err(error) = self.complete_reclamation(&reclamation, usage).await {
+                    self.abort_reclamation(&reclamation).await?;
+                    return Err(error);
+                }
+            }
+            Err(error) => {
+                self.abort_reclamation(&reclamation).await?;
+                return Err(error);
+            }
+        }
+        Ok(())
+    }
+
+    async fn reclaim_unreferenced_blobs(&self) -> Result<ArtifactUsage> {
+        let referenced_blobs = self.referenced_blobs().await?;
+        let mut listing = self.list_objects(None);
+        while let Some(entry) = listing.next().await {
+            let entry = entry?;
+            let Some(relative) = self.relative_path(&entry.location) else { continue };
+            if is_blob_path(relative) && !referenced_blobs.contains(relative) {
+                self.store.delete(&entry.location).await?;
+            }
+        }
+        self.scan_usage().await
+    }
+
+    async fn referenced_blobs(&self) -> Result<HashSet<String>> {
+        let mut referenced = HashSet::new();
+        let mut listing = self.list_objects(None);
+        while let Some(entry) = listing.next().await {
+            let entry = entry?;
+            let Some(relative) = self.relative_path(&entry.location) else { continue };
+            let Some(owner) = entry_owner(relative) else { continue };
+            if entry.size > MAX_RESOLVE_RESPONSE_SIZE as u64 {
+                continue;
+            }
+            let Some(bytes) = self.read_object_path(&entry.location).await? else {
+                continue;
+            };
+            let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
+                continue;
+            };
+            let Ok((payload, _)) = envelope.decode_payload() else {
+                continue;
+            };
+            if digest_segment(payload.owner.namespace().as_bytes()) != owner {
+                continue;
+            }
+            for file in payload.manifest.added {
+                let Ok(id) = blob_id(&file.integrity) else { continue };
+                referenced.insert(format!("{owner}/blobs/{id}"));
+            }
+        }
+        Ok(referenced)
+    }
+
+    async fn complete_reclamation(
+        &self,
+        reclamation: &str,
+        mut rebuilt: ArtifactUsage,
+    ) -> Result<()> {
+        rebuilt.reclamation = None;
+        rebuilt.reclamation_needed = false;
+        let changed = self
+            .mutate_usage(|usage| {
+                if usage.reclamation.as_deref() != Some(reclamation) {
+                    return Err(RegistryError::Internal {
+                        reason: "shared artifact reclamation ownership changed".to_string(),
+                    });
+                }
+                if !usage.active_publications.is_empty() {
+                    return Err(RegistryError::Internal {
+                        reason: "shared artifact publication started during reclamation"
+                            .to_string(),
+                    });
+                }
+                *usage = rebuilt.clone();
+                Ok(true)
+            })
+            .await?;
+        if !changed {
+            return Err(RegistryError::Internal {
+                reason: "shared artifact reclamation did not update usage".to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    async fn abort_reclamation(&self, reclamation: &str) -> Result<()> {
+        self.mutate_usage(|usage| {
+            if usage.reclamation.as_deref() != Some(reclamation) {
+                return Ok(false);
+            }
+            usage.reclamation = None;
+            usage.reclamation_needed = true;
+            Ok(true)
+        })
+        .await?;
+        Ok(())
+    }
+
     async fn reserve_quota(&self, owner: &str, added_bytes: u64) -> Result<()> {
         self.change_quota(owner, added_bytes, QuotaChange::Reserve).await
     }
@@ -300,22 +539,46 @@ impl SharedArtifactStore {
     }
 
     async fn change_quota(&self, owner: &str, bytes: u64, change: QuotaChange) -> Result<()> {
+        let changed = self
+            .mutate_usage(|usage| {
+                self.change_usage(usage, owner, bytes, change)?;
+                Ok(true)
+            })
+            .await?;
+        if !changed {
+            return Err(RegistryError::Internal {
+                reason: "shared artifact quota update did not change usage".to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    async fn mutate_usage(
+        &self,
+        mutation: impl Fn(&mut ArtifactUsage) -> Result<bool>,
+    ) -> Result<bool> {
         match &self.quota {
             QuotaCoordination::Local { lock_path } => {
                 let _lock = acquire_artifact_lock(lock_path.clone()).await?;
                 let (mut usage, _) = self.load_usage().await?;
-                self.change_usage(&mut usage, owner, bytes, change)?;
+                if !mutation(&mut usage)? {
+                    return Ok(false);
+                }
                 self.write_usage(&usage, PutMode::Overwrite).await?;
-                Ok(())
+                Ok(true)
             }
             QuotaCoordination::Conditional => {
-                for _ in 0..QUOTA_WRITE_RETRIES {
+                for attempt in 0..QUOTA_WRITE_RETRIES {
                     let (mut usage, version) = self.load_usage().await?;
-                    self.change_usage(&mut usage, owner, bytes, change)?;
+                    if !mutation(&mut usage)? {
+                        return Ok(false);
+                    }
                     let mode = version.map_or(PutMode::Create, PutMode::Update);
                     match self.write_usage(&usage, mode).await {
-                        Ok(()) => return Ok(()),
-                        Err(RegistryError::ObjectStore(error)) if is_write_conflict(&error) => {}
+                        Ok(()) => return Ok(true),
+                        Err(RegistryError::ObjectStore(error)) if is_write_conflict(&error) => {
+                            sleep(quota_write_retry_delay(attempt)).await;
+                        }
                         Err(error) => return Err(error),
                     }
                 }
@@ -364,14 +627,20 @@ impl SharedArtifactStore {
                 let bytes = result.bytes().await?;
                 Ok((serde_json::from_slice(&bytes)?, Some(version)))
             }
-            Err(object_store::Error::NotFound { .. }) => Ok((self.scan_usage().await?, None)),
+            Err(object_store::Error::NotFound { .. }) => {
+                let mut usage = self.scan_usage().await?;
+                usage.reclamation_needed = usage.global_bytes != 0;
+                Ok((usage, None))
+            }
             Err(error) => Err(error.into()),
         }
     }
 
     async fn scan_usage(&self) -> Result<ArtifactUsage> {
         let mut usage = ArtifactUsage::default();
-        for entry in self.list_objects(None).await? {
+        let mut listing = self.list_objects(None);
+        while let Some(entry) = listing.next().await {
+            let entry = entry?;
             let Some(relative) = self.relative_path(&entry.location) else { continue };
             if relative == self.quota_object() || relative.starts_with(".locks/") {
                 continue;
@@ -442,16 +711,14 @@ impl SharedArtifactStore {
         }
     }
 
-    async fn list_objects(&self, relative_prefix: Option<&str>) -> Result<Vec<ObjectMeta>> {
+    fn list_objects(
+        &self,
+        relative_prefix: Option<&str>,
+    ) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         let prefix = relative_prefix.map(|prefix| self.object_path(prefix)).or_else(|| {
             (!self.prefix.is_empty()).then(|| ObjectPath::from(self.prefix.trim_end_matches('/')))
         });
-        let mut listing = self.store.list(prefix.as_ref());
-        let mut entries = Vec::new();
-        while let Some(entry) = listing.next().await {
-            entries.push(entry?);
-        }
-        Ok(entries)
+        self.store.list(prefix.as_ref())
     }
 
     fn object_path(&self, relative: &str) -> ObjectPath {
@@ -480,6 +747,26 @@ impl SharedArtifactStore {
 pub fn parse_publish(body: &[u8]) -> Result<PublishArtifactRequest> {
     serde_json::from_slice(body)
         .map_err(|err| bad_request(format!("invalid shared artifact request: {err}")))
+}
+
+fn prepare_publication(
+    username: &str,
+    request: &PublishArtifactRequest,
+) -> Result<PreparedPublication> {
+    let validated = request.validate().map_err(|err| protocol_error(&err))?;
+    let payload = validated.payload;
+    let owner = owner_key(username, &payload.owner)?;
+    let entry = entry_digest(&request.key, &payload.package, &payload.source_integrity);
+    let envelope = request.envelope.digest().map_err(|err| protocol_error(&err))?;
+    let envelope_bytes = serde_json::to_vec(&request.envelope)?;
+    let variant_path = format!("{owner}/entries/{entry}/{envelope}.json");
+    Ok(PreparedPublication {
+        payload,
+        uploads: validated.blobs,
+        owner,
+        envelope_bytes,
+        variant_path,
+    })
 }
 
 fn verify_stored_blob(id: &str, integrity: &str, size: u64, bytes: &[u8]) -> Result<()> {
@@ -558,6 +845,44 @@ fn is_variant_file(name: &str) -> bool {
     bytes.len() == 69
         && bytes[64..] == *b".json"
         && bytes[..64].iter().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+}
+
+fn is_blob_path(relative: &str) -> bool {
+    let mut segments = relative.split('/');
+    let (Some(owner), Some("blobs"), Some(blob), None) =
+        (segments.next(), segments.next(), segments.next(), segments.next())
+    else {
+        return false;
+    };
+    is_digest_segment(owner) && !blob.is_empty()
+}
+
+fn entry_owner(relative: &str) -> Option<&str> {
+    let mut segments = relative.split('/');
+    let (Some(owner), Some("entries"), Some(entry), Some(variant), None) =
+        (segments.next(), segments.next(), segments.next(), segments.next(), segments.next())
+    else {
+        return None;
+    };
+    (is_digest_segment(owner) && is_digest_segment(entry) && is_variant_file(variant))
+        .then_some(owner)
+}
+
+fn is_digest_segment(segment: &str) -> bool {
+    segment.len() == 64
+        && segment.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn quota_write_retry_delay(attempt: usize) -> Duration {
+    Duration::from_millis(1 << attempt.min(6))
+}
+
+fn artifact_operation_id() -> Result<String> {
+    let mut bytes = [0_u8; 16];
+    getrandom::fill(&mut bytes).map_err(|error| RegistryError::Internal {
+        reason: format!("could not generate a shared artifact operation ID: {error}"),
+    })?;
+    Ok(hex(&bytes))
 }
 
 fn digest_segment(bytes: &[u8]) -> String {

@@ -20,7 +20,8 @@ use sha2::{Digest as _, Sha512};
 use tempfile::TempDir;
 
 use super::{
-    ArtifactUsage, ResolveBudget, SharedArtifactStore, is_variant_file, is_write_conflict,
+    ArtifactUsage, ResolveBudget, SharedArtifactStore, artifact_operation_id, is_variant_file,
+    is_write_conflict, owner_key,
 };
 
 #[test]
@@ -66,6 +67,17 @@ fn missing_quota_object_writes_are_not_conflicts() {
     };
 
     assert!(!is_write_conflict(&error));
+}
+
+#[test]
+fn quota_state_from_before_reclamation_coordination_remains_readable() {
+    let usage: ArtifactUsage =
+        serde_json::from_str(r#"{"global_bytes":12,"owner_bytes":{"owner":12}}"#).unwrap();
+
+    assert_eq!(usage.global_bytes, 12);
+    assert!(usage.active_publications.is_empty());
+    assert!(!usage.reclamation_needed);
+    assert!(usage.reclamation.is_none());
 }
 
 #[tokio::test]
@@ -219,14 +231,70 @@ async fn quota_is_reserved_before_objects_are_written() {
 }
 
 #[tokio::test]
-async fn failed_object_writes_retain_quota_for_the_ambiguous_attempt() {
-    let backend: Arc<dyn ObjectStore> =
-        Arc::new(FailArtifactWrites { inner: InMemory::new(), commit_before_error: false });
+async fn failed_object_writes_reconcile_quota_to_physical_storage() {
+    let backend: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+        inner: InMemory::new(),
+        commit_before_error: false,
+        fail_deletes: false,
+    });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
-    let request = publication("ci/failure");
+    store.publish("acme", publication("ci/failure")).await.unwrap_err();
+
+    let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
+    let usage: ArtifactUsage =
+        serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
+            .unwrap();
+    assert_eq!(usage.global_bytes, 0);
+    assert_eq!(usage.owner_bytes.values().copied().sum::<u64>(), 0);
+}
+
+#[tokio::test]
+async fn committed_blob_writes_without_an_envelope_are_reclaimed() {
+    let backend: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+        inner: InMemory::new(),
+        commit_before_error: true,
+        fail_deletes: false,
+    });
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let scratch = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
+    let request =
+        publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/ambiguous-commit");
+    store.publish("acme", request).await.unwrap_err();
+
+    let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
+    let usage: ArtifactUsage =
+        serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
+            .unwrap();
+    assert_eq!(usage.global_bytes, 0);
+    assert_eq!(usage.owner_bytes.values().copied().sum::<u64>(), 0);
+    let mut objects = backend.list(None);
+    let mut physical_bytes = 0_u64;
+    while let Some(object) = objects.next().await {
+        let object = object.unwrap();
+        if !object.location.as_ref().ends_with("/quota.json") {
+            physical_bytes += object.size;
+        }
+    }
+    assert_eq!(physical_bytes, 0);
+}
+
+#[tokio::test]
+async fn committed_envelope_writes_that_report_failure_remain_charged() {
+    let backend: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+        inner: InMemory::new(),
+        commit_before_error: true,
+        fail_deletes: false,
+    });
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let scratch = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
+    let request = publication("ci/ambiguous-envelope");
     let expected_usage = serde_json::to_vec(&request.envelope).unwrap().len() as u64;
 
     store.publish("acme", request).await.unwrap_err();
@@ -240,34 +308,101 @@ async fn failed_object_writes_retain_quota_for_the_ambiguous_attempt() {
 }
 
 #[tokio::test]
-async fn committed_object_writes_that_report_failure_remain_charged() {
-    let backend: Arc<dyn ObjectStore> =
-        Arc::new(FailArtifactWrites { inner: InMemory::new(), commit_before_error: true });
+async fn reclamation_waits_for_publications_on_other_replicas() {
+    let backend: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let scratch = TempDir::new().unwrap();
+    let first = SharedArtifactStore::new(&config, scratch.path()).unwrap();
+    let second = SharedArtifactStore::new(&config, scratch.path()).unwrap();
+    let first_publication = artifact_operation_id().unwrap();
+    let second_publication = artifact_operation_id().unwrap();
+    first.begin_publication(&first_publication).await.unwrap();
+    second.begin_publication(&second_publication).await.unwrap();
+
+    let owner = owner_key("acme", &OwnerScope::organization("acme")).unwrap();
+    let orphan = ObjectPath::from(format!(".pnpr-artifacts/v0/{owner}/blobs/orphan"));
+    backend.put(&orphan, PutPayload::from_static(b"orphan")).await.unwrap();
+    first.reserve_quota(&owner, 6).await.unwrap();
+
+    first.finish_publication(&first_publication, true).await.unwrap();
+    first.try_reclaim_unreferenced_blobs().await.unwrap();
+    assert!(backend.head(&orphan).await.is_ok());
+
+    second.finish_publication(&second_publication, false).await.unwrap();
+    second.try_reclaim_unreferenced_blobs().await.unwrap();
+    assert!(matches!(backend.head(&orphan).await, Err(object_store::Error::NotFound { .. })));
+    let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
+    let usage: ArtifactUsage =
+        serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
+            .unwrap();
+    assert_eq!(usage.global_bytes, 0);
+    assert!(usage.active_publications.is_empty());
+    assert!(!usage.reclamation_needed);
+    assert!(usage.reclamation.is_none());
+}
+
+#[tokio::test]
+async fn reclamation_preserves_blobs_referenced_by_committed_envelopes() {
+    let backend: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
-    let request =
-        publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/ambiguous-commit");
-    let expected_usage = b"shared addon".len() as u64;
+    let request = publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/referenced");
+    let integrity = request.blobs[0].integrity.clone();
+    store.publish("acme", request).await.unwrap();
 
-    store.publish("acme", request).await.unwrap_err();
+    let publication = artifact_operation_id().unwrap();
+    store.begin_publication(&publication).await.unwrap();
+    let owner = owner_key("acme", &OwnerScope::organization("acme")).unwrap();
+    let orphan = ObjectPath::from(format!(".pnpr-artifacts/v0/{owner}/blobs/orphan"));
+    backend.put(&orphan, PutPayload::from_static(b"orphan")).await.unwrap();
+    store.reserve_quota(&owner, 6).await.unwrap();
+    store.finish_publication(&publication, true).await.unwrap();
+    store.try_reclaim_unreferenced_blobs().await.unwrap();
+
+    assert!(matches!(backend.head(&orphan).await, Err(object_store::Error::NotFound { .. })));
+    let blob = store
+        .read_blob(
+            "acme",
+            &serde_json::to_vec(&ArtifactBlobRequest {
+                owner: OwnerScope::organization("acme"),
+                integrity,
+            })
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(blob.is_some());
+}
+
+#[tokio::test]
+async fn failed_reclamation_releases_its_gate_for_later_retries() {
+    let inner = InMemory::new();
+    let owner = owner_key("acme", &OwnerScope::organization("acme")).unwrap();
+    let orphan = ObjectPath::from(format!(".pnpr-artifacts/v0/{owner}/blobs/orphan"));
+    inner.put(&orphan, PutPayload::from_static(b"orphan")).await.unwrap();
+    let backend: Arc<dyn ObjectStore> =
+        Arc::new(FailArtifactWrites { inner, commit_before_error: false, fail_deletes: true });
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let scratch = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
+    let publication = artifact_operation_id().unwrap();
+    store.begin_publication(&publication).await.unwrap();
+    store.reserve_quota(&owner, 6).await.unwrap();
+    store.finish_publication(&publication, true).await.unwrap();
+
+    store.try_reclaim_unreferenced_blobs().await.unwrap_err();
 
     let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
     let usage: ArtifactUsage =
         serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
             .unwrap();
-    assert_eq!(usage.global_bytes, expected_usage);
-    assert_eq!(usage.owner_bytes.values().copied().sum::<u64>(), expected_usage);
-    let mut objects = backend.list(None);
-    let mut physical_bytes = 0_u64;
-    while let Some(object) = objects.next().await {
-        let object = object.unwrap();
-        if !object.location.as_ref().ends_with("/quota.json") {
-            physical_bytes += object.size;
-        }
-    }
-    assert_eq!(physical_bytes, expected_usage);
+    assert!(usage.reclamation.is_none());
+    assert!(usage.reclamation_needed);
+    assert!(backend.head(&orphan).await.is_ok());
 }
 
 #[tokio::test]
@@ -370,6 +505,7 @@ fn publication_request(
 struct FailArtifactWrites {
     inner: InMemory,
     commit_before_error: bool,
+    fail_deletes: bool,
 }
 
 impl fmt::Display for FailArtifactWrites {
@@ -419,7 +555,19 @@ impl ObjectStore for FailArtifactWrites {
         &self,
         locations: BoxStream<'static, object_store::Result<ObjectPath>>,
     ) -> BoxStream<'static, object_store::Result<ObjectPath>> {
-        self.inner.delete_stream(locations)
+        if self.fail_deletes {
+            locations
+                .map(|location| {
+                    location?;
+                    Err(object_store::Error::Generic {
+                        store: "test",
+                        source: std::io::Error::other("injected artifact deletion failure").into(),
+                    })
+                })
+                .boxed()
+        } else {
+            self.inner.delete_stream(locations)
+        }
     }
 
     fn list(
