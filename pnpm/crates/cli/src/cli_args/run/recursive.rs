@@ -13,8 +13,8 @@
 //! applied via [`AutoExcludeRoot::Enabled`].
 
 use super::{
-    RunArgs, RunContext, ScriptSelector, render_project_commands, run_stages,
-    throw_or_filter_hidden_scripts,
+    RunArgs, RunContext, ScriptSelector, get_run_script_commands, render_project_commands,
+    run_stages, throw_or_filter_hidden_scripts,
 };
 use crate::cli_args::{
     recursive::{
@@ -22,7 +22,7 @@ use crate::cli_args::{
         filtered_projects_dependencies, find_resume_root, select_recursive_projects,
         write_recursive_summary,
     },
-    task_run_state::TaskRunStateContext,
+    task_run_state::{TaskRunExecutionSettings, TaskRunStateContext, task_run_execution_settings},
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -160,16 +160,25 @@ pub fn run_recursive(
         pnpm_config::ScriptsPrependNodePath::Never => "false",
         pnpm_config::ScriptsPrependNodePath::WarnOnly => "warn-only",
     };
-    let state_settings = vec![
+    let extra_env: HashMap<String, String> = config.extra_env_with_node_options();
+    let mut state_settings = task_run_execution_settings(&TaskRunExecutionSettings {
+        extra_bin_paths: &config.extra_bin_paths,
+        extra_env: &extra_env,
+        modules_dir: &config.modules_dir,
+        node_experimental_package_map: config.node_experimental_package_map,
+        node_options: config.node_options.as_deref(),
+        user_agent: &config.user_agent,
+    });
+    state_settings.extend([
         format!("enable-pre-post-scripts={}", config.enable_pre_post_scripts),
         format!("script-shell={}", config.script_shell.as_deref().unwrap_or_default()),
         format!("scripts-prepend-node-path={scripts_prepend_node_path}"),
         format!("shell-emulator={}", config.shell_emulator),
         format!(
             "sync-injected-deps-after-scripts={}",
-            serde_json::to_string(&sync_injected).expect("script names serialize")
+            serde_json::to_string(&sync_injected).expect("script names serialize"),
         ),
-    ];
+    ]);
     let task_run_state_context = TaskRunStateContext::new(
         "run",
         &args.script,
@@ -177,31 +186,11 @@ pub fn run_recursive(
         &full_task_graph,
         workspace_root,
         |node, script| {
-            let scripts = graph[&node.project]
-                .package
-                .project
-                .manifest
-                .value()
-                .get("scripts")
-                .and_then(serde_json::Value::as_object);
-            let Some(main) =
-                scripts.and_then(|scripts| scripts.get(script)).and_then(serde_json::Value::as_str)
-            else {
+            let manifest = &graph[&node.project].package.project.manifest;
+            let Some(main) = manifest.script(script, true).ok().flatten() else {
                 return Vec::new();
             };
-            if !config.enable_pre_post_scripts {
-                return vec![main.to_string()];
-            }
-            [format!("pre{script}"), script.to_string(), format!("post{script}")]
-                .into_iter()
-                .filter(|stage| stage == script || !main.contains(stage.as_str()))
-                .filter_map(|stage| {
-                    scripts
-                        .and_then(|scripts| scripts.get(&stage))
-                        .and_then(serde_json::Value::as_str)
-                        .map(str::to_string)
-                })
-                .collect()
+            get_run_script_commands(manifest, script, main, config.enable_pre_post_scripts)
         },
     );
     let resume_anchor = args
@@ -299,11 +288,7 @@ pub fn run_recursive(
     let abort: Mutex<Option<miette::Report>> = Mutex::new(None);
     let process_tracker = bail.then(ProcessTracker::default);
 
-    // Compute the shared lifecycle env once. Each project adds loader
-    // options for its own root before reusing that environment across
-    // the selected pre/main/post stages.
     let init_cwd = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
-    let extra_env: HashMap<String, String> = config.extra_env_with_node_options();
 
     let run_task = |node: &TaskNode| -> TaskCompletion {
         let summary_key = task_summary_key(node);

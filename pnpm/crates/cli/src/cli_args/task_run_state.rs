@@ -16,6 +16,7 @@ use std::{
 
 const STATE_VERSION: u8 = 1;
 const STATE_DIR: &str = ".pnpm-task-run-state-v1";
+const LATEST_STATE_FILE: &str = "latest.json";
 static RUN_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -61,8 +62,39 @@ struct TaskRecord {
     task: String,
 }
 
+pub struct TaskRunExecutionSettings<'a> {
+    pub extra_bin_paths: &'a [PathBuf],
+    pub extra_env: &'a HashMap<String, String>,
+    pub modules_dir: &'a Path,
+    pub node_experimental_package_map: bool,
+    pub node_options: Option<&'a str>,
+    pub user_agent: &'a str,
+}
+
+pub fn task_run_execution_settings(opts: &TaskRunExecutionSettings<'_>) -> Vec<String> {
+    let extra_bin_paths: Vec<String> =
+        opts.extra_bin_paths.iter().map(|path| path.to_string_lossy().into_owned()).collect();
+    let mut extra_env: Vec<(&String, &String)> = opts.extra_env.iter().collect();
+    extra_env.sort_by_key(|(key, _)| *key);
+    vec![
+        format!(
+            "extra-bin-paths={}",
+            serde_json::to_string(&extra_bin_paths).expect("extra bin paths serialize")
+        ),
+        format!(
+            "extra-env={}",
+            serde_json::to_string(&extra_env).expect("extra environment serializes")
+        ),
+        format!("modules-dir={}", opts.modules_dir.to_string_lossy()),
+        format!("node-experimental-package-map={}", opts.node_experimental_package_map),
+        format!("node-options={}", opts.node_options.unwrap_or_default()),
+        format!("user-agent={}", opts.user_agent),
+    ]
+}
+
 pub struct TaskRunStateContext {
-    file_path: PathBuf,
+    state_dir: PathBuf,
+    latest_state_path: PathBuf,
     invocation: String,
     keys_by_id: HashMap<TaskId, TaskKey>,
     ids_by_key: HashMap<TaskKey, TaskId>,
@@ -122,19 +154,41 @@ impl TaskRunStateContext {
         })
         .expect("task invocation identity serializes");
         let invocation = create_hex_hash(&identity);
-        let file_path =
-            workspace_dir.join("node_modules").join(STATE_DIR).join(format!("{invocation}.jsonl"));
-        Self { file_path, invocation, keys_by_id, ids_by_key }
+        let state_dir = workspace_dir.join("node_modules").join(STATE_DIR);
+        let latest_state_path = state_dir.join(LATEST_STATE_FILE);
+        Self { state_dir, latest_state_path, invocation, keys_by_id, ids_by_key }
     }
 
     pub fn read_completed_tasks(&self) -> miette::Result<Option<HashSet<TaskKey>>> {
-        let contents = match fs::read(&self.file_path) {
+        if !self.validate_state_directory(false)? {
+            return Ok(None);
+        }
+        let latest = match fs::read_to_string(&self.latest_state_path) {
+            Ok(contents) => match serde_json::from_str::<StateHeader>(&contents) {
+                Ok(header) => header,
+                Err(_) => return Ok(None),
+            },
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => {
+                return Err(error)
+                    .into_diagnostic()
+                    .wrap_err_with(|| format!("reading {}", self.latest_state_path.display()));
+            }
+        };
+        if latest.version != STATE_VERSION
+            || latest.invocation != self.invocation
+            || !is_run_id(&latest.run)
+        {
+            return Ok(None);
+        }
+        let file_path = self.journal_path(&latest.run);
+        let contents = match fs::read(&file_path) {
             Ok(contents) => contents,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(error) => {
                 return Err(error)
                     .into_diagnostic()
-                    .wrap_err_with(|| format!("reading {}", self.file_path.display()));
+                    .wrap_err_with(|| format!("reading {}", file_path.display()));
             }
         };
         // A record is committed by its newline; a process killed during
@@ -148,7 +202,10 @@ impl TaskRunStateContext {
         let mut lines = complete.lines();
         let Some(header) = lines.next() else { return Ok(None) };
         let Ok(header) = serde_json::from_str::<StateHeader>(header) else { return Ok(None) };
-        if header.version != STATE_VERSION || header.invocation != self.invocation {
+        if header.version != STATE_VERSION
+            || header.invocation != self.invocation
+            || header.run != latest.run
+        {
             return Ok(None);
         }
         let mut completed = HashSet::new();
@@ -182,53 +239,47 @@ impl TaskRunStateContext {
             contents.push_str(&serde_json::to_string(&record).expect("task record serializes"));
             contents.push('\n');
         }
-        let state_dir = self.file_path.parent().expect("task state file has a parent");
-        fs::create_dir_all(state_dir)
+        let file_path = self.journal_path(&run);
+        self.validate_state_directory(true)?;
+        pnpm_fs::write_atomic(&file_path, contents.as_bytes())
             .into_diagnostic()
-            .wrap_err_with(|| format!("creating {}", state_dir.display()))?;
-        pnpm_fs::write_atomic(&self.file_path, contents.as_bytes())
-            .into_diagnostic()
-            .wrap_err_with(|| format!("writing {}", self.file_path.display()))?;
-        // Only the latest recursive invocation is resumable. Otherwise an
-        // old compatible journal could become active after intervening work.
-        for entry in fs::read_dir(state_dir)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("reading {}", state_dir.display()))?
-        {
-            let entry = entry
-                .into_diagnostic()
-                .wrap_err_with(|| format!("reading {}", state_dir.display()))?;
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            let file_type = entry
-                .file_type()
-                .into_diagnostic()
-                .wrap_err_with(|| format!("reading stale task state {name}"))?;
-            if entry.path() != self.file_path && is_state_file_name(&name) && !file_type.is_dir() {
-                match fs::remove_file(entry.path()) {
-                    Ok(()) => {}
-                    Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                    Err(error) => {
-                        return Err(error)
-                            .into_diagnostic()
-                            .wrap_err_with(|| format!("removing stale task state {name}"));
-                    }
-                }
-            }
-        }
+            .wrap_err_with(|| format!("writing {}", file_path.display()))?;
         let file = OpenOptions::new()
             .append(true)
-            .open(&self.file_path)
+            .open(&file_path)
             .into_diagnostic()
-            .wrap_err_with(|| format!("opening {}", self.file_path.display()))?;
+            .wrap_err_with(|| format!("opening {}", file_path.display()))?;
+        let latest_write = pnpm_fs::write_atomic(
+            &self.latest_state_path,
+            serde_json::to_string(&header).expect("latest task state serializes").as_bytes(),
+        )
+        .into_diagnostic()
+        .wrap_err_with(|| format!("writing {}", self.latest_state_path.display()));
+        if let Err(error) = latest_write {
+            drop(file);
+            let _ = fs::remove_file(&file_path);
+            return Err(error);
+        }
         Ok(TaskRunState {
-            file_path: self.file_path.clone(),
+            file_path,
             writer: Mutex::new(TaskRunStateWriter {
                 file: Some(file),
                 run,
                 completed: completed_tasks.clone(),
             }),
         })
+    }
+
+    fn journal_path(&self, run: &str) -> PathBuf {
+        self.state_dir.join(format!("{}.{run}.jsonl", self.invocation))
+    }
+
+    fn validate_state_directory(&self, create: bool) -> miette::Result<bool> {
+        let node_modules_dir = self.state_dir.parent().expect("task state directory has a parent");
+        if !validate_real_directory(node_modules_dir, create)? {
+            return Ok(false);
+        }
+        validate_real_directory(&self.state_dir, create)
     }
 }
 
@@ -286,11 +337,50 @@ fn task_id(node: &TaskNode, workspace_dir: &Path) -> TaskId {
     TaskId { project, task: node.task_name.clone() }
 }
 
-fn is_state_file_name(name: &str) -> bool {
-    let bytes = name.as_bytes();
-    bytes.len() == 70
-        && &bytes[64..] == b".jsonl"
-        && bytes[..64].iter().all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+fn is_run_id(run: &str) -> bool {
+    !run.is_empty()
+        && run.len() <= 128
+        && run
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte) || byte == b'-')
+}
+
+fn validate_real_directory(path: &Path, create: bool) -> miette::Result<bool> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound && !create => return Ok(false),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            match fs::create_dir(path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+                Err(error) => {
+                    return Err(error)
+                        .into_diagnostic()
+                        .wrap_err_with(|| format!("creating {}", path.display()));
+                }
+            }
+            fs::symlink_metadata(path)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("inspecting {}", path.display()))?
+        }
+        Err(error) => {
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("inspecting {}", path.display()));
+        }
+    };
+    if metadata.file_type().is_symlink()
+        || pnpm_fs::read_symlink_dir(path).is_ok()
+        || !metadata.is_dir()
+    {
+        let path = path.display();
+        return Err(miette::miette!(
+            code = "ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH",
+            "Refusing to use task run state directory at {} because it is a symbolic link or not a directory",
+            path,
+        ));
+    }
+    Ok(true)
 }
 
 fn run_id() -> String {

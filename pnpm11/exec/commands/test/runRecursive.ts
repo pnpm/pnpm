@@ -1136,7 +1136,9 @@ test('recursive run resumes from exactly the tasks that passed before a failure'
     'dependency',
     'anchor',
   ])
-  await expect(fs.promises.readdir(path.join('node_modules', '.pnpm-task-run-state-v1'))).resolves.toStrictEqual([])
+  const stateDir = path.join('node_modules', '.pnpm-task-run-state-v1')
+  const latest = JSON.parse(await fs.promises.readFile(path.join(stateDir, 'latest.json'), 'utf8')) as { invocation: string, run: string }
+  await expect(fs.promises.access(path.join(stateDir, `${latest.invocation}.${latest.run}.jsonl`))).rejects.toMatchObject({ code: 'ENOENT' })
 })
 
 test('pnpm run with RegExp script selector should work on recursive', async () => {

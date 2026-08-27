@@ -35,8 +35,8 @@ import { getExecutionDuration, writeRecursiveSummary } from './exec.js'
 import { existsInDir } from './existsInDir.js'
 import { throwOrFilterHiddenScripts } from './hiddenScripts.js'
 import { tryBuildRegExpFromCommand } from './regexpCommand.js'
-import { runScript, type RunScriptOptions } from './run.js'
-import { TaskRunStateContext } from './taskRunState.js'
+import { getRunScriptCommands, runScript, type RunScriptOptions } from './run.js'
+import { taskRunExecutionSettings, TaskRunStateContext } from './taskRunState.js'
 export type RecursiveRunOpts = Pick<Config,
 | 'bin'
 | 'enablePrePostScripts'
@@ -51,6 +51,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'syncInjectedDepsAfterScripts'
 | 'workspaceDir'
 | 'nodeExperimentalPackageMap'
+| 'nodeOptions'
 | 'modulesDir'
 > & Pick<ConfigContext, 'rootProjectManifest' | 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'dryRun' | 'ignoreWorkspaceCycles' | 'reporter' | 'reverse' | 'sort' | 'tasks' | 'workspaceConcurrency'>> &
@@ -79,6 +80,7 @@ export async function runRecursive (
     command: 'run',
     params,
     settings: [
+      ...taskRunExecutionSettings(opts),
       `enable-pre-post-scripts=${Boolean(opts.enablePrePostScripts)}`,
       `script-shell=${opts.scriptShell ?? ''}`,
       `scripts-prepend-node-path=${String(opts.scriptsPrependNodePath ?? false)}`,
@@ -87,15 +89,11 @@ export async function runRecursive (
     ],
     graph: fullTaskGraph,
     workspaceDir: opts.workspaceDir,
-    scriptCommands: (node, script) => {
-      const scripts = opts.selectedProjectsGraph[node.project].package.manifest.scripts ?? {}
-      const main = scripts[script]
-      if (main == null) return []
-      if (!opts.enablePrePostScripts) return [main]
-      return [`pre${script}`, script, `post${script}`]
-        .filter((stage) => scripts[stage] != null && (stage === script || !main.includes(stage)))
-        .map((stage) => scripts[stage]!)
-    },
+    scriptCommands: (node, script) => getRunScriptCommands(
+      opts.selectedProjectsGraph[node.project].package.manifest,
+      script,
+      Boolean(opts.enablePrePostScripts)
+    ),
   })
   let taskGraph = fullTaskGraph
   if (opts.resumeFrom != null) {
@@ -295,44 +293,49 @@ export async function runRecursive (
     return 'passed'
   }
 
-  await scheduleTasks(taskGraph, {
-    bail: Boolean(opts.bail),
-    runTask,
-    onTaskSkipped: (node) => {
-      result[taskSummaryKey(node)].status = 'skipped'
-    },
-  })
+  try {
+    await scheduleTasks(taskGraph, {
+      bail: Boolean(opts.bail),
+      runTask,
+      onTaskSkipped: (node) => {
+        result[taskSummaryKey(node)].status = 'skipped'
+      },
+    })
 
-  if (abortError !== undefined) {
-    throw abortError
-  }
-  if (firstError != null) {
+    if (abortError !== undefined) {
+      throw abortError
+    }
+    if (firstError != null) {
+      if (opts.reportSummary) {
+        await writeRecursiveSummary({
+          dir: opts.workspaceDir ?? opts.dir,
+          summary: result,
+        })
+      }
+      throw firstError
+    }
+
+    // The no-script error is only for a run that had nothing to do. A run
+    // where a `dependsOn`-pulled task failed and skipped every requested task
+    // must report that failure, not claim the script does not exist.
+    const hasFailures = Object.values(result).some(({ status }) => status === 'failure')
+    if (scriptName !== 'test' && !hasCommand && !hasFailures && !opts.ifPresent) {
+      await taskRunState.finish()
+      throw noRequestedScriptError(scriptName, opts)
+    }
     if (opts.reportSummary) {
       await writeRecursiveSummary({
         dir: opts.workspaceDir ?? opts.dir,
         summary: result,
       })
     }
-    throw firstError
-  }
-
-  // The no-script error is only for a run that had nothing to do. A run
-  // where a `dependsOn`-pulled task failed and skipped every requested task
-  // must report that failure, not claim the script does not exist.
-  const hasFailures = Object.values(result).some(({ status }) => status === 'failure')
-  if (scriptName !== 'test' && !hasCommand && !hasFailures && !opts.ifPresent) {
+    throwOnCommandFail('pnpm recursive run', result)
     await taskRunState.finish()
-    throw noRequestedScriptError(scriptName, opts)
+    return undefined
+  } catch (err: unknown) {
+    await taskRunState.close()
+    throw err
   }
-  if (opts.reportSummary) {
-    await writeRecursiveSummary({
-      dir: opts.workspaceDir ?? opts.dir,
-      summary: result,
-    })
-  }
-  throwOnCommandFail('pnpm recursive run', result)
-  await taskRunState.finish()
-  return undefined
 }
 
 /**

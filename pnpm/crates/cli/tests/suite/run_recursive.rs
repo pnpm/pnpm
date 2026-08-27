@@ -1409,10 +1409,17 @@ fn recursive_run_resumes_from_exactly_the_tasks_that_passed_before_a_failure() {
     let order = fs::read_to_string(workspace.join("order.log")).expect("read resumed run");
     assert!(order.ends_with("dependency\nanchor\n"), "unfinished dependency must rerun: {order}");
     assert_eq!(order.lines().filter(|task| *task == "completed").count(), 1);
-    let state_files = fs::read_dir(workspace.join("node_modules").join(".pnpm-task-run-state-v1"))
-        .expect("read state directory")
-        .count();
-    assert_eq!(state_files, 0, "successful resume removes its checkpoint");
+    let state_dir = workspace.join("node_modules").join(".pnpm-task-run-state-v1");
+    let latest: Value = serde_json::from_str(
+        &fs::read_to_string(state_dir.join("latest.json")).expect("read latest state pointer"),
+    )
+    .expect("parse latest state pointer");
+    let latest_journal = state_dir.join(format!(
+        "{}.{}.jsonl",
+        latest["invocation"].as_str().expect("latest invocation"),
+        latest["run"].as_str().expect("latest run"),
+    ));
+    assert!(!latest_journal.exists(), "successful resume removes its current checkpoint");
 
     drop(root);
 }

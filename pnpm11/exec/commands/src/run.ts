@@ -455,21 +455,14 @@ export async function runScript (opts: {
   runScriptOptions: RunScriptOptions
   passedThruArgs: string[]
 }, scriptName: string): Promise<void> {
-  if (
-    opts.runScriptOptions.enablePrePostScripts &&
-    opts.manifest.scripts?.[`pre${scriptName}`] &&
-    !opts.manifest.scripts[scriptName].includes(`pre${scriptName}`)
-  ) {
-    await runLifecycleHook(`pre${scriptName}`, opts.manifest, opts.lifecycleOpts)
-  }
-  await runLifecycleHook(scriptName, opts.manifest, { ...opts.lifecycleOpts, args: opts.passedThruArgs })
-  if (
-    opts.runScriptOptions.enablePrePostScripts &&
-    opts.manifest.scripts?.[`post${scriptName}`] &&
-    !opts.manifest.scripts[scriptName].includes(`post${scriptName}`)
-  ) {
-    await runLifecycleHook(`post${scriptName}`, opts.manifest, opts.lifecycleOpts)
-  }
+  const stages = getRunScriptStages(opts.manifest, scriptName, opts.runScriptOptions.enablePrePostScripts)
+  if (stages.length === 0) throw new Error(`Missing script: ${scriptName}`)
+  await stages.reduce(async (previous, stage) => {
+    await previous
+    await runLifecycleHook(stage.name, opts.manifest, stage.name === scriptName
+      ? { ...opts.lifecycleOpts, args: opts.passedThruArgs }
+      : opts.lifecycleOpts)
+  }, Promise.resolve())
   if (opts.runScriptOptions.syncInjectedDepsAfterScripts?.includes(scriptName)) {
     await syncInjectedDeps({
       pkgName: opts.manifest.name,
@@ -479,6 +472,31 @@ export async function runScript (opts: {
       manifestBeforeScripts: opts.manifest as DependencyManifest,
     })
   }
+}
+
+export function getRunScriptCommands (
+  manifest: ProjectManifest,
+  scriptName: string,
+  enablePrePostScripts: boolean
+): string[] {
+  return getRunScriptStages(manifest, scriptName, enablePrePostScripts).map(({ command }) => command)
+}
+
+function getRunScriptStages (
+  manifest: ProjectManifest,
+  scriptName: string,
+  enablePrePostScripts: boolean
+): Array<{ name: string, command: string }> {
+  const scripts = manifest.scripts ?? {}
+  const main = scripts[scriptName]
+  if (main == null) return []
+  const stages = [{ name: scriptName, command: main }]
+  if (!enablePrePostScripts) return stages
+  const pre = `pre${scriptName}`
+  const post = `post${scriptName}`
+  if (scripts[pre] && !main.includes(pre)) stages.unshift({ name: pre, command: scripts[pre] })
+  if (scripts[post] && !main.includes(post)) stages.push({ name: post, command: scripts[post] })
+  return stages
 }
 
 function renderCommands (commands: string[][]): string {

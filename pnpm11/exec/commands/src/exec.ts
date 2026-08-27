@@ -41,7 +41,7 @@ import {
   shorthands as runShorthands,
 } from './run.js'
 import { runDepsStatusCheck } from './runDepsStatusCheck.js'
-import { type TaskRunState, TaskRunStateContext } from './taskRunState.js'
+import { taskRunExecutionSettings, type TaskRunState, TaskRunStateContext } from './taskRunState.js'
 import { trackedExeca } from './trackedExeca.js'
 
 export const shorthands: Record<string, string | string[]> = {
@@ -221,11 +221,16 @@ export async function handler (
   }
 
   const fullTaskGraph = taskGraph
+  const baseExtraEnv: Record<string, string | undefined> = {
+    ...opts.extraEnv,
+    ...(opts.nodeOptions ? { NODE_OPTIONS: keepEsmNodePathLoaderOption(opts.nodeOptions, opts.extraEnv?.NODE_OPTIONS) } : {}),
+  }
   let taskRunStateContext: TaskRunStateContext | undefined
   if (opts.recursive) {
     taskRunStateContext = new TaskRunStateContext({
       command: 'exec',
       params: [...params, `shell-mode=${Boolean(opts.shellMode)}`],
+      settings: taskRunExecutionSettings({ ...opts, extraEnv: baseExtraEnv }),
       graph: fullTaskGraph,
       workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
       scriptCommands: () => [],
@@ -303,10 +308,7 @@ export async function handler (
       try {
         const pnpPath = workspacePnpPath ?? existsPnp(prefix)
         const packageMapPath = workspacePackageMapPath || (opts.nodeExperimentalPackageMap && existsPackageMap(prefix))
-        const extraEnv: Record<string, string | undefined> = {
-          ...opts.extraEnv,
-          ...(opts.nodeOptions ? { NODE_OPTIONS: keepEsmNodePathLoaderOption(opts.nodeOptions, opts.extraEnv?.NODE_OPTIONS) } : {}),
-        }
+        const extraEnv = { ...baseExtraEnv }
         if (pnpPath) {
           Object.assign(extraEnv, makeNodeRequireOption(pnpPath, extraEnv))
         }
@@ -438,36 +440,41 @@ export async function handler (
       return 'passed'
     })
 
-  await scheduleTasks(taskGraph, {
-    bail: Boolean(opts.bail),
-    runTask,
-    onTaskSkipped: (node) => {
-      result[node.project].status = 'skipped'
-    },
-  })
+  try {
+    await scheduleTasks(taskGraph, {
+      bail: Boolean(opts.bail),
+      runTask,
+      onTaskSkipped: (node) => {
+        result[node.project].status = 'skipped'
+      },
+    })
 
-  if (abortError !== undefined) {
-    throw abortError
-  }
-  if (firstError != null) {
+    if (abortError !== undefined) {
+      throw abortError
+    }
+    if (firstError != null) {
+      if (opts.reportSummary) {
+        await writeRecursiveSummary({
+          dir: opts.lockfileDir ?? opts.dir,
+          summary: result,
+        })
+      }
+      throw firstError
+    }
+
     if (opts.reportSummary) {
       await writeRecursiveSummary({
         dir: opts.lockfileDir ?? opts.dir,
         summary: result,
       })
     }
-    throw firstError
+    throwOnCommandFail('pnpm recursive exec', result)
+    await taskRunState?.finish()
+    return { exitCode }
+  } catch (err: unknown) {
+    await taskRunState?.close()
+    throw err
   }
-
-  if (opts.reportSummary) {
-    await writeRecursiveSummary({
-      dir: opts.lockfileDir ?? opts.dir,
-      summary: result,
-    })
-  }
-  throwOnCommandFail('pnpm recursive exec', result)
-  await taskRunState?.finish()
-  return { exitCode }
 }
 
 async function createExecCommandNotFoundHint (

@@ -18,7 +18,7 @@ use crate::cli_args::{
         filtered_projects_dependencies, find_resume_root, select_recursive_projects,
         write_recursive_summary,
     },
-    task_run_state::TaskRunStateContext,
+    task_run_state::{TaskRunExecutionSettings, TaskRunStateContext, task_run_execution_settings},
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -142,10 +142,19 @@ pub async fn exec_recursive(
     let full_task_graph = task_graph;
     let mut state_params = args.command.clone();
     state_params.push(format!("shell-mode={}", args.shell_mode));
+    let state_extra_env = config.extra_env_with_node_options();
+    let state_settings = task_run_execution_settings(&TaskRunExecutionSettings {
+        extra_bin_paths: &config.extra_bin_paths,
+        extra_env: &state_extra_env,
+        modules_dir: &config.modules_dir,
+        node_experimental_package_map: config.node_experimental_package_map,
+        node_options: config.node_options.as_deref(),
+        user_agent: &config.user_agent,
+    });
     let task_run_state_context = TaskRunStateContext::new(
         "exec",
         &state_params,
-        &[],
+        &state_settings,
         &full_task_graph,
         workspace_root,
         |_, _| Vec::new(),

@@ -402,49 +402,23 @@ pub(super) fn run_stages(
     main_body: &str,
     args: &[String],
 ) -> miette::Result<ScriptExit> {
-    let get_script = |key: &str| -> Option<String> {
-        ctx.manifest
-            .value()
-            .get("scripts")
-            .and_then(|scripts| scripts.as_object())
-            .and_then(|scripts| scripts.get(key))
-            .and_then(|script| script.as_str())
-            .map(str::to_string)
-    };
-
-    if ctx.config.enable_pre_post_scripts {
-        let pre = format!("pre{name}");
-        if let Some(script) = get_script(&pre)
-            && !main_body.contains(&pre)
-            && let Some(status) = run_stage(ctx, &pre, &script, &[])?
-            && !status.success()
-        {
-            return Ok(status);
+    let mut main_status = None;
+    for (stage, script) in
+        get_run_script_stages(ctx.manifest, name, main_body, ctx.config.enable_pre_post_scripts)
+    {
+        let is_main = stage == name;
+        if let Some(status) = run_stage(ctx, &stage, &script, if is_main { args } else { &[] })? {
+            if !status.success() {
+                return Ok(status);
+            }
+            if is_main {
+                main_status = Some(status);
+            }
         }
     }
-
-    // The caller's contract rules out both no-op paths in `run_stage`
-    // for the main stage (empty body, args-less `npx only-allow pnpm`),
-    // so `run_stage` here is guaranteed to surface a real [`ScriptExit`].
-    // The `expect` documents the invariant.
-    let main_status = run_stage(ctx, name, main_body, args)?.expect(
+    let main_status = main_status.expect(
         "caller validated main_body is neither empty nor the args-less `npx only-allow pnpm` no-op",
     );
-
-    if !main_status.success() {
-        return Ok(main_status);
-    }
-
-    if ctx.config.enable_pre_post_scripts {
-        let post = format!("post{name}");
-        if let Some(script) = get_script(&post)
-            && !main_body.contains(&post)
-            && let Some(status) = run_stage(ctx, &post, &script, &[])?
-            && !status.success()
-        {
-            return Ok(status);
-        }
-    }
 
     if ctx.config.sync_injected_deps_after_scripts.iter().any(|script| script == name) {
         sync_injected_deps(&SyncInjectedDeps {
@@ -457,6 +431,48 @@ pub(super) fn run_stages(
     }
 
     Ok(main_status)
+}
+
+pub(super) fn get_run_script_commands(
+    manifest: &PackageManifest,
+    name: &str,
+    main_body: &str,
+    enable_pre_post_scripts: bool,
+) -> Vec<String> {
+    get_run_script_stages(manifest, name, main_body, enable_pre_post_scripts)
+        .into_iter()
+        .map(|(_, script)| script)
+        .collect()
+}
+
+fn get_run_script_stages(
+    manifest: &PackageManifest,
+    name: &str,
+    main_body: &str,
+    enable_pre_post_scripts: bool,
+) -> Vec<(String, String)> {
+    let scripts = manifest.value().get("scripts").and_then(Value::as_object);
+    let mut stages = vec![(name.to_string(), main_body.to_string())];
+    if !enable_pre_post_scripts {
+        return stages;
+    }
+    let pre = format!("pre{name}");
+    if let Some(script) = scripts
+        .and_then(|scripts| scripts.get(&pre))
+        .and_then(Value::as_str)
+        .filter(|script| !script.is_empty() && !main_body.contains(&pre))
+    {
+        stages.insert(0, (pre, script.to_string()));
+    }
+    let post = format!("post{name}");
+    if let Some(script) = scripts
+        .and_then(|scripts| scripts.get(&post))
+        .and_then(Value::as_str)
+        .filter(|script| !script.is_empty() && !main_body.contains(&post))
+    {
+        stages.push((post, script.to_string()));
+    }
+    stages
 }
 
 /// Run one lifecycle stage. Returns `Ok(None)` when pnpm's per-stage
