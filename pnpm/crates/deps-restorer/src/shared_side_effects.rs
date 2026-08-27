@@ -322,20 +322,23 @@ const STORE_READ_CHUNK: usize = 64 * 1024;
 async fn store_holds(path: &Path, digest: &str) -> Result<bool, String> {
     use tokio::io::AsyncReadExt as _;
 
-    // Checked without following links: the store addresses its own regular
-    // files, and a symlink here would import content from outside it that the
-    // CAS write path would have replaced.
-    match tokio::fs::symlink_metadata(path).await {
-        Ok(metadata) if metadata.is_file() => {}
-        Ok(_) => return Ok(false),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(error) => return Err(format!("failed to inspect {}: {error}", path.display())),
-    }
-    let file = match tokio::fs::File::open(path).await {
-        Ok(file) => file,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(error) => return Err(format!("failed to open {}: {error}", path.display())),
+    let mut options = tokio::fs::OpenOptions::new();
+    options.read(true);
+    // The store addresses its own regular files. A symlink at the digest path
+    // would name bytes the store neither owns nor can keep from changing, and
+    // a plain open on a FIFO would block until a writer appeared. Refusing
+    // both at open binds the check to the file that is actually read, which a
+    // preceding `symlink_metadata` could not.
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW);
+    // Anything that cannot be opened this way — absent, a symlink `O_NOFOLLOW`
+    // turned away, a device — is a miss the download and CAS write repair.
+    let Ok(file) = options.open(path).await else {
+        return Ok(false);
     };
+    if !file.metadata().await.is_ok_and(|metadata| metadata.is_file()) {
+        return Ok(false);
+    }
     let mut reader = tokio::io::BufReader::with_capacity(STORE_READ_CHUNK, file);
     let mut hasher = Sha512::new();
     let mut buffer = vec![0u8; STORE_READ_CHUNK];

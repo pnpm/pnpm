@@ -241,7 +241,8 @@ export function verifyFileIntegrity (
  * CAS file. Prefer this wherever the caller is already asynchronous.
  *
  * A path that is absent or is not a regular file is `false`, so the caller
- * falls back to fetching it; any other read failure is thrown.
+ * falls back to fetching it, as is an `integrity.algorithm` the runtime does
+ * not support. Any other read failure is thrown.
  */
 export async function verifyFileIntegrityAsync (
   filename: string,

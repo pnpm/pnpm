@@ -73,6 +73,9 @@ tar               = { workspace = true }
 text-block-macros = { workspace = true }
 walkdir           = { workspace = true }
 
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
 [target.'cfg(windows)'.dependencies]
 same-file = { workspace = true }
 
