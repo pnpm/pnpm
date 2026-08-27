@@ -200,9 +200,9 @@ pub async fn resolve(
             DependencyGroup::Optional,
         ],
         frozen_lockfile,
-        // Default to reuse so unchanged entries keep their pins; a revision
-        // refresh always re-resolves the pinned registry versions.
-        prefer_frozen_lockfile: if request.update_patches {
+        // Default to reuse so unchanged entries keep their pins; an explicit
+        // metadata refresh always re-resolves the pinned registry versions.
+        prefer_frozen_lockfile: if request.update_patches || request.fix_lockfile {
             Some(false)
         } else {
             request.prefer_frozen_lockfile.or(Some(true))
@@ -223,6 +223,8 @@ pub async fn resolve(
         persist_policy_excludes: false,
         update_seed_policy: if request.update_patches {
             pnpm_package_manager::UpdateSeedPolicy::RefreshRevisions
+        } else if request.fix_lockfile {
+            pnpm_package_manager::UpdateSeedPolicy::FixLockfile
         } else {
             pnpm_package_manager::UpdateSeedPolicy::KeepAll
         },
@@ -261,6 +263,7 @@ pub async fn resolve(
 /// unchanged.
 pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) -> Option<Lockfile> {
     if request.update_patches
+        || request.fix_lockfile
         || !request.frozen_lockfile
         || request.prefer_frozen_lockfile == Some(false)
     {

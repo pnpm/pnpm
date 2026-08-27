@@ -30,6 +30,59 @@ async fn artifact_handshake_times_out() {
     server.abort();
 }
 
+#[tokio::test]
+async fn lockfile_repair_rejects_a_server_without_the_capability() {
+    let mut options = resolve_projects_options();
+    options.fix_lockfile = true;
+    options.update_patches = false;
+    let mut server = mockito::Server::new_async().await;
+    let handshake_mock = server
+        .mock("GET", "/-/pnpr")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"pnpr":{"versions":[0]}}"#)
+        .create_async()
+        .await;
+
+    let Err(error) = PnprClient::new(server.url()).resolve_projects(options).await else {
+        panic!("an older server must not silently ignore repair mode");
+    };
+
+    assert!(error.to_string().contains("does not advertise lockfile repair support"));
+    handshake_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn lockfile_repair_uses_an_advertised_capability() {
+    let mut options = resolve_projects_options();
+    options.fix_lockfile = true;
+    options.update_patches = false;
+    let response_lockfile = matching_transform_lockfile(&options);
+    let mut server = mockito::Server::new_async().await;
+    let handshake_mock = server
+        .mock("GET", "/-/pnpr")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"pnpr":{"versions":[0],"fixLockfile":[0]}}"#)
+        .create_async()
+        .await;
+    let resolve_mock = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .match_body(mockito::Matcher::PartialJson(json!({ "fixLockfile": true })))
+        .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
+        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile })))
+        .create_async()
+        .await;
+
+    let _ = PnprClient::new(server.url())
+        .resolve_projects(options)
+        .await
+        .expect("the advertised repair request succeeds");
+
+    handshake_mock.assert_async().await;
+    resolve_mock.assert_async().await;
+}
+
 /// The request body is the whole contract with the server: a field the
 /// client omits is not defaulted server-side but cleared, so the server
 /// resolves under a policy the user never configured and cannot see
@@ -188,6 +241,7 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
         frozen_lockfile: false,
         prefer_frozen_lockfile: None,
         update_patches: true,
+        fix_lockfile: false,
         ignore_manifest_check: false,
         trust_lockfile: true,
         resolution_mode: ResolutionMode::TimeBased,

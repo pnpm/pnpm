@@ -124,6 +124,11 @@ pub struct InstallArgs {
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
 
+    /// Repair broken lockfile entries by re-resolving their metadata while
+    /// preserving compatible locked versions.
+    #[clap(long = "fix-lockfile")]
+    pub fix_lockfile: bool,
+
     #[clap(flatten)]
     pub lockfile_dir: LockfileDirArg,
 
@@ -307,6 +312,7 @@ impl InstallArgs {
             frozen_lockfile: false,
             no_frozen_lockfile: true,
             lockfile_only: false,
+            fix_lockfile: false,
             lockfile_dir: LockfileDirArg::default(),
             merge_git_branch_lockfiles: false,
             merge_git_branch_lockfiles_branch_pattern: Vec::new(),
@@ -379,6 +385,7 @@ impl InstallArgs {
     ) -> bool {
         if self.effective_frozen_lockfile(config)
             || self.lockfile_only
+            || self.fix_lockfile
             || self.force
             || self.refresh_artifact_pins
             || self.verify_deps_before_run_install
@@ -510,7 +517,7 @@ impl InstallArgs {
     ) -> miette::Result<()> {
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let frozen_lockfile = match self.configured_frozen_lockfile(state.config) {
-            _ if self.refresh_artifact_pins => false,
+            _ if self.fix_lockfile || self.refresh_artifact_pins => false,
             Some(value) => value,
             None if state.config.ci
                 && !self.lockfile_only
@@ -531,6 +538,7 @@ impl InstallArgs {
             frozen_lockfile: _,
             no_frozen_lockfile: _,
             lockfile_only,
+            fix_lockfile,
             // Pinned onto `config` in the dispatch (`dispatch_install.rs`)
             // before the state is built, so the install reads it from
             // `config`, not from here.
@@ -583,7 +591,7 @@ impl InstallArgs {
         // mutual `overrides_with` collapses both spellings to the
         // last-specified, so at most one is set and the precedence here
         // is straightforward.
-        let prefer_frozen_lockfile = if refresh_artifact_pins {
+        let prefer_frozen_lockfile = if fix_lockfile || refresh_artifact_pins {
             Some(false)
         } else if prefer_frozen_lockfile {
             Some(true)
@@ -649,6 +657,7 @@ impl InstallArgs {
                     prefer_frozen_lockfile: prefer_frozen_lockfile
                         .unwrap_or(config.prefer_frozen_lockfile),
                     update_patches: false,
+                    fix_lockfile,
                     lockfile_only,
                     ignore_manifest_check,
                     trust_lockfile,
@@ -678,6 +687,8 @@ impl InstallArgs {
         }
         let install_lockfile = if refresh_artifact_pins {
             MaybeLazyLockfile::Loaded(refreshed_lockfile.as_ref())
+        } else if fix_lockfile {
+            MaybeLazyLockfile::Repair(lockfile)
         } else {
             MaybeLazyLockfile::Lazy(lockfile)
         };
@@ -705,7 +716,11 @@ impl InstallArgs {
             lockfile_only,
             dry_run,
             persist_policy_excludes: true,
-            update_seed_policy: UpdateSeedPolicy::KeepAll,
+            update_seed_policy: if fix_lockfile {
+                UpdateSeedPolicy::FixLockfile
+            } else {
+                UpdateSeedPolicy::KeepAll
+            },
             preferred_versions_override: None,
             auth_override: None,
             resolution_observer: None,
@@ -764,6 +779,8 @@ pub(crate) struct PnprLink<'a> {
     /// version. This disables the exchange-free satisfied-lockfile path and
     /// is forwarded to `/-/pnpr/v0/resolve`.
     pub(crate) update_patches: bool,
+    /// Regenerate derived lockfile metadata while retaining compatible pins.
+    pub(crate) fix_lockfile: bool,
     /// `--lockfile-only`. Forwarded to `/-/pnpr/v0/resolve` so the server
     /// resolves only — returning the lockfile without fetching files —
     /// after which [`install_via_pnpr`] writes the lockfile and skips
@@ -903,12 +920,18 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     // pay no deep copy. The server-exchange paths clone at the point a
     // request body actually needs one.
     let previous_wanted: Option<&Lockfile> = if link.use_state_lockfile {
-        state
-            .lockfile
-            .get()
-            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
+        let loaded =
+            if link.fix_lockfile { state.lockfile.get_for_fix() } else { state.lockfile.get() };
+        loaded.map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
     } else {
         None
+    };
+    let merge_wanted = if link.fix_lockfile && link.use_state_lockfile {
+        state.lockfile.get().or_else(|_| state.lockfile.get_for_fix()).map_err(|err| {
+            miette::Report::new(err).wrap_err("load the lockfile for filtered merge")
+        })?
+    } else {
+        previous_wanted
     };
     // Importer ids name projects relative to the lockfile, which
     // `lockfileDir` can pin somewhere other than the workspace the
@@ -954,6 +977,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     // single-project one.
     let satisfied_without_server = !link.frozen_lockfile
         && !link.update_patches
+        && !link.fix_lockfile
         && !link.lockfile_only
         && link.prefer_frozen_lockfile
         && !partial_selection
@@ -1215,6 +1239,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         frozen_lockfile: link.frozen_lockfile,
         prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
         update_patches: link.update_patches,
+        fix_lockfile: link.fix_lockfile,
         ignore_manifest_check: link.ignore_manifest_check,
         trust_lockfile: link.trust_lockfile,
         resolution_mode: state.config.resolution_mode,
@@ -1298,7 +1323,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             .map(|root| state.config.lockfile_dir_for(root)),
     ) {
         outcome.lockfile = merge_filtered_wanted_lockfile(
-            previous_wanted,
+            merge_wanted,
             outcome.lockfile,
             real_importer_ids,
             selected_importer_ids,

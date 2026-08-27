@@ -175,6 +175,8 @@ pub struct ResolveProjectsOptions {
     pub frozen_lockfile: bool,
     pub prefer_frozen_lockfile: Option<bool>,
     pub update_patches: bool,
+    /// Regenerate derived lockfile metadata while retaining compatible pins.
+    pub fix_lockfile: bool,
     pub ignore_manifest_check: bool,
     pub trust_lockfile: bool,
     /// See [`ResolveOptions::resolution_mode`].
@@ -213,6 +215,7 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
             frozen_lockfile: opts.frozen_lockfile,
             prefer_frozen_lockfile: opts.prefer_frozen_lockfile,
             update_patches: opts.update_patches,
+            fix_lockfile: false,
             ignore_manifest_check: opts.ignore_manifest_check,
             trust_lockfile: opts.trust_lockfile,
             resolution_mode: opts.resolution_mode,
@@ -391,6 +394,8 @@ struct HandshakeCapability {
     versions: Vec<u32>,
     #[serde(default)]
     artifacts: Vec<u32>,
+    #[serde(default, rename = "fixLockfile")]
+    fix_lockfile: Vec<u32>,
 }
 
 impl PnprClient {
@@ -411,6 +416,21 @@ impl PnprClient {
     /// no protocol version with this client.
     pub async fn handshake(&self) -> Result<(), PnprClientError> {
         let capability = self.fetch_handshake(None).await?;
+        Self::require_resolver_protocol(&capability)
+    }
+
+    async fn handshake_fix_lockfile(&self) -> Result<(), PnprClientError> {
+        let capability = self.fetch_handshake(None).await?;
+        Self::require_resolver_protocol(&capability)?;
+        if !capability.fix_lockfile.contains(&PROTOCOL_VERSION) {
+            return Err(PnprClientError::Server(format!(
+                "pnpr server does not advertise lockfile repair support for resolver protocol v{PROTOCOL_VERSION}",
+            )));
+        }
+        Ok(())
+    }
+
+    fn require_resolver_protocol(capability: &HandshakeCapability) -> Result<(), PnprClientError> {
         if !capability.versions.contains(&PROTOCOL_VERSION) {
             return Err(PnprClientError::Server(format!(
                 "pnpr server speaks protocol versions {:?}, but this client requires v{PROTOCOL_VERSION}",
@@ -731,6 +751,9 @@ impl PnprClient {
         opts: ResolveProjectsOptions,
         mut on_package: impl FnMut(ResolvedPackage),
     ) -> Result<ResolveOutcome, PnprClientError> {
+        if opts.fix_lockfile {
+            self.handshake_fix_lockfile().await?;
+        }
         // The server's response is untrusted, and the caller merges the
         // returned lockfile into `pnpm-lock.yaml`. Constrain it to the
         // importers this request is about — the requested projects plus
@@ -765,6 +788,7 @@ impl PnprClient {
             "frozenLockfile": opts.frozen_lockfile,
             "preferFrozenLockfile": opts.prefer_frozen_lockfile,
             "updatePatches": opts.update_patches,
+            "fixLockfile": opts.fix_lockfile,
             "ignoreManifestCheck": opts.ignore_manifest_check,
             "trustLockfile": opts.trust_lockfile,
             "resolutionMode": opts.resolution_mode,

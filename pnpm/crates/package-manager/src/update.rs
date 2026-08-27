@@ -1254,7 +1254,9 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
         }
         match prepared.seed_policy {
             UpdateSeedPolicy::KeepAll => {}
-            UpdateSeedPolicy::KeepAllResolveAll | UpdateSeedPolicy::RefreshRevisions => {
+            UpdateSeedPolicy::KeepAllResolveAll
+            | UpdateSeedPolicy::FixLockfile
+            | UpdateSeedPolicy::RefreshRevisions => {
                 unreachable!("manifest preparation never uses a whole-graph seed policy")
             }
             UpdateSeedPolicy::DropAll { .. } => {

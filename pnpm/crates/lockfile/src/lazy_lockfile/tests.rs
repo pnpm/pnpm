@@ -1,6 +1,7 @@
 use super::{LazyLockfile, MaybeLazyLockfile};
 use crate::{Lockfile, WantedLockfileSelection};
 use std::fs;
+use text_block_macros::text_block;
 
 fn minimal_lockfile() -> Lockfile {
     serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse a minimal lockfile")
@@ -43,6 +44,122 @@ fn deferred_loads_from_the_given_dir_not_the_process_cwd() {
         LazyLockfile::deferred(empty.path().to_path_buf(), WantedLockfileSelection::default());
     assert!(!lazy.is_loaded_or_on_disk());
     assert!(lazy.get().expect("absent lockfile loads as None").is_none());
+}
+
+#[test]
+fn normal_load_does_not_fill_the_repair_cache() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    fs::write(
+        dir.path().join(Lockfile::FILE_NAME),
+        text_block! {
+            "lockfileVersion: '9.0'"
+            "importers:"
+            "  .: {}"
+            "packages:"
+            "  pkg@1.0.0:"
+            "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
+            "    deprecated: stale"
+        },
+    )
+    .expect("write pnpm-lock.yaml");
+
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
+    let normal = lazy.get().expect("normal load succeeds").expect("normal lockfile");
+    let package_key = "pkg@1.0.0".parse().expect("package key");
+    assert_eq!(
+        normal
+            .packages
+            .as_ref()
+            .and_then(|packages| packages.get(&package_key))
+            .and_then(|metadata| metadata.deprecated.as_deref()),
+        Some("stale"),
+    );
+
+    let repaired = lazy.get_for_fix().expect("repair load succeeds").expect("repair lockfile");
+    assert!(
+        repaired
+            .packages
+            .as_ref()
+            .and_then(|packages| packages.get(&package_key))
+            .is_some_and(|metadata| metadata.deprecated.is_none()),
+    );
+
+    let merge = MaybeLazyLockfile::Repair(&lazy)
+        .get_for_merge()
+        .expect("merge load succeeds")
+        .expect("merge lockfile");
+    assert_eq!(
+        merge
+            .packages
+            .as_ref()
+            .and_then(|packages| packages.get(&package_key))
+            .and_then(|metadata| metadata.deprecated.as_deref()),
+        Some("stale"),
+    );
+}
+
+#[test]
+fn repair_merge_preserves_valid_metadata_when_strict_parsing_fails() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    fs::write(
+        dir.path().join(Lockfile::FILE_NAME),
+        text_block! {
+            "lockfileVersion: '9.0'"
+            "settings: invalid"
+            "importers:"
+            "  .: {}"
+            "packages:"
+            "  pkg@1.0.0:"
+            "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
+            "    deprecated: stale"
+            "snapshots:"
+            "  pkg@1.0.0:"
+            "    transitivePeerDependencies: [peer]"
+            "    optional: true"
+        },
+    )
+    .expect("write pnpm-lock.yaml");
+
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
+    assert!(lazy.get().is_err(), "strict parsing must reject the malformed settings");
+
+    let package_key = "pkg@1.0.0".parse().expect("package key");
+    let repaired = lazy.get_for_fix().expect("repair load succeeds").expect("repair lockfile");
+    assert!(repaired.settings.is_none());
+    assert!(
+        repaired
+            .packages
+            .as_ref()
+            .and_then(|packages| packages.get(&package_key))
+            .is_some_and(|metadata| metadata.deprecated.is_none()),
+    );
+    assert!(
+        repaired.snapshots.as_ref().and_then(|snapshots| snapshots.get(&package_key)).is_some_and(
+            |snapshot| { !snapshot.optional && snapshot.transitive_peer_dependencies.is_none() }
+        ),
+    );
+
+    let merge = MaybeLazyLockfile::Repair(&lazy)
+        .get_for_merge()
+        .expect("merge load succeeds")
+        .expect("merge lockfile");
+    assert!(merge.settings.is_none());
+    assert_eq!(
+        merge
+            .packages
+            .as_ref()
+            .and_then(|packages| packages.get(&package_key))
+            .and_then(|metadata| metadata.deprecated.as_deref()),
+        Some("stale"),
+    );
+    assert!(
+        merge.snapshots.as_ref().and_then(|snapshots| snapshots.get(&package_key)).is_some_and(
+            |snapshot| {
+                snapshot.optional
+                    && snapshot.transitive_peer_dependencies.as_deref() == Some(&["peer".into()])
+            }
+        ),
+    );
 }
 
 #[test]

@@ -481,9 +481,10 @@ where
         // below: a load that failed leaves nothing cached, so asking later
         // would retry it and turn a lockfile this arm chose to ignore into
         // a fatal one.
-        let (lockfile, pre_merge_importers) = match lockfile_source.get() {
+        let (lockfile, merge_wanted_lockfile, pre_merge_importers) = match lockfile_source.get() {
             Ok(lockfile) => (
                 lockfile,
+                lockfile_source.get_for_merge().map_err(InstallError::LoadWantedLockfile)?,
                 lockfile_source.pre_merge_importers().map_err(InstallError::LoadWantedLockfile)?,
             ),
             Err(error) if !frozen_lockfile => {
@@ -495,7 +496,7 @@ where
                     ),
                     prefix: prefix.clone(),
                 }));
-                (None, None)
+                (None, None, None)
             }
             Err(error) => return Err(InstallError::LoadWantedLockfile(error)),
         };
@@ -1093,6 +1094,7 @@ where
             config,
             manifest,
             lockfile,
+            merge_wanted_lockfile,
             take_frozen_path,
             lockfile_verification_override,
             resolution_verifiers,

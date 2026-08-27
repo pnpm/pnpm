@@ -2782,6 +2782,10 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let handshake =
         app.clone().oneshot(Request::get("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(handshake.status(), StatusCode::OK);
+    assert_eq!(
+        body_json(handshake.into_body()).await,
+        json!({ "pnpr": { "versions": [0], "artifacts": [], "fixLockfile": [0] } }),
+    );
 
     let verify = app
         .clone()
@@ -2895,7 +2899,7 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
     assert_eq!(handshake.status(), StatusCode::OK);
     assert_eq!(
         body_json(handshake.into_body()).await,
-        json!({ "pnpr": { "versions": [], "artifacts": [0] } }),
+        json!({ "pnpr": { "versions": [], "artifacts": [0], "fixLockfile": [] } }),
     );
 
     let artifact = app
