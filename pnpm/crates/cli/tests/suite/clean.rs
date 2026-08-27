@@ -121,9 +121,7 @@ fn clean_lockfile_removes_lockfile() {
     drop(root);
 }
 
-/// A two-project workspace with `node_modules` seeded in the root and in
-/// `pkg1`, plus a `pnpm-workspace.yaml` carrying `settings`.
-fn seed_workspace(workspace: &Path, settings: &str) {
+fn write_workspace(workspace: &Path, settings: &str) {
     fs::write(workspace.join("pnpm-workspace.yaml"), format!("packages:\n  - pkg1\n{settings}"))
         .expect("write pnpm-workspace.yaml");
     let pkg1 = workspace.join("pkg1");
@@ -139,7 +137,7 @@ fn seed_workspace(workspace: &Path, settings: &str) {
 fn clean_from_a_workspace_subdirectory_cleans_every_project() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
 
-    seed_workspace(&workspace, "");
+    write_workspace(&workspace, "");
     seed_package(&workspace.join("node_modules"), "a");
     seed_package(&workspace.join("pkg1").join("node_modules"), "b");
 
@@ -161,7 +159,7 @@ fn clean_from_a_workspace_subdirectory_cleans_every_project() {
 fn clean_from_a_workspace_subdirectory_honors_a_custom_modules_dir() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
 
-    seed_workspace(&workspace, "modulesDir: custom_nm\n");
+    write_workspace(&workspace, "modulesDir: custom_nm\n");
     seed_package(&workspace.join("custom_nm"), "a");
     seed_package(&workspace.join("pkg1").join("custom_nm"), "b");
 
