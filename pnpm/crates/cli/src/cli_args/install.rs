@@ -244,10 +244,8 @@ pub struct InstallArgs {
     #[clap(long = "update-checksums")]
     pub update_checksums: bool,
 
-    /// Replace remote build artifact pins after downloading and verifying the
-    /// currently available artifacts.
-    #[clap(long = "refresh-artifact-pins", conflicts_with_all = ["frozen_lockfile", "lockfile_only"])]
-    pub refresh_artifact_pins: bool,
+    #[clap(skip)]
+    pub(crate) refresh_artifact_pins: bool,
 
     /// Maximum number of concurrent network requests during install.
     #[clap(long = "network-concurrency")]
@@ -340,6 +338,16 @@ impl InstallArgs {
             user_agent: None,
             pnpr_server: None,
         }
+    }
+
+    pub(crate) fn for_build_artifact_update(
+        supported_architectures: SupportedArchitecturesArgs,
+    ) -> Self {
+        let mut args = Self::for_reresolving_install();
+        args.supported_architectures = supported_architectures;
+        args.force = true;
+        args.refresh_artifact_pins = true;
+        args
     }
 
     /// Run the repeat-install fast path before any of the async install
@@ -652,7 +660,7 @@ impl InstallArgs {
         }
 
         if refresh_artifact_pins && !config.lockfile {
-            return Err(RefreshArtifactPinsWithoutLockfile.into());
+            return Err(BuildArtifactsWithoutLockfile.into());
         }
         let mut refreshed_lockfile = None;
         if refresh_artifact_pins {
@@ -808,9 +816,9 @@ struct FrozenStoreIncompatibleWithPnpr;
 struct DryRunIncompatibleWithPnpr;
 
 #[derive(Debug, Display, Error, Diagnostic)]
-#[display("Cannot refresh artifact pins when lockfile is disabled.")]
-#[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_REFRESH_ARTIFACT_PINS_WITH_NO_LOCKFILE))]
-struct RefreshArtifactPinsWithoutLockfile;
+#[display("Cannot update build artifacts when lockfile is set to false")]
+#[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_BUILD_ARTIFACTS_WITH_NO_LOCKFILE))]
+struct BuildArtifactsWithoutLockfile;
 
 fn resolve_project(
     dir: String,

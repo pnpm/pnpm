@@ -4,7 +4,6 @@ import path from 'node:path'
 import { describe, expect, test } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
 import { add, install } from '@pnpm/installing.commands'
-import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { rimrafSync } from '@zkochan/rimraf'
@@ -14,53 +13,6 @@ import { loadJsonFileSync } from 'load-json-file'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
-
-test('install --refresh-artifact-pins clears existing pins before reinstalling', async () => {
-  prepare({ dependencies: { 'is-positive': '1.0.0' } })
-  await install.handler({ ...DEFAULT_OPTS, dir: process.cwd() })
-  const lockfile = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
-  const snapshot = Object.values(lockfile.packages ?? {})[0]
-  snapshot.artifactPins = {
-    'dependency-side-effects:v1:deps=old': {
-      'organization:acme': { platform: '0'.repeat(64) },
-    },
-  }
-  await writeWantedLockfile('.', lockfile)
-
-  await install.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    refreshArtifactPins: true,
-  })
-
-  const refreshed = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
-  expect(Object.values(refreshed.packages ?? {}).every(pkg => pkg.artifactPins == null)).toBe(true)
-})
-
-test('install --refresh-artifact-pins rejects a frozen lockfile', async () => {
-  prepare({})
-  await expect(install.handler({
-    ...DEFAULT_OPTS,
-    cliOptions: { frozenLockfile: true },
-    dir: process.cwd(),
-    frozenLockfile: true,
-    refreshArtifactPins: true,
-  })).rejects.toMatchObject({ code: 'ERR_PNPM_CONFIG_CONFLICT_REFRESH_ARTIFACT_PINS_WITH_FROZEN_LOCKFILE' })
-})
-
-test.each([
-  ['a disabled lockfile', { useLockfile: false }, 'ERR_PNPM_CONFIG_CONFLICT_REFRESH_ARTIFACT_PINS_WITH_NO_LOCKFILE'],
-  ['a lockfile-only install', { lockfileOnly: true }, 'ERR_PNPM_CONFIG_CONFLICT_REFRESH_ARTIFACT_PINS_WITH_LOCKFILE_ONLY'],
-  ['a resolution-only install', { resolutionOnly: true }, 'ERR_PNPM_CONFIG_CONFLICT_REFRESH_ARTIFACT_PINS_WITH_LOCKFILE_ONLY'],
-] as const)('install --refresh-artifact-pins rejects %s', async (_description, conflictingOptions, code) => {
-  prepare({})
-  await expect(install.handler({
-    ...DEFAULT_OPTS,
-    ...conflictingOptions,
-    dir: process.cwd(),
-    refreshArtifactPins: true,
-  })).rejects.toMatchObject({ code })
-})
 
 test('install fails if no package.json is found', async () => {
   prepareEmpty()

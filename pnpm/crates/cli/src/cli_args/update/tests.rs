@@ -161,6 +161,44 @@ fn patches_is_a_selectorless_update_mode() {
 }
 
 #[test]
+fn build_artifacts_is_a_selectorless_update_mode() {
+    let build_artifacts = update_args(&["--build-artifacts"]);
+    assert!(build_artifacts.build_artifacts);
+    build_artifacts.check_build_artifacts_options().expect("standalone --build-artifacts");
+
+    for args in [
+        &["--build-artifacts", "foo"][..],
+        &["--build-artifacts", "--latest"][..],
+        &["--build-artifacts", "--interactive"][..],
+        &["--build-artifacts", "--global"][..],
+        &["--build-artifacts", "--patches"][..],
+    ] {
+        let error = update_args(args)
+            .check_build_artifacts_options()
+            .expect_err("--build-artifacts combination must fail");
+        assert_eq!(
+            error.to_string(),
+            "--build-artifacts cannot be combined with package selectors, --latest, --interactive, --global, or --patches",
+        );
+    }
+
+    let error = update_args(&["--build-artifacts", "--lockfile-only"])
+        .check_build_artifacts_options()
+        .expect_err("--build-artifacts --lockfile-only must fail");
+    assert_eq!(
+        error.to_string(),
+        "Cannot update build artifacts without downloading and verifying them",
+    );
+}
+
+#[test]
+fn build_artifacts_forces_reinstallation() {
+    let mut config = Config::default();
+    update_args(&["--build-artifacts"]).apply_cli_config(&mut config);
+    assert!(config.force);
+}
+
+#[test]
 fn constrained_patch_refresh_stays_on_the_client() {
     let all_groups = vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
     let prod_only = vec![DependencyGroup::Prod];

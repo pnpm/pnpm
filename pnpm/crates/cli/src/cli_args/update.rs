@@ -1,6 +1,7 @@
 use crate::{
     State,
     cli_args::{
+        install::InstallArgs,
         lockfile_dir::LockfileDirArg,
         pipelines::InstallFamilySelection,
         recursive,
@@ -94,6 +95,10 @@ pub struct UpdateArgs {
     #[clap(long)]
     pub patches: bool,
 
+    /// Update remote build artifacts without changing package versions.
+    #[clap(long = "build-artifacts")]
+    pub build_artifacts: bool,
+
     /// Write the resolved version without a range operator when
     /// rewriting the manifest under `--latest`.
     #[clap(short = 'E', long = "save-exact")]
@@ -177,9 +182,22 @@ enum WorkspaceUpdateError {
 #[diagnostic(code(ERR_PNPM_PATCHES_WITH_SELECTOR))]
 struct PatchesWithSelectorError;
 
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "--build-artifacts cannot be combined with package selectors, --latest, --interactive, --global, or --patches"
+)]
+#[diagnostic(code(ERR_PNPM_BUILD_ARTIFACTS_WITH_SELECTOR))]
+struct BuildArtifactsWithSelectorError;
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Cannot update build artifacts without downloading and verifying them")]
+#[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_BUILD_ARTIFACTS_WITH_LOCKFILE_ONLY))]
+struct BuildArtifactsWithLockfileOnlyError;
+
 impl UpdateArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
+        config.force = self.build_artifacts || config.force;
         if let Some(pnpr_server) = self.pnpr_server.clone() {
             config.pnpr_server = Some(pnpr_server);
         }
@@ -190,7 +208,13 @@ impl UpdateArgs {
         mut state: State,
     ) -> miette::Result<()> {
         self.check_patches_options()?;
+        self.check_build_artifacts_options()?;
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        if self.build_artifacts {
+            return InstallArgs::for_build_artifact_update(self.supported_architectures.clone())
+                .run::<Reporter>(state)
+                .await;
+        }
         let workspace_root = self.check_workspace_option(state.config.workspace_dir.as_deref())?;
         let include_direct = self.dependency_options.include_direct();
         let update_actions = self.should_update_github_actions(state.config, &include_direct);
@@ -320,7 +344,13 @@ impl UpdateArgs {
         selection: InstallFamilySelection,
     ) -> miette::Result<()> {
         self.check_patches_options()?;
+        self.check_build_artifacts_options()?;
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        if self.build_artifacts {
+            return InstallArgs::for_build_artifact_update(self.supported_architectures.clone())
+                .run_selected::<Reporter>(state, selection)
+                .await;
+        }
         let workspace_root = self.check_workspace_option(state.config.workspace_dir.as_deref())?;
         let include_direct = self.dependency_options.include_direct();
         let update_actions = self.should_update_github_actions(state.config, &include_direct);
@@ -455,6 +485,7 @@ impl UpdateArgs {
         config: &'static Config,
     ) -> miette::Result<()> {
         self.check_patches_options()?;
+        self.check_build_artifacts_options()?;
         self.check_workspace_option(None)?;
         let selected_hashes: Option<HashSet<String>> = if self.interactive {
             match crate::cli_args::update_interactive::select_global_package_groups(
@@ -511,6 +542,24 @@ impl UpdateArgs {
             && (!self.packages.is_empty() || self.latest || self.interactive || self.global)
         {
             return Err(PatchesWithSelectorError.into());
+        }
+        Ok(())
+    }
+
+    fn check_build_artifacts_options(&self) -> miette::Result<()> {
+        if !self.build_artifacts {
+            return Ok(());
+        }
+        if !self.packages.is_empty()
+            || self.latest
+            || self.interactive
+            || self.global
+            || self.patches
+        {
+            return Err(BuildArtifactsWithSelectorError.into());
+        }
+        if self.lockfile_only {
+            return Err(BuildArtifactsWithLockfileOnlyError.into());
         }
         Ok(())
     }

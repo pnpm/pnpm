@@ -84,22 +84,6 @@ fn genuinely_unknown_flag_still_errors() {
 }
 
 #[test]
-fn refresh_artifact_pins_parses_and_conflicts_with_frozen_or_lockfile_only() {
-    assert!(
-        install_flag(&["pnpm", "install", "--refresh-artifact-pins"], "refresh_artifact_pins",)
-            .expect("--refresh-artifact-pins should parse"),
-    );
-    for conflicting in ["--frozen-lockfile", "--lockfile-only"] {
-        let error = install_flag(
-            &["pnpm", "install", "--refresh-artifact-pins", conflicting],
-            "refresh_artifact_pins",
-        )
-        .expect_err("refresh must reject a non-writing install mode");
-        assert_eq!(error.kind(), clap::error::ErrorKind::ArgumentConflict);
-    }
-}
-
-#[test]
 fn global_flag_negation_propagates_into_subcommands() {
     // `--recursive` is a global bool defined on the root command; its
     // generated `--no-recursive` must be global too so it parses under a

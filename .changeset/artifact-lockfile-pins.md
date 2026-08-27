@@ -10,4 +10,4 @@
 "pacquet": minor
 ---
 
-Remote build artifacts are now pinned in `pnpm-lock.yaml` by input key, owner, and consumer platform. Frozen installs enforce existing pins without changing them. Run `pnpm install --refresh-artifact-pins` to explicitly replace the recorded pins ([pnpm/pnpm#13771](https://github.com/pnpm/pnpm/issues/13771)).
+Remote build artifacts are now pinned in `pnpm-lock.yaml` by input key, owner, and consumer platform. Frozen installs enforce existing pins without changing them. Run `pnpm update --build-artifacts` to explicitly replace the recorded pins ([pnpm/pnpm#13771](https://github.com/pnpm/pnpm/issues/13771)).
