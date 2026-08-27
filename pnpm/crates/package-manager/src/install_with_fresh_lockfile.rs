@@ -272,6 +272,8 @@ pub enum UpdateSeedPolicy {
     /// `pacquet dedupe` uses this to preserve valid pins while rebuilding
     /// the graph around the fewest compatible versions.
     KeepAllResolveAll,
+    /// Preserve locked versions while regenerating all derived lockfile data.
+    FixLockfile,
     /// Re-resolve every registry edge at its locked version using fresh
     /// metadata. `pacquet update --patches` uses this to pick the registry's
     /// current revision without allowing semver movement.
@@ -338,6 +340,7 @@ impl UpdateSeedPolicy {
         match self {
             UpdateSeedPolicy::KeepAll
             | UpdateSeedPolicy::KeepAllResolveAll
+            | UpdateSeedPolicy::FixLockfile
             | UpdateSeedPolicy::RefreshRevisions => UpdateDepth::UNLIMITED,
             UpdateSeedPolicy::DropAll { max_depth }
             | UpdateSeedPolicy::DropOnly { max_depth, .. }
@@ -362,9 +365,9 @@ fn update_reuse_scopes(
 
     match policy {
         UpdateSeedPolicy::KeepAll => (UpdateReuseScope::All, BTreeMap::new()),
-        UpdateSeedPolicy::KeepAllResolveAll | UpdateSeedPolicy::RefreshRevisions => {
-            (UpdateReuseScope::None, BTreeMap::new())
-        }
+        UpdateSeedPolicy::KeepAllResolveAll
+        | UpdateSeedPolicy::FixLockfile
+        | UpdateSeedPolicy::RefreshRevisions => (UpdateReuseScope::None, BTreeMap::new()),
         UpdateSeedPolicy::DropAll { .. } => (UpdateReuseScope::None, BTreeMap::new()),
         UpdateSeedPolicy::DropOnly { targets, .. } => {
             (UpdateReuseScope::Except(targets.clone()), BTreeMap::new())
@@ -934,6 +937,16 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     .map(|(id, manifest)| (id.clone(), manifest))
                     .collect()
             };
+
+        let fixed_wanted_lockfile = if matches!(update_seed_policy, UpdateSeedPolicy::FixLockfile) {
+            wanted_lockfile.cloned().map(|mut lockfile| {
+                lockfile.prepare_for_fix();
+                lockfile
+            })
+        } else {
+            None
+        };
+        let wanted_lockfile = fixed_wanted_lockfile.as_ref().or(wanted_lockfile);
 
         let (preferred_versions_seed, preferred_versions_seeds_by_importer) =
             resolve::preferred_versions_seeds(

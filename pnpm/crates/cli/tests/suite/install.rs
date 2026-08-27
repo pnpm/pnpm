@@ -96,6 +96,101 @@ fn store_files_outside_links(store_dir: &Path) -> Vec<String> {
 }
 
 #[test]
+fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let original = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
+        .expect("load original lockfile")
+        .expect("original lockfile");
+    let original_package_keys = original
+        .packages
+        .as_ref()
+        .expect("original packages")
+        .keys()
+        .cloned()
+        .collect::<std::collections::HashSet<_>>();
+    let original_snapshot_keys = original
+        .snapshots
+        .as_ref()
+        .expect("original snapshots")
+        .keys()
+        .cloned()
+        .collect::<std::collections::HashSet<_>>();
+
+    let mut broken: serde_json::Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read lockfile"))
+            .expect("parse lockfile as value");
+    for metadata in broken["packages"].as_object_mut().expect("packages").values_mut() {
+        metadata.as_object_mut().expect("package metadata").remove("resolution");
+        metadata["deprecated"] = serde_json::json!("stale metadata");
+    }
+    for snapshot in broken["snapshots"].as_object_mut().expect("snapshots").values_mut() {
+        snapshot["transitivePeerDependencies"] = serde_json::json!("broken metadata");
+    }
+    fs::write(&lockfile_path, serde_saphyr::to_string(&broken).expect("serialize broken lockfile"))
+        .expect("write broken lockfile");
+
+    let mut command = new_pacquet_command(&workspace);
+    command.env("CI", "true");
+    command.with_args(["install", "--fix-lockfile", "--lockfile-only"]).assert().success();
+
+    let repaired = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
+        .expect("load repaired lockfile")
+        .expect("repaired lockfile");
+    dbg!(&repaired);
+    assert_eq!(
+        repaired
+            .packages
+            .as_ref()
+            .expect("repaired packages")
+            .keys()
+            .cloned()
+            .collect::<std::collections::HashSet<_>>(),
+        original_package_keys,
+    );
+    assert_eq!(
+        repaired
+            .snapshots
+            .as_ref()
+            .expect("repaired snapshots")
+            .keys()
+            .cloned()
+            .collect::<std::collections::HashSet<_>>(),
+        original_snapshot_keys,
+    );
+    assert!(
+        repaired
+            .packages
+            .as_ref()
+            .expect("repaired packages")
+            .values()
+            .all(|metadata| metadata.deprecated.as_deref() != Some("stale metadata")),
+    );
+    assert!(
+        repaired
+            .snapshots
+            .as_ref()
+            .expect("repaired snapshots")
+            .values()
+            .all(|snapshot| snapshot.transitive_peer_dependencies.is_none()),
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn no_optional_excludes_transitive_optional_dependencies() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

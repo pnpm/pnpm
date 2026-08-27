@@ -592,6 +592,7 @@ impl UpdateArgs {
             frozen_lockfile: false,
             prefer_frozen_lockfile: false,
             update_patches: true,
+            fix_lockfile: false,
             lockfile_only: self.lockfile_only,
             ignore_manifest_check: false,
             trust_lockfile: state.config.trust_lockfile,

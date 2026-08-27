@@ -1,6 +1,6 @@
 use crate::{
-    DirectoryResolution, ImporterDepVersion, Lockfile, LockfileResolution, PackageKey, PkgName,
-    SnapshotDepRef,
+    DirectoryResolution, ImporterDepVersion, LazyLockfile, Lockfile, LockfileResolution,
+    PackageKey, PkgName, SnapshotDepRef, WantedLockfileSelection,
 };
 use pnpm_diagnostics::miette::Diagnostic;
 use pretty_assertions::assert_eq;
@@ -85,6 +85,52 @@ fn parses_main_document_from_combined_yaml() {
         .expect("main-only lockfile should be present");
 
     assert_eq!(combined_loaded, main_only_loaded);
+}
+
+#[test]
+fn fix_loader_discards_broken_and_derived_package_fields() {
+    let tmp = tempdir().expect("create tempdir");
+    std::fs::write(
+        tmp.path().join(Lockfile::FILE_NAME),
+        text_block! {
+            "lockfileVersion: '9.0'"
+            ""
+            "importers:"
+            "  .: {}"
+            ""
+            "packages:"
+            "  broken@1.0.0:"
+            "    engines: invalid"
+            "  valid@1.0.0:"
+            "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
+            "    engines: invalid"
+            "    deprecated: stale"
+            ""
+            "snapshots:"
+            "  broken@1.0.0: {}"
+            "  valid@1.0.0:"
+            "    dependencies:"
+            "      child: 1.0.0"
+            "    transitivePeerDependencies: invalid"
+        },
+    )
+    .expect("write wanted lockfile");
+
+    let lazy = LazyLockfile::deferred(tmp.path().to_path_buf(), WantedLockfileSelection::default());
+    let lockfile = lazy.get_for_fix().expect("load for repair").expect("lockfile present");
+    let packages = lockfile.packages.as_ref().expect("packages present");
+    dbg!(packages);
+    assert!(!packages.contains_key(&"broken@1.0.0".parse().expect("broken key")));
+    let valid = packages.get(&"valid@1.0.0".parse().expect("valid key")).expect("valid entry");
+    assert!(valid.engines.is_none());
+    assert!(valid.deprecated.is_none());
+
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots present");
+    dbg!(snapshots);
+    let valid =
+        snapshots.get(&"valid@1.0.0".parse().expect("valid snapshot key")).expect("valid snapshot");
+    assert!(valid.dependencies.as_ref().is_some_and(|deps| deps.len() == 1));
+    assert!(valid.transitive_peer_dependencies.is_none());
 }
 
 /// Regression test for <https://github.com/pnpm/pnpm/issues/13606>: a

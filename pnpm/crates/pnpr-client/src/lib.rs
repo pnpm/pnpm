@@ -175,6 +175,8 @@ pub struct ResolveProjectsOptions {
     pub frozen_lockfile: bool,
     pub prefer_frozen_lockfile: Option<bool>,
     pub update_patches: bool,
+    /// Regenerate derived lockfile metadata while retaining compatible pins.
+    pub fix_lockfile: bool,
     pub ignore_manifest_check: bool,
     pub trust_lockfile: bool,
     /// See [`ResolveOptions::resolution_mode`].
@@ -213,6 +215,7 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
             frozen_lockfile: opts.frozen_lockfile,
             prefer_frozen_lockfile: opts.prefer_frozen_lockfile,
             update_patches: opts.update_patches,
+            fix_lockfile: false,
             ignore_manifest_check: opts.ignore_manifest_check,
             trust_lockfile: opts.trust_lockfile,
             resolution_mode: opts.resolution_mode,
@@ -765,6 +768,7 @@ impl PnprClient {
             "frozenLockfile": opts.frozen_lockfile,
             "preferFrozenLockfile": opts.prefer_frozen_lockfile,
             "updatePatches": opts.update_patches,
+            "fixLockfile": opts.fix_lockfile,
             "ignoreManifestCheck": opts.ignore_manifest_check,
             "trustLockfile": opts.trust_lockfile,
             "resolutionMode": opts.resolution_mode,

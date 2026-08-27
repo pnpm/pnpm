@@ -59,6 +59,7 @@ pub(super) fn preferred_versions_seeds(
     let mut workspace_seed = match update_seed_policy {
         UpdateSeedPolicy::KeepAll
         | UpdateSeedPolicy::KeepAllResolveAll
+        | UpdateSeedPolicy::FixLockfile
         | UpdateSeedPolicy::RefreshRevisions
         | UpdateSeedPolicy::ByImporter { .. } => from_lockfile(snapshots, manifests.as_slice()),
         UpdateSeedPolicy::DropAll { .. } => from_lockfile(None, manifests.as_slice()),

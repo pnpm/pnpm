@@ -173,10 +173,9 @@ pub(super) fn resolution_cache_key(
     config: &PacquetConfig,
     request: &ResolveRequest,
 ) -> Option<String> {
-    // A revision refresh is an explicit request for current upstream state.
-    // Serving or storing it in the whole-resolution cache would make the next
-    // refresh repeat an old registry selection until the cache TTL expires.
-    if request.update_patches {
+    // Explicit metadata refreshes must not repeat an old registry selection
+    // from the whole-resolution cache.
+    if request.update_patches || request.fix_lockfile {
         return None;
     }
     let projects: Vec<serde_json::Value> = request

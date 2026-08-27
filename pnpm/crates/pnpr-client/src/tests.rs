@@ -188,6 +188,7 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
         frozen_lockfile: false,
         prefer_frozen_lockfile: None,
         update_patches: true,
+        fix_lockfile: false,
         ignore_manifest_check: false,
         trust_lockfile: true,
         resolution_mode: ResolutionMode::TimeBased,

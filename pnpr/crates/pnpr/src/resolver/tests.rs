@@ -325,7 +325,7 @@ fn resolution_cache_key_changes_with_project_transforms() {
 }
 
 #[test]
-fn revision_refresh_bypasses_the_resolution_cache() {
+fn metadata_refreshes_bypass_the_resolution_cache() {
     let ordinary = ResolveRequest {
         dependencies: Some(deps(&[("foo", "1.0.0")])),
         ..ResolveRequest::default()
@@ -335,9 +335,15 @@ fn revision_refresh_bypasses_the_resolution_cache() {
         update_patches: true,
         ..ResolveRequest::default()
     };
+    let repair = ResolveRequest {
+        dependencies: ordinary.dependencies.clone(),
+        fix_lockfile: true,
+        ..ResolveRequest::default()
+    };
 
     assert!(resolution_cache_key(&config(), &ordinary).is_some());
     assert!(resolution_cache_key(&config(), &refresh).is_none());
+    assert!(resolution_cache_key(&config(), &repair).is_none());
 }
 
 #[test]
@@ -351,6 +357,19 @@ fn update_patches_defaults_to_false_for_older_clients() {
 
     assert!(!request.update_patches);
     assert!(refresh.update_patches);
+}
+
+#[test]
+fn fix_lockfile_defaults_to_false_for_older_clients() {
+    let request = serde_json::from_value::<ResolveRequest>(serde_json::json!({}))
+        .expect("legacy request parses");
+    let repair = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "fixLockfile": true
+    }))
+    .expect("repair request parses");
+
+    assert!(!request.fix_lockfile);
+    assert!(repair.fix_lockfile);
 }
 
 #[test]

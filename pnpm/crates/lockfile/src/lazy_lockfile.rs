@@ -49,7 +49,12 @@ impl LazyLockfile {
     /// error is returned without being cached, so a subsequent call
     /// retries — callers abort on the first error in practice.
     pub fn get(&self) -> Result<Option<&Lockfile>, LoadLockfileError> {
-        Ok(self.load()?.lockfile.as_ref())
+        Ok(self.load(false)?.lockfile.as_ref())
+    }
+
+    /// Load after discarding fields that a repairing resolution regenerates.
+    pub fn get_for_fix(&self) -> Result<Option<&Lockfile>, LoadLockfileError> {
+        Ok(self.load(true)?.lockfile.as_ref())
     }
 
     /// The importers the branch-lockfile fold started from, loading the
@@ -58,14 +63,17 @@ impl LazyLockfile {
     pub fn pre_merge_importers(
         &self,
     ) -> Result<Option<&HashMap<String, ProjectSnapshot>>, LoadLockfileError> {
-        Ok(self.load()?.pre_merge_importers.as_ref())
+        Ok(self.load(false)?.pre_merge_importers.as_ref())
     }
 
-    fn load(&self) -> Result<&LoadedWantedLockfile, LoadLockfileError> {
+    fn load(&self, fix: bool) -> Result<&LoadedWantedLockfile, LoadLockfileError> {
         if let Some(loaded) = self.cell.get() {
             return Ok(loaded);
         }
         let loaded = match self.source.as_ref() {
+            Some((dir, selection)) if fix => {
+                Lockfile::load_wanted_detailed_for_fix(dir, selection)?
+            }
             Some((dir, selection)) => Lockfile::load_wanted_detailed(dir, selection)?,
             None => LoadedWantedLockfile::default(),
         };
