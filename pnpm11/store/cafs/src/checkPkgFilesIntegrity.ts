@@ -244,10 +244,11 @@ export function verifyFileIntegrity (
  * before yielding, which stalls everything else for the length of a large
  * CAS file. Prefer this wherever the caller is already asynchronous.
  *
- * Anything that cannot be opened and read as a regular file is `false`, so the
- * caller falls back to fetching it — an absent path, a directory, a symlink,
- * or an `integrity.algorithm` the runtime does not support. A failure once the
- * file is open is thrown instead.
+ * `false` — the caller falls back to fetching the file — when the path cannot
+ * be opened at all, when what was opened is not a regular file, when the
+ * content does not hash to `integrity`, or when the runtime does not support
+ * `integrity.algorithm`. A failure while reading an already-open file is
+ * thrown instead, since the store handed over a file it then could not read.
  */
 export async function verifyFileIntegrityAsync (
   filename: string,
