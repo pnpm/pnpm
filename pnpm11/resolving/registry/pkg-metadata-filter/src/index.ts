@@ -67,18 +67,19 @@ export function filterPkgMetadata (
 }
 
 function toPolicyKey ({ publishedBy, trustedVersions, blockedVersions }: PkgMetadataFilter): string {
-  // Both collections are sorted so two equivalent policies that were built in
-  // a different order share one cache entry rather than evicting each other.
-  // Versions join on `\x00` and the fields on `\x01`, so a registry-supplied
-  // version string cannot spell a field boundary and make two different
-  // policies collide on one key.
-  const trusted = trustedVersions == null ? '' : [...trustedVersions].sort().join('\x00')
-  const blocked = blockedVersions == null ? '' : [...blockedVersions].sort().join('\x00')
-  return [
-    publishedBy == null ? '' : String(publishedBy.getTime()),
-    trusted,
-    blocked,
-  ].join('\x01')
+  // Serialized rather than joined on a delimiter: a version string is
+  // registry-controlled and may contain whatever separator we picked, so
+  // `['a\0b']` and `['a', 'b']` would key the same entry and one policy would
+  // be served the other's filtered packument. JSON escapes the separators it
+  // uses, so distinct collections always produce distinct keys.
+  //
+  // Both collections are sorted first, so two spellings of one policy do
+  // share an entry rather than evicting each other from a cache this small.
+  return JSON.stringify([
+    publishedBy?.getTime() ?? null,
+    trustedVersions == null ? null : [...trustedVersions].sort(),
+    blockedVersions == null ? null : [...blockedVersions].sort(),
+  ])
 }
 
 function filterPkgMetadataUncached (
