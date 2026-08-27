@@ -10,7 +10,6 @@ use axum::{
     routing::{any, delete, get, post, put},
 };
 use indexmap::IndexMap;
-use tokio::sync::Semaphore;
 use tower_http::{
     compression::{
         CompressionLayer,
@@ -27,19 +26,18 @@ use pnpr_upstream::Upstream;
 
 use super::{
     AppInner, AppState, AuthedCaller, MAX_ARTIFACT_BLOB_BODY_BYTES,
-    MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES,
-    MAX_CONCURRENT_ARTIFACT_BLOB_VERIFICATIONS, MAX_LOGIN_BODY_BYTES, MAX_PUBLISH_BODY_BYTES,
-    StripedLocks, authenticate, compute_upstream_cache_namespace, default_registry_target,
-    delete_package, delete_session_token, delete_tarball, delete_token_by_key, get_dist_tags,
-    get_org_teams, get_profile, get_team_members, get_token_list, get_whoami, loggable_uri,
-    not_found, private_if_caller_gated, private_no_cache, publish_package, put_login,
-    reject_team_mutation, remove_dist_tag, require_resolver_caller, resolver_disabled,
-    serve_artifact_blob, serve_batch_publish, serve_packument, serve_ping, serve_pnpr_handshake,
-    serve_publish_artifact, serve_registry_packument, serve_registry_tarball,
-    serve_registry_version_manifest, serve_resolve, serve_resolve_artifacts,
-    serve_revision_tarball, serve_search, serve_tarball, serve_verify_lockfile,
-    serve_version_manifest, set_dist_tag, staged, tilde_registry, update_packument,
-    upstream_tarball_base,
+    MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES, MAX_LOGIN_BODY_BYTES,
+    MAX_PUBLISH_BODY_BYTES, StripedLocks, authenticate, compute_upstream_cache_namespace,
+    default_registry_target, delete_package, delete_session_token, delete_tarball,
+    delete_token_by_key, get_dist_tags, get_org_teams, get_profile, get_team_members,
+    get_token_list, get_whoami, loggable_uri, not_found, pnpr_protocols_disabled,
+    private_if_caller_gated, private_no_cache, publish_package, put_login, reject_team_mutation,
+    remove_dist_tag, require_artifact_caller, require_resolver_caller, serve_artifact_blob,
+    serve_batch_publish, serve_packument, serve_ping, serve_pnpr_handshake, serve_publish_artifact,
+    serve_registry_packument, serve_registry_tarball, serve_registry_version_manifest,
+    serve_resolve, serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
+    serve_verify_lockfile, serve_version_manifest, set_dist_tag, staged, tilde_registry,
+    update_packument, upstream_tarball_base,
 };
 
 pub(super) fn router_with_auth_and_osv(
@@ -51,7 +49,15 @@ pub(super) fn router_with_auth_and_osv(
         Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone())?;
     let registry_enabled = config.registry.enabled;
     let resolver_enabled = config.resolver.enabled;
-    let artifacts_enabled = config.resolver.artifacts;
+    let artifacts_enabled = config.artifacts.enabled;
+    let artifacts = artifacts_enabled
+        .then(|| {
+            pnpr_shared_artifacts::SharedArtifactStore::new(
+                &config.hosted_store,
+                &config.cache_storage,
+            )
+        })
+        .transpose()?;
     // Only the registry routes consult the upstreams, so a resolver-only
     // server builds none — skipping a `ThrottledClient` allocation per
     // configured upstream.
@@ -72,29 +78,26 @@ pub(super) fn router_with_auth_and_osv(
     let state = AppState {
         inner: Arc::new(AppInner {
             storage,
+            artifacts,
             upstreams,
             upstream_cache_namespaces,
             config,
             auth,
             package_locks: StripedLocks::new(),
-            artifact_blob_verifications: Arc::new(Semaphore::new(
-                MAX_CONCURRENT_ARTIFACT_BLOB_VERIFICATIONS,
-            )),
             resolver: std::sync::OnceLock::new(),
             osv_index,
         }),
     };
     // `/-/ping` is a health check and is always served. The two
-    // configurable surfaces — the resolver (install accelerator) and the
-    // npm registry — are each mounted only when their feature is enabled,
-    // so an operator can run resolver-only, registry-only, or both. The
-    // config guarantees at least one is enabled.
+    // configurable surfaces are mounted only when their feature is enabled,
+    // so resolver, registry, and artifacts can be deployed independently.
+    // The config guarantees at least one is enabled.
     let mut router = Router::new().route("/-/ping", get(serve_ping));
     // The account endpoints — adduser/login, whoami, profile, token
     // listing/revocation, logout — are pnpr account management, not
     // npm-registry functionality: they mint and manage the tokens every
     // authenticated surface demands, so they ride every tier alongside
-    // `/-/ping`. A resolver-only tier can then issue its own credentials
+    // `/-/ping`. A resolver- or artifacts-only tier can then issue its own credentials
     // (`pnpm login --registry https://<resolver-host>/`) instead of
     // depending on a registry-serving replica that shares the auth backend.
     //
@@ -123,24 +126,24 @@ pub(super) fn router_with_auth_and_osv(
         .route("/{prefix}/-/npm/v1/tokens", get(get_token_list))
         .route("/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key))
         .route("/{prefix}/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key));
-    // The install-accelerator (resolver) surface, all under the reserved
-    // `/-/pnpr` namespace. `/-/pnpr` is the capability handshake (404 on a
-    // plain registry); `/-/pnpr/v0/resolve` and `/-/pnpr/v0/verify-lockfile`
-    // are the resolver endpoints. The opt-in `artifacts` sub-feature adds the
-    // signed shared-artifact publish, lookup, and blob endpoints. Resolution
-    // works whether or not this process also fronts a registry.
+    // The install-accelerator and shared-artifact surfaces live under the
+    // reserved `/-/pnpr` namespace. The handshake advertises each protocol
+    // independently, so either surface can be mounted on its own.
     //
-    // When the resolver is disabled, only `/-/pnpr` gets a 404 stub: it is
-    // the capability-probe path and overlaps the registry catch-all
+    // When both protocol surfaces are disabled, only `/-/pnpr` gets a 404
+    // stub: it is the capability-probe path and overlaps the registry catch-all
     // (`/-/pnpr` matches `/{first}/{second}`), so without the stub a probe
     // would be proxied upstream, giving a confusing 502 where a client
-    // expects the "no resolver here" 404. The `/-/pnpr/v0/*` endpoints carry
-    // no capability probe, so they are left unmounted rather than stubbed: a
-    // client learns the resolver is absent from the handshake 404 and never
-    // calls them.
+    // expects the "no pnpr protocols here" 404. The `/-/pnpr/v0/*` endpoints
+    // carry no capability probe, so they are left unmounted rather than
+    // stubbed.
+    if resolver_enabled || artifacts_enabled {
+        router = router.route("/-/pnpr", get(serve_pnpr_handshake));
+    } else {
+        router = router.route("/-/pnpr", any(pnpr_protocols_disabled));
+    }
     if resolver_enabled {
         router = router
-            .route("/-/pnpr", get(serve_pnpr_handshake))
             .route(
                 "/-/pnpr/v0/resolve",
                 post(serve_resolve).route_layer(middleware::from_fn_with_state(
@@ -155,44 +158,41 @@ pub(super) fn router_with_auth_and_osv(
                     require_resolver_caller,
                 )),
             );
-        if artifacts_enabled {
-            router = router
-                .route(
-                    "/-/pnpr/v0/artifacts",
-                    put(serve_publish_artifact)
-                        .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_PUBLISH_BODY_BYTES))
-                        .route_layer(middleware::from_fn_with_state(
-                            state.clone(),
-                            require_resolver_caller,
-                        )),
-                )
-                .route(
-                    "/-/pnpr/v0/artifacts/resolve",
-                    post(serve_resolve_artifacts)
-                        .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_RESOLVE_BODY_BYTES))
-                        .route_layer(middleware::from_fn_with_state(
-                            state.clone(),
-                            require_resolver_caller,
-                        )),
-                )
-                .route(
-                    "/-/pnpr/v0/artifacts/blob",
-                    post(serve_artifact_blob)
-                        .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_BLOB_BODY_BYTES))
-                        .route_layer(middleware::from_fn_with_state(
-                            state.clone(),
-                            require_resolver_caller,
-                        )),
-                );
-        }
-    } else {
-        router = router.route("/-/pnpr", any(resolver_disabled));
+    }
+    if artifacts_enabled {
+        router = router
+            .route(
+                "/-/pnpr/v0/artifacts",
+                put(serve_publish_artifact)
+                    .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_PUBLISH_BODY_BYTES))
+                    .route_layer(middleware::from_fn_with_state(
+                        state.clone(),
+                        require_artifact_caller,
+                    )),
+            )
+            .route(
+                "/-/pnpr/v0/artifacts/resolve",
+                post(serve_resolve_artifacts)
+                    .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_RESOLVE_BODY_BYTES))
+                    .route_layer(middleware::from_fn_with_state(
+                        state.clone(),
+                        require_artifact_caller,
+                    )),
+            )
+            .route(
+                "/-/pnpr/v0/artifacts/blob",
+                post(serve_artifact_blob)
+                    .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_BLOB_BODY_BYTES))
+                    .route_layer(middleware::from_fn_with_state(
+                        state.clone(),
+                        require_artifact_caller,
+                    )),
+            );
     }
     // The npm-registry surface: every packument/tarball read, publish,
     // unpublish, dist-tag, and search. When the surface is off (no registries
-    // declared, or `--disable-registry`), none of these routes are mounted
-    // — not merely hidden — so a resolver-only tier exposes no registry
-    // surface at all.
+    // declared, or `--disable-registry`), none of these routes are mounted.
+    // Resolver- and artifacts-only tiers expose no registry surface at all.
     if registry_enabled {
         router = router
             // Batch publish: one request carrying many packages' publish

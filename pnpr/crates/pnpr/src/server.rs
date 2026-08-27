@@ -57,7 +57,6 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use ssri::Integrity;
 use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 /// MIME the npm registry uses for the abbreviated install-v1 form.
 /// Matches what pacquet (and pnpm/npm/yarn) send in `Accept` when
@@ -91,9 +90,6 @@ const MAX_LOGIN_BODY_BYTES: usize = 64 * 1024;
 const MAX_ARTIFACT_PUBLISH_BODY_BYTES: usize = MAX_PUBLISH_BODY_BYTES;
 const MAX_ARTIFACT_RESOLVE_BODY_BYTES: usize = 16 * 1024 * 1024;
 const MAX_ARTIFACT_BLOB_BODY_BYTES: usize = 8 * 1024;
-/// Bound concurrent verification scans without letting slow clients retain slots.
-const MAX_CONCURRENT_ARTIFACT_BLOB_VERIFICATIONS: usize = 4;
-
 #[derive(Clone)]
 struct AppState {
     inner: Arc<AppInner>,
@@ -101,6 +97,7 @@ struct AppState {
 
 struct AppInner {
     storage: Storage,
+    artifacts: Option<pnpr_shared_artifacts::SharedArtifactStore>,
     /// One [`Upstream`] per declared upstream, keyed by the same name
     /// used in [`Config::upstreams`]. Built once at router construction
     /// time so each request avoids re-allocating a `ThrottledClient`.
@@ -117,7 +114,6 @@ struct AppInner {
     /// two concurrent writers to the same package on this instance can't
     /// lose each other's changes.
     package_locks: StripedLocks,
-    artifact_blob_verifications: Arc<Semaphore>,
     /// Lazily-built engine backing the `/-/pnpr/v0/resolve` endpoint. Built on
     /// first such request so servers that never receive one pay nothing.
     resolver: std::sync::OnceLock<crate::resolver::Resolver>,
@@ -229,10 +225,8 @@ pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> pnpr_error::
     router_with_auth_and_osv(config, auth, osv_index)
 }
 
-/// Load the OSV index only for surfaces that actually consult it. With
-/// both mounted surfaces disabled rejected earlier, that means any
-/// enabled `osv` config now applies to the resolver, the registry, or
-/// both.
+/// Load the OSV index only for surfaces that consult it. An artifacts-only
+/// tier skips the database because artifact requests do not use OSV data.
 fn load_active_osv_index(config: &Config) -> pnpr_error::Result<Option<Arc<pnpr_osv::OsvIndex>>> {
     if config.resolver.enabled || config.registry.enabled {
         pnpr_osv::load_osv_index(config)
@@ -244,7 +238,7 @@ fn load_active_osv_index(config: &Config) -> pnpr_error::Result<Option<Arc<pnpr_
 /// Run startup side effects and load the auth backends. The registry
 /// needs publish-journal recovery; auth loads on every tier because the
 /// account endpoints (which mint and manage tokens) are always served,
-/// and both mounted surfaces consult caller identity.
+/// and every mounted surface consults caller identity.
 async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     if config.registry.enabled {
         pnpr_storage::journal::recover_publish_journal(config).await?;
@@ -306,6 +300,7 @@ fn log_enabled_surfaces(config: &Config) {
     tracing::info!(
         registry = config.registry.enabled,
         resolver = config.resolver.enabled,
+        artifacts = config.artifacts.enabled,
         "pnpr surfaces",
     );
 }
@@ -2167,11 +2162,27 @@ async fn require_resolver_caller(
     request: Request,
     next: Next,
 ) -> Response {
-    match caller_username(&state, request.headers()).await {
+    require_protocol_caller(&state, request, next, "dependency resolution").await
+}
+
+async fn require_artifact_caller(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    require_protocol_caller(&state, request, next, "shared artifacts").await
+}
+
+async fn require_protocol_caller(
+    state: &AppState,
+    request: Request,
+    next: Next,
+    resource: &str,
+) -> Response {
+    match caller_username(state, request.headers()).await {
         Ok(Some(_username)) => next.run(request).await,
         Ok(None) => {
-            RegistryError::Unauthenticated { resource: "dependency resolution".to_string() }
-                .into_response()
+            RegistryError::Unauthenticated { resource: resource.to_string() }.into_response()
         }
         Err(error) => error.into_response(),
     }
@@ -2699,13 +2710,14 @@ async fn serve_ping(State(_state): State<AppState>) -> Response {
 /// client can fail fast against a misconfigured server. `versions`
 /// lists the `/-/pnpr/vN/resolve` protocol versions this server speaks.
 async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
+    let versions = state.inner.config.resolver.enabled.then_some(0).into_iter().collect::<Vec<_>>();
     let artifacts =
-        state.inner.config.resolver.artifacts.then_some(0).into_iter().collect::<Vec<_>>();
+        state.inner.config.artifacts.enabled.then_some(0).into_iter().collect::<Vec<_>>();
     (
         StatusCode::OK,
         axum::Json(serde_json::json!({
             "pnpr": {
-                "versions": [0],
+                "versions": versions,
                 "artifacts": artifacts,
             }
         })),
@@ -2713,12 +2725,10 @@ async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
         .into_response()
 }
 
-/// 404 stub mounted on the resolver paths when the resolver feature is
-/// disabled. Registered so these specific paths return a clean
-/// not-found — in particular `/-/pnpr`, whose 404 is how a client
-/// detects "no resolver here" — rather than being shadowed by the
-/// registry's catch-all param routes and proxied upstream.
-async fn resolver_disabled() -> Response {
+/// 404 stub mounted on the capability handshake when neither pnpr protocol is
+/// enabled. It prevents the registry catch-all from proxying the probe
+/// upstream.
+async fn pnpr_protocols_disabled() -> Response {
     StatusCode::NOT_FOUND.into_response()
 }
 
@@ -2766,7 +2776,12 @@ async fn serve_publish_artifact(
         Err(err) => return private_no_cache(err.into_response()),
     };
     private_no_cache(
-        match pnpr_shared_artifacts::publish(&state.inner.config.cache_storage, &username, request)
+        match state
+            .inner
+            .artifacts
+            .as_ref()
+            .expect("artifact routes require an artifact store")
+            .publish(&username, request)
             .await
         {
             Ok(true) => StatusCode::CREATED.into_response(),
@@ -2786,7 +2801,12 @@ async fn serve_resolve_artifacts(
         Err(err) => return private_no_cache(err.into_response()),
     };
     private_no_cache(
-        match pnpr_shared_artifacts::resolve(&state.inner.config.cache_storage, &username, &body)
+        match state
+            .inner
+            .artifacts
+            .as_ref()
+            .expect("artifact routes require an artifact store")
+            .resolve(&username, &body)
             .await
         {
             Ok(response) => (StatusCode::OK, axum::Json(response)).into_response(),
@@ -2804,27 +2824,23 @@ async fn serve_artifact_blob(
         Ok(username) => username,
         Err(err) => return private_no_cache(err.into_response()),
     };
-    let permit = Arc::clone(&state.inner.artifact_blob_verifications)
-        .acquire_owned()
-        .await
-        .expect("the artifact blob verification semaphore is never closed");
-    match pnpr_shared_artifacts::read_blob(&state.inner.config.cache_storage, &username, &body)
+    match state
+        .inner
+        .artifacts
+        .as_ref()
+        .expect("artifact routes require an artifact store")
+        .read_blob(&username, &body)
         .await
     {
-        Ok(Some((file, size))) => Response::builder()
+        Ok(Some(blob)) => Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/octet-stream")
-            .header(header::CONTENT_LENGTH, size.to_string())
+            .header(header::CONTENT_LENGTH, blob.size.to_string())
             .header(header::CACHE_CONTROL, "private, max-age=31536000, immutable")
             .header(header::VARY, "Authorization")
-            .body(artifact_blob_response_body(file, permit))
+            .body(Body::from_stream(blob.stream))
             .expect("static artifact blob response always builds"),
         Ok(None) => private_no_cache(StatusCode::NOT_FOUND.into_response()),
         Err(err) => private_no_cache(err.into_response()),
     }
-}
-
-fn artifact_blob_response_body(file: tokio::fs::File, permit: OwnedSemaphorePermit) -> Body {
-    drop(permit);
-    streaming::stream_file(file)
 }

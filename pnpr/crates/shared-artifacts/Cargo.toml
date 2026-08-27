@@ -11,15 +11,21 @@ license-file         = "../../LICENSE.md"
 repository.workspace = true
 
 [dependencies]
+pnpr-config                   = { workspace = true }
 pnpr-error                    = { workspace = true }
-pnpr-storage                  = { workspace = true }
 pnpm-shared-artifact-protocol = { workspace = true }
 base64                        = { workspace = true }
+bytes                         = { workspace = true }
+futures-util                  = { workspace = true }
+object_store                  = { workspace = true }
 serde                         = { workspace = true }
 serde_json                    = { workspace = true }
 sha2                          = { workspace = true }
 tempfile                      = { workspace = true }
 tokio                         = { workspace = true }
+
+[dev-dependencies]
+async-trait = { workspace = true }
 
 [lints]
 workspace = true

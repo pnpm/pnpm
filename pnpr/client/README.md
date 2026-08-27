@@ -44,13 +44,17 @@ pnprServer: http://localhost:4000
 
 ## Shared-artifact PoC (`remoteSideEffectsCache`)
 
-Set `resolver.artifacts: true` in pnpr's YAML to advertise and mount the
+Set `artifacts.enabled: true` in pnpr's YAML to advertise and mount the
 organization-scoped v0 endpoints. The feature is off by default. Both the
 TypeScript and Rust CLIs automatically query it during normal and frozen
 lockfile installs when `pnprServer` and `remoteSideEffectsCache` are configured.
 In this PoC, an `organization` owner's name must equal the authenticated pnpr
 username; publisher-owned artifacts are rejected until publisher discovery is
 defined.
+
+With an `s3:` block, artifacts use a reserved `.pnpr-artifacts/v0/` namespace
+in the configured bucket and can be shared by multiple pnpr replicas. Without
+S3 they retain the local `cache/shared-artifacts/v0` layout.
 
 Add the client policy to `pnpm-workspace.yaml`:
 
@@ -134,9 +138,8 @@ Start pnpr with a temporary config that enables account creation and artifacts:
 storage: /tmp/pnpr-shared-artifacts/storage
 cache: /tmp/pnpr-shared-artifacts/cache
 secret: replace-with-a-local-secret-at-least-32-bytes
-resolver:
+artifacts:
   enabled: true
-  artifacts: true
 auth:
   htpasswd:
     file: /tmp/pnpr-shared-artifacts/htpasswd

@@ -84,7 +84,7 @@ async fn start_pnpr_inner(
     let addr = listener.local_addr().expect("pnpr addr");
 
     let mut config = pnpr::Config::proxy(addr, storage.path().to_path_buf());
-    config.resolver.artifacts = artifacts_enabled;
+    config.artifacts.enabled = artifacts_enabled;
     config.public_url = public_url.unwrap_or_else(|| format!("http://{addr}"));
     config.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
     for (name, upstream) in upstreams {
@@ -827,7 +827,7 @@ async fn artifact_capability_is_disabled_by_default() {
 }
 
 #[tokio::test]
-async fn artifact_handshake_requires_the_base_protocol() {
+async fn artifact_handshake_is_independent_from_the_resolver_protocol() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/-/pnpr")
@@ -837,11 +837,33 @@ async fn artifact_handshake_requires_the_base_protocol() {
         .create_async()
         .await;
 
-    let error = PnprClient::new(server.url())
+    PnprClient::new(server.url())
         .handshake_artifacts()
         .await
-        .expect_err("artifact capability cannot outlive its base protocol");
-    assert!(error.to_string().contains("speaks protocol versions []"));
+        .expect("artifact-only capability is supported");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn artifact_blob_download_rejects_bytes_that_do_not_match_the_integrity() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("POST", "/-/pnpr/v0/artifacts/blob")
+        .with_status(200)
+        .with_body("poisoned blob")
+        .create_async()
+        .await;
+    let integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(b"expected blob")));
+
+    let error = PnprClient::new(server.url())
+        .download_artifact_blob(
+            &ArtifactBlobRequest { owner: OwnerScope::organization("acme"), integrity },
+            None,
+        )
+        .await
+        .expect_err("a corrupt artifact blob must be rejected");
+
+    assert!(matches!(error, PnprClientError::Protocol(_)), "got: {error}");
     mock.assert_async().await;
 }
 
@@ -964,10 +986,18 @@ async fn artifact_lookup_preserves_script_eligibility_and_allow_build_policy() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 16)]
-async fn concurrent_artifact_publications_respect_the_variant_limit() {
+async fn concurrent_artifact_publications_apply_the_variant_limit_at_read_time() {
     const PUBLICATIONS: usize = 16;
 
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
+    let (fixture, _, _) = signed_artifact_fixture_with_builder_id("ci/concurrent/0");
+    let (payload, _) = fixture.envelope.decode_payload().expect("decode fixture payload");
+    let candidate = ArtifactCandidate {
+        key: fixture.key,
+        package: payload.package,
+        source_integrity: payload.source_integrity,
+        owner: payload.owner,
+    };
     let barrier = Arc::new(Barrier::new(PUBLICATIONS + 1));
     let mut publications = Vec::with_capacity(PUBLICATIONS);
     for index in 0..PUBLICATIONS {
@@ -983,17 +1013,25 @@ async fn concurrent_artifact_publications_respect_the_variant_limit() {
     }
     barrier.wait().await;
 
-    let mut accepted = 0;
-    let mut rejected = Vec::new();
     for publication in publications {
-        match publication.await.expect("publication task") {
-            Ok(()) => accepted += 1,
-            Err(err) => rejected.push(err.to_string()),
-        }
+        publication.await.expect("publication task").expect("publish artifact variant");
     }
-    assert_eq!(accepted, pnpm_shared_artifact_protocol::MAX_VARIANTS_PER_CANDIDATE);
-    assert_eq!(rejected.len(), PUBLICATIONS - accepted);
-    assert!(rejected.iter().all(|error| error.contains("variant limit")));
+
+    let response = reqwest::Client::new()
+        .post(format!("{pnpr_url}-/pnpr/v0/artifacts/resolve"))
+        .header(reqwest::header::AUTHORIZATION, pnpr_auth)
+        .json(&pnpm_pnpr_client::ResolveArtifactsRequest { candidates: vec![candidate] })
+        .send()
+        .await
+        .expect("resolve artifacts response")
+        .error_for_status()
+        .expect("successful artifact resolve")
+        .json::<serde_json::Value>()
+        .await
+        .expect("artifact resolve JSON");
+    let variants =
+        response["artifacts"][0]["variants"].as_array().expect("artifact variants array");
+    assert_eq!(variants.len(), pnpm_shared_artifact_protocol::MAX_VARIANTS_PER_CANDIDATE);
 }
 
 #[tokio::test]

@@ -409,14 +409,19 @@ impl PnprClient {
     /// if it's unreachable, isn't a pnpr (404 at `/-/pnpr`), or shares
     /// no protocol version with this client.
     pub async fn handshake(&self) -> Result<(), PnprClientError> {
-        self.fetch_compatible_handshake(None).await?;
+        let capability = self.fetch_handshake(None).await?;
+        if !capability.versions.contains(&PROTOCOL_VERSION) {
+            return Err(PnprClientError::Server(format!(
+                "pnpr server speaks protocol versions {:?}, but this client requires v{PROTOCOL_VERSION}",
+                capability.versions,
+            )));
+        }
         Ok(())
     }
 
     /// Confirm that the server enabled the v0 signed-artifact `PoC`.
     pub async fn handshake_artifacts(&self) -> Result<(), PnprClientError> {
-        let capability =
-            self.fetch_compatible_handshake(Some(self.artifact_request_timeout)).await?;
+        let capability = self.fetch_handshake(Some(self.artifact_request_timeout)).await?;
         if !capability.artifacts.contains(&PROTOCOL_VERSION) {
             return Err(PnprClientError::Server(format!(
                 "pnpr server does not advertise shared artifact protocol v{PROTOCOL_VERSION}",
@@ -425,7 +430,7 @@ impl PnprClient {
         Ok(())
     }
 
-    async fn fetch_compatible_handshake(
+    async fn fetch_handshake(
         &self,
         timeout: Option<Duration>,
     ) -> Result<HandshakeCapability, PnprClientError> {
@@ -442,12 +447,6 @@ impl PnprClient {
             )));
         }
         let body: HandshakeResponse = response.json().await?;
-        if !body.pnpr.versions.contains(&PROTOCOL_VERSION) {
-            return Err(PnprClientError::Server(format!(
-                "pnpr server speaks protocol versions {:?}, but this client requires v{PROTOCOL_VERSION}",
-                body.pnpr.versions,
-            )));
-        }
         Ok(body.pnpr)
     }
 

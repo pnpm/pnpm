@@ -6203,10 +6203,14 @@ dependencies = [
 name = "pnpr-shared-artifacts"
 version = "0.0.1"
 dependencies = [
+ "async-trait",
  "base64 0.23.1",
+ "bytes",
+ "futures-util",
+ "object_store",
  "pnpm-shared-artifact-protocol",
+ "pnpr-config",
  "pnpr-error",
- "pnpr-storage",
  "serde",
  "serde_json",
  "sha2",
