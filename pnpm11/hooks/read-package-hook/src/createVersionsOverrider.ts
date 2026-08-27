@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import type { PackageSelector, VersionOverride as VersionOverrideBase } from '@pnpm/config.parse-overrides'
 import { isValidPeerRange } from '@pnpm/deps.peer-range'
-import { type Dependencies, DEPENDENCIES_OR_PEER_FIELDS, type PackageManifest, type ReadPackageHook } from '@pnpm/types'
+import { type Dependencies, DEPENDENCIES_OR_PEER_FIELDS, type DependenciesOrPeersField, type PackageManifest, type ProjectManifest, type ReadPackageHook } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import { partition } from 'ramda'
 import semver from 'semver'
@@ -54,6 +54,49 @@ export function createDependencyOverrider (
   }
 }
 
+/**
+ * What an override needs to read to decide whether it claims a dependency: the
+ * parent half of a `parent>child` key is matched against the manifest's own
+ * name and version. Workspace projects may declare neither, so this is wider
+ * than {@link PackageManifest}.
+ */
+export type OverridableManifest = Pick<ProjectManifest, 'name' | 'version' | DependenciesOrPeersField>
+
+/**
+ * The names of a manifest's declared dependencies that an override claims —
+ * whether or not it rewrites their specifier text.
+ *
+ * `undefined` when no override could claim anything, so a caller with no
+ * overrides configured skips the walk.
+ */
+export function createOverriddenDependencyFinder (
+  overrides: VersionOverrideWithoutRawSelector[],
+  rootDir: string
+): ((manifest: OverridableManifest) => Set<string>) | undefined {
+  const { versionOverrides, genericVersionOverrides, convergeVersions } = splitOverrides(overrides, rootDir)
+  if (versionOverrides.length === 0 && genericVersionOverrides.length === 0 && convergeVersions.size === 0) {
+    return undefined
+  }
+  return (manifest) => {
+    const overridesForManifest = {
+      versionOverrides: pickOverridesOfParent(versionOverrides, manifest),
+      genericVersionOverrides,
+    }
+    const overridden = new Set<string>()
+    for (const depsField of DEPENDENCIES_OR_PEER_FIELDS) {
+      for (const [name, bareSpecifier] of Object.entries(manifest[depsField] ?? {})) {
+        if (
+          pickVersionOverride(overridesForManifest, name, bareSpecifier) != null ||
+          convergeBareSpecifier(convergeVersions, name, bareSpecifier) != null
+        ) {
+          overridden.add(name)
+        }
+      }
+    }
+    return overridden
+  }
+}
+
 export function createVersionsOverrider (
   overrides: VersionOverrideWithoutRawSelector[],
   rootDir: string,
@@ -61,12 +104,7 @@ export function createVersionsOverrider (
 ): ReadPackageHook {
   const { versionOverrides, genericVersionOverrides, convergeVersions } = splitOverrides(overrides, rootDir)
   return ((manifest: PackageManifest, dir?: string) => {
-    const versionOverridesWithParent = versionOverrides.filter(({ parentPkg }) => {
-      return (
-        parentPkg.name === manifest.name &&
-        (!parentPkg.bareSpecifier || semver.satisfies(manifest.version, parentPkg.bareSpecifier))
-      )
-    })
+    const versionOverridesWithParent = pickOverridesOfParent(versionOverrides, manifest)
     // The manifest may come from a shared cache, so the fields the overrides
     // rewrite are cloned instead of mutated in place.
     const clonedManifest = { ...manifest }
@@ -82,6 +120,20 @@ export function createVersionsOverrider (
 
     return clonedManifest
   }) as ReadPackageHook
+}
+
+/**
+ * The parent-scoped overrides (`parent>child`) whose parent half this manifest
+ * answers to. The rest never govern its dependencies.
+ */
+function pickOverridesOfParent (
+  versionOverrides: VersionOverrideWithParent[],
+  manifest: OverridableManifest
+): VersionOverrideWithParent[] {
+  return versionOverrides.filter(({ parentPkg }) => (
+    parentPkg.name === manifest.name &&
+    (!parentPkg.bareSpecifier || (manifest.version != null && semver.satisfies(manifest.version, parentPkg.bareSpecifier)))
+  ))
 }
 
 function splitOverrides (overrides: VersionOverrideWithoutRawSelector[], rootDir: string): {

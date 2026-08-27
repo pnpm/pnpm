@@ -101,6 +101,11 @@ export interface ImporterToResolve extends Importer<{
   binsDir: string
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
+  /**
+   * The direct dependencies an override claims, so `updateProjectManifest`
+   * can tell a declared range the update owns from one the override governs.
+   */
+  overriddenDependencyNames?: Set<string>
   update?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest: boolean

@@ -1175,6 +1175,26 @@ fn update_keeps_the_catalog_reference_of_an_overridden_dependency() {
     drop((root, anchor));
 }
 
+/// An override claims a dependency even when it repeats the range the project
+/// declares, so the declared range is not the update's to move: the overrides
+/// hook rewrites it back before the resolver reads it, and the lockfile would
+/// then record a specifier the manifest never shows (pnpm/pnpm#14224).
+#[test]
+fn update_keeps_a_declared_range_an_override_repeats() {
+    let (root, workspace, anchor) = setup();
+
+    set_overrides(&workspace, &[(DEP, "^100.0.0")]);
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
 /// `--latest` reaches the manifest through its own pre-install rewrite, so
 /// it needs the `catalog:` reference to survive an override of its own.
 #[test]

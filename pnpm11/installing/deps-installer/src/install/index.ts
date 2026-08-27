@@ -33,7 +33,7 @@ import {
   runLifecycleHooksConcurrently,
   type RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/exec.lifecycle'
-import { createDependencyOverrider } from '@pnpm/hooks.read-package-hook'
+import { createDependencyOverrider, createOverriddenDependencyFinder } from '@pnpm/hooks.read-package-hook'
 import { getContext, type PnpmContext } from '@pnpm/installing.context'
 import {
   type DependenciesGraph,
@@ -1764,6 +1764,7 @@ export type ImporterToUpdate = {
   id: ProjectId
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
+  overriddenDependencyNames?: Set<string>
   modulesDir: string
   rootDir: ProjectRootDir
   pruneDirectDependencies: boolean
@@ -1870,6 +1871,16 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         }
       })
   )
+
+  // Only the projects whose manifest this run writes need the answer, and only
+  // the manifest on disk — the one the overrides hook read — can give it.
+  const findOverriddenDependencies = createOverriddenDependencyFinder(opts.parsedOverrides, opts.lockfileDir)
+  if (findOverriddenDependencies != null) {
+    for (const project of projects) {
+      if (!project.updatePackageManifest) continue
+      project.overriddenDependencyNames = findOverriddenDependencies(project.originalManifest ?? project.manifest)
+    }
+  }
 
   stageLogger.debug({
     prefix: ctx.lockfileDir,

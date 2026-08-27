@@ -399,6 +399,16 @@ impl VersionsOverrider {
             .then(|| self.converge[dep_name].new_bare_specifier.clone())
     }
 
+    /// `true` when an override governs `dep_name` declared as `dep_spec` in
+    /// `manifest` — whether or not it rewrites the specifier text. An
+    /// override that repeats the declaration verbatim still governs it.
+    #[must_use]
+    pub fn overrides_dependency(&self, manifest: &Value, dep_name: &str, dep_spec: &str) -> bool {
+        let applicable_parent_scoped = self.applicable_parent_scoped(manifest);
+        self.choose_override(&applicable_parent_scoped, dep_name, dep_spec).is_some()
+            || self.converge_applies(dep_name, dep_spec)
+    }
+
     fn choose_override<'b>(
         &'b self,
         applicable_parent_scoped: &[&'b ResolvedOverride],

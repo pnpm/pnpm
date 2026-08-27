@@ -1263,6 +1263,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 lockfile_dir,
                 resolved_time,
                 manifest_spec_bumps,
+                versions_overrider: versions_overrider.as_deref(),
             })?;
             return finish_lockfile_only::<Reporter>(LockfileOnlyOptions {
                 built_lockfile,
@@ -1305,6 +1306,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             lockfile_dir,
             resolved_time,
             manifest_spec_bumps,
+            versions_overrider: versions_overrider.as_deref(),
         })?;
         tracing::info!(
             target: "pacquet::install::phase",
@@ -2066,6 +2068,10 @@ struct FreshLockfileBuildOptions<'a> {
     resolved_time: BTreeMap<String, String>,
     /// See [`InstallWithFreshLockfile::manifest_spec_bumps`].
     manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
+    /// The override set the run resolved under. Consulted only alongside
+    /// [`Self::manifest_spec_bumps`], to leave a declaration an override
+    /// governs where the project wrote it.
+    versions_overrider: Option<&'a crate::VersionsOverrider>,
 }
 
 /// Build the fresh lockfile, then — under a filtered install — splice it
@@ -2078,6 +2084,8 @@ fn build_lockfile(
     let selected_importer_ids = opts.selected_importer_ids;
     let lockfile_dir = opts.lockfile_dir;
     let manifest_spec_bumps = opts.manifest_spec_bumps;
+    let versions_overrider = opts.versions_overrider;
+    let importer_manifests = opts.importer_manifests;
     let freshly_resolved = build_fresh_lockfile(opts).map_err(|error| {
         InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
     })?;
@@ -2095,7 +2103,15 @@ fn build_lockfile(
         _ => freshly_resolved,
     };
     if let Some(bumps) = manifest_spec_bumps {
-        crate::manifest_spec_bumps::apply_manifest_spec_bumps(&mut built, bumps);
+        let overridden =
+            versions_overrider.filter(|overrider| !overrider.is_empty()).map(|overrider| {
+                crate::manifest_spec_bumps::OverriddenDeclarations { overrider, importer_manifests }
+            });
+        crate::manifest_spec_bumps::apply_manifest_spec_bumps(
+            &mut built,
+            bumps,
+            overridden.as_ref(),
+        );
     }
     Ok(built)
 }
@@ -2122,6 +2138,7 @@ fn build_fresh_lockfile(
         update_reuse_scope,
         update_reuse_scopes_by_importer,
         manifest_spec_bumps: _,
+        versions_overrider: _,
     } = opts;
     let mut importers = BTreeMap::new();
     for (id, manifest) in importer_manifests {

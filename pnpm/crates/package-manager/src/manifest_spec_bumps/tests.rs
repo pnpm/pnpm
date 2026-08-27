@@ -140,7 +140,7 @@ importers:
     );
 
     let bumps = bumps(&[("foo", DependencyGroup::Dev, "^2.0.0")]);
-    apply_manifest_spec_bumps(&mut lockfile, &bumps);
+    apply_manifest_spec_bumps(&mut lockfile, &bumps, None);
 
     let importer = &lockfile.importers["."];
     assert_eq!(specifier_of(importer.dev_dependencies.as_ref(), "foo"), "^2.1.0");
@@ -168,7 +168,7 @@ importers:
     );
 
     let bumps = bumps(&[("foo", DependencyGroup::Prod, "catalog:")]);
-    apply_manifest_spec_bumps(&mut lockfile, &bumps);
+    apply_manifest_spec_bumps(&mut lockfile, &bumps, None);
 
     assert_eq!(specifier_of(lockfile.importers["."].dependencies.as_ref(), "foo"), "^1.0.0");
     assert!(bumps.applied.into_inner().expect("never poisoned").is_empty());

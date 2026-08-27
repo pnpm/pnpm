@@ -1,5 +1,6 @@
 //! Moving an update's declared ranges onto the versions it resolved.
 
+use crate::VersionsOverrider;
 use node_semver::Range;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_lockfile::{
@@ -7,7 +8,7 @@ use pnpm_lockfile::{
     ResolvedDependencySpec,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
-use pnpm_package_manifest::DependencyGroup;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style};
 use pnpm_resolving_resolver_base::VersionSelectorType;
@@ -59,6 +60,28 @@ impl AppliedSpecBumps {
     }
 }
 
+/// The override set an update runs under, paired with the importer manifests
+/// whose own name and version a `parent>child` override key is matched
+/// against.
+///
+/// An override governs a declaration even when it repeats it verbatim, and a
+/// declaration an override governs is not the update's to move: the hook
+/// rewrites the bumped text away before the next resolve reads it, leaving a
+/// lockfile specifier the manifest never shows and a `--frozen-lockfile`
+/// install that rejects the pair (pnpm/pnpm#14224).
+pub(crate) struct OverriddenDeclarations<'a> {
+    pub overrider: &'a VersionsOverrider,
+    pub importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
+}
+
+impl OverriddenDeclarations<'_> {
+    fn governs(&self, importer_id: &str, alias: &str, declared: &str) -> bool {
+        self.importer_manifests.get(importer_id).is_some_and(|manifest| {
+            self.overrider.overrides_dependency(manifest.value(), alias, declared)
+        })
+    }
+}
+
 /// Rewrite the targeted ranges in `lockfile` — which this run built and has
 /// not written yet — around the versions it records, and report them into
 /// [`ManifestSpecBumps::applied`].
@@ -67,7 +90,11 @@ impl AppliedSpecBumps {
 /// agreeing with the `package.json` the update writes afterwards: the two
 /// carry the same text, and the version recorded against it satisfies it by
 /// construction.
-pub(crate) fn apply_manifest_spec_bumps(lockfile: &mut Lockfile, bumps: &ManifestSpecBumps) {
+pub(crate) fn apply_manifest_spec_bumps(
+    lockfile: &mut Lockfile,
+    bumps: &ManifestSpecBumps,
+    overridden: Option<&OverriddenDeclarations<'_>>,
+) {
     let mut manifests: BTreeMap<String, HashMap<PkgName, (DependencyGroupIndex, String)>> =
         BTreeMap::new();
     let mut cataloged: HashSet<(String, PkgName)> = HashSet::new();
@@ -75,17 +102,24 @@ pub(crate) fn apply_manifest_spec_bumps(lockfile: &mut Lockfile, bumps: &Manifes
     for (importer_id, targets) in &bumps.targets {
         let Some(importer) = lockfile.importers.get(importer_id) else { continue };
         for (alias, (manifest_group, manifest_specifier)) in targets {
+            // An override — or another manifest hook — governs this entry, so
+            // the version the run resolved answers the override rather than
+            // the declaration. Leaving the lockfile entry and `package.json`
+            // alone keeps the two agreeing and keeps the declaration, a
+            // `catalog:` reference included (pnpm/pnpm#12115). An override
+            // that repeats the declaration verbatim rewrites nothing, which
+            // is why the text comparison below cannot stand in for this
+            // (pnpm/pnpm#14224).
+            if overridden.is_some_and(|overridden| {
+                overridden.governs(importer_id, alias, manifest_specifier)
+            }) {
+                continue;
+            }
             let Ok(alias) = PkgName::parse(alias.as_str()) else { continue };
             let Some((group, declared)) = declared_dependency(importer, &alias, *manifest_group)
             else {
                 continue;
             };
-            // An override — or another manifest hook — replaced this entry
-            // before the resolver read it, so the version the run resolved
-            // answers the override rather than the declaration. Leaving both
-            // the lockfile entry and `package.json` alone keeps the two
-            // agreeing and keeps the declaration, a `catalog:` reference
-            // included (pnpm/pnpm#12115).
             if declared.specifier != *manifest_specifier {
                 continue;
             }
