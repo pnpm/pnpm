@@ -51,6 +51,7 @@ pub(super) fn collect_candidates(
         // policy verifiers are active.
         if has_registry_shape_mismatch(key, &metadata.resolution) {
             shape_violations.push(ResolutionPolicyViolation {
+                    parents: Vec::new(),
                 name: name.clone(),
                 version: version.clone(),
                 resolution: metadata.resolution.clone(),
@@ -186,6 +187,7 @@ async fn evaluate_candidate(
             ResolutionVerification::Ok => continue,
             ResolutionVerification::Err { code, reason } => {
                 return Ok(Some(ResolutionPolicyViolation {
+                    parents: Vec::new(),
                     name: candidate.name,
                     version: candidate.version,
                     resolution: candidate.resolution,

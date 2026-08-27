@@ -32,6 +32,7 @@ pub(crate) struct PickFromRegistryOptions<'a> {
     pub package_version_guard:
         Option<&'a Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
     pub policy: crate::PackagePickPolicy<'a>,
+    pub policy_blocked_versions: Option<&'a std::collections::HashSet<String>>,
     pub request: crate::MetadataPickRequest,
 }
 
@@ -63,7 +64,9 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     opts: PickFromRegistryOptions<'_>,
 ) -> Result<RegistryPick, ResolveError> {
-    let mut blocked_versions = std::collections::HashSet::new();
+    let mut blocked_versions = opts.policy_blocked_versions.cloned().unwrap_or_default();
+    let mut guard_blocked = std::collections::HashSet::new();
+    let mut policy_blocks_lifted = false;
     let mut last_rejection: Option<String> = None;
     // The first candidate the guard turned down, i.e. the one the picker
     // would have returned with no guard at all.
@@ -74,6 +77,11 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             .map_err(|err| map_pick_error(ctx, &opts, err))?;
 
         let Some(version) = pick_result.picked_package else {
+            if !policy_blocks_lifted && opts.policy_blocked_versions.is_some_and(|versions| !versions.is_empty()) {
+                blocked_versions = guard_blocked.clone();
+                policy_blocks_lifted = true;
+                continue;
+            }
             // No candidate left. With no prior guard rejection this is the
             // ordinary "no matching version" outcome; once the guard has
             // rejected every match, the guard's own policy decides, and a
@@ -108,7 +116,8 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
         // forever and wrongly reporting every version blocked when a lower
         // one is still fine.
         let blocked_key = blocked_packument_key(&pick_result.meta, &version, &version_str);
-        if let Some(stop) = repick_limit_reached(&mut blocked_versions, blocked_key) {
+        blocked_versions.insert(blocked_key.clone());
+        if let Some(stop) = repick_limit_reached(&mut guard_blocked, blocked_key) {
             return exhausted(&opts, first_rejected, reason, stop.into_error());
         }
         last_rejection = Some(reason);

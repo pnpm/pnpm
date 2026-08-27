@@ -75,7 +75,8 @@ where
         return Ok(NodeSeed::Done(None));
     };
 
-    if let Some(violation) = result.policy_violation.clone() {
+    if let Some(mut violation) = result.policy_violation.clone() {
+        violation.parents = parent_chain_from_ids(ctx, edge.ancestor_ids);
         lock_recoverable(&ctx.workspace.policy.policy_violations).push(violation);
     }
 
@@ -490,4 +491,15 @@ impl ChildEdge<'_> {
             current_is_optional,
         }
     }
+}
+
+fn parent_chain_from_ids(ctx: &TreeCtx, ancestor_ids: &[String]) -> Vec<pnpm_lockfile::PkgNameVer> {
+    let packages = lock_recoverable(&ctx.workspace.tree.packages);
+    let mut parents = Vec::new();
+    for id in ancestor_ids {
+        let Some(package) = packages.get(id.as_str()) else { continue };
+        let Some(name_ver) = package.result.package.name_ver.as_ref() else { return Vec::new() };
+        parents.push(name_ver.clone());
+    }
+    parents
 }

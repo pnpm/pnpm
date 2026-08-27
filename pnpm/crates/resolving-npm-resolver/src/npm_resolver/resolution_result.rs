@@ -22,6 +22,7 @@ pub(crate) struct BuildResolveResult<'a> {
     pub published_by: Option<DateTime<Utc>>,
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     pub picked_manifest_cache: &'a crate::PickedManifestCache,
+    pub blocked_versions: Option<&'a pnpm_resolving_resolver_base::BlockedVersions>,
     pub registry: RegistryResolutionSource<'a>,
     pub specifier: ResolvedSpecifier<'a>,
 }
@@ -65,6 +66,7 @@ pub(crate) fn build_resolve_result(
         &resolution,
         args.published_by,
         args.published_by_exclude,
+        args.blocked_versions.and_then(|blocked| blocked.get(pkg_name.as_str())).is_some_and(|versions| versions.contains(&version_str)),
     );
     let package = resolved_package_info(&args, name_ver, &version_str, published_at, manifest);
     Ok(ResolveResult {
@@ -390,6 +392,7 @@ impl RegistryResolutionSource<'_> {
         build_resolve_result(BuildResolveResult {
             meta: &picked.meta,
             picked: &picked.version,
+            blocked_versions: policy.blocked_versions.as_deref(),
             published_by: policy.published_by,
             published_by_exclude: policy.published_by_exclude.as_ref(),
             picked_manifest_cache,

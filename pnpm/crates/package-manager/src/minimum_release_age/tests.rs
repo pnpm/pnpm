@@ -24,6 +24,7 @@ fn violation(name: &str, version: &str, code: &'static str) -> ResolutionPolicyV
         }),
         code,
         reason: format!("{name}@{version} is too new"),
+        parents: Vec::new(),
     }
 }
 

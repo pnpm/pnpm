@@ -111,8 +111,19 @@ pub(super) fn detect_min_release_age_violation(
     resolution: &LockfileResolution,
     published_by: Option<DateTime<Utc>>,
     published_by_exclude: Option<&PackageVersionPolicy>,
+    blocked: bool,
 ) -> Option<ResolutionPolicyViolation> {
     let cutoff = published_by?;
+    if blocked {
+        return Some(ResolutionPolicyViolation {
+            name: name.clone(),
+            version: version.to_string(),
+            resolution: resolution.clone(),
+            code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+            reason: "has no dependency tree that satisfies the minimumReleaseAge cutoff".to_string(),
+            parents: Vec::new(),
+        });
+    }
     let timestamp = published_at?;
     if let Some(policy) = published_by_exclude {
         use pnpm_config::version_policy::PolicyMatch;
@@ -133,6 +144,7 @@ pub(super) fn detect_min_release_age_violation(
         return None;
     }
     Some(ResolutionPolicyViolation {
+        parents: Vec::new(),
         name: name.clone(),
         version: version.to_string(),
         resolution: resolution.clone(),

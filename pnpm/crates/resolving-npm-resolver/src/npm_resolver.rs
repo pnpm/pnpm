@@ -429,6 +429,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 pick_lowest_version: opts.version.pick_lowest_version,
                 include_latest_tag: opts.refresh.update == UpdateBehavior::Latest,
                 package_version_guard: opts.policy.package_version_guard.as_ref(),
+                policy_blocked_versions: opts.policy.blocked_versions.as_deref().and_then(|blocked| blocked.get(spec.name.as_str())),
                 policy: crate::PackagePickPolicy {
                     published_by: opts.policy.published_by,
                     published_by_exclude: opts.policy.published_by_exclude.as_ref(),

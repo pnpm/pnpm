@@ -4,7 +4,7 @@
 
 use std::{future::Future, pin::Pin};
 
-use pnpm_lockfile::{LockfileResolution, PkgName};
+use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer};
 
 /// One verifier's decision about a single `(name, version, resolution)`
 /// entry. A discriminated union (`{ ok: true } | { ok: false, code,
@@ -57,6 +57,14 @@ pub struct ResolutionPolicyViolation {
     pub resolution: LockfileResolution,
     pub code: &'static str,
     pub reason: String,
+    /// The chain of dependents that reached this pick, the importer's own
+    /// direct dependency first and the immediate parent last. Empty when
+    /// the importer asked for the package itself, and when the violation
+    /// was raised outside a dependency walk — the lockfile verifier checks
+    /// entries it has no path for. The install names the dependent with
+    /// it, and the resolution retry uses the last entry to find the choice
+    /// that has to be revisited.
+    pub parents: Vec<PkgNameVer>,
 }
 
 /// `ctx` argument bundle for [`ResolutionVerifier::verify`].

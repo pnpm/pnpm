@@ -48,6 +48,7 @@ fn resolution_policy_violation_carries_pkg_name_and_resolution() {
         resolution: fake_resolution(),
         code: "MINIMUM_RELEASE_AGE_VIOLATION",
         reason: "was published yesterday".to_string(),
+        parents: Vec::new(),
     };
     assert_eq!(violation.name.to_string(), "lodash");
     assert_eq!(violation.version, "4.17.21");
