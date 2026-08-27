@@ -227,6 +227,49 @@ fn rejects_a_symlinked_state_directory() {
     assert!(!outside.path().join("latest.json").exists());
 }
 
+#[cfg(unix)]
+#[test]
+fn disables_state_when_node_modules_is_read_only() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let workspace = tempfile::tempdir().expect("create workspace");
+    let project = workspace.path().join("project");
+    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
+    let graph: TaskGraph = IndexMap::from([(
+        key.clone(),
+        TaskNode {
+            project,
+            task_name: "build".to_string(),
+            concurrency: None,
+            scripts: vec!["build".to_string()],
+            requested: true,
+            dependencies: Vec::new(),
+        },
+    )]);
+    let node_modules = workspace.path().join("node_modules");
+    fs::create_dir(&node_modules).expect("create node_modules");
+    fs::set_permissions(&node_modules, fs::Permissions::from_mode(0o555))
+        .expect("make node_modules read-only");
+    let context = TaskRunStateContext::new(
+        "run",
+        &["build".to_string()],
+        &[],
+        &graph,
+        workspace.path(),
+        |_, _| vec!["build-command".to_string()],
+    );
+
+    let result = context.start(&HashSet::new()).and_then(|state| {
+        state.record_passed(&key, &graph[&key], workspace.path())?;
+        state.finish()
+    });
+    fs::set_permissions(&node_modules, fs::Permissions::from_mode(0o755))
+        .expect("restore node_modules permissions");
+
+    result.expect("read-only state storage is optional");
+    assert!(!context.latest_state_path.exists());
+}
+
 #[test]
 fn finishing_an_older_invocation_preserves_the_newer_invocation_journal() {
     let workspace = tempfile::tempdir().expect("create workspace");

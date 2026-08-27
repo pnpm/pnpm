@@ -11,6 +11,11 @@ import writeFileAtomic from 'write-file-atomic'
 const STATE_VERSION = 1
 const STATE_DIR = '.pnpm-task-run-state-v1'
 const LATEST_STATE_FILE = 'latest.json'
+const START_LOCK_DIR = 'start.lock'
+const LOCK_OWNER_FILE = 'owner'
+const LOCK_POLL_INTERVAL_MS = 50
+const LOCK_WAIT_MS = 2_000
+const LOCK_ABANDONED_MS = 30_000
 const RUN_ID = /^[0-9a-f-]{1,128}$/
 
 interface TaskId {
@@ -109,12 +114,17 @@ export class TaskRunStateContext {
   }
 
   async readCompletedTasks (): Promise<Set<TaskKey> | undefined> {
-    if (!await this.validateStateDirectory(false)) return undefined
+    try {
+      if (!await this.validateStateDirectory(false)) return undefined
+    } catch (err: unknown) {
+      if (isStateUnavailableError(err)) return undefined
+      throw err
+    }
     let latest: StateHeader
     try {
       latest = JSON.parse(await fs.readFile(this.latestStatePath, 'utf8')) as StateHeader
     } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code !== 'ENOENT') throw err
+      if (util.types.isNativeError(err) && 'code' in err && err.code !== 'ENOENT' && !isStateUnavailableError(err)) throw err
       return undefined
     }
     if (latest.version !== STATE_VERSION || latest.invocation !== this.invocation || !RUN_ID.test(latest.run)) return undefined
@@ -123,7 +133,7 @@ export class TaskRunStateContext {
     try {
       contents = await fs.readFile(filePath, 'utf8')
     } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return undefined
+      if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || isStateUnavailableError(err))) return undefined
       throw err
     }
     // A record is committed by its newline; a process killed during append
@@ -162,15 +172,28 @@ export class TaskRunStateContext {
       .sort(compareTaskIds)
     const contents = [header, ...completed].map((record) => JSON.stringify(record)).join('\n') + '\n'
     const filePath = this.journalPath(run)
-    await this.validateStateDirectory(true)
-    await writeFileAtomic(filePath, contents, { mode: 0o600 })
-    const file = await fs.open(filePath, 'a')
+    let file: FileHandle | undefined
+    let journalCreated = false
+    let lock: StateStartLock | undefined
     try {
+      await this.validateStateDirectory(true)
+      lock = await StateStartLock.acquire(path.join(this.stateDir, START_LOCK_DIR))
+      if (lock == null) {
+        return new TaskRunState(filePath, undefined, this.opts.workspaceDir, run, completedTasks)
+      }
+      await writeFileAtomic(filePath, contents, { mode: 0o600 })
+      journalCreated = true
+      file = await fs.open(filePath, 'a')
       await writeFileAtomic(this.latestStatePath, JSON.stringify(header), { mode: 0o600 })
     } catch (err: unknown) {
-      await file.close()
-      await unlinkIfExists(filePath)
+      await file?.close().catch(() => {})
+      if (journalCreated) await unlinkIfExists(filePath).catch(() => {})
+      if (isStateUnavailableError(err)) {
+        return new TaskRunState(filePath, undefined, this.opts.workspaceDir, run, completedTasks)
+      }
       throw err
+    } finally {
+      await lock?.release()
     }
     return new TaskRunState(filePath, file, this.opts.workspaceDir, run, completedTasks)
   }
@@ -187,16 +210,17 @@ export class TaskRunStateContext {
 
 export class TaskRunState {
   readonly filePath: string
-  private readonly file: FileHandle
+  private readonly file: FileHandle | undefined
   private readonly workspaceDir: string
   private readonly run: string
   private readonly completedTasks: Set<TaskKey>
   private pendingWrite: Promise<void> = Promise.resolve()
   private closePromise: Promise<void> | undefined
+  private disabled: boolean
 
   constructor (
     filePath: string,
-    file: FileHandle,
+    file: FileHandle | undefined,
     workspaceDir: string,
     run: string,
     completedTasks: ReadonlySet<TaskKey>
@@ -206,15 +230,23 @@ export class TaskRunState {
     this.workspaceDir = workspaceDir
     this.run = run
     this.completedTasks = new Set(completedTasks)
+    this.disabled = file == null
   }
 
   async recordPassed (key: TaskKey, node: TaskNode): Promise<void> {
-    if (this.completedTasks.has(key)) return
+    const file = this.file
+    if (this.disabled || file == null || this.completedTasks.has(key)) return
     this.completedTasks.add(key)
     const record: TaskRecord = { run: this.run, ...taskId(node, this.workspaceDir) }
     const line = `${JSON.stringify(record)}\n`
     const write = this.pendingWrite.then(async () => {
-      await this.file.appendFile(line)
+      if (this.disabled) return
+      try {
+        await file.appendFile(line)
+      } catch (err: unknown) {
+        if (!isStateUnavailableError(err)) throw err
+        this.disabled = true
+      }
     })
     this.pendingWrite = write.catch(() => {})
     try {
@@ -226,13 +258,68 @@ export class TaskRunState {
   }
 
   async finish (): Promise<void> {
+    if (this.file == null) return
     await this.close()
-    await unlinkIfExists(this.filePath)
+    try {
+      await unlinkIfExists(this.filePath)
+    } catch (err: unknown) {
+      if (!isStateUnavailableError(err)) throw err
+    }
   }
 
   async close (): Promise<void> {
-    this.closePromise ??= this.pendingWrite.then(async () => this.file.close())
+    const file = this.file
+    if (file == null) return
+    this.closePromise ??= this.pendingWrite.then(async () => file.close())
     await this.closePromise
+  }
+}
+
+class StateStartLock {
+  private readonly lockPath: string
+  private readonly token: string
+
+  private constructor (
+    lockPath: string,
+    token: string
+  ) {
+    this.lockPath = lockPath
+    this.token = token
+  }
+
+  static async acquire (lockPath: string): Promise<StateStartLock | undefined> {
+    return StateStartLock.acquireUntil(lockPath, Date.now() + LOCK_WAIT_MS)
+  }
+
+  private static async acquireUntil (lockPath: string, deadline: number): Promise<StateStartLock | undefined> {
+    try {
+      await fs.mkdir(lockPath)
+      const token = `${process.pid}-${Date.now()}-${crypto.randomUUID()}`
+      try {
+        await fs.writeFile(path.join(lockPath, LOCK_OWNER_FILE), token, { mode: 0o600 })
+      } catch (err: unknown) {
+        await fs.rm(lockPath, { force: true, recursive: true }).catch(() => {})
+        throw err
+      }
+      return new StateStartLock(lockPath, token)
+    } catch (err: unknown) {
+      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+    }
+    const stats = await fs.lstat(lockPath).catch(() => undefined)
+    if (stats == null || stats.isSymbolicLink() || !stats.isDirectory()) return undefined
+    if (Date.now() - stats.mtimeMs > LOCK_ABANDONED_MS) {
+      await fs.rm(lockPath, { force: true, recursive: true }).catch(() => {})
+      return StateStartLock.acquireUntil(lockPath, deadline)
+    }
+    if (Date.now() >= deadline) return undefined
+    await new Promise(resolve => setTimeout(resolve, LOCK_POLL_INTERVAL_MS))
+    return StateStartLock.acquireUntil(lockPath, deadline)
+  }
+
+  async release (): Promise<void> {
+    const owner = await fs.readFile(path.join(this.lockPath, LOCK_OWNER_FILE), 'utf8').catch(() => undefined)
+    if (owner !== this.token) return
+    await fs.rm(this.lockPath, { force: true, recursive: true }).catch(() => {})
   }
 }
 
@@ -286,4 +373,9 @@ async function unlinkIfExists (filePath: string): Promise<void> {
   } catch (err: unknown) {
     if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) throw err
   }
+}
+
+function isStateUnavailableError (err: unknown): boolean {
+  return util.types.isNativeError(err) && 'code' in err &&
+    (err.code === 'EACCES' || err.code === 'EPERM' || err.code === 'EROFS')
 }

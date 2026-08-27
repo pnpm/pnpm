@@ -11,12 +11,15 @@ use std::{
         Mutex,
         atomic::{AtomicU64, Ordering},
     },
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 const STATE_VERSION: u8 = 1;
 const STATE_DIR: &str = ".pnpm-task-run-state-v1";
 const LATEST_STATE_FILE: &str = "latest.json";
+const START_LOCK_DIR: &str = "start.lock";
+const LOCK_WAIT: Duration = Duration::from_secs(2);
+const LOCK_ABANDONED_AFTER: Duration = Duration::from_secs(30);
 static RUN_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -160,7 +163,12 @@ impl TaskRunStateContext {
     }
 
     pub fn read_completed_tasks(&self) -> miette::Result<Option<HashSet<TaskKey>>> {
-        if !self.validate_state_directory(false)? {
+        let state_directory_exists = match self.validate_state_directory(false) {
+            Ok(exists) => exists,
+            Err(error) if error.is_unavailable() => return Ok(None),
+            Err(error) => return Err(error.into_report()),
+        };
+        if !state_directory_exists {
             return Ok(None);
         }
         let latest = match fs::read_to_string(&self.latest_state_path) {
@@ -168,7 +176,12 @@ impl TaskRunStateContext {
                 Ok(header) => header,
                 Err(_) => return Ok(None),
             },
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error)
+                if error.kind() == io::ErrorKind::NotFound
+                    || is_state_unavailable_error(&error) =>
+            {
+                return Ok(None);
+            }
             Err(error) => {
                 return Err(error)
                     .into_diagnostic()
@@ -184,7 +197,12 @@ impl TaskRunStateContext {
         let file_path = self.journal_path(&latest.run);
         let contents = match fs::read(&file_path) {
             Ok(contents) => contents,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error)
+                if error.kind() == io::ErrorKind::NotFound
+                    || is_state_unavailable_error(&error) =>
+            {
+                return Ok(None);
+            }
             Err(error) => {
                 return Err(error)
                     .into_diagnostic()
@@ -240,41 +258,61 @@ impl TaskRunStateContext {
             contents.push('\n');
         }
         let file_path = self.journal_path(&run);
-        self.validate_state_directory(true)?;
-        pnpm_fs::write_atomic(&file_path, contents.as_bytes())
-            .into_diagnostic()
-            .wrap_err_with(|| format!("writing {}", file_path.display()))?;
-        let file = OpenOptions::new()
-            .append(true)
-            .open(&file_path)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("opening {}", file_path.display()))?;
-        let latest_write = pnpm_fs::write_atomic(
-            &self.latest_state_path,
-            serde_json::to_string(&header).expect("latest task state serializes").as_bytes(),
-        )
-        .into_diagnostic()
-        .wrap_err_with(|| format!("writing {}", self.latest_state_path.display()));
-        if let Err(error) = latest_write {
-            drop(file);
-            let _ = fs::remove_file(&file_path);
-            return Err(error);
-        }
+        let file = match self.start_file(&file_path, &contents, &header) {
+            Ok(file) => file,
+            Err(error) if error.is_unavailable() => None,
+            Err(error) => return Err(error.into_report()),
+        };
         Ok(TaskRunState {
             file_path,
             writer: Mutex::new(TaskRunStateWriter {
-                file: Some(file),
+                file,
                 run,
                 completed: completed_tasks.clone(),
             }),
         })
     }
 
+    fn start_file(
+        &self,
+        file_path: &Path,
+        contents: &str,
+        header: &StateHeader,
+    ) -> Result<Option<File>, StateStorageError> {
+        self.validate_state_directory(true)?;
+        let lock_path = self.state_dir.join(START_LOCK_DIR);
+        let Some(_lock) =
+            pnpm_fs::DirLock::acquire(lock_path.clone(), LOCK_WAIT, LOCK_ABANDONED_AFTER)
+                .map_err(|error| StateStorageError::io(error, "locking", &lock_path))?
+        else {
+            return Ok(None);
+        };
+        pnpm_fs::write_atomic(file_path, contents.as_bytes())
+            .map_err(|error| StateStorageError::io(error, "writing", file_path))?;
+        let file = match OpenOptions::new().append(true).open(file_path) {
+            Ok(file) => file,
+            Err(error) => {
+                let _ = fs::remove_file(file_path);
+                return Err(StateStorageError::io(error, "opening", file_path));
+            }
+        };
+        let latest_write = pnpm_fs::write_atomic(
+            &self.latest_state_path,
+            serde_json::to_string(header).expect("latest task state serializes").as_bytes(),
+        );
+        if let Err(error) = latest_write {
+            drop(file);
+            let _ = fs::remove_file(file_path);
+            return Err(StateStorageError::io(error, "writing", &self.latest_state_path));
+        }
+        Ok(Some(file))
+    }
+
     fn journal_path(&self, run: &str) -> PathBuf {
         self.state_dir.join(format!("{}.{run}.jsonl", self.invocation))
     }
 
-    fn validate_state_directory(&self, create: bool) -> miette::Result<bool> {
+    fn validate_state_directory(&self, create: bool) -> Result<bool, StateStorageError> {
         let node_modules_dir = self.state_dir.parent().expect("task state directory has a parent");
         if !validate_real_directory(node_modules_dir, create)? {
             return Ok(false);
@@ -302,24 +340,44 @@ impl TaskRunState {
         workspace_dir: &Path,
     ) -> miette::Result<()> {
         let mut writer = self.writer.lock().expect("task state lock is not poisoned");
+        if writer.file.is_none() {
+            return Ok(());
+        }
         if !writer.completed.insert(key.clone()) {
             return Ok(());
         }
         let id = task_id(node, workspace_dir);
         let record = TaskRecord { run: writer.run.clone(), project: id.project, task: id.task };
         let line = serde_json::to_string(&record).expect("task record serializes");
-        let file = writer.file.as_mut().expect("unfinished task state has an open file");
-        writeln!(file, "{line}")
-            .into_diagnostic()
-            .wrap_err_with(|| format!("writing {}", self.file_path.display()))
+        let result = writeln!(
+            writer.file.as_mut().expect("unfinished task state has an open file"),
+            "{line}",
+        );
+        if let Err(error) = result {
+            if is_state_unavailable_error(&error) {
+                writer.file.take();
+                drop(writer);
+                let _ = fs::remove_file(&self.file_path);
+                return Ok(());
+            }
+            writer.completed.remove(key);
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("writing {}", self.file_path.display()));
+        }
+        Ok(())
     }
 
     pub fn finish(&self) -> miette::Result<()> {
         let file = self.writer.lock().expect("task state lock is not poisoned").file.take();
+        if file.is_none() {
+            return Ok(());
+        }
         drop(file);
         match fs::remove_file(&self.file_path) {
             Ok(()) => Ok(()),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) if is_state_unavailable_error(&error) => Ok(()),
             Err(error) => Err(error)
                 .into_diagnostic()
                 .wrap_err_with(|| format!("removing {}", self.file_path.display())),
@@ -345,7 +403,7 @@ fn is_run_id(run: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte) || byte == b'-')
 }
 
-fn validate_real_directory(path: &Path, create: bool) -> miette::Result<bool> {
+fn validate_real_directory(path: &Path, create: bool) -> Result<bool, StateStorageError> {
     let metadata = match fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == io::ErrorKind::NotFound && !create => return Ok(false),
@@ -354,33 +412,61 @@ fn validate_real_directory(path: &Path, create: bool) -> miette::Result<bool> {
                 Ok(()) => {}
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
                 Err(error) => {
-                    return Err(error)
-                        .into_diagnostic()
-                        .wrap_err_with(|| format!("creating {}", path.display()));
+                    return Err(StateStorageError::io(error, "creating", path));
                 }
             }
             fs::symlink_metadata(path)
-                .into_diagnostic()
-                .wrap_err_with(|| format!("inspecting {}", path.display()))?
+                .map_err(|error| StateStorageError::io(error, "inspecting", path))?
         }
         Err(error) => {
-            return Err(error)
-                .into_diagnostic()
-                .wrap_err_with(|| format!("inspecting {}", path.display()));
+            return Err(StateStorageError::io(error, "inspecting", path));
         }
     };
     if metadata.file_type().is_symlink()
         || pnpm_fs::read_symlink_dir(path).is_ok()
         || !metadata.is_dir()
     {
-        let path = path.display();
-        return Err(miette::miette!(
-            code = "ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH",
-            "Refusing to use task run state directory at {} because it is a symbolic link or not a directory",
-            path,
-        ));
+        return Err(StateStorageError::UnsafePath(path.to_path_buf()));
     }
     Ok(true)
+}
+
+enum StateStorageError {
+    Io { error: io::Error, operation: &'static str, path: PathBuf },
+    UnsafePath(PathBuf),
+}
+
+impl StateStorageError {
+    fn io(error: io::Error, operation: &'static str, path: &Path) -> Self {
+        Self::Io { error, operation, path: path.to_path_buf() }
+    }
+
+    fn is_unavailable(&self) -> bool {
+        matches!(self, Self::Io { error, .. } if is_state_unavailable_error(error))
+    }
+
+    fn into_report(self) -> miette::Report {
+        match self {
+            Self::Io { error, operation, path } => {
+                let result: miette::Result<()> = Err(error)
+                    .into_diagnostic()
+                    .wrap_err_with(|| format!("{operation} {}", path.display()));
+                result.expect_err("task state storage error cannot succeed")
+            }
+            Self::UnsafePath(path) => {
+                let path = path.display();
+                miette::miette!(
+                    code = "ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH",
+                    "Refusing to use task run state directory at {} because it is a symbolic link or not a directory",
+                    path,
+                )
+            }
+        }
+    }
+}
+
+fn is_state_unavailable_error(error: &io::Error) -> bool {
+    matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ReadOnlyFilesystem)
 }
 
 fn run_id() -> String {

@@ -9,6 +9,7 @@ import { type TaskGraph, taskKey } from '@pnpm/workspace.task-scheduler'
 import { taskRunExecutionSettings, TaskRunStateContext } from '../src/taskRunState.js'
 
 const temporaryDirectories: string[] = []
+const testOnPosix = process.platform === 'win32' ? test.skip : test
 
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map(async (dir) => fs.rm(dir, { force: true, recursive: true })))
@@ -161,6 +162,47 @@ test('task run state recovers its write queue after an append failure', async ()
   await state.finish()
 })
 
+test('task run state is disabled after an append permission error', async () => {
+  const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-task-state-'))
+  temporaryDirectories.push(workspaceDir)
+  const project = path.join(workspaceDir, 'project') as ProjectRootDir
+  const key = taskKey(project, 'build')
+  const secondKey = taskKey(project, 'test')
+  const graph: TaskGraph = new Map([
+    [key, {
+      project,
+      taskName: 'build',
+      scripts: ['build'],
+      requested: true,
+      dependencies: [],
+    }],
+    [secondKey, {
+      project,
+      taskName: 'test',
+      scripts: ['test'],
+      requested: true,
+      dependencies: [],
+    }],
+  ])
+  const context = new TaskRunStateContext({
+    command: 'run',
+    params: ['build'],
+    graph,
+    workspaceDir,
+    scriptCommands: () => ['build-command'],
+  })
+  const state = await context.start(new Set())
+  const file = (state as unknown as { file: { appendFile: (data: string) => Promise<void> } }).file
+  const appendFile = jest.spyOn(file, 'appendFile').mockRejectedValueOnce(Object.assign(new Error('permission denied'), { code: 'EACCES' }))
+
+  await state.recordPassed(key, graph.get(key)!)
+  await state.recordPassed(secondKey, graph.get(secondKey)!)
+
+  expect(appendFile).toHaveBeenCalledTimes(1)
+  appendFile.mockRestore()
+  await state.finish()
+})
+
 test('task run state rejects a symlinked state directory', async () => {
   const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-task-state-'))
   const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-task-state-outside-'))
@@ -187,6 +229,39 @@ test('task run state rejects a symlinked state directory', async () => {
 
   await expect(context.start(new Set())).rejects.toMatchObject({ code: 'ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH' })
   await expect(fs.access(path.join(outsideDir, 'latest.json'))).rejects.toMatchObject({ code: 'ENOENT' })
+})
+
+testOnPosix('task run state is disabled when node_modules is read-only', async () => {
+  const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-task-state-'))
+  temporaryDirectories.push(workspaceDir)
+  const project = path.join(workspaceDir, 'project') as ProjectRootDir
+  const key = taskKey(project, 'build')
+  const graph: TaskGraph = new Map([[key, {
+    project,
+    taskName: 'build',
+    scripts: ['build'],
+    requested: true,
+    dependencies: [],
+  }]])
+  const nodeModulesDir = path.join(workspaceDir, 'node_modules')
+  await fs.mkdir(nodeModulesDir)
+  await fs.chmod(nodeModulesDir, 0o555)
+  const context = new TaskRunStateContext({
+    command: 'run',
+    params: ['build'],
+    graph,
+    workspaceDir,
+    scriptCommands: () => ['build-command'],
+  })
+
+  try {
+    const state = await context.start(new Set())
+    await state.recordPassed(key, graph.get(key)!)
+    await state.finish()
+    await expect(fs.access(context.latestStatePath)).rejects.toMatchObject({ code: 'ENOENT' })
+  } finally {
+    await fs.chmod(nodeModulesDir, 0o755)
+  }
 })
 
 test('finishing an older invocation preserves the newer invocation journal', async () => {
@@ -216,4 +291,59 @@ test('finishing an older invocation preserves the newer invocation journal', asy
   await expect(context.readCompletedTasks()).resolves.toStrictEqual(new Set([key]))
   await newer.finish()
   await expect(context.readCompletedTasks()).resolves.toBeUndefined()
+})
+
+test('overlapping starts publish the newer invocation last', async () => {
+  const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-task-state-'))
+  temporaryDirectories.push(workspaceDir)
+  const project = path.join(workspaceDir, 'project') as ProjectRootDir
+  const key = taskKey(project, 'build')
+  const graph: TaskGraph = new Map([[key, {
+    project,
+    taskName: 'build',
+    scripts: ['build'],
+    requested: true,
+    dependencies: [],
+  }]])
+  const context = new TaskRunStateContext({
+    command: 'run',
+    params: ['build'],
+    graph,
+    workspaceDir,
+    scriptCommands: () => ['build-command'],
+  })
+  const originalOpen = fs.open.bind(fs)
+  let markOlderBlocked!: () => void
+  let unblockOlder!: () => void
+  const olderBlocked = new Promise<void>(resolve => {
+    markOlderBlocked = resolve
+  })
+  const olderGate = new Promise<void>(resolve => {
+    unblockOlder = resolve
+  })
+  let blockNextJournal = true
+  const open = jest.spyOn(fs, 'open').mockImplementation(async (...args) => {
+    if (blockNextJournal && String(args[0]).endsWith('.jsonl')) {
+      blockNextJournal = false
+      markOlderBlocked()
+      await olderGate
+    }
+    return originalOpen(...args)
+  })
+
+  try {
+    const olderPromise = context.start(new Set())
+    await olderBlocked
+    const newerPromise = context.start(new Set([key]))
+    await new Promise(resolve => setTimeout(resolve, 100))
+    unblockOlder()
+    const [older, newer] = await Promise.all([olderPromise, newerPromise])
+
+    await expect(context.readCompletedTasks()).resolves.toStrictEqual(new Set([key]))
+    await older.close()
+    await newer.close()
+  } finally {
+    unblockOlder()
+    open.mockRestore()
+  }
 })
