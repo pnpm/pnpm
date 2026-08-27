@@ -6,10 +6,11 @@ use std::{
     time::Duration,
 };
 
-use futures_util::StreamExt as _;
+use bytes::Bytes;
+use futures_util::{StreamExt as _, stream::BoxStream};
 use object_store::{
-    ObjectMeta, ObjectStore, ObjectStoreExt, PutMode, PutOptions, PutPayload, UpdateVersion,
-    local::LocalFileSystem, path::Path as ObjectPath,
+    GetOptions, ObjectMeta, ObjectStore, ObjectStoreExt, PutMode, PutOptions, PutPayload,
+    UpdateVersion, local::LocalFileSystem, path::Path as ObjectPath,
 };
 use pnpm_shared_artifact_protocol::{
     ArtifactBlobRequest, ArtifactCandidate, ArtifactPayload, ArtifactProtocolError,
@@ -48,6 +49,11 @@ enum QuotaCoordination {
 enum QuotaChange {
     Reserve,
     Release,
+}
+
+pub struct ArtifactBlob {
+    pub size: u64,
+    pub stream: BoxStream<'static, object_store::Result<Bytes>>,
 }
 
 /// Shared build-artifact storage. Local deployments use the
@@ -209,7 +215,7 @@ impl SharedArtifactStore {
         Ok(ResolveArtifactsResponse { artifacts })
     }
 
-    pub async fn read_blob(&self, username: &str, body: &[u8]) -> Result<Option<Vec<u8>>> {
+    pub async fn read_blob(&self, username: &str, body: &[u8]) -> Result<Option<ArtifactBlob>> {
         let request: ArtifactBlobRequest = serde_json::from_slice(body)
             .map_err(|err| bad_request(format!("invalid artifact blob request: {err}")))?;
         request.validate().map_err(|err| protocol_error(&err))?;
@@ -219,18 +225,63 @@ impl SharedArtifactStore {
             Err(err) => return Err(err),
         };
         let id = blob_id(&request.integrity).map_err(|err| protocol_error(&err))?;
-        let Some(bytes) =
-            self.read_object_bounded(&format!("{owner}/blobs/{id}"), MAX_FILE_SIZE).await?
-        else {
-            return Ok(None);
+        let path = self.object_path(&format!("{owner}/blobs/{id}"));
+        let result = match self.store.get(&path).await {
+            Ok(result) => result,
+            Err(object_store::Error::NotFound { .. }) => return Ok(None),
+            Err(error) => return Err(error.into()),
         };
-        if hex(&Sha512::digest(&bytes)) != id {
+        let meta = result.meta.clone();
+        if meta.size > MAX_FILE_SIZE {
+            return Err(stored_object_too_large(meta.size, MAX_FILE_SIZE));
+        }
+        let mut size = 0_u64;
+        let mut digest = Sha512::new();
+        let mut stream = result.into_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            size = size
+                .checked_add(chunk.len() as u64)
+                .ok_or_else(|| stored_object_too_large(u64::MAX, MAX_FILE_SIZE))?;
+            if size > MAX_FILE_SIZE {
+                return Err(stored_object_too_large(size, MAX_FILE_SIZE));
+            }
+            digest.update(&chunk);
+        }
+        if size != meta.size {
+            return Err(RegistryError::Internal {
+                reason: format!(
+                    "stored shared artifact blob metadata declares {} bytes but returned {size}",
+                    meta.size,
+                ),
+            });
+        }
+        if hex(&digest.finalize()) != id {
             return Err(RegistryError::Internal {
                 reason: "stored shared artifact blob failed verification: downloaded bytes do not match the declared digest"
                     .to_string(),
             });
         }
-        Ok(Some(bytes))
+        if meta.e_tag.is_none() && meta.version.is_none() {
+            return Err(RegistryError::Internal {
+                reason:
+                    "stored shared artifact blob has no version identifier for a verified download"
+                        .to_string(),
+            });
+        }
+        let result = self
+            .store
+            .get_opts(&path, GetOptions::new().with_if_match(meta.e_tag).with_version(meta.version))
+            .await?;
+        if result.meta.size != size {
+            return Err(RegistryError::Internal {
+                reason: format!(
+                    "stored shared artifact blob changed size from {size} to {} after verification",
+                    result.meta.size,
+                ),
+            });
+        }
+        Ok(Some(ArtifactBlob { size, stream: result.into_stream() }))
     }
 
     async fn resolve_candidate(
@@ -419,12 +470,7 @@ impl SharedArtifactStore {
         match self.store.get(&self.object_path(relative)).await {
             Ok(result) => {
                 if result.meta.size > max_size {
-                    return Err(RegistryError::Internal {
-                        reason: format!(
-                            "stored shared artifact object has {} bytes; limit is {max_size}",
-                            result.meta.size,
-                        ),
-                    });
+                    return Err(stored_object_too_large(result.meta.size, max_size));
                 }
                 Ok(Some(result.bytes().await?.to_vec()))
             }
@@ -493,6 +539,12 @@ fn verify_stored_blob(id: &str, integrity: &str, size: u64, bytes: &[u8]) -> Res
     verify_blob(integrity, bytes).map_err(|err| RegistryError::Internal {
         reason: format!("stored shared artifact blob failed verification: {err}"),
     })
+}
+
+fn stored_object_too_large(size: u64, max_size: u64) -> RegistryError {
+    RegistryError::Internal {
+        reason: format!("stored shared artifact object has {size} bytes; limit is {max_size}"),
+    }
 }
 
 fn owner_key(username: &str, owner: &OwnerScope) -> Result<String> {

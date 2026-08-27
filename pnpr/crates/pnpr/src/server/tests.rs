@@ -1,5 +1,5 @@
 use super::{
-    HostedRevisionDist, HostedRevisionRecord, PeerAddr, RevisionField, artifact_blob_response_body,
+    HostedRevisionDist, HostedRevisionRecord, PeerAddr, RevisionField,
     authentication::{
         bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows, is_write_method,
     },
@@ -20,19 +20,7 @@ use std::{
     sync::Arc,
 };
 use tempfile::TempDir;
-use tokio::sync::Semaphore;
 use tower::ServiceExt;
-
-#[tokio::test]
-async fn artifact_blob_response_holds_its_verification_slot_while_streaming() {
-    let semaphore = Arc::new(Semaphore::new(1));
-    let permit = Arc::clone(&semaphore).acquire_owned().await.unwrap();
-    let body = artifact_blob_response_body(vec![1, 2, 3], permit);
-    assert!(semaphore.try_acquire().is_err());
-
-    assert_eq!(to_bytes(body, 3).await.unwrap(), &[1, 2, 3][..]);
-    assert!(semaphore.try_acquire().is_ok());
-}
 
 #[test]
 fn token_timestamp_millis_saturates_before_i64_conversion() {

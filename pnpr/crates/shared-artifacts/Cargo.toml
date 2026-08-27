@@ -15,6 +15,7 @@ pnpr-config                   = { workspace = true }
 pnpr-error                    = { workspace = true }
 pnpm-shared-artifact-protocol = { workspace = true }
 base64                        = { workspace = true }
+bytes                         = { workspace = true }
 futures-util                  = { workspace = true }
 object_store                  = { workspace = true }
 serde                         = { workspace = true }

@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use futures_util::stream::BoxStream;
+use futures_util::{StreamExt as _, stream::BoxStream};
 use object_store::{
     CopyOptions, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore,
     ObjectStoreExt, PutMultipartOptions, PutOptions, PutPayload, PutResult, RenameOptions,
@@ -83,7 +83,7 @@ async fn local_store_uses_the_cache_layout_and_round_trips_artifacts() {
     assert_eq!(response.artifacts.len(), 1);
     assert_eq!(response.artifacts[0].variants.len(), 1);
 
-    let bytes = store
+    let mut blob = store
         .read_blob(
             "acme",
             &serde_json::to_vec(&ArtifactBlobRequest {
@@ -95,6 +95,10 @@ async fn local_store_uses_the_cache_layout_and_round_trips_artifacts() {
         .await
         .unwrap()
         .unwrap();
+    let mut bytes = Vec::new();
+    while let Some(chunk) = blob.stream.next().await {
+        bytes.extend_from_slice(&chunk.unwrap());
+    }
     assert_eq!(bytes, b"shared addon");
     assert!(storage.path().join("shared-artifacts/v0/.locks/usage.json").is_file());
 }

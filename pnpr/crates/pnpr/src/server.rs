@@ -22,7 +22,7 @@ use self::{
 
 use axum::{
     Router,
-    body::{Body, Bytes},
+    body::Body,
     extract::{
         FromRequestParts, Path, RawPathParams, Request, State, connect_info::Connected,
         rejection::RawPathParamsRejection,
@@ -56,8 +56,8 @@ use pnpr_upstream::{
 use serde::Deserialize;
 use serde_json::{Value, json};
 use ssri::Integrity;
-use std::{collections::HashSet, convert::Infallible, net::SocketAddr, sync::Arc, time::Duration};
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
+use tokio::sync::Semaphore;
 
 /// MIME the npm registry uses for the abbreviated install-v1 form.
 /// Matches what pacquet (and pnpm/npm/yarn) send in `Accept` when
@@ -91,9 +91,8 @@ const MAX_LOGIN_BODY_BYTES: usize = 64 * 1024;
 const MAX_ARTIFACT_PUBLISH_BODY_BYTES: usize = MAX_PUBLISH_BODY_BYTES;
 const MAX_ARTIFACT_RESOLVE_BODY_BYTES: usize = 16 * 1024 * 1024;
 const MAX_ARTIFACT_BLOB_BODY_BYTES: usize = 8 * 1024;
-/// Bound concurrent verified artifact responses, including slow clients.
+/// Bound concurrent artifact verification scans.
 const MAX_CONCURRENT_ARTIFACT_BLOB_VERIFICATIONS: usize = 4;
-const ARTIFACT_BLOB_RESPONSE_CHUNK_BYTES: usize = 64 * 1024;
 
 #[derive(Clone)]
 struct AppState {
@@ -2834,36 +2833,24 @@ async fn serve_artifact_blob(
         .acquire_owned()
         .await
         .expect("the artifact blob verification semaphore is never closed");
-    match state
+    let result = state
         .inner
         .artifacts
         .as_ref()
         .expect("artifact routes require an artifact store")
         .read_blob(&username, &body)
-        .await
-    {
-        Ok(Some(bytes)) => Response::builder()
+        .await;
+    drop(permit);
+    match result {
+        Ok(Some(blob)) => Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/octet-stream")
-            .header(header::CONTENT_LENGTH, bytes.len().to_string())
+            .header(header::CONTENT_LENGTH, blob.size.to_string())
             .header(header::CACHE_CONTROL, "private, max-age=31536000, immutable")
             .header(header::VARY, "Authorization")
-            .body(artifact_blob_response_body(bytes, permit))
+            .body(Body::from_stream(blob.stream))
             .expect("static artifact blob response always builds"),
         Ok(None) => private_no_cache(StatusCode::NOT_FOUND.into_response()),
         Err(err) => private_no_cache(err.into_response()),
     }
-}
-
-fn artifact_blob_response_body(bytes: Vec<u8>, permit: OwnedSemaphorePermit) -> Body {
-    Body::from_stream(futures_util::stream::unfold(
-        (Bytes::from(bytes), permit),
-        |(mut bytes, permit)| async move {
-            if bytes.is_empty() {
-                return None;
-            }
-            let chunk = bytes.split_to(bytes.len().min(ARTIFACT_BLOB_RESPONSE_CHUNK_BYTES));
-            Some((Ok::<_, Infallible>(chunk), (bytes, permit)))
-        },
-    ))
 }
