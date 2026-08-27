@@ -331,6 +331,11 @@ async fn store_holds(path: &Path, digest: &str) -> Result<bool, String> {
     // preceding `symlink_metadata` could not.
     #[cfg(unix)]
     options.custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW);
+    // The Windows spelling of the same refusal: open the reparse point itself
+    // rather than what it redirects to, so the descriptor check below sees a
+    // reparse point instead of the file it names.
+    #[cfg(windows)]
+    options.custom_flags(windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT);
     // Whatever turned the open away — absent, a directory, a symlink
     // `O_NOFOLLOW` refused, a permission error — names something the caller
     // cannot reuse, and its fallback is a verified download that reports any
