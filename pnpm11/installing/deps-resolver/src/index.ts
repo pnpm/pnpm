@@ -101,6 +101,12 @@ export interface ImporterToResolve extends Importer<{
   binsDir: string
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
+  /**
+   * Tells a declared range the update owns from one an override governs, so
+   * `updateProjectManifest` leaves the latter where the project wrote it.
+   * Built per project by `@pnpm/hooks.read-package-hook`.
+   */
+  isOverriddenDependency?: (alias: string, bareSpecifier: string) => boolean
   update?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest: boolean

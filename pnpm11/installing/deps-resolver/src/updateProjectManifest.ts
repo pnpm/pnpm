@@ -24,7 +24,7 @@ export async function updateProjectManifest (
   for (const rdd of opts.directDependencies) {
     const wantedDep = rdd.wantedDependency
     if (wantedDep?.updateSpec !== true) continue
-    const declaredSpecifier = getDeclaredSpecifierReplacedByHook(importer, rdd)
+    const declaredSpecifier = getDeclaredSpecifierOwnedByHook(importer, rdd)
     if (declaredSpecifier != null) {
       declaredSpecifiers.set(rdd.alias, declaredSpecifier)
     }
@@ -72,21 +72,26 @@ export async function updateProjectManifest (
 }
 
 /**
- * The specifier the project declares on disk for a direct dependency whose
- * entry a `readPackage` hook — a version override, most often — replaced in
- * the manifest handed to the resolver. `undefined` when the declaration is
- * what resolution followed, and the update owns it.
+ * The specifier the project declares on disk for a direct dependency an
+ * override — or another `readPackage` hook — governs in the manifest handed to
+ * the resolver. `undefined` when the declaration is what resolution followed,
+ * and the update owns it.
  *
- * The version resolution settled on answers the hook, not the declaration, so
- * neither manifest's entry is the update's to move: writing the resolved range
- * over them bakes the override into every project that declares the package —
- * replacing a `catalog:` reference with a version (pnpm/pnpm#12115) — and
- * contradicts the override on the next install.
+ * The version resolution settled on answers the override, not the declaration,
+ * so neither manifest's entry is the update's to move: writing the resolved
+ * range over them bakes the override into every project that declares the
+ * package — replacing a `catalog:` reference with a version (pnpm/pnpm#12115)
+ * — and leaves a specifier the hook rewrites away on the next install, which
+ * `--frozen-lockfile` then rejects (pnpm/pnpm#14224).
+ *
+ * An override that repeats the declared range verbatim governs it just the
+ * same, so a hook that rewrote nothing is recognized through
+ * `isOverriddenDependency` rather than by comparing the two manifests.
  *
  * A dependency this run names with a specifier of its own (`pnpm add foo@2`)
  * is exempt: that request is the manifest's new specifier.
  */
-function getDeclaredSpecifierReplacedByHook (
+function getDeclaredSpecifierOwnedByHook (
   importer: ImporterToResolve,
   rdd: ResolvedDirectDependency
 ): string | undefined {
@@ -94,7 +99,10 @@ function getDeclaredSpecifierReplacedByHook (
   const hookedSpecifier = getSpecFromPackageManifest(importer.manifest, rdd.alias)
   if (hookedSpecifier === '' || hookedSpecifier !== rdd.wantedDependency?.bareSpecifier) return undefined
   const declaredSpecifier = getSpecFromPackageManifest(importer.originalManifest, rdd.alias)
-  return declaredSpecifier !== '' && declaredSpecifier !== hookedSpecifier ? declaredSpecifier : undefined
+  if (declaredSpecifier === '') return undefined
+  return declaredSpecifier !== hookedSpecifier || importer.isOverriddenDependency?.(rdd.alias, declaredSpecifier) === true
+    ? declaredSpecifier
+    : undefined
 }
 
 function getBareSpecifierToSave (
