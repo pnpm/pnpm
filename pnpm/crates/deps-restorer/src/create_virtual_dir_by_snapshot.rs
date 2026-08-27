@@ -160,13 +160,37 @@ impl CreateVirtualDirBySnapshot<'_> {
         let _link_concurrency_guard =
             link_concurrency_probe.map(tests::LinkConcurrencyProbe::enter);
 
-        let virtual_node_modules_dir = layout.slot_dir(package_key).join("node_modules");
-        fs::create_dir_all(&virtual_node_modules_dir).map_err(|error| {
-            CreateVirtualDirError::CreateNodeModulesDir {
-                dir: virtual_node_modules_dir.clone(),
-                error,
+        let slot_dir = layout.slot_dir(package_key);
+        let virtual_node_modules_dir = slot_dir.join("node_modules");
+        // Two direct `mkdir`s instead of one `create_dir_all` on the
+        // deepest path: the recursive form probes bottom-up with a
+        // failing `mkdir` per missing ancestor before creating them
+        // top-down, which on the APFS-serialized metadata path costs a
+        // large install ~3 extra syscalls per slot. The virtual-store
+        // root exists (steady state) — only its absence falls back to
+        // the recursive form.
+        match fs::create_dir(&slot_dir) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                fs::create_dir_all(&slot_dir).map_err(|error| {
+                    CreateVirtualDirError::CreateNodeModulesDir { dir: slot_dir.clone(), error }
+                })?;
             }
-        })?;
+            Err(error) => {
+                return Err(CreateVirtualDirError::CreateNodeModulesDir { dir: slot_dir, error });
+            }
+        }
+        match fs::create_dir(&virtual_node_modules_dir) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                return Err(CreateVirtualDirError::CreateNodeModulesDir {
+                    dir: virtual_node_modules_dir,
+                    error,
+                });
+            }
+        }
 
         let save_path =
             safe_join_modules_dir(&virtual_node_modules_dir, &package_key.name.to_string())
