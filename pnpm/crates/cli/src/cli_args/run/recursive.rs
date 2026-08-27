@@ -12,7 +12,10 @@
 //! concurrently. The main-dispatch auto-exclusion of the workspace root is
 //! applied via [`AutoExcludeRoot::Enabled`].
 
-use super::{RunArgs, RunContext, ScriptSelector, render_project_commands, run_stages};
+use super::{
+    RunArgs, RunContext, ScriptSelector, render_project_commands, run_stages,
+    throw_or_filter_hidden_scripts,
+};
 use crate::cli_args::recursive::{
     AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
     filtered_projects_dependencies, find_resume_root, select_recursive_projects,
@@ -177,10 +180,9 @@ pub fn run_recursive(
     // named: a `dependsOn` declaration naming a hidden script is a
     // deliberate reference, like a call from another script.
     if env::var_os("npm_lifecycle_event").is_none() {
-        for node in task_graph.values().filter(|node| node.requested) {
-            if let Some(script) = node.scripts.iter().find(|script| script.starts_with('.')) {
-                return Err(super::RunError::HiddenScript { script: script.clone() }.into());
-            }
+        for node in task_graph.values_mut().filter(|node| node.requested) {
+            node.scripts =
+                throw_or_filter_hidden_scripts(std::mem::take(&mut node.scripts), script_name)?;
         }
     }
 

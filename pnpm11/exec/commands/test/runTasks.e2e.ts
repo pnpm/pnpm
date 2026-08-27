@@ -606,6 +606,31 @@ test('an empty requested script matched by a RegExp errors before upstream tasks
   expect(server.getLines()).toStrictEqual([])
 })
 
+test('a RegExp selector filters hidden scripts when a visible script also matches', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      scripts: {
+        'build:visible': server.sendLineScript('visible'),
+        '.build:hidden': server.sendLineScript('hidden'),
+      },
+    },
+  ])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    workspaceDir: process.cwd(),
+  }, ['/build/'])
+
+  expect(server.getLines()).toStrictEqual(['visible'])
+})
+
 test('a failed upstream task is reported as the failure, not as a missing script', async () => {
   preparePackages([
     {

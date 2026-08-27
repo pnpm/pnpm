@@ -102,9 +102,7 @@ export async function runRecursive (
   if (!process.env.npm_lifecycle_event) {
     for (const node of taskGraph.values()) {
       if (!node.requested) continue
-      for (const script of node.scripts) {
-        throwOrFilterHiddenScripts([script], script)
-      }
+      node.scripts = throwOrFilterHiddenScripts(node.scripts, scriptName)
     }
   }
 
