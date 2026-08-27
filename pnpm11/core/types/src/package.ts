@@ -246,7 +246,6 @@ export interface WorkspaceTasks {
 }
 
 export interface WorkspaceTaskSettings {
-  /** Maximum number of instances of this task that may run at once. */
   concurrency?: number
   /**
    * The tasks that must complete before this one may start. A `^name` entry

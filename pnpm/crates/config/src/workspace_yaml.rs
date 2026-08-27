@@ -977,7 +977,6 @@ pub struct UpdateSettings {
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct TaskSettings {
-    /// Maximum number of instances of this task that may run at once.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub concurrency: Option<i64>,
 

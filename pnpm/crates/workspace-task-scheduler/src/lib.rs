@@ -36,7 +36,6 @@ pub struct TaskKey {
 pub struct TaskNode {
     pub project: PathBuf,
     pub task_name: String,
-    /// Maximum number of instances of this task that may run at once.
     pub concurrency: Option<usize>,
     /// The scripts of the project that the task name selected — several
     /// when the task name is a `RegExp` selector. Empty when the project has

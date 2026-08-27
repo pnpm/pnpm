@@ -15,7 +15,6 @@ export type TaskKey = string
 export interface TaskNode {
   project: ProjectRootDir
   taskName: string
-  /** Maximum number of instances of this task that may run at once. */
   concurrency?: number
   /**
    * The scripts of the project that the task name selected — several when the
