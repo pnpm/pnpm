@@ -54,15 +54,10 @@ fn tasks(entries: &[(&str, Option<&[&str]>)]) -> IndexMap<String, TaskSettings> 
     entries
         .iter()
         .map(|(name, depends_on)| {
-            (
-                name.to_string(),
-                TaskSettings {
-                    depends_on: depends_on.map(|entries| {
-                        entries.iter().map(std::string::ToString::to_string).collect()
-                    }),
-                    ..TaskSettings::default()
-                },
-            )
+            let mut settings = TaskSettings::default();
+            settings.depends_on = depends_on
+                .map(|entries| entries.iter().map(std::string::ToString::to_string).collect());
+            (name.to_string(), settings)
         })
         .collect()
 }
