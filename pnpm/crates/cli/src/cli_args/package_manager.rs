@@ -57,16 +57,13 @@ pub(crate) fn package_manager_to_sync(
     {
         return Some(PackageManagerToSync { specifier: wanted_version.to_string(), version });
     }
-    if let Some(version) = exact_version(wanted_version)
-        .filter(|version| version_satisfies(version, wanted_version))
+    if let Some(version) =
+        exact_version(wanted_version).filter(|version| version_satisfies(version, wanted_version))
     {
         return Some(PackageManagerToSync { specifier: wanted_version.to_string(), version });
     }
-    // A range pin resolves to no exact version on its own, so when the
-    // running pnpm satisfies it, the running version is the one the project
-    // actually uses — record that. Without this, a range pin written by hand
-    // (or by a tool other than `pnpm add` / `self-update`) only reached the
-    // lockfile when a version switch resolved it on the way.
+    // A range pin names no exact version, so the running pnpm's version is
+    // the one the project actually uses.
     version_satisfies(PNPM_VERSION, wanted_version).then(|| PackageManagerToSync {
         specifier: wanted_version.to_string(),
         version: PNPM_VERSION.to_string(),

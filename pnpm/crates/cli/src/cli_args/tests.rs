@@ -725,15 +725,13 @@ fn package_manager_to_sync_preserves_dev_engine_specifier() {
     );
 }
 
-/// A range pin resolves to no exact version on its own, so the running
-/// pnpm's version is recorded when it satisfies the range. The range is
-/// built from `PNPM_VERSION` so the source checkout's version (a different
-/// major) can never satisfy it and answer first.
+/// The range is built from `PNPM_VERSION` so the source checkout's version
+/// (a different major) can never satisfy it and answer first.
 #[test]
 fn package_manager_to_sync_records_the_running_version_for_a_satisfied_range_pin() {
     let root = TempDir::new().expect("tmp dir");
     let manifest_path = root.path().join("package.json");
-    let range = format!("^{}", pacquet_config::PNPM_VERSION);
+    let range = format!("^{}", pnpm_config::PNPM_VERSION);
     std::fs::write(
         &manifest_path,
         format!(
@@ -747,7 +745,7 @@ fn package_manager_to_sync_records_the_running_version_for_a_satisfied_range_pin
         package_manager_to_sync(&manifest, root.path(), None).expect("sync package manager");
 
     assert_eq!(package_manager.specifier, range);
-    assert_eq!(package_manager.version, pacquet_config::PNPM_VERSION);
+    assert_eq!(package_manager.version, pnpm_config::PNPM_VERSION);
 }
 
 #[test]
