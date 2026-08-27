@@ -116,3 +116,236 @@ async fn a_non_regular_file_is_not_reused_as_store_content() {
         );
     }
 }
+
+/// The restore only runs where the remote cache can apply at all —
+/// `linux_glibc_platform` refuses every other target, so on Windows and macOS
+/// there would be nothing to observe.
+#[cfg(target_os = "linux")]
+mod restore {
+    use crate::{AllowBuildPolicy, RequiresBuildBySnapshot, SideEffectsMapsBySnapshot};
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use p256::{
+        ecdsa::{SigningKey, signature::Signer as _},
+        pkcs8::EncodePublicKey as _,
+    };
+    use pnpm_config::{Config, RemoteSideEffectsCacheSettings};
+    use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
+    use pnpm_pnpr_client::{
+        ARTIFACT_KIND, ArtifactFile, ArtifactManifest, ArtifactPayload, BuilderProfile,
+        CompatibilityConstraints, OwnerScope, ResolveArtifactsRequest, SignedArtifactEnvelope,
+        linux_glibc_supported_tags,
+    };
+    use pnpm_shared_artifact_protocol::{
+        ArtifactVariant, ResolveArtifactsResponse, ResolvedArtifact,
+    };
+    use pnpm_store_dir::StoreDir;
+    use sha2::{Digest as _, Sha512};
+    use std::{
+        collections::{BTreeMap, HashMap, HashSet},
+        path::PathBuf,
+    };
+
+    const PACKAGE: &str = "native-addon";
+    const SNAPSHOT: &str = "native-addon@1.0.0";
+    const BUILT_FILE: &str = "build/addon.node";
+    const BUILT_MODE: u32 = 0o755;
+    const KEY_ID: &str = "acme-2026";
+    const ORGANIZATION: &str = "acme";
+    /// Seeds the fixture signing key. The trust root the config carries is
+    /// derived from it rather than pinned separately, so the two cannot drift.
+    const PRIVATE_KEY_BYTES: [u8; 32] = [7; 32];
+
+    fn built_bytes() -> &'static [u8] {
+        b"native addon built here"
+    }
+
+    fn integrity_of(bytes: &[u8]) -> String {
+        format!("sha512-{}", BASE64.encode(Sha512::digest(bytes)))
+    }
+
+    fn snapshots() -> HashMap<PackageKey, SnapshotEntry> {
+        HashMap::from([(SNAPSHOT.parse().expect("snapshot key"), SnapshotEntry::default())])
+    }
+
+    fn packages() -> HashMap<PackageKey, PackageMetadata> {
+        let metadata = serde_json::json!({
+            "resolution": { "integrity": integrity_of(b"the source tarball") },
+            "version": "1.0.0",
+        });
+        HashMap::from([(
+            SNAPSHOT.parse().expect("package key"),
+            serde_json::from_value(metadata).expect("package metadata"),
+        )])
+    }
+
+    /// A config that reaches `server` for `PACKAGE` and trusts the fixture key.
+    fn config(server: &str, store_dir: &StoreDir) -> Config {
+        let mut config = Config::new();
+        config.store_dir = store_dir.clone();
+        config.pnpr_server = Some(server.to_string());
+        config.remote_side_effects_cache = Some(RemoteSideEffectsCacheSettings {
+            organization: ORGANIZATION.to_string(),
+            packages: vec![PACKAGE.to_string()],
+            trusted_keys: Some(BTreeMap::from([(KEY_ID.to_string(), public_key())])),
+            ..Default::default()
+        });
+        config
+    }
+
+    fn signing_key() -> SigningKey {
+        SigningKey::from_slice(&PRIVATE_KEY_BYTES).expect("fixture private key")
+    }
+
+    fn public_key() -> String {
+        BASE64.encode(
+            p256::PublicKey::from(signing_key().verifying_key())
+                .to_public_key_der()
+                .expect("encode fixture public key")
+                .as_bytes(),
+        )
+    }
+
+    /// Sign the artifact the server offers for `request`'s one candidate.
+    ///
+    /// The input key and source integrity are echoed from the request because
+    /// both are derived from the host's node major and the lockfile, and the
+    /// client discards any variant that does not match the candidate it asked
+    /// about.
+    fn signed_response(request: &[u8], compatibility_tag: &str) -> String {
+        let request: ResolveArtifactsRequest =
+            serde_json::from_slice(request).expect("resolve request");
+        let [candidate] = request.candidates.as_slice() else {
+            panic!("expected exactly one candidate, got {}", request.candidates.len());
+        };
+        let bytes = built_bytes();
+        let payload = ArtifactPayload {
+            kind: ARTIFACT_KIND.to_string(),
+            package: candidate.package.clone(),
+            source_integrity: candidate.source_integrity.clone(),
+            input_key: candidate.key.clone(),
+            owner: OwnerScope::organization(ORGANIZATION),
+            builder_id: "ci/main/1".to_string(),
+            builder_profile: BuilderProfile {
+                image_digest: None,
+                architecture_baseline: "x86-64-v2".to_string(),
+                environment: BTreeMap::new(),
+            },
+            compatibility: CompatibilityConstraints::Tagged {
+                tags: vec![compatibility_tag.to_string()],
+            },
+            manifest: ArtifactManifest {
+                added: vec![ArtifactFile {
+                    path: BUILT_FILE.to_string(),
+                    integrity: integrity_of(bytes),
+                    mode: BUILT_MODE,
+                    size: bytes.len() as u64,
+                }],
+                deleted: Vec::new(),
+            },
+        };
+        let payload_bytes = serde_json::to_vec(&payload).expect("serialize payload");
+        let signature: p256::ecdsa::Signature = signing_key().sign(&payload_bytes);
+        let response = ResolveArtifactsResponse {
+            artifacts: vec![ResolvedArtifact {
+                key: candidate.key.clone(),
+                variants: vec![ArtifactVariant {
+                    envelope: SignedArtifactEnvelope {
+                        algorithm: "ecdsa-p256-sha256".to_string(),
+                        key_id: KEY_ID.to_string(),
+                        payload: BASE64.encode(payload_bytes),
+                        signature: BASE64.encode(signature.to_der().as_bytes()),
+                    },
+                }],
+            }],
+        };
+        serde_json::to_string(&response).expect("serialize response")
+    }
+
+    /// Run one restore against a server that offers the artifact, asserting
+    /// along the way that the blob endpoint was hit exactly
+    /// `expected_downloads` times. Returns the path the restored overlay maps
+    /// the built file to.
+    async fn restore(store_dir: &StoreDir, expected_downloads: usize) -> PathBuf {
+        let snapshots = snapshots();
+        let packages = packages();
+        let platform = super::super::linux_glibc_platform(&snapshots)
+            .expect("a linux glibc host describes a platform");
+        let mut supported_tags = linux_glibc_supported_tags(platform).expect("supported tags");
+        let compatibility_tag = supported_tags.swap_remove(0);
+
+        let mut server = mockito::Server::new_async().await;
+        let handshake = server
+            .mock("GET", "/-/pnpr")
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"pnpr":{"versions":[0],"artifacts":[0]}}"#)
+            .create_async()
+            .await;
+        let resolve = server
+            .mock("POST", "/-/pnpr/v0/artifacts/resolve")
+            .with_header("content-type", "application/json")
+            .with_body_from_request(move |request| {
+                signed_response(request.body().expect("resolve body"), &compatibility_tag).into()
+            })
+            .create_async()
+            .await;
+        let blob = server
+            .mock("POST", "/-/pnpr/v0/artifacts/blob")
+            .with_body(built_bytes())
+            .expect(expected_downloads)
+            .create_async()
+            .await;
+
+        let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
+        let mut side_effects = SideEffectsMapsBySnapshot::new();
+        super::super::apply_shared_side_effects(
+            &config(&server.url(), store_dir),
+            &snapshots,
+            &packages,
+            &RequiresBuildBySnapshot::from([(snapshot_key.clone(), true)]),
+            &AllowBuildPolicy::new(HashSet::from([PACKAGE.to_string()]), HashSet::new(), false),
+            &HashMap::from([(snapshot_key.clone(), HashMap::new())]),
+            &mut side_effects,
+        )
+        .await;
+
+        handshake.assert_async().await;
+        resolve.assert_async().await;
+        blob.assert_async().await;
+
+        let maps = side_effects.get(&snapshot_key).expect("the snapshot must be restored");
+        let [overlay] = maps.values().collect::<Vec<_>>()[..] else {
+            panic!("expected one cache key, got {}", maps.len());
+        };
+        overlay.get(BUILT_FILE).expect("the built file must be in the overlay").clone()
+    }
+
+    /// Content the store does not have is downloaded and written, and the
+    /// overlay points at what the store wrote.
+    #[tokio::test]
+    async fn content_the_store_lacks_is_downloaded() {
+        let store = tempfile::tempdir().expect("tempdir");
+        let store_dir = StoreDir::new(store.path());
+
+        let restored = restore(&store_dir, 1).await;
+
+        let (written, _) = store_dir
+            .write_cas_file(built_bytes(), true)
+            .expect("re-writing the same bytes names the same path");
+        assert_eq!(restored, written);
+        assert_eq!(std::fs::read(&restored).expect("read restored"), built_bytes());
+    }
+
+    /// The same restore against a store that already holds the artifact's one
+    /// file transfers nothing: the download the previous test made is the
+    /// whole difference between the two.
+    #[tokio::test]
+    async fn content_the_store_already_holds_is_not_downloaded() {
+        let store = tempfile::tempdir().expect("tempdir");
+        let store_dir = StoreDir::new(store.path());
+        let (seeded, _) = store_dir.write_cas_file(built_bytes(), true).expect("seed the store");
+
+        let restored = restore(&store_dir, 0).await;
+
+        assert_eq!(restored, seeded);
+    }
+}
