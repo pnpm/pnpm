@@ -8,7 +8,7 @@ use crate::s3::S3Store;
 use async_trait::async_trait;
 use axum::body::Body;
 use pnpm_crypto_hash::integrity_addressed_tarball_integrity;
-use pnpr_config::HostedStoreConfig;
+use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::PackageName;
 use serde::{Deserialize, Serialize};
@@ -476,16 +476,26 @@ impl Storage {
     /// the hosted store when it's [`HostedStoreConfig::Fs`];
     /// `cache_storage` always backs the proxy cache and doubles as the
     /// S3 backend's local staging scratch.
-    #[must_use]
-    pub fn new(hosted: &HostedStoreConfig, storage: PathBuf, cache_storage: PathBuf) -> Self {
+    pub fn new(
+        hosted: &HostedStoreConfig,
+        storage: PathBuf,
+        cache_storage: PathBuf,
+    ) -> Result<Self> {
         let cached = Store::new(cache_storage.clone());
         let hosted: Arc<dyn HostedBackend> = match hosted {
             HostedStoreConfig::Fs => Arc::new(Store::new(storage)),
-            HostedStoreConfig::S3 { store, prefix } => {
-                Arc::new(S3Store::new(Arc::clone(store), prefix.clone(), cache_storage))
-            }
+            HostedStoreConfig::S3(settings) => Arc::new(S3Store::new(
+                build_s3_store(settings)?,
+                settings.normalized_prefix(),
+                cache_storage,
+            )),
+            HostedStoreConfig::ObjectStore { store, prefix } => Arc::new(S3Store::new(
+                Arc::clone(store),
+                normalize_key_prefix(Some(prefix)),
+                cache_storage,
+            )),
         };
-        Self { hosted, cached }
+        Ok(Self { hosted, cached })
     }
 
     /// The hosted package names, used by the local search scan (which

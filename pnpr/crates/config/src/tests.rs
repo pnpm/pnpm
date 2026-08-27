@@ -1,7 +1,8 @@
 use super::{
     BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides, HostedStoreConfig,
     Interval, LogFormat, LogLevel, S3Settings, Teams, UpstreamAuthFile, UpstreamConfig,
-    UpstreamConfigFile, config_file_in, parse_interval, resolve_relative, resolve_upstream_config,
+    UpstreamConfigFile, config_file_in, normalize_key_prefix, parse_interval, resolve_relative,
+    resolve_upstream_config,
     upstream::{TokenEnv, UpstreamAuthType},
 };
 use indexmap::IndexMap;
@@ -521,8 +522,8 @@ upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.hosted_store {
-        HostedStoreConfig::S3 { prefix, .. } => assert_eq!(prefix, "packages/"),
-        HostedStoreConfig::Fs => panic!("expected an S3 hosted store, got Fs"),
+        HostedStoreConfig::S3(settings) => assert_eq!(settings.normalized_prefix(), "packages/"),
+        other => panic!("expected an S3 hosted store, got {other:?}"),
     }
 }
 
@@ -2422,4 +2423,20 @@ fn s3_settings_debug_redacts_credentials_inside_the_endpoint() {
     let rendered = format!("{settings:?}");
     assert!(!rendered.contains("hunter2"), "endpoint userinfo leaked: {rendered}");
     assert!(rendered.contains("minio.corp.example"), "host should still render: {rendered}");
+}
+
+/// Every prefix reaching a store goes through this, including the one an
+/// embedder hands to `HostedStoreConfig::ObjectStore`. A raw `packages` must
+/// come back `/`-terminated: the store concatenates it onto the package name,
+/// so without one it would key `packagesfoo/...`.
+#[test]
+fn a_key_prefix_is_normalized_to_empty_or_slash_terminated() {
+    assert_eq!(normalize_key_prefix(Some("packages")), "packages/");
+    assert_eq!(normalize_key_prefix(Some("/packages/")), "packages/");
+    assert_eq!(normalize_key_prefix(Some("  packages  ")), "packages/");
+
+    assert_eq!(normalize_key_prefix(None), "");
+    assert_eq!(normalize_key_prefix(Some("")), "");
+    assert_eq!(normalize_key_prefix(Some("   ")), "");
+    assert_eq!(normalize_key_prefix(Some("/")), "");
 }

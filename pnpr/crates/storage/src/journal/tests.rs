@@ -126,10 +126,11 @@ async fn roll_forward_persists_revision_references() {
     let tmp = tempdir().unwrap();
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let storage = Storage::new(
-        &HostedStoreConfig::S3 { store: object_store, prefix: String::new() },
+        &HostedStoreConfig::ObjectStore { store: object_store, prefix: String::new() },
         tmp.path().join("hosted"),
         tmp.path().join("cache"),
-    );
+    )
+    .unwrap();
     let name = PackageName::parse("pkg").unwrap();
     let packument = serde_json::to_vec(&json!({
         "name": "pkg",
@@ -168,7 +169,8 @@ async fn roll_forward_persists_revision_references() {
 async fn roll_forward_drops_a_version_that_cannot_reserve_a_revision_reference() {
     let tmp = tempdir().unwrap();
     let storage =
-        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"));
+        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"))
+            .unwrap();
     let digest = URL_SAFE_NO_PAD.encode([7_u8; 64]);
     for index in 0..crate::MAX_HOSTED_REVISION_REFS {
         storage
@@ -220,7 +222,8 @@ async fn roll_forward_drops_a_version_that_cannot_reserve_a_revision_reference()
 async fn roll_forward_only_removes_transaction_owned_references_for_a_dropped_version() {
     let tmp = tempdir().unwrap();
     let storage =
-        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"));
+        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"))
+            .unwrap();
     let transaction_owned_digest = URL_SAFE_NO_PAD.encode([5_u8; 64]);
     let previously_owned_digest = URL_SAFE_NO_PAD.encode([6_u8; 64]);
     let full_digest = URL_SAFE_NO_PAD.encode([7_u8; 64]);
@@ -305,10 +308,11 @@ async fn roll_forward_preserves_tarball_conflict_across_a_later_package_failure(
     let tmp = tempdir().unwrap();
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let storage = Storage::new(
-        &HostedStoreConfig::S3 { store: object_store, prefix: String::new() },
+        &HostedStoreConfig::ObjectStore { store: object_store, prefix: String::new() },
         tmp.path().join("hosted"),
         tmp.path().join("cache"),
-    );
+    )
+    .unwrap();
     let conflicted_name = PackageName::parse("conflicted-pkg").unwrap();
     let later_name = PackageName::parse("later-pkg").unwrap();
     let filename = "conflicted-pkg-1.0.0.tgz";
