@@ -1,4 +1,4 @@
-import { globalInfo } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import type { BlockedVersions, ResolutionPolicyViolation } from '@pnpm/resolving.resolver-base'
 import type { PkgResolutionId } from '@pnpm/types'
@@ -12,12 +12,22 @@ import {
 } from './resolveDependencyTree.js'
 
 /**
- * Upper bound on resolution passes. The blocklist only ever grows over a
- * finite set of registry versions, so the loop terminates on its own; this
- * caps how long an install can keep trying on a dependency graph where the
- * blame walks up a very deep chain.
+ * Upper bound on resolution passes.
+ *
+ * The loop already terminates on its own — every pass blocks at least one
+ * more version, over a finite set — but "finite" is not "small": a package
+ * whose every version in range pins something too young would be walked one
+ * version per pass, and each pass is a full tree resolution. The bound is
+ * what stops that from running for minutes.
+ *
+ * It is set well above the depth any real dependency chain reaches, since
+ * blame only climbs one ancestor per pass and a tree deep enough to need
+ * more has an unusual number of consecutive exact pins. Hitting it is
+ * reported rather than passed over silently — the install then answers with
+ * the first pass, and the user has no other way to tell that a later attempt
+ * might have found a tree.
  */
-const MAX_RESOLUTION_PASSES = 8
+const MAX_RESOLUTION_PASSES = 32
 
 export interface MatureDependencyTreeResult<Importer> {
   importers: Importer[]
@@ -68,7 +78,7 @@ export async function resolveMatureDependencyTree<Importer extends ImporterToRes
   const blockedVersions = new Map<string, Set<string>>()
   let lastPass = firstPass
   for (let pass = 1; pass < MAX_RESOLUTION_PASSES; pass++) {
-    if (!blockDeadEndParents(lastPass.tree, blockedVersions)) break
+    if (!blockDeadEndParents(lastPass.tree, blockedVersions)) return firstPass
     // eslint-disable-next-line no-await-in-loop
     lastPass = await runPass(blockedVersions)
     if (lastPass.tree.resolutionPolicyViolations.length === 0) {
@@ -76,6 +86,13 @@ export async function resolveMatureDependencyTree<Importer extends ImporterToRes
       return lastPass
     }
   }
+  // Fell out of the loop with ancestors still left to try, so the report
+  // below is the first pass's, not a proof that no installable tree exists.
+  globalWarn(
+    `Stopped after ${MAX_RESOLUTION_PASSES} resolution attempts while backing off from versions whose ` +
+    'dependencies do not satisfy minimumReleaseAge. The versions reported are the ones the first attempt ' +
+    'resolved to; an installable combination may still exist further down their ranges.'
+  )
   return firstPass
 }
 
