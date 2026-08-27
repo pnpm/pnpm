@@ -204,7 +204,10 @@ function getWindowsCleanupTestEnv (): NodeJS.ProcessEnv {
   const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === 'path') ?? 'PATH'
   const pathWithoutProcessEnumerators = (process.env[pathKey] ?? '')
     .split(path.delimiter)
-    .filter((dir) => !/wbem|windowspowershell/i.test(dir))
+    .filter((dir) => {
+      const lowerDir = dir.toLowerCase()
+      return !lowerDir.includes('wbem') && !lowerDir.includes('windowspowershell')
+    })
     .join(path.delimiter)
   return { [pathKey]: pathWithoutProcessEnumerators }
 }
