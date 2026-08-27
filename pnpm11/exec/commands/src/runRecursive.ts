@@ -364,7 +364,7 @@ export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string
 
   // if scriptName which a user passes is RegExp (like /build:.*/), multiple scripts to execute will be selected with RegExp
   if (scriptSelector) {
-    return Object.keys(scripts).filter(script => script.match(scriptSelector))
+    return Object.keys(scripts).filter(script => Boolean(scripts[script]) && scriptSelector.test(script))
   }
 
   return []

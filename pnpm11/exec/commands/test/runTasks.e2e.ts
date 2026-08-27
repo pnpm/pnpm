@@ -577,6 +577,40 @@ test('a missing requested script errors before upstream tasks run', async () => 
   expect(server.getLines()).toStrictEqual([])
 })
 
+test('an empty requested script matched by a RegExp errors before upstream tasks run', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      scripts: {
+        'build:empty': '',
+        codegen: server.sendLineScript('codegen'),
+      },
+    },
+  ])
+
+  let err!: PnpmError
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+      dir: process.cwd(),
+      recursive: true,
+      tasks: {
+        '/^build:/': { dependsOn: ['codegen'] },
+      },
+      workspaceDir: process.cwd(),
+    }, ['/^build:/'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
+  expect(server.getLines()).toStrictEqual([])
+})
+
 test('a failed upstream task is reported as the failure, not as a missing script', async () => {
   preparePackages([
     {
