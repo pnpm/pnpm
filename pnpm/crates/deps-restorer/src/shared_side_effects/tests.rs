@@ -261,10 +261,9 @@ mod restore {
         serde_json::to_string(&response).expect("serialize response")
     }
 
-    /// Run one restore against a server that offers the artifact, asserting
-    /// along the way that the blob endpoint was hit exactly
-    /// `expected_downloads` times. Returns the path the restored overlay maps
-    /// the built file to.
+    /// Restore against a server that offers the artifact, asserting that the
+    /// blob endpoint was hit exactly `expected_downloads` times, and return
+    /// the path the resulting overlay maps the built file to.
     async fn restore(store_dir: &StoreDir, expected_downloads: usize) -> PathBuf {
         let snapshots = snapshots();
         let packages = packages();
@@ -319,8 +318,6 @@ mod restore {
         overlay.get(BUILT_FILE).expect("the built file must be in the overlay").clone()
     }
 
-    /// Content the store does not have is downloaded and written, and the
-    /// overlay points at what the store wrote.
     #[tokio::test]
     async fn content_the_store_lacks_is_downloaded() {
         let store = tempfile::tempdir().expect("tempdir");
@@ -335,9 +332,9 @@ mod restore {
         assert_eq!(std::fs::read(&restored).expect("read restored"), built_bytes());
     }
 
-    /// The same restore against a store that already holds the artifact's one
-    /// file transfers nothing: the download the previous test made is the
-    /// whole difference between the two.
+    /// Same restore, same server as its sibling above; only the seeded store
+    /// differs. The download it makes and this one does not is the whole
+    /// difference between them.
     #[tokio::test]
     async fn content_the_store_already_holds_is_not_downloaded() {
         let store = tempfile::tempdir().expect("tempdir");
