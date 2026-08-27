@@ -29,6 +29,13 @@ export interface ResolvePackageManagerIntegritiesOpts {
    */
   save?: boolean
   /**
+   * The specifier to record for each entry, when it differs from the version
+   * being resolved. A range pin names no exact version, so its entries resolve
+   * to a concrete version while still recording the range the project asked
+   * for. Defaults to the resolved spec, which is what an exact pin wants.
+   */
+  specifier?: string
+  /**
    * Refuse to record entries that are missing or out of date, failing the
    * command instead. Only meaningful together with `save`: an in-memory
    * resolution changes no lockfile, so nothing can fall out of sync with it.
@@ -211,7 +218,7 @@ async function resolveWantedPnpmPackages (
     storeDir: opts.storeDir,
   }
   if (semver.valid(spec) != null) {
-    return resolveManifestDependencies({ dependencies: wantedDependencies(spec, spec) }, resolveOpts)
+    return resolveManifestDependencies({ dependencies: wantedDependencies(spec, opts.specifier ?? spec) }, resolveOpts)
   }
   const lockfile = await resolveManifestDependencies({ dependencies: { pnpm: spec } }, resolveOpts)
   const ref = lockfile.importers['.' as ProjectId]?.dependencies?.['pnpm']

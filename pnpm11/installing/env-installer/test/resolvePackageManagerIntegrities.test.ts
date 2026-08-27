@@ -208,6 +208,38 @@ test('an in-memory resolution is performed under frozenLockfile', async () => {
   })
 })
 
+test('a range pin records the range it asked for, not the version it resolved to', async () => {
+  resolveManifestDependencies.mockResolvedValueOnce({
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        specifiers: { pnpm: '^12.0.0' },
+        dependencies: { pnpm: '12.0.0' },
+      },
+    },
+    packages: {
+      'pnpm@12.0.0': { resolution: { integrity: 'sha512-pnpm' } },
+    },
+  } as unknown as LockfileObject)
+
+  const result = await resolvePackageManagerIntegrities('12.0.0', {
+    registriesByScope: { default: 'https://mirror.example.com/' },
+    rootDir: '/repo',
+    storeController: {} as never,
+    storeDir: '/store',
+    save: false,
+    specifier: '^12.0.0',
+  })
+
+  expect(resolveManifestDependencies).toHaveBeenCalledWith(
+    { dependencies: { pnpm: '^12.0.0' } },
+    expect.anything()
+  )
+  expect(result.importers['.'].packageManagerDependencies).toEqual({
+    pnpm: { specifier: '^12.0.0', version: '12.0.0' },
+  })
+})
+
 function envLockfile (packageManagerDependencies: Record<string, string>): EnvLockfile {
   const pinned = Object.entries(packageManagerDependencies)
   return {

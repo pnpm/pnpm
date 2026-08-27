@@ -34,13 +34,26 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
   let storeToUse: Awaited<ReturnType<typeof createStoreController>> | undefined
   const packageManagerConfig = getPackageManagerBootstrapConfig(config)
 
+  const wantedVersion = pm.version
+  const satisfiesPin = (version: string): boolean =>
+    semver.satisfies(version, wantedVersion, { includePrerelease: true })
+
   // Check if the env lockfile already has a resolved version that satisfies the wanted version/range.
   let pmVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
+  if (pmVersion != null && !satisfiesPin(pmVersion)) {
+    pmVersion = undefined
+  }
+  // A range pin names no exact version, so the running pnpm's version is the
+  // one the project actually uses. Asking the registry instead would pin a
+  // version nobody is running and switch away from a satisfying one.
+  if (pmVersion == null && satisfiesPin(packageManager.version)) {
+    pmVersion = packageManager.version
+  }
   let freshlyResolved = false
-  if (!pmVersion || !semver.satisfies(pmVersion, pm.version, { includePrerelease: true })) {
+  if (pmVersion == null) {
     // Resolve to an exact version from the registry.
     storeToUse = await createStoreController({ ...config, ...context, ...packageManagerConfig })
-    envLockfile = await resolvePackageManagerIntegrities(pm.version, {
+    envLockfile = await resolvePackageManagerIntegrities(wantedVersion, {
       envLockfile,
       registriesByScope: packageManagerConfig.registriesByScope,
       rootDir: context.rootProjectManifestDir,
@@ -52,7 +65,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
     freshlyResolved = true
     pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
     if (!pmVersion) {
-      globalWarn(`Cannot resolve pnpm version for "${pm.version}"`)
+      globalWarn(`Cannot resolve pnpm version for "${wantedVersion}"`)
       await storeToUse.ctrl.close()
       return
     }
@@ -66,6 +79,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       storeDir: storeToUse.dir,
       save: persistLockfile,
       frozenLockfile: config.frozenLockfile,
+      specifier: wantedVersion,
     })
     freshlyResolved = true
   }
