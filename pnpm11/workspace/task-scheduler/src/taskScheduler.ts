@@ -1,6 +1,5 @@
 import type { TaskGraph, TaskKey, TaskNode } from './taskGraph.js'
 
-/** How a scheduled task ended. */
 export type TaskCompletion =
   | 'passed'
   | 'failed'
