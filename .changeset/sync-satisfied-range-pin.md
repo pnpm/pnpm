@@ -1,5 +1,5 @@
 ---
-"@pnpm/installing.env-installer": patch
+"@pnpm/installing.env-installer": minor
 "pacquet": patch
 "pnpm": patch
 ---
