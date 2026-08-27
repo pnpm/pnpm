@@ -1,8 +1,10 @@
 import { expect, jest, test } from '@jest/globals'
 import { isPackageManagerResolved } from '@pnpm/installing.env-installer'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
+import type { ProjectManifest } from '@pnpm/types'
 
-const resolveManifestDependencies = jest.fn<() => Promise<LockfileObject>>()
+const resolveManifestDependencies =
+  jest.fn<(manifest: ProjectManifest, opts: unknown) => Promise<LockfileObject>>()
 jest.unstable_mockModule('../src/resolveManifestDependencies.js', () => ({
   resolveManifestDependencies,
 }))
