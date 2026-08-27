@@ -288,8 +288,7 @@ mod scripts {
         drop(root);
     }
 
-    /// `pnpm pm clean` forces the built-in command past a `clean` script
-    /// (pnpm/pnpm#14226).
+    /// [pnpm/pnpm#14226](https://github.com/pnpm/pnpm/issues/14226)
     #[test]
     fn pm_clean_runs_the_builtin_when_a_clean_script_exists() {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -309,9 +308,6 @@ mod scripts {
         drop(root);
     }
 
-    /// A workspace whose root declares a `clean` script and holds the
-    /// only seeded `node_modules`, plus a member at `packages/a` to run
-    /// the command from.
     fn workspace_with_a_root_clean_script(workspace: &Path) {
         write_manifest(workspace, &serde_json::json!({ "clean": "echo script-clean-ran" }));
         fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
@@ -341,8 +337,6 @@ mod scripts {
         drop(root);
     }
 
-    /// A `pm` prefix also lifts the refusal to run the built-in from a
-    /// workspace subdirectory whose root declares the script.
     #[test]
     fn pm_clean_runs_the_builtin_from_a_workspace_subdirectory() {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

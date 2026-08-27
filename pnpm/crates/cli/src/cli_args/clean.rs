@@ -46,8 +46,6 @@ const PNPM_HIDDEN_ENTRIES: &[&str] =
 impl CleanArgs {
     pub fn run(self, ctx: &RunCtx<'_>, command_name: &str) -> miette::Result<()> {
         let config = (ctx.config)()?;
-        // A `pm` prefix (`pnpm pm clean`) demands the built-in command, so
-        // no script gets to replace it.
         if ctx.builtin_command_forced {
             return clean_builtin(ctx, config, self.lockfile);
         }

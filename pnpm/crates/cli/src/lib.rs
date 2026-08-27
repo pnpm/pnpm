@@ -82,11 +82,10 @@ fn run_cli() -> miette::Result<()> {
         std::process::exit(exit_code);
     }
     let child_argv = argv_with_alias.iter().skip(1).cloned().collect::<Vec<_>>();
-    // `pnpm pm <cmd>` forces pnpm's built-in `<cmd>` over a `package.json`
-    // script of the same name. The prefix is dropped here, before every
-    // other pass, so the rest of the command line parses as usual; the
-    // child argv above keeps it, since a dispatched pnpm has to force the
-    // built-in too. See `pm_prefix`.
+    // `pnpm pm <cmd>` is stripped before every other pass, so they all see
+    // the command line the prefix stands for; the child argv above keeps
+    // it, since a dispatched pnpm has to force the built-in too. See
+    // `pm_prefix`.
     let (argv_with_alias, builtin_command_forced) = pm_prefix::strip_prefix(argv_with_alias);
     let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
     // `pnpm with current <cmd>` is sugar for running `<cmd>` in-process with
