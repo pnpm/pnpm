@@ -845,6 +845,29 @@ async fn artifact_handshake_is_independent_from_the_resolver_protocol() {
 }
 
 #[tokio::test]
+async fn artifact_blob_download_rejects_bytes_that_do_not_match_the_integrity() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("POST", "/-/pnpr/v0/artifacts/blob")
+        .with_status(200)
+        .with_body("poisoned blob")
+        .create_async()
+        .await;
+    let integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(b"expected blob")));
+
+    let error = PnprClient::new(server.url())
+        .download_artifact_blob(
+            &ArtifactBlobRequest { owner: OwnerScope::organization("acme"), integrity },
+            None,
+        )
+        .await
+        .expect_err("a corrupt artifact blob must be rejected");
+
+    assert!(matches!(error, PnprClientError::Protocol(_)), "got: {error}");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn publishes_resolves_and_verifies_an_organization_artifact() {
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
     let client = PnprClient::new(pnpr_url);

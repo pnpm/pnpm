@@ -10,7 +10,6 @@ use axum::{
     routing::{any, delete, get, post, put},
 };
 use indexmap::IndexMap;
-use tokio::sync::Semaphore;
 use tower_http::{
     compression::{
         CompressionLayer,
@@ -27,19 +26,18 @@ use pnpr_upstream::Upstream;
 
 use super::{
     AppInner, AppState, AuthedCaller, MAX_ARTIFACT_BLOB_BODY_BYTES,
-    MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES,
-    MAX_CONCURRENT_ARTIFACT_BLOB_VERIFICATIONS, MAX_LOGIN_BODY_BYTES, MAX_PUBLISH_BODY_BYTES,
-    StripedLocks, authenticate, compute_upstream_cache_namespace, default_registry_target,
-    delete_package, delete_session_token, delete_tarball, delete_token_by_key, get_dist_tags,
-    get_org_teams, get_profile, get_team_members, get_token_list, get_whoami, loggable_uri,
-    not_found, pnpr_protocols_disabled, private_if_caller_gated, private_no_cache, publish_package,
-    put_login, reject_team_mutation, remove_dist_tag, require_artifact_caller,
-    require_resolver_caller, serve_artifact_blob, serve_batch_publish, serve_packument, serve_ping,
-    serve_pnpr_handshake, serve_publish_artifact, serve_registry_packument, serve_registry_tarball,
-    serve_registry_version_manifest, serve_resolve, serve_resolve_artifacts,
-    serve_revision_tarball, serve_search, serve_tarball, serve_verify_lockfile,
-    serve_version_manifest, set_dist_tag, staged, tilde_registry, update_packument,
-    upstream_tarball_base,
+    MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES, MAX_LOGIN_BODY_BYTES,
+    MAX_PUBLISH_BODY_BYTES, StripedLocks, authenticate, compute_upstream_cache_namespace,
+    default_registry_target, delete_package, delete_session_token, delete_tarball,
+    delete_token_by_key, get_dist_tags, get_org_teams, get_profile, get_team_members,
+    get_token_list, get_whoami, loggable_uri, not_found, pnpr_protocols_disabled,
+    private_if_caller_gated, private_no_cache, publish_package, put_login, reject_team_mutation,
+    remove_dist_tag, require_artifact_caller, require_resolver_caller, serve_artifact_blob,
+    serve_batch_publish, serve_packument, serve_ping, serve_pnpr_handshake, serve_publish_artifact,
+    serve_registry_packument, serve_registry_tarball, serve_registry_version_manifest,
+    serve_resolve, serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
+    serve_verify_lockfile, serve_version_manifest, set_dist_tag, staged, tilde_registry,
+    update_packument, upstream_tarball_base,
 };
 
 pub(super) fn router_with_auth_and_osv(
@@ -86,9 +84,6 @@ pub(super) fn router_with_auth_and_osv(
             config,
             auth,
             package_locks: StripedLocks::new(),
-            artifact_blob_verifications: Arc::new(Semaphore::new(
-                MAX_CONCURRENT_ARTIFACT_BLOB_VERIFICATIONS,
-            )),
             resolver: std::sync::OnceLock::new(),
             osv_index,
         }),

@@ -9,8 +9,8 @@ use std::{
 use bytes::Bytes;
 use futures_util::{StreamExt as _, stream::BoxStream};
 use object_store::{
-    GetOptions, ObjectMeta, ObjectStore, ObjectStoreExt, PutMode, PutOptions, PutPayload,
-    UpdateVersion, local::LocalFileSystem, path::Path as ObjectPath,
+    ObjectMeta, ObjectStore, ObjectStoreExt, PutMode, PutOptions, PutPayload, UpdateVersion,
+    local::LocalFileSystem, path::Path as ObjectPath,
 };
 use pnpm_shared_artifact_protocol::{
     ArtifactBlobRequest, ArtifactCandidate, ArtifactPayload, ArtifactProtocolError,
@@ -21,7 +21,7 @@ use pnpm_shared_artifact_protocol::{
 };
 use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
 use pnpr_error::{RegistryError, Result};
-use sha2::{Digest as _, Sha256, Sha512};
+use sha2::{Digest as _, Sha256};
 use tokio::time::sleep;
 
 const ARTIFACT_CACHE_DIR: &str = "shared-artifacts/v0";
@@ -231,57 +231,10 @@ impl SharedArtifactStore {
             Err(object_store::Error::NotFound { .. }) => return Ok(None),
             Err(error) => return Err(error.into()),
         };
-        let meta = result.meta.clone();
-        if meta.size > MAX_FILE_SIZE {
-            return Err(stored_object_too_large(meta.size, MAX_FILE_SIZE));
+        if result.meta.size > MAX_FILE_SIZE {
+            return Err(stored_object_too_large(result.meta.size, MAX_FILE_SIZE));
         }
-        let mut size = 0_u64;
-        let mut digest = Sha512::new();
-        let mut stream = result.into_stream();
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk?;
-            size = size
-                .checked_add(chunk.len() as u64)
-                .ok_or_else(|| stored_object_too_large(u64::MAX, MAX_FILE_SIZE))?;
-            if size > MAX_FILE_SIZE {
-                return Err(stored_object_too_large(size, MAX_FILE_SIZE));
-            }
-            digest.update(&chunk);
-        }
-        if size != meta.size {
-            return Err(RegistryError::Internal {
-                reason: format!(
-                    "stored shared artifact blob metadata declares {} bytes but returned {size}",
-                    meta.size,
-                ),
-            });
-        }
-        if hex(&digest.finalize()) != id {
-            return Err(RegistryError::Internal {
-                reason: "stored shared artifact blob failed verification: downloaded bytes do not match the declared digest"
-                    .to_string(),
-            });
-        }
-        if meta.e_tag.is_none() && meta.version.is_none() {
-            return Err(RegistryError::Internal {
-                reason:
-                    "stored shared artifact blob has no version identifier for a verified download"
-                        .to_string(),
-            });
-        }
-        let result = self
-            .store
-            .get_opts(&path, GetOptions::new().with_if_match(meta.e_tag).with_version(meta.version))
-            .await?;
-        if result.meta.size != size {
-            return Err(RegistryError::Internal {
-                reason: format!(
-                    "stored shared artifact blob changed size from {size} to {} after verification",
-                    result.meta.size,
-                ),
-            });
-        }
-        Ok(Some(ArtifactBlob { size, stream: result.into_stream() }))
+        Ok(Some(ArtifactBlob { size: result.meta.size, stream: result.into_stream() }))
     }
 
     async fn resolve_candidate(

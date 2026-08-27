@@ -57,7 +57,6 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use ssri::Integrity;
 use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
-use tokio::sync::Semaphore;
 
 /// MIME the npm registry uses for the abbreviated install-v1 form.
 /// Matches what pacquet (and pnpm/npm/yarn) send in `Accept` when
@@ -91,9 +90,6 @@ const MAX_LOGIN_BODY_BYTES: usize = 64 * 1024;
 const MAX_ARTIFACT_PUBLISH_BODY_BYTES: usize = MAX_PUBLISH_BODY_BYTES;
 const MAX_ARTIFACT_RESOLVE_BODY_BYTES: usize = 16 * 1024 * 1024;
 const MAX_ARTIFACT_BLOB_BODY_BYTES: usize = 8 * 1024;
-/// Bound concurrent artifact verification scans.
-const MAX_CONCURRENT_ARTIFACT_BLOB_VERIFICATIONS: usize = 4;
-
 #[derive(Clone)]
 struct AppState {
     inner: Arc<AppInner>,
@@ -118,7 +114,6 @@ struct AppInner {
     /// two concurrent writers to the same package on this instance can't
     /// lose each other's changes.
     package_locks: StripedLocks,
-    artifact_blob_verifications: Arc<Semaphore>,
     /// Lazily-built engine backing the `/-/pnpr/v0/resolve` endpoint. Built on
     /// first such request so servers that never receive one pay nothing.
     resolver: std::sync::OnceLock<crate::resolver::Resolver>,
@@ -2829,19 +2824,14 @@ async fn serve_artifact_blob(
         Ok(username) => username,
         Err(err) => return private_no_cache(err.into_response()),
     };
-    let permit = Arc::clone(&state.inner.artifact_blob_verifications)
-        .acquire_owned()
-        .await
-        .expect("the artifact blob verification semaphore is never closed");
-    let result = state
+    match state
         .inner
         .artifacts
         .as_ref()
         .expect("artifact routes require an artifact store")
         .read_blob(&username, &body)
-        .await;
-    drop(permit);
-    match result {
+        .await
+    {
         Ok(Some(blob)) => Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/octet-stream")
