@@ -69,7 +69,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       await storeToUse.ctrl.close()
       return
     }
-  } else if (!isPackageManagerResolved(envLockfile, pmVersion)) {
+  } else if (!isPackageManagerResolved(envLockfile, pmVersion, config.frozenLockfile ? undefined : wantedVersion)) {
     storeToUse = await createStoreController({ ...config, ...context, ...packageManagerConfig })
     envLockfile = await resolvePackageManagerIntegrities(pmVersion, {
       envLockfile,
