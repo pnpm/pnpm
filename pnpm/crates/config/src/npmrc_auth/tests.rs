@@ -474,9 +474,9 @@ fn auth_pair_base64_with_a_suffix_after_its_padding_is_rejected() {
     );
 }
 
-/// A value that is all padding decodes to nothing, so it is rejected as
-/// invalid base64 rather than as a credential missing its separator —
-/// the answer `atob` gives it.
+/// Padding with nothing to pad is not base64 — the answer `atob` gives
+/// it — so it fails as an undecodable value rather than as a credential
+/// that decoded but carries no separator.
 #[test]
 fn auth_pair_base64_of_only_padding_is_rejected_as_invalid_base64() {
     let ini = "//reg.com/:_auth=====\n";

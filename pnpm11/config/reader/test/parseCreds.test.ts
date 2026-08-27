@@ -75,6 +75,12 @@ describe('parseCreds', () => {
     } as Creds)
   })
 
+  test('authPairBase64 of only padding is not base64', () => {
+    expect(() => parseCreds({
+      authPairBase64: '====',
+    })).toThrow(new AuthBase64DecodeError('_auth'))
+  })
+
   test('an empty authPairBase64 supplies no credentials', () => {
     expect(parseCreds({ authPairBase64: '' })).toBeUndefined()
   })
