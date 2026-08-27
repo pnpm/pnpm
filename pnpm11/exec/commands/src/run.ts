@@ -456,13 +456,16 @@ export async function runScript (opts: {
   passedThruArgs: string[]
 }, scriptName: string): Promise<void> {
   const stages = getRunScriptStages(opts.manifest, scriptName, opts.runScriptOptions.enablePrePostScripts)
-  if (stages.length === 0) throw new Error(`Missing script: ${scriptName}`)
-  await stages.reduce(async (previous, stage) => {
-    await previous
-    await runLifecycleHook(stage.name, opts.manifest, stage.name === scriptName
-      ? { ...opts.lifecycleOpts, args: opts.passedThruArgs }
-      : opts.lifecycleOpts)
-  }, Promise.resolve())
+  if (stages.length === 0) {
+    await runLifecycleHook(scriptName, opts.manifest, { ...opts.lifecycleOpts, args: opts.passedThruArgs })
+  } else {
+    await stages.reduce(async (previous, stage) => {
+      await previous
+      await runLifecycleHook(stage.name, opts.manifest, stage.name === scriptName
+        ? { ...opts.lifecycleOpts, args: opts.passedThruArgs }
+        : opts.lifecycleOpts)
+    }, Promise.resolve())
+  }
   if (opts.runScriptOptions.syncInjectedDepsAfterScripts?.includes(scriptName)) {
     await syncInjectedDeps({
       pkgName: opts.manifest.name,
