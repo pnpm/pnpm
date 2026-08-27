@@ -33,7 +33,7 @@ pub enum ReadYarnReleasesError {
     #[diagnostic(
         code(ERR_PNPM_YARN_RELEASES_STATUS),
         help(
-            "GitHub rate-limits anonymous requests. Set GITHUB_TOKEN (or GH_TOKEN) to authenticate, wait for the limit to reset, or install Yarn 6 by hand."
+            "GitHub rate-limits anonymous requests. Set GH_TOKEN, or GITHUB_TOKEN if it is not set, to authenticate; wait for the limit to reset; or install Yarn 6 by hand."
         )
     )]
     StatusNotOk { url: String, status: u16 },
@@ -95,8 +95,14 @@ struct GithubAsset {
 }
 
 /// Fetch the published Yarn releases, newest first.
+///
+/// `authenticate` carries whether a token may be sent: the client this
+/// borrows verifies certificates only when the project's `strict-ssl` says
+/// so, and that setting is about the registry the project installs from, not
+/// about GitHub.
 pub async fn fetch_yarn_releases(
     http_client: &ThrottledClient,
+    authenticate: bool,
 ) -> Result<Vec<YarnRelease>, ReadYarnReleasesError> {
     let mut request = http_client
         .acquire_for_url(RELEASES_URL)
@@ -104,18 +110,14 @@ pub async fn fetch_yarn_releases(
         .get(RELEASES_URL)
         .header("accept", "application/vnd.github+json");
     // The API's anonymous rate limit is counted per IP, which CI runners
-    // share, so a job that has a token is much better off spending it. The
-    // URL is a constant, so the token can only ever go to GitHub's API.
-    if let Some(token) = github_token() {
+    // share, so a job that has a token is much better off spending it.
+    if let Some(token) = github_token(authenticate) {
         request = request.header("authorization", format!("Bearer {token}"));
     }
-    let response = request
-        .send()
-        .await
-        .map_err(|error| ReadYarnReleasesError::Network {
-            url: RELEASES_URL.to_string(),
-            error: Arc::new(error),
-        })?;
+    let response = request.send().await.map_err(|error| ReadYarnReleasesError::Network {
+        url: RELEASES_URL.to_string(),
+        error: Arc::new(error),
+    })?;
     if !response.status().is_success() {
         return Err(ReadYarnReleasesError::StatusNotOk {
             url: RELEASES_URL.to_string(),
@@ -129,16 +131,23 @@ pub async fn fetch_yarn_releases(
     parse_releases(&body)
 }
 
-/// A GitHub token from the environment, `GH_TOKEN` outranking
-/// `GITHUB_TOKEN` the way GitHub's own CLI reads them.
-fn github_token() -> Option<String> {
-    pick_token(std::env::var("GH_TOKEN").ok(), std::env::var("GITHUB_TOKEN").ok())
+/// A GitHub token from the environment. `GH_TOKEN` outranks `GITHUB_TOKEN`,
+/// the order GitHub's own CLI reads them in.
+fn github_token(authenticate: bool) -> Option<String> {
+    pick_token(authenticate, std::env::var("GH_TOKEN").ok(), std::env::var("GITHUB_TOKEN").ok())
 }
 
-/// The first of the two tokens that holds more than whitespace. An empty
-/// exported variable is a common CI artifact and must read as "no token"
-/// rather than turn into an `Authorization` header GitHub rejects.
-fn pick_token(gh_token: Option<String>, github_token: Option<String>) -> Option<String> {
+/// An exported variable holding only whitespace is a common CI artifact, and
+/// reads as no token rather than becoming an `Authorization` header GitHub
+/// rejects.
+fn pick_token(
+    authenticate: bool,
+    gh_token: Option<String>,
+    github_token: Option<String>,
+) -> Option<String> {
+    if !authenticate {
+        return None;
+    }
     [gh_token, github_token]
         .into_iter()
         .flatten()

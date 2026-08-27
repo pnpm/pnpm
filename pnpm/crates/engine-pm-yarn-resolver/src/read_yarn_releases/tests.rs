@@ -30,6 +30,13 @@ fn releases_body(extra_assets: &str) -> String {
     )
 }
 
+/// A project that relaxed certificate verification does not spend a GitHub
+/// credential on the connection it relaxed.
+#[test]
+fn no_token_is_sent_when_authentication_is_withheld() {
+    assert_eq!(pick_token(false, Some("gh".to_string()), Some("github".to_string())), None);
+}
+
 #[test]
 fn releases_are_read_with_the_v_prefix_stripped() {
     let releases = parse_releases(&releases_body("")).expect("parse the release list");
@@ -142,25 +149,25 @@ fn a_release_without_archives_is_an_error() {
 
 #[test]
 fn gh_token_outranks_github_token() {
-    let token = pick_token(Some("gh".to_string()), Some("github".to_string()));
+    let token = pick_token(true, Some("gh".to_string()), Some("github".to_string()));
     assert_eq!(token.as_deref(), Some("gh"));
 }
 
 #[test]
 fn a_blank_token_reads_as_no_token() {
-    assert_eq!(pick_token(Some("  ".to_string()), None), None);
-    assert_eq!(pick_token(Some(String::new()), Some(String::new())), None);
-    assert_eq!(pick_token(None, None), None);
+    assert_eq!(pick_token(true, Some("  ".to_string()), None), None);
+    assert_eq!(pick_token(true, Some(String::new()), Some(String::new())), None);
+    assert_eq!(pick_token(true, None, None), None);
 }
 
 #[test]
 fn a_blank_override_falls_through_to_the_other_token() {
-    let token = pick_token(Some(String::new()), Some("github".to_string()));
+    let token = pick_token(true, Some(String::new()), Some("github".to_string()));
     assert_eq!(token.as_deref(), Some("github"));
 }
 
 #[test]
 fn a_token_is_trimmed() {
-    let token = pick_token(None, Some(" github \n".to_string()));
+    let token = pick_token(true, None, Some(" github \n".to_string()));
     assert_eq!(token.as_deref(), Some("github"));
 }

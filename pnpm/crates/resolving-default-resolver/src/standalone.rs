@@ -117,7 +117,8 @@ pub fn build_standalone_chain(
     node_resolver.cache_dir = Some(config.cache_dir.clone());
     let deno_resolver = DenoResolver::new(Arc::clone(http_client), Arc::clone(&npm_resolver));
     let bun_resolver = BunResolver::new(Arc::clone(http_client), Arc::clone(&npm_resolver));
-    let yarn_resolver = YarnResolver::new(Arc::clone(http_client));
+    let yarn_resolver =
+        YarnResolver::new(Arc::clone(http_client), config.tls.strict_ssl.unwrap_or(true));
 
     // User-supplied named-registry aliases from
     // `pnpm-workspace.yaml#namedRegistries`, merged with pacquet's
