@@ -84,3 +84,7 @@ pnpm/npm/napi/*.node
 pnpm/npm/napi.*/
 /pnpm-napi.*.node
 pnpr-bins-*
+
+# Nix build result symlinks
+/result
+/result-*

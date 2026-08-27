@@ -1,0 +1,69 @@
+name: Nix flake
+
+# Validates the flake (flake.nix). Runs on PRs that touch flake files
+# and on manual dispatch.
+#
+# Steps, in order of what they catch:
+#   1. nix flake check --all-systems  — every system's outputs evaluate
+#      (including darwin on an ubuntu runner).
+#   2. nix build .#default            — fetchurl + autoPatchelf + install
+#      layout actually realises for the runner's system.
+#   3. nix run .#default -- --version — the patched binary actually execs.
+#      This is the only step that catches the `let ... in rec` shadowing
+#      class of bug (passes flake check, fails nix run). Do NOT drop it.
+
+on:
+  workflow_dispatch: {}
+  pull_request:
+    branches: [main]
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "**/*.nix"
+      - ".github/workflows/nix.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nix-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: nix flake check (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, macos-13, macos-14]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab602fd15196c2084a2eea5ff2d25 # v22
+
+      - name: nix flake check --all-systems
+        # --no-build: evaluate every system's outputs (including darwin on
+        # ubuntu) without realising them. Without --no-build, `nix flake
+        # check` builds every derivation in `checks`, which fails for
+        # non-native systems (darwin stdenv can't run on linux). The
+        # build/run steps below handle realisation for the runner's system.
+        run: nix flake check --all-systems --no-build
+
+      - name: nix build .#default
+        run: nix build .#default --print-build-logs
+
+      - name: nix run .#default -- --version
+        # SECURITY: Gate behind non-PR events. `nix run` executes the built
+        # binary outside the Nix sandbox on the runner, where it can reach
+        # GitHub's OIDC endpoint and the GITHUB_TOKEN. On a PR, that binary
+        # could be PR-controlled (a malicious PR could change the fetchurl
+        # hash to point at a malicious binary). `nix build` above is safe
+        # (realises inside the sandbox, no network).
+        if: github.event_name != 'pull_request'
+        run: nix run .#default -- --version

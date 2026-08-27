@@ -1,0 +1,161 @@
+name: Update Nix flake
+
+# Checks whether flake.nix lags behind the latest GitHub release. If it does,
+# prefetches the new release's per-platform SRI hashes, rewrites flake.nix,
+# and opens a PR.
+#
+# Runs on a schedule instead of release: published because releases are created
+# with GITHUB_TOKEN, which does not start new workflow runs. A daily lag-check
+# is fully decoupled from how releases are created and needs no PAT.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: nix-flake-release
+  cancel-in-progress: true
+
+jobs:
+  update-flake:
+    name: Bump flake version + hashes if lagging
+    runs-on: ubuntu-latest
+    if: github.repository == 'pnpm/pnpm'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+
+      - name: Check for lag and rewrite flake.nix
+        env:
+          # system|asset-substring — one per line. The substring must uniquely
+          # match the release asset filename for that system. Using the full
+          # filename avoids matching the musl variants and the pnpr assets.
+          ASSET_MAP: |
+            x86_64-linux|pnpm-linux-x64.tar.gz
+            aarch64-linux|pnpm-linux-arm64.tar.gz
+            x86_64-darwin|pnpm-darwin-x64.tar.gz
+            aarch64-darwin|pnpm-darwin-arm64.tar.gz
+        run: |
+          set -euo pipefail
+          tag=$(curl -fsSL -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest" \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')
+          latest="${tag#v}"
+          current=$(python3 -c 'import re; s=open("flake.nix").read(); m=re.search(r"version = \"([^\"]*)\";", s); print(m.group(1))')
+          echo "flake.nix version: $current  |  latest release: $latest (tag $tag)"
+          if [ "$current" = "$latest" ]; then
+            echo "flake.nix is up to date; nothing to do."
+            echo "LAGGING=no" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "LAGGING=yes" >> "$GITHUB_ENV"
+          echo "VERSION=$latest" >> "$GITHUB_ENV"
+          export TAG="$tag"
+          python3 <<'PYEOF'
+          import json, os, re, subprocess, urllib.request
+          tag = os.environ["TAG"]
+          version = tag.lstrip("v")
+          repo = os.environ["GITHUB_REPOSITORY"]
+          with urllib.request.urlopen(
+              f"https://api.github.com/repos/{repo}/releases/latest") as r:
+              release = json.load(r)
+          # Drop sibling checksum files (.sha256) so a tarball substring does
+          # not also match its "<tarball>.sha256" companion.
+          names = {a["name"] for a in release["assets"]
+                   if not a["name"].endswith(".sha256")}
+          asset_map = {}
+          for line in os.environ["ASSET_MAP"].splitlines():
+              line = line.strip()
+              if not line or line.startswith("#"):
+                  continue
+              sys_, sub = line.split("|", 1)
+              asset_map[sys_.strip()] = sub.strip()
+          # Reverse-check guard: detect release assets that look like platform
+          # binaries but are NOT in ASSET_MAP. If a project ships for 4 platforms
+          # but ASSET_MAP only lists 3, the omitted platform's hash goes stale
+          # while its URL still gets the version bump — users on that platform
+          # get a hash mismatch.
+          known_platforms = {"x86_64-linux", "aarch64-linux",
+                             "x86_64-darwin", "aarch64-darwin"}
+          matched_subs = set(asset_map.values())
+          unmatched = []
+          for name in names:
+              # Skip non-binary assets (checksums, source tarballs, .deb, .rpm, etc.)
+              if not (name.endswith(".tar.gz") or name.endswith(".zip")):
+                  continue
+              if any(sub in name for sub in matched_subs):
+                  continue
+              # Check if the asset name contains a platform identifier
+              for plat in known_platforms:
+                  # Match common platform naming patterns in asset filenames
+                  plat_patterns = {
+                      "x86_64-linux": ["x86_64-linux", "x86_64-unknown-linux", "linux-x64", "linux-x86_64", "x64-linux"],
+                      "aarch64-linux": ["aarch64-linux", "aarch64-unknown-linux", "linux-arm64", "linux-aarch64", "arm64-linux"],
+                      "x86_64-darwin": ["x86_64-darwin", "x86_64-apple-darwin", "darwin-x64", "darwin-x86_64", "macos-x64", "x64-darwin", "x64-macos"],
+                      "aarch64-darwin": ["aarch64-darwin", "aarch64-apple-darwin", "darwin-arm64", "darwin-aarch64", "macos-arm64", "arm64-darwin", "arm64-macos"],
+                  }
+                  if any(p in name.lower() for p in plat_patterns[plat]):
+                      if plat not in asset_map:
+                          unmatched.append((plat, name))
+                      break
+          if unmatched:
+              plats = ", ".join(f"{p} ({n})" for p, n in unmatched)
+              raise SystemExit(
+                  f"RELEASE ASSET COMPLETENESS CHECK FAILED: release {tag} has "
+                  f"binary assets for platforms not in ASSET_MAP: {plats}. "
+                  f"Add them to ASSET_MAP or the hash for those platforms will "
+                  f"go stale while the URL gets the version bump — users on the "
+                  f"omitted platform get a hash mismatch. ASSET_MAP currently "
+                  f"covers: {sorted(asset_map.keys())}")
+          src = open("flake.nix").read()
+          src, n = re.subn(r'version = "[^"]*";', f'version = "{version}";', src, count=1)
+          if n != 1:
+              raise SystemExit('could not find version = "..." in flake.nix')
+          for sys_, sub in asset_map.items():
+              match = next((n for n in names if sub in n), None)
+              if not match:
+                  raise SystemExit(f"no asset for {sys_} ({sub}) in {tag}; have: {sorted(names)}")
+              url = f"https://github.com/{repo}/releases/download/{tag}/{match}"
+              out = json.loads(subprocess.check_output(
+                  ["nix", "store", "prefetch-file", "--json", "--hash-type", "sha256", url]))
+              sri = out["hash"]
+              pat = re.compile(r'("' + re.escape(sys_) + r'" = \{[^}]*\})', re.S)
+              def repl(m):
+                  b = m.group(1)
+                  b = re.sub(r'file = "[^"]*";', f'file = "{match}";', b, count=1)
+                  b = re.sub(r'sha256 = "[^"]*";', f'sha256 = "{sri}";', b, count=1)
+                  return b
+              src, n = pat.subn(repl, src, count=1)
+              if n != 1:
+                  raise SystemExit(f"could not find assets block for {sys_} in flake.nix")
+          open("flake.nix", "w").write(src)
+          print(f"bumped flake.nix to {version}: {list(asset_map)}")
+          PYEOF
+
+      - name: Open PR
+        if: env.LAGGING == 'yes'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          commit-message: "chore(nix): bump flake to v${{ env.VERSION }}"
+          title: "chore(nix): bump flake to v${{ env.VERSION }}"
+          branch: chore/nix-flake-v${{ env.VERSION }}
+          base: main
+          body: |
+            Auto-generated by the `Update Nix flake` workflow (daily lag-check).
+            The latest GitHub release is v${{ env.VERSION }} but `flake.nix` was
+            pinned to an older version. This PR bumps `version` and refreshes the per-platform SRI
+            hashes by prefetching the new release assets.
+
+            Note: PRs opened by `GITHUB_TOKEN` do not trigger downstream workflow runs (e.g. CI),
+            so this PR will show no checks. Review the diff before merging — it should be a
+            version bump plus per-platform hash refresh with no source changes.
