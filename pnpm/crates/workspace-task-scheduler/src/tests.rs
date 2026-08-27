@@ -399,7 +399,7 @@ fn task_concurrency_does_not_block_an_independent_task_group() {
     schedule_tasks(
         &graph,
         &ScheduleTasksOptions {
-            concurrency: 3,
+            concurrency: 2,
             bail: true,
             run_task: &|node| {
                 if node.project == first_build_project && node.task_name == "build" {
