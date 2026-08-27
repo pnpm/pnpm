@@ -123,6 +123,11 @@ export function createRemoteSideEffectsRestorer<T extends string> (
   const authorization = createGetAuthHeaderByURI(opts.configByUri)(registryUrl)
   const artifactLimit = pLimit(4)
   const downloadLimit = pLimit(16)
+  // A store probe reads and hashes the candidate, so it holds a descriptor for
+  // as long as the file takes. A manifest may list `MAX_MANIFEST_FILES` paths
+  // and several artifacts hydrate at once, so probing every file the moment it
+  // is asked for would exhaust the descriptor table.
+  const storeLookupLimit = pLimit(16)
   // Restorer-lifetime, so one blob shared by several artifacts is fetched and
   // stored once however the batches happen to fall.
   const storedBlobs = new Map<string, Promise<string>>()
@@ -266,10 +271,10 @@ export function createRemoteSideEffectsRestorer<T extends string> (
             // files with each other. The store addresses content by the digest
             // this manifest entry already carries, so anything it holds is the
             // same bytes and does not need transferring again.
-            const present = await opts.storeController.locateFileInStore?.(
+            const present = await storeLookupLimit(async () => opts.storeController.locateFileInStore?.(
               artifactBlobDigest(file.integrity),
               file.mode
-            )
+            ))
             if (present != null) return present
             const bytes = await downloadLimit(async () => downloadSharedArtifactBlob({
               registryUrl,
