@@ -78,6 +78,17 @@ pub struct RunArgs {
     /// Run the specified scripts one by one.
     #[clap(long, short = 's')]
     pub sequential: bool,
+
+    /// Print the task graph a recursive run would execute, without
+    /// running anything. Only meaningful together with the global `-r` /
+    /// `--recursive` flag.
+    #[clap(long = "dry-run")]
+    pub dry_run: bool,
+
+    /// With `--dry-run`, print the tasks and their resolved dependency
+    /// edges as JSON.
+    #[clap(long)]
+    pub json: bool,
 }
 
 /// Errors from `pacquet run`, including the hidden-script rejections from
@@ -113,6 +124,15 @@ pub enum RunError {
     #[display("RegExp flags are not supported in script command selector")]
     #[diagnostic(code(ERR_PNPM_UNSUPPORTED_SCRIPT_COMMAND_FORMAT))]
     UnsupportedScriptCommandFormat,
+
+    #[display("The --dry-run option is only supported with recursive runs")]
+    #[diagnostic(
+        code(ERR_PNPM_DRY_RUN_NOT_RECURSIVE),
+        help(
+            r#"Use "pnpm -r run --dry-run <script>" to print the task graph of a recursive run."#
+        )
+    )]
+    DryRunNotRecursive,
 }
 
 impl RunArgs {
@@ -166,12 +186,17 @@ impl RunArgs {
         reporter: ReporterType,
         fallback_to_exec: bool,
     ) -> miette::Result<()> {
+        // Before the dependency verification: an unsupported flag must
+        // fail before anything can trigger an install or a prompt.
+        if self.dry_run {
+            return Err(RunError::DryRunNotRecursive.into());
+        }
         // Before the manifest is read, so a mistyped command in a
         // directory without a project skips the check instead of
         // spawning a doomed install (see check_deps_status_before_run_at).
         super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
         let silent = matches!(reporter, ReporterType::Silent);
-        let RunArgs { script, if_present, sequential, .. } = self;
+        let RunArgs { script, if_present, .. } = self;
         let Some((script_name, args)) = script.split_first() else {
             let manifest = read_project_manifest_only(dir).map_err(RunError::Manifest)?;
             println!("{}", render_project_commands(manifest.value(), None));
@@ -234,7 +259,6 @@ impl RunArgs {
             config,
             extra_env: &extra_env,
             silent,
-            sequential,
             output: ScriptOutput::Inherit,
         };
         for name in &specified {
@@ -266,7 +290,11 @@ impl RunArgs {
         dir: &Path,
         reporter: ReporterType,
     ) -> miette::Result<()> {
-        super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
+        // A dry run prints what would execute and runs nothing, so it must
+        // not let the dependency verification trigger an install either.
+        if !self.dry_run {
+            super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
+        }
         recursive::run_recursive(
             self,
             config,
@@ -309,7 +337,6 @@ pub(super) struct RunContext<'a> {
     pub(super) config: &'a Config,
     pub(super) extra_env: &'a HashMap<String, String>,
     pub(super) silent: bool,
-    pub(super) sequential: bool,
     pub(super) output: ScriptOutput<'a>,
 }
 
@@ -371,7 +398,6 @@ pub(super) fn run_stages(
     main_body: &str,
     args: &[String],
 ) -> miette::Result<ScriptExit> {
-    let _ = ctx.sequential;
     let get_script = |key: &str| -> Option<String> {
         ctx.manifest
             .value()

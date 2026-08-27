@@ -884,6 +884,10 @@ pub struct WorkspaceSettings {
     /// [`PeerDependencyRules`].
     pub peer_dependency_rules: Option<PeerDependencyRules>,
 
+    /// `tasks` from `pnpm-workspace.yaml`: the workspace's task
+    /// declarations, keyed by task (script) name. See [`TaskSettings`].
+    pub tasks: Option<IndexMap<String, TaskSettings>>,
+
     /// The problem keys [`Self::collect_key_issues`] found in the file this
     /// was parsed from. Not a setting: carried here so the CLI can report
     /// them at the point where it knows how severe they are (see the
@@ -965,6 +969,30 @@ pub struct UpdateSettings {
     /// falling back to <https://github.com>.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub github_actions_server: Option<String>,
+}
+
+/// One task's entry in the `tasks` section. A task name is a script name:
+/// `pnpm -r run <name>` runs the task named `<name>` in every selected
+/// project.
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TaskSettings {
+    /// The tasks that must complete before this one may start. A `^name`
+    /// entry names the task in each of the project's workspace
+    /// dependencies; a bare `name` entry names the task in the same
+    /// project.
+    ///
+    /// A task with no declaration behaves as `dependsOn: ['^<its own
+    /// name>']`. An entry with `dependsOn` omitted declares an empty
+    /// dependency list — the task depends on nothing and may start
+    /// immediately.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub depends_on: Option<Vec<String>>,
+
+    /// Fields this version of pnpm does not read, kept so validation can
+    /// reject a typo instead of silently ignoring it.
+    #[serde(flatten, skip_serializing_if = "IndexMap::is_empty")]
+    pub unknown: IndexMap<String, serde_json::Value>,
 }
 
 /// `updateConfig` entry: settings that tune `pnpm update`.
@@ -1130,6 +1158,14 @@ pub enum LoadWorkspaceYamlError {
     #[display("The prefix {prefix:?} is declared by two registries")]
     #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
     PrefixDeclaredTwice { prefix: String },
+    #[display("The \"tasks['{task}'].{field}\" setting is not a known task setting")]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING), help(r#"A task declares "dependsOn"."#))]
+    UnknownTaskSettingField { task: String, field: String },
+    #[display(
+        "The \"tasks['{task}'].dependsOn\" setting contains an entry with no task name: {entry:?}"
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    EmptyTaskDependsOnEntry { task: String, entry: String },
     #[display("Invalid `_auth` setting: {source}")]
     InvalidJsonAuth {
         #[error(source)]
@@ -1209,6 +1245,7 @@ impl WorkspaceSettings {
             .map_err(Box::new)
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
+        settings.validate_tasks()?;
         settings.clear_workspace_only_fields();
         settings.warn_about_dropped_keys(&text, &path);
         Ok(Some(settings))
@@ -1224,6 +1261,31 @@ impl WorkspaceSettings {
     fn validate_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
         let Some(entries) = self.registries.as_ref() else { return Ok(()) };
         registries::validate(entries)
+    }
+
+    /// The `tasks` section feeds the task-graph builder of `pnpm -r run`,
+    /// which reads it without further checks — a malformed entry has to be
+    /// rejected here rather than surface as a scheduling bug far from the
+    /// setting that produced it.
+    fn validate_tasks(&self) -> Result<(), LoadWorkspaceYamlError> {
+        let Some(tasks) = self.tasks.as_ref() else { return Ok(()) };
+        for (task, settings) in tasks {
+            if let Some(field) = settings.unknown.keys().next() {
+                return Err(LoadWorkspaceYamlError::UnknownTaskSettingField {
+                    task: task.clone(),
+                    field: field.clone(),
+                });
+            }
+            for entry in settings.depends_on.iter().flatten() {
+                if entry.is_empty() || entry == "^" {
+                    return Err(LoadWorkspaceYamlError::EmptyTaskDependsOnEntry {
+                        task: task.clone(),
+                        entry: entry.clone(),
+                    });
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Warn about the keys of the global `config.yaml` that never reach the
@@ -1357,6 +1419,9 @@ impl WorkspaceSettings {
         self.versioning = None;
         self.packages = None;
         self.catalog = None;
+        // Task declarations describe the workspace's own scripts; pnpm's
+        // config-file key filter drops them from the global file too.
+        self.tasks = None;
         // A pnpmfile belongs to the project that ships it, and pnpm reads
         // `ignorePnpmfile` from `pnpm-workspace.yaml` and the environment but
         // not from here. Honoring it globally would silently drop a
@@ -1442,6 +1507,7 @@ impl WorkspaceSettings {
             .map_err(Box::new)
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
+        settings.validate_tasks()?;
         settings.reject_repo_controlled_trust_material(&path)?;
         settings.collect_key_issues(&text);
         Ok(Some(settings))
@@ -1744,7 +1810,7 @@ impl WorkspaceSettings {
             registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
-            allow_unused_patches,
+            allow_unused_patches, tasks,
         }
 
         if let Some(virtual_store_type) = virtual_store_type {

@@ -55,6 +55,9 @@
       "path": "../../crypto/hash"
     },
     {
+      "path": "../../deps/graph-sequencer"
+    },
+    {
       "path": "../../deps/status"
     },
     {

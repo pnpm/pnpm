@@ -245,7 +245,7 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
       dir: process.cwd(),
       recursive: true,
       selectedProjectsGraph,
-    }, ['npm', 'run', 'build', '--no-bail'])
+    }, ['npm', 'run', 'build'])
   } catch (_err: any) { // eslint-disable-line
     err1 = _err
     failed = true
@@ -271,6 +271,62 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
 
   expect(err2.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
   expect(failed).toBeTruthy()
+})
+
+test('without --bail, recursive exec skips dependents of a failed project and runs unrelated ones', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      dependencies: {
+        'project-b': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('project-a'),
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+      scripts: {
+        build: 'exit 1',
+      },
+    },
+    {
+      name: 'project-c',
+      version: '1.0.0',
+      scripts: {
+        build: server.sendLineScript('project-c'),
+      },
+    },
+  ])
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  let err!: PnpmError
+  try {
+    await exec.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: true,
+      reportSummary: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    }, ['npm', 'run', 'build'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  // The failure that blocked project-a is already counted; the skipped
+  // dependent must not turn one failure into two.
+  expect(err.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
+  expect(err.message).toContain('failed in 1 packages')
+  expect(server.getLines()).toStrictEqual(['project-c'])
+  const { default: { executionStatus } } = (await import(path.resolve('pnpm-exec-summary.json'), { with: { type: 'json' } }))
+  expect(executionStatus[path.resolve('project-a')].status).toBe('skipped')
+  expect(executionStatus[path.resolve('project-b')].status).toBe('failure')
+  expect(executionStatus[path.resolve('project-c')].status).toBe('passed')
 })
 
 test('pnpm recursive exec --no-sort', async () => {
@@ -590,7 +646,9 @@ test('pnpm recursive exec --resume-from should work', async () => {
     resumeFrom: 'project-3',
   }, ['npm', 'run', 'build'])
 
-  expect(server.getLines().sort()).toEqual(['project-2', 'project-3'])
+  // Only the anchor's transitive dependencies (project-1) are skipped;
+  // project-4 is unrelated to the anchor, so resuming still runs it.
+  expect(server.getLines().sort()).toEqual(['project-2', 'project-3', 'project-4'])
 })
 
 test('should throw error when the package specified by resume-from does not exist', async () => {
@@ -771,6 +829,9 @@ test('pnpm recursive exec report summary with --bail', async () => {
 
   const { default: { executionStatus } } = (await import(path.resolve('pnpm-exec-summary.json')))
 
+  // The first failure ends the run at once: commands still running are
+  // reported as such (the exit path terminates them), and a command still
+  // queued behind the concurrency limit is never started.
   expect(executionStatus[path.resolve('project-1')].status).toBe('running')
   expect(executionStatus[path.resolve('project-2')].status).toBe('failure')
   expect(executionStatus[path.resolve('project-2')].duration).not.toBeFalsy()

@@ -60,6 +60,8 @@ impl CleanArgs {
                 reverse: false,
                 parallel: false,
                 sequential: false,
+                dry_run: false,
+                json: false,
             }
             .run(ctx.dir, config, ctx.reporter);
         }

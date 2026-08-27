@@ -27,10 +27,6 @@ use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
-    sync::{
-        Mutex,
-        atomic::{AtomicUsize, Ordering},
-    },
 };
 
 /// `Cannot find package {resume_from}` — raised by both recursive `run`
@@ -87,6 +83,30 @@ pub fn sort_filtered_projects<Pkg>(
             .chunks
         }
     }
+}
+
+/// The dependency edges among the `--filter`-selected projects, resolved
+/// through the full workspace graph so a relationship between two selected
+/// projects via an unselected one becomes a direct edge — the same edges
+/// [`sort_filtered_projects`] chunks by, handed to the task-graph builder
+/// unflattened. Keys keep the selection order.
+pub fn filtered_projects_dependencies<Pkg>(
+    selected: &ProjectGraph<Pkg>,
+    all: &ProjectGraph<Pkg>,
+    prod_all: Option<&ProjectGraph<Pkg>>,
+    prod_only_selected: &HashSet<PathBuf>,
+) -> IndexMap<PathBuf, Vec<PathBuf>> {
+    let sorted: HashSet<&Path> = selected.keys().map(PathBuf::as_path).collect();
+    selected
+        .keys()
+        .map(|project_dir| {
+            let full_graph = match prod_all {
+                Some(prod_all) if prod_only_selected.contains(project_dir) => prod_all,
+                _ => all,
+            };
+            (project_dir.clone(), sorted_dependencies(selected, full_graph, project_dir, &sorted))
+        })
+        .collect()
 }
 
 /// Sort `graph` into topologically ordered chunks: every project in chunk
@@ -170,53 +190,45 @@ fn sorted_dependencies<Pkg>(
     dependencies
 }
 
-/// Drop every chunk before the one containing the `resume_from` package,
-/// so execution resumes from that package.
-///
-/// The package is located by manifest name; an unknown name is a
-/// [`ResumeFromNotFound`] error.
-pub fn get_resumed_package_chunks(
+/// The project directory `--resume-from` names, located by manifest name;
+/// an unknown name is a [`ResumeFromNotFound`] error. The invocation's
+/// task for that project anchors the resumed task graph.
+pub fn find_resume_root(
     resume_from: &str,
-    chunks: Vec<Vec<PathBuf>>,
     graph: &ProjectGraph<GraphPkg<'_>>,
-) -> Result<Vec<Vec<PathBuf>>, ResumeFromNotFound> {
-    let resume_root = graph
+) -> Result<PathBuf, ResumeFromNotFound> {
+    graph
         .iter()
         .find(|(_, node)| node.package.manifest_name() == Some(resume_from))
         .map(|(root, _)| root.clone())
-        .ok_or_else(|| ResumeFromNotFound { resume_from: resume_from.to_string() })?;
-    let position = chunks
-        .iter()
-        .position(|chunk| chunk.contains(&resume_root))
-        .expect("the resume-from package is present in the sorted chunks");
-    Ok(chunks.into_iter().skip(position).collect())
+        .ok_or_else(|| ResumeFromNotFound { resume_from: resume_from.to_string() })
 }
 
 /// Write the recursive summary to `pnpm-exec-summary.json` under `dir`.
 ///
-/// The per-package map is nested under an `executionStatus` key.
+/// The per-task map is nested under an `executionStatus` key. Keys are
+/// project directories, `#`-qualified with the task name for tasks
+/// `dependsOn` pulled in — see `task_summary_key`.
 pub fn write_recursive_summary(
     dir: &Path,
-    summary: &IndexMap<PathBuf, ExecutionStatus>,
+    summary: &IndexMap<String, ExecutionStatus>,
 ) -> miette::Result<()> {
-    let execution_status = summary
-        .iter()
-        .map(|(root, status)| (root.to_string_lossy().into_owned(), status.clone()))
-        .collect();
     let path = dir.join("pnpm-exec-summary.json");
     let mut contents =
-        serde_json::to_string_pretty(&ExecSummaryFile { execution_status }).into_diagnostic()?;
+        serde_json::to_string_pretty(&ExecSummaryFile { execution_status: summary.clone() })
+            .into_diagnostic()?;
     contents.push('\n');
     std::fs::write(&path, contents)
         .into_diagnostic()
         .wrap_err_with(|| format!("writing {}", path.display()))
 }
 
-/// Count the packages whose action failed.
+/// Count the tasks whose action failed.
 ///
 /// The caller turns a non-zero count into its command-specific
-/// `ERR_PNPM_RECURSIVE_FAIL` error.
-pub fn count_failures(summary: &IndexMap<PathBuf, ExecutionStatus>) -> usize {
+/// `ERR_PNPM_RECURSIVE_FAIL` error. Skipped dependents of a failed task do
+/// not add to the count: the failure that blocked them is already counted.
+pub fn count_failures(summary: &IndexMap<String, ExecutionStatus>) -> usize {
     summary.values().filter(|status| status.status == Status::Failure).count()
 }
 
@@ -451,55 +463,6 @@ pub fn selected_importer_ids(
         .keys()
         .map(|project_dir| importer_id_from_root_dir(lockfile_dir, project_dir))
         .collect()
-}
-
-/// Run one dependency-independent workspace chunk with at most
-/// `workspace_concurrency` operations in flight, preserving input order in
-/// the returned results.
-pub fn run_workspace_chunk<Output, Operation>(
-    roots: &[PathBuf],
-    workspace_concurrency: u32,
-    operation: Operation,
-) -> miette::Result<Vec<Output>>
-where
-    Output: Send,
-    Operation: Fn(&Path) -> Output + Sync,
-{
-    if roots.is_empty() {
-        return Ok(Vec::new());
-    }
-    let concurrency =
-        usize::try_from(workspace_concurrency).unwrap_or(usize::MAX).max(1).min(roots.len());
-    let next = AtomicUsize::new(0);
-    let outputs = Mutex::new((0..roots.len()).map(|_| None).collect::<Vec<Option<Output>>>());
-    std::thread::scope(|scope| -> miette::Result<()> {
-        let handles = (0..concurrency)
-            .map(|_| {
-                std::thread::Builder::new()
-                    .spawn_scoped(scope, || {
-                        loop {
-                            let index = next.fetch_add(1, Ordering::Relaxed);
-                            let Some(root) = roots.get(index) else { break };
-                            let output = operation(root);
-                            outputs.lock().expect("workspace output lock is not poisoned")[index] =
-                                Some(output);
-                        }
-                    })
-                    .into_diagnostic()
-                    .wrap_err("failed to start workspace task runner")
-            })
-            .collect::<miette::Result<Vec<_>>>()?;
-        for handle in handles {
-            handle.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic));
-        }
-        Ok(())
-    })?;
-    Ok(outputs
-        .into_inner()
-        .expect("workspace output lock is not poisoned")
-        .into_iter()
-        .map(|output| output.expect("every workspace operation produced an output"))
-        .collect())
 }
 
 /// Build the workspace [`ProjectGraph`] from `projects` under `options`.

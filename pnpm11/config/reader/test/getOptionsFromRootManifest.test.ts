@@ -667,3 +667,42 @@ test('getOptionsFromPnpmSettings() rejects an unknown virtualStoreType', () => {
     virtualStoreType: 'shared' as never,
   })).toThrow(/The "virtualStoreType" setting should be one of global, project, but got "shared"/)
 })
+
+test('getOptionsFromPnpmSettings() passes a valid tasks section through', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    tasks: {
+      build: { dependsOn: ['^build'] },
+      test: { dependsOn: ['build'] },
+      lint: {},
+    },
+  })
+  expect(options.tasks).toStrictEqual({
+    build: { dependsOn: ['^build'] },
+    test: { dependsOn: ['build'] },
+    lint: {},
+  })
+})
+
+test('getOptionsFromPnpmSettings() rejects a tasks entry that is not an object', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    tasks: { build: ['^build'] } as never,
+  })).toThrow(/The "tasks\['build'\]" setting should be an object, but got array/)
+})
+
+test('getOptionsFromPnpmSettings() rejects an unknown task setting field', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    tasks: { build: { dependson: ['^build'] } } as never,
+  })).toThrow(/The "tasks\['build'\].dependson" setting is not a known task setting/)
+})
+
+test('getOptionsFromPnpmSettings() rejects a dependsOn that is not an array of strings', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    tasks: { build: { dependsOn: '^build' } } as never,
+  })).toThrow(/The "tasks\['build'\].dependsOn" setting should be an array of strings, but got string/)
+})
+
+test('getOptionsFromPnpmSettings() rejects a dependsOn entry with no task name', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    tasks: { build: { dependsOn: ['^'] } },
+  })).toThrow(/The "tasks\['build'\].dependsOn" setting contains an entry with no task name: "\^"/)
+})

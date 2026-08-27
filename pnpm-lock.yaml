@@ -4243,6 +4243,9 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
+      '@pnpm/deps.graph-sequencer':
+        specifier: workspace:*
+        version: link:../../deps/graph-sequencer
       '@pnpm/deps.status':
         specifier: workspace:*
         version: link:../../deps/status

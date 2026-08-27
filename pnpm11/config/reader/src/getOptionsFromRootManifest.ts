@@ -40,7 +40,7 @@ export type OptionsFromRootManifest = {
   registriesByPrefix?: Record<string, string>
   registryOptionsByUrl?: Record<string, RegistryOptions>
   auditIgnorePrune?: boolean
-} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'remoteSideEffectsCache' | 'updateConfig'>
+} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'remoteSideEffectsCache' | 'tasks' | 'updateConfig'>
 
 interface GetOptionsFromPnpmSettingsOptions {
   /**
@@ -99,8 +99,39 @@ export function getOptionsFromPnpmSettings (
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)
   translateVirtualStoreType(pnpmSettings, settings)
+  if (settings.tasks != null) {
+    assertValidTasks(settings.tasks)
+  }
 
   return settings
+}
+
+/** The fields a `tasks` entry may carry. Anything else is a typo. */
+const TASK_SETTING_FIELDS = new Set(['dependsOn'])
+
+// The section feeds the task-graph builder of `pnpm -r run`, which reads it
+// without further checks — a malformed entry has to be rejected here rather
+// than surface as a scheduling bug far from the setting that produced it.
+function assertValidTasks (tasks: unknown): asserts tasks is NonNullable<PnpmSettings['tasks']> {
+  assertObjectSetting(tasks, 'tasks')
+  for (const [taskName, task] of Object.entries(tasks as Record<string, unknown>)) {
+    const taskPath = `tasks['${taskName}']`
+    assertObjectSetting(task, taskPath)
+    for (const field of Object.keys(task as Record<string, unknown>)) {
+      if (TASK_SETTING_FIELDS.has(field)) continue
+      throw new PnpmError('INVALID_SETTING',
+        `The "${taskPath}.${field}" setting is not a known task setting.`,
+        { hint: `A task declares ${quoteAndJoin([...TASK_SETTING_FIELDS])}.` })
+    }
+    const dependsOn = (task as { dependsOn?: unknown }).dependsOn
+    if (dependsOn == null) continue
+    assertStringArray(dependsOn, `${taskPath}.dependsOn`)
+    for (const entry of dependsOn) {
+      if (entry !== '' && entry !== '^') continue
+      throw new PnpmError('INVALID_SETTING',
+        `The "${taskPath}.dependsOn" setting contains an entry with no task name: ${JSON.stringify(entry)}`)
+    }
+  }
 }
 
 /**
