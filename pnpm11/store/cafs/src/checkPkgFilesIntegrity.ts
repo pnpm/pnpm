@@ -11,6 +11,8 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 
 const CHUNK_SIZE = 64 * 1024
+// Windows has no O_NOFOLLOW; there the descriptor check below stands alone.
+const NO_FOLLOW = fs.constants.O_NOFOLLOW ?? 0
 
 export interface Integrity {
   digest: string
@@ -256,17 +258,38 @@ export async function verifyFileIntegrityAsync (
     // verification failure rather than an error, as in `hashMatches`.
     return false
   }
+  // The store addresses its own regular files. A symlink at the digest path
+  // would name bytes the store neither owns nor can keep from changing, so it
+  // is refused at open where the platform can; inspecting the descriptor
+  // afterwards keeps the check bound to the file that is actually read.
+  let handle: fs.promises.FileHandle
   try {
-    for await (const chunk of fs.createReadStream(filename, { highWaterMark: CHUNK_SIZE })) {
-      hasher.update(chunk as Buffer)
-    }
+    handle = await fs.promises.open(filename, fs.constants.O_RDONLY | NO_FOLLOW)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'EISDIR')) {
-      return false
-    }
+    if (isMissingOrUnusable(err)) return false
     throw err
   }
+  try {
+    if (!(await handle.stat()).isFile()) return false
+    // `autoClose: false` so the handle is closed once, below, whether or not
+    // the stream got as far as ending.
+    const stream = handle.createReadStream({ highWaterMark: CHUNK_SIZE, autoClose: false })
+    for await (const chunk of stream) {
+      hasher.update(chunk as Buffer)
+    }
+  } finally {
+    await handle.close()
+  }
   return hasher.digest('hex') === integrity.digest
+}
+
+/**
+ * Whether opening a store path failed because nothing usable is there — it is
+ * absent, it is a directory, or it is a symlink `O_NOFOLLOW` turned away.
+ */
+function isMissingOrUnusable (err: unknown): boolean {
+  if (!util.types.isNativeError(err) || !('code' in err)) return false
+  return err.code === 'ENOENT' || err.code === 'EISDIR' || err.code === 'ELOOP'
 }
 
 /** The file's content, or `null` if it is no longer there. */

@@ -41,6 +41,20 @@ describe('verifyFileIntegrityAsync', () => {
     ).resolves.toBe(false)
   })
 
+  // Windows has no `O_NOFOLLOW`, and creating a symlink there needs a
+  // privilege the test runner is not guaranteed.
+  const itPosix = process.platform === 'win32' ? it.skip : it
+  itPosix('refuses a symlink even when it names content with the right digest', async () => {
+    const dir = temporaryDirectory()
+    const outside = path.join(dir, 'outside')
+    const link = path.join(dir, 'linked')
+    fs.writeFileSync(outside, 'addon')
+    fs.symlinkSync(outside, link)
+    await expect(
+      verifyFileIntegrityAsync(link, { algorithm: 'sha512', digest: sha512('addon') })
+    ).resolves.toBe(false)
+  })
+
   it('reports an unusable algorithm as unverified', async () => {
     const dir = temporaryDirectory()
     const file = path.join(dir, 'addon.node')
