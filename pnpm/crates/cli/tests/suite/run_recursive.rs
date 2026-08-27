@@ -154,6 +154,63 @@ fn recursive_run_respects_workspace_concurrency() {
     drop(root);
 }
 
+#[test]
+fn recursive_run_respects_task_concurrency() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = |name: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "scripts": { "build": "sh ../track-task-concurrency.sh" },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", manifest("project-1")),
+            ("project-2", manifest("project-2")),
+            ("project-3", manifest("project-3")),
+        ],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        concat!(
+            "packages:\n",
+            "  - project-1\n",
+            "  - project-2\n",
+            "  - project-3\n",
+            "tasks:\n",
+            "  build:\n",
+            "    concurrency: 1\n",
+        ),
+    )
+    .expect("write task settings");
+    write_executable(
+        &workspace.join("track-task-concurrency.sh"),
+        r#"if mkdir ../build-active 2>/dev/null; then
+  owns_lock=1
+else
+  touch ../exceeded-task-concurrency
+fi
+sleep 0.2
+touch ran.txt
+[ "$owns_lock" = 1 ] && rmdir ../build-active
+"#,
+    );
+
+    pacquet.with_args(["--workspace-concurrency=3", "-r", "run", "build"]).assert().success();
+
+    assert!(
+        !workspace.join("exceeded-task-concurrency").exists(),
+        "only one build task should run at a time",
+    );
+    for name in ["project-1", "project-2", "project-3"] {
+        assert!(workspace.join(name).join("ran.txt").exists(), "{name} should have run");
+    }
+
+    drop(root);
+}
+
 /// Without a workspace-level loader, recursive run preloads the `.pnp.cjs`
 /// belonging to each selected project rather than resolving once from the
 /// invocation directory.

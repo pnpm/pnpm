@@ -977,6 +977,10 @@ pub struct UpdateSettings {
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct TaskSettings {
+    /// Maximum number of instances of this task that may run at once.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub concurrency: Option<i64>,
+
     /// The tasks that must complete before this one may start. A `^name`
     /// entry names the task in each of the project's workspace
     /// dependencies; a bare `name` entry names the task in the same
@@ -1159,8 +1163,16 @@ pub enum LoadWorkspaceYamlError {
     #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
     PrefixDeclaredTwice { prefix: String },
     #[display("The \"tasks['{task}'].{field}\" setting is not a known task setting")]
-    #[diagnostic(code(ERR_PNPM_INVALID_SETTING), help(r#"A task declares "dependsOn"."#))]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(r#"A task declares "concurrency" and "dependsOn"."#)
+    )]
     UnknownTaskSettingField { task: String, field: String },
+    #[display(
+        "The \"tasks['{task}'].concurrency\" setting should be a positive integer, but got {concurrency}"
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    InvalidTaskConcurrency { task: String, concurrency: i64 },
     #[display(
         "The \"tasks['{task}'].dependsOn\" setting contains an entry with no task name: {entry:?}"
     )]
@@ -1274,6 +1286,14 @@ impl WorkspaceSettings {
                 return Err(LoadWorkspaceYamlError::UnknownTaskSettingField {
                     task: task.clone(),
                     field: field.clone(),
+                });
+            }
+            if let Some(concurrency) = settings.concurrency
+                && concurrency < 1
+            {
+                return Err(LoadWorkspaceYamlError::InvalidTaskConcurrency {
+                    task: task.clone(),
+                    concurrency,
                 });
             }
             for entry in settings.depends_on.iter().flatten() {

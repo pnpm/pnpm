@@ -15,6 +15,8 @@ export type TaskKey = string
 export interface TaskNode {
   project: ProjectRootDir
   taskName: string
+  /** Maximum number of instances of this task that may run at once. */
+  concurrency?: number
   /**
    * The scripts of the project that the task name selected — several when the
    * task name is a RegExp selector. Empty when the project has no such
@@ -85,12 +87,19 @@ export function buildTaskGraph (opts: BuildTaskGraphOptions): TaskGraph {
     graph.set(key, {
       project,
       taskName,
+      concurrency: taskConcurrency(opts.tasks, taskName),
       scripts: opts.selectScripts(opts.scriptsByProject(project), taskName),
       requested,
       dependencies: [...dependencies],
     })
   }
   return graph
+}
+
+function taskConcurrency (tasks: WorkspaceTasks | undefined, taskName: string): number | undefined {
+  return tasks != null && Object.hasOwn(tasks, taskName)
+    ? tasks[taskName].concurrency
+    : undefined
 }
 
 export function taskKey (project: ProjectRootDir, taskName: string): TaskKey {

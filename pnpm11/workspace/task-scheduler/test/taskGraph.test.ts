@@ -60,6 +60,17 @@ test('an explicitly empty dependsOn means the task depends on nothing', () => {
   expect(graph.get(taskKey(dir('a'), 'lint'))!.dependencies).toStrictEqual([])
 })
 
+test('a task carries its configured concurrency limit into the graph', () => {
+  const graph = buildGraph({
+    a: { scripts: ['build'] },
+    b: { scripts: ['build'] },
+  }, 'build', {
+    build: { concurrency: 1, dependsOn: [] },
+  })
+
+  expect([...graph.values()].map((node) => node.concurrency)).toStrictEqual([1, 1])
+})
+
 test('a project without the script becomes a pass-through node that keeps the chain', () => {
   const graph = buildGraph({
     a: { dependencies: ['b'], scripts: ['build'] },
@@ -282,7 +293,7 @@ interface FakeProject {
 function buildGraph (
   projects: Record<string, FakeProject>,
   taskName: string,
-  tasks?: Record<string, { dependsOn?: string[] }>
+  tasks?: Record<string, { concurrency?: number, dependsOn?: string[] }>
 ): TaskGraph {
   const scriptsByDir = new Map<ProjectRootDir, PackageScripts>(
     Object.entries(projects).map(([name, project]) => [

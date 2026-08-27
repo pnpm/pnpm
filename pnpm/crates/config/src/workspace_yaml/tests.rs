@@ -2884,7 +2884,7 @@ fn parses_a_valid_tasks_section_and_applies_it() {
         concat!(
             "packages:\n  - packages/*\n",
             "tasks:\n",
-            "  build:\n    dependsOn: ['^build']\n",
+            "  build:\n    concurrency: 2\n    dependsOn: ['^build']\n",
             "  test:\n    dependsOn: ['build']\n",
             "  lint: {}\n",
         ),
@@ -2902,6 +2902,7 @@ fn parses_a_valid_tasks_section_and_applies_it() {
         config.tasks.get("build").unwrap().depends_on.as_deref(),
         Some(&["^build".to_string()][..]),
     );
+    assert_eq!(config.tasks.get("build").unwrap().concurrency, Some(2));
     assert_eq!(
         config.tasks.get("test").unwrap().depends_on.as_deref(),
         Some(&["build".to_string()][..]),
@@ -2944,5 +2945,41 @@ fn rejects_a_depends_on_entry_with_no_task_name() {
         error,
         LoadWorkspaceYamlError::EmptyTaskDependsOnEntry { ref task, ref entry }
             if task == "build" && entry == "^"
+    ));
+}
+
+#[test]
+fn rejects_zero_task_concurrency() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    concurrency: 0\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+    dbg!(&error);
+    assert!(matches!(
+        error,
+        LoadWorkspaceYamlError::InvalidTaskConcurrency { ref task, concurrency: 0 }
+            if task == "build"
+    ));
+}
+
+#[test]
+fn rejects_negative_task_concurrency() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    concurrency: -1\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+    dbg!(&error);
+    assert!(matches!(
+        error,
+        LoadWorkspaceYamlError::InvalidTaskConcurrency { ref task, concurrency: -1 }
+            if task == "build"
     ));
 }

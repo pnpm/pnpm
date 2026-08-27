@@ -10,7 +10,11 @@ use pnpm_reporter::LogEvent;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{Condvar, Mutex},
+    sync::{
+        Condvar, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Duration,
 };
 
 const WORKSPACE_DIR: &str = "/workspace";
@@ -52,6 +56,7 @@ fn tasks(entries: &[(&str, Option<&[&str]>)]) -> IndexMap<String, TaskSettings> 
             (
                 name.to_string(),
                 TaskSettings {
+                    concurrency: None,
                     depends_on: depends_on.map(|entries| {
                         entries.iter().map(std::string::ToString::to_string).collect()
                     }),
@@ -129,6 +134,19 @@ fn explicitly_empty_depends_on_means_the_task_depends_on_nothing() {
     );
 
     assert!(graph[&key("a", "lint")].dependencies.is_empty());
+}
+
+#[test]
+fn task_carries_its_configured_concurrency_limit_into_the_graph() {
+    let mut settings = tasks(&[("build", Some(&[]))]);
+    settings.get_mut("build").unwrap().concurrency = Some(1);
+    let graph = build_graph(
+        &[("a", project(&[], &["build"])), ("b", project(&[], &["build"]))],
+        "build",
+        Some(&settings),
+    );
+
+    assert_eq!(graph.values().map(|node| node.concurrency).collect::<Vec<_>>(), vec![Some(1); 2]);
 }
 
 #[test]
@@ -328,6 +346,70 @@ fn scheduler_runs_tasks_in_dependency_order() {
         vec![dir("c").to_string_lossy().into_owned(), dir("a").to_string_lossy().into_owned()],
     );
     assert_eq!(skipped.into_inner().unwrap(), vec![dir("b").to_string_lossy().into_owned()]);
+}
+
+#[test]
+fn scheduler_respects_task_concurrency_across_projects() {
+    let mut settings = tasks(&[("build", Some(&[]))]);
+    settings.get_mut("build").unwrap().concurrency = Some(1);
+    let graph = build_graph(
+        &[
+            ("a", project(&[], &["build"])),
+            ("b", project(&[], &["build"])),
+            ("c", project(&[], &["build"])),
+        ],
+        "build",
+        Some(&settings),
+    );
+    let active = AtomicUsize::new(0);
+    let max_active = AtomicUsize::new(0);
+    schedule_tasks(
+        &graph,
+        &ScheduleTasksOptions {
+            concurrency: 3,
+            bail: true,
+            run_task: &|_| {
+                let current = active.fetch_add(1, Ordering::SeqCst) + 1;
+                max_active.fetch_max(current, Ordering::SeqCst);
+                std::thread::sleep(Duration::from_millis(20));
+                active.fetch_sub(1, Ordering::SeqCst);
+                TaskCompletion::Passed
+            },
+            on_task_skipped: &|_| {},
+        },
+    );
+
+    assert_eq!(max_active.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn task_waiting_for_a_concurrency_permit_stays_undispatched_after_bail() {
+    let mut settings = tasks(&[("build", Some(&[]))]);
+    settings.get_mut("build").unwrap().concurrency = Some(1);
+    let graph = build_graph(
+        &[
+            ("a", project(&[], &["build"])),
+            ("b", project(&[], &["build"])),
+            ("c", project(&[], &["build"])),
+        ],
+        "build",
+        Some(&settings),
+    );
+    let ran = Mutex::new(Vec::new());
+    schedule_tasks(
+        &graph,
+        &ScheduleTasksOptions {
+            concurrency: 3,
+            bail: true,
+            run_task: &|node| {
+                ran.lock().unwrap().push(node.project.clone());
+                TaskCompletion::Failed
+            },
+            on_task_skipped: &|_| {},
+        },
+    );
+
+    assert_eq!(ran.into_inner().unwrap(), vec![dir("a")]);
 }
 
 #[test]

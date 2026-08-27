@@ -671,13 +671,13 @@ test('getOptionsFromPnpmSettings() rejects an unknown virtualStoreType', () => {
 test('getOptionsFromPnpmSettings() passes a valid tasks section through', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     tasks: {
-      build: { dependsOn: ['^build'] },
+      build: { concurrency: 2, dependsOn: ['^build'] },
       test: { dependsOn: ['build'] },
       lint: {},
     },
   })
   expect(options.tasks).toStrictEqual({
-    build: { dependsOn: ['^build'] },
+    build: { concurrency: 2, dependsOn: ['^build'] },
     test: { dependsOn: ['build'] },
     lint: {},
   })
@@ -705,4 +705,10 @@ test('getOptionsFromPnpmSettings() rejects a dependsOn entry with no task name',
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     tasks: { build: { dependsOn: ['^'] } },
   })).toThrow(/The "tasks\['build'\].dependsOn" setting contains an entry with no task name: "\^"/)
+})
+
+test.each([0, -1, 1.5, '2'])('getOptionsFromPnpmSettings() rejects invalid task concurrency %p', (concurrency) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    tasks: { build: { concurrency } } as never,
+  })).toThrow(/The "tasks\['build'\].concurrency" setting should be a positive integer/)
 })

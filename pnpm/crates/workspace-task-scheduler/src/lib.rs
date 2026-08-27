@@ -36,6 +36,8 @@ pub struct TaskKey {
 pub struct TaskNode {
     pub project: PathBuf,
     pub task_name: String,
+    /// Maximum number of instances of this task that may run at once.
+    pub concurrency: Option<usize>,
     /// The scripts of the project that the task name selected — several
     /// when the task name is a `RegExp` selector. Empty when the project has
     /// no such script: the task is then a pass-through that runs nothing,
@@ -108,11 +110,11 @@ where
             existing.requested |= requested;
             continue;
         }
-        let entries: Vec<String> =
-            match options.tasks.and_then(|tasks| tasks.get(task_name.as_str())) {
-                Some(settings) => settings.depends_on.clone().unwrap_or_default(),
-                None => vec![format!("^{task_name}")],
-            };
+        let settings = options.tasks.and_then(|tasks| tasks.get(task_name.as_str()));
+        let entries: Vec<String> = match settings {
+            Some(settings) => settings.depends_on.clone().unwrap_or_default(),
+            None => vec![format!("^{task_name}")],
+        };
         let mut dependencies: Vec<TaskKey> = Vec::new();
         let mut seen: HashSet<TaskKey> = HashSet::new();
         for entry in &entries {
@@ -138,7 +140,21 @@ where
             }
         }
         let scripts = (options.select_scripts)(&project, &task_name);
-        graph.insert(key, TaskNode { project, task_name, scripts, requested, dependencies });
+        graph.insert(
+            key,
+            TaskNode {
+                project,
+                task_name,
+                concurrency: settings.and_then(|settings| {
+                    settings
+                        .concurrency
+                        .map(|concurrency| usize::try_from(concurrency).unwrap_or(usize::MAX))
+                }),
+                scripts,
+                requested,
+                dependencies,
+            },
+        );
     }
     graph
 }
@@ -510,12 +526,63 @@ impl<'a, Run, Skip> ScheduleGraphAsyncOptions<'a, Run, Skip> {
 
 struct SchedulerState {
     ready: VecDeque<usize>,
+    concurrency_groups: HashMap<String, ConcurrencyGroup>,
     pending_dependencies: Vec<usize>,
     blocked: Vec<bool>,
     settled: Vec<bool>,
     unsettled: usize,
     in_flight: usize,
     stop_dispatch: bool,
+}
+
+struct ConcurrencyGroup {
+    limit: usize,
+    reserved: usize,
+    waiting: VecDeque<usize>,
+}
+
+struct NodeConcurrencyLimit {
+    group: String,
+    limit: usize,
+}
+
+impl SchedulerState {
+    fn make_ready(&mut self, index: usize, limits: &[Option<NodeConcurrencyLimit>]) {
+        let Some(limit) = &limits[index] else {
+            self.ready.push_back(index);
+            return;
+        };
+        let admitted = {
+            let group = self.concurrency_groups.entry(limit.group.clone()).or_insert_with(|| {
+                ConcurrencyGroup { limit: limit.limit, reserved: 0, waiting: VecDeque::new() }
+            });
+            if group.reserved < group.limit {
+                group.reserved += 1;
+                true
+            } else {
+                group.waiting.push_back(index);
+                false
+            }
+        };
+        if admitted {
+            self.ready.push_back(index);
+        }
+    }
+
+    fn release_concurrency(&mut self, index: usize, limits: &[Option<NodeConcurrencyLimit>]) {
+        let Some(limit) = &limits[index] else { return };
+        let next = {
+            let group = self
+                .concurrency_groups
+                .get_mut(&limit.group)
+                .expect("running task has a concurrency group");
+            group.reserved -= 1;
+            group.waiting.pop_front().inspect(|_| group.reserved += 1)
+        };
+        if let Some(next) = next {
+            self.ready.push_back(next);
+        }
+    }
 }
 
 /// Dispatch every task whose dependencies have all completed successfully,
@@ -542,9 +609,18 @@ where
         }
     };
     let on_node_skipped = |key: &TaskKey| (options.on_task_skipped)(&graph[key]);
-    schedule_graph(
+    let concurrency_limit = |key: &TaskKey| {
+        let node = &graph[key];
+        let concurrency = node.concurrency?;
+        (!node.scripts.is_empty()).then(|| NodeConcurrencyLimit {
+            group: node.task_name.clone(),
+            limit: concurrency.max(1),
+        })
+    };
+    schedule_graph_with_concurrency_limits(
         &dependencies,
         &ScheduleGraphOptions::new(options.concurrency, options.bail, &run_node, &on_node_skipped),
+        &concurrency_limit,
     )
     .expect("failed to start a task scheduler worker");
 }
@@ -561,6 +637,20 @@ where
     Run: Fn(Node) -> TaskCompletion + Sync,
     Skip: Fn(&Node) + Sync,
 {
+    schedule_graph_with_concurrency_limits(graph, options, &|_| None)
+}
+
+fn schedule_graph_with_concurrency_limits<Node, Run, Skip, Limit>(
+    graph: &IndexMap<Node, Vec<Node>>,
+    options: &ScheduleGraphOptions<'_, Run, Skip>,
+    concurrency_limit: &Limit,
+) -> Result<(), std::io::Error>
+where
+    Node: Clone + Eq + std::hash::Hash + Sync,
+    Run: Fn(Node) -> TaskCompletion + Sync,
+    Skip: Fn(&Node) + Sync,
+    Limit: Fn(&Node) -> Option<NodeConcurrencyLimit>,
+{
     if graph.is_empty() {
         return Ok(());
     }
@@ -572,6 +662,8 @@ where
         order.iter().enumerate().map(|(index, node)| (node, index)).collect();
     let index_of: HashMap<&Node, usize> =
         graph.keys().enumerate().map(|(index, key)| (key, index)).collect();
+    let concurrency_limits: Vec<Option<NodeConcurrencyLimit>> =
+        graph.keys().map(concurrency_limit).collect();
     let mut dependents: Vec<Vec<usize>> = vec![Vec::new(); graph.len()];
     let mut pending_dependencies: Vec<usize> = vec![0; graph.len()];
     for (index, (node, dependencies)) in graph.iter().enumerate() {
@@ -585,20 +677,22 @@ where
             dependents[index_of[dependency]].push(index);
         }
     }
-    let state = Mutex::new(SchedulerState {
-        ready: pending_dependencies
-            .iter()
-            .enumerate()
-            .filter(|(_, pending)| **pending == 0)
-            .map(|(index, _)| index)
-            .collect(),
+    let mut initial_state = SchedulerState {
+        ready: VecDeque::new(),
+        concurrency_groups: HashMap::new(),
         pending_dependencies,
         blocked: vec![false; graph.len()],
         settled: vec![false; graph.len()],
         unsettled: graph.len(),
         in_flight: 0,
         stop_dispatch: false,
-    });
+    };
+    for index in 0..graph.len() {
+        if initial_state.pending_dependencies[index] == 0 {
+            initial_state.make_ready(index, &concurrency_limits);
+        }
+    }
+    let state = Mutex::new(initial_state);
     let progress = Condvar::new();
 
     let complete = |state: &mut SchedulerState, index: usize| {
@@ -607,7 +701,7 @@ where
         for &dependent in &dependents[index] {
             state.pending_dependencies[dependent] -= 1;
             if state.pending_dependencies[dependent] == 0 && !state.blocked[dependent] {
-                state.ready.push_back(dependent);
+                state.make_ready(dependent, &concurrency_limits);
             }
         }
     };
@@ -670,6 +764,7 @@ where
                     drop(panic_guard);
                     guard = state.lock().expect("task scheduler state lock is not poisoned");
                     guard.in_flight -= 1;
+                    guard.release_concurrency(index, &concurrency_limits);
                     match completion {
                         TaskCompletion::Passed => complete(&mut guard, index),
                         TaskCompletion::Failed => {

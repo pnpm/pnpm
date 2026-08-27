@@ -107,7 +107,7 @@ export function getOptionsFromPnpmSettings (
 }
 
 /** The fields a `tasks` entry may carry. Anything else is a typo. */
-const TASK_SETTING_FIELDS = new Set(['dependsOn'])
+const TASK_SETTING_FIELDS = new Set(['concurrency', 'dependsOn'])
 
 // The section feeds the task-graph builder of `pnpm -r run`, which reads it
 // without further checks — a malformed entry has to be rejected here rather
@@ -122,6 +122,11 @@ function assertValidTasks (tasks: unknown): asserts tasks is NonNullable<PnpmSet
       throw new PnpmError('INVALID_SETTING',
         `The "${taskPath}.${field}" setting is not a known task setting.`,
         { hint: `A task declares ${quoteAndJoin([...TASK_SETTING_FIELDS])}.` })
+    }
+    const concurrency = (task as { concurrency?: unknown }).concurrency
+    if (concurrency != null && (!Number.isInteger(concurrency) || (concurrency as number) < 1)) {
+      throw new PnpmError('INVALID_SETTING',
+        `The "${taskPath}.concurrency" setting should be a positive integer, but got ${JSON.stringify(concurrency)}`)
     }
     const dependsOn = (task as { dependsOn?: unknown }).dependsOn
     if (dependsOn == null) continue

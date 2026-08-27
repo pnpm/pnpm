@@ -112,6 +112,62 @@ test('an aborted task stops dispatch and the scheduler still settles', async () 
   expect(ran).toStrictEqual(['/workspace/a'])
 })
 
+test('task concurrency limits instances without blocking other task names', async () => {
+  let releaseFirstBuild!: () => void
+  const firstBuild = new Promise<void>((resolve) => {
+    releaseFirstBuild = resolve
+  })
+  let activeBuilds = 0
+  let maxActiveBuilds = 0
+  const ran: string[] = []
+  const graph = independentTaskGraph([
+    ['a', 'build', 1],
+    ['b', 'build', 1],
+    ['c', 'lint', 1],
+  ])
+
+  await scheduleTasks(graph, {
+    bail: true,
+    runTask: async (node) => {
+      ran.push(`${node.project}#${node.taskName}`)
+      if (node.taskName === 'build') {
+        activeBuilds++
+        maxActiveBuilds = Math.max(maxActiveBuilds, activeBuilds)
+        if (node.project.endsWith('/a')) await firstBuild
+        activeBuilds--
+      } else {
+        releaseFirstBuild()
+      }
+      return 'passed'
+    },
+    onTaskSkipped: () => {},
+  })
+
+  expect(maxActiveBuilds).toBe(1)
+  expect(ran).toStrictEqual([
+    '/workspace/a#build',
+    '/workspace/c#lint',
+    '/workspace/b#build',
+  ])
+})
+
+test('a task waiting for a concurrency permit stays undispatched after bail', async () => {
+  const ran: string[] = []
+  await scheduleTasks(independentTaskGraph([
+    ['a', 'build', 1],
+    ['b', 'build', 1],
+    ['c', 'build', 1],
+  ]), {
+    bail: true,
+    runTask: async (node) => {
+      ran.push(node.project)
+      return 'failed'
+    },
+    onTaskSkipped: () => {},
+  })
+  expect(ran).toStrictEqual(['/workspace/a'])
+})
+
 test('a rejected runTask stops dispatch and resurfaces as the scheduler\'s failure', async () => {
   const graph = chainGraph()
   const ran: string[] = []
@@ -142,4 +198,19 @@ function chainGraph (): TaskGraph {
     previous = key
   }
   return graph
+}
+
+function independentTaskGraph (tasks: Array<[string, string, number]>): TaskGraph {
+  return new Map(tasks.map(([name, taskName, concurrency]) => {
+    const project = `/workspace/${name}` as ProjectRootDir
+    const key = taskKey(project, taskName)
+    return [key, {
+      project,
+      taskName,
+      concurrency,
+      scripts: [taskName],
+      requested: true,
+      dependencies: [],
+    }] as const
+  }))
 }
