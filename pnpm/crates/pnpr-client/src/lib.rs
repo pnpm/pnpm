@@ -394,6 +394,8 @@ struct HandshakeCapability {
     versions: Vec<u32>,
     #[serde(default)]
     artifacts: Vec<u32>,
+    #[serde(default, rename = "fixLockfile")]
+    fix_lockfile: Vec<u32>,
 }
 
 impl PnprClient {
@@ -414,6 +416,21 @@ impl PnprClient {
     /// no protocol version with this client.
     pub async fn handshake(&self) -> Result<(), PnprClientError> {
         let capability = self.fetch_handshake(None).await?;
+        Self::require_resolver_protocol(&capability)
+    }
+
+    async fn handshake_fix_lockfile(&self) -> Result<(), PnprClientError> {
+        let capability = self.fetch_handshake(None).await?;
+        Self::require_resolver_protocol(&capability)?;
+        if !capability.fix_lockfile.contains(&PROTOCOL_VERSION) {
+            return Err(PnprClientError::Server(format!(
+                "pnpr server does not advertise lockfile repair support for resolver protocol v{PROTOCOL_VERSION}",
+            )));
+        }
+        Ok(())
+    }
+
+    fn require_resolver_protocol(capability: &HandshakeCapability) -> Result<(), PnprClientError> {
         if !capability.versions.contains(&PROTOCOL_VERSION) {
             return Err(PnprClientError::Server(format!(
                 "pnpr server speaks protocol versions {:?}, but this client requires v{PROTOCOL_VERSION}",
@@ -734,6 +751,9 @@ impl PnprClient {
         opts: ResolveProjectsOptions,
         mut on_package: impl FnMut(ResolvedPackage),
     ) -> Result<ResolveOutcome, PnprClientError> {
+        if opts.fix_lockfile {
+            self.handshake_fix_lockfile().await?;
+        }
         // The server's response is untrusted, and the caller merges the
         // returned lockfile into `pnpm-lock.yaml`. Constrain it to the
         // importers this request is about — the requested projects plus

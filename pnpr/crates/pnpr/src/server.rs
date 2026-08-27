@@ -2708,9 +2708,11 @@ async fn serve_ping(State(_state): State<AppState>) -> Response {
 /// `GET /-/pnpr` — capability handshake for the pnpr resolver
 /// protocol. A plain npm registry has no such route and 404s, so a
 /// client can fail fast against a misconfigured server. `versions`
-/// lists the `/-/pnpr/vN/resolve` protocol versions this server speaks.
+/// lists the `/-/pnpr/vN/resolve` protocol versions this server speaks;
+/// `fixLockfile` narrows that list to versions that honor repair requests.
 async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
     let versions = state.inner.config.resolver.enabled.then_some(0).into_iter().collect::<Vec<_>>();
+    let fix_lockfile = versions.clone();
     let artifacts =
         state.inner.config.artifacts.enabled.then_some(0).into_iter().collect::<Vec<_>>();
     (
@@ -2719,6 +2721,7 @@ async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
             "pnpr": {
                 "versions": versions,
                 "artifacts": artifacts,
+                "fixLockfile": fix_lockfile,
             }
         })),
     )

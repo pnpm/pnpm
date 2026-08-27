@@ -179,6 +179,14 @@ fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
     );
     assert!(
         repaired
+            .packages
+            .as_ref()
+            .expect("repaired packages")
+            .values()
+            .all(|metadata| metadata.resolution.checkable_integrity().is_some()),
+    );
+    assert!(
+        repaired
             .snapshots
             .as_ref()
             .expect("repaired snapshots")
