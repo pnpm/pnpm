@@ -189,7 +189,7 @@ pub struct CreateVirtualStore<'a> {
     /// macOS directory-clone materialization cache
     /// ([`crate::dir_clone_cache`]), built by the install entry points
     /// when [`crate::DirCloneCache::eligible`] holds. Threaded into
-    /// every slot link that passes [`dir_clone_cacheable`].
+    /// every slot link that passes `dir_clone_cacheable`.
     pub dir_clone_cache: Option<&'a crate::DirCloneCache>,
     /// Cache keys whose package status (`fetched` or `found_in_store`)
     /// has already been emitted earlier in this install. The warm batch
