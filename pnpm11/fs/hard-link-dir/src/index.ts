@@ -103,8 +103,11 @@ function isSameFile (destFile: string, srcStats: fs.BigIntStats): boolean {
   let destStats
   try {
     destStats = fs.lstatSync(destFile, { bigint: true })
-  } catch {
-    return false
+  } catch (err: unknown) {
+    // The caller got EEXIST for this path, so only a concurrent removal
+    // explains it being gone; anything else is a real failure to report.
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
   }
   // Filesystems that report neither an inode nor a device (some on Windows)
   // make every file look like every other one.
