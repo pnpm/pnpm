@@ -15,7 +15,10 @@ use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::NodeLinker;
 use pnpm_lockfile::{Lockfile, LockfileResolution, MaybeLazyLockfile};
-use pnpm_lockfile_verification::{lockfile_verification_is_cached, record_lockfile_verified};
+use pnpm_lockfile_verification::{
+    VerifyLockfileResolutionsOptions, lockfile_verification_is_cached, record_lockfile_verified,
+    verify_lockfile_resolutions,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manager::{
     Install, InstallFrozenLockfileError, LockfileVerificationOverride, ProjectMutation,
@@ -927,7 +930,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         None
     };
     let merge_wanted = if link.fix_lockfile && link.use_state_lockfile {
-        state.lockfile.get().or_else(|_| state.lockfile.get_for_fix()).map_err(|err| {
+        MaybeLazyLockfile::Repair(&state.lockfile).get_for_merge().map_err(|err| {
             miette::Report::new(err).wrap_err("load the lockfile for filtered merge")
         })?
     } else {
@@ -1331,22 +1334,11 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         )
         .map_err(miette::Report::new)?;
     }
-
-    if state.config.lockfile {
-        outcome
-            .lockfile
-            .save_to_path(&lockfile_path)
-            .map_err(|err| miette::miette!("{err}"))
-            .wrap_err("writing the pnpr-resolved lockfile")?;
-        // Recording is sound here because every entry in the saved
-        // lockfile passed the server's gates under the client's own
-        // forwarded policy: freshly-resolved entries through the
-        // pick-time gate, and entries carried over by the filtered-
-        // install merge as part of the input lockfile the server
-        // verified before resolving (pnpm's
-        // `writeWantedLockfileAndRecordVerified`).
-        if !link.trust_lockfile
-            && let Ok(verifiers) = build_resolution_verifiers(
+    let merged_repair_verifiers = if link.fix_lockfile && partial_selection {
+        let verifiers = if link.trust_lockfile {
+            Vec::new()
+        } else {
+            build_resolution_verifiers(
                 state.config,
                 std::sync::Arc::clone(&state.http_client),
                 None,
@@ -1354,13 +1346,49 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
                 None,
                 None,
             )
-        {
-            record_lockfile_verified(
-                Some(&state.config.cache_dir),
-                &lockfile_path,
-                &outcome.lockfile,
-                &verifiers,
-            );
+            .map_err(miette::Report::new)?
+        };
+        verify_lockfile_resolutions::<Reporter>(
+            &outcome.lockfile,
+            &verifiers,
+            &VerifyLockfileResolutionsOptions::default(),
+        )
+        .await
+        .map_err(miette::Report::new)?;
+        Some(verifiers)
+    } else {
+        None
+    };
+
+    if state.config.lockfile {
+        outcome
+            .lockfile
+            .save_to_path(&lockfile_path)
+            .map_err(|err| miette::miette!("{err}"))
+            .wrap_err("writing the pnpr-resolved lockfile")?;
+        if !link.trust_lockfile {
+            if let Some(verifiers) = merged_repair_verifiers.as_ref() {
+                record_lockfile_verified(
+                    Some(&state.config.cache_dir),
+                    &lockfile_path,
+                    &outcome.lockfile,
+                    verifiers,
+                );
+            } else if let Ok(verifiers) = build_resolution_verifiers(
+                state.config,
+                std::sync::Arc::clone(&state.http_client),
+                None,
+                None,
+                None,
+                None,
+            ) {
+                record_lockfile_verified(
+                    Some(&state.config.cache_dir),
+                    &lockfile_path,
+                    &outcome.lockfile,
+                    &verifiers,
+                );
+            }
         }
     }
 

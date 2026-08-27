@@ -1206,6 +1206,54 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
     drop((root, mock_instance));
 }
 
+fn seed_filtered_repair_workspace(workspace: &Path, registry_url: &str) {
+    configure_workspace(workspace);
+    write_workspace_project(workspace, "selected", "selected", (WORKSPACE_HELLO, "0.0.0"));
+    write_workspace_project(workspace, "unselected", "unselected", (WORKSPACE_PARENT, "100.0.0"));
+    pacquet_at(workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", registry_url)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+}
+
+fn selected_only_pnpr_lockfile(mut lockfile: Lockfile) -> Lockfile {
+    lockfile.importers.retain(|id, _| id == "packages/selected");
+    if let Some(packages) = lockfile.packages.as_mut() {
+        packages.retain(|key, _| key.to_string().contains(WORKSPACE_HELLO));
+    }
+    if let Some(snapshots) = lockfile.snapshots.as_mut() {
+        snapshots.retain(|key, _| key.to_string().contains(WORKSPACE_HELLO));
+    }
+    lockfile
+}
+
+fn mock_filtered_repair_response(
+    server: &mut mockito::Server,
+    lockfile: &Lockfile,
+) -> (mockito::Mock, mockito::Mock) {
+    let handshake = server
+        .mock("GET", "/-/pnpr")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"pnpr":{"versions":[0],"fixLockfile":[0]}}"#)
+        .expect(1)
+        .create();
+    let response = serde_json::json!({
+        "type": "done",
+        "lockfile": lockfile,
+        "stats": { "totalPackages": 0 },
+    });
+    let resolve = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .with_status(200)
+        .with_header("content-type", "application/x-ndjson")
+        .with_body(format!("{response}\n"))
+        .expect(1)
+        .create();
+    (handshake, resolve)
+}
+
 #[test]
 fn filtered_workspace_install_via_pnpr_materializes_the_root_and_selected_closure() {
     assert_filtered_workspace_pnpr(false);
@@ -1214,6 +1262,146 @@ fn filtered_workspace_install_via_pnpr_materializes_the_root_and_selected_closur
 #[test]
 fn filtered_workspace_pnpr_lockfile_only_merges_the_root_and_selected_importers() {
     assert_filtered_workspace_pnpr(true);
+}
+
+#[test]
+fn filtered_pnpr_repair_preserves_unselected_metadata() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    seed_filtered_repair_workspace(&workspace, &mock_instance.url());
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut previous = read_workspace_lockfile(&workspace);
+    let mut preserved_package_count = 0;
+    for (key, metadata) in previous.packages.as_mut().expect("packages") {
+        let key = key.to_string();
+        if key.contains(WORKSPACE_PARENT) || key.contains(WORKSPACE_DEP) {
+            metadata.deprecated = Some("preserve this metadata".to_string());
+            preserved_package_count += 1;
+        }
+    }
+    assert!(preserved_package_count > 0);
+    let mut preserved_snapshot_count = 0;
+    for (key, snapshot) in previous.snapshots.as_mut().expect("snapshots") {
+        let key = key.to_string();
+        if key.contains(WORKSPACE_PARENT) || key.contains(WORKSPACE_DEP) {
+            snapshot.optional = true;
+            snapshot.transitive_peer_dependencies = Some(vec!["preserved-peer".to_string()]);
+            preserved_snapshot_count += 1;
+        }
+    }
+    assert!(preserved_snapshot_count > 0);
+    let fresh = selected_only_pnpr_lockfile(previous.clone());
+    let mut broken: serde_json::Value =
+        serde_saphyr::from_str(&serde_saphyr::to_string(&previous).expect("serialize lockfile"))
+            .expect("parse lockfile value");
+    broken["time"] = serde_json::json!("invalid");
+    fs::write(&lockfile_path, serde_saphyr::to_string(&broken).expect("serialize lockfile"))
+        .expect("write broken lockfile");
+    let mut server = mockito::Server::new();
+    let (handshake_mock, resolve_mock) = mock_filtered_repair_response(&mut server, &fresh);
+
+    pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args([
+            "--filter",
+            "selected",
+            "install",
+            "--fix-lockfile",
+            "--lockfile-only",
+            "--pnpr-server",
+            &server.url(),
+        ])
+        .assert()
+        .success();
+
+    let repaired = read_workspace_lockfile(&workspace);
+    let preserved_packages = repaired
+        .packages
+        .as_ref()
+        .expect("repaired packages")
+        .iter()
+        .filter(|(key, _)| {
+            let key = key.to_string();
+            key.contains(WORKSPACE_PARENT) || key.contains(WORKSPACE_DEP)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(preserved_packages.len(), preserved_package_count);
+    assert!(
+        preserved_packages.iter().all(|(_, metadata)| {
+            metadata.deprecated.as_deref() == Some("preserve this metadata")
+        }),
+    );
+    let preserved_snapshots = repaired
+        .snapshots
+        .as_ref()
+        .expect("repaired snapshots")
+        .iter()
+        .filter(|(key, _)| {
+            let key = key.to_string();
+            key.contains(WORKSPACE_PARENT) || key.contains(WORKSPACE_DEP)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(preserved_snapshots.len(), preserved_snapshot_count);
+    assert!(preserved_snapshots.iter().all(|(_, snapshot)| {
+        snapshot.optional
+            && snapshot
+                .transitive_peer_dependencies
+                .as_ref()
+                .is_some_and(|peers| peers.len() == 1 && peers[0] == "preserved-peer")
+    }));
+    handshake_mock.assert();
+    resolve_mock.assert();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn filtered_pnpr_repair_verifies_the_merged_lockfile_before_writing() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    seed_filtered_repair_workspace(&workspace, &mock_instance.url());
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let previous = read_workspace_lockfile(&workspace);
+    let fresh = selected_only_pnpr_lockfile(previous.clone());
+    let mut broken: serde_json::Value =
+        serde_saphyr::from_str(&serde_saphyr::to_string(&previous).expect("serialize lockfile"))
+            .expect("parse lockfile value");
+    broken["time"] = serde_json::json!("invalid");
+    broken["importers"]["packages/unselected"]["dependencies"]["../../../escape"] =
+        serde_json::json!({ "specifier": "link:local", "version": "link:local" });
+    let before = serde_saphyr::to_string(&broken).expect("serialize lockfile");
+    fs::write(&lockfile_path, &before).expect("write broken lockfile");
+    let mut server = mockito::Server::new();
+    let (handshake_mock, resolve_mock) = mock_filtered_repair_response(&mut server, &fresh);
+
+    let output = pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args([
+            "--filter",
+            "selected",
+            "install",
+            "--fix-lockfile",
+            "--lockfile-only",
+            "--trust-lockfile",
+            "--pnpr-server",
+            &server.url(),
+        ])
+        .output()
+        .expect("run filtered repair");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_INVALID_DEPENDENCY_NAME"),
+        "merged repair must reject the traversal alias; got:\n{stderr}",
+    );
+    assert_eq!(fs::read_to_string(&lockfile_path).expect("read lockfile after failure"), before);
+    handshake_mock.assert();
+    resolve_mock.assert();
+
+    drop((root, mock_instance));
 }
 
 #[test]
