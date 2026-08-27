@@ -1046,41 +1046,29 @@ fn parse_token_helper_field(
     Ok((!command.is_empty()).then_some(command))
 }
 
-/// Decode a standard base64 credential to the bytes it carries, ignoring
-/// whitespace and accepting padding that is redundant (`aGk===`) or
-/// missing (`aGk`) — the spellings that reach a `.npmrc` by hand or from
-/// a shell pipeline. `None` when the value is not base64 at all.
+/// The decoder pnpm reads credentials with: `atob`'s forgiving-base64,
+/// which ignores whitespace anywhere and keeps the low bits of a
+/// truncated final group rather than rejecting the value. Padding is
+/// stripped before the value reaches this engine, so `=` left anywhere
+/// else is an invalid byte — as it is for `atob`.
+const CREDENTIAL_BASE64: base64::engine::GeneralPurpose = base64::engine::GeneralPurpose::new(
+    &base64::alphabet::STANDARD,
+    base64::engine::GeneralPurposeConfig::new()
+        .with_decode_allow_trailing_bits(true)
+        .with_decode_padding_mode(base64::engine::DecodePaddingMode::RequireNone),
+);
+
+/// Decode a standard base64 credential to the bytes it carries, matching
+/// `decodeBase64Credential` in the TypeScript stack: whitespace is
+/// ignored, and trailing `=` padding may be redundant (`aGk===`),
+/// short (`Zm9vOmJhcg=`), or missing (`aGk`) — the spellings that reach
+/// a `.npmrc` by hand or from a shell pipeline. `None` when the value is
+/// not base64 at all.
 fn base64_decode_bytes(input: &str) -> Option<Vec<u8>> {
     let cleaned: Vec<u8> = input.bytes().filter(|byte| !byte.is_ascii_whitespace()).collect();
-    let payload = match cleaned.iter().position(|byte| *byte == b'=') {
-        Some(padding_start) => &cleaned[..padding_start],
-        None => &cleaned[..],
-    };
-    // A trailing group of a single base64 character encodes no whole
-    // byte, so the value is truncated rather than merely unpadded.
-    if payload.len() % 4 == 1 {
-        return None;
-    }
-    let mut bytes = Vec::with_capacity(payload.len() / 4 * 3);
-    let mut buffer = 0u32;
-    let mut bits = 0u32;
-    for byte in payload.iter().copied() {
-        let value = match byte {
-            b'A'..=b'Z' => byte - b'A',
-            b'a'..=b'z' => byte - b'a' + 26,
-            b'0'..=b'9' => byte - b'0' + 52,
-            b'+' => 62,
-            b'/' => 63,
-            _ => return None,
-        };
-        buffer = (buffer << 6) | u32::from(value);
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            bytes.push(((buffer >> bits) & 0xff) as u8);
-        }
-    }
-    Some(bytes)
+    let payload =
+        cleaned.iter().rposition(|byte| *byte != b'=').map_or(&[][..], |last| &cleaned[..=last]);
+    base64::Engine::decode(&CREDENTIAL_BASE64, payload).ok()
 }
 
 /// [`base64_decode_bytes`] for the `_password` field, whose decoded form

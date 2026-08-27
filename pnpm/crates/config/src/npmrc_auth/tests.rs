@@ -459,6 +459,21 @@ fn unpadded_auth_pair_base64_is_canonically_re_encoded() {
     );
 }
 
+/// A value that decodes only once its trailing garbage is thrown away is
+/// not a credential — pnpm's `atob` rejects it, so pacquet must too.
+#[test]
+fn auth_pair_base64_with_a_suffix_after_its_padding_is_rejected() {
+    let ini = format!("//reg.com/:_auth={}garbage\n", base64_encode("alice:p@ss"));
+    let mut config = Config::new();
+    let error = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""))
+        .build_auth_headers(&mut config)
+        .expect_err("trailing garbage after the padding must fail the load");
+    assert!(
+        matches!(error, LoadWorkspaceYamlError::AuthInvalidBase64 { key: "_auth" }),
+        "got: {error:?}",
+    );
+}
+
 #[test]
 fn auth_pair_base64_that_does_not_decode_is_rejected() {
     let ini = "//reg.com/:_auth=not*base64\n";
@@ -582,17 +597,28 @@ fn invalid_base64_password_falls_back_to_raw_value() {
 /// Without these assertions the password-decode fallback
 /// (`unwrap_or_else(... pass_b64.clone())`) path stays unreachable
 /// from the parser tests.
+///
+/// Every case here is an `atob` result: the decoder answers what pnpm's
+/// `decodeBase64Credential` answers for the same value.
 #[test]
-fn base64_decode_covers_every_alphabet_branch() {
+fn base64_decode_matches_atob() {
     assert_eq!(base64_decode(&base64_encode("alice:hunter2")).as_deref(), Some("alice:hunter2"));
     assert_eq!(base64_decode("Pz8/").as_deref(), Some("???"));
     assert_eq!(base64_decode("fn5+").as_deref(), Some("~~~"));
     assert_eq!(base64_decode("aGk=").as_deref(), Some("hi"));
+    // Padding may be redundant, short of what the value needs, or
+    // missing entirely, and whitespace may appear anywhere.
     assert_eq!(base64_decode("aGk===").as_deref(), Some("hi"));
-    // Padding may also be missing entirely.
+    assert_eq!(base64_decode("Zm9vOmJhcg=").as_deref(), Some("foo:bar"));
     assert_eq!(base64_decode("aGk").as_deref(), Some("hi"));
+    assert_eq!(base64_decode("aG k=").as_deref(), Some("hi"));
+    // A truncated final group keeps the whole bytes it does carry.
+    assert_eq!(base64_decode("aH").as_deref(), Some("h"));
     // A lone trailing character carries no whole byte of its own.
     assert_eq!(base64_decode("aGkyM"), None);
+    // `=` is padding, so anything after it is not base64.
+    assert_eq!(base64_decode("Zm9vOmJhcg==garbage"), None);
+    assert_eq!(base64_decode("aGk=x"), None);
     assert_eq!(base64_decode("not*base64"), None);
 }
 
