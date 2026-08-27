@@ -37,6 +37,7 @@ jobs:
 
       - name: Check for lag and rewrite flake.nix
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # system|asset-substring — one per line. The substring must uniquely
           # match the release asset filename for that system. Using the full
           # filename avoids matching the musl variants and the pnpr assets.
@@ -47,7 +48,6 @@ jobs:
             aarch64-darwin|pnpm-darwin-arm64.tar.gz
         run: |
           set -euo pipefail
-          export GH_TOKEN="${GITHUB_TOKEN}"
           python3 <<'PYEOF'
           import json, os, re, subprocess, urllib.request
           repo = os.environ["GITHUB_REPOSITORY"]
@@ -92,7 +92,7 @@ jobs:
           # ASSET_MAP. If a project ships for 4 platforms but ASSET_MAP only
           # lists 3, the omitted platform's hash goes stale while its URL still
           # gets the version bump — users on that platform get a hash mismatch.
-          IGNORED = ("musl", "pnpr-", "-source", "source-code")
+          IGNORED = ("musl", "pnpr-", "-source", "source-code", "win32", "win-x64", "win-arm64")
           matched_subs = set(asset_map.values())
           unmatched = [
               name for name in sorted(names)
