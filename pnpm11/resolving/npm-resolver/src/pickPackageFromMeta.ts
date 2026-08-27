@@ -86,7 +86,11 @@ export function pickPackageFromMeta (
         break
     }
     if (!version) return null
-    const manifest = meta.versions[version]
+    // A version the narrowing above removed, or a dist-tag pointing at one
+    // the registry never published, leaves no manifest behind. The declared
+    // return type is the contract every caller reads, so answer it with
+    // `null` rather than letting `undefined` stand in for "no match".
+    const manifest = meta.versions[version] ?? null
     if (manifest && meta['name']) {
       // Packages that are published to the GitHub registry are always published with a scope.
       // However, the name in the package.json for some reason may omit the scope.

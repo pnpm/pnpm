@@ -151,6 +151,7 @@ impl<'a> LatestPicker<'a> {
         );
 
         let mut rejected: HashSet<String> = HashSet::new();
+        let mut newest_rejected: Option<Arc<PackageVersion>> = None;
         loop {
             let opts = PickPackageOptions {
                 blocked_versions: (!rejected.is_empty()).then_some(&rejected),
@@ -159,7 +160,14 @@ impl<'a> LatestPicker<'a> {
             let pick = pick_package(&ctx, &spec, &opts)
                 .await
                 .map_err(|error| ResolveLatestError::Pick(Box::new(error)))?;
-            let candidate = pick.picked_package.ok_or(ResolveLatestError::NoLatestVersion)?;
+            let Some(candidate) = pick.picked_package else {
+                // The walk rejected everything the range admits. Hand back
+                // the newest of them so the install can name the pin that is
+                // too young; claiming the package has no `latest` at all
+                // would describe a packument that does not exist. An empty
+                // first pick is the real "no latest version".
+                return newest_rejected.ok_or(ResolveLatestError::NoLatestVersion);
+            };
             // Every candidate is judged, including the one the bound stops on:
             // short-circuiting on the count would hand back a candidate nobody
             // looked at, and an installable version further down would never be
@@ -178,6 +186,7 @@ impl<'a> LatestPicker<'a> {
             // that serves a key differing from the manifest's `version` field
             // would otherwise never get the candidate excluded, and the walk
             // would re-select it forever.
+            newest_rejected.get_or_insert_with(|| Arc::clone(&candidate));
             let key = blocked_packument_key(&pick.meta, &candidate, &candidate.version.to_string());
             if !rejected.insert(key) {
                 // The picker re-selected a key already rejected, so it cannot

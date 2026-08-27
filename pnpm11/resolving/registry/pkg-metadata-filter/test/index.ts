@@ -315,3 +315,35 @@ test('an equivalent policy shares one memoization slot whatever order it was bui
   const blocked = filterPkgMetadata(doc, { publishedBy, blockedVersions: new Set(['2.0.0', '1.0.0']) })
   expect(filterPkgMetadata(doc, { publishedBy, blockedVersions: new Set(['1.0.0', '2.0.0']) })).toBe(blocked)
 })
+
+test('collections that differ only by where a separator falls get their own slot', () => {
+  const name = 'separator-in-version'
+  const packageVersion = (version: string) => ({
+    name,
+    version,
+    dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-1.0.0.tgz`, shasum: '' },
+  })
+  const doc = {
+    name,
+    versions: { '1.0.0': packageVersion('1.0.0') },
+    'dist-tags': { latest: '1.0.0' },
+    time: { '1.0.0': '2026-01-01T00:00:00.000Z' },
+  }
+  const publishedBy = new Date('2020-04-01T00:00:00.000Z')
+
+  // A registry chooses its own version strings, so one may contain whatever
+  // separator a key is built from. Joining on it would let these two spell
+  // the same key, and the second policy would be served the first's
+  // packument -- admitting a version it never trusted.
+  const separator = String.fromCharCode(0)
+  const embedded = filterPkgMetadata(doc, {
+    publishedBy,
+    trustedVersions: [`a${separator}1.0.0`],
+  })
+  const split = filterPkgMetadata(doc, { publishedBy, trustedVersions: ['a', '1.0.0'] })
+
+  expect(split).not.toBe(embedded)
+  // Only the split spelling actually trusts the one version in the packument.
+  expect(Object.keys(embedded.versions)).toStrictEqual([])
+  expect(Object.keys(split.versions)).toStrictEqual(['1.0.0'])
+})
