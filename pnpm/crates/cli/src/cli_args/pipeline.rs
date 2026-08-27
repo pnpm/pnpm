@@ -219,7 +219,7 @@ pub fn run_pipeline(
         } else {
             println!(
                 "{}",
-                render_task_graph_dry_run(&task_graph, &sequenced_tasks, workspace_root)
+                render_task_graph_dry_run(&task_graph, &sequenced_tasks, workspace_root),
             );
         }
         return Ok(());
@@ -308,7 +308,7 @@ pub fn run_pipeline(
     let report_dir = report.write(&pipeline_data_dir(config, workspace_root))?;
 
     println!(
-        "Pipeline \"{name}\": {total} tasks — {passed} passed ({hits} from cache), {failed} failed, {skipped} skipped.",
+        r#"Pipeline "{name}": {total} tasks — {passed} passed ({hits} from cache), {failed} failed, {skipped} skipped."#,
         total = statuses.len(),
     );
     println!("Report: {}", report_dir.display());
@@ -401,7 +401,7 @@ fn select_affected_projects(options: &SelectAffectedOptions<'_>) -> miette::Resu
         emit(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Warn,
             message: format!(
-                "Cannot resolve the merge base of HEAD and {base}; running the pipeline over every project."
+                "Cannot resolve the merge base of HEAD and {base}; running the pipeline over every project.",
             ),
             prefix: workspace_root.to_string_lossy().into_owned(),
         }));
