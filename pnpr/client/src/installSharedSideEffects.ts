@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { createPrivateKey } from 'node:crypto'
 import fs from 'node:fs/promises'
 import util from 'node:util'
@@ -18,7 +19,11 @@ import {
   createSignedArtifactEnvelope,
   downloadSharedArtifactBlob,
   linuxGlibcCompatibilityTag,
+  type LinuxGlibcPlatform,
   linuxGlibcSupportedTags,
+  macOSCompatibilityTag,
+  type MacOSPlatform,
+  macOSSupportedTags,
   ownerNamespace,
   platformFingerprint,
   pnprSupportsSharedSideEffects,
@@ -80,6 +85,10 @@ export interface RemoteSideEffectsRestorer<T extends string> {
   restore: (node: RemoteSideEffectsInstallNode<T>) => Promise<string | undefined>
 }
 
+type ArtifactPlatform =
+  | { kind: 'linuxGlibc', platform: LinuxGlibcPlatform }
+  | { kind: 'macOS', platform: MacOSPlatform }
+
 /**
  * How long the first queued candidate waits for company before its lookup
  * leaves. Long enough to gather the packages whose fetches land together,
@@ -108,23 +117,23 @@ export function canRestoreRemoteSideEffects (opts: RemoteSideEffectsPrerequisite
     (opts.settings.packages?.length ?? 0) > 0 &&
     Object.keys(opts.settings.trustedKeys ?? {}).length > 0 &&
     !opts.ignoreScripts &&
-    currentLinuxGlibcPlatform(opts.nodeVersion) != null
+    currentArtifactPlatform(opts.nodeVersion) != null
 }
 
 export function createRemoteSideEffectsRestorer<T extends string> (
   opts: RemoteSideEffectsRestorerOptions<T>
 ): RemoteSideEffectsRestorer<T> | undefined {
   if (!canRestoreRemoteSideEffects(opts)) return undefined
-  const platform = currentLinuxGlibcPlatform(opts.nodeVersion)
+  const artifactPlatform = currentArtifactPlatform(opts.nodeVersion)
   const { pnprServer, settings } = opts
   const organization = settings?.organization
-  if (platform == null || settings == null || organization == null) return undefined
+  if (artifactPlatform == null || settings == null || organization == null) return undefined
   const registryUrl = pnprServer
   const ownerName = organization
   const owner = { type: 'organization', name: ownerName } as const
   let supportedTags: string[]
   try {
-    supportedTags = linuxGlibcSupportedTags(platform)
+    supportedTags = artifactSupportedTags(artifactPlatform)
   } catch (err: unknown) {
     opts.warn?.(`Remote side-effects platform is unsupported: ${errorMessage(err)}`)
     return undefined
@@ -607,9 +616,9 @@ export async function publishBuiltSharedSideEffects<T extends string> (
   ) return
   const { builderId, keyId, organization, privateKey } = opts.settings
   if (organization == null) return
-  const platform = currentLinuxGlibcPlatform(opts.nodeVersion)
+  const artifactPlatform = currentArtifactPlatform(opts.nodeVersion)
   const sourceIntegrity = verifiedIntegrity(opts.resolution)
-  if (keyId == null || privateKey == null || builderId == null || platform == null || sourceIntegrity == null) return
+  if (keyId == null || privateKey == null || builderId == null || artifactPlatform == null || sourceIntegrity == null) return
   const manifest = await artifactManifest(opts.upload)
   if (manifest == null) return
   const inputKey = calcDepStateInputKey({
@@ -632,7 +641,7 @@ export async function publishBuiltSharedSideEffects<T extends string> (
     },
     compatibility: {
       kind: 'tagged',
-      tags: [linuxGlibcCompatibilityTag(platform)],
+      tags: [artifactCompatibilityTag(artifactPlatform)],
     },
     manifest: manifest.manifest,
   }
@@ -683,25 +692,63 @@ async function artifactManifest (upload: UploadPkgToStoreResult): Promise<{
   }
 }
 
-function currentLinuxGlibcPlatform (nodeVersion?: string): {
-  architecture: string
-  nodeMajor: number
-  glibcMajor: number
-  glibcMinor: number
-} | undefined {
-  if (process.platform !== 'linux' || !['x64', 'arm64'].includes(process.arch)) return undefined
-  const report = process.report?.getReport() as { header?: { glibcVersionRuntime?: string } }
-  const glibc = report.header?.glibcVersionRuntime?.split('.')
+function currentArtifactPlatform (nodeVersion?: string): ArtifactPlatform | undefined {
+  if (!['x64', 'arm64'].includes(process.arch)) return undefined
   const nodeMajor = Number((nodeVersion ?? process.version).replace(/^v/, '').split('.')[0])
-  const glibcMajor = Number(glibc?.[0])
-  const glibcMinor = Number(glibc?.[1])
-  if (![nodeMajor, glibcMajor, glibcMinor].every(Number.isSafeInteger)) return undefined
-  return {
-    architecture: process.arch,
-    nodeMajor,
-    glibcMajor,
-    glibcMinor,
+  if (!Number.isSafeInteger(nodeMajor) || nodeMajor <= 0) return undefined
+  if (process.platform === 'linux') {
+    const report = process.report?.getReport() as { header?: { glibcVersionRuntime?: string } }
+    const [glibcMajor, glibcMinor] = report.header?.glibcVersionRuntime?.split('.').map(Number) ?? []
+    if (![glibcMajor, glibcMinor].every(Number.isSafeInteger)) return undefined
+    return {
+      kind: 'linuxGlibc',
+      platform: { architecture: process.arch, nodeMajor, glibcMajor, glibcMinor },
+    }
   }
+  if (process.platform !== 'darwin') return undefined
+  const version = macOSProductVersion()
+  if (version == null) return undefined
+  return {
+    kind: 'macOS',
+    platform: {
+      architecture: process.arch,
+      nodeMajor,
+      macOSMajor: version.major,
+      macOSMinor: version.minor,
+    },
+  }
+}
+
+function artifactCompatibilityTag (artifactPlatform: ArtifactPlatform): string {
+  return artifactPlatform.kind === 'linuxGlibc'
+    ? linuxGlibcCompatibilityTag(artifactPlatform.platform)
+    : macOSCompatibilityTag(artifactPlatform.platform)
+}
+
+function artifactSupportedTags (artifactPlatform: ArtifactPlatform): string[] {
+  return artifactPlatform.kind === 'linuxGlibc'
+    ? linuxGlibcSupportedTags(artifactPlatform.platform)
+    : macOSSupportedTags(artifactPlatform.platform)
+}
+
+let cachedMacOSProductVersion: { major: number, minor: number } | null | undefined
+
+function macOSProductVersion (): { major: number, minor: number } | undefined {
+  if (cachedMacOSProductVersion !== undefined) return cachedMacOSProductVersion ?? undefined
+  try {
+    const [major, minor] = execFileSync('/usr/bin/sw_vers', ['-productVersion'], {
+      encoding: 'utf8',
+      timeout: 5_000,
+    }).trim().split('.').map(Number)
+    cachedMacOSProductVersion =
+      Number.isSafeInteger(major) && major > 0 && major < 1_000_000 &&
+      Number.isSafeInteger(minor) && minor >= 0 && minor < 1_000_000
+        ? { major, minor }
+        : null
+  } catch {
+    cachedMacOSProductVersion = null
+  }
+  return cachedMacOSProductVersion ?? undefined
 }
 
 function verifiedIntegrity (resolution: LockfileResolution): string | undefined {

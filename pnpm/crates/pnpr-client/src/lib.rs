@@ -36,9 +36,10 @@ use reqwest::Client;
 pub use pnpm_shared_artifact_protocol::{
     ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
     ArtifactManifest, ArtifactPayload, BuilderProfile, COMPATIBILITY_TAG_SCHEMA,
-    CompatibilityConstraints, INPUT_KEY_PREFIX, LinuxGlibcPlatform, OwnerScope, PackageIdentity,
-    PublishArtifactRequest, ResolveArtifactsRequest, SIGNATURE_ALGORITHM, SignedArtifactEnvelope,
-    blob_id, linux_glibc_supported_tags, linux_glibc_tag, platform_fingerprint,
+    CompatibilityConstraints, INPUT_KEY_PREFIX, LinuxGlibcPlatform, MacOsPlatform, OwnerScope,
+    PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest, SIGNATURE_ALGORITHM,
+    SignedArtifactEnvelope, blob_id, linux_glibc_supported_tags, linux_glibc_tag,
+    macos_supported_tags, macos_tag, platform_fingerprint,
 };
 use pnpm_shared_artifact_protocol::{
     MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
@@ -590,7 +591,7 @@ impl PnprClient {
                     artifact.key,
                 )));
             }
-            let mut best: Option<(usize, String, VerifiedArtifact)> = None;
+            let mut best: Option<(u64, String, VerifiedArtifact)> = None;
             for variant in artifact.variants {
                 let Some(public_key) = opts.trusted_keys.get(&variant.envelope.key_id) else {
                     continue;

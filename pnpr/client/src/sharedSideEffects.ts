@@ -45,6 +45,13 @@ export interface LinuxGlibcPlatform {
   glibcMinor: number
 }
 
+export interface MacOSPlatform {
+  architecture: string
+  nodeMajor: number
+  macOSMajor: number
+  macOSMinor: number
+}
+
 export interface BuilderProfile {
   imageDigest?: string
   architectureBaseline: string
@@ -676,12 +683,43 @@ function insertUniquePath (path: string, exact: Set<string>, folded: Set<string>
   folded.add(caseFolded)
 }
 
-function compatibilityRank (constraints: CompatibilityConstraints, supportedTags: string[]): number | undefined {
-  if (constraints.kind === 'universal') return supportedTags.length
-  for (let index = 0; index < supportedTags.length; index++) {
-    if (constraints.tags.includes(supportedTags[index])) return index
+export function compatibilityRank (constraints: CompatibilityConstraints, supportedTags: string[]): number | undefined {
+  try {
+    validateSupportedTags(supportedTags)
+  } catch {
+    return undefined
   }
-  return undefined
+  if (constraints.kind === 'universal') return Number.MAX_SAFE_INTEGER
+  let bestRank: number | undefined
+  for (let index = 0; index < supportedTags.length; index++) {
+    const supportedTag = supportedTags[index]
+    for (const artifactTag of constraints.tags) {
+      if (artifactTag === supportedTag) {
+        bestRank = Math.min(bestRank ?? index, index)
+        continue
+      }
+      let consumer: MacOSPlatform | undefined
+      let artifact: MacOSPlatform | undefined
+      try {
+        consumer = parseMacOSCompatibilityTag(supportedTag)
+        artifact = parseMacOSCompatibilityTag(artifactTag)
+      } catch {
+        return undefined
+      }
+      if (
+        consumer == null ||
+        artifact == null ||
+        consumer.architecture !== artifact.architecture ||
+        consumer.nodeMajor !== artifact.nodeMajor
+      ) continue
+      const consumerVersion = macOSVersionRank(consumer)
+      const artifactVersion = macOSVersionRank(artifact)
+      if (consumerVersion < artifactVersion) continue
+      const rank = consumerVersion - artifactVersion
+      bestRank = Math.min(bestRank ?? rank, rank)
+    }
+  }
+  return bestRank
 }
 
 export function linuxGlibcCompatibilityTag (
@@ -711,6 +749,19 @@ export function linuxGlibcSupportedTags (
   )
 }
 
+export function macOSCompatibilityTag (
+  platform: MacOSPlatform
+): string {
+  const { architecture, nodeMajor, macOSMajor, macOSMinor } = platform
+  const tag = `${COMPATIBILITY_TAG_SCHEMA}:darwin-${architecture}-node${nodeMajor}-macos${macOSMajor}.${macOSMinor}`
+  validateCompatibilityTag(tag)
+  return tag
+}
+
+export function macOSSupportedTags (platform: MacOSPlatform): string[] {
+  return [macOSCompatibilityTag(platform)]
+}
+
 export function platformFingerprint (supportedTags: string[]): string {
   validateSupportedTags(supportedTags)
   const hash = createHash('sha256').update('pnpm-platform-fingerprint-v1\0')
@@ -737,16 +788,46 @@ function validateCompatibilityTag (tag: string): void {
   }
   const parts = tag.slice(COMPATIBILITY_TAG_SCHEMA.length + 1).split('-')
   if (parts.length !== 4) throw new Error('Shared artifact compatibility tag has the wrong number of dimensions')
-  const [os, architecture, node, libc] = parts
-  if (os !== 'linux' || !['x64', 'arm64'].includes(architecture)) {
-    throw new Error('Shared artifact compatibility tag only supports Linux x64 and arm64 in v1')
+  const [os, architecture, node, runtime] = parts
+  if (!['x64', 'arm64'].includes(architecture)) {
+    throw new Error('Shared artifact compatibility tag only supports x64 and arm64 in v1')
   }
   parseCanonicalNumber(node.startsWith('node') ? node.slice(4) : '', 'Node major version', false)
-  const glibc = libc.startsWith('glibc') ? libc.slice(5) : ''
-  const version = glibc.split('.')
-  if (version.length !== 2) throw new Error('Shared artifact glibc floor must be major.minor')
-  parseCanonicalNumber(version[0], 'glibc major version', false)
-  parseCanonicalNumber(version[1], 'glibc minor version', true)
+  if (os === 'linux') {
+    const glibc = runtime.startsWith('glibc') ? runtime.slice(5) : ''
+    const version = glibc.split('.')
+    if (version.length !== 2) throw new Error('Shared artifact glibc floor must be major.minor')
+    parseCanonicalNumber(version[0], 'glibc major version', false)
+    parseCanonicalNumber(version[1], 'glibc minor version', true)
+  } else if (os === 'darwin') {
+    const macOS = runtime.startsWith('macos') ? runtime.slice(5) : ''
+    const version = macOS.split('.')
+    if (version.length !== 2) throw new Error('Shared artifact macOS floor must be major.minor')
+    const major = parseCanonicalNumber(version[0], 'macOS major version', false)
+    const minor = parseCanonicalNumber(version[1], 'macOS minor version', true)
+    if (major >= 1_000_000 || minor >= 1_000_000) {
+      throw new Error('Shared artifact macOS version component is too large')
+    }
+  } else {
+    throw new Error('Shared artifact compatibility tag only supports Linux and macOS in v1')
+  }
+}
+
+function parseMacOSCompatibilityTag (tag: string): MacOSPlatform | undefined {
+  validateCompatibilityTag(tag)
+  const [os, architecture, node, runtime] = tag.slice(COMPATIBILITY_TAG_SCHEMA.length + 1).split('-')
+  if (os !== 'darwin') return undefined
+  const [macOSMajor, macOSMinor] = runtime.slice(5).split('.').map(Number)
+  return {
+    architecture,
+    nodeMajor: Number(node.slice(4)),
+    macOSMajor,
+    macOSMinor,
+  }
+}
+
+function macOSVersionRank (platform: MacOSPlatform): number {
+  return platform.macOSMajor * 1_000_000 + platform.macOSMinor
 }
 
 function parseCanonicalNumber (value: string, label: string, allowZero: boolean): number {

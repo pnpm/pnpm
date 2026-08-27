@@ -1,5 +1,12 @@
-use super::package_version;
+use super::{package_version, parse_macos_product_version};
 use pnpm_lockfile::PackageKey;
+
+#[test]
+fn parses_macos_product_versions() {
+    assert_eq!(parse_macos_product_version("15.5.1\n"), Some((15, 5)));
+    assert_eq!(parse_macos_product_version("26.0\n"), Some((26, 0)));
+    assert_eq!(parse_macos_product_version("Darwin 25.0\n"), None);
+}
 
 #[test]
 fn package_identity_uses_the_manifest_version_for_non_registry_sources() {
@@ -117,10 +124,9 @@ async fn a_non_regular_file_is_not_reused_as_store_content() {
     }
 }
 
-/// A restore only happens where the remote cache applies at all:
-/// `linux_glibc_platform` refuses anything but linux-glibc on x64 or arm64, so
-/// anywhere else — musl, or a linux arch pacquet publishes no artifacts for —
-/// there is no restore to observe and each test skips itself.
+/// A restore only happens where the remote cache applies at all. Unsupported
+/// libc, operating-system, and architecture combinations have no restore to
+/// observe, so the platform gates below make that boundary visible to tests.
 mod restore {
     use crate::{AllowBuildPolicy, RequiresBuildBySnapshot, SideEffectsMapsBySnapshot};
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
@@ -133,7 +139,6 @@ mod restore {
     use pnpm_pnpr_client::{
         ARTIFACT_KIND, ArtifactFile, ArtifactManifest, ArtifactPayload, BuilderProfile,
         CompatibilityConstraints, OwnerScope, ResolveArtifactsRequest, SignedArtifactEnvelope,
-        linux_glibc_supported_tags,
     };
     use pnpm_shared_artifact_protocol::{
         ArtifactVariant, ResolveArtifactsResponse, ResolvedArtifact,
@@ -371,19 +376,14 @@ mod restore {
     async fn restore(store_dir: &StoreDir, expected_downloads: usize) -> PathBuf {
         let snapshots = snapshots();
         let packages = packages();
-        // The cfg above settles the target; the glibc *version* is read from
-        // the environment (`getconf`, then `ldd`), which the target cannot
-        // promise. A host with neither is not one the remote cache serves, so
-        // say that rather than leaving a bare unwrap to explain itself.
-        let platform = super::super::linux_glibc_platform(&snapshots).expect(
-            "the glibc version must be readable — install `getconf` or `ldd`, \
-             or run this suite on a host the remote side-effects cache serves",
-        );
+        let platform = super::super::artifact_platform(&snapshots)
+            .expect("the host compatibility floor must be readable on a supported platform");
         assert_eq!(
-            platform.node_major, 22,
+            platform.node_major(),
+            22,
             "the lockfile's Node pin, not the machine's Node, must decide the platform",
         );
-        let mut supported_tags = linux_glibc_supported_tags(platform).expect("supported tags");
+        let mut supported_tags = platform.supported_tags().expect("supported tags");
         let compatibility_tag = supported_tags.swap_remove(0);
 
         let mut server = mockito::Server::new_async().await;
@@ -452,12 +452,15 @@ mod restore {
 
     #[tokio::test]
     #[cfg_attr(
-        not(all(
-            target_os = "linux",
-            target_env = "gnu",
-            any(target_arch = "x86_64", target_arch = "aarch64")
+        not(any(
+            all(
+                target_os = "linux",
+                target_env = "gnu",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64"))
         )),
-        ignore = "the remote side-effects cache only serves linux-glibc on x64 and arm64"
+        ignore = "the remote side-effects cache only serves glibc Linux and macOS on x64 and arm64"
     )]
     async fn content_the_store_lacks_is_downloaded() {
         let store = tempfile::tempdir().expect("tempdir");
@@ -477,12 +480,15 @@ mod restore {
     /// difference between them.
     #[tokio::test]
     #[cfg_attr(
-        not(all(
-            target_os = "linux",
-            target_env = "gnu",
-            any(target_arch = "x86_64", target_arch = "aarch64")
+        not(any(
+            all(
+                target_os = "linux",
+                target_env = "gnu",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64"))
         )),
-        ignore = "the remote side-effects cache only serves linux-glibc on x64 and arm64"
+        ignore = "the remote side-effects cache only serves glibc Linux and macOS on x64 and arm64"
     )]
     async fn content_the_store_already_holds_is_not_downloaded() {
         let store = tempfile::tempdir().expect("tempdir");

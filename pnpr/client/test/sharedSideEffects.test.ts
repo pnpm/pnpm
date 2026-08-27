@@ -4,10 +4,13 @@ import { createServer } from 'node:http'
 import { describe, expect, test } from '@jest/globals'
 import {
   type ArtifactPayload,
+  compatibilityRank,
   createSignedArtifactEnvelope,
   downloadSharedArtifactBlob,
   linuxGlibcCompatibilityTag,
   linuxGlibcSupportedTags,
+  macOSCompatibilityTag,
+  macOSSupportedTags,
   platformFingerprint,
   publishSharedSideEffects,
   resolveSharedSideEffects,
@@ -20,6 +23,10 @@ const integrity = `sha512-${createHash('sha512').update(contents).digest('base64
 
 function linux (glibcMinor: number, architecture = 'x64') {
   return { architecture, nodeMajor: 22, glibcMajor: 2, glibcMinor }
+}
+
+function macOS (macOSMajor: number, macOSMinor: number, architecture = 'arm64') {
+  return { architecture, nodeMajor: 22, macOSMajor, macOSMinor }
 }
 
 function payload (): ArtifactPayload {
@@ -180,9 +187,28 @@ describe('signed shared artifacts', () => {
     ])
     expect(platformFingerprint(supportedTags)).toBe('fdfaaed730a56031779ee5e572e1e82aad454501ec5fbcfad6648e8a1e465f0c')
 
+    const macOSSupported = macOSSupportedTags(macOS(15, 5))
+    expect(macOSSupported).toEqual(['pnpm:v1:darwin-arm64-node22-macos15.5'])
+    expect(platformFingerprint(macOSSupported)).toBe('b56fa5629b56d18308bbf7978d61b9afaf862e133ad18aef31588e0888eef3f8')
+    expect(compatibilityRank({
+      kind: 'tagged',
+      tags: [macOSCompatibilityTag(macOS(15, 4))],
+    }, macOSSupported)).toBe(1)
+    expect(compatibilityRank({
+      kind: 'tagged',
+      tags: [macOSCompatibilityTag(macOS(14, 6))],
+    }, macOSSupported)).toBe(999_999)
+    expect(compatibilityRank({
+      kind: 'tagged',
+      tags: [macOSCompatibilityTag(macOS(16, 0))],
+    }, macOSSupported)).toBeUndefined()
+    expect(compatibilityRank({ kind: 'universal' }, macOSSupported)).toBe(Number.MAX_SAFE_INTEGER)
+
     for (const invalid of [
       'pnpm:v2:linux-x64-node22-glibc2.17',
       'pnpm:v1:darwin-x64-node22-glibc2.17',
+      'pnpm:v1:darwin-x64-node22-macos15',
+      'pnpm:v1:darwin-x64-node22-macos015.5',
       'pnpm:v1:linux-x64-node022-glibc2.17',
       'pnpm:v1:linux-x64-node22-glibc02.17',
       'pnpm:v1:linux-x64-node22-glibc2',

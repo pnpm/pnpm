@@ -10,9 +10,10 @@ use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_pnpr_client::{
     ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
     ArtifactManifest, ArtifactPayload, BuilderProfile, CompatibilityConstraints,
-    LinuxGlibcPlatform, OwnerScope, PackageIdentity, PnprClient, PnprClientError,
+    LinuxGlibcPlatform, MacOsPlatform, OwnerScope, PackageIdentity, PnprClient, PnprClientError,
     PublishArtifactRequest, RejectedArtifact, ResolveArtifactsOptions, SignedArtifactEnvelope,
-    blob_id, linux_glibc_supported_tags, linux_glibc_tag, platform_fingerprint,
+    blob_id, linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags, macos_tag,
+    platform_fingerprint,
 };
 use pnpm_shared_artifact_protocol::compatibility_rank;
 use pnpm_store_dir::{CafsFileInfo, RemoteSideEffectsOrigin, SideEffectsDiff, StoreIndexWriter};
@@ -20,6 +21,7 @@ use sha2::{Digest as _, Sha512};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
+    process::Command,
     sync::Arc,
 };
 
@@ -33,9 +35,40 @@ pub struct SharedSideEffectsPublisher {
     key_id: String,
     organization: String,
     packages: HashSet<String>,
-    platform: LinuxGlibcPlatform<'static>,
+    platform: ArtifactPlatform<'static>,
     private_key: Vec<u8>,
     runtime: tokio::runtime::Handle,
+}
+
+#[derive(Clone, Copy)]
+enum ArtifactPlatform<'a> {
+    LinuxGlibc(LinuxGlibcPlatform<'a>),
+    MacOs(MacOsPlatform<'a>),
+}
+
+impl ArtifactPlatform<'_> {
+    fn node_major(self) -> u32 {
+        match self {
+            Self::LinuxGlibc(platform) => platform.node_major,
+            Self::MacOs(platform) => platform.node_major,
+        }
+    }
+
+    fn supported_tags(
+        self,
+    ) -> Result<Vec<String>, pnpm_shared_artifact_protocol::ArtifactProtocolError> {
+        match self {
+            Self::LinuxGlibc(platform) => linux_glibc_supported_tags(platform),
+            Self::MacOs(platform) => macos_supported_tags(platform),
+        }
+    }
+
+    fn tag(self) -> Result<String, pnpm_shared_artifact_protocol::ArtifactProtocolError> {
+        match self {
+            Self::LinuxGlibc(platform) => linux_glibc_tag(platform),
+            Self::MacOs(platform) => macos_tag(platform),
+        }
+    }
 }
 
 struct CandidateGroup {
@@ -83,8 +116,8 @@ pub(crate) async fn apply_shared_side_effects(
         return Vec::new();
     }
     let Some(settings) = config.remote_side_effects_cache.as_ref() else { return Vec::new() };
-    let Some(platform) = linux_glibc_platform(snapshots) else { return Vec::new() };
-    let supported_tags = match linux_glibc_supported_tags(platform) {
+    let Some(platform) = artifact_platform(snapshots) else { return Vec::new() };
+    let supported_tags = match platform.supported_tags() {
         Ok(tags) => tags,
         Err(error) => {
             tracing::warn!(target: "pacquet::install", %error, "remote side-effects platform is unsupported");
@@ -129,7 +162,7 @@ pub(crate) async fn apply_shared_side_effects(
         &mut deps_state_cache,
         in_lockfile_order(&graph).into_iter().map(|(key, _)| key),
     );
-    let engine_name = pnpm_graph_hasher::engine_name(platform.node_major, None, None);
+    let engine_name = pnpm_graph_hasher::engine_name(platform.node_major(), None, None);
     let mut groups = BTreeMap::<String, CandidateGroup>::new();
     let mut collisions = HashSet::new();
     let mut artifact_pin_records = Vec::new();
@@ -749,7 +782,7 @@ pub(crate) fn shared_side_effects_publisher(
         return None;
     }
     let snapshots = snapshots?;
-    let platform = linux_glibc_platform(snapshots)?;
+    let platform = artifact_platform(snapshots)?;
     let private_key = BASE64.decode(settings.private_key.as_ref()?).ok()?;
     let key_id = settings.key_id.clone()?;
     let builder_id = settings.builder_id.clone()?;
@@ -839,7 +872,7 @@ impl SharedSideEffectsPublisher {
             builder_id: self.builder_id.clone(),
             builder_profile: self.builder_profile.clone(),
             compatibility: CompatibilityConstraints::Tagged {
-                tags: vec![linux_glibc_tag(self.platform).map_err(|error| error.to_string())?],
+                tags: vec![self.platform.tag().map_err(|error| error.to_string())?],
             },
             manifest: ArtifactManifest { added: files, deleted: diff.deleted.unwrap_or_default() },
         };
@@ -859,23 +892,49 @@ impl SharedSideEffectsPublisher {
     }
 }
 
-fn linux_glibc_platform(
+fn artifact_platform(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
-) -> Option<LinuxGlibcPlatform<'static>> {
-    if pnpm_graph_hasher::host_platform() != "linux"
-        || !matches!(pnpm_graph_hasher::host_arch(), "x64" | "arm64")
-    {
+) -> Option<ArtifactPlatform<'static>> {
+    let architecture = pnpm_graph_hasher::host_arch();
+    if !matches!(architecture, "x64" | "arm64") {
         return None;
     }
     let node_major =
         find_runtime_node_major(Some(snapshots)).or_else(pnpm_graph_hasher::detect_node_major)?;
-    let (glibc_major, glibc_minor) = pnpm_detect_libc::glibc_version()?;
-    Some(LinuxGlibcPlatform {
-        architecture: pnpm_graph_hasher::host_arch(),
-        node_major,
-        glibc_major,
-        glibc_minor,
-    })
+    match pnpm_graph_hasher::host_platform() {
+        "linux" => {
+            let (glibc_major, glibc_minor) = pnpm_detect_libc::glibc_version()?;
+            Some(ArtifactPlatform::LinuxGlibc(LinuxGlibcPlatform {
+                architecture,
+                node_major,
+                glibc_major,
+                glibc_minor,
+            }))
+        }
+        "darwin" => {
+            let (macos_major, macos_minor) = macos_product_version()?;
+            Some(ArtifactPlatform::MacOs(MacOsPlatform {
+                architecture,
+                node_major,
+                macos_major,
+                macos_minor,
+            }))
+        }
+        _ => None,
+    }
+}
+
+fn macos_product_version() -> Option<(u32, u32)> {
+    let output = Command::new("/usr/bin/sw_vers").arg("-productVersion").output().ok()?;
+    output.status.success().then_some(())?;
+    parse_macos_product_version(std::str::from_utf8(&output.stdout).ok()?)
+}
+
+fn parse_macos_product_version(value: &str) -> Option<(u32, u32)> {
+    let mut components = value.trim().split('.');
+    let major = components.next()?.parse().ok()?;
+    let minor = components.next()?.parse().ok()?;
+    (major > 0 && major < 1_000_000 && minor < 1_000_000).then_some((major, minor))
 }
 
 fn patch_hash(snapshot_key: &PackageKey) -> Option<String> {

@@ -72,7 +72,7 @@ remoteSideEffectsCache:
 `requiresBuild: true`, pass `allowBuilds`, and have a verified source integrity.
 `--ignore-scripts` disables remote reuse. An unavailable server, invalid
 signature, incompatible platform, or bad blob falls back to the ordinary local
-build. The PoC supports Linux glibc on x64 and arm64.
+build. The PoC supports Linux glibc and macOS on x64 and arm64.
 
 ### Trust material
 
