@@ -23,7 +23,12 @@
 //!   store. Pacquet today goes through the picker unconditionally;
 //!   adding the fast path is a separate item.
 
-use std::{borrow::Cow, collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+};
 
 use chrono::{DateTime, Utc};
 use node_semver::Version;
@@ -37,10 +42,11 @@ use pnpm_lockfile::{
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
 use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, NoMatchingVersionError, PackageVersionGuardDecision, PkgResolutionId,
-    RegistryResponseError, RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError,
-    ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior,
-    WantedDependency, WorkspacePackages, parse_packument_timestamp,
+    BlockedVersions, LatestInfo, LatestQuery, NoMatchingVersionError, PackageVersionGuardDecision,
+    PkgResolutionId, RegistryResponseError, RegistryResponseErrorOptions,
+    ResolutionPolicyViolation, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
+    ResolveResult, Resolver, UpdateBehavior, WantedDependency, WorkspacePackages,
+    parse_packument_timestamp,
 };
 use ssri::{Algorithm, Integrity};
 
@@ -328,6 +334,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             registry_name: None,
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
+            blocked_versions: opts.blocked_versions.as_deref(),
             picked_manifest_cache: &self.picked_manifest_cache,
             calculated_specifier: revision_specifier(
                 wanted_dependency,
@@ -401,6 +408,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             registry_name: None,
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
+            blocked_versions: opts.blocked_versions.as_deref(),
             picked_manifest_cache: &self.picked_manifest_cache,
             // The entry stays a JSR dependency, so it round-trips under
             // the `jsr:` protocol rather than as the npm-shaped range
@@ -475,6 +483,10 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 update_checksums: opts.update_checksums || opts.update == UpdateBehavior::Patches,
                 trust_policy: opts.trust_policy,
                 package_version_guard: opts.package_version_guard.as_ref(),
+                policy_blocked_versions: opts
+                    .blocked_versions
+                    .as_deref()
+                    .and_then(|blocked| blocked.get(spec.name.as_str())),
             },
         )
         .await?;
@@ -686,6 +698,13 @@ pub(crate) struct PickFromRegistryOptions<'a> {
     pub trust_policy: Option<TrustPolicy>,
     pub package_version_guard:
         Option<&'a Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
+    /// Versions of this package `minimumReleaseAge` has ruled out for the
+    /// whole pass, because their own dependency trees cannot satisfy the
+    /// cutoff. Unlike a guard rejection, running out of candidates here is
+    /// not an error: the pick falls back to a blocked version and the
+    /// caller reports a violation, which is what moves the blame to the
+    /// next ancestor up on the following pass.
+    pub policy_blocked_versions: Option<&'a HashSet<String>>,
 }
 
 /// Upper bound on guard rejections for one package before the resolver
@@ -697,7 +716,12 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     opts: PickFromRegistryOptions<'_>,
 ) -> Result<RegistryPick, ResolveError> {
-    let mut blocked_versions = std::collections::HashSet::new();
+    // Seeded with the pass-wide policy blocks so one filter serves both:
+    // the picker already excludes a blocked key and repoints the dist-tags
+    // past it, which is what lets `--latest` walk down to a release whose
+    // dependencies are old enough.
+    let policy_blocked = opts.policy_blocked_versions.cloned().unwrap_or_default();
+    let mut blocked_versions = policy_blocked.clone();
     let mut last_rejection: Option<String> = None;
     loop {
         let pick_opts = PickPackageOptions {
@@ -722,6 +746,15 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             // ordinary "no matching version" outcome; once the guard has
             // rejected every match, surface that as a distinct error rather
             // than blaming the range the user wrote.
+            //
+            // A policy block is neither: it is a dead end this pass already
+            // knows about, so pick as though it were lifted and let the
+            // caller report the violation. That keeps the failure attached
+            // to a concrete pick the next pass can blame an ancestor for,
+            // instead of aborting on a range the manifests never wrote.
+            if last_rejection.is_none() && !policy_blocked.is_empty() {
+                return pick_ignoring_policy_blocks(ctx, &opts).await;
+            }
             return match last_rejection {
                 Some(reason) => Err(all_versions_blocked(opts.spec, reason)),
                 None => Ok(RegistryPick::NoMatchingVersion(pick_result.meta)),
@@ -780,6 +813,43 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             }
         }
     }
+}
+
+/// Re-run the pick with the pass-wide policy blocks lifted, for the case
+/// where they are the only reason nothing matched.
+///
+/// The version this returns is one `minimumReleaseAge` has ruled out, and
+/// [`detect_min_release_age_violation`] reports it as such. Handing it back
+/// rather than failing mirrors the maturity filter's own fallback: the
+/// install layer owns what to do about a policy it cannot satisfy, and the
+/// next resolution pass needs a concrete pick to trace back to the ancestor
+/// whose choice put it there.
+async fn pick_ignoring_policy_blocks<Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
+    opts: &PickFromRegistryOptions<'_>,
+) -> Result<RegistryPick, ResolveError> {
+    let pick_opts = PickPackageOptions {
+        registry: opts.registry,
+        preferred_version_selectors: opts.preferred_version_selectors,
+        published_by: opts.published_by,
+        published_by_exclude: opts.published_by_exclude,
+        pick_lowest_version: opts.pick_lowest_version,
+        include_latest_tag: opts.include_latest_tag,
+        dry_run: opts.dry_run,
+        optional: opts.optional,
+        update_checksums: opts.update_checksums,
+        trust_policy: opts.trust_policy,
+        blocked_versions: None,
+    };
+    let pick_result = pick_package(ctx, opts.spec, &pick_opts)
+        .await
+        .map_err(|err| map_pick_error(ctx, opts, err))?;
+    Ok(match pick_result.picked_package {
+        Some(version) => {
+            RegistryPick::Picked(PickedFromRegistry { meta: pick_result.meta, version })
+        }
+        None => RegistryPick::NoMatchingVersion(pick_result.meta),
+    })
 }
 
 /// The packument key for a picked version, so the guard loop can block the
@@ -851,6 +921,9 @@ pub(crate) struct BuildResolveResult<'a> {
     pub registry_name: Option<&'a str>,
     pub published_by: Option<DateTime<Utc>>,
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
+    /// Versions `minimumReleaseAge` ruled out for this pass, so a pick
+    /// that fell back to one is reported as a violation.
+    pub blocked_versions: Option<&'a BlockedVersions>,
     pub picked_manifest_cache: &'a crate::PickedManifestCache,
     /// The manifest-ready specifier for `picked`, rendered in whichever
     /// shape the caller's protocol round-trips through, or `None` when
@@ -872,6 +945,7 @@ pub(crate) fn build_resolve_result(
         registry_name,
         published_by,
         published_by_exclude,
+        blocked_versions,
         picked_manifest_cache,
         calculated_specifier,
     } = args;
@@ -961,6 +1035,7 @@ pub(crate) fn build_resolve_result(
         &resolution,
         published_by,
         published_by_exclude,
+        blocked_versions,
     );
     Ok(ResolveResult {
         id,
@@ -1303,8 +1378,25 @@ fn detect_min_release_age_violation(
     resolution: &LockfileResolution,
     published_by: Option<DateTime<Utc>>,
     published_by_exclude: Option<&PackageVersionPolicy>,
+    blocked_versions: Option<&BlockedVersions>,
 ) -> Option<ResolutionPolicyViolation> {
     let cutoff = published_by?;
+    // A blocked version reports a violation even when it is mature: the
+    // block means its own dependency tree could not satisfy the cutoff, and
+    // the picker fell back to it only because nothing acceptable was left in
+    // range. Reporting it is what lets the retry blame the next ancestor up
+    // instead of stopping at a dead end it already knows about.
+    if is_blocked(blocked_versions, name, version) {
+        return Some(ResolutionPolicyViolation {
+            name: name.clone(),
+            version: version.to_string(),
+            resolution: resolution.clone(),
+            code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+            reason: "has no dependency tree that satisfies the minimumReleaseAge cutoff"
+                .to_string(),
+            parents: Vec::new(),
+        });
+    }
     let timestamp = published_at?;
     if let Some(policy) = published_by_exclude {
         use pnpm_config::version_policy::PolicyMatch;
@@ -1331,7 +1423,15 @@ fn detect_min_release_age_violation(
             "was published at {timestamp}, within the minimumReleaseAge cutoff ({cutoff})",
             cutoff = cutoff.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
         ),
+        parents: Vec::new(),
     })
+}
+
+/// Whether the pass has ruled this exact `name@version` out.
+fn is_blocked(blocked_versions: Option<&BlockedVersions>, name: &PkgName, version: &str) -> bool {
+    blocked_versions
+        .and_then(|blocked| blocked.get(&name.to_string()))
+        .is_some_and(|versions| versions.contains(version))
 }
 
 /// Whether the registry answered "no such package" for this pick.

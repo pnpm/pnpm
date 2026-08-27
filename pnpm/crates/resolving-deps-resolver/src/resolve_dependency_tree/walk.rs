@@ -9,7 +9,7 @@
 use async_recursion::async_recursion;
 use futures_util::future;
 use pipe_trait::Pipe;
-use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, TarballRevision};
+use pnpm_lockfile::{LockfileResolution, PkgNameVer, PkgNameVerPeer, TarballRevision};
 use pnpm_resolving_resolver_base::{
     CurrentPkg, GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay,
     RegistryResponseError, ResolveError, ResolveOptions, Resolver, UpdateBehavior,
@@ -405,7 +405,11 @@ where
             Err(err) => return Err(err),
         };
 
-    if let Some(violation) = result.policy_violation.clone() {
+    if let Some(mut violation) = result.policy_violation.clone() {
+        // The chain that reached this pick. The install names the dependent
+        // with it, and the resolution retry uses its last entry to decide
+        // whose choice to revisit.
+        violation.parents = parent_chain_from_ids(ctx, ancestor_ids);
         lock_recoverable(&ctx.workspace.policy_violations).push(violation);
     }
 
@@ -1410,6 +1414,22 @@ pub(super) fn level_versions(ctx: &TreeCtx, seeds: &[NodeSeed]) -> BTreeMap<Stri
 /// skipped-optional-dependency notification, resolving each
 /// `pkgIdWithPatchHash` through the shared packages map (the
 /// counterpart of pnpm's `getPkgsInfoFromIds`).
+/// Resolve an ancestor chain to `name@version` pairs.
+///
+/// An ancestor whose resolution carries no `name@version` — a link, or a
+/// dependency resolved through a protocol that mints no version — is
+/// dropped rather than guessed at. That only ever shortens the chain, and a
+/// chain whose last entry is missing reads as "nothing above this pick can
+/// be moved", which is the safe answer for a dependent no version pick
+/// applies to.
+fn parent_chain_from_ids(ctx: &TreeCtx, ancestor_ids: &[String]) -> Vec<PkgNameVer> {
+    let packages = lock_recoverable(&ctx.workspace.packages);
+    ancestor_ids
+        .iter()
+        .filter_map(|id| packages.get(id.as_str())?.result.name_ver.clone())
+        .collect()
+}
+
 fn pkgs_info_from_ids(
     ctx: &TreeCtx,
     ancestor_ids: &[String],

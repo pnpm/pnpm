@@ -6,7 +6,13 @@
 //! runtimes, named-registry, workspace) implement [`Resolver`]; the
 //! default-resolver dispatcher composes them into a chain.
 
-use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    future::Future,
+    path::PathBuf,
+    pin::Pin,
+    sync::Arc,
+};
 
 use chrono::{DateTime, Utc};
 use derive_more::{Display, From};
@@ -239,6 +245,22 @@ pub type PackageVersionGuardFuture<'a> = Pin<
     >,
 >;
 
+/// Versions a resolution is forbidden to pick, keyed by package name.
+///
+/// `minimumReleaseAge` narrows candidates one packument at a time, so an
+/// edge that admits no mature version cannot be repaired where it is
+/// found — only by choosing a different version of the package that
+/// declared it. The install re-resolves with the offending parent
+/// recorded here, which turns the dead end into one fewer candidate and
+/// lets the pick move down the range.
+///
+/// Distinct from [`PackageVersionGuard`], which rejects candidates one at
+/// a time as the picker offers them: this set is known before the pass
+/// starts, and a pick left with nothing acceptable falls back to a
+/// blocked version and reports a policy violation rather than failing, so
+/// the blame can move to the next ancestor up.
+pub type BlockedVersions = HashMap<String, HashSet<String>>;
+
 /// Optional resolver-time policy that can reject a concrete
 /// `name@version` candidate before it is committed to the lockfile.
 ///
@@ -376,6 +398,10 @@ pub struct ResolveOptions {
     /// disallowed high version can fall back to a lower safe version
     /// instead of aborting the whole resolution.
     pub package_version_guard: Option<Arc<dyn PackageVersionGuard>>,
+    /// Versions this resolution pass must not pick. See
+    /// [`BlockedVersions`]. Empty on the first pass and on every install
+    /// with no maturity policy.
+    pub blocked_versions: Option<Arc<BlockedVersions>>,
     /// When `true`, reject exotic (git, tarball, file, ...) dependencies
     /// appearing anywhere below the importer. Direct dependencies are
     /// still allowed; only transitive deps are gated. The check

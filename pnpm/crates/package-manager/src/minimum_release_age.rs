@@ -216,11 +216,27 @@ fn format_violation_error(violations: &[&ResolutionPolicyViolation]) -> String {
         violations
             .iter()
             .map(|violation| format!(
-                "  {}@{} {}",
-                violation.name, violation.version, violation.reason
+                "  {}@{} {}{}",
+                violation.name,
+                violation.version,
+                violation.reason,
+                format_dependent_chain(violation)
             ))
             .collect::<Vec<_>>()
             .join("\n"),
+    )
+}
+
+/// The chain of dependents that pulled a pick into the tree. Empty when
+/// the importer asked for the package itself, which the message already
+/// makes clear by naming no dependent.
+fn format_dependent_chain(violation: &ResolutionPolicyViolation) -> String {
+    if violation.parents.is_empty() {
+        return String::new();
+    }
+    format!(
+        " (required by {})",
+        violation.parents.iter().map(ToString::to_string).collect::<Vec<_>>().join(" > ")
     )
 }
 
