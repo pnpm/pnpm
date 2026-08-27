@@ -1,6 +1,29 @@
-use super::{bumped_range, split_npm_alias};
-use pnpm_lockfile::ImporterDepVersion;
+use super::{ManifestSpecBumps, apply_manifest_spec_bumps, bumped_range, split_npm_alias};
+use pnpm_lockfile::{ImporterDepVersion, Lockfile, PkgName, ResolvedDependencyMap};
+use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
+use std::collections::{BTreeMap, HashMap};
+
+fn lockfile(source: &str) -> Lockfile {
+    serde_saphyr::from_str(source).expect("parse lockfile")
+}
+
+fn specifier_of(group: Option<&ResolvedDependencyMap>, alias: &str) -> String {
+    let alias = PkgName::parse(alias).expect("parse the alias");
+    group.expect("the group is declared")[&alias].specifier.clone()
+}
+
+fn bumps(targets: &[(&str, DependencyGroup, &str)]) -> ManifestSpecBumps {
+    let targets = targets
+        .iter()
+        .map(|(alias, group, declared)| ((*alias).to_string(), (*group, (*declared).to_string())))
+        .collect::<HashMap<_, _>>();
+    ManifestSpecBumps {
+        targets: BTreeMap::from([(".".to_string(), targets)]),
+        range_spec_style: RangeSpecStyle::Major,
+        applied: std::sync::Mutex::default(),
+    }
+}
 
 fn bump(declared: &str, version: &str) -> Option<String> {
     let version = version.parse::<ImporterDepVersion>().expect("parse the resolved version");
@@ -93,4 +116,60 @@ fn npm_aliases_split_into_the_prefix_they_keep() {
     assert_eq!(split_npm_alias("npm:@scope/foo@^1.0.0"), Some(("npm:@scope/foo@", "^1.0.0")));
     assert_eq!(split_npm_alias("npm:^1.0.0"), Some(("npm:", "^1.0.0")));
     assert_eq!(split_npm_alias("workspace:^1.0.0"), None);
+}
+
+/// A package declared in more than one direct group has one entry per group,
+/// each with its own range. The bump has to read and rewrite the entry under
+/// the group the declaration came from.
+#[test]
+fn a_bump_moves_the_entry_of_the_group_the_manifest_declared() {
+    let mut lockfile = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+    devDependencies:
+      foo:
+        specifier: ^2.0.0
+        version: 2.1.0
+",
+    );
+
+    let bumps = bumps(&[("foo", DependencyGroup::Dev, "^2.0.0")]);
+    apply_manifest_spec_bumps(&mut lockfile, &bumps);
+
+    let importer = &lockfile.importers["."];
+    assert_eq!(specifier_of(importer.dev_dependencies.as_ref(), "foo"), "^2.1.0");
+    assert_eq!(specifier_of(importer.dependencies.as_ref(), "foo"), "^1.0.0");
+    let applied = bumps.applied.into_inner().expect("never poisoned");
+    let expected = (DependencyGroup::Dev, "^2.1.0".to_string());
+    assert_eq!(applied.manifests["."]["foo"], expected);
+}
+
+/// The declared text is what the resolver read. When the lockfile entry
+/// carries something else — an override replaced the declaration before
+/// resolution — the entry is not the update's to move (pnpm/pnpm#12115).
+#[test]
+fn a_declaration_an_override_replaced_is_left_alone() {
+    let mut lockfile = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.2.0
+",
+    );
+
+    let bumps = bumps(&[("foo", DependencyGroup::Prod, "catalog:")]);
+    apply_manifest_spec_bumps(&mut lockfile, &bumps);
+
+    assert_eq!(specifier_of(lockfile.importers["."].dependencies.as_ref(), "foo"), "^1.0.0");
+    assert!(bumps.applied.into_inner().expect("never poisoned").is_empty());
 }
