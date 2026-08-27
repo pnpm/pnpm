@@ -9,11 +9,13 @@ use pnpm_pnpr_client::{
     ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
     ArtifactManifest, ArtifactPayload, BuilderProfile, CompatibilityConstraints,
     LinuxGlibcPlatform, OwnerScope, PackageIdentity, PnprClient, PublishArtifactRequest,
-    ResolveArtifactsOptions, SignedArtifactEnvelope, linux_glibc_supported_tags, linux_glibc_tag,
+    ResolveArtifactsOptions, SignedArtifactEnvelope, blob_id, linux_glibc_supported_tags,
+    linux_glibc_tag,
 };
+use sha2::{Digest as _, Sha512};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
@@ -206,6 +208,23 @@ pub(crate) async fn apply_shared_side_effects(
                 if let Some(path) = stored.get(&storage_key) {
                     return Ok(path.clone());
                 }
+                // A built package's files are mostly its own, and artifacts
+                // share files with each other. The store addresses content by
+                // the digest this manifest entry already carries, so anything
+                // it holds is the same bytes and needs no transfer.
+                //
+                // Both this lookup and the write below address the store by
+                // `is_executable`, so they cannot disagree about where a mode
+                // belongs. The manifest only carries 0o644 and 0o755 today,
+                // but the agreement must not rest on that.
+                if !downloaded.contains_key(&file.integrity)
+                    && let Ok(digest) = blob_id(&file.integrity)
+                    && let Some(path) = config.store_dir.cas_file_path_by_mode(&digest, file.mode)
+                    && store_holds(&path, &digest).await?
+                {
+                    stored.insert(storage_key, path.clone());
+                    return Ok(path);
+                }
                 if !downloaded.contains_key(&file.integrity) {
                     let bytes = client
                         .download_artifact_blob(
@@ -221,7 +240,10 @@ pub(crate) async fn apply_shared_side_effects(
                 }
                 let (path, _) = config
                     .store_dir
-                    .write_cas_file(&downloaded[&file.integrity], file.mode == 0o755)
+                    .write_cas_file(
+                        &downloaded[&file.integrity],
+                        pnpm_fs::file_mode::is_executable(file.mode),
+                    )
                     .map_err(|error| error.to_string())?;
                 stored.insert(storage_key, path.clone());
                 Ok(path)
@@ -282,6 +304,62 @@ fn decoded_trusted_keys(
         trusted_keys.insert(key_id.clone(), public_key);
     }
     Some(trusted_keys)
+}
+
+/// Reads the store in chunks this size while hashing, so a large CAS blob
+/// is never held in memory whole.
+const STORE_READ_CHUNK: usize = 64 * 1024;
+
+/// Whether the store already holds `digest` at `path`.
+///
+/// Verified unconditionally rather than answering to `verifyStoreIntegrity`:
+/// the download this skips would have ended in a CAS write, and that path
+/// checks content already at the destination whatever the setting says.
+/// Hashing a local file is far cheaper than the transfer it avoids.
+///
+/// A missing file is an ordinary miss; any other failure is reported rather
+/// than quietly redownloaded.
+async fn store_holds(path: &Path, digest: &str) -> Result<bool, String> {
+    use tokio::io::AsyncReadExt as _;
+
+    let mut options = tokio::fs::OpenOptions::new();
+    options.read(true);
+    // The store addresses its own regular files. A symlink at the digest path
+    // would name bytes the store neither owns nor can keep from changing, and
+    // a plain open on a FIFO would block until a writer appeared. Refusing
+    // both at open binds the check to the file that is actually read, which a
+    // preceding `symlink_metadata` could not.
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW);
+    // The Windows spelling of the same refusal: open the reparse point itself
+    // rather than what it redirects to, so the descriptor check below sees a
+    // reparse point instead of the file it names.
+    #[cfg(windows)]
+    options.custom_flags(windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT);
+    // Whatever turned the open away — absent, a directory, a symlink
+    // `O_NOFOLLOW` refused, a permission error — names something the caller
+    // cannot reuse, and its fallback is a verified download that reports any
+    // real fault itself. A failure once the file is open is different: that
+    // one is reported below, since the store handed over a file it then could
+    // not read.
+    let Ok(file) = options.open(path).await else {
+        return Ok(false);
+    };
+    if !file.metadata().await.is_ok_and(|metadata| metadata.is_file()) {
+        return Ok(false);
+    }
+    let mut reader = tokio::io::BufReader::with_capacity(STORE_READ_CHUNK, file);
+    let mut hasher = Sha512::new();
+    let mut buffer = vec![0u8; STORE_READ_CHUNK];
+    loop {
+        match reader.read(&mut buffer).await {
+            Ok(0) => break,
+            Ok(read) => hasher.update(&buffer[..read]),
+            Err(ref error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(format!("failed to read {}: {error}", path.display())),
+        }
+    }
+    Ok(format!("{:x}", hasher.finalize()) == digest)
 }
 
 fn non_empty(value: &str) -> Option<&str> {

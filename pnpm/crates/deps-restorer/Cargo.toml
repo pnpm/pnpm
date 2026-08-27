@@ -52,6 +52,7 @@ rayon        = { workspace = true }
 reflink-copy = { workspace = true }
 serde        = { workspace = true }
 serde_json   = { workspace = true }
+sha2         = { workspace = true }
 ssri         = { workspace = true }
 tempfile     = { workspace = true }
 tokio        = { workspace = true }
@@ -72,8 +73,12 @@ tar               = { workspace = true }
 text-block-macros = { workspace = true }
 walkdir           = { workspace = true }
 
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
 [target.'cfg(windows)'.dependencies]
-same-file = { workspace = true }
+same-file   = { workspace = true }
+windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
 
 [lints]
 workspace = true

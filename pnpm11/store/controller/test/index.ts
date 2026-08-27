@@ -1,4 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -124,4 +125,48 @@ describe('store.addFileToStore', () => {
   it('is withheld by a read-only store', () => {
     expect(packageStore(true).addFileToStore).toBeUndefined()
   })
+})
+
+describe('store.locateFileInStore', () => {
+  function packageStore (verifyStoreIntegrity: boolean) {
+    const tmp = temporaryDirectory()
+    const storeDir = path.join(tmp, 'store')
+    const storeIndex = new StoreIndex(storeDir)
+    fs.mkdirSync(path.join(storeDir, 'files'), { recursive: true })
+    return createPackageStore({} as never, {} as never, {
+      storeDir,
+      cacheDir: path.join(tmp, 'cache'),
+      verifyStoreIntegrity,
+      virtualStoreDirMaxLength: 120,
+      clearResolutionCache: () => {},
+      storeIndex,
+    })
+  }
+
+  it('offers content the store holds and nothing it does not', async () => {
+    const store = packageStore(false)
+    const bytes = Buffer.from('addon')
+    const digest = createHash('sha512').update(bytes).digest('hex')
+    expect(await store.locateFileInStore!(digest, 0o644)).toBeUndefined()
+
+    const { filePath } = store.addFileToStore!(bytes, 0o644)
+    expect(await store.locateFileInStore!(digest, 0o644)).toBe(filePath)
+    // The store keeps executable content apart, so the same bytes under
+    // another mode are a different file it does not yet have.
+    expect(await store.locateFileInStore!(digest, 0o755)).toBeUndefined()
+  })
+
+  it.each([true, false])(
+    'withholds content that no longer hashes to its digest (verifyStoreIntegrity: %s)',
+    async (verifyStoreIntegrity) => {
+      const store = packageStore(verifyStoreIntegrity)
+      const bytes = Buffer.from('addon')
+      const digest = createHash('sha512').update(bytes).digest('hex')
+      const { filePath } = store.addFileToStore!(bytes, 0o644)
+      expect(await store.locateFileInStore!(digest, 0o644)).toBe(filePath)
+
+      fs.writeFileSync(filePath, 'tampered')
+      expect(await store.locateFileInStore!(digest, 0o644)).toBeUndefined()
+    }
+  )
 })

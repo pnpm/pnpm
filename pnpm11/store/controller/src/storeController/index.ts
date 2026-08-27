@@ -6,6 +6,7 @@ import type { Fetchers } from '@pnpm/fetching.fetcher-base'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { createPackageRequester } from '@pnpm/installing.package-requester'
 import type { ResolveFunction } from '@pnpm/resolving.resolver-base'
+import { verifyFileIntegrityAsync } from '@pnpm/store.cafs'
 import type {
   ImportIndexedPackageAsync,
   StoreController,
@@ -98,7 +99,19 @@ export function createPackageStore (
     // A read-only store cannot accept new content, so it does not advertise the
     // direct write capability that remote side-effects hydration requires.
     addFileToStore: initOpts.frozenStore ? undefined : cafs.addFile,
+    locateFileInStore,
     clearResolutionCache: initOpts.clearResolutionCache,
+  }
+
+  async function locateFileInStore (hexDigest: string, mode: number): Promise<string | undefined> {
+    const filePath = cafs.getFilePathByModeInCafs(hexDigest, mode)
+    // Verified unconditionally rather than answering to `verifyStoreIntegrity`:
+    // the download this skips would have ended in a CAS write, and that path
+    // checks content already at the destination whatever the setting says.
+    // Hashing a local file is far cheaper than the transfer it avoids.
+    return await verifyFileIntegrityAsync(filePath, { algorithm: 'sha512', digest: hexDigest })
+      ? filePath
+      : undefined
   }
 
   async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }) {
