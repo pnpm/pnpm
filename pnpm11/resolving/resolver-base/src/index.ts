@@ -260,12 +260,16 @@ export interface ResolutionPolicyViolation {
   code: string
   reason: string
   /**
-   * Package ids of the path that reached this pick, the importer's direct
-   * dependency first and the immediate parent last. Absent when the
-   * violation was raised outside a dependency walk (the lockfile verifier
-   * checks entries it has no path for). The install command names the
-   * dependent with it, and the resolver's retry uses the last entry to find
-   * the choice that has to be revisited.
+   * The resolution path that reached this pick: the importer's own id
+   * first, then one entry per package walked, the immediate parent last.
+   * A single entry therefore means the importer asked for this package
+   * itself, and nothing above it can be resolved to a different version.
+   * Absent when the violation was raised outside a dependency walk — the
+   * lockfile verifier checks entries it has no path for.
+   *
+   * The install command names the dependent with it (dropping the leading
+   * importer), and the resolver's retry uses the last entry to find the
+   * choice that has to be revisited.
    */
   parentIds?: PkgResolutionId[]
 }

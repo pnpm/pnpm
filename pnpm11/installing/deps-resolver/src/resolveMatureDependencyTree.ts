@@ -159,8 +159,11 @@ function reportHeldBackParents (
     }
     versions.add(version)
   }
+  // Sorted so the report reads the same across runs and matches pacquet's,
+  // which sorts because its blocklist is keyed by hash. A Map preserves the
+  // order versions happened to be blocked in, which is resolution order.
   const lines: string[] = []
-  for (const [name, versions] of blockedVersions) {
+  for (const [name, versions] of [...blockedVersions].sort(([left], [right]) => left.localeCompare(right))) {
     const resolvedTo = [...(resolvedVersionsByName.get(name) ?? [])].sort()
     for (const version of [...versions].sort()) {
       lines.push(
