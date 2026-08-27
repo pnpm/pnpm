@@ -119,7 +119,7 @@ fn clean_builtin(ctx: &RunCtx<'_>, config: &Config, remove_lockfile: bool) -> mi
         .explicit_settings
         .get("modulesDir")
         .and_then(Value::as_str)
-        .map_or(Path::new("node_modules"), Path::new);
+        .map_or_else(|| Path::new("node_modules"), Path::new);
     let root_dir = config.workspace_dir.as_deref().unwrap_or(ctx.dir);
     let dirs: Vec<PathBuf> = if let Some(workspace_dir) = config.workspace_dir.as_deref() {
         let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
