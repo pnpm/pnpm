@@ -273,8 +273,14 @@ mod restore {
     async fn restore(store_dir: &StoreDir, expected_downloads: usize) -> PathBuf {
         let snapshots = snapshots();
         let packages = packages();
-        let platform = super::super::linux_glibc_platform(&snapshots)
-            .expect("a linux glibc host describes a platform");
+        // The cfg above settles the target; the glibc *version* is read from
+        // the environment (`getconf`, then `ldd`), which the target cannot
+        // promise. A host with neither is not one the remote cache serves, so
+        // say that rather than leaving a bare unwrap to explain itself.
+        let platform = super::super::linux_glibc_platform(&snapshots).expect(
+            "the glibc version must be readable — install `getconf` or `ldd`, \
+             or run this suite on a host the remote side-effects cache serves",
+        );
         assert_eq!(
             platform.node_major, 22,
             "the lockfile's Node pin, not the machine's Node, must decide the platform",
