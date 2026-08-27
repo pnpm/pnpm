@@ -71,9 +71,8 @@ mod macos {
         .expect("eligible configuration must build a cache")
     }
 
-    /// First import populates the canonical slot and clones it to the
-    /// target; a second import of the same package into a fresh target is
-    /// served entirely from the canonical slot.
+    /// Deleting the CAS blob between the two imports is what proves
+    /// the second one reads only the canonical slot.
     #[test]
     fn try_import_populates_canonical_slot_and_clones_it() {
         let dir = tempdir().expect("tempdir");
@@ -110,16 +109,12 @@ mod macos {
             b"module.exports = 1",
         );
 
-        // The canonical slot exists under the links root with the
-        // completion marker in place.
         let canonical_manifests = walk_files(&links_root)
             .into_iter()
             .filter(|path| path.ends_with("node_modules/foo/package.json"))
             .count();
         assert_eq!(canonical_manifests, 1, "one canonical slot for the one snapshot");
 
-        // Deleting the CAS blob proves the second import reads only the
-        // canonical slot.
         fs::remove_file(&lib_blob).expect("remove CAS blob");
         let second_target = dir.path().join("second/node_modules/foo");
         fs::create_dir_all(second_target.parent().unwrap()).expect("create slot node_modules");
@@ -158,9 +153,8 @@ mod macos {
         ));
     }
 
-    /// A snapshot key the layout never hashed (absent from the lockfile
-    /// walk) must not be served from a flat-name slot — flat names are not
-    /// content-addressed.
+    /// See [`crate::VirtualStoreLayout::hashed_slot_dir`] for why the
+    /// flat-name fallback must never serve the cache.
     #[test]
     fn try_import_declines_a_snapshot_without_a_hashed_slot() {
         let dir = tempdir().expect("tempdir");

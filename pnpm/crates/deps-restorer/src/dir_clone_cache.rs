@@ -19,20 +19,17 @@
 //! one `stat` plus one `clonefile` per package instead of one syscall
 //! per file.
 //!
-//! Only the isolated-linker frozen install path consults the cache, and
-//! only when the resolved import method may clone (`auto`, `clone`,
-//! `clone-or-copy`): an explicit `hardlink` promises store-shared
-//! inodes and an explicit `copy` promises independent data, and a
-//! clone of the canonical copy would deliver neither. Per-slot
-//! qualification is decided by the caller (see
-//! `create_virtual_store::dir_clone_cacheable`): packages that need a
-//! build or patch marker, come from mutable local sources, must be
-//! force-re-imported, or resolve without a checkable integrity (git
-//! dependencies, whose slot hash cannot see whether their fetch-time
-//! `prepare` ran) skip the cache — their slots go through the per-file
-//! path exactly as before, so cached slots are always plain pre-build
-//! CAS content, indistinguishable from what a GVS-enabled install
-//! materializes before its build phase.
+//! Only isolated-linker installs with the project-local virtual store
+//! consult the cache, and only when the resolved import method may
+//! clone (`auto`, `clone`, `clone-or-copy`): an explicit `hardlink`
+//! promises store-shared inodes and an explicit `copy` promises
+//! independent data, and a clone of the canonical copy would deliver
+//! neither. Per-slot qualification is decided by the caller — see
+//! `create_virtual_store::dir_clone_cacheable` for the exclusions and
+//! their reasons. Excluded slots take the per-file import, so cached
+//! slots are always plain pre-build CAS content, indistinguishable
+//! from what a GVS-enabled install materializes before its build
+//! phase.
 //!
 //! The cache is strictly best-effort: a per-install capability probe
 //! (`dir_clone_supported`) declines the whole cache up front when the
@@ -75,9 +72,9 @@ pub struct DirCloneCache {
 
 impl DirCloneCache {
     /// Whether this install's configuration can use the cache at all.
-    /// Split from [`Self::build`] so the engine-name resolution in
-    /// `install_frozen_lockfile` can know up front that the layout
-    /// below will need the engine synchronously.
+    /// Split from [`Self::build`] so the install entry points can know
+    /// up front that the layout below will need the engine name
+    /// synchronously.
     #[must_use]
     pub fn eligible(config: &Config, node_linker: NodeLinker) -> bool {
         cfg!(target_os = "macos")
@@ -241,10 +238,10 @@ impl DirCloneCache {
 /// remove both. The store side is created if absent (the caller
 /// guarantees the store is writable), but nothing is created on the
 /// project side — the probe lands in the deepest existing ancestor of
-/// the virtual-store dir, which is on the same volume, so a rejected
-/// install can still assert that `node_modules/.pnpm` was never
-/// written. A stale destination from a crashed probe is removed first
-/// so pid reuse can't fail the probe with `EEXIST`.
+/// the virtual-store dir, which is on the same volume, so an install
+/// the lockfile checks later reject leaves no directory behind. A
+/// stale destination from a crashed probe is removed first so pid
+/// reuse can't fail the probe with `EEXIST`.
 fn dir_clone_supported(links_root: &Path, virtual_store_dir: &Path) -> bool {
     // Distinct basenames: were the two roots to resolve to one
     // directory, a shared name would have the destination pre-clean

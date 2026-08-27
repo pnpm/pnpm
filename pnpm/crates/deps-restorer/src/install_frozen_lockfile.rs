@@ -530,10 +530,9 @@ where
         // `node --version` returns from the shell, splitting the
         // shared store between pinned and non-pinned installs on the
         // same host.
-        // The directory-clone cache keys its canonical slots with the
-        // same engine-qualified hashes a GVS-enabled install computes,
-        // so an eligible install needs the engine name synchronously
-        // just like GVS does.
+        // A cache-eligible install needs the engine name synchronously
+        // like GVS does — see [`crate::DirCloneCache::build`] for why
+        // the two must agree.
         let dir_clone_cache_eligible = crate::DirCloneCache::eligible(config, node_linker);
         let (initial_engine_name, deferred_engine_handle) =
             crate::materialization_plan::resolve_engine_name(

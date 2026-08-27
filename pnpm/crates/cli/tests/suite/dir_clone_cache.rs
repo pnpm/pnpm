@@ -51,11 +51,9 @@ fn project_pkg_manifest(workspace: &Path) -> PathBuf {
     )
 }
 
-/// A default (auto import method, local virtual store) install
-/// populates the canonical slots, and a warm reinstall after wiping
-/// `node_modules` is served from them: bytes planted in the canonical
-/// slot come back in the project copy, proving the clone read the slot
-/// rather than re-importing from the CAS.
+/// The planted bytes are what prove the source: only a clone of the
+/// canonical slot — not a re-import from the CAS — can carry them into
+/// the project copy.
 #[test]
 fn warm_reinstall_is_served_from_the_canonical_slot() {
     let CommandTempCwd { root: _root, workspace, npmrc_info, .. } =
@@ -88,9 +86,8 @@ fn warm_reinstall_is_served_from_the_canonical_slot() {
     drop(mock_instance);
 }
 
-/// An explicit `packageImportMethod` that promises a specific on-disk
-/// form (`copy` here) bypasses the cache entirely: nothing is written
-/// under the links root.
+/// An explicit `packageImportMethod` promises a specific on-disk form
+/// a clone of the canonical copy could not deliver.
 #[test]
 fn explicit_copy_method_bypasses_the_cache() {
     let CommandTempCwd { root: _root, workspace, npmrc_info, .. } =

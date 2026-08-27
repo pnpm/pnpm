@@ -90,11 +90,11 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     /// Empty source file imported as `.pnpm-needs-build` before the package's
     /// atomic completion marker when the package needs a build or patch.
     pub needs_build_marker_source: Option<&'a Path>,
-    /// macOS directory-clone materialization cache. `None` when the
-    /// install isn't eligible ([`DirCloneCache::eligible`]) or when
-    /// this slot must go through the per-file import — a package that
-    /// needs a build or patch, comes from mutable source, or is being
-    /// force-re-imported. See [`crate::dir_clone_cache`].
+    /// macOS directory-clone materialization cache
+    /// ([`crate::dir_clone_cache`]). `None` when the install isn't
+    /// eligible ([`DirCloneCache::eligible`]) or when the caller's
+    /// per-slot qualification says this slot must take the per-file
+    /// import.
     pub dir_clone_cache: Option<&'a DirCloneCache>,
     #[cfg(test)]
     pub link_concurrency_probe: Option<&'a tests::LinkConcurrencyProbe>,

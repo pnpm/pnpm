@@ -1354,9 +1354,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .as_ref()
             .map(pnpm_deps_restorer::materialization_plan::HostNode::from);
 
-        // Like the frozen path, an install eligible for the directory-
-        // clone cache resolves the engine name synchronously so the
-        // cache's canonical slots hash the same as GVS slots.
+        // A cache-eligible install needs the engine name synchronously
+        // like GVS does — see [`DirCloneCache::build`] for why the two
+        // must agree.
         let dir_clone_cache_eligible =
             pnpm_deps_restorer::DirCloneCache::eligible(config, node_linker);
         let (engine_name, deferred_engine_handle) =

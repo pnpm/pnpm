@@ -186,12 +186,10 @@ pub struct CreateVirtualStore<'a> {
     /// Tarball downloads and CAS writes still happen for both
     /// linkers; only the slot-materialization step differs.
     pub node_linker: NodeLinker,
-    /// macOS directory-clone materialization cache, built in
-    /// [`crate::InstallFrozenLockfile::run`] when
-    /// [`crate::DirCloneCache::eligible`] holds. Threaded into every
-    /// isolated-linker slot link whose package qualifies (no build or
-    /// patch marker, immutable source, no forced re-import). See
-    /// [`crate::dir_clone_cache`].
+    /// macOS directory-clone materialization cache
+    /// ([`crate::dir_clone_cache`]), built by the install entry points
+    /// when [`crate::DirCloneCache::eligible`] holds. Threaded into
+    /// every slot link that passes [`dir_clone_cacheable`].
     pub dir_clone_cache: Option<&'a crate::DirCloneCache>,
     /// Cache keys whose package status (`fetched` or `found_in_store`)
     /// has already been emitted earlier in this install. The warm batch
