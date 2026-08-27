@@ -117,10 +117,16 @@ async fn a_non_regular_file_is_not_reused_as_store_content() {
     }
 }
 
-/// The restore only runs where the remote cache can apply at all —
-/// `linux_glibc_platform` refuses every other target, so on Windows and macOS
-/// there would be nothing to observe.
-#[cfg(target_os = "linux")]
+/// A restore only happens where the remote cache applies at all:
+/// `linux_glibc_platform` refuses anything but linux-glibc on x64 or arm64.
+/// The cfg spells out that same contract, so on a host the feature cannot
+/// serve — musl, or a linux arch pacquet publishes no artifacts for — these
+/// tests are absent rather than failing on a platform they never described.
+#[cfg(all(
+    target_os = "linux",
+    target_env = "gnu",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 mod restore {
     use crate::{AllowBuildPolicy, RequiresBuildBySnapshot, SideEffectsMapsBySnapshot};
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
@@ -163,8 +169,16 @@ mod restore {
         format!("sha512-{}", BASE64.encode(Sha512::digest(bytes)))
     }
 
+    /// The lockfile's own Node pin, so the compatibility tag the artifact has
+    /// to carry follows from the fixture rather than from whichever Node
+    /// happens to be installed on the machine running the test.
+    const NODE_RUNTIME: &str = "node@runtime:22.0.0";
+
     fn snapshots() -> HashMap<PackageKey, SnapshotEntry> {
-        HashMap::from([(SNAPSHOT.parse().expect("snapshot key"), SnapshotEntry::default())])
+        HashMap::from([
+            (SNAPSHOT.parse().expect("snapshot key"), SnapshotEntry::default()),
+            (NODE_RUNTIME.parse().expect("runtime key"), SnapshotEntry::default()),
+        ])
     }
 
     fn packages() -> HashMap<PackageKey, PackageMetadata> {
@@ -269,6 +283,10 @@ mod restore {
         let packages = packages();
         let platform = super::super::linux_glibc_platform(&snapshots)
             .expect("a linux glibc host describes a platform");
+        assert_eq!(
+            platform.node_major, 22,
+            "the lockfile's Node pin, not the machine's Node, must decide the platform",
+        );
         let mut supported_tags = linux_glibc_supported_tags(platform).expect("supported tags");
         let compatibility_tag = supported_tags.swap_remove(0);
 
