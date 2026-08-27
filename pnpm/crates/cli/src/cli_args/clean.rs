@@ -11,7 +11,8 @@ use std::path::{Path, PathBuf};
 /// directories of the current project (or every project in the workspace)
 /// without following NTFS junctions into their targets. A `clean` /
 /// `purge` script in `package.json` overrides the built-in command,
-/// mirroring pnpm's `overridableByScript` flag.
+/// mirroring pnpm's `overridableByScript` flag; `pnpm pm clean` /
+/// `pnpm pm purge` runs the built-in regardless.
 #[derive(Debug, clap::Args)]
 pub struct CleanArgs {
     /// Also remove `pnpm-lock.yaml` files.
@@ -45,6 +46,11 @@ const PNPM_HIDDEN_ENTRIES: &[&str] =
 impl CleanArgs {
     pub fn run(self, ctx: &RunCtx<'_>, command_name: &str) -> miette::Result<()> {
         let config = (ctx.config)()?;
+        // A `pm` prefix (`pnpm pm clean`) demands the built-in command, so
+        // no script gets to replace it.
+        if ctx.builtin_command_forced {
+            return clean_builtin(ctx, config, self.lockfile);
+        }
         // A `<command_name>` script in the current project's `package.json`
         // replaces the built-in command.
         if let Some(script) = script_of(read_project_manifest_only(ctx.dir).ok(), command_name)
