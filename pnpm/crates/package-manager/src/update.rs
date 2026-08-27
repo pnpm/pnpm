@@ -702,9 +702,9 @@ struct UpdatePreparation {
     preferred_versions_override: PreferredVersions,
     persist_manifest: bool,
     /// Direct dependencies whose declared range the install may move onto
-    /// the version it resolves, each mapped to the specifier the manifest
-    /// declares for it. See [`crate::ManifestSpecBumps`].
-    bump_targets: HashMap<String, String>,
+    /// the version it resolves, each mapped to the group and specifier the
+    /// manifest declares for it. See [`crate::ManifestSpecBumps`].
+    bump_targets: HashMap<String, (DependencyGroup, String)>,
     updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
     workspace_dir_for_catalogs: Option<PathBuf>,
@@ -715,7 +715,7 @@ struct SelectedUpdatePreparation {
     preferred_versions_override: PreferredVersions,
     persist_indices: Vec<usize>,
     /// [`UpdatePreparation::bump_targets`] per importer id.
-    bump_targets: BTreeMap<String, HashMap<String, String>>,
+    bump_targets: BTreeMap<String, HashMap<String, (DependencyGroup, String)>>,
     updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
     workspace_dir_for_catalogs: Option<PathBuf>,
@@ -889,7 +889,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 rewrites.push((name.clone(), *group, specifier));
             }
             if save && !latest {
-                bump_targets.insert(name.clone(), previous.clone());
+                bump_targets.entry(name.clone()).or_insert_with(|| (*group, previous.clone()));
             }
             drop_targets.insert(name.clone(), None);
         }
@@ -914,10 +914,10 @@ async fn prepare_manifest<Reporter: self::Reporter>(
         let patterns =
             selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
         let matcher = create_matcher(&patterns);
-        for (name, _, previous) in &direct {
+        for (name, group, previous) in &direct {
             if matcher.matches(name) {
                 if save {
-                    bump_targets.insert(name.clone(), previous.clone());
+                    bump_targets.entry(name.clone()).or_insert_with(|| (*group, previous.clone()));
                 }
                 drop_targets.insert(name.clone(), None);
             }
@@ -1067,7 +1067,9 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                         rewritten.filter(|specifier| specifier != previous)
                     } else {
                         if save && requested.is_none() {
-                            bump_targets.insert(name.clone(), previous.clone());
+                            bump_targets
+                                .entry(name.clone())
+                                .or_insert_with(|| (*group, previous.clone()));
                         }
                         requested
                     }
