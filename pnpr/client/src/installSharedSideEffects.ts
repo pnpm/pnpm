@@ -215,7 +215,12 @@ export function createRemoteSideEffectsRestorer<T extends string> (
       if (storedDiff?.remoteOrigin == null) {
         if (opts.sideEffectsCacheRead) return undefined
       } else {
-        const envelopeDigest = await storedArtifactEnvelopeDigest(storedDiff, localSideEffects, candidate, pinnedEnvelopeDigest)
+        const envelopeDigest = await storedArtifactEnvelopeDigest({
+          candidate,
+          diff: storedDiff,
+          files: localSideEffects,
+          pinnedEnvelopeDigest,
+        })
         if (envelopeDigest != null) {
           recordArtifactPin(node.depPath, inputKey, envelopeDigest)
           return localCacheKey
@@ -466,12 +471,13 @@ export function createRemoteSideEffectsRestorer<T extends string> (
     }
   }
 
-  async function storedArtifactEnvelopeDigest (
-    diff: SideEffectsDiff,
-    files: { added?: Map<string, string>, deleted?: string[] },
-    candidate: ArtifactCandidate,
-    pinnedEnvelopeDigest: string | undefined
-  ): Promise<string | undefined> {
+  async function storedArtifactEnvelopeDigest (params: {
+    candidate: ArtifactCandidate
+    diff: SideEffectsDiff
+    files: { added?: Map<string, string>, deleted?: string[] }
+    pinnedEnvelopeDigest?: string
+  }): Promise<string | undefined> {
+    const { candidate, diff, files, pinnedEnvelopeDigest } = params
     const origin = diff.remoteOrigin
     if (
       origin == null ||

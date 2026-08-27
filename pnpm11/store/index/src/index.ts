@@ -201,24 +201,26 @@ export class StoreIndex {
     this.flush()
     return sqliteRetry(() => {
       this.db.exec('BEGIN IMMEDIATE')
-      let committed = false
       try {
         const row = this.stmtGet.get(key) as { data: Uint8Array } | undefined
         if (row == null) {
           this.db.exec('COMMIT')
-          committed = true
           return false
         }
         this.stmtSet.run(key, packr.pack(updateValue(packr.unpack(row.data))))
         this.db.exec('COMMIT')
-        committed = true
         return true
-      } finally {
-        if (!committed) {
-          try {
-            this.db.exec('ROLLBACK')
-          } catch {}
+      } catch (updateError: unknown) {
+        try {
+          this.db.exec('ROLLBACK')
+        } catch (rollbackError: unknown) {
+          throw new AggregateError(
+            [updateError, rollbackError],
+            `Failed to roll back store index update for ${key}`,
+            { cause: rollbackError }
+          )
         }
+        throw updateError
       }
     })
   }

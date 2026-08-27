@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { expect, test } from '@jest/globals'
 import { ReadOnlyStoreIndex, StoreIndex, storeIndexKey } from '@pnpm/store.index'
@@ -64,6 +65,28 @@ test('StoreIndex update mutates an existing row without creating a missing row',
   } finally {
     idx.close()
   }
+})
+
+test('StoreIndex update reports a rollback failure without hiding the update error', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const idx = new StoreIndex(storeDir)
+  idx.set('present', { value: 1 })
+  let thrown: unknown
+  try {
+    idx.update('present', (value) => {
+      idx.close()
+      return value
+    })
+  } catch (err: unknown) {
+    thrown = err
+  }
+  expect(util.types.isNativeError(thrown)).toBe(true)
+  if (!util.types.isNativeError(thrown) || !('errors' in thrown) || !Array.isArray(thrown.errors)) {
+    throw new Error('Expected update and rollback errors to be aggregated')
+  }
+  expect(thrown.name).toBe('AggregateError')
+  expect(thrown.message).toContain('present')
+  expect(thrown.errors).toHaveLength(2)
 })
 
 // The immutable open only works on a runtime that honors the immutable URI;
