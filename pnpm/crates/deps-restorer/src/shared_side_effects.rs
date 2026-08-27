@@ -12,9 +12,10 @@ use pnpm_pnpr_client::{
     ResolveArtifactsOptions, SignedArtifactEnvelope, blob_id, linux_glibc_supported_tags,
     linux_glibc_tag,
 };
+use sha2::{Digest as _, Sha512};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
@@ -219,7 +220,7 @@ pub(crate) async fn apply_shared_side_effects(
                 if !downloaded.contains_key(&file.integrity)
                     && let Ok(digest) = blob_id(&file.integrity)
                     && let Some(path) = config.store_dir.cas_file_path_by_mode(&digest, file.mode)
-                    && tokio::fs::try_exists(&path).await.unwrap_or(false)
+                    && store_holds(&path, &digest).await?
                 {
                     stored.insert(storage_key, path.clone());
                     return Ok(path);
@@ -303,6 +304,36 @@ fn decoded_trusted_keys(
         trusted_keys.insert(key_id.clone(), public_key);
     }
     Some(trusted_keys)
+}
+
+/// Whether the store holds `path` as the content `digest` names.
+///
+/// Reusing content is a read of the store like any other, so it answers to
+/// `verifyStoreIntegrity`: asked to verify, content that does not hash to the
+/// digest it is filed under is not reused, and the caller falls back to its
+/// own verified download. A missing file is an ordinary miss; any other
+/// failure is reported rather than quietly redownloaded.
+/// Whether the store already holds `digest` at `path`.
+///
+/// Verified unconditionally rather than answering to `verifyStoreIntegrity`:
+/// the download this skips would have ended in a CAS write, and that path
+/// checks content already at the destination whatever the setting says.
+/// Hashing a local file is far cheaper than the transfer it avoids.
+async fn store_holds(path: &Path, digest: &str) -> Result<bool, String> {
+    let bytes = match tokio::fs::read(path).await {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(format!("failed to read {}: {error}", path.display())),
+    };
+    Ok(hex_digest(&bytes) == digest)
+}
+
+fn hex_digest(bytes: &[u8]) -> String {
+    Sha512::digest(bytes).iter().fold(String::with_capacity(128), |mut output, byte| {
+        use std::fmt::Write as _;
+        write!(output, "{byte:02x}").expect("writing to a String cannot fail");
+        output
+    })
 }
 
 fn non_empty(value: &str) -> Option<&str> {

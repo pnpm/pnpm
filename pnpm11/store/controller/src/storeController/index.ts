@@ -1,12 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 import type { Fetchers } from '@pnpm/fetching.fetcher-base'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { createPackageRequester } from '@pnpm/installing.package-requester'
 import type { ResolveFunction } from '@pnpm/resolving.resolver-base'
+import { verifyFileIntegrity } from '@pnpm/store.cafs'
 import type {
   ImportIndexedPackageAsync,
   StoreController,
@@ -105,13 +105,13 @@ export function createPackageStore (
 
   async function locateFileInStore (hexDigest: string, mode: number): Promise<string | undefined> {
     const filePath = cafs.getFilePathByModeInCafs(hexDigest, mode)
-    try {
-      await fs.promises.stat(filePath)
-      return filePath
-    } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return undefined
-      throw err
-    }
+    // Verified unconditionally rather than answering to `verifyStoreIntegrity`:
+    // the download this skips would have ended in a CAS write, and that path
+    // checks content already at the destination whatever the setting says.
+    // Hashing a local file is far cheaper than the transfer it avoids.
+    return verifyFileIntegrity(filePath, { algorithm: 'sha512', digest: hexDigest })
+      ? filePath
+      : undefined
   }
 
   async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }) {
