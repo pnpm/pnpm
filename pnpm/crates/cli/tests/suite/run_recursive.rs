@@ -2066,6 +2066,32 @@ fn recursive_run_executes_every_script_matching_a_regexp_selector() {
     drop(root);
 }
 
+#[test]
+fn recursive_run_filters_hidden_regexp_matches_when_a_visible_script_matches() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project",
+            json!({
+                "name": "project",
+                "version": "1.0.0",
+                "scripts": {
+                    "build:visible": "touch visible.txt",
+                    ".build:hidden": "touch hidden.txt",
+                },
+            }),
+        )],
+    );
+
+    pacquet.with_args(["-r", "run", "/build/"]).assert().success();
+
+    assert!(workspace.join("project").join("visible.txt").exists());
+    assert!(!workspace.join("project").join("hidden.txt").exists());
+
+    drop(root);
+}
+
 /// A `/pattern/` selector can match several scripts in one project, but
 /// the summary carries a single status per project and the exit code is
 /// derived from it. Under `--no-bail` a later script's success must not
