@@ -1287,11 +1287,9 @@ const CREDENTIAL_KEYS = [
 /**
  * Which scope a `pnpm login` claims for the machine.
  *
- * The granted token is recorded as a `@scope:registry` route in the global
- * `auth.ini`, which outranks the user's own `~/.npmrc` in every project on the
- * machine from then on — so the scope is the user's to choose, not a
- * repository's.
- * See https://github.com/pnpm/pnpm/issues/13557
+ * The granted token is recorded as a route in the global `auth.ini`, which
+ * outranks the user's own `~/.npmrc` in every project on the machine — so the
+ * choice is the user's, not a repository's.
  */
 const LOGIN_TARGET_KEYS = [
   'scope',
