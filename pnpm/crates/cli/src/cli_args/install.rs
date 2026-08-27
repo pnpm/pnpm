@@ -16,7 +16,8 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::NodeLinker;
 use pnpm_lockfile::{Lockfile, LockfileResolution, MaybeLazyLockfile};
 use pnpm_lockfile_verification::{
-    VerifyLockfileResolutionsOptions, lockfile_verification_is_cached, record_lockfile_verified,
+    VerifyLockfileResolutionsOptions, lockfile_verification_is_cached,
+    lockfile_verification_is_cached_by_content, record_lockfile_verified,
     verify_lockfile_resolutions,
 };
 use pnpm_modules_yaml::IncludedDependencies;
@@ -1348,13 +1349,19 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             )
             .map_err(miette::Report::new)?
         };
-        verify_lockfile_resolutions::<Reporter>(
+        if !lockfile_verification_is_cached_by_content(
+            &state.config.cache_dir,
             &outcome.lockfile,
             &verifiers,
-            &VerifyLockfileResolutionsOptions::default(),
-        )
-        .await
-        .map_err(miette::Report::new)?;
+        ) {
+            verify_lockfile_resolutions::<Reporter>(
+                &outcome.lockfile,
+                &verifiers,
+                &VerifyLockfileResolutionsOptions::default(),
+            )
+            .await
+            .map_err(miette::Report::new)?;
+        }
         Some(verifiers)
     } else {
         None

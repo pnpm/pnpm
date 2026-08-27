@@ -1272,6 +1272,7 @@ fn filtered_pnpr_repair_preserves_unselected_metadata() {
     seed_filtered_repair_workspace(&workspace, &mock_instance.url());
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let mut previous = read_workspace_lockfile(&workspace);
+    let previous_unselected = workspace_importer(&previous, "packages/unselected").clone();
     let mut preserved_package_count = 0;
     for (key, metadata) in previous.packages.as_mut().expect("packages") {
         let key = key.to_string();
@@ -1316,6 +1317,7 @@ fn filtered_pnpr_repair_preserves_unselected_metadata() {
         .success();
 
     let repaired = read_workspace_lockfile(&workspace);
+    assert_eq!(workspace_importer(&repaired, "packages/unselected"), &previous_unselected);
     let preserved_packages = repaired
         .packages
         .as_ref()

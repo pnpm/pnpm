@@ -27,7 +27,10 @@ use pnpm_resolving_resolver_base::{
 use tokio::sync::Semaphore;
 
 use crate::{
-    cache::{CachePrecomputed, record_verification, try_lockfile_verification_cache},
+    cache::{
+        CachePrecomputed, lockfile_verification_is_cached_by_hash, record_verification,
+        try_lockfile_verification_cache,
+    },
     errors::{RenderedViolation, VerifyError},
     hash_lockfile,
 };
@@ -86,6 +89,28 @@ pub fn lockfile_verification_is_cached(
         || hash_lockfile(lockfile),
     )
     .hit
+}
+
+/// Whether a recorded verification covers the exact in-memory
+/// `lockfile` content under the currently active policy. Unlike
+/// [`lockfile_verification_is_cached`], this never consults path or
+/// filesystem metadata.
+pub fn lockfile_verification_is_cached_by_content(
+    cache_dir: &Path,
+    lockfile: &Lockfile,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> bool {
+    if verify_lockfile_dependency_names(lockfile).is_err() {
+        return false;
+    }
+    if lockfile.packages.is_none() {
+        return true;
+    }
+    lockfile_verification_is_cached_by_hash(
+        cache_dir,
+        &hash_lockfile(lockfile),
+        &with_offline_check_cache_identities(verifiers),
+    )
 }
 
 /// Run every active [`ResolutionVerifier`] against every entry in
