@@ -282,3 +282,36 @@ test('blocked versions get their own memoization slot', () => {
   expect(blocked).not.toBe(unblocked)
   expect(Object.keys(blocked.versions)).toStrictEqual([])
 })
+
+test('an equivalent policy shares one memoization slot whatever order it was built in', () => {
+  const name = 'order-independent'
+  const doc = {
+    name,
+    versions: {
+      '1.0.0': {
+        name,
+        version: '1.0.0',
+        dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-1.0.0.tgz`, shasum: '' },
+      },
+      '2.0.0': {
+        name,
+        version: '2.0.0',
+        dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-2.0.0.tgz`, shasum: '' },
+      },
+    },
+    'dist-tags': { latest: '2.0.0' },
+    time: {
+      '1.0.0': '2020-01-01T00:00:00.000Z',
+      '2.0.0': '2026-01-01T00:00:00.000Z',
+    },
+  }
+  const publishedBy = new Date('2020-04-01T00:00:00.000Z')
+
+  // The two collections are order-independent in meaning, so a key that
+  // preserved their order would evict one policy on behalf of the other.
+  const trusted = filterPkgMetadata(doc, { publishedBy, trustedVersions: ['2.0.0', '1.0.0'] })
+  expect(filterPkgMetadata(doc, { publishedBy, trustedVersions: ['1.0.0', '2.0.0'] })).toBe(trusted)
+
+  const blocked = filterPkgMetadata(doc, { publishedBy, blockedVersions: new Set(['2.0.0', '1.0.0']) })
+  expect(filterPkgMetadata(doc, { publishedBy, blockedVersions: new Set(['1.0.0', '2.0.0']) })).toBe(blocked)
+})

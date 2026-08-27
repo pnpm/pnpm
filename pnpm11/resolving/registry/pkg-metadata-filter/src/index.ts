@@ -67,14 +67,18 @@ export function filterPkgMetadata (
 }
 
 function toPolicyKey ({ publishedBy, trustedVersions, blockedVersions }: PkgMetadataFilter): string {
-  // Sorted so two equivalent sets that were built in a different order share
-  // one cache entry.
-  const blocked = blockedVersions == null ? '' : [...blockedVersions].sort().join(',')
+  // Both collections are sorted so two equivalent policies that were built in
+  // a different order share one cache entry rather than evicting each other.
+  // Versions join on `\x00` and the fields on `\x01`, so a registry-supplied
+  // version string cannot spell a field boundary and make two different
+  // policies collide on one key.
+  const trusted = trustedVersions == null ? '' : [...trustedVersions].sort().join('\x00')
+  const blocked = blockedVersions == null ? '' : [...blockedVersions].sort().join('\x00')
   return [
     publishedBy == null ? '' : String(publishedBy.getTime()),
-    trustedVersions == null ? '' : trustedVersions.join(','),
+    trusted,
     blocked,
-  ].join('\x00')
+  ].join('\x01')
 }
 
 function filterPkgMetadataUncached (
