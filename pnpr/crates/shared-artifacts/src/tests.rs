@@ -562,7 +562,6 @@ async fn a_commit_over_a_stale_reservation_leaves_no_blob_for_a_later_rollback()
 }
 
 /// Rollback reclaims what the failed publication itself stored, never a blob a
-/// committed artifact still depends on./// Rollback reclaims what the failed publication itself stored, never a blob a
 /// committed artifact still depends on. A publication that finds its blob
 /// already on disk does not reserve it, so the failure has nothing to undo.
 #[tokio::test]
