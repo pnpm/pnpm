@@ -100,6 +100,7 @@ impl OsvIndex {
         policy
     }
 
+    #[must_use]
     pub fn can_trust_policy(&self, policy: &serde_json::Map<String, serde_json::Value>) -> bool {
         policy.get(OSV_POLICY_KEY).and_then(serde_json::Value::as_str)
             == Some(self.fingerprint.as_str())
