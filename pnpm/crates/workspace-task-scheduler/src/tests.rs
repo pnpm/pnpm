@@ -130,7 +130,7 @@ fn pipeline_graph_requests_every_task_name_only_in_the_requested_projects() {
     });
     assert_eq!(
         keys,
-        vec![key("app", "build"), key("app", "lint"), key("lib", "build"), key("lib", "lint")]
+        vec![key("app", "build"), key("app", "lint"), key("lib", "build"), key("lib", "lint")],
     );
     assert!(graph[&key("app", "build")].requested);
     assert!(graph[&key("app", "lint")].requested);
