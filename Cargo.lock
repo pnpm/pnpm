@@ -6007,10 +6007,13 @@ dependencies = [
  "pnpr-auth",
  "pnpr-config",
  "pnpr-error",
+ "pnpr-osv",
  "pnpr-package-name",
  "pnpr-policy",
  "pnpr-registry",
  "pnpr-route",
+ "pnpr-search",
+ "pnpr-shared-artifacts",
  "pnpr-storage",
  "pnpr-upstream",
  "reqwest",
@@ -6111,6 +6114,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpr-osv"
+version = "0.0.1"
+dependencies = [
+ "libc",
+ "node-semver",
+ "pnpm-resolving-resolver-base",
+ "pnpr-config",
+ "pnpr-error",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "zip",
+]
+
+[[package]]
 name = "pnpr-package-name"
 version = "0.0.1"
 dependencies = [
@@ -6148,6 +6169,33 @@ dependencies = [
  "sha2",
  "tracing",
  "wax",
+]
+
+[[package]]
+name = "pnpr-search"
+version = "0.0.1"
+dependencies = [
+ "pnpr-error",
+ "pnpr-package-name",
+ "pnpr-storage",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "pnpr-shared-artifacts"
+version = "0.0.1"
+dependencies = [
+ "base64 0.23.1",
+ "pnpm-shared-artifact-protocol",
+ "pnpr-error",
+ "pnpr-storage",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]

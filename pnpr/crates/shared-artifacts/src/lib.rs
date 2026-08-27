@@ -96,12 +96,12 @@ struct ArtifactRecoveryLocks<'a> {
     preserved_blob_ids: &'a BTreeSet<String>,
 }
 
-pub(crate) fn parse_publish(body: &[u8]) -> Result<PublishArtifactRequest> {
+pub fn parse_publish(body: &[u8]) -> Result<PublishArtifactRequest> {
     serde_json::from_slice(body)
         .map_err(|err| bad_request(format!("invalid shared artifact request: {err}")))
 }
 
-pub(crate) async fn publish(
+pub async fn publish(
     cache_storage: &Path,
     username: &str,
     request: PublishArtifactRequest,
@@ -829,7 +829,7 @@ fn storage_quota_error() -> RegistryError {
     ))
 }
 
-pub(crate) async fn resolve(
+pub async fn resolve(
     cache_storage: &Path,
     username: &str,
     body: &[u8],
@@ -863,7 +863,7 @@ pub(crate) async fn resolve(
     Ok(ResolveArtifactsResponse { artifacts })
 }
 
-pub(crate) async fn read_blob(
+pub async fn read_blob(
     cache_storage: &Path,
     username: &str,
     body: &[u8],

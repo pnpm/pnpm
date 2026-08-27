@@ -56,8 +56,8 @@ use std::{
     time::Duration,
 };
 
-use crate::osv::OsvIndex;
 use pnpr_config::Config as RegistryConfig;
+use pnpr_osv::OsvIndex;
 use pnpr_policy::Identity;
 use pnpr_route::{Footprint, RouteContext, RouteHook};
 

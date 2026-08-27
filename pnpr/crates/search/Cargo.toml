@@ -1,0 +1,24 @@
+[package]
+name                 = "pnpr-search"
+version              = "0.0.1"
+description          = "The local /-/v1/search index scan over hosted packages"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license-file         = "../../LICENSE.md"
+repository.workspace = true
+
+[dependencies]
+pnpr-error        = { workspace = true }
+pnpr-package-name = { workspace = true }
+pnpr-storage      = { workspace = true }
+serde_json        = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio    = { workspace = true }
+
+[lints]
+workspace = true

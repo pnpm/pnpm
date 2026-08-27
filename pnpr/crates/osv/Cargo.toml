@@ -1,0 +1,30 @@
+[package]
+name                 = "pnpr-osv"
+version              = "0.0.1"
+description          = "The OSV advisory index pnpr consults to refuse vulnerable versions"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license-file         = "../../LICENSE.md"
+repository.workspace = true
+
+[dependencies]
+pnpr-config                  = { workspace = true }
+pnpr-error                   = { workspace = true }
+pnpm-resolving-resolver-base = { workspace = true }
+libc                         = { workspace = true }
+node-semver                  = { workspace = true }
+serde                        = { workspace = true }
+serde_json                   = { workspace = true }
+sha2                         = { workspace = true }
+tracing                      = { workspace = true }
+zip                          = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio    = { workspace = true }
+
+[lints]
+workspace = true
