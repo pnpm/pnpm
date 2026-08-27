@@ -301,15 +301,47 @@ function createPackDestinationLocker (): PackDestinationLocker {
 
 function packOutputPath (opts: PackOptions, pkg: Project): string | undefined {
   const publishedName = pkg.manifest.publishConfig?.name ?? pkg.manifest.name
-  const publishedVersion = pkg.manifest.version == null
-    ? undefined
-    : stripBuildMetadata(pkg.manifest.version)
+  const publishedVersion = pkg.manifest.version
   if (publishedName == null || publishedVersion == null) return undefined
-  const normalizedName = normalizePackageName(publishedName)
-  if (opts.out != null) {
-    return opts.out.replaceAll('%s', normalizedName).replaceAll('%v', publishedVersion)
+  return resolvePackOutput({
+    dir: pkg.rootDir,
+    out: opts.out,
+    packDestination: opts.packDestination,
+    publishedName,
+    publishedVersion,
+  }).outputPath
+}
+
+export function resolvePackOutput (
+  params: {
+    dir: string
+    out?: string
+    packDestination?: string
+    publishedName: string
+    publishedVersion: string
   }
-  return path.join(opts.packDestination ?? pkg.rootDir, `${normalizedName}-${publishedVersion}.tgz`)
+): { destDir: string, outputPath: string, tarballName: string } {
+  const { dir, out, packDestination, publishedName } = params
+  const normalizedName = normalizePackageName(publishedName)
+  const publishedVersion = stripBuildMetadata(params.publishedVersion)
+  let tarballName: string
+  let destination: string | undefined
+  if (out) {
+    if (packDestination) {
+      throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
+    }
+    const preparedOut = out.replaceAll('%s', normalizedName).replaceAll('%v', publishedVersion)
+    const parsedOut = path.parse(preparedOut)
+    destination = parsedOut.dir || packDestination
+    tarballName = parsedOut.base
+  } else {
+    destination = packDestination
+    tarballName = `${normalizedName}-${publishedVersion}.tgz`
+  }
+  const destDir = destination
+    ? (path.isAbsolute(destination) ? destination : path.join(dir, destination))
+    : dir
+  return { destDir, outputPath: path.join(destDir, tarballName), tarballName }
 }
 
 export async function api (opts: PackOptions): Promise<PackResult> {
@@ -362,8 +394,6 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   // in the tarball's package.json and cause the registry to reject the publish with a 422 when
   // verifying the sigstore provenance bundle. See https://github.com/pnpm/pnpm/issues/11518.
   publishManifest.version = stripBuildMetadata(publishManifest.version!)
-  let tarballName: string
-  let packDestination: string | undefined
   // Read back off the publish manifest so a `publishConfig.name` rename reaches
   // the filename too — the tarball name, the packed manifest, and the registry
   // metadata all name one artifact. The rename never went through the check on
@@ -374,19 +404,13 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   if (!validateNpmPackageName(publishedName).validForOldPackages) {
     throw new PnpmError('INVALID_PACKAGE_NAME', `Invalid package name "${publishedName}".`)
   }
-  const normalizedName = normalizePackageName(publishedName)
-  if (opts.out) {
-    if (opts.packDestination) {
-      throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
-    }
-    const preparedOut = opts.out.replaceAll('%s', normalizedName).replaceAll('%v', publishManifest.version)
-    const parsedOut = path.parse(preparedOut)
-    packDestination = parsedOut.dir ? parsedOut.dir : opts.packDestination
-    tarballName = parsedOut.base
-  } else {
-    tarballName = `${normalizedName}-${publishManifest.version}.tgz`
-    packDestination = opts.packDestination
-  }
+  const { destDir, outputPath, tarballName } = resolvePackOutput({
+    dir,
+    out: opts.out,
+    packDestination: opts.packDestination,
+    publishedName,
+    publishedVersion: publishManifest.version,
+  })
   const files = await packlist(dir, {
     manifest: publishManifest as Record<string, unknown>,
     workspaceDir: opts.workspaceDir,
@@ -417,9 +441,6 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     delete filesMap['package/CHANGELOG.md']
     injectedEntries['package/CHANGELOG.md'] = composedChangelog
   }
-  const destDir = packDestination
-    ? (path.isAbsolute(packDestination) ? packDestination : path.join(dir, packDestination ?? '.'))
-    : dir
   if (!opts.dryRun) {
     await fs.promises.mkdir(destDir, { recursive: true })
   }
@@ -450,7 +471,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   if (!opts.dryRun) {
     const packAndRunPostpack = async (): Promise<void> => {
       await packPkg({
-        destFile: path.join(destDir, tarballName),
+        destFile: outputPath,
         filesMap,
         injectedEntries,
         modulesDir: path.join(opts.dir, 'node_modules'),
@@ -466,7 +487,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
         await _runScriptsIfPresent(['postpack'], entryManifest)
       }
     }
-    const destination = path.resolve(destDir, tarballName)
+    const destination = path.resolve(outputPath)
     if (opts.packDestinationLocker == null) {
       await packAndRunPostpack()
     } else {
