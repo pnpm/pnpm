@@ -1,4 +1,4 @@
-use super::{ReadYarnReleasesError, asset_variants, parse_releases, pick_token};
+use super::{ReadYarnReleasesError, asset_variants, parse_releases, pick_token, status_help};
 use pnpm_lockfile::LockfileResolution;
 use pretty_assertions::assert_eq;
 
@@ -28,6 +28,15 @@ fn releases_body(extra_assets: &str) -> String {
           }}
         ]"#,
     )
+}
+
+/// Sending a credential gives 401 a cause the anonymous advice does not
+/// cover, so the help has to follow which request was actually made.
+#[test]
+fn a_rejected_credential_is_not_reported_as_an_anonymous_rate_limit() {
+    assert!(status_help(401, true).contains("rejected the credential"));
+    assert!(status_help(403, true).contains("authenticated request"));
+    assert!(status_help(403, false).contains("rate-limits anonymous"));
 }
 
 /// A project that relaxed certificate verification does not spend a GitHub
