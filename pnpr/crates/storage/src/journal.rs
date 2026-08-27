@@ -232,7 +232,7 @@ impl SealedTxn {
 /// should call it themselves on startup.
 pub async fn recover_publish_journal(config: &Config) -> Result<()> {
     let storage =
-        Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone());
+        Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone())?;
     storage.publish_journal().recover(&storage).await
 }
 

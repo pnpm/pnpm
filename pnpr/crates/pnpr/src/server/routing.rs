@@ -46,9 +46,9 @@ pub(super) fn router_with_auth_and_osv(
     config: Config,
     auth: AuthState,
     osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
-) -> Router {
+) -> pnpr_error::Result<Router> {
     let storage =
-        Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone());
+        Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone())?;
     let registry_enabled = config.registry.enabled;
     let resolver_enabled = config.resolver.enabled;
     let artifacts_enabled = config.resolver.artifacts;
@@ -239,7 +239,7 @@ pub(super) fn router_with_auth_and_osv(
             // `DELETE /~<name>/@scope/name/-/<file>/-rev/<rev>`
             .route("/{a}/{b}/{c}/{d}/{e}/{f}/{g}", delete(delete_seven_segments));
     }
-    router
+    Ok(router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
         // Authenticate once, ahead of every handler: resolve the caller,
         // enforce bearer-token read-only / CIDR restrictions (so a
@@ -298,7 +298,7 @@ pub(super) fn router_with_auth_and_osv(
                 })
                 .on_failure(()),
         )
-        .with_state(state)
+        .with_state(state))
 }
 
 // --------------------------------------------------------------------

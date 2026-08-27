@@ -363,16 +363,20 @@ fn s3_builder(settings: &S3Settings) -> AmazonS3Builder {
     builder.with_allow_http(settings.allow_http.unwrap_or(false))
 }
 
-/// The resolved hosted-store backend. The object-store client is built
-/// once at config-load time (the fallible step), so constructing the
-/// storage layer from it is infallible.
+/// The resolved hosted-store backend. Like [`BackendConfig`], this carries
+/// settings rather than a live client: opening an object store can fail on
+/// credentials or an unreachable endpoint, and parsing a config file is not
+/// the place to find that out. `Storage::new` opens it.
 #[derive(Debug, Clone)]
 pub enum HostedStoreConfig {
     /// Local directory — [`Config::storage`].
     Fs,
-    /// S3-compatible bucket. `prefix` is normalized to `""` or a
-    /// `.../`-terminated key prefix.
-    S3 { store: Arc<dyn ObjectStore>, prefix: String },
+    /// S3-compatible bucket, as declared by the YAML `s3:` block.
+    S3(S3Settings),
+    /// A caller-supplied object store. Parsing never produces this variant —
+    /// it is how an embedder brings its own [`ObjectStore`]: a provider pnpr
+    /// has no settings shape for, or an in-memory one under test.
+    ObjectStore { store: Arc<dyn ObjectStore>, prefix: String },
 }
 
 /// The resolved record-store backend for auth (users + tokens). Unlike
@@ -1490,9 +1494,7 @@ impl Config {
             .as_deref()
             .map_or_else(|| default_cache_dir(&storage), |raw| resolve_relative(raw, base_dir));
         let hosted_store = match &file.s3 {
-            Some(s3) => {
-                HostedStoreConfig::S3 { store: build_s3_store(s3)?, prefix: s3.normalized_prefix() }
-            }
+            Some(s3) => HostedStoreConfig::S3(s3.clone()),
             None => HostedStoreConfig::Fs,
         };
         let backend = build_backend_config(file.backend, base_dir)?;

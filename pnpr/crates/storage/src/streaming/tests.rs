@@ -130,7 +130,8 @@ async fn cancelling_in_flight_response_body_removes_tmp_file() {
 
     let tmp = TempDir::new().unwrap();
     let cache = tmp.path().join("cache");
-    let storage = Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone());
+    let storage =
+        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone()).unwrap();
     let name = PackageName::parse("foo").unwrap();
     let write =
         storage.open_upstream_tarball_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
@@ -161,7 +162,8 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
 
     let tmp = TempDir::new().unwrap();
     let cache = tmp.path().join("cache");
-    let storage = Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone());
+    let storage =
+        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone()).unwrap();
     let name = PackageName::parse("foo").unwrap();
     let write =
         storage.open_upstream_tarball_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();

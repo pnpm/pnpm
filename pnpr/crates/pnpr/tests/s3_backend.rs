@@ -28,7 +28,7 @@ fn s3_config(storage: PathBuf, store: Arc<dyn ObjectStore>) -> Config {
     let mut config = Config::static_serve(listen, storage);
     config.public_url = "http://example.test".to_string();
     config.auth.htpasswd.max_users = MaxUsers::Unlimited;
-    config.hosted_store = HostedStoreConfig::S3 { store, prefix: String::new() };
+    config.hosted_store = HostedStoreConfig::ObjectStore { store, prefix: String::new() };
     config
 }
 

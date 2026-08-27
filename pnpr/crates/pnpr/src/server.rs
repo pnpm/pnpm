@@ -224,7 +224,7 @@ pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> pnpr_error::
     config.ensure_a_feature_is_enabled()?;
     config.ensure_valid_registry_graph()?;
     let osv_index = load_active_osv_index(&config)?;
-    Ok(router_with_auth_and_osv(config, auth, osv_index))
+    router_with_auth_and_osv(config, auth, osv_index)
 }
 
 /// Load the OSV index only for surfaces that actually consult it. With
@@ -285,7 +285,7 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     let app = router_with_auth_and_osv(config, auth, osv_index);
     let listener = NodelayTcpListener(tokio::net::TcpListener::bind(listen).await?);
     tracing::info!(%listen, "pnpr listening");
-    axum::serve(listener, app.into_make_service_with_connect_info::<PeerAddr>())
+    axum::serve(listener, app?.into_make_service_with_connect_info::<PeerAddr>())
         .with_graceful_shutdown(shutdown_signal())
         .await?;
     Ok(())
@@ -327,7 +327,7 @@ pub async fn serve_listener(
     tracing::info!(%listen, "pnpr listening");
     axum::serve(
         NodelayTcpListener(listener),
-        app.into_make_service_with_connect_info::<PeerAddr>(),
+        app?.into_make_service_with_connect_info::<PeerAddr>(),
     )
     .with_graceful_shutdown(shutdown_signal())
     .await?;

@@ -6,6 +6,7 @@ use tempfile::TempDir;
 
 fn storage_in(tmp: &TempDir) -> Storage {
     Storage::new(&HostedStoreConfig::Fs, tmp.path().join("storage"), tmp.path().join("cache"))
+        .unwrap()
 }
 
 fn pkg(name: &str) -> PackageName {

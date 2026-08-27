@@ -521,8 +521,8 @@ upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.hosted_store {
-        HostedStoreConfig::S3 { prefix, .. } => assert_eq!(prefix, "packages/"),
-        HostedStoreConfig::Fs => panic!("expected an S3 hosted store, got Fs"),
+        HostedStoreConfig::S3(settings) => assert_eq!(settings.normalized_prefix(), "packages/"),
+        other => panic!("expected an S3 hosted store, got {other:?}"),
     }
 }
 
@@ -2422,4 +2422,28 @@ fn s3_settings_debug_redacts_credentials_inside_the_endpoint() {
     let rendered = format!("{settings:?}");
     assert!(!rendered.contains("hunter2"), "endpoint userinfo leaked: {rendered}");
     assert!(rendered.contains("minio.corp.example"), "host should still render: {rendered}");
+}
+
+/// Parsing a config file must not open an S3 client. A bucket the operator
+/// cannot reach is a startup problem for whatever wants the store, not a
+/// syntax error in their YAML — and `Config::from_yaml_str` has no business
+/// making network decisions.
+#[test]
+fn an_s3_block_parses_without_opening_the_store() {
+    let yaml = "\
+storage: /var/lib/pnpr
+s3:
+  bucket: packages
+  endpoint: http://127.0.0.1:1
+  accessKeyId: nope
+  secretAccessKey: nope
+upstreams: {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
+        .expect("an unreachable endpoint is not a parse error");
+
+    match config.hosted_store {
+        HostedStoreConfig::S3(settings) => assert_eq!(settings.bucket, "packages"),
+        other => panic!("expected the parsed S3 settings, got {other:?}"),
+    }
 }
