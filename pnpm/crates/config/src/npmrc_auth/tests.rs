@@ -474,6 +474,32 @@ fn auth_pair_base64_with_a_suffix_after_its_padding_is_rejected() {
     );
 }
 
+/// A value that is all padding decodes to nothing, so it is rejected as
+/// invalid base64 rather than as a credential missing its separator —
+/// the answer `atob` gives it.
+#[test]
+fn auth_pair_base64_of_only_padding_is_rejected_as_invalid_base64() {
+    let ini = "//reg.com/:_auth=====\n";
+    let mut config = Config::new();
+    let error = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""))
+        .build_auth_headers(&mut config)
+        .expect_err("an all-padding _auth must fail the load");
+    assert!(
+        matches!(error, LoadWorkspaceYamlError::AuthInvalidBase64 { key: "_auth" }),
+        "got: {error:?}",
+    );
+}
+
+/// An `_auth` left empty — the shape an unresolved `${VAR}` leaves —
+/// names no credential, so it is skipped instead of failing the load.
+#[test]
+fn empty_auth_pair_base64_supplies_no_header() {
+    let ini = "//reg.com/:_auth=\n";
+    let mut config = Config::new();
+    NpmrcAuth::from_ini::<NoEnv>(ini, Path::new("")).apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.auth_headers.for_url("https://reg.com/"), None);
+}
+
 #[test]
 fn auth_pair_base64_that_does_not_decode_is_rejected() {
     let ini = "//reg.com/:_auth=not*base64\n";
@@ -616,10 +642,15 @@ fn base64_decode_matches_atob() {
     assert_eq!(base64_decode("aH").as_deref(), Some("h"));
     // A lone trailing character carries no whole byte of its own.
     assert_eq!(base64_decode("aGkyM"), None);
-    // `=` is padding, so anything after it is not base64.
+    // `=` is padding, so anything after it is not base64, and padding
+    // with nothing to pad is not base64 either.
     assert_eq!(base64_decode("Zm9vOmJhcg==garbage"), None);
     assert_eq!(base64_decode("aGk=x"), None);
+    assert_eq!(base64_decode("===="), None);
     assert_eq!(base64_decode("not*base64"), None);
+    // Only an empty value decodes to nothing.
+    assert_eq!(base64_decode("").as_deref(), Some(""));
+    assert_eq!(base64_decode("  ").as_deref(), Some(""));
 }
 
 // --- Proxy parsing and cascade tests ---

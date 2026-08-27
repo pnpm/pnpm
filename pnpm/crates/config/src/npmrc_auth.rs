@@ -956,7 +956,9 @@ fn creds_to_header(creds: &RawCreds) -> Result<Option<String>, LoadWorkspaceYaml
     if let Some(token) = &creds.auth_token {
         return Ok(Some(format!("Bearer {token}")));
     }
-    if let Some(pair) = &creds.auth_pair_base64 {
+    // An empty `_auth` names no credential — the shape an unresolved
+    // `${VAR}` leaves behind — and pnpm skips it rather than failing.
+    if let Some(pair) = creds.auth_pair_base64.as_deref().filter(|pair| !pair.is_empty()) {
         let decoded = base64_decode_bytes(pair)
             .ok_or(LoadWorkspaceYamlError::AuthInvalidBase64 { key: "_auth" })?;
         if !decoded.contains(&b':') {
@@ -1066,9 +1068,12 @@ const CREDENTIAL_BASE64: base64::engine::GeneralPurpose = base64::engine::Genera
 /// not base64 at all.
 fn base64_decode_bytes(input: &str) -> Option<Vec<u8>> {
     let cleaned: Vec<u8> = input.bytes().filter(|byte| !byte.is_ascii_whitespace()).collect();
-    let payload =
-        cleaned.iter().rposition(|byte| *byte != b'=').map_or(&[][..], |last| &cleaned[..=last]);
-    base64::Engine::decode(&CREDENTIAL_BASE64, payload).ok()
+    let Some(last) = cleaned.iter().rposition(|byte| *byte != b'=') else {
+        // Padding with nothing to pad is not base64; `atob` rejects it,
+        // and only an empty value decodes to nothing.
+        return cleaned.is_empty().then(Vec::new);
+    };
+    base64::Engine::decode(&CREDENTIAL_BASE64, &cleaned[..=last]).ok()
 }
 
 /// [`base64_decode_bytes`] for the `_password` field, whose decoded form

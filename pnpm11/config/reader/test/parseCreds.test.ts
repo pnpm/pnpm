@@ -75,6 +75,10 @@ describe('parseCreds', () => {
     } as Creds)
   })
 
+  test('an empty authPairBase64 supplies no credentials', () => {
+    expect(parseCreds({ authPairBase64: '' })).toBeUndefined()
+  })
+
   test('authPairBase64 must be base64', () => {
     expect(() => parseCreds({
       authPairBase64: 'foo*bar',
