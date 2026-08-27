@@ -34,3 +34,32 @@ fn optional_defaults_false_and_omits_when_false() {
         "the `optional` key must not be serialized when false:\n{out}",
     );
 }
+
+#[test]
+fn artifact_pins_round_trip_and_preserve_other_inputs() {
+    let yaml = text_block! {
+        "artifactPins:"
+        "  dependency-side-effects:v1:deps=old:"
+        "    organization:acme:"
+        "      linux-node22: abc123"
+    };
+    let mut entry: SnapshotEntry = serde_saphyr::from_str(yaml).expect("parse");
+    assert!(!entry.record_artifact_pin(
+        "dependency-side-effects:v1:deps=old".to_string(),
+        "organization:acme".to_string(),
+        "linux-node22".to_string(),
+        "abc123".to_string(),
+    ));
+    assert!(entry.record_artifact_pin(
+        "dependency-side-effects:v1:deps=new".to_string(),
+        "organization:acme".to_string(),
+        "linux-node22".to_string(),
+        "def456".to_string(),
+    ));
+    let out = serialize_yaml::to_string(&entry).expect("serialize");
+    assert!(out.contains("dependency-side-effects:v1:deps=old:"));
+    assert!(out.contains("dependency-side-effects:v1:deps=new:"));
+    assert!(out.contains("linux-node22: def456"));
+    assert!(entry.clear_artifact_pins());
+    assert!(!entry.clear_artifact_pins());
+}

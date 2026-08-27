@@ -25,9 +25,10 @@ const ORDERED_KEYS = {
   dependencies: 16,
   optionalDependencies: 17,
 
-  transitivePeerDependencies: 18,
-  dev: 19,
-  optional: 20,
+  artifactPins: 18,
+  transitivePeerDependencies: 19,
+  dev: 20,
+  optional: 21,
 }
 
 type RootKey = keyof LockfileFile

@@ -130,6 +130,7 @@ export interface ResolveSharedSideEffectsOptions {
   }
   /** Base64-encoded P-256 SubjectPublicKeyInfo DER, keyed by key id. */
   trustedKeys: Record<string, string>
+  pinnedEnvelopeDigests?: ReadonlyMap<string, string>
 }
 
 interface ArtifactVariant {
@@ -266,6 +267,8 @@ export async function resolveSharedSideEffects (
       const rank = compatibilityRank(payload.compatibility, opts.supportedTags)
       if (rank == null) continue
       const digest = signedArtifactEnvelopeDigest(variant.envelope)
+      const pinnedDigest = opts.pinnedEnvelopeDigests?.get(candidate.key)
+      if (pinnedDigest != null && digest !== pinnedDigest) continue
       if (
         best == null ||
         rank < best.rank ||
@@ -284,6 +287,12 @@ export async function resolveSharedSideEffects (
     if (best != null) selected.set(candidate.key, best.artifact)
   }
   return selected
+}
+
+export function ownerNamespace (owner: OwnerScope): string {
+  return owner.type === 'organization'
+    ? `organization:${owner.name}`
+    : `publisher:${owner.package}`
 }
 
 export function verifySignedArtifactEnvelope (

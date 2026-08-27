@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import util from 'node:util'
 
 import { calcDepState, calcDepStateInputKey, type DepsGraph, type DepsStateCache } from '@pnpm/deps.graph-hasher'
-import type { LockfileResolution } from '@pnpm/lockfile.types'
+import type { ArtifactPins, LockfileObject, LockfileResolution } from '@pnpm/lockfile.types'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import type { PackageFilesResponse, StoreController, UploadPkgToStoreResult } from '@pnpm/store.controller-types'
 import type { AllowBuild, DepPath, RegistryConfig, RemoteSideEffectsCacheSettings, SupportedArchitectures } from '@pnpm/types'
@@ -19,9 +19,12 @@ import {
   downloadSharedArtifactBlob,
   linuxGlibcCompatibilityTag,
   linuxGlibcSupportedTags,
+  ownerNamespace,
+  platformFingerprint,
   pnprSupportsSharedSideEffects,
   publishSharedSideEffects,
   resolveSharedSideEffects,
+  type VerifiedArtifact,
 } from './sharedSideEffects.js'
 
 export interface RemoteSideEffectsInstallNode<T extends string> {
@@ -36,16 +39,19 @@ export interface RemoteSideEffectsInstallNode<T extends string> {
 
 export interface RemoteSideEffectsRestorerOptions<T extends string> {
   allowBuild?: AllowBuild
+  artifactPinsLockfile?: LockfileObject
   configByUri: Record<string, RegistryConfig>
   depsGraph: DepsGraph<T>
   depsStateCache: DepsStateCache
   ignoreScripts: boolean
   nodeVersion?: string
   pnprServer?: string
+  recordArtifactPins?: boolean
   settings?: RemoteSideEffectsCacheSettings
   sideEffectsCacheRead: boolean
   storeController: StoreController
   supportedArchitectures?: SupportedArchitectures
+  onArtifactPinsChanged?: () => void
   warn?: (message: string) => void
 }
 
@@ -83,6 +89,7 @@ const MAX_LOOKUP_BATCH = 512
 interface RestoredArtifact {
   added: Map<string, string>
   deleted: string[]
+  envelopeDigest: string
 }
 
 interface QueuedLookup {
@@ -111,6 +118,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
   if (platform == null || pnprServer == null || settings == null || organization == null) return undefined
   const registryUrl = pnprServer
   const ownerName = organization
+  const owner = { type: 'organization', name: ownerName } as const
   let supportedTags: string[]
   try {
     supportedTags = linuxGlibcSupportedTags(platform)
@@ -119,6 +127,10 @@ export function createRemoteSideEffectsRestorer<T extends string> (
     return undefined
   }
   const trustedKeys = settings.trustedKeys ?? {}
+  const ownerKey = ownerNamespace(owner)
+  const fingerprint = platformFingerprint(supportedTags)
+  const pinnedEnvelopeDigests = new Map<string, string>()
+  const pinCollisions = new Set<string>()
   const eligiblePackages = new Set(settings.packages)
   const authorization = createGetAuthHeaderByURI(opts.configByUri)(registryUrl)
   const artifactLimit = pLimit(4)
@@ -151,6 +163,21 @@ export function createRemoteSideEffectsRestorer<T extends string> (
       patchFileHash: node.patchFileHash,
       supportedArchitectures: opts.supportedArchitectures,
     })
+    const pinnedEnvelopeDigest = opts.artifactPinsLockfile?.packages?.[node.depPath]
+      .artifactPins?.[inputKey]?.[ownerKey]?.[fingerprint]
+    if (pinnedEnvelopeDigest != null) {
+      const previous = pinnedEnvelopeDigests.get(inputKey)
+      if (previous == null) {
+        pinnedEnvelopeDigests.set(inputKey, pinnedEnvelopeDigest)
+      } else if (previous !== pinnedEnvelopeDigest) {
+        pinnedEnvelopeDigests.delete(inputKey)
+        pinCollisions.add(inputKey)
+      }
+    }
+    if (pinCollisions.has(inputKey)) {
+      opts.warn?.(`Conflicting remote side-effects pins for ${node.name}@${node.version}; building locally`)
+      return undefined
+    }
     if (collisions.has(inputKey)) return undefined
     const identity = `${node.name}\0${node.version}\0${sourceIntegrity}`
     const knownIdentity = identityByInputKey.get(inputKey)
@@ -179,14 +206,20 @@ export function createRemoteSideEffectsRestorer<T extends string> (
         key: inputKey,
         package: { name: node.name, version: node.version },
         sourceIntegrity,
-        owner: { type: 'organization', name: ownerName },
+        owner,
       })
       lookups.set(inputKey, lookup)
     }
     const artifact = await lookup
-    if (artifact == null) return undefined
+    if (artifact == null) {
+      if (pinnedEnvelopeDigests.has(inputKey)) {
+        opts.warn?.(`Pinned remote side-effects artifact for ${node.name}@${node.version} is unavailable; building locally`)
+      }
+      return undefined
+    }
+    recordArtifactPin(node.depPath, inputKey, artifact.envelopeDigest)
     node.files.sideEffectsMaps ??= new Map()
-    node.files.sideEffectsMaps.set(localCacheKey, artifact)
+    node.files.sideEffectsMaps.set(localCacheKey, { added: artifact.added, deleted: artifact.deleted })
     return localCacheKey
   }
 
@@ -216,6 +249,13 @@ export function createRemoteSideEffectsRestorer<T extends string> (
   }
 
   async function lookupBatch (batch: QueuedLookup[]): Promise<void> {
+    const eligibleBatch = batch.filter(({ candidate, resolve }) => {
+      if (!collisions.has(candidate.key) && !pinCollisions.has(candidate.key)) return true
+      resolve(undefined)
+      return false
+    })
+    if (eligibleBatch.length === 0) return
+    const batchPinnedEnvelopeDigests = new Map(pinnedEnvelopeDigests)
     supported ??= (async () => {
       try {
         return await pnprSupportsSharedSideEffects({ registryUrl, authorization })
@@ -225,7 +265,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
       }
     })()
     if (!await supported) {
-      for (const { resolve } of batch) resolve(undefined)
+      for (const { resolve } of eligibleBatch) resolve(undefined)
       return
     }
     let resolved
@@ -233,21 +273,26 @@ export function createRemoteSideEffectsRestorer<T extends string> (
       resolved = await resolveSharedSideEffects({
         registryUrl,
         authorization,
-        candidates: batch.map(({ candidate }) => candidate),
+        candidates: eligibleBatch.map(({ candidate }) => candidate),
         supportedTags,
         policy: {
           ignoreScripts: false,
           eligiblePackages,
-          allowedBuilds: new Set(batch.map(({ candidate }) => candidate.package.name)),
+          allowedBuilds: new Set(eligibleBatch.map(({ candidate }) => candidate.package.name)),
         },
         trustedKeys,
+        pinnedEnvelopeDigests: batchPinnedEnvelopeDigests,
       })
     } catch (err: unknown) {
       opts.warn?.(`Remote side-effects cache lookup failed: ${errorMessage(err)}`)
-      for (const { resolve } of batch) resolve(undefined)
+      for (const { resolve } of eligibleBatch) resolve(undefined)
       return
     }
-    await Promise.all(batch.map(async ({ candidate, resolve }) => {
+    await Promise.all(eligibleBatch.map(async ({ candidate, resolve }) => {
+      if (collisions.has(candidate.key) || pinCollisions.has(candidate.key)) {
+        resolve(undefined)
+        return
+      }
       const artifact = resolved.get(candidate.key)
       if (artifact == null) {
         resolve(undefined)
@@ -258,7 +303,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
   }
 
   async function hydrate (
-    artifact: { payload: ArtifactPayload },
+    artifact: VerifiedArtifact,
     candidate: ArtifactCandidate
   ): Promise<RestoredArtifact | undefined> {
     try {
@@ -295,11 +340,32 @@ export function createRemoteSideEffectsRestorer<T extends string> (
           throw err
         }
       })))
-      return { added, deleted: artifact.payload.manifest.deleted }
+      return { added, deleted: artifact.payload.manifest.deleted, envelopeDigest: artifact.envelopeDigest }
     } catch (err: unknown) {
       opts.warn?.(`Remote side-effects artifact for ${candidate.package.name}@${candidate.package.version} was rejected: ${errorMessage(err)}`)
       return undefined
     }
+  }
+
+  function recordArtifactPin (depPath: DepPath, inputKey: string, envelopeDigest: string): void {
+    if (opts.recordArtifactPins !== true) return
+    const snapshot = opts.artifactPinsLockfile?.packages?.[depPath]
+    if (snapshot == null) return
+    const previous = snapshot.artifactPins?.[inputKey]
+    if (previous?.[ownerKey]?.[fingerprint] === envelopeDigest) return
+    const artifactPins: ArtifactPins = {
+      ...snapshot.artifactPins,
+      [inputKey]: {
+        ...previous,
+        [ownerKey]: {
+          ...previous?.[ownerKey],
+          [fingerprint]: envelopeDigest,
+        },
+      },
+    }
+    snapshot.artifactPins = artifactPins
+    pinnedEnvelopeDigests.set(inputKey, envelopeDigest)
+    opts.onArtifactPinsChanged?.()
   }
 }
 

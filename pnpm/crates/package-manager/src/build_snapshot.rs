@@ -122,6 +122,7 @@ pub fn build_package_snapshot(
         id: None,
         dependencies: (!dependencies.is_empty()).then_some(dependencies),
         optional_dependencies: None,
+        artifact_pins: None,
         transitive_peer_dependencies: None,
         patched: None,
         optional: false,

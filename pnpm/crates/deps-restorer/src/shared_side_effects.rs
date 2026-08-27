@@ -1,6 +1,7 @@
 use crate::{
-    AllowBuildPolicy, RequiresBuildBySnapshot, SideEffectsMapsBySnapshot, build_deps_subgraph,
-    deps_graph::in_lockfile_order, install_frozen_lockfile::find_runtime_node_major,
+    AllowBuildPolicy, ArtifactPinRecord, RequiresBuildBySnapshot, SideEffectsMapsBySnapshot,
+    build_deps_subgraph, deps_graph::in_lockfile_order,
+    install_frozen_lockfile::find_runtime_node_major,
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use pnpm_config::Config;
@@ -10,7 +11,7 @@ use pnpm_pnpr_client::{
     ArtifactManifest, ArtifactPayload, BuilderProfile, CompatibilityConstraints,
     LinuxGlibcPlatform, OwnerScope, PackageIdentity, PnprClient, PublishArtifactRequest,
     ResolveArtifactsOptions, SignedArtifactEnvelope, blob_id, linux_glibc_supported_tags,
-    linux_glibc_tag,
+    linux_glibc_tag, platform_fingerprint,
 };
 use sha2::{Digest as _, Sha512};
 use std::{
@@ -36,6 +37,7 @@ pub struct SharedSideEffectsPublisher {
 
 struct CandidateGroup {
     candidate: ArtifactCandidate,
+    pinned_envelope_digest: Option<String>,
     snapshots: Vec<(PackageKey, String)>,
 }
 
@@ -47,25 +49,34 @@ pub(crate) async fn apply_shared_side_effects(
     allow_build_policy: &AllowBuildPolicy,
     base_cas_paths: &BaseCasPaths,
     side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
-) {
+) -> Vec<ArtifactPinRecord> {
     if config.ignore_scripts || config.frozen_store {
-        return;
+        return Vec::new();
     }
     let (Some(server), Some(settings)) =
         (config.pnpr_server.as_deref(), config.remote_side_effects_cache.as_ref())
     else {
-        return;
+        return Vec::new();
     };
-    let Some(platform) = linux_glibc_platform(snapshots) else { return };
+    let Some(platform) = linux_glibc_platform(snapshots) else { return Vec::new() };
     let supported_tags = match linux_glibc_supported_tags(platform) {
         Ok(tags) => tags,
         Err(error) => {
             tracing::warn!(target: "pacquet::install", %error, "remote side-effects platform is unsupported");
-            return;
+            return Vec::new();
         }
     };
-    let Some(trusted_keys) = decoded_trusted_keys(settings) else { return };
-    let Some(organization) = non_empty(&settings.organization) else { return };
+    let Some(trusted_keys) = decoded_trusted_keys(settings) else { return Vec::new() };
+    let Some(organization) = non_empty(&settings.organization) else { return Vec::new() };
+    let owner = OwnerScope::organization(organization.to_string());
+    let owner_namespace = owner.namespace();
+    let fingerprint = match platform_fingerprint(&supported_tags) {
+        Ok(fingerprint) => fingerprint,
+        Err(error) => {
+            tracing::warn!(target: "pacquet::install", %error, "remote side-effects platform fingerprint is invalid");
+            return Vec::new();
+        }
+    };
 
     let eligible_packages: HashSet<String> = settings.packages.iter().cloned().collect();
     let roots: Vec<PackageKey> = in_lockfile_order(snapshots)
@@ -84,7 +95,7 @@ pub(crate) async fn apply_shared_side_effects(
         "planned remote side-effects candidates",
     );
     if roots.is_empty() {
-        return;
+        return Vec::new();
     }
     let graph = build_deps_subgraph(snapshots, packages, roots.clone());
     let mut deps_state_cache = pnpm_graph_hasher::DepsStateCache::new();
@@ -137,8 +148,15 @@ pub(crate) async fn apply_shared_side_effects(
                 version: package_version(&metadata_key, metadata.version.as_deref()),
             },
             source_integrity,
-            owner: OwnerScope::organization(organization.to_string()),
+            owner: owner.clone(),
         };
+        let pinned_envelope_digest = snapshots
+            .get(&snapshot_key)
+            .and_then(|snapshot| snapshot.artifact_pins.as_ref())
+            .and_then(|pins| pins.get(&input_key))
+            .and_then(|owners| owners.get(&owner_namespace))
+            .and_then(|platforms| platforms.get(&fingerprint))
+            .cloned();
         if let Some(group) = groups.get_mut(&input_key) {
             if group.candidate.package != candidate.package
                 || group.candidate.source_integrity != candidate.source_integrity
@@ -147,16 +165,30 @@ pub(crate) async fn apply_shared_side_effects(
                 collisions.insert(input_key);
                 continue;
             }
+            if group.pinned_envelope_digest.is_some()
+                && pinned_envelope_digest.is_some()
+                && group.pinned_envelope_digest != pinned_envelope_digest
+            {
+                groups.remove(&input_key);
+                collisions.insert(input_key);
+                continue;
+            }
+            group.pinned_envelope_digest =
+                group.pinned_envelope_digest.take().or(pinned_envelope_digest);
             group.snapshots.push((snapshot_key, local_cache_key));
         } else {
             groups.insert(
                 input_key,
-                CandidateGroup { candidate, snapshots: vec![(snapshot_key, local_cache_key)] },
+                CandidateGroup {
+                    candidate,
+                    pinned_envelope_digest,
+                    snapshots: vec![(snapshot_key, local_cache_key)],
+                },
             );
         }
     }
     if groups.is_empty() {
-        return;
+        return Vec::new();
     }
     tracing::debug!(
         target: "pacquet::install",
@@ -167,11 +199,17 @@ pub(crate) async fn apply_shared_side_effects(
     let client = PnprClient::new(server);
     if let Err(error) = client.handshake_artifacts().await {
         tracing::warn!(target: "pacquet::install", %error, "remote side-effects cache handshake failed");
-        return;
+        return Vec::new();
     }
     let authorization = config.auth_headers.for_url(server);
     let allowed_builds =
         groups.values().map(|group| group.candidate.package.name.clone()).collect();
+    let pinned_envelope_digests = groups
+        .iter()
+        .filter_map(|(input_key, group)| {
+            group.pinned_envelope_digest.as_ref().map(|digest| (input_key.clone(), digest.clone()))
+        })
+        .collect();
     let resolved = match client
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: groups.values().map(|group| group.candidate.clone()).collect(),
@@ -180,6 +218,7 @@ pub(crate) async fn apply_shared_side_effects(
             allowed_builds,
             ignore_scripts: false,
             trusted_keys,
+            pinned_envelope_digests,
             authorization: authorization.clone(),
         })
         .await
@@ -187,10 +226,20 @@ pub(crate) async fn apply_shared_side_effects(
         Ok(resolved) => resolved,
         Err(error) => {
             tracing::warn!(target: "pacquet::install", %error, "remote side-effects cache lookup failed");
-            return;
+            return Vec::new();
         }
     };
 
+    for (input_key, group) in &groups {
+        if group.pinned_envelope_digest.is_some() && !resolved.contains_key(input_key) {
+            tracing::warn!(
+                target: "pacquet::install",
+                package = %group.candidate.package.name,
+                "pinned remote side-effects artifact is unavailable; building locally",
+            );
+        }
+    }
+    let mut artifact_pin_records = Vec::new();
     for (input_key, artifact) in resolved {
         let Some(group) = groups.get(&input_key) else { continue };
         let Some((first_snapshot, _)) = group.snapshots.first() else { continue };
@@ -274,8 +323,16 @@ pub(crate) async fn apply_shared_side_effects(
                 .map_or_else(HashMap::new, |maps| (**maps).clone());
             maps.insert(local_cache_key.clone(), overlay.clone());
             side_effects_maps_by_snapshot.insert(snapshot_key.clone(), Arc::new(maps));
+            artifact_pin_records.push(ArtifactPinRecord {
+                snapshot_key: snapshot_key.clone(),
+                input_key: input_key.clone(),
+                owner: owner_namespace.clone(),
+                platform_fingerprint: fingerprint.clone(),
+                envelope_digest: artifact.envelope_digest.clone(),
+            });
         }
     }
+    artifact_pin_records
 }
 
 /// Decode the configured trust root, or `None` when it is absent or unusable.

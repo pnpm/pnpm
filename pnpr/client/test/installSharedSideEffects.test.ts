@@ -7,7 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 
 import { describe, expect, test } from '@jest/globals'
 import type { DepsGraph } from '@pnpm/deps.graph-hasher'
-import type { LockfileResolution } from '@pnpm/lockfile.types'
+import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.types'
 import {
   type ArtifactPayload,
   createRemoteSideEffectsRestorer,
@@ -38,6 +38,7 @@ describe('install remote side-effects', () => {
       'acme-2026': publicKey.export({ format: 'der', type: 'spki' }).toString('base64'),
     }
     const requestedPaths: string[] = []
+    let heldResolve: { wait: Promise<void>, notifyStarted: () => void } | undefined
     const server = createServer((request, response) => {
       const chunks: Buffer[] = []
       request.on('data', chunk => chunks.push(Buffer.from(chunk)))
@@ -96,8 +97,18 @@ describe('install remote side-effects', () => {
               }],
             }
           })
-          response.writeHead(200, { 'content-type': 'application/json' })
-            .end(JSON.stringify({ artifacts: envelopes }))
+          const sendResponse = (): void => {
+            response.writeHead(200, { 'content-type': 'application/json' })
+              .end(JSON.stringify({ artifacts: envelopes }))
+          }
+          const held = heldResolve
+          if (held == null) {
+            sendResponse()
+          } else {
+            heldResolve = undefined
+            held.notifyStarted()
+            void held.wait.then(sendResponse)
+          }
           return
         }
         if (request.url === '/-/pnpr/v0/artifacts/blob') {
@@ -132,15 +143,32 @@ describe('install remote side-effects', () => {
         fullPkgId: graphKey,
       },
     }
+    const artifactPinsLockfile: LockfileObject = {
+      lockfileVersion: '9.0',
+      importers: {},
+      packages: {
+        [depPath]: {
+          artifactPins: {
+            'dependency-side-effects:v1:deps=other': {
+              'organization:acme': { 'other-platform': '1'.repeat(64) },
+            },
+          },
+          resolution: { integrity: sourceIntegrity },
+        },
+      },
+    }
+    let artifactPinsChanged = 0
 
     try {
       const restorer = createRemoteSideEffectsRestorer({
         allowBuild: candidate => candidate === depPath,
+        artifactPinsLockfile,
         configByUri: {},
         depsGraph,
         depsStateCache: {},
         ignoreScripts: false,
         pnprServer,
+        recordArtifactPins: true,
         settings: {
           organization: 'acme',
           packages: [packageName],
@@ -148,6 +176,9 @@ describe('install remote side-effects', () => {
         },
         sideEffectsCacheRead: false,
         storeController,
+        onArtifactPinsChanged: () => {
+          artifactPinsChanged++
+        },
       })
       const cacheKey = await restorer?.restore({
         graphKey,
@@ -167,6 +198,17 @@ describe('install remote side-effects', () => {
         deleted: ['src/intermediate.o'],
       })
       expect(storedFiles).toEqual([{ bytes: builtFile, mode: 0o755 }])
+      const recordedPins = artifactPinsLockfile.packages?.[depPath].artifactPins
+      expect(Object.keys(recordedPins ?? {})).toHaveLength(2)
+      expect(recordedPins?.['dependency-side-effects:v1:deps=other'])
+        .toEqual({ 'organization:acme': { 'other-platform': '1'.repeat(64) } })
+      const [inputKey, owners] = Object.entries(recordedPins ?? {})
+        .find(([key]) => key !== 'dependency-side-effects:v1:deps=other')!
+      const ownerPins = owners['organization:acme']
+      expect(Object.keys(ownerPins ?? {})).toHaveLength(1)
+      expect(Object.keys(ownerPins ?? {})[0]).toMatch(/^[a-f0-9]{64}$/)
+      expect(Object.values(ownerPins ?? {})[0]).toMatch(/^[a-f0-9]{64}$/)
+      expect(artifactPinsChanged).toBe(1)
       expect(requestedPaths).toEqual([
         '/-/pnpr',
         '/-/pnpr/v0/artifacts/resolve',
@@ -209,6 +251,125 @@ describe('install remote side-effects', () => {
         .toBe('/store/cafs/already-there')
       expect(storedFiles).toEqual([])
       expect(requestedPaths).not.toContain('/-/pnpr/v0/artifacts/blob')
+
+      const platformFingerprint = Object.keys(owners['organization:acme'])[0]
+      const unrelatedPinLockfile: LockfileObject = {
+        lockfileVersion: '9.0',
+        importers: {},
+        packages: {
+          [depPath]: { resolution: { integrity: sourceIntegrity } },
+          ['stale-package@1.0.0' as DepPath]: {
+            artifactPins: {
+              [inputKey]: {
+                'organization:acme': { [platformFingerprint]: '0'.repeat(64) },
+              },
+            },
+            resolution: { integrity: sourceIntegrity },
+          },
+        },
+      }
+      const snapshotScoped = createRemoteSideEffectsRestorer({
+        allowBuild: candidate => candidate === depPath,
+        artifactPinsLockfile: unrelatedPinLockfile,
+        configByUri: {},
+        depsGraph,
+        depsStateCache: {},
+        ignoreScripts: false,
+        pnprServer,
+        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        sideEffectsCacheRead: false,
+        storeController,
+      })
+      const snapshotScopedFiles: PackageFilesResponse = {
+        filesMap: new Map(),
+        requiresBuild: true,
+        resolvedFrom: 'remote',
+      }
+      const snapshotScopedKey = await snapshotScoped?.restore({
+        graphKey,
+        depPath,
+        files: snapshotScopedFiles,
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })
+      expect(snapshotScopedKey).toBeDefined()
+
+      let releaseResolve!: () => void
+      const waitForRelease = new Promise<void>((resolve) => {
+        releaseResolve = resolve
+      })
+      let notifyResolveStarted!: () => void
+      const resolveStarted = new Promise<void>((resolve) => {
+        notifyResolveStarted = resolve
+      })
+      heldResolve = { wait: waitForRelease, notifyStarted: notifyResolveStarted }
+      const conflictingDepPath = `${depPath}(peer@1.0.0)` as DepPath
+      const envelopeDigest = owners['organization:acme'][platformFingerprint]
+      const conflictingPinsLockfile: LockfileObject = {
+        lockfileVersion: '9.0',
+        importers: {},
+        packages: {
+          [depPath]: {
+            artifactPins: {
+              [inputKey]: {
+                'organization:acme': { [platformFingerprint]: envelopeDigest },
+              },
+            },
+            resolution: { integrity: sourceIntegrity },
+          },
+          [conflictingDepPath]: {
+            artifactPins: {
+              [inputKey]: {
+                'organization:acme': { [platformFingerprint]: '0'.repeat(64) },
+              },
+            },
+            resolution: { integrity: sourceIntegrity },
+          },
+        },
+      }
+      const collisionRestorer = createRemoteSideEffectsRestorer({
+        allowBuild: candidate => candidate === depPath || candidate === conflictingDepPath,
+        artifactPinsLockfile: conflictingPinsLockfile,
+        configByUri: {},
+        depsGraph,
+        depsStateCache: {},
+        ignoreScripts: false,
+        pnprServer,
+        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        sideEffectsCacheRead: false,
+        storeController,
+      })!
+      const firstCollisionFiles: PackageFilesResponse = {
+        filesMap: new Map(),
+        requiresBuild: true,
+        resolvedFrom: 'remote',
+      }
+      const firstCollisionRestore = collisionRestorer.restore({
+        graphKey,
+        depPath,
+        files: firstCollisionFiles,
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })
+      await resolveStarted
+      const secondCollisionFiles: PackageFilesResponse = {
+        filesMap: new Map(),
+        requiresBuild: true,
+        resolvedFrom: 'remote',
+      }
+      await expect(collisionRestorer.restore({
+        graphKey,
+        depPath: conflictingDepPath,
+        files: secondCollisionFiles,
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })).resolves.toBeUndefined()
+      releaseResolve()
+      await expect(firstCollisionRestore).resolves.toBeUndefined()
+      expect(firstCollisionFiles.sideEffectsMaps).toBeUndefined()
 
       // Restoring is per package so one package never waits on another's
       // fetch, but packages restored together still share a lookup request.

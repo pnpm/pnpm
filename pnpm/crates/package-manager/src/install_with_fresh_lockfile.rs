@@ -1287,7 +1287,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // ~3 ms on the alotta-files fixture, and it is what gets saved
         // below anyway.
         let phase_start = std::time::Instant::now();
-        let built_lockfile = build_lockfile(FreshLockfileBuildOptions {
+        let mut built_lockfile = build_lockfile(FreshLockfileBuildOptions {
             config,
             importer_manifests: &importer_manifests,
             lockfile_specifier_manifests: lockfile_specifier_manifests.as_ref(),
@@ -1475,6 +1475,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // the hoisted-linker pass below to materialize the on-disk
             // tree. `None` for the isolated linker.
             cas_paths_by_pkg_id,
+            artifact_pin_records,
         } = CreateVirtualStore {
             http_client,
             config,
@@ -1696,6 +1697,23 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             &skipped,
             is_hoisted.then_some(&hoisted_locations),
         );
+
+        if config.lockfile && save_lockfile {
+            for record in artifact_pin_records {
+                if let Some(snapshot) = built_lockfile
+                    .snapshots
+                    .as_mut()
+                    .and_then(|snapshots| snapshots.get_mut(&record.snapshot_key))
+                {
+                    snapshot.record_artifact_pin(
+                        record.input_key,
+                        record.owner,
+                        record.platform_fingerprint,
+                        record.envelope_digest,
+                    );
+                }
+            }
+        }
 
         // Saved after the build phase succeeds so a partial install can't
         // leave a lockfile pointing at slots that never landed on disk.
@@ -2180,7 +2198,7 @@ fn build_fresh_lockfile(
                 config.registries_by_prefix.iter().map(|(name, url)| (name.clone(), url.clone())),
             )
             .collect();
-    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+    let mut lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         importers,
         graph,
         registry_options_by_url: &config.registry_options_by_url,
@@ -2206,6 +2224,15 @@ fn build_fresh_lockfile(
         update_reuse_scopes_by_importer,
         time: merge_recorded_time(wanted_lockfile, resolved_time),
     })?;
+    if let (Some(previous), Some(snapshots)) = (
+        wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()),
+        lockfile.snapshots.as_mut(),
+    ) {
+        for (key, snapshot) in snapshots {
+            snapshot.artifact_pins =
+                previous.get(key).and_then(|previous| previous.artifact_pins.clone());
+        }
+    }
     Ok(lockfile)
 }
 

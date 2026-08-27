@@ -32,11 +32,14 @@ export interface LockfileObject extends LockfileBase {
 }
 
 export interface LockfilePackageSnapshot {
+  artifactPins?: ArtifactPins
   optional?: true
   dependencies?: ResolvedDependencies
   optionalDependencies?: ResolvedDependencies
   transitivePeerDependencies?: string[]
 }
+
+export type ArtifactPins = Record<string, Record<string, Record<string, string>>>
 
 export interface LockfilePackageInfo {
   id?: string

@@ -44,6 +44,7 @@ export interface StrictInstallOptions extends RegistryContext {
   forceFullResolution: boolean
   fixLockfile: boolean
   updateChecksums: boolean
+  refreshArtifactPins: boolean
   dedupe: boolean
   ignoreCompatibilityDb: boolean
   ignorePackageManifest: boolean
@@ -320,6 +321,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
     lockfileOnly: false,
     updateChecksums: false,
+    refreshArtifactPins: false,
     nodeVersion: opts.nodeVersion,
     nodeLinker: 'isolated',
     nodeExperimentalPackageMap: false,
@@ -448,6 +450,18 @@ export function extendOptions (
       throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE',
         `Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
     }
+  }
+  if (extendedOpts.refreshArtifactPins) {
+    if (!extendedOpts.useLockfile) {
+      throw new PnpmError('CONFIG_CONFLICT_REFRESH_ARTIFACT_PINS_WITH_NO_LOCKFILE',
+        'Cannot refresh artifact pins when lockfile is set to false')
+    }
+    if (extendedOpts.lockfileOnly) {
+      throw new PnpmError('CONFIG_CONFLICT_REFRESH_ARTIFACT_PINS_WITH_LOCKFILE_ONLY',
+        'Cannot refresh artifact pins without downloading and verifying artifacts')
+    }
+    extendedOpts.force = true
+    extendedOpts.preferFrozenLockfile = false
   }
   if (extendedOpts.frozenStore && extendedOpts.force) {
     throw new PnpmError('CONFIG_CONFLICT_FROZEN_STORE_WITH_FORCE',

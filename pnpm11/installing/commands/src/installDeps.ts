@@ -146,6 +146,7 @@ export type InstallDepsOptions = Pick<Config,
   }
   allowNew?: boolean
   forceFullResolution?: boolean
+  refreshArtifactPins?: boolean
   frozenLockfileIfExists?: boolean
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
@@ -182,7 +183,7 @@ export type InstallDepsOptions = Pick<Config,
    * subcommand — see `runPacquet.ts`'s `noRuntime` opt.
    */
   isInstallCommand?: boolean
-} & Partial<Pick<Config, 'dryRun' | 'pnpmHomeDir' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>>
+} & Partial<Pick<Config, 'dryRun' | 'frozenLockfile' | 'pnpmHomeDir' | 'preferFrozenLockfile' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>>
 
 export async function installDeps (
   opts: InstallDepsOptions,
