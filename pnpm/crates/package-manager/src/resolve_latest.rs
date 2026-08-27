@@ -25,12 +25,16 @@
 use crate::resolution_policy::{PickPolicy, pick_package_context};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_config::{Config, version_policy::PolicyMatch};
+use pnpm_config::{
+    Config,
+    version_policy::{PackageVersionPolicy, PolicyMatch},
+};
 use pnpm_network::ThrottledClient;
 use pnpm_registry::{PackageTag, PackageVersion};
 use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError, PickPackageOptions,
-    RegistryPackageSpec, RegistryPackageSpecType, pick_package, pick_registry_for_package,
+    RegistryPackageSpec, RegistryPackageSpecType, blocked_packument_key, pick_package,
+    pick_registry_for_package,
 };
 use pnpm_resolving_resolver_base::{
     PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
@@ -161,7 +165,18 @@ impl<'a> LatestPicker<'a> {
             {
                 return Ok(candidate);
             }
-            rejected.insert(candidate.version.to_string());
+            // Reject by the *packument key*, which the next pick filters on.
+            // It usually equals the parsed manifest version, but a registry
+            // that serves a key differing from the manifest's `version` field
+            // would otherwise never get the candidate excluded, and the walk
+            // would re-select it forever.
+            let key = blocked_packument_key(&pick.meta, &candidate, &candidate.version.to_string());
+            if !rejected.insert(key) {
+                // The picker re-selected a key already rejected, so it cannot
+                // be excluded. Hand it back and let the install report the
+                // failure rather than spin here.
+                return Ok(candidate);
+            }
         }
     }
 
@@ -234,12 +249,7 @@ impl<'a> LatestPicker<'a> {
     ) -> Result<bool, ResolveLatestError> {
         let Some(cutoff) = self.policy.published_by else { return Ok(true) };
         for (name, pinned) in exact_pins(candidate) {
-            if self
-                .policy
-                .published_by_exclude
-                .as_ref()
-                .is_some_and(|policy| policy.matches(name) != PolicyMatch::No)
-            {
+            if pin_is_exempt(self.policy.published_by_exclude.as_ref(), name, pinned) {
                 continue;
             }
             let registry = pick_registry_for_package(&self.registries, name, None);
@@ -293,19 +303,39 @@ impl<'a> LatestPicker<'a> {
     }
 }
 
+/// Whether `minimumReleaseAgeExclude` lets `name@pinned` install at any age.
+///
+/// A version-qualified exclusion exempts the versions it names and no
+/// others, so an immature pin on a different version of the same package
+/// still counts against the candidate.
+fn pin_is_exempt(policy: Option<&PackageVersionPolicy>, name: &str, pinned: &str) -> bool {
+    match policy.map(|policy| policy.matches(name)) {
+        Some(PolicyMatch::AnyVersion) => true,
+        Some(PolicyMatch::ExactVersions(versions)) => versions.iter().any(|exact| exact == pinned),
+        _ => false,
+    }
+}
+
 /// The `name -> version` pairs a manifest pins to one exact version, across
-/// the dependency groups an install has to satisfy. `optionalDependencies` is
-/// included because a lockfile records every platform's binary, so an
-/// immature one blocks the install on every platform, not just its own.
+/// the dependency groups an install has to satisfy.
+///
+/// `optionalDependencies` is included because a lockfile records every
+/// platform's binary, so an immature one blocks the install on every
+/// platform, not just its own. A name declared in both groups resolves to
+/// its optional declaration, which is therefore the only one judged —
+/// otherwise a specifier the install never uses could pass the candidate
+/// over.
 fn exact_pins(candidate: &PackageVersion) -> impl Iterator<Item = (&str, &str)> {
-    candidate
-        .dependencies
-        .iter()
-        .chain(candidate.optional_dependencies.iter())
-        .flatten()
-        .filter_map(|(name, spec)| {
-            node_semver::Version::parse(spec).is_ok().then_some((name.as_str(), spec.as_str()))
-        })
+    let optional = candidate.optional_dependencies.iter().flatten();
+    let required = candidate.dependencies.iter().flatten().filter(|(name, _)| {
+        !candidate
+            .optional_dependencies
+            .as_ref()
+            .is_some_and(|optional| optional.contains_key(*name))
+    });
+    optional.chain(required).filter_map(|(name, spec)| {
+        node_semver::Version::parse(spec).is_ok().then_some((name.as_str(), spec.as_str()))
+    })
 }
 
 /// [`PackageVersionGuard`] form of the pin check.

@@ -835,7 +835,8 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
 /// exact entry the next pick filters on. Fast-paths the common case where
 /// the parsed manifest version is itself the key; only falls back to
 /// locating the key by identity when a registry served a mismatched key.
-fn blocked_packument_key(
+#[must_use]
+pub fn blocked_packument_key(
     meta: &Package,
     picked: &Arc<PackageVersion>,
     version_str: &str,
