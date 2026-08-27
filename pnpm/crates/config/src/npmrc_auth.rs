@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 use pnpm_env_replace::env_replace_lossy;
 use pnpm_network::{
     AuthHeaders, DEFAULT_REGISTRY_SCOPE, NoProxySetting, PerRegistryTls, RegistryTls,
-    base64_encode, nerf_dart,
+    base64_encode, base64_encode_bytes, nerf_dart,
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -619,7 +619,7 @@ impl NpmrcAuth {
                             .or_default()
                             .insert(scope, command);
                     }
-                } else if let Some(header) = creds_to_header(&raw) {
+                } else if let Some(header) = creds_to_header(&raw)? {
                     if scope == DEFAULT_REGISTRY_SCOPE {
                         auth_header_by_uri.insert(uri.clone(), header);
                     } else {
@@ -811,7 +811,7 @@ impl NpmrcAuth {
         self.apply_registry_and_warn(config);
         self.apply_proxy_cascade::<Sys>(config);
         self.apply_tls_and_local_address(config);
-        self.build_auth_headers(config).expect("valid tokenHelper in test .npmrc");
+        self.build_auth_headers(config).expect("valid credentials in test .npmrc");
     }
 
     fn creds_entry_mut(&mut self, uri: &str) -> &mut RawCreds {
@@ -947,21 +947,31 @@ pub(crate) fn parse_no_proxy(raw: &str) -> NoProxySetting {
 
 /// Convert raw .npmrc credentials into an `Authorization` header
 /// value. Returns `None` if no usable credential shape is present.
-fn creds_to_header(creds: &RawCreds) -> Option<String> {
+///
+/// `_auth` is decoded and re-encoded rather than forwarded: an `.npmrc`
+/// carries spellings the wire format does not (embedded whitespace,
+/// redundant or missing `=` padding), and only the canonical encoding of
+/// the credential it names is a header a registry can read.
+fn creds_to_header(creds: &RawCreds) -> Result<Option<String>, LoadWorkspaceYamlError> {
     if let Some(token) = &creds.auth_token {
-        return Some(format!("Bearer {token}"));
+        return Ok(Some(format!("Bearer {token}")));
     }
     if let Some(pair) = &creds.auth_pair_base64 {
-        return Some(format!("Basic {pair}"));
+        let decoded = base64_decode_bytes(pair)
+            .ok_or(LoadWorkspaceYamlError::AuthInvalidBase64 { key: "_auth" })?;
+        if !decoded.contains(&b':') {
+            return Err(LoadWorkspaceYamlError::AuthMissingSeparator);
+        }
+        return Ok(Some(format!("Basic {}", base64_encode_bytes(&decoded))));
     }
     if let (Some(user), Some(pass_b64)) = (&creds.username, &creds.password) {
         // npm encodes `_password` as base64 of the raw password. The
         // header itself is `Basic base64(user:password)`, so we decode
         // the password back and re-encode the pair.
         let password = base64_decode(pass_b64).unwrap_or_else(|| pass_b64.clone());
-        return Some(format!("Basic {}", base64_encode(&format!("{user}:{password}"))));
+        return Ok(Some(format!("Basic {}", base64_encode(&format!("{user}:{password}")))));
     }
-    None
+    Ok(None)
 }
 
 /// Reject a `tokenHelper` that a workspace or project `.npmrc` contributed.
@@ -1036,23 +1046,31 @@ fn parse_token_helper_field(
     Ok((!command.is_empty()).then_some(command))
 }
 
-/// Decode a standard base64 string. Used for the `_password` field
-/// where npm stores the raw password base64-encoded; falls back to
-/// returning `None` so the caller can keep the raw value verbatim
-/// when the input is not valid base64.
-fn base64_decode(input: &str) -> Option<String> {
+/// Decode a standard base64 credential to the bytes it carries, ignoring
+/// whitespace and accepting padding that is redundant (`aGk===`) or
+/// missing (`aGk`) — the spellings that reach a `.npmrc` by hand or from
+/// a shell pipeline. `None` when the value is not base64 at all.
+fn base64_decode_bytes(input: &str) -> Option<Vec<u8>> {
     let cleaned: Vec<u8> = input.bytes().filter(|byte| !byte.is_ascii_whitespace()).collect();
-    let mut bytes = Vec::with_capacity(cleaned.len() / 4 * 3);
+    let payload = match cleaned.iter().position(|byte| *byte == b'=') {
+        Some(padding_start) => &cleaned[..padding_start],
+        None => &cleaned[..],
+    };
+    // A trailing group of a single base64 character encodes no whole
+    // byte, so the value is truncated rather than merely unpadded.
+    if payload.len() % 4 == 1 {
+        return None;
+    }
+    let mut bytes = Vec::with_capacity(payload.len() / 4 * 3);
     let mut buffer = 0u32;
     let mut bits = 0u32;
-    for byte in cleaned {
+    for byte in payload.iter().copied() {
         let value = match byte {
             b'A'..=b'Z' => byte - b'A',
             b'a'..=b'z' => byte - b'a' + 26,
             b'0'..=b'9' => byte - b'0' + 52,
             b'+' => 62,
             b'/' => 63,
-            b'=' => break,
             _ => return None,
         };
         buffer = (buffer << 6) | u32::from(value);
@@ -1062,7 +1080,14 @@ fn base64_decode(input: &str) -> Option<String> {
             bytes.push(((buffer >> bits) & 0xff) as u8);
         }
     }
-    String::from_utf8(bytes).ok()
+    Some(bytes)
+}
+
+/// [`base64_decode_bytes`] for the `_password` field, whose decoded form
+/// is read as text. `None` — so the caller can keep the raw value
+/// verbatim — when the input is not base64 or not UTF-8.
+fn base64_decode(input: &str) -> Option<String> {
+    String::from_utf8(base64_decode_bytes(input)?).ok()
 }
 
 /// Auth-suffix keys recognised on a `//host[:port]/path/:` prefix in

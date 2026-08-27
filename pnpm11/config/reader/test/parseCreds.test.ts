@@ -64,6 +64,17 @@ describe('parseCreds', () => {
     } as Creds)
   })
 
+  test('authPairBase64 allows missing trailing padding', () => {
+    expect(parseCreds({
+      authPairBase64: btoa('foo:bar').replaceAll('=', ''),
+    })).toStrictEqual({
+      basicAuth: {
+        username: 'foo',
+        password: 'bar',
+      },
+    } as Creds)
+  })
+
   test('authPairBase64 must be base64', () => {
     expect(() => parseCreds({
       authPairBase64: 'foo*bar',

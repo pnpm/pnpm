@@ -725,8 +725,14 @@ fn is_default_port(scheme: &str, port: &str) -> bool {
 /// 4 lines. Standard alphabet, with padding.
 #[must_use]
 pub fn base64_encode(input: &str) -> String {
+    base64_encode_bytes(input.as_bytes())
+}
+
+/// [`base64_encode`] for credentials that are not required to be UTF-8,
+/// so a re-encoded `.npmrc` credential reproduces its bytes exactly.
+#[must_use]
+pub fn base64_encode_bytes(bytes: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let bytes = input.as_bytes();
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
     let mut chunks = bytes.chunks_exact(3);
     for chunk in &mut chunks {

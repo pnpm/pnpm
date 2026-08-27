@@ -419,6 +419,38 @@ pub fn npmrc_auth_file_override_supplies_auth() {
     );
 }
 
+/// The `.npmrc` an `npmrcAuthFile` points at is trusted, so its `_auth`
+/// authenticates the package-manager bootstrap too — the path a
+/// `devEngines` pin resolves `@pnpm/exe` through (pnpm/pnpm#14257).
+#[test]
+pub fn npmrc_auth_file_override_supplies_basic_auth_to_bootstrap() {
+    let project = tempdir().expect("project tempdir");
+    let auth = tempdir().expect("auth tempdir");
+    let auth_file = auth.path().join("custom-npmrc");
+    let pair = pnpm_network::base64_encode("alice:p@ss");
+    fs::write(
+        &auth_file,
+        format!(
+            "registry=https://registry.example.com/\n\
+             //registry.example.com/:_auth={pair}\n"
+        ),
+    )
+    .expect("write auth file");
+
+    let config = Config { npmrc_auth_file: Some(auth_file), ..Config::default() }
+        .current::<HostNoHome>(project.path())
+        .expect("load config");
+
+    assert_eq!(
+        config
+            .package_manager_bootstrap
+            .auth_headers
+            .for_url_with_package("https://registry.example.com/@pnpm%2Fexe", Some("@pnpm/exe"))
+            .as_deref(),
+        Some(format!("Basic {pair}").as_str()),
+    );
+}
+
 /// Write a `.npmrc` that declares its own registry plus an unscoped
 /// `_authToken`, so the token pins to that registry — the shape the
 /// precedence assertions check the winning file by.
