@@ -160,9 +160,17 @@ impl<'a> LatestPicker<'a> {
                 .await
                 .map_err(|error| ResolveLatestError::Pick(Box::new(error)))?;
             let candidate = pick.picked_package.ok_or(ResolveLatestError::NoLatestVersion)?;
-            if rejected.len() >= MAX_REJECTED_CANDIDATES
-                || self.pins_only_installable_versions(&candidate, dry_run).await?
-            {
+            // Every candidate is judged, including the one the bound stops on:
+            // short-circuiting on the count would hand back a candidate nobody
+            // looked at, and an installable version further down would never be
+            // reached. The bound only decides whether to keep walking.
+            if self.pins_only_installable_versions(&candidate, dry_run).await? {
+                return Ok(candidate);
+            }
+            if rejected.len() >= MAX_REJECTED_CANDIDATES {
+                // Out of budget with nothing installable found. Hand back the
+                // newest candidate and let the install name the pin that is
+                // too young, which is a better answer than an error from here.
                 return Ok(candidate);
             }
             // Reject by the *packument key*, which the next pick filters on.

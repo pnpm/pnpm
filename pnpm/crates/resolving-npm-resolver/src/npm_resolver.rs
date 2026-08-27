@@ -831,10 +831,18 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
     }
 }
 
-/// The packument key for a picked version, so the guard loop can block the
-/// exact entry the next pick filters on. Fast-paths the common case where
-/// the parsed manifest version is itself the key; only falls back to
-/// locating the key by identity when a registry served a mismatched key.
+/// The packument `versions` key for a picked version.
+///
+/// This is the key a later pick filters on, so it is the one callers must
+/// put in [`PickPackageOptions::blocked_versions`]. It usually equals
+/// [`PackageVersion::version`], but a registry is free to serve a key that
+/// differs from the `version` field of the manifest behind it; blocking the
+/// manifest's value in that case excludes nothing, and the same candidate
+/// comes back forever.
+///
+/// Fast-paths the common case where the parsed manifest version is itself
+/// the key; only falls back to locating the key by identity when a registry
+/// served a mismatched one.
 #[must_use]
 pub fn blocked_packument_key(
     meta: &Package,
