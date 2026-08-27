@@ -62,6 +62,29 @@ fn extract_accepts_the_on_fail_settings_as_bare_flags() {
 }
 
 #[test]
+fn extract_accepts_shamefully_hoist_cli_spellings() {
+    for (flag, expected) in [
+        ("--shamefully-hoist", true),
+        ("--shamefully-hoist=true", true),
+        ("--shamefully-hoist=false", false),
+        ("--no-shamefully-hoist", false),
+    ] {
+        let (overrides, remaining) = ConfigOverrides::extract(argv(["pacquet", flag, "--version"]));
+        assert_eq!(remaining, argv(["pacquet", "--version"]));
+
+        let mut config = Config::default();
+        overrides.apply(&mut config);
+        assert_eq!(config.shamefully_hoist, expected);
+        let expected_public_hoist_pattern = expected.then(|| vec!["*".to_string()]);
+        assert_eq!(config.public_hoist_pattern, expected_public_hoist_pattern);
+        assert_eq!(
+            config.explicit_settings.get("shamefullyHoist"),
+            Some(&serde_json::Value::Bool(expected)),
+        );
+    }
+}
+
+#[test]
 fn extract_leaves_config_tokens_after_the_separator_for_the_child() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
         "pacquet",

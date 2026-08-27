@@ -108,6 +108,7 @@ pub struct ConfigOverrides {
     pending: Option<bool>,
     recursive_install: Option<bool>,
     reverse: Option<bool>,
+    shamefully_hoist: Option<bool>,
     shell_emulator: Option<bool>,
     skip_manifest_obfuscation: Option<bool>,
     sort: Option<bool>,
@@ -188,6 +189,7 @@ impl ConfigOverrides {
             "pending" => self.pending = parse_bool(value),
             "recursive-install" => self.recursive_install = parse_bool(value),
             "reverse" => self.reverse = parse_bool(value),
+            "shamefully-hoist" => self.shamefully_hoist = parse_bool(value),
             "shell-emulator" => self.shell_emulator = parse_bool(value),
             "skip-manifest-obfuscation" => {
                 self.skip_manifest_obfuscation = parse_bool(value);
@@ -329,6 +331,11 @@ impl ConfigOverrides {
         if let Some(value) = self.reverse {
             config.reverse = value;
         }
+        if let Some(value) = self.shamefully_hoist {
+            config.shamefully_hoist = value;
+            config.explicit_settings.insert("shamefullyHoist".to_string(), value.into());
+            config.apply_shamefully_hoist_derivation();
+        }
         if let Some(value) = self.shell_emulator {
             config.shell_emulator = value;
         }
@@ -462,6 +469,15 @@ fn classify(arg: &OsStr) -> ConfigToken<'_> {
         }
         return ConfigToken::WellFormed { key, value };
     }
+    match arg {
+        "--shamefully-hoist" => {
+            return ConfigToken::WellFormed { key: "shamefully-hoist", value: "true" };
+        }
+        "--no-shamefully-hoist" => {
+            return ConfigToken::WellFormed { key: "shamefully-hoist", value: "false" };
+        }
+        _ => {}
+    }
     match arg.strip_prefix("--").and_then(|flag| flag.split_once('=')) {
         Some((key, value)) if BARE_SETTING_FLAGS.contains(&key) => {
             ConfigToken::WellFormed { key, value }
@@ -474,7 +490,7 @@ fn classify(arg: &OsStr) -> ConfigToken<'_> {
 /// `--<setting>=<value>` flag. pnpm accepts every setting that way; pacquet
 /// only declares a clap flag for a subset, so these are recognized here to
 /// keep the hints they appear in actionable.
-const BARE_SETTING_FLAGS: [&str; 2] = ["pm-on-fail", "runtime-on-fail"];
+const BARE_SETTING_FLAGS: [&str; 3] = ["pm-on-fail", "runtime-on-fail", "shamefully-hoist"];
 
 fn scoped_registry_key(key: &str) -> Option<&str> {
     key.strip_suffix(":registry")
