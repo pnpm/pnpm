@@ -11,8 +11,10 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 
 const CHUNK_SIZE = 64 * 1024
-// Windows has no O_NOFOLLOW; there the descriptor check below stands alone.
-const NO_FOLLOW = fs.constants.O_NOFOLLOW ?? 0
+// Windows has neither flag; there the descriptor check below stands alone.
+// O_NONBLOCK keeps a FIFO planted at a digest path from holding the open
+// until a writer appears, and is a no-op for the regular files expected.
+const GUARDED_OPEN = (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0)
 
 export interface Integrity {
   digest: string
@@ -242,9 +244,10 @@ export function verifyFileIntegrity (
  * before yielding, which stalls everything else for the length of a large
  * CAS file. Prefer this wherever the caller is already asynchronous.
  *
- * A path that is absent or is not a regular file is `false`, so the caller
- * falls back to fetching it, as is an `integrity.algorithm` the runtime does
- * not support. Any other read failure is thrown.
+ * Anything that cannot be opened and read as a regular file is `false`, so the
+ * caller falls back to fetching it — an absent path, a directory, a symlink,
+ * or an `integrity.algorithm` the runtime does not support. A failure once the
+ * file is open is thrown instead.
  */
 export async function verifyFileIntegrityAsync (
   filename: string,
@@ -264,10 +267,13 @@ export async function verifyFileIntegrityAsync (
   // afterwards keeps the check bound to the file that is actually read.
   let handle: fs.promises.FileHandle
   try {
-    handle = await fs.promises.open(filename, fs.constants.O_RDONLY | NO_FOLLOW)
-  } catch (err: unknown) {
-    if (isMissingOrUnusable(err)) return false
-    throw err
+    handle = await fs.promises.open(filename, fs.constants.O_RDONLY | GUARDED_OPEN)
+  } catch {
+    // Whatever turned the open away names something that cannot be reused, and
+    // the caller's fallback is a verified fetch that reports any real fault
+    // itself. A failure once the file is open is different: that one is left
+    // to throw, since the store handed over a file it then could not read.
+    return false
   }
   try {
     if (!(await handle.stat()).isFile()) return false
@@ -283,14 +289,6 @@ export async function verifyFileIntegrityAsync (
   return hasher.digest('hex') === integrity.digest
 }
 
-/**
- * Whether opening a store path failed because nothing usable is there — it is
- * absent, it is a directory, or it is a symlink `O_NOFOLLOW` turned away.
- */
-function isMissingOrUnusable (err: unknown): boolean {
-  if (!util.types.isNativeError(err) || !('code' in err)) return false
-  return err.code === 'ENOENT' || err.code === 'EISDIR' || err.code === 'ELOOP'
-}
 
 /** The file's content, or `null` if it is no longer there. */
 function readFileForIntegrity (filename: string): Buffer | null {

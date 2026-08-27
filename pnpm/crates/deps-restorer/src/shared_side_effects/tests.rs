@@ -96,6 +96,16 @@ async fn a_non_regular_file_is_not_reused_as_store_content() {
 
     #[cfg(unix)]
     {
+        let fifo = store.path().join("fifo");
+        assert!(
+            std::process::Command::new("mkfifo").arg(&fifo).status().unwrap().success(),
+            "mkfifo is needed to plant a FIFO at a store path",
+        );
+        assert!(
+            !super::store_holds(&fifo, &digest).await.unwrap(),
+            "a FIFO must be refused rather than held open waiting for a writer",
+        );
+
         let outside = store.path().join("outside");
         std::fs::write(&outside, bytes).unwrap();
         std::fs::remove_dir(&path).unwrap();

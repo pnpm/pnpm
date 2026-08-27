@@ -331,8 +331,12 @@ async fn store_holds(path: &Path, digest: &str) -> Result<bool, String> {
     // preceding `symlink_metadata` could not.
     #[cfg(unix)]
     options.custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW);
-    // Anything that cannot be opened this way — absent, a symlink `O_NOFOLLOW`
-    // turned away, a device — is a miss the download and CAS write repair.
+    // Whatever turned the open away — absent, a directory, a symlink
+    // `O_NOFOLLOW` refused, a permission error — names something the caller
+    // cannot reuse, and its fallback is a verified download that reports any
+    // real fault itself. A failure once the file is open is different: that
+    // one is reported below, since the store handed over a file it then could
+    // not read.
     let Ok(file) = options.open(path).await else {
         return Ok(false);
     };

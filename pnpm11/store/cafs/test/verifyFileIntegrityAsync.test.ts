@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -52,6 +53,15 @@ describe('verifyFileIntegrityAsync', () => {
     fs.symlinkSync(outside, link)
     await expect(
       verifyFileIntegrityAsync(link, { algorithm: 'sha512', digest: sha512('addon') })
+    ).resolves.toBe(false)
+  })
+
+  itPosix('does not hang on a FIFO planted at the path', async () => {
+    const dir = temporaryDirectory()
+    const fifo = path.join(dir, 'fifo')
+    execFileSync('mkfifo', [fifo])
+    await expect(
+      verifyFileIntegrityAsync(fifo, { algorithm: 'sha512', digest: sha512('addon') })
     ).resolves.toBe(false)
   })
 
