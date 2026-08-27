@@ -1356,9 +1356,14 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .as_ref()
             .map(pnpm_deps_restorer::materialization_plan::HostNode::from);
 
+        // A cache-eligible install needs the engine name synchronously
+        // like GVS does — see [`DirCloneCache::build`] for why the two
+        // must agree.
+        let dir_clone_cache_eligible =
+            pnpm_deps_restorer::DirCloneCache::eligible(config, node_linker);
         let (engine_name, deferred_engine_handle) =
             pnpm_deps_restorer::materialization_plan::resolve_engine_name(
-                config.enable_global_virtual_store,
+                config.enable_global_virtual_store || dir_clone_cache_eligible,
                 initial_materialization_lockfile.snapshots.as_ref(),
                 host_node.as_ref(),
             )
@@ -1374,6 +1379,19 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             Some(&allow_build_policy),
             Some(lockfile_dir),
         );
+        let dir_clone_cache = dir_clone_cache_eligible
+            .then(|| {
+                pnpm_deps_restorer::DirCloneCache::build(
+                    config,
+                    node_linker,
+                    engine_name.as_deref(),
+                    initial_materialization_lockfile.snapshots.as_ref(),
+                    initial_materialization_lockfile.packages.as_ref(),
+                    Some(&allow_build_policy),
+                    Some(lockfile_dir),
+                )
+            })
+            .flatten();
         if config.enable_global_virtual_store {
             tracing::info!(
                 target: "pacquet::install::phase",
@@ -1478,6 +1496,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             supported_architectures,
             workspace_root: lockfile_dir,
             node_linker,
+            dir_clone_cache: dir_clone_cache.as_ref(),
             progress_reported: &progress_reported,
             // Share the resolve-time prefetcher's in-flight downloads with
             // the cold batch. The `PrefetchingResolver` streams each

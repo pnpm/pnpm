@@ -188,6 +188,7 @@ async fn cold_batch_links_slots_in_parallel() {
         supported_architectures: None,
         workspace_root: &workspace_root,
         node_linker: NodeLinker::Isolated,
+        dir_clone_cache: None,
         progress_reported: &progress_reported,
         tarball_mem_cache: Some(&mem_cache),
         custom_fetcher_session: None,
@@ -323,6 +324,7 @@ async fn shared_store_context_materializes_a_warm_package() {
         supported_architectures: None,
         workspace_root: &workspace_root,
         node_linker: NodeLinker::Isolated,
+        dir_clone_cache: None,
         progress_reported: &progress_reported,
         tarball_mem_cache: None,
         custom_fetcher_session: None,
@@ -445,6 +447,7 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
         supported_architectures: None,
         workspace_root: &workspace_root,
         node_linker: NodeLinker::Isolated,
+        dir_clone_cache: None,
         progress_reported: &progress_reported,
         tarball_mem_cache: Some(&mem_cache),
         custom_fetcher_session: None,
@@ -813,6 +816,7 @@ fn slot_link<'a>(
         source_is_mutable: true,
         force_import: false,
         needs_build_marker_source: None,
+        dir_clone_cacheable: false,
         removed_aliases,
     }
 }

@@ -530,9 +530,13 @@ where
         // `node --version` returns from the shell, splitting the
         // shared store between pinned and non-pinned installs on the
         // same host.
+        // A cache-eligible install needs the engine name synchronously
+        // like GVS does — see [`crate::DirCloneCache::build`] for why
+        // the two must agree.
+        let dir_clone_cache_eligible = crate::DirCloneCache::eligible(config, node_linker);
         let (initial_engine_name, deferred_engine_handle) =
             crate::materialization_plan::resolve_engine_name(
-                config.enable_global_virtual_store,
+                config.enable_global_virtual_store || dir_clone_cache_eligible,
                 snapshots,
                 host_node.as_ref(),
             )
@@ -556,7 +560,6 @@ where
             Some(&allow_build_policy),
             Some(workspace_root),
         );
-
         // Reject a lockfile whose dependency names, aliases, or
         // virtual-store slots would escape the project or the store once
         // joined into a filesystem path. Runs before any materialization
@@ -569,6 +572,23 @@ where
             .map_err(InstallFrozenLockfileError::LockfileVerification)?;
         crate::validate_virtual_store_slot_containment(snapshots, &layout)
             .map_err(InstallFrozenLockfileError::LockfileVerification)?;
+
+        // Built after the offline lockfile checks above: constructing
+        // the cache probes the filesystem (a store-side write), which a
+        // rejected lockfile must never reach.
+        let dir_clone_cache = dir_clone_cache_eligible
+            .then(|| {
+                crate::DirCloneCache::build(
+                    config,
+                    node_linker,
+                    engine_name.as_deref(),
+                    snapshots,
+                    packages,
+                    Some(&allow_build_policy),
+                    Some(workspace_root),
+                )
+            })
+            .flatten();
 
         // The frozen path runs no resolve-time prefetcher, so the warm
         // batch owns package-status progress for store hits. An empty set
@@ -621,6 +641,7 @@ where
                 supported_architectures,
                 workspace_root,
                 node_linker,
+                dir_clone_cache: dir_clone_cache.as_ref(),
                 progress_reported: &progress_reported,
                 tarball_mem_cache,
                 custom_fetcher_session: custom_fetcher_session.as_ref(),

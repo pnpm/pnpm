@@ -1,6 +1,7 @@
 use crate::{
-    ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
-    SymlinkPackageError, VirtualStoreLayout, create_symlink_layout, import_indexed_dir,
+    DirCloneCache, ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER,
+    SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, create_symlink_layout,
+    import_indexed_dir,
     import_indexed_dir::marker_present,
     safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
 };
@@ -89,6 +90,12 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     /// Empty source file imported as `.pnpm-needs-build` before the package's
     /// atomic completion marker when the package needs a build or patch.
     pub needs_build_marker_source: Option<&'a Path>,
+    /// macOS directory-clone materialization cache
+    /// ([`crate::dir_clone_cache`]). `None` when the install isn't
+    /// eligible ([`DirCloneCache::eligible`]) or when the caller's
+    /// per-slot qualification says this slot must take the per-file
+    /// import.
+    pub dir_clone_cache: Option<&'a DirCloneCache>,
     #[cfg(test)]
     pub link_concurrency_probe: Option<&'a tests::LinkConcurrencyProbe>,
 }
@@ -144,6 +151,7 @@ impl CreateVirtualDirBySnapshot<'_> {
             skipped,
             removed_aliases,
             needs_build_marker_source,
+            dir_clone_cache,
             #[cfg(test)]
             link_concurrency_probe,
         } = self;
@@ -190,6 +198,20 @@ impl CreateVirtualDirBySnapshot<'_> {
         };
 
         let import_package = || {
+            // A slot with an interrupted build re-imports with `force`,
+            // which the cache's fresh-destination clone cannot serve.
+            if !interrupted_build
+                && let Some(cache) = dir_clone_cache
+                && cache.try_import::<Reporter>(
+                    logged_methods,
+                    import_method,
+                    package_key,
+                    &save_path,
+                    cas_paths,
+                )
+            {
+                return Ok(());
+            }
             import_indexed_dir::<Reporter>(
                 logged_methods,
                 import_method,
