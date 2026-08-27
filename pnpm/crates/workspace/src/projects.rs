@@ -142,10 +142,8 @@ pub fn find_workspace_projects_no_check(
     // wax's `not` takes a single pattern; combine the ignores with
     // `wax::any` so the walk filters them all in one pass (ignoring
     // `**/node_modules/**` and `**/bower_components/**`).
-    // Built once outside the per-pattern loop and `.clone()`-d into each
-    // `Walk::not` call (both `Glob` and `Any` derive `Clone` in wax),
-    // since `IGNORE_PATTERNS` is a constant and reparsing it on every
-    // user-supplied pattern is wasted work.
+    // Built once outside the per-pattern loop and reused by both the
+    // specialized paths and the generic walks.
     let ignore_template = wax::any(IGNORE_PATTERNS.iter().copied()).map_err(|err| {
         FindWorkspaceProjectsError::InvalidGlob {
             pattern: "<built-in ignore>".to_string(),
@@ -172,6 +170,27 @@ pub fn find_workspace_projects_no_check(
     // silently dropped from the workspace.
     let mut manifest_paths: BTreeSet<PathBuf> = BTreeSet::new();
     for pattern in include_patterns {
+        if let Some(parent) = literal_terminal_star_parent(pattern) {
+            collect_manifests_in_children(
+                &workspace_root.join(parent),
+                workspace_root,
+                &ignore_template,
+                &user_negations,
+                &mut manifest_paths,
+            )?;
+            continue;
+        }
+        if let Some(directory) = literal_directory_pattern(pattern) {
+            collect_literal_manifests_in(
+                &workspace_root.join(directory),
+                workspace_root,
+                &ignore_template,
+                &user_negations,
+                &mut manifest_paths,
+            );
+            continue;
+        }
+
         for normalized in normalize_manifest_patterns(pattern) {
             let Some((walk_root, normalized)) = split_parent_prefix(workspace_root, &normalized)
             else {
@@ -274,14 +293,147 @@ pub fn find_workspace_projects_no_check(
 const IGNORE_PATTERNS: &[&str] = &["**/node_modules/**", "**/bower_components/**"];
 const PROJECT_MANIFEST_BASENAMES: &[&str] = &["package.json", "package.yaml"];
 
-fn normalize_manifest_patterns(pattern: &str) -> Vec<String> {
-    // Each user pattern is suffixed with every supported manifest basename
-    // so the glob matches manifest files rather than directories.
+fn normalize_directory_pattern(pattern: &str) -> Option<&str> {
     let trimmed = pattern.trim_end_matches('/');
     if trimmed.is_empty() || trimmed == "." {
-        return Vec::new();
+        return None;
     }
+    Some(trimmed)
+}
+
+fn literal_directory_pattern(pattern: &str) -> Option<&str> {
+    normalize_directory_pattern(pattern).filter(|pattern| is_safe_relative_literal(pattern))
+}
+
+fn literal_terminal_star_parent(pattern: &str) -> Option<&str> {
+    let parent = normalize_directory_pattern(pattern)?.strip_suffix("/*")?;
+    is_safe_relative_literal(parent).then_some(parent)
+}
+
+fn is_safe_relative_literal(pattern: &str) -> bool {
+    is_literal_pattern(pattern)
+        && !pattern.starts_with('/')
+        && !pattern.contains('\\')
+        && !pattern.contains(':')
+        && pattern
+            .split('/')
+            .all(|component| !component.is_empty() && component != "." && component != "..")
+}
+
+fn normalize_manifest_patterns(pattern: &str) -> Vec<String> {
+    let Some(trimmed) = normalize_directory_pattern(pattern) else { return Vec::new() };
     PROJECT_MANIFEST_BASENAMES.iter().map(|basename| format!("{trimmed}/{basename}")).collect()
+}
+
+fn collect_manifests_in_children(
+    parent: &Path,
+    workspace_root: &Path,
+    built_in_ignores: &wax::Any<'_>,
+    user_negations: &wax::Any<'_>,
+    manifest_paths: &mut BTreeSet<PathBuf>,
+) -> Result<(), FindWorkspaceProjectsError> {
+    let walk_error = |source: std::io::Error| FindWorkspaceProjectsError::Walk {
+        root: workspace_root.to_path_buf(),
+        source,
+    };
+    let entries = match std::fs::read_dir(parent) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(walk_error(err)),
+    };
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(err) if err.kind() == ErrorKind::NotFound => continue,
+            Err(err) => return Err(walk_error(err)),
+        };
+        if entry.file_name().as_encoded_bytes().first() == Some(&b'.') {
+            continue;
+        }
+        let file_type = match entry.file_type() {
+            Ok(file_type) => file_type,
+            Err(err) if err.kind() == ErrorKind::NotFound => continue,
+            Err(err) => return Err(walk_error(err)),
+        };
+        if !file_type.is_dir() {
+            continue;
+        }
+        collect_manifests_in_child(
+            &entry.path(),
+            workspace_root,
+            built_in_ignores,
+            user_negations,
+            manifest_paths,
+        )?;
+    }
+    Ok(())
+}
+
+fn collect_literal_manifests_in(
+    directory: &Path,
+    workspace_root: &Path,
+    built_in_ignores: &wax::Any<'_>,
+    user_negations: &wax::Any<'_>,
+    manifest_paths: &mut BTreeSet<PathBuf>,
+) {
+    for basename in PROJECT_MANIFEST_BASENAMES {
+        let manifest_path = directory.join(basename);
+        if manifest_path.is_file()
+            && !is_ignored_manifest(
+                &manifest_path,
+                workspace_root,
+                built_in_ignores,
+                user_negations,
+            )
+        {
+            manifest_paths.insert(manifest_path);
+        }
+    }
+}
+
+fn collect_manifests_in_child(
+    directory: &Path,
+    workspace_root: &Path,
+    built_in_ignores: &wax::Any<'_>,
+    user_negations: &wax::Any<'_>,
+    manifest_paths: &mut BTreeSet<PathBuf>,
+) -> Result<(), FindWorkspaceProjectsError> {
+    let walk_error = |source: std::io::Error| FindWorkspaceProjectsError::Walk {
+        root: workspace_root.to_path_buf(),
+        source,
+    };
+    let entries = match std::fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(walk_error(err)),
+    };
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(err) if err.kind() == ErrorKind::NotFound => continue,
+            Err(err) => return Err(walk_error(err)),
+        };
+        if !PROJECT_MANIFEST_BASENAMES.iter().any(|basename| entry.file_name() == *basename) {
+            continue;
+        }
+        let manifest_path = entry.path();
+        if !is_ignored_manifest(&manifest_path, workspace_root, built_in_ignores, user_negations) {
+            manifest_paths.insert(manifest_path);
+        }
+    }
+    Ok(())
+}
+
+fn is_ignored_manifest(
+    manifest_path: &Path,
+    workspace_root: &Path,
+    built_in_ignores: &wax::Any<'_>,
+    user_negations: &wax::Any<'_>,
+) -> bool {
+    let relative = manifest_path.strip_prefix(workspace_root).unwrap_or(manifest_path);
+    built_in_ignores.is_match(relative)
+        || pathdiff::diff_paths(manifest_path, workspace_root)
+            .is_some_and(|relative| user_negations.is_match(relative.as_path()))
 }
 
 /// Strip the pattern's leading `../` components, walking `workspace_root`
