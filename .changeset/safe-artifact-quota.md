@@ -2,4 +2,4 @@
 "@pnpm/pnpr": patch
 ---
 
-Kept shared artifact quota accounting fail-safe when object storage reports an ambiguous write failure.
+pnpr retains shared artifact quota after object storage reports an ambiguous write failure.
