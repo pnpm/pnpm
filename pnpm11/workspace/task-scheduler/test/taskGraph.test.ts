@@ -78,6 +78,17 @@ test('a project without the script becomes a pass-through node that keeps the ch
   ])
 })
 
+test('a RegExp selector attaches every matching script to the task', () => {
+  const graph = buildGraph({
+    a: { scripts: ['build:client', 'build:server', 'test'] },
+  }, '/build:.*/')
+
+  expect(graph.get(taskKey(dir('a'), '/build:.*/'))!.scripts).toStrictEqual([
+    'build:client',
+    'build:server',
+  ])
+})
+
 test('a task cycle is an error naming the participating tasks', () => {
   expect(() => {
     sequenceTasks(buildGraph({
@@ -277,8 +288,15 @@ function buildGraph (
       ])
     ),
     scriptsByProject: (project) => scriptsByDir.get(project)!,
-    selectScripts: (scripts, scriptName) => scripts[scriptName] ? [scriptName] : [],
+    selectScripts,
     taskName,
     tasks,
   })
+}
+
+function selectScripts (scripts: PackageScripts, scriptName: string): string[] {
+  if (scripts[scriptName]) return [scriptName]
+  if (!scriptName.startsWith('/') || !scriptName.endsWith('/')) return []
+  const selector = new RegExp(scriptName.slice(1, -1))
+  return Object.keys(scripts).filter((script) => selector.test(script))
 }
