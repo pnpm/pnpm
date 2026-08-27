@@ -5,13 +5,13 @@
 //! every task it depends on has completed successfully; runnable tasks are
 //! dispatched under the `workspaceConcurrency` limit, with no barrier
 //! between dependency-independent tasks. Mirrors `taskGraph.ts` /
-//! `taskScheduler.ts` in pnpm's `@pnpm/exec.commands`.
+//! `taskScheduler.ts` in pnpm's `@pnpm/workspace.task-scheduler`.
 
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_config::TaskSettings;
-use pnpm_package_manager::graph_sequencer;
+use pnpm_deps_restorer::graph_sequencer;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
 use serde::Serialize;
 use std::{
@@ -223,6 +223,7 @@ fn drop_cyclic_dependencies(graph: &mut TaskGraph, groups: &[Vec<TaskKey>]) {
 
 /// `<workspace-relative dir>#<task name>`, with forward slashes on every
 /// platform — the rendering of a task in cycle errors and dry-run output.
+#[must_use]
 pub fn format_task(key: &TaskKey, workspace_dir: &Path) -> String {
     format!("{}#{}", relative_project_dir(&key.project, workspace_dir), key.task_name)
 }
@@ -242,6 +243,7 @@ fn relative_project_dir(project: &Path, workspace_dir: &Path) -> String {
 
 /// The same graph with every edge turned around: dependents run before
 /// dependencies.
+#[must_use]
 pub fn reverse_task_graph(graph: &TaskGraph) -> TaskGraph {
     let mut reversed: TaskGraph = graph
         .iter()
@@ -259,6 +261,7 @@ pub fn reverse_task_graph(graph: &TaskGraph) -> TaskGraph {
 /// to have finished before a run would reach the anchor. Everything else
 /// stays, including work unrelated to the anchor, and edges into the
 /// dropped set are treated as satisfied.
+#[must_use]
 pub fn resume_task_graph_from(
     graph: TaskGraph,
     anchor_project: &Path,
@@ -296,6 +299,7 @@ pub fn resume_task_graph_from(
 ///
 /// `sequenced_tasks` is [`sequence_tasks`]'s result — the proof the graph
 /// is acyclic, and the evaluation order for the longest-chain scan.
+#[must_use]
 pub fn is_serial_task_graph(graph: &TaskGraph, sequenced_tasks: &[Vec<TaskKey>]) -> bool {
     let mut script_task_count = 0_usize;
     for node in graph.values() {
@@ -331,6 +335,7 @@ pub fn is_serial_task_graph(graph: &TaskGraph, sequenced_tasks: &[Vec<TaskKey>])
 /// invocation named keeps the project directory alone — the format
 /// existing consumers of `pnpm-exec-summary.json` read — and only tasks
 /// `dependsOn` pulled in qualify it with the task name.
+#[must_use]
 pub fn task_summary_key(node: &TaskNode) -> String {
     if node.requested {
         node.project.to_string_lossy().into_owned()
@@ -366,6 +371,7 @@ pub struct DryRunDocument {
 /// What `--dry-run --json` emits: nodes and edges rather than an order,
 /// since independent tasks have no required sequence. Identifiers are the
 /// workspace-relative project directory and the script name.
+#[must_use]
 pub fn task_graph_to_json(graph: &TaskGraph, workspace_dir: &Path) -> DryRunDocument {
     let mut tasks: Vec<DryRunTask> = graph
         .values()
@@ -397,6 +403,7 @@ pub fn task_graph_to_json(graph: &TaskGraph, workspace_dir: &Path) -> DryRunDocu
 /// not the order the scheduler will follow. Ties among simultaneously
 /// runnable tasks are broken by project directory, so two dry runs of one
 /// workspace print the same thing and their diff is meaningful.
+#[must_use]
 pub fn render_task_graph_dry_run(
     graph: &TaskGraph,
     sequenced_tasks: &[Vec<TaskKey>],

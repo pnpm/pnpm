@@ -90,6 +90,7 @@ pnpm-workspace-projects-graph          = { path = "pnpm/crates/workspace-project
 pnpm-workspace-range-resolver          = { path = "pnpm/crates/workspace-range-resolver" }
 pnpm-workspace-spec                    = { path = "pnpm/crates/workspace-spec" }
 pnpm-workspace-state                   = { path = "pnpm/crates/workspace-state" }
+pnpm-workspace-task-scheduler          = { path = "pnpm/crates/workspace-task-scheduler" }
 
 # Tasks
 pnpm-registry-mock = { path = "pnpm/tasks/registry-mock" }

@@ -4243,9 +4243,6 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
-      '@pnpm/deps.graph-sequencer':
-        specifier: workspace:*
-        version: link:../../deps/graph-sequencer
       '@pnpm/deps.status':
         specifier: workspace:*
         version: link:../../deps/status
@@ -4300,6 +4297,9 @@ importers:
       '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
         version: link:../../workspace/projects-sorter
+      '@pnpm/workspace.task-scheduler':
+        specifier: workspace:*
+        version: link:../../workspace/task-scheduler
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
@@ -10235,6 +10235,31 @@ importers:
       '@types/write-file-atomic':
         specifier: 'catalog:'
         version: 4.0.3
+
+  pnpm11/workspace/task-scheduler:
+    dependencies:
+      '@pnpm/deps.graph-sequencer':
+        specifier: workspace:*
+        version: link:../../deps/graph-sequencer
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../core/logger
+      '@pnpm/workspace.task-scheduler':
+        specifier: workspace:*
+        version: 'link:'
 
   pnpm11/workspace/workspace-manifest-reader:
     dependencies:

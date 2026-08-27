@@ -2,8 +2,7 @@
 //! workspace projects, scheduled over the project dependency graph.
 //!
 //! Reuses the shared graph / summary machinery in
-//! [`crate::cli_args::recursive`] and the task scheduler in
-//! [`crate::cli_args::task_graph`].
+//! [`crate::cli_args::recursive`] and the workspace task scheduler.
 //!
 //! `exec` runs one command per project, so its task graph is one task per
 //! selected project over the project dependency edges: it gets the
@@ -13,16 +12,10 @@
 //! project concurrently.
 
 use super::{ExecArgs, ExecError, prepare_command, read_package_name, spawn_in_dir};
-use crate::cli_args::{
-    recursive::{
-        AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-        filtered_projects_dependencies, find_resume_root, select_recursive_projects,
-        write_recursive_summary,
-    },
-    task_graph::{
-        ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion, TaskGraph, TaskKey, TaskNode,
-        resume_task_graph_from, reverse_task_graph, schedule_tasks, sequence_tasks,
-    },
+use crate::cli_args::recursive::{
+    AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
+    filtered_projects_dependencies, find_resume_root, select_recursive_projects,
+    write_recursive_summary,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -30,6 +23,10 @@ use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_executor::ScriptOutput;
 use pnpm_reporter::LogEvent;
+use pnpm_workspace_task_scheduler::{
+    ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion, TaskGraph, TaskKey, TaskNode,
+    resume_task_graph_from, reverse_task_graph, schedule_tasks, sequence_tasks,
+};
 use std::{
     path::{Path, PathBuf},
     sync::Mutex,

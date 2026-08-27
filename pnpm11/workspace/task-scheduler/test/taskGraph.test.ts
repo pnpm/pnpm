@@ -1,7 +1,5 @@
 import { expect, test } from '@jest/globals'
 import type { PackageScripts, ProjectRootDir } from '@pnpm/types'
-
-import { getSpecifiedScripts } from '../src/runRecursive.js'
 import {
   buildTaskGraph,
   isSerialTaskGraph,
@@ -12,7 +10,7 @@ import {
   type TaskGraph,
   taskGraphToJson,
   taskKey,
-} from '../src/taskGraph.js'
+} from '@pnpm/workspace.task-scheduler'
 
 const WORKSPACE_DIR = '/workspace'
 
@@ -279,7 +277,7 @@ function buildGraph (
       ])
     ),
     scriptsByProject: (project) => scriptsByDir.get(project)!,
-    selectScripts: getSpecifiedScripts,
+    selectScripts: (scripts, scriptName) => scripts[scriptName] ? [scriptName] : [],
     taskName,
     tasks,
   })

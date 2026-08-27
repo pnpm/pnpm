@@ -14,6 +14,16 @@ import { prependDirsToPath } from '@pnpm/shell.path'
 import type { Project, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
 import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { filteredProjectsDependencies } from '@pnpm/workspace.projects-sorter'
+import {
+  resumeTaskGraphFrom,
+  reverseTaskGraph,
+  scheduleTasks,
+  sequenceTasks,
+  type TaskCompletion,
+  type TaskGraph,
+  taskKey,
+  type TaskNode,
+} from '@pnpm/workspace.task-scheduler'
 import pLimit from 'p-limit'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -30,15 +40,6 @@ import {
   shorthands as runShorthands,
 } from './run.js'
 import { runDepsStatusCheck } from './runDepsStatusCheck.js'
-import {
-  resumeTaskGraphFrom,
-  reverseTaskGraph,
-  sequenceTasks,
-  type TaskGraph,
-  taskKey,
-  type TaskNode,
-} from './taskGraph.js'
-import { scheduleTasks, type TaskCompletion } from './taskScheduler.js'
 import { trackedExeca } from './trackedExeca.js'
 
 export const shorthands: Record<string, string | string[]> = {

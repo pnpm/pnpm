@@ -1,8 +1,6 @@
 import { expect, test } from '@jest/globals'
 import type { ProjectRootDir } from '@pnpm/types'
-
-import { type TaskGraph, taskKey } from '../src/taskGraph.js'
-import { scheduleTasks } from '../src/taskScheduler.js'
+import { scheduleTasks, type TaskGraph, taskKey } from '@pnpm/workspace.task-scheduler'
 
 test('an aborted task stops dispatch and the scheduler still settles', async () => {
   const graph = chainGraph()

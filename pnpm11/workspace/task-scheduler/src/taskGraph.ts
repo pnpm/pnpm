@@ -8,7 +8,7 @@ import type { PackageScripts, ProjectRootDir, ProjectsGraph, WorkspaceTasks } fr
 
 /**
  * A task is a `(project, task name)` pair; its key is the stable identifier
- * the scheduler, the summary, and the dry-run output agree on.
+ * used by the scheduler, summaries, and dry-run output.
  */
 export type TaskKey = string
 

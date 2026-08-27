@@ -13,18 +13,10 @@
 //! applied via [`AutoExcludeRoot::Enabled`].
 
 use super::{RunArgs, RunContext, ScriptSelector, render_project_commands, run_stages};
-use crate::cli_args::{
-    recursive::{
-        AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-        filtered_projects_dependencies, find_resume_root, select_recursive_projects,
-        write_recursive_summary,
-    },
-    task_graph::{
-        BuildTaskGraphOptions, ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion,
-        TaskGraph, TaskNode, build_task_graph, is_serial_task_graph, render_task_graph_dry_run,
-        resume_task_graph_from, reverse_task_graph, schedule_tasks, sequence_tasks,
-        task_graph_to_json, task_summary_key,
-    },
+use crate::cli_args::recursive::{
+    AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
+    filtered_projects_dependencies, find_resume_root, select_recursive_projects,
+    write_recursive_summary,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -38,6 +30,12 @@ use pnpm_package_manager::{
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, ScopeLog};
 use pnpm_workspace::GraphPkg;
 use pnpm_workspace_projects_graph::ProjectGraph;
+use pnpm_workspace_task_scheduler::{
+    BuildTaskGraphOptions, ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion, TaskGraph,
+    TaskNode, build_task_graph, is_serial_task_graph, render_task_graph_dry_run,
+    resume_task_graph_from, reverse_task_graph, schedule_tasks, sequence_tasks, task_graph_to_json,
+    task_summary_key,
+};
 use std::{
     collections::HashMap,
     env,
