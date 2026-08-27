@@ -139,8 +139,8 @@ mod macos {
         );
     }
 
-    /// An existing dirent at the target belongs to `import_indexed_dir`'s
-    /// marker/repair logic, not the cache.
+    /// An existing dirent at the target belongs to the marker/repair
+    /// logic of [`fn@crate::import_indexed_dir`], not the cache.
     #[test]
     fn try_import_declines_an_occupied_target() {
         let dir = tempdir().expect("tempdir");

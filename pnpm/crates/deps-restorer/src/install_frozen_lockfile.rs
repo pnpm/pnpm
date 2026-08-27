@@ -561,6 +561,22 @@ where
             Some(&allow_build_policy),
             Some(workspace_root),
         );
+        // Reject a lockfile whose dependency names, aliases, or
+        // virtual-store slots would escape the project or the store once
+        // joined into a filesystem path. Runs before any materialization
+        // and before the warm-install skip filter, and unconditionally —
+        // so it is not bypassed by `trustLockfile`, which disables the
+        // resolution-verification fan-out where the offline name check
+        // would otherwise run. The slot-containment half needs the
+        // install-time `layout`, so it can't live in the verifier crate.
+        pnpm_lockfile_verification::verify_lockfile_dependency_names(lockfile)
+            .map_err(InstallFrozenLockfileError::LockfileVerification)?;
+        crate::validate_virtual_store_slot_containment(snapshots, &layout)
+            .map_err(InstallFrozenLockfileError::LockfileVerification)?;
+
+        // Built after the offline lockfile checks above: constructing
+        // the cache probes the filesystem (a store-side write), which a
+        // rejected lockfile must never reach.
         let dir_clone_cache = dir_clone_cache_eligible
             .then(|| {
                 crate::DirCloneCache::build(
@@ -574,19 +590,6 @@ where
                 )
             })
             .flatten();
-
-        // Reject a lockfile whose dependency names, aliases, or
-        // virtual-store slots would escape the project or the store once
-        // joined into a filesystem path. Runs before any materialization
-        // and before the warm-install skip filter, and unconditionally —
-        // so it is not bypassed by `trustLockfile`, which disables the
-        // resolution-verification fan-out where the offline name check
-        // would otherwise run. The slot-containment half needs the
-        // install-time `layout`, so it can't live in the verifier crate.
-        pnpm_lockfile_verification::verify_lockfile_dependency_names(lockfile)
-            .map_err(InstallFrozenLockfileError::LockfileVerification)?;
-        crate::validate_virtual_store_slot_containment(snapshots, &layout)
-            .map_err(InstallFrozenLockfileError::LockfileVerification)?;
 
         // The frozen path runs no resolve-time prefetcher, so the warm
         // batch owns package-status progress for store hits. An empty set

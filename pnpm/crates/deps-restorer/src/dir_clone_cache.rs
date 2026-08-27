@@ -238,23 +238,39 @@ impl DirCloneCache {
 
 /// Whether a directory `clonefile` from under `links_root` can land in
 /// `virtual_store_dir`: clone an empty probe directory across and
-/// remove both. Both directories are created if absent — the install
-/// creates them moments later anyway. A stale destination from a
-/// crashed probe is removed first so pid reuse can't fail the probe
-/// with `EEXIST`.
+/// remove both. The store side is created if absent (the caller
+/// guarantees the store is writable), but nothing is created on the
+/// project side — the probe lands in the deepest existing ancestor of
+/// the virtual-store dir, which is on the same volume, so a rejected
+/// install can still assert that `node_modules/.pnpm` was never
+/// written. A stale destination from a crashed probe is removed first
+/// so pid reuse can't fail the probe with `EEXIST`.
 fn dir_clone_supported(links_root: &Path, virtual_store_dir: &Path) -> bool {
     let probe_name = format!(".pacquet-dir-clone-probe-{}", std::process::id());
     let src = links_root.join(&probe_name);
-    let dst = virtual_store_dir.join(&probe_name);
-    if fs::create_dir_all(&src).is_err() || fs::create_dir_all(virtual_store_dir).is_err() {
-        let _ = fs::remove_dir(&src);
+    if fs::create_dir_all(&src).is_err() {
         return false;
     }
+    let dst_parent = deepest_existing_ancestor(virtual_store_dir);
+    let dst = dst_parent.join(&probe_name);
     let _ = fs::remove_dir(&dst);
     let supported = reflink_copy::reflink(&src, &dst).is_ok();
     let _ = fs::remove_dir(&src);
     let _ = fs::remove_dir(&dst);
     supported
+}
+
+/// `path`, or the nearest ancestor of it that exists on disk. Falls
+/// back to `.` for a fully relative path with no existing ancestors.
+fn deepest_existing_ancestor(path: &Path) -> &Path {
+    let mut candidate = path;
+    while !candidate.exists() {
+        match candidate.parent() {
+            Some(parent) if !parent.as_os_str().is_empty() => candidate = parent,
+            _ => return Path::new("."),
+        }
+    }
+    candidate
 }
 
 #[cfg(test)]
