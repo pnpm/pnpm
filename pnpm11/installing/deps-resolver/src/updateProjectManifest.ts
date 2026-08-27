@@ -1,4 +1,5 @@
 import {
+  getSpecFromPackageManifest,
   type PackageSpecObject,
   updateProjectManifestObject,
 } from '@pnpm/pkg-manifest.utils'
@@ -19,13 +20,20 @@ export async function updateProjectManifest (
     throw new Error('Cannot save because no package.json found')
   }
   const specsToUpsert: PackageSpecObject[] = []
+  const declaredSpecifiers = new Map<string, string>()
   for (const rdd of opts.directDependencies) {
     const wantedDep = rdd.wantedDependency
     if (wantedDep?.updateSpec !== true) continue
+    const declaredSpecifier = getDeclaredSpecifierReplacedByHook(importer, rdd)
+    if (declaredSpecifier != null) {
+      declaredSpecifiers.set(rdd.alias, declaredSpecifier)
+    }
     specsToUpsert.push({
       alias: rdd.alias,
       peer: importer.peer,
-      bareSpecifier: getBareSpecifierToSave(wantedDep, rdd, opts.preserveWorkspaceProtocol),
+      bareSpecifier: declaredSpecifier == null
+        ? getBareSpecifierToSave(wantedDep, rdd, opts.preserveWorkspaceProtocol)
+        : wantedDep.bareSpecifier,
       resolvedVersion: rdd.version,
       rangeSpecStyle: importer.rangeSpecStyle,
       saveType: importer.targetDependenciesField,
@@ -53,10 +61,40 @@ export async function updateProjectManifest (
     ? await updateProjectManifestObject(
       importer.rootDir,
       importer.originalManifest,
-      specsToUpsert
+      declaredSpecifiers.size === 0
+        ? specsToUpsert
+        : specsToUpsert.map((spec) => declaredSpecifiers.has(spec.alias)
+          ? { ...spec, bareSpecifier: declaredSpecifiers.get(spec.alias) }
+          : spec)
     )
     : undefined
   return [hookedManifest, originalManifest]
+}
+
+/**
+ * The specifier the project declares on disk for a direct dependency whose
+ * entry a `readPackage` hook — a version override, most often — replaced in
+ * the manifest handed to the resolver. `undefined` when the declaration is
+ * what resolution followed, and the update owns it.
+ *
+ * The version resolution settled on answers the hook, not the declaration, so
+ * neither manifest's entry is the update's to move: writing the resolved range
+ * over them bakes the override into every project that declares the package —
+ * replacing a `catalog:` reference with a version (pnpm/pnpm#12115) — and
+ * contradicts the override on the next install.
+ *
+ * A dependency this run names with a specifier of its own (`pnpm add foo@2`)
+ * is exempt: that request is the manifest's new specifier.
+ */
+function getDeclaredSpecifierReplacedByHook (
+  importer: ImporterToResolve,
+  rdd: ResolvedDirectDependency
+): string | undefined {
+  if (importer.originalManifest == null) return undefined
+  const hookedSpecifier = getSpecFromPackageManifest(importer.manifest, rdd.alias)
+  if (hookedSpecifier === '' || hookedSpecifier !== rdd.wantedDependency?.bareSpecifier) return undefined
+  const declaredSpecifier = getSpecFromPackageManifest(importer.originalManifest, rdd.alias)
+  return declaredSpecifier !== '' && declaredSpecifier !== hookedSpecifier ? declaredSpecifier : undefined
 }
 
 function getBareSpecifierToSave (

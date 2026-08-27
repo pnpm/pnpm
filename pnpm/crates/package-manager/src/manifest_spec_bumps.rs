@@ -27,8 +27,12 @@ use std::{
 /// back here for the update to write into `package.json` — or into the
 /// catalog entry the dependency points at.
 pub struct ManifestSpecBumps {
-    /// Direct-dependency aliases per importer id whose range may move.
-    pub targets: BTreeMap<String, HashSet<String>>,
+    /// Per importer id, the direct-dependency aliases whose range may move,
+    /// each mapped to the specifier its `package.json` declares. The
+    /// declaration is what tells a range the update owns from one an override
+    /// replaced before the resolver read it: only a lockfile entry that still
+    /// carries the declared text is bumped.
+    pub targets: BTreeMap<String, HashMap<String, String>>,
     /// The range operator to write when the declaration pins none.
     pub range_spec_style: RangeSpecStyle,
     /// What the resolve settled on, for the declarations whose text changed.
@@ -68,11 +72,20 @@ pub(crate) fn apply_manifest_spec_bumps(lockfile: &mut Lockfile, bumps: &Manifes
         BTreeMap::new();
     let mut cataloged: HashSet<(String, PkgName)> = HashSet::new();
 
-    for (importer_id, aliases) in &bumps.targets {
+    for (importer_id, targets) in &bumps.targets {
         let Some(importer) = lockfile.importers.get(importer_id) else { continue };
-        for alias in aliases {
+        for (alias, manifest_specifier) in targets {
             let Ok(alias) = PkgName::parse(alias.as_str()) else { continue };
             let Some((group, declared)) = declared_dependency(importer, &alias) else { continue };
+            // An override — or another manifest hook — replaced this entry
+            // before the resolver read it, so the version the run resolved
+            // answers the override rather than the declaration. Leaving both
+            // the lockfile entry and `package.json` alone keeps the two
+            // agreeing and keeps the declaration, a `catalog:` reference
+            // included (pnpm/pnpm#12115).
+            if declared.specifier != *manifest_specifier {
+                continue;
+            }
             if let Some(catalog_name) = parse_catalog_protocol(&declared.specifier) {
                 cataloged.insert((catalog_name.to_string(), alias));
                 continue;

@@ -50,7 +50,7 @@ use pnpm_resolving_resolver_base::{
 use pnpm_tarball::MemCache;
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -702,8 +702,9 @@ struct UpdatePreparation {
     preferred_versions_override: PreferredVersions,
     persist_manifest: bool,
     /// Direct dependencies whose declared range the install may move onto
-    /// the version it resolves. See [`crate::ManifestSpecBumps`].
-    bump_targets: HashSet<String>,
+    /// the version it resolves, each mapped to the specifier the manifest
+    /// declares for it. See [`crate::ManifestSpecBumps`].
+    bump_targets: HashMap<String, String>,
     updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
     workspace_dir_for_catalogs: Option<PathBuf>,
@@ -714,7 +715,7 @@ struct SelectedUpdatePreparation {
     preferred_versions_override: PreferredVersions,
     persist_indices: Vec<usize>,
     /// [`UpdatePreparation::bump_targets`] per importer id.
-    bump_targets: BTreeMap<String, HashSet<String>>,
+    bump_targets: BTreeMap<String, HashMap<String, String>>,
     updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
     workspace_dir_for_catalogs: Option<PathBuf>,
@@ -823,7 +824,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
     // A compatible bump cannot name its version before the resolve, so the
     // matched names are collected here and the install reports back what it
     // settled on.
-    let mut bump_targets = HashSet::new();
+    let mut bump_targets = HashMap::new();
     let max_depth = UpdateDepth::new(depth);
     // Bare-name selectors with depth update matching names at any depth.
     let use_name_matcher = !selectors.is_empty()
@@ -888,7 +889,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 rewrites.push((name.clone(), *group, specifier));
             }
             if save && !latest {
-                bump_targets.insert(name.clone());
+                bump_targets.insert(name.clone(), previous.clone());
             }
             drop_targets.insert(name.clone(), None);
         }
@@ -913,10 +914,10 @@ async fn prepare_manifest<Reporter: self::Reporter>(
         let patterns =
             selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
         let matcher = create_matcher(&patterns);
-        for (name, _, _) in &direct {
+        for (name, _, previous) in &direct {
             if matcher.matches(name) {
                 if save {
-                    bump_targets.insert(name.clone());
+                    bump_targets.insert(name.clone(), previous.clone());
                 }
                 drop_targets.insert(name.clone(), None);
             }
@@ -1066,7 +1067,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                         rewritten.filter(|specifier| specifier != previous)
                     } else {
                         if save && requested.is_none() {
-                            bump_targets.insert(name.clone());
+                            bump_targets.insert(name.clone(), previous.clone());
                         }
                         requested
                     }
