@@ -591,23 +591,18 @@ test('an empty requested script matched by a RegExp errors before upstream tasks
     },
   ])
 
-  let err!: PnpmError
-  try {
-    await run.handler({
-      ...DEFAULT_OPTS,
-      ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
-      dir: process.cwd(),
-      recursive: true,
-      tasks: {
-        '/^build:/': { dependsOn: ['codegen'] },
-      },
-      workspaceDir: process.cwd(),
-    }, ['/^build:/'])
-  } catch (_err: any) { // eslint-disable-line
-    err = _err
-  }
-
-  expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
+  await expect(run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    tasks: {
+      '/^build:/': { dependsOn: ['codegen'] },
+    },
+    workspaceDir: process.cwd(),
+  }, ['/^build:/'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT',
+  })
   expect(server.getLines()).toStrictEqual([])
 })
 
