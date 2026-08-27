@@ -17,6 +17,7 @@ use super::{
     patch::PatchArgs,
     patch_commit::PatchCommitArgs,
     patch_remove::PatchRemoveArgs,
+    pipeline::{PipelineArgs, PipelineInvocation, run_pipeline},
     pipelines::{
         AddPipeline, DedupePipeline, DeployPipeline, InstallPipeline, PrunePipeline,
         RemovePipeline, UpdatePipeline, apply_install_cli_config,
@@ -327,6 +328,41 @@ pub(super) fn install_test<'a>(
         }
 
         Ok(())
+    }))
+}
+
+pub(super) fn pipeline<'a>(
+    ctx: &RunCtx<'a>,
+    args: PipelineArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let PipelineArgs { name, mut install_args, json, no_cache, full, base } = args;
+    let invocation = PipelineInvocation {
+        name,
+        // `--dry-run` prints the task graph and runs nothing, the
+        // install included.
+        dry_run: install_args.dry_run,
+        json,
+        no_cache,
+        full,
+        base,
+    };
+    install_args.frozen_lockfile = true;
+    install_args.dry_run = false;
+
+    let install_future = if invocation.dry_run {
+        None
+    } else {
+        Some(install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)?)
+    };
+    let dir = ctx.dir;
+    let reporter = ctx.reporter;
+    let config = ctx.config;
+    Ok(Box::pin(async move {
+        if let Some(install) = install_future {
+            install.await?;
+        }
+        let cfg = config()?;
+        run_pipeline(&invocation, cfg, dir, reporter)
     }))
 }
 

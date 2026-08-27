@@ -46,6 +46,7 @@ use super::{
     patch_remove::PatchRemoveArgs,
     peers::PeersArgs,
     ping::PingArgs,
+    pipeline::PipelineArgs,
     pkg::PkgArgs,
     prefix::PrefixArgs,
     prune::PruneArgs,
@@ -645,6 +646,11 @@ pub enum CliCommand {
     Test(ScriptShortcutArgs),
     /// Runs a defined package script.
     Run(RunArgs),
+    /// Runs a named pipeline of workspace tasks the way a CI run would:
+    /// a frozen install, affected-since-base selection, the task graph in
+    /// dependency order without bailing, and cached task results restored
+    /// instead of re-run.
+    Pipeline(PipelineArgs),
     /// Run a shell command in the context of a project.
     Exec(ExecArgs),
     /// Run a package in a temporary environment.

@@ -97,65 +97,159 @@ pub fn build_task_graph<SelectScripts>(
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
 {
-    let mut graph: TaskGraph = IndexMap::new();
-    let mut queue: VecDeque<(PathBuf, String, bool)> = options
-        .project_dependencies
-        .keys()
-        .map(|project| (project.clone(), options.task_name.to_string(), true))
-        .collect();
-    while let Some((project, task_name, requested)) = queue.pop_front() {
-        let key = TaskKey { project: project.clone(), task_name: task_name.clone() };
-        if let Some(existing) = graph.get_mut(&key) {
-            existing.requested |= requested;
-            continue;
-        }
-        let settings = options.tasks.and_then(|tasks| tasks.get(task_name.as_str()));
-        let entries: Vec<String> = match settings {
-            Some(settings) => settings.depends_on.clone().unwrap_or_default(),
-            None => vec![format!("^{task_name}")],
+    build_task_graph_from_seeds(
+        options.project_dependencies,
+        &options.select_scripts,
+        std::slice::from_ref(&options.task_name),
+        options.tasks,
+    )
+}
+
+pub struct BuildPipelineTaskGraphOptions<'a, SelectScripts>
+where
+    SelectScripts: Fn(&Path, &str) -> Vec<String>,
+{
+    /// The dependency edges among the included projects, already resolved
+    /// through the full workspace graph. Tasks are created only for these
+    /// projects, so the map must be dependency-closed: a task's `^` edges
+    /// resolve identically whatever narrowed the run, which is what keeps
+    /// its cache key selection-independent.
+    pub project_dependencies: &'a IndexMap<PathBuf, Vec<PathBuf>>,
+    pub select_scripts: SelectScripts,
+    /// The tasks the pipeline requests; every requested project gets a
+    /// task per name. A pipeline is a set, so the names carry no
+    /// ordering — any ordering among them is `dependsOn`'s job.
+    pub task_names: &'a [&'a str],
+    /// The projects whose tasks the invocation requests — the affected
+    /// set. `None` requests every project of `project_dependencies`. The
+    /// rest of the map participates only through `dependsOn` edges, the
+    /// way an upstream build is pulled in without its lint or tests.
+    pub requested_projects: Option<&'a [PathBuf]>,
+    pub tasks: Option<&'a IndexMap<String, TaskSettings>>,
+}
+
+/// [`build_task_graph`] for a `pnpm pipeline` invocation, which requests
+/// several task names at once across the requested projects.
+pub fn build_pipeline_task_graph<SelectScripts>(
+    options: &BuildPipelineTaskGraphOptions<'_, SelectScripts>,
+) -> TaskGraph
+where
+    SelectScripts: Fn(&Path, &str) -> Vec<String>,
+{
+    let seeded = SeededBuildOptions {
+        project_dependencies: options.project_dependencies,
+        select_scripts: &options.select_scripts,
+        task_names: options.task_names,
+        requested_projects: options.requested_projects,
+        tasks: options.tasks,
+    };
+    seeded.build()
+}
+
+fn build_task_graph_from_seeds<SelectScripts>(
+    project_dependencies: &IndexMap<PathBuf, Vec<PathBuf>>,
+    select_scripts: &SelectScripts,
+    task_names: &[&str],
+    tasks: Option<&IndexMap<String, TaskSettings>>,
+) -> TaskGraph
+where
+    SelectScripts: Fn(&Path, &str) -> Vec<String>,
+{
+    let options = SeededBuildOptions {
+        project_dependencies,
+        select_scripts,
+        task_names,
+        requested_projects: None,
+        tasks,
+    };
+    options.build()
+}
+
+struct SeededBuildOptions<'a, SelectScripts>
+where
+    SelectScripts: Fn(&Path, &str) -> Vec<String>,
+{
+    project_dependencies: &'a IndexMap<PathBuf, Vec<PathBuf>>,
+    select_scripts: &'a SelectScripts,
+    task_names: &'a [&'a str],
+    requested_projects: Option<&'a [PathBuf]>,
+    tasks: Option<&'a IndexMap<String, TaskSettings>>,
+}
+
+impl<SelectScripts> SeededBuildOptions<'_, SelectScripts>
+where
+    SelectScripts: Fn(&Path, &str) -> Vec<String>,
+{
+    fn build(&self) -> TaskGraph {
+        let options = self;
+        let mut graph: TaskGraph = IndexMap::new();
+        let seed_projects: Vec<&PathBuf> = match options.requested_projects {
+            Some(requested) => requested.iter().collect(),
+            None => options.project_dependencies.keys().collect(),
         };
-        let mut dependencies: Vec<TaskKey> = Vec::new();
-        let mut seen: HashSet<TaskKey> = HashSet::new();
-        for entry in &entries {
-            if let Some(dependency_task_name) = entry.strip_prefix('^') {
-                for dependency_project in
-                    options.project_dependencies.get(&project).into_iter().flatten()
-                {
-                    let dependency = TaskKey {
-                        project: dependency_project.clone(),
-                        task_name: dependency_task_name.to_string(),
-                    };
+        let mut queue: VecDeque<(PathBuf, String, bool)> = seed_projects
+            .into_iter()
+            .flat_map(|project| {
+                options
+                    .task_names
+                    .iter()
+                    .map(|task_name| (project.clone(), (*task_name).to_string(), true))
+            })
+            .collect();
+        while let Some((project, task_name, requested)) = queue.pop_front() {
+            let key = TaskKey { project: project.clone(), task_name: task_name.clone() };
+            if let Some(existing) = graph.get_mut(&key) {
+                existing.requested |= requested;
+                continue;
+            }
+            let settings = options.tasks.and_then(|tasks| tasks.get(task_name.as_str()));
+            let entries: Vec<String> = match settings {
+                Some(settings) => settings.depends_on.clone().unwrap_or_default(),
+                None => vec![format!("^{task_name}")],
+            };
+            let mut dependencies: Vec<TaskKey> = Vec::new();
+            let mut seen: HashSet<TaskKey> = HashSet::new();
+            for entry in &entries {
+                if let Some(dependency_task_name) = entry.strip_prefix('^') {
+                    for dependency_project in
+                        options.project_dependencies.get(&project).into_iter().flatten()
+                    {
+                        let dependency = TaskKey {
+                            project: dependency_project.clone(),
+                            task_name: dependency_task_name.to_string(),
+                        };
+                        if seen.insert(dependency.clone()) {
+                            dependencies.push(dependency.clone());
+                            queue.push_back((dependency.project, dependency.task_name, false));
+                        }
+                    }
+                } else {
+                    let dependency = TaskKey { project: project.clone(), task_name: entry.clone() };
                     if seen.insert(dependency.clone()) {
                         dependencies.push(dependency.clone());
                         queue.push_back((dependency.project, dependency.task_name, false));
                     }
                 }
-            } else {
-                let dependency = TaskKey { project: project.clone(), task_name: entry.clone() };
-                if seen.insert(dependency.clone()) {
-                    dependencies.push(dependency.clone());
-                    queue.push_back((dependency.project, dependency.task_name, false));
-                }
             }
+            let scripts = (options.select_scripts)(&project, &task_name);
+            graph.insert(
+                key,
+                TaskNode {
+                    project,
+                    task_name,
+                    concurrency: settings.and_then(|settings| {
+                        settings
+                            .concurrency
+                            .map(|concurrency| usize::try_from(concurrency).unwrap_or(usize::MAX))
+                    }),
+                    scripts,
+                    requested,
+                    dependencies,
+                },
+            );
         }
-        let scripts = (options.select_scripts)(&project, &task_name);
-        graph.insert(
-            key,
-            TaskNode {
-                project,
-                task_name,
-                concurrency: settings.and_then(|settings| {
-                    settings
-                        .concurrency
-                        .map(|concurrency| usize::try_from(concurrency).unwrap_or(usize::MAX))
-                }),
-                scripts,
-                requested,
-                dependencies,
-            },
-        );
+        graph
     }
-    graph
 }
 
 pub struct SequenceTasksOptions<'a> {

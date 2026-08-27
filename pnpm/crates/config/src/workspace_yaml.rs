@@ -888,6 +888,16 @@ pub struct WorkspaceSettings {
     /// declarations, keyed by task (script) name. See [`TaskSettings`].
     pub tasks: Option<IndexMap<String, TaskSettings>>,
 
+    /// `pipelines` from `pnpm-workspace.yaml`: named sets of task requests
+    /// for `pnpm pipeline`, keyed by pipeline name. A pipeline is a set,
+    /// not a sequence — ordering among its tasks is `tasks.dependsOn`'s
+    /// job.
+    pub pipelines: Option<IndexMap<String, Vec<String>>>,
+
+    /// `pipelineBase` from `pnpm-workspace.yaml`: the git ref
+    /// `pnpm pipeline` resolves its affected-selection merge base against.
+    pub pipeline_base: Option<String>,
+
     /// The problem keys [`Self::collect_key_issues`] found in the file this
     /// was parsed from. Not a setting: carried here so the CLI can report
     /// them at the point where it knows how severe they are (see the
@@ -995,6 +1005,29 @@ pub struct TaskSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub depends_on: Option<Vec<String>>,
 
+    /// The globs, relative to the project directory, naming the files the
+    /// task produces. Declaring `outputs` (even as `[]`, the positive
+    /// assertion that the task produces no files) is what makes a task
+    /// cacheable by `pnpm pipeline`; a task without the key runs normally.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outputs: Option<Vec<String>>,
+
+    /// The globs, relative to the project directory, narrowing the task's
+    /// cache-key inputs. Absent, the inputs are every tracked (and
+    /// untracked, unignored) file of the project; a `+`-prefixed entry adds
+    /// to that default instead of replacing it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inputs: Option<Vec<String>>,
+
+    /// Environment variable names whose values participate in the task's
+    /// cache key. Values are hashed into the key, never recorded.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub env: Option<Vec<String>>,
+
+    /// `false` opts a task with declared `outputs` out of the cache.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache: Option<bool>,
+
     /// Fields this version of pnpm does not read, kept so validation can
     /// reject a typo instead of silently ignoring it.
     #[serde(flatten, skip_serializing_if = "IndexMap::is_empty")]
@@ -1006,6 +1039,10 @@ pub struct TaskSettings {
 struct RawTaskSettings {
     concurrency: Option<serde_json::Value>,
     depends_on: Option<Vec<String>>,
+    outputs: Option<Vec<String>>,
+    inputs: Option<Vec<String>>,
+    env: Option<Vec<String>>,
+    cache: Option<bool>,
     #[serde(flatten)]
     unknown: IndexMap<String, serde_json::Value>,
 }
@@ -1019,6 +1056,10 @@ impl<'de> Deserialize<'de> for TaskSettings {
             concurrency,
             invalid_concurrency,
             depends_on: raw.depends_on,
+            outputs: raw.outputs,
+            inputs: raw.inputs,
+            env: raw.env,
+            cache: raw.cache,
             unknown: raw.unknown,
         })
     }
@@ -1190,9 +1231,14 @@ pub enum LoadWorkspaceYamlError {
     #[display("The \"tasks['{task}'].{field}\" setting is not a known task setting")]
     #[diagnostic(
         code(ERR_PNPM_INVALID_SETTING),
-        help(r#"A task declares "concurrency" and "dependsOn"."#)
+        help(
+            r#"A task declares "concurrency", "dependsOn", "outputs", "inputs", "env", or "cache"."#
+        )
     )]
     UnknownTaskSettingField { task: String, field: String },
+    #[display("The \"pipelines['{pipeline}']\" setting contains an entry with no task name")]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    EmptyPipelineTaskName { pipeline: String },
     #[display(
         "The \"tasks['{task}'].concurrency\" setting should be a positive integer, but got {concurrency}"
     )]
@@ -1283,6 +1329,7 @@ impl WorkspaceSettings {
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
         settings.validate_tasks()?;
+        settings.validate_pipelines()?;
         settings.clear_workspace_only_fields();
         settings.warn_about_dropped_keys(&text, &path);
         Ok(Some(settings))
@@ -1334,6 +1381,19 @@ impl WorkspaceSettings {
                         entry: entry.clone(),
                     });
                 }
+            }
+        }
+        Ok(())
+    }
+
+    /// The `pipelines` section feeds `pnpm pipeline`'s task requests, which
+    /// reads it without further checks.
+    fn validate_pipelines(&self) -> Result<(), LoadWorkspaceYamlError> {
+        for (pipeline, task_names) in self.pipelines.iter().flatten() {
+            if task_names.iter().any(String::is_empty) {
+                return Err(LoadWorkspaceYamlError::EmptyPipelineTaskName {
+                    pipeline: pipeline.clone(),
+                });
             }
         }
         Ok(())
@@ -1471,8 +1531,11 @@ impl WorkspaceSettings {
         self.packages = None;
         self.catalog = None;
         // Task declarations describe the workspace's own scripts; pnpm's
-        // config-file key filter drops them from the global file too.
+        // config-file key filter drops them from the global file too. The
+        // same holds for the pipelines built from them.
         self.tasks = None;
+        self.pipelines = None;
+        self.pipeline_base = None;
         // A pnpmfile belongs to the project that ships it, and pnpm reads
         // `ignorePnpmfile` from `pnpm-workspace.yaml` and the environment but
         // not from here. Honoring it globally would silently drop a
@@ -1559,6 +1622,7 @@ impl WorkspaceSettings {
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
         settings.validate_tasks()?;
+        settings.validate_pipelines()?;
         settings.reject_repo_controlled_trust_material(&path)?;
         settings.collect_key_issues(&text);
         Ok(Some(settings))
@@ -1861,7 +1925,11 @@ impl WorkspaceSettings {
             registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
-            allow_unused_patches, tasks,
+            allow_unused_patches, tasks, pipelines,
+        }
+
+        if let Some(pipeline_base) = self.pipeline_base {
+            config.pipeline_base = Some(pipeline_base);
         }
 
         if let Some(virtual_store_type) = virtual_store_type {
