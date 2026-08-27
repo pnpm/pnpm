@@ -47,28 +47,36 @@ jobs:
             aarch64-darwin|pnpm-darwin-arm64.tar.gz
         run: |
           set -euo pipefail
-          tag=$(curl -fsSL -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest" \
-            | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')
-          latest="${tag#v}"
-          current=$(python3 -c 'import re; s=open("flake.nix").read(); m=re.search(r"version = \"([^\"]*)\";", s); print(m.group(1))')
-          echo "flake.nix version: $current  |  latest release: $latest (tag $tag)"
-          if [ "$current" = "$latest" ]; then
-            echo "flake.nix is up to date; nothing to do."
-            echo "LAGGING=no" >> "$GITHUB_ENV"
-            exit 0
-          fi
-          echo "LAGGING=yes" >> "$GITHUB_ENV"
-          echo "VERSION=$latest" >> "$GITHUB_ENV"
-          export TAG="$tag"
+          export GH_TOKEN="${GITHUB_TOKEN}"
           python3 <<'PYEOF'
           import json, os, re, subprocess, urllib.request
-          tag = os.environ["TAG"]
-          version = tag.lstrip("v")
           repo = os.environ["GITHUB_REPOSITORY"]
-          with urllib.request.urlopen(
-              f"https://api.github.com/repos/{repo}/releases/latest") as r:
+          token = os.environ["GH_TOKEN"]
+          req = urllib.request.Request(
+              f"https://api.github.com/repos/{repo}/releases/latest",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {token}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              })
+          with urllib.request.urlopen(req) as r:
               release = json.load(r)
+          tag = release["tag_name"]
+          version = tag.lstrip("v")
+          src = open("flake.nix").read()
+          m = re.search(r'version = "([^"]*)";', src)
+          if not m:
+              raise SystemExit('could not find version = "..." in flake.nix')
+          current = m.group(1)
+          print(f"flake.nix version: {current}  |  latest release: {version} (tag {tag})")
+          if current == version:
+              print("flake.nix is up to date; nothing to do.")
+              with open(os.environ["GITHUB_ENV"], "a") as f:
+                  f.write("LAGGING=no\n")
+              raise SystemExit(0)
+          with open(os.environ["GITHUB_ENV"], "a") as f:
+              f.write("LAGGING=yes\n")
+              f.write(f"VERSION={version}\n")
           # Drop sibling checksum files (.sha256) so a tarball substring does
           # not also match its "<tarball>.sha256" companion.
           names = {a["name"] for a in release["assets"]
@@ -80,54 +88,45 @@ jobs:
                   continue
               sys_, sub = line.split("|", 1)
               asset_map[sys_.strip()] = sub.strip()
-          # Reverse-check guard: detect release assets that look like platform
-          # binaries but are NOT in ASSET_MAP. If a project ships for 4 platforms
-          # but ASSET_MAP only lists 3, the omitted platform's hash goes stale
-          # while its URL still gets the version bump — users on that platform
-          # get a hash mismatch.
-          known_platforms = {"x86_64-linux", "aarch64-linux",
-                             "x86_64-darwin", "aarch64-darwin"}
+          # Completeness guard: detect release archives that are NOT covered by
+          # ASSET_MAP. If a project ships for 4 platforms but ASSET_MAP only
+          # lists 3, the omitted platform's hash goes stale while its URL still
+          # gets the version bump — users on that platform get a hash mismatch.
+          IGNORED = ("musl", "pnpr-", "-source", "source-code")
           matched_subs = set(asset_map.values())
-          unmatched = []
-          for name in names:
-              # Skip non-binary assets (checksums, source tarballs, .deb, .rpm, etc.)
-              if not (name.endswith(".tar.gz") or name.endswith(".zip")):
-                  continue
-              if any(sub in name for sub in matched_subs):
-                  continue
-              # Check if the asset name contains a platform identifier
-              for plat in known_platforms:
-                  # Match common platform naming patterns in asset filenames
-                  plat_patterns = {
-                      "x86_64-linux": ["x86_64-linux", "x86_64-unknown-linux", "linux-x64", "linux-x86_64", "x64-linux"],
-                      "aarch64-linux": ["aarch64-linux", "aarch64-unknown-linux", "linux-arm64", "linux-aarch64", "arm64-linux"],
-                      "x86_64-darwin": ["x86_64-darwin", "x86_64-apple-darwin", "darwin-x64", "darwin-x86_64", "macos-x64", "x64-darwin", "x64-macos"],
-                      "aarch64-darwin": ["aarch64-darwin", "aarch64-apple-darwin", "darwin-arm64", "darwin-aarch64", "macos-arm64", "arm64-darwin", "arm64-macos"],
-                  }
-                  if any(p in name.lower() for p in plat_patterns[plat]):
-                      if plat not in asset_map:
-                          unmatched.append((plat, name))
-                      break
+          unmatched = [
+              name for name in sorted(names)
+              if name.endswith((".tar.gz", ".zip"))
+              and not any(sub in name for sub in matched_subs)
+              and not any(ign in name.lower() for ign in IGNORED)
+          ]
           if unmatched:
-              plats = ", ".join(f"{p} ({n})" for p, n in unmatched)
+              plats = ", ".join(unmatched)
               raise SystemExit(
                   f"RELEASE ASSET COMPLETENESS CHECK FAILED: release {tag} has "
-                  f"binary assets for platforms not in ASSET_MAP: {plats}. "
+                  f"platform archives not covered by ASSET_MAP: {plats}. "
                   f"Add them to ASSET_MAP or the hash for those platforms will "
                   f"go stale while the URL gets the version bump — users on the "
                   f"omitted platform get a hash mismatch. ASSET_MAP currently "
                   f"covers: {sorted(asset_map.keys())}")
-          src = open("flake.nix").read()
           src, n = re.subn(r'version = "[^"]*";', f'version = "{version}";', src, count=1)
           if n != 1:
               raise SystemExit('could not find version = "..." in flake.nix')
+          asset_names = {a["name"] for a in release["assets"]}
           for sys_, sub in asset_map.items():
               match = next((n for n in names if sub in n), None)
               if not match:
                   raise SystemExit(f"no asset for {sys_} ({sub}) in {tag}; have: {sorted(names)}")
               url = f"https://github.com/{repo}/releases/download/{tag}/{match}"
+              expected = None
+              if f"{match}.sha256" in asset_names:
+                  with urllib.request.urlopen(f"{url}.sha256") as r:
+                      hexd = r.read().decode().split()[0]
+                  expected = "sha256:" + hexd
               out = json.loads(subprocess.check_output(
-                  ["nix", "store", "prefetch-file", "--json", "--hash-type", "sha256", url]))
+                  ["nix", "store", "prefetch-file", "--json", "--hash-type", "sha256"]
+                  + (["--expected-hash", expected] if expected else [])
+                  + [url]))
               sri = out["hash"]
               pat = re.compile(r'("' + re.escape(sys_) + r'" = \{[^}]*\})', re.S)
               def repl(m):
