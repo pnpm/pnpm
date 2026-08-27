@@ -26,6 +26,7 @@ fn sample_index() -> PackageFilesIndex {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     }
 }
 

@@ -160,6 +160,8 @@ async function handleMessage (
             files: {
               filesMap: verifyResult.filesMap,
               sideEffectsMaps: verifyResult.sideEffectsMaps,
+              sideEffectsDiffs: verifyResult.sideEffectsDiffs,
+              remoteSideEffectsQuarantine: verifyResult.remoteSideEffectsQuarantine,
               resolvedFrom: 'store',
               requiresBuild,
               requiresPrepare: pkgFilesIndex.requiresPrepare,

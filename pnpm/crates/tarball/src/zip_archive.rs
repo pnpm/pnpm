@@ -54,6 +54,7 @@ pub(crate) fn extract_zip_entries(
         algo: "sha512".to_string(),
         files: HashMap::with_capacity(entry_count),
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
 
     // Build the `{prefix}/` slice once. Treat `Some("")` as `None`,

@@ -5791,6 +5791,7 @@ dependencies = [
  "pnpm-deps-path",
  "pnpm-fs",
  "pnpm-resolving-parse-wanted-dependency",
+ "pnpm-shared-artifact-protocol",
  "pretty_assertions",
  "rmp-serde",
  "rusqlite",

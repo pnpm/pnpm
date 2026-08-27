@@ -77,6 +77,46 @@ fn verifies_the_exact_signed_payload_bytes() {
     assert!(envelope.verify(other_public_key.as_bytes()).is_err());
 }
 
+#[test]
+fn verifies_signature_before_rejecting_a_trusted_invalid_payload() {
+    let mut invalid = payload(integrity(b"addon"));
+    invalid.manifest.added[0].path = "../escape".to_string();
+    let payload_bytes = serde_json::to_vec(&invalid).unwrap();
+    let private_key = SigningKey::from_slice(&[7; 32]).unwrap();
+    let signature: p256::ecdsa::Signature = private_key.sign(&payload_bytes);
+    let envelope = SignedArtifactEnvelope {
+        algorithm: SIGNATURE_ALGORITHM.to_string(),
+        key_id: "acme-2026".to_string(),
+        payload: BASE64.encode(&payload_bytes),
+        signature: BASE64.encode(signature.to_der().as_bytes()),
+    };
+    let public_key =
+        p256::PublicKey::from(private_key.verifying_key()).to_public_key_der().unwrap();
+
+    assert_eq!(envelope.verify_signature(public_key.as_bytes()).unwrap(), invalid);
+    assert!(envelope.verify(public_key.as_bytes()).is_err());
+    assert_eq!(envelope.digest().unwrap().len(), 64);
+}
+
+#[test]
+fn verifies_signature_before_deserializing_a_trusted_malformed_payload() {
+    let payload_bytes = b"{";
+    let private_key = SigningKey::from_slice(&[7; 32]).unwrap();
+    let signature: p256::ecdsa::Signature = private_key.sign(payload_bytes);
+    let envelope = SignedArtifactEnvelope {
+        algorithm: SIGNATURE_ALGORITHM.to_string(),
+        key_id: "acme-2026".to_string(),
+        payload: BASE64.encode(payload_bytes),
+        signature: BASE64.encode(signature.to_der().as_bytes()),
+    };
+    let public_key =
+        p256::PublicKey::from(private_key.verifying_key()).to_public_key_der().unwrap();
+
+    assert_eq!(envelope.verify_signature_bytes(public_key.as_bytes()).unwrap(), payload_bytes);
+    assert!(envelope.verify_signature(public_key.as_bytes()).is_err());
+    assert_eq!(envelope.digest().unwrap().len(), 64);
+}
+
 /// An oversized envelope must be refused from its encoded length, before the
 /// decoder allocates the bytes it describes.
 #[test]

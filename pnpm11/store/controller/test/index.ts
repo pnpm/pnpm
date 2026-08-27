@@ -170,3 +170,43 @@ describe('store.locateFileInStore', () => {
     }
   )
 })
+
+describe('remote side-effects metadata', () => {
+  it('persists diffs and bounds quarantine entries', () => {
+    const tmp = temporaryDirectory()
+    const storeDir = path.join(tmp, 'store')
+    const storeIndex = new StoreIndex(storeDir)
+    fs.mkdirSync(path.join(storeDir, 'files'), { recursive: true })
+    const store = createPackageStore({} as never, {} as never, {
+      storeDir,
+      cacheDir: path.join(tmp, 'cache'),
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+      clearResolutionCache: () => {},
+      storeIndex,
+    })
+    storeIndex.set('row', { algo: 'sha512', files: new Map() })
+
+    expect(store.persistRemoteSideEffects?.({
+      filesIndexFile: 'row',
+      sideEffectsCacheKey: 'linux',
+      sideEffects: { added: new Map(), deleted: [] },
+    })).toBe(true)
+    for (let index = 0; index < 70; index++) {
+      store.quarantineRemoteSideEffects?.({
+        channel: 'https://pnpr.example/',
+        envelopeDigest: String(index).padStart(64, '0'),
+        filesIndexFile: 'row',
+      })
+    }
+
+    const row = storeIndex.get('row') as {
+      sideEffects: Map<string, unknown>
+      remoteSideEffectsQuarantine: Map<string, string[]>
+    }
+    expect(row.sideEffects.has('linux')).toBe(true)
+    expect(row.remoteSideEffectsQuarantine.get('https://pnpr.example/')).toEqual(
+      Array.from({ length: 64 }, (_, index) => String(index + 6).padStart(64, '0'))
+    )
+  })
+})

@@ -568,6 +568,7 @@ async function linkAllPkgs (
         graphKey: depNode.depPath,
         depPath: depNode.depPath,
         files,
+        filesIndexFile: depNode.filesIndexFile,
         name: depNode.name,
         patchFileHash: depNode.patch?.hash,
         resolution: depNode.resolution,
@@ -575,12 +576,15 @@ async function linkAllPkgs (
       })
       if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && files.sideEffectsMaps && !isEmpty(files.sideEffectsMaps)) {
         if (opts.allowBuild?.(depNode.depPath) === true) {
-          sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
+          const localCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
             nodeVersion,
           })
+          if (files.sideEffectsDiffs?.get(localCacheKey)?.remoteOrigin == null) {
+            sideEffectsCacheKey = localCacheKey
+          }
         }
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {

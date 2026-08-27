@@ -2,7 +2,7 @@ import { createHash, createPrivateKey, createPublicKey, KeyObject, sign as crypt
 import http from 'node:http'
 import https from 'node:https'
 import { URL } from 'node:url'
-import { TextDecoder } from 'node:util'
+import util, { TextDecoder } from 'node:util'
 
 export const ARTIFACT_KIND = 'dependency-side-effects:v1'
 export const INPUT_KEY_PREFIX = 'dependency-side-effects:v1:'
@@ -105,6 +105,14 @@ export interface VerifiedArtifact {
   envelopeDigest: string
 }
 
+export interface VerifyStoredSharedSideEffectsOptions {
+  candidate: ArtifactCandidate
+  envelope: SignedArtifactEnvelope
+  pinnedEnvelopeDigest?: string
+  publicKey: string
+  supportedTags: string[]
+}
+
 export interface CreateSignedArtifactEnvelopeOptions {
   keyId: string
   privateKey: string | Buffer | KeyObject
@@ -131,6 +139,12 @@ export interface ResolveSharedSideEffectsOptions {
   /** Base64-encoded P-256 SubjectPublicKeyInfo DER, keyed by key id. */
   trustedKeys: Record<string, string>
   pinnedEnvelopeDigests?: ReadonlyMap<string, string>
+  quarantinedEnvelopeDigests?: ReadonlyMap<string, ReadonlySet<string>>
+  onRejectedArtifact?: (rejection: {
+    inputKey: string
+    envelopeDigest: string
+    reason: string
+  }) => void
 }
 
 interface ArtifactVariant {
@@ -251,10 +265,25 @@ export async function resolveSharedSideEffects (
     for (const variant of artifact.variants) {
       const publicKey = opts.trustedKeys[variant.envelope.keyId]
       if (publicKey == null) continue
+      let decoded: DecodedEnvelopeFields
+      try {
+        decoded = decodeEnvelopeFields(variant.envelope)
+        verifyEnvelopeSignature(decoded, publicKey)
+      } catch {
+        continue
+      }
+      const digest = digestDecodedEnvelope(variant.envelope, decoded)
+      if (opts.quarantinedEnvelopeDigests?.get(candidate.key)?.has(digest) === true) continue
       let payload: ArtifactPayload
       try {
-        payload = verifySignedArtifactEnvelope(variant.envelope, publicKey)
-      } catch {
+        payload = decodeArtifactPayload(decoded.payloadBytes)
+        validatePayload(payload)
+      } catch (err: unknown) {
+        opts.onRejectedArtifact?.({
+          inputKey: candidate.key,
+          envelopeDigest: digest,
+          reason: errorMessage(err),
+        })
         continue
       }
       if (
@@ -266,7 +295,6 @@ export async function resolveSharedSideEffects (
       ) continue
       const rank = compatibilityRank(payload.compatibility, opts.supportedTags)
       if (rank == null) continue
-      const digest = signedArtifactEnvelopeDigest(variant.envelope)
       const pinnedDigest = opts.pinnedEnvelopeDigests?.get(candidate.key)
       if (pinnedDigest != null && digest !== pinnedDigest) continue
       if (
@@ -295,11 +323,42 @@ export function ownerNamespace (owner: OwnerScope): string {
     : `publisher:${owner.package}`
 }
 
+export function verifyStoredSharedSideEffects (
+  opts: VerifyStoredSharedSideEffectsOptions
+): VerifiedArtifact {
+  const payload = verifySignedArtifactEnvelope(opts.envelope, opts.publicKey)
+  if (
+    payload.inputKey !== opts.candidate.key ||
+    payload.package.name !== opts.candidate.package.name ||
+    payload.package.version !== opts.candidate.package.version ||
+    payload.sourceIntegrity !== opts.candidate.sourceIntegrity ||
+    !ownersEqual(payload.owner, opts.candidate.owner) ||
+    compatibilityRank(payload.compatibility, opts.supportedTags) == null
+  ) {
+    throw new Error('Stored shared artifact no longer matches the package or consumer')
+  }
+  const envelopeDigest = signedArtifactEnvelopeDigest(opts.envelope)
+  if (opts.pinnedEnvelopeDigest != null && envelopeDigest !== opts.pinnedEnvelopeDigest) {
+    throw new Error('Stored shared artifact does not match the lockfile pin')
+  }
+  return { payload, envelope: opts.envelope, envelopeDigest }
+}
+
 export function verifySignedArtifactEnvelope (
   envelope: SignedArtifactEnvelope,
   publicKeySpki: string
 ): ArtifactPayload {
-  const { payload, payloadBytes, signatureBytes } = decodeEnvelope(envelope)
+  const decoded = decodeEnvelopeFields(envelope)
+  verifyEnvelopeSignature(decoded, publicKeySpki)
+  const payload = decodeArtifactPayload(decoded.payloadBytes)
+  validatePayload(payload)
+  return payload
+}
+
+function verifyEnvelopeSignature (
+  { payloadBytes, signatureBytes }: DecodedEnvelopeFields,
+  publicKeySpki: string
+): void {
   const publicKey = createPublicKey({
     key: Buffer.from(publicKeySpki, 'base64'),
     format: 'der',
@@ -311,7 +370,6 @@ export function verifySignedArtifactEnvelope (
   if (!cryptoVerify('sha256', payloadBytes, publicKey, signatureBytes)) {
     throw new Error('Shared artifact signature verification failed')
   }
-  return payload
 }
 
 export async function downloadSharedArtifactBlob (
@@ -332,8 +390,16 @@ export async function downloadSharedArtifactBlob (
     maxResponseSize: MAX_FILE_SIZE,
   })
   assertSuccess(response, '/-/pnpr/v0/artifacts/blob')
-  verifyBlob(opts.request.integrity, response.body)
+  try {
+    verifyBlob(opts.request.integrity, response.body)
+  } catch (err: unknown) {
+    throw new SharedArtifactBlobIntegrityError(errorMessage(err))
+  }
   return response.body
+}
+
+export class SharedArtifactBlobIntegrityError extends Error {
+  public readonly code = 'ERR_PNPM_SHARED_ARTIFACT_BLOB_INTEGRITY'
 }
 
 function serializePublishRequest (opts: PublishSharedSideEffectsOptions): Buffer {
@@ -390,11 +456,12 @@ function serializePublishRequest (opts: PublishSharedSideEffectsOptions): Buffer
   return body
 }
 
-function decodeEnvelope (envelope: SignedArtifactEnvelope): {
-  payload: ArtifactPayload
+interface DecodedEnvelopeFields {
   payloadBytes: Buffer
   signatureBytes: Buffer
-} {
+}
+
+function decodeEnvelopeFields (envelope: SignedArtifactEnvelope): DecodedEnvelopeFields {
   if (envelope.algorithm !== SIGNATURE_ALGORITHM) {
     throw new Error(`Unsupported shared artifact signature algorithm ${JSON.stringify(envelope.algorithm)}`)
   }
@@ -411,13 +478,28 @@ function decodeEnvelope (envelope: SignedArtifactEnvelope): {
   }
   const signatureBytes = decodeBase64('signature', envelope.signature)
   validateP256DerSignature(signatureBytes)
-  const payload = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(payloadBytes)) as ArtifactPayload
+  return { payloadBytes, signatureBytes }
+}
+
+function decodeEnvelope (envelope: SignedArtifactEnvelope): DecodedEnvelopeFields & { payload: ArtifactPayload } {
+  const decoded = decodeEnvelopeFields(envelope)
+  const payload = decodeArtifactPayload(decoded.payloadBytes)
   validatePayload(payload)
-  return { payload, payloadBytes, signatureBytes }
+  return { ...decoded, payload }
+}
+
+function decodeArtifactPayload (payloadBytes: Buffer): ArtifactPayload {
+  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(payloadBytes)) as ArtifactPayload
 }
 
 export function signedArtifactEnvelopeDigest (envelope: SignedArtifactEnvelope): string {
-  const { payloadBytes, signatureBytes } = decodeEnvelope(envelope)
+  return digestDecodedEnvelope(envelope, decodeEnvelopeFields(envelope))
+}
+
+function digestDecodedEnvelope (
+  envelope: SignedArtifactEnvelope,
+  { payloadBytes, signatureBytes }: DecodedEnvelopeFields
+): string {
   return createHash('sha256')
     .update('pnpm-shared-artifact-envelope-v1\0')
     .update(envelope.algorithm)
@@ -428,6 +510,10 @@ export function signedArtifactEnvelopeDigest (envelope: SignedArtifactEnvelope):
     .update('\0')
     .update(signatureBytes)
     .digest('hex')
+}
+
+function errorMessage (err: unknown): string {
+  return util.types.isNativeError(err) ? err.message : String(err)
 }
 
 function validatePayload (payload: ArtifactPayload): void {

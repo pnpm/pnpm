@@ -6,9 +6,10 @@ import type { Fetchers } from '@pnpm/fetching.fetcher-base'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { createPackageRequester } from '@pnpm/installing.package-requester'
 import type { ResolveFunction } from '@pnpm/resolving.resolver-base'
-import { verifyFileIntegrityAsync } from '@pnpm/store.cafs'
+import { type PackageFilesIndex, verifyFileIntegrityAsync } from '@pnpm/store.cafs'
 import type {
   ImportIndexedPackageAsync,
+  SideEffectsDiff,
   StoreController,
 } from '@pnpm/store.controller-types'
 import { type CafsLocker, createCafsStore, createPackageImporterAsync } from '@pnpm/store.create-cafs-store'
@@ -16,6 +17,8 @@ import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir, importPackage, initStoreDir } from '@pnpm/worker'
 
 import { prune } from './prune.js'
+
+const MAX_QUARANTINED_REMOTE_SIDE_EFFECTS = 64
 
 export { type CafsLocker }
 
@@ -100,6 +103,8 @@ export function createPackageStore (
     // direct write capability that remote side-effects hydration requires.
     addFileToStore: initOpts.frozenStore ? undefined : cafs.addFile,
     locateFileInStore,
+    persistRemoteSideEffects: initOpts.frozenStore ? undefined : persistRemoteSideEffects,
+    quarantineRemoteSideEffects: initOpts.frozenStore ? undefined : quarantineRemoteSideEffects,
     clearResolutionCache: initOpts.clearResolutionCache,
   }
 
@@ -112,6 +117,35 @@ export function createPackageStore (
     return await verifyFileIntegrityAsync(filePath, { algorithm: 'sha512', digest: hexDigest })
       ? filePath
       : undefined
+  }
+
+  function persistRemoteSideEffects (opts: {
+    filesIndexFile: string
+    sideEffectsCacheKey: string
+    sideEffects: SideEffectsDiff
+  }): boolean {
+    return initOpts.storeIndex.update(opts.filesIndexFile, (value) => {
+      const index = value as PackageFilesIndex
+      index.sideEffects ??= new Map()
+      index.sideEffects.set(opts.sideEffectsCacheKey, opts.sideEffects)
+      return index
+    })
+  }
+
+  function quarantineRemoteSideEffects (opts: {
+    channel: string
+    envelopeDigest: string
+    filesIndexFile: string
+  }): boolean {
+    return initOpts.storeIndex.update(opts.filesIndexFile, (value) => {
+      const index = value as PackageFilesIndex
+      index.remoteSideEffectsQuarantine ??= new Map()
+      const quarantined = index.remoteSideEffectsQuarantine.get(opts.channel) ?? []
+      const bounded = Array.from(new Set([...quarantined, opts.envelopeDigest]))
+        .slice(-MAX_QUARANTINED_REMOTE_SIDE_EFFECTS)
+      index.remoteSideEffectsQuarantine.set(opts.channel, bounded)
+      return index
+    })
   }
 
   async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }) {

@@ -5,7 +5,7 @@ import util from 'node:util'
 import { calcDepState, calcDepStateInputKey, type DepsGraph, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import type { ArtifactPins, LockfileObject, LockfileResolution } from '@pnpm/lockfile.types'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import type { PackageFilesResponse, StoreController, UploadPkgToStoreResult } from '@pnpm/store.controller-types'
+import type { PackageFilesResponse, RemoteSideEffectsOrigin, SideEffectsDiff, StoreController, UploadPkgToStoreResult } from '@pnpm/store.controller-types'
 import type { AllowBuild, DepPath, RegistryConfig, RemoteSideEffectsCacheSettings, SupportedArchitectures } from '@pnpm/types'
 import pLimit from 'p-limit'
 
@@ -24,13 +24,17 @@ import {
   pnprSupportsSharedSideEffects,
   publishSharedSideEffects,
   resolveSharedSideEffects,
+  SharedArtifactBlobIntegrityError,
+  type SignedArtifactEnvelope,
   type VerifiedArtifact,
+  verifyStoredSharedSideEffects,
 } from './sharedSideEffects.js'
 
 export interface RemoteSideEffectsInstallNode<T extends string> {
   graphKey: T
   depPath: DepPath
   files: PackageFilesResponse
+  filesIndexFile?: string
   name: string
   patchFileHash?: string
   resolution: LockfileResolution
@@ -90,22 +94,21 @@ interface RestoredArtifact {
   added: Map<string, string>
   deleted: string[]
   envelopeDigest: string
+  sideEffects: SideEffectsDiff
 }
 
 interface QueuedLookup {
   candidate: ArtifactCandidate
-  resolve: (artifact: RestoredArtifact | undefined) => void
+  resolve: (artifact: VerifiedArtifact | undefined) => void
 }
 
 export function canRestoreRemoteSideEffects (opts: RemoteSideEffectsPrerequisites): boolean {
-  return opts.pnprServer != null &&
-    opts.settings != null &&
+  return opts.settings != null &&
     opts.settings.organization != null &&
     (opts.settings.packages?.length ?? 0) > 0 &&
     Object.keys(opts.settings.trustedKeys ?? {}).length > 0 &&
     !opts.ignoreScripts &&
-    currentLinuxGlibcPlatform(opts.nodeVersion) != null &&
-    opts.storeController.addFileToStore != null
+    currentLinuxGlibcPlatform(opts.nodeVersion) != null
 }
 
 export function createRemoteSideEffectsRestorer<T extends string> (
@@ -115,7 +118,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
   const platform = currentLinuxGlibcPlatform(opts.nodeVersion)
   const { pnprServer, settings } = opts
   const organization = settings?.organization
-  if (platform == null || pnprServer == null || settings == null || organization == null) return undefined
+  if (platform == null || settings == null || organization == null) return undefined
   const registryUrl = pnprServer
   const ownerName = organization
   const owner = { type: 'organization', name: ownerName } as const
@@ -132,7 +135,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
   const pinnedEnvelopeDigests = new Map<string, string>()
   const pinCollisions = new Set<string>()
   const eligiblePackages = new Set(settings.packages)
-  const authorization = createGetAuthHeaderByURI(opts.configByUri)(registryUrl)
+  const authorization = registryUrl == null ? undefined : createGetAuthHeaderByURI(opts.configByUri)(registryUrl)
   const artifactLimit = pLimit(4)
   const downloadLimit = pLimit(16)
   // A store probe reads and hashes the candidate, so it holds a descriptor for
@@ -142,10 +145,12 @@ export function createRemoteSideEffectsRestorer<T extends string> (
   const storeLookupLimit = pLimit(16)
   // Restorer-lifetime, so one blob shared by several artifacts is fetched and
   // stored once however the batches happen to fall.
-  const storedBlobs = new Map<string, Promise<string>>()
+  const storedBlobs = new Map<string, Promise<{ filePath: string, fileInfo: { checkedAt?: number, digest: string, mode: number, size: number } }>>()
   const identityByInputKey = new Map<string, string>()
   const collisions = new Set<string>()
-  const lookups = new Map<string, Promise<RestoredArtifact | undefined>>()
+  const lookups = new Map<string, Promise<VerifiedArtifact | undefined>>()
+  const filesIndexFilesByInputKey = new Map<string, Set<string>>()
+  const quarantinedEnvelopeDigests = new Map<string, Set<string>>()
   let queued: QueuedLookup[] = []
   let flushTimer: NodeJS.Timeout | undefined
   let supported: Promise<boolean> | undefined
@@ -198,34 +203,111 @@ export function createRemoteSideEffectsRestorer<T extends string> (
       supportedArchitectures: opts.supportedArchitectures,
       nodeVersion: opts.nodeVersion,
     })
-    if (opts.sideEffectsCacheRead && node.files.sideEffectsMaps?.has(localCacheKey) === true) return undefined
+    const candidate: ArtifactCandidate = {
+      key: inputKey,
+      package: { name: node.name, version: node.version },
+      sourceIntegrity,
+      owner,
+    }
+    const localSideEffects = node.files.sideEffectsMaps?.get(localCacheKey)
+    const storedDiff = node.files.sideEffectsDiffs?.get(localCacheKey)
+    if (localSideEffects != null) {
+      if (storedDiff?.remoteOrigin == null) {
+        if (opts.sideEffectsCacheRead) return undefined
+      } else {
+        let envelopeDigest: string | undefined
+        try {
+          envelopeDigest = await storedArtifactEnvelopeDigest({
+            candidate,
+            diff: storedDiff,
+            files: localSideEffects,
+            pinnedEnvelopeDigest,
+          })
+        } catch (err: unknown) {
+          opts.warn?.(`Persisted remote side-effects artifact for ${node.name}@${node.version} could not be checked: ${errorMessage(err)}`)
+          return undefined
+        }
+        if (envelopeDigest != null) {
+          recordArtifactPin(node.depPath, inputKey, envelopeDigest)
+          return localCacheKey
+        }
+        node.files.sideEffectsMaps?.delete(localCacheKey)
+        node.files.sideEffectsDiffs?.delete(localCacheKey)
+      }
+    }
+    if (registryUrl == null || opts.storeController.addFileToStore == null) return undefined
+
+    if (node.filesIndexFile != null) {
+      let filesIndexFiles = filesIndexFilesByInputKey.get(inputKey)
+      if (filesIndexFiles == null) {
+        filesIndexFiles = new Set()
+        filesIndexFilesByInputKey.set(inputKey, filesIndexFiles)
+      }
+      const isNewFilesIndexFile = !filesIndexFiles.has(node.filesIndexFile)
+      filesIndexFiles.add(node.filesIndexFile)
+      if (isNewFilesIndexFile) {
+        for (const digest of quarantinedEnvelopeDigests.get(inputKey) ?? []) {
+          persistQuarantine(node.filesIndexFile, digest)
+        }
+      }
+    }
+    const storedQuarantine = node.files.remoteSideEffectsQuarantine?.get(registryUrl)
+    if (storedQuarantine != null) {
+      let quarantined = quarantinedEnvelopeDigests.get(inputKey)
+      if (quarantined == null) {
+        quarantined = new Set()
+        quarantinedEnvelopeDigests.set(inputKey, quarantined)
+      }
+      for (const digest of storedQuarantine) {
+        if (quarantined.has(digest)) continue
+        quarantined.add(digest)
+        for (const filesIndexFile of filesIndexFilesByInputKey.get(inputKey) ?? []) {
+          if (filesIndexFile !== node.filesIndexFile) persistQuarantine(filesIndexFile, digest)
+        }
+      }
+    }
 
     let lookup = lookups.get(inputKey)
     if (lookup == null) {
-      lookup = enqueue({
-        key: inputKey,
-        package: { name: node.name, version: node.version },
-        sourceIntegrity,
-        owner,
-      })
+      lookup = enqueue(candidate)
       lookups.set(inputKey, lookup)
     }
-    const artifact = await lookup
-    if (artifact == null) {
+    const resolvedArtifact = await lookup
+    if (resolvedArtifact == null) {
       if (pinnedEnvelopeDigests.has(inputKey)) {
         opts.warn?.(`Pinned remote side-effects artifact for ${node.name}@${node.version} is unavailable; building locally`)
       }
       return undefined
     }
+    if (pinnedEnvelopeDigest != null && resolvedArtifact.envelopeDigest !== pinnedEnvelopeDigest) {
+      opts.warn?.(`Pinned remote side-effects artifact for ${node.name}@${node.version} is unavailable; building locally`)
+      return undefined
+    }
+    if (quarantinedEnvelopeDigests.get(inputKey)?.has(resolvedArtifact.envelopeDigest) === true) return undefined
+    const artifact = await artifactLimit(async () => hydrate(resolvedArtifact, candidate))
+    if (artifact == null) return undefined
     recordArtifactPin(node.depPath, inputKey, artifact.envelopeDigest)
     node.files.sideEffectsMaps ??= new Map()
     node.files.sideEffectsMaps.set(localCacheKey, { added: artifact.added, deleted: artifact.deleted })
+    node.files.sideEffectsDiffs ??= new Map()
+    node.files.sideEffectsDiffs.set(localCacheKey, artifact.sideEffects)
+    if (node.filesIndexFile != null) {
+      try {
+        opts.storeController.persistRemoteSideEffects?.({
+          filesIndexFile: node.filesIndexFile,
+          sideEffectsCacheKey: localCacheKey,
+          sideEffects: artifact.sideEffects,
+        })
+      } catch (err: unknown) {
+        opts.warn?.(`Remote side-effects artifact for ${node.name}@${node.version} could not be persisted: ${errorMessage(err)}`)
+      }
+    }
     return localCacheKey
   }
 
-  async function enqueue (candidate: ArtifactCandidate): Promise<RestoredArtifact | undefined> {
-    let resolve!: (artifact: RestoredArtifact | undefined) => void
-    const promise = new Promise<RestoredArtifact | undefined>((settle) => {
+  async function enqueue (candidate: ArtifactCandidate): Promise<VerifiedArtifact | undefined> {
+    let resolve!: (artifact: VerifiedArtifact | undefined) => void
+    const promise = new Promise<VerifiedArtifact | undefined>((settle) => {
       resolve = settle
     })
     queued.push({ candidate, resolve })
@@ -255,6 +337,10 @@ export function createRemoteSideEffectsRestorer<T extends string> (
       return false
     })
     if (eligibleBatch.length === 0) return
+    if (registryUrl == null) {
+      for (const { resolve } of eligibleBatch) resolve(undefined)
+      return
+    }
     const batchPinnedEnvelopeDigests = new Map(pinnedEnvelopeDigests)
     supported ??= (async () => {
       try {
@@ -282,6 +368,10 @@ export function createRemoteSideEffectsRestorer<T extends string> (
         },
         trustedKeys,
         pinnedEnvelopeDigests: batchPinnedEnvelopeDigests,
+        quarantinedEnvelopeDigests,
+        onRejectedArtifact: ({ inputKey, envelopeDigest, reason }) => {
+          quarantine(inputKey, envelopeDigest, reason)
+        },
       })
     } catch (err: unknown) {
       opts.warn?.(`Remote side-effects cache lookup failed: ${errorMessage(err)}`)
@@ -298,7 +388,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
         resolve(undefined)
         return
       }
-      resolve(await artifactLimit(async () => hydrate(artifact, candidate)))
+      resolve(artifact)
     }))
   }
 
@@ -306,8 +396,9 @@ export function createRemoteSideEffectsRestorer<T extends string> (
     artifact: VerifiedArtifact,
     candidate: ArtifactCandidate
   ): Promise<RestoredArtifact | undefined> {
+    if (registryUrl == null) return undefined
     try {
-      const added = new Map(await Promise.all(artifact.payload.manifest.added.map(async (file) => {
+      const hydrated = await Promise.all(artifact.payload.manifest.added.map(async (file) => {
         const storedKey = `${file.integrity}\0${file.mode}`
         let stored = storedBlobs.get(storedKey)
         if (stored == null) {
@@ -320,7 +411,20 @@ export function createRemoteSideEffectsRestorer<T extends string> (
               artifactBlobDigest(file.integrity),
               file.mode
             ))
-            if (present != null) return present
+            if (present != null) {
+              const stat = await fs.stat(present)
+              if (stat.size !== file.size) {
+                throw new SharedArtifactBlobIntegrityError('Stored shared artifact blob does not match its declared size')
+              }
+              return {
+                filePath: present,
+                fileInfo: {
+                  digest: artifactBlobDigest(file.integrity),
+                  mode: file.mode,
+                  size: file.size,
+                },
+              }
+            }
             const bytes = await downloadLimit(async () => downloadSharedArtifactBlob({
               registryUrl,
               authorization,
@@ -329,21 +433,130 @@ export function createRemoteSideEffectsRestorer<T extends string> (
                 integrity: file.integrity,
               },
             }))
-            return opts.storeController.addFileToStore!(bytes, file.mode).filePath
+            if (bytes.byteLength !== file.size) {
+              throw new SharedArtifactBlobIntegrityError('Downloaded shared artifact blob does not match its declared size')
+            }
+            const storedFile = opts.storeController.addFileToStore!(bytes, file.mode)
+            return {
+              filePath: storedFile.filePath,
+              fileInfo: {
+                checkedAt: storedFile.checkedAt,
+                digest: storedFile.digest,
+                mode: file.mode,
+                size: file.size,
+              },
+            }
           })()
           storedBlobs.set(storedKey, stored)
         }
         try {
-          return [file.path, await stored] as const
+          const result = await stored
+          if (result.fileInfo.size !== file.size) {
+            throw new SharedArtifactBlobIntegrityError('Shared artifact blob is declared with inconsistent sizes')
+          }
+          return [file.path, result] as const
         } catch (err: unknown) {
           if (storedBlobs.get(storedKey) === stored) storedBlobs.delete(storedKey)
           throw err
         }
-      })))
-      return { added, deleted: artifact.payload.manifest.deleted, envelopeDigest: artifact.envelopeDigest }
+      }))
+      const added = new Map(hydrated.map(([filePath, stored]) => [filePath, stored.filePath]))
+      const remoteOrigin: RemoteSideEffectsOrigin = {
+        channel: registryUrl,
+        owner: artifact.payload.owner,
+        signerKeyId: artifact.envelope.keyId,
+        builderProfile: artifact.payload.builderProfile,
+        envelope: artifact.envelope,
+        verification: 'verified',
+      }
+      const sideEffects: SideEffectsDiff = {
+        added: new Map(hydrated.map(([filePath, stored]) => [filePath, stored.fileInfo])),
+        deleted: artifact.payload.manifest.deleted,
+        remoteOrigin,
+      }
+      return {
+        added,
+        deleted: artifact.payload.manifest.deleted,
+        envelopeDigest: artifact.envelopeDigest,
+        sideEffects,
+      }
     } catch (err: unknown) {
+      if (isBlobIntegrityError(err)) {
+        quarantine(candidate.key, artifact.envelopeDigest, errorMessage(err))
+        return undefined
+      }
       opts.warn?.(`Remote side-effects artifact for ${candidate.package.name}@${candidate.package.version} was rejected: ${errorMessage(err)}`)
       return undefined
+    }
+  }
+
+  async function storedArtifactEnvelopeDigest (params: {
+    candidate: ArtifactCandidate
+    diff: SideEffectsDiff
+    files: { added?: Map<string, string>, deleted?: string[] }
+    pinnedEnvelopeDigest?: string
+  }): Promise<string | undefined> {
+    const { candidate, diff, files, pinnedEnvelopeDigest } = params
+    const origin = diff.remoteOrigin
+    if (
+      origin == null ||
+      origin.verification !== 'verified' ||
+      origin.signerKeyId !== origin.envelope.keyId ||
+      (registryUrl != null && origin.channel !== registryUrl)
+    ) return undefined
+    const publicKey = trustedKeys[origin.signerKeyId]
+    if (publicKey == null) return undefined
+    let artifact: VerifiedArtifact
+    try {
+      artifact = verifyStoredSharedSideEffects({
+        candidate,
+        envelope: origin.envelope as SignedArtifactEnvelope,
+        pinnedEnvelopeDigest,
+        publicKey,
+        supportedTags,
+      })
+    } catch {
+      return undefined
+    }
+    if (!ownersMatch(origin.owner, artifact.payload.owner) ||
+      !builderProfilesMatch(origin.builderProfile, artifact.payload.builderProfile) ||
+      !manifestMatchesDiff(artifact.payload.manifest, diff)) return undefined
+    const validFiles = await Promise.all(Array.from(diff.added ?? [], async ([filePath, info]) => {
+      return storeLookupLimit(async () => {
+        const located = await opts.storeController.locateFileInStore?.(info.digest, info.mode)
+        return located != null &&
+          files.added?.get(filePath) === located &&
+          (await fs.stat(located)).size === info.size
+      })
+    }))
+    return validFiles.every(Boolean) ? artifact.envelopeDigest : undefined
+  }
+
+  function quarantine (inputKey: string, envelopeDigest: string, reason: string): void {
+    if (registryUrl == null) return
+    let quarantined = quarantinedEnvelopeDigests.get(inputKey)
+    if (quarantined == null) {
+      quarantined = new Set()
+      quarantinedEnvelopeDigests.set(inputKey, quarantined)
+    }
+    if (quarantined.has(envelopeDigest)) return
+    quarantined.add(envelopeDigest)
+    for (const filesIndexFile of filesIndexFilesByInputKey.get(inputKey) ?? []) {
+      persistQuarantine(filesIndexFile, envelopeDigest)
+    }
+    opts.warn?.(`Remote side-effects artifact was quarantined: ${reason}`)
+  }
+
+  function persistQuarantine (filesIndexFile: string, envelopeDigest: string): void {
+    if (registryUrl == null) return
+    try {
+      opts.storeController.quarantineRemoteSideEffects?.({
+        channel: registryUrl,
+        envelopeDigest,
+        filesIndexFile,
+      })
+    } catch (err: unknown) {
+      opts.warn?.(`Remote side-effects quarantine could not be persisted: ${errorMessage(err)}`)
     }
   }
 
@@ -500,4 +713,52 @@ function verifiedIntegrity (resolution: LockfileResolution): string | undefined 
 
 function errorMessage (err: unknown): string {
   return util.types.isNativeError(err) ? err.message : String(err)
+}
+
+function isBlobIntegrityError (err: unknown): boolean {
+  return util.types.isNativeError(err) &&
+    'code' in err &&
+    err.code === 'ERR_PNPM_SHARED_ARTIFACT_BLOB_INTEGRITY'
+}
+
+function ownersMatch (
+  left: RemoteSideEffectsOrigin['owner'],
+  right: ArtifactPayload['owner']
+): boolean {
+  if (left.type !== right.type) return false
+  return left.type === 'organization'
+    ? left.name === (right as { type: 'organization', name: string }).name
+    : left.package === (right as { type: 'publisher', package: string }).package
+}
+
+function builderProfilesMatch (
+  left: RemoteSideEffectsOrigin['builderProfile'],
+  right: ArtifactPayload['builderProfile']
+): boolean {
+  if (
+    left.imageDigest !== right.imageDigest ||
+    left.architectureBaseline !== right.architectureBaseline
+  ) return false
+  const leftEnvironment = Object.entries(left.environment)
+  const rightEnvironment = Object.entries(right.environment)
+  return leftEnvironment.length === rightEnvironment.length &&
+    leftEnvironment.every(([name, value]) => right.environment[name] === value)
+}
+
+function manifestMatchesDiff (manifest: ArtifactManifest, diff: SideEffectsDiff): boolean {
+  const added = diff.added ?? new Map()
+  if (added.size !== manifest.added.length) return false
+  for (const file of manifest.added) {
+    const stored = added.get(file.path)
+    if (
+      stored == null ||
+      stored.digest !== artifactBlobDigest(file.integrity) ||
+      stored.mode !== file.mode ||
+      stored.size !== file.size
+    ) return false
+  }
+  const deleted = diff.deleted ?? []
+  return deleted.length === manifest.deleted.length &&
+    new Set(deleted).size === deleted.length &&
+    deleted.every(path => manifest.deleted.includes(path))
 }

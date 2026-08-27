@@ -432,6 +432,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
 
     let index = StoreIndex::open_in(store_path).unwrap();
@@ -586,6 +587,7 @@ async fn prefetch_cas_paths_returns_hits_for_live_index_rows() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -637,6 +639,7 @@ async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -691,6 +694,7 @@ async fn prefetch_cas_paths_omits_failed_integrity_entries() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -752,6 +756,7 @@ async fn prefetch_cas_paths_skips_filesystem_checks_when_verify_disabled() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -805,6 +810,7 @@ async fn falls_through_when_cafs_file_missing() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -858,6 +864,7 @@ fn seed_row_holding_another_package(store_path: &StoreDir, index_key: &str) {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(index_key, &entry).unwrap();
@@ -1015,6 +1022,7 @@ async fn falls_through_when_digest_is_malformed() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -1084,6 +1092,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -1163,6 +1172,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();

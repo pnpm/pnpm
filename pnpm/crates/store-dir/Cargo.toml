@@ -15,6 +15,7 @@ pnpm-crypto-hash                       = { workspace = true }
 pnpm-deps-path                         = { workspace = true }
 pnpm-fs                                = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-shared-artifact-protocol          = { workspace = true }
 
 dashmap       = { workspace = true }
 derive_more   = { workspace = true }

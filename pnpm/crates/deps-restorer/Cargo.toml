@@ -30,6 +30,7 @@ pnpm-package-is-installable   = { workspace = true }
 pnpm-package-manifest         = { workspace = true }
 pnpm-patching                 = { workspace = true }
 pnpm-pnpr-client              = { workspace = true }
+pnpm-shared-artifact-protocol = { workspace = true }
 pnpm-real-hoist               = { workspace = true }
 pnpm-reporter                 = { workspace = true }
 pnpm-resolving-npm-resolver   = { workspace = true }
@@ -59,8 +60,7 @@ tokio        = { workspace = true }
 tracing      = { workspace = true }
 
 [dev-dependencies]
-pnpm-shared-artifact-protocol = { workspace = true }
-pnpm-testing-utils            = { workspace = true }
+pnpm-testing-utils = { workspace = true }
 
 async-trait       = { workspace = true }
 dunce             = { workspace = true }

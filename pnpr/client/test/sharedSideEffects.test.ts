@@ -1,4 +1,4 @@
-import { createHash, generateKeyPairSync } from 'node:crypto'
+import { createHash, generateKeyPairSync, sign } from 'node:crypto'
 import { createServer } from 'node:http'
 
 import { describe, expect, test } from '@jest/globals'
@@ -256,6 +256,13 @@ describe('signed shared artifacts', () => {
       keyId: 'acme-2026',
       privateKey: privateKey.export({ format: 'pem', type: 'pkcs8' }),
     })
+    const malformedPayload = Buffer.from('{')
+    const malformedEnvelope = {
+      algorithm: 'ecdsa-p256-sha256' as const,
+      keyId: 'acme-2026',
+      payload: malformedPayload.toString('base64'),
+      signature: sign('sha256', malformedPayload, privateKey).toString('base64'),
+    }
     const variants = [envelope, alternateEnvelope]
       .sort((left, right) => signedArtifactEnvelopeDigest(right).localeCompare(signedArtifactEnvelopeDigest(left)))
     const requests: Array<{ url: string | undefined, authorization: string | undefined, body: Buffer }> = []
@@ -274,7 +281,7 @@ describe('signed shared artifacts', () => {
           const body = JSON.stringify({
             artifacts: [{
               key: payload().inputKey,
-              variants: variants.map(envelope => ({ envelope })),
+              variants: [...variants, malformedEnvelope].map(envelope => ({ envelope })),
             }],
           })
           response.writeHead(200, { 'content-type': 'application/json' }).end(body)
@@ -340,6 +347,26 @@ describe('signed shared artifacts', () => {
           .map(signedArtifactEnvelopeDigest)
           .sort()[0]
       )
+      const selectedDigest = selected.get(payload().inputKey)!.envelopeDigest
+      const rejected: Array<{ inputKey: string, envelopeDigest: string, reason: string }> = []
+      await resolveSharedSideEffects({
+        ...resolveOptions,
+        onRejectedArtifact: rejection => rejected.push(rejection),
+      })
+      expect(rejected).toHaveLength(1)
+      expect(rejected[0]).toMatchObject({
+        inputKey: payload().inputKey,
+        envelopeDigest: signedArtifactEnvelopeDigest(malformedEnvelope),
+      })
+      const afterQuarantine = await resolveSharedSideEffects({
+        ...resolveOptions,
+        quarantinedEnvelopeDigests: new Map([[payload().inputKey, new Set([selectedDigest])]]),
+      })
+      expect(afterQuarantine.get(payload().inputKey)?.envelopeDigest).toBe(
+        [envelope, alternateEnvelope]
+          .map(signedArtifactEnvelopeDigest)
+          .find(digest => digest !== selectedDigest)
+      )
       const pinnedDigest = signedArtifactEnvelopeDigest(alternateEnvelope)
       const pinned = await resolveSharedSideEffects({
         ...resolveOptions,
@@ -357,6 +384,8 @@ describe('signed shared artifacts', () => {
       })).resolves.toEqual(contents)
       expect(requests.map(request => request.url)).toEqual([
         '/-/pnpr/v0/artifacts',
+        '/-/pnpr/v0/artifacts/resolve',
+        '/-/pnpr/v0/artifacts/resolve',
         '/-/pnpr/v0/artifacts/resolve',
         '/-/pnpr/v0/artifacts/resolve',
         '/-/pnpr/v0/artifacts/resolve',

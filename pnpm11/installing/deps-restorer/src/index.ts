@@ -1101,6 +1101,7 @@ async function linkAllPkgs (
         graphKey: depNode.dir,
         depPath: depNode.depPath,
         files: filesResponse,
+        filesIndexFile: depNode.filesIndexFile,
         name: depNode.name,
         patchFileHash: depNode.patch?.hash,
         resolution: depNode.resolution,
@@ -1108,12 +1109,15 @@ async function linkAllPkgs (
       })
       if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
         if (opts.allowBuild?.(depNode.depPath) === true) {
-          sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
+          const localCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
             nodeVersion,
           })
+          if (filesResponse.sideEffectsDiffs?.get(localCacheKey)?.remoteOrigin == null) {
+            sideEffectsCacheKey = localCacheKey
+          }
         }
       }
       // For GVS packages that need building, add a .pnpm-needs-build marker to the
