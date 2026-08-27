@@ -215,12 +215,18 @@ export function createRemoteSideEffectsRestorer<T extends string> (
       if (storedDiff?.remoteOrigin == null) {
         if (opts.sideEffectsCacheRead) return undefined
       } else {
-        const envelopeDigest = await storedArtifactEnvelopeDigest({
-          candidate,
-          diff: storedDiff,
-          files: localSideEffects,
-          pinnedEnvelopeDigest,
-        })
+        let envelopeDigest: string | undefined
+        try {
+          envelopeDigest = await storedArtifactEnvelopeDigest({
+            candidate,
+            diff: storedDiff,
+            files: localSideEffects,
+            pinnedEnvelopeDigest,
+          })
+        } catch (err: unknown) {
+          opts.warn?.(`Persisted remote side-effects artifact for ${node.name}@${node.version} could not be checked: ${errorMessage(err)}`)
+          return undefined
+        }
         if (envelopeDigest != null) {
           recordArtifactPin(node.depPath, inputKey, envelopeDigest)
           return localCacheKey
@@ -252,7 +258,13 @@ export function createRemoteSideEffectsRestorer<T extends string> (
         quarantined = new Set()
         quarantinedEnvelopeDigests.set(inputKey, quarantined)
       }
-      for (const digest of storedQuarantine) quarantined.add(digest)
+      for (const digest of storedQuarantine) {
+        if (quarantined.has(digest)) continue
+        quarantined.add(digest)
+        for (const filesIndexFile of filesIndexFilesByInputKey.get(inputKey) ?? []) {
+          if (filesIndexFile !== node.filesIndexFile) persistQuarantine(filesIndexFile, digest)
+        }
+      }
     }
 
     let lookup = lookups.get(inputKey)
@@ -271,6 +283,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
       opts.warn?.(`Pinned remote side-effects artifact for ${node.name}@${node.version} is unavailable; building locally`)
       return undefined
     }
+    if (quarantinedEnvelopeDigests.get(inputKey)?.has(resolvedArtifact.envelopeDigest) === true) return undefined
     const artifact = await artifactLimit(async () => hydrate(resolvedArtifact, candidate))
     if (artifact == null) return undefined
     recordArtifactPin(node.depPath, inputKey, artifact.envelopeDigest)
@@ -493,29 +506,30 @@ export function createRemoteSideEffectsRestorer<T extends string> (
     ) return undefined
     const publicKey = trustedKeys[origin.signerKeyId]
     if (publicKey == null) return undefined
+    let artifact: VerifiedArtifact
     try {
-      const artifact = verifyStoredSharedSideEffects({
+      artifact = verifyStoredSharedSideEffects({
         candidate,
         envelope: origin.envelope as SignedArtifactEnvelope,
         pinnedEnvelopeDigest,
         publicKey,
         supportedTags,
       })
-      if (!ownersMatch(origin.owner, artifact.payload.owner) ||
-        !builderProfilesMatch(origin.builderProfile, artifact.payload.builderProfile) ||
-        !manifestMatchesDiff(artifact.payload.manifest, diff)) return undefined
-      const validFiles = await Promise.all(Array.from(diff.added ?? [], async ([filePath, info]) => {
-        return storeLookupLimit(async () => {
-          const located = await opts.storeController.locateFileInStore?.(info.digest, info.mode)
-          return located != null &&
-            files.added?.get(filePath) === located &&
-            (await fs.stat(located)).size === info.size
-        })
-      }))
-      return validFiles.every(Boolean) ? artifact.envelopeDigest : undefined
     } catch {
       return undefined
     }
+    if (!ownersMatch(origin.owner, artifact.payload.owner) ||
+      !builderProfilesMatch(origin.builderProfile, artifact.payload.builderProfile) ||
+      !manifestMatchesDiff(artifact.payload.manifest, diff)) return undefined
+    const validFiles = await Promise.all(Array.from(diff.added ?? [], async ([filePath, info]) => {
+      return storeLookupLimit(async () => {
+        const located = await opts.storeController.locateFileInStore?.(info.digest, info.mode)
+        return located != null &&
+          files.added?.get(filePath) === located &&
+          (await fs.stat(located)).size === info.size
+      })
+    }))
+    return validFiles.every(Boolean) ? artifact.envelopeDigest : undefined
   }
 
   function quarantine (inputKey: string, envelopeDigest: string, reason: string): void {

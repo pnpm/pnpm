@@ -189,22 +189,35 @@ pub(crate) async fn apply_shared_side_effects(
                 &supported_tags,
                 &trusted_keys,
             )
-            && stored_remote_side_effects_blobs_are_valid(diff, &overlay).await
         {
-            insert_side_effects_map(
-                side_effects_maps_by_snapshot,
-                snapshot_key.clone(),
-                local_cache_key,
-                overlay,
-            );
-            artifact_pin_records.push(ArtifactPinRecord {
-                snapshot_key,
-                input_key,
-                owner: owner_namespace.clone(),
-                platform_fingerprint: fingerprint.clone(),
-                envelope_digest,
-            });
-            continue;
+            match stored_remote_side_effects_blobs_are_valid(diff, &overlay).await {
+                Ok(true) => {
+                    insert_side_effects_map(
+                        side_effects_maps_by_snapshot,
+                        snapshot_key.clone(),
+                        local_cache_key,
+                        overlay,
+                    );
+                    artifact_pin_records.push(ArtifactPinRecord {
+                        snapshot_key,
+                        input_key,
+                        owner: owner_namespace.clone(),
+                        platform_fingerprint: fingerprint.clone(),
+                        envelope_digest,
+                    });
+                    continue;
+                }
+                Ok(false) => {}
+                Err(error) => {
+                    tracing::warn!(
+                        target: "pacquet::install",
+                        package = %candidate.package.name,
+                        %error,
+                        "persisted remote side-effects artifact could not be checked",
+                    );
+                    continue;
+                }
+            }
         }
         if config.side_effects_cache_read()
             && side_effects_maps_by_snapshot
@@ -598,18 +611,20 @@ fn manifest_matches_diff(manifest: &ArtifactManifest, diff: &SideEffectsDiff) ->
 async fn stored_remote_side_effects_blobs_are_valid(
     diff: &SideEffectsDiff,
     overlay: &HashMap<String, PathBuf>,
-) -> bool {
+) -> Result<bool, String> {
     for (file_path, info) in diff.added.iter().flatten() {
-        let Some(path) = overlay.get(file_path) else { return false };
-        match store_holds(path, &info.digest).await {
-            Ok(true) => {}
-            Ok(false) | Err(_) => return false,
+        let Some(path) = overlay.get(file_path) else { return Ok(false) };
+        if !store_holds(path, &info.digest).await? {
+            return Ok(false);
         }
-        if !tokio::fs::metadata(path).await.is_ok_and(|metadata| metadata.len() == info.size) {
-            return false;
+        let metadata = tokio::fs::metadata(path)
+            .await
+            .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
+        if metadata.len() != info.size {
+            return Ok(false);
         }
     }
-    true
+    Ok(true)
 }
 
 fn quarantine_remote_side_effects(

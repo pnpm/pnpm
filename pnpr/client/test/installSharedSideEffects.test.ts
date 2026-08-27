@@ -320,6 +320,42 @@ describe('install remote side-effects', () => {
       })).resolves.toBe(cacheKey)
       expect(requestedPaths).toEqual([])
 
+      const storeProbeWarnings: string[] = []
+      const storeProbeFailureFiles: PackageFilesResponse = {
+        ...persistedFiles,
+        sideEffectsMaps: new Map(persistedFiles.sideEffectsMaps),
+        sideEffectsDiffs: new Map(persistedFiles.sideEffectsDiffs),
+      }
+      const storeProbeFailure = createRemoteSideEffectsRestorer({
+        allowBuild: candidate => candidate === depPath,
+        configByUri: {},
+        depsGraph,
+        depsStateCache: {},
+        ignoreScripts: false,
+        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        sideEffectsCacheRead: false,
+        storeController: {
+          ...storeController,
+          locateFileInStore: async () => {
+            throw new Error('store unavailable')
+          },
+        } as unknown as StoreController,
+        warn: warning => storeProbeWarnings.push(warning),
+      })
+      await expect(storeProbeFailure?.restore({
+        graphKey,
+        depPath,
+        files: storeProbeFailureFiles,
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })).resolves.toBeUndefined()
+      expect(storeProbeFailureFiles.sideEffectsMaps?.has(cacheKey!)).toBe(true)
+      expect(storeProbeFailureFiles.sideEffectsDiffs?.has(cacheKey!)).toBe(true)
+      expect(storeProbeWarnings).toEqual([
+        `Persisted remote side-effects artifact for ${packageName}@${packageVersion} could not be checked: store unavailable`,
+      ])
+
       requestedPaths.length = 0
       const changedChannelFiles: PackageFilesResponse = {
         ...persistedFiles,
@@ -642,6 +678,7 @@ describe('install remote side-effects', () => {
         filesIndexFile: 'corrupt-row',
       }])
 
+      requestedPaths.length = 0
       await expect(corruptRestorer.restore({
         graphKey,
         depPath,
@@ -663,6 +700,7 @@ describe('install remote side-effects', () => {
           filesIndexFile: 'late-corrupt-row',
         },
       ])
+      expect(requestedPaths).not.toContain('/-/pnpr/v0/artifacts/blob')
 
       requestedPaths.length = 0
       const quarantinedRestorer = createRemoteSideEffectsRestorer({
@@ -691,6 +729,58 @@ describe('install remote side-effects', () => {
         version: packageVersion,
       })).resolves.toBeUndefined()
       expect(requestedPaths).not.toContain('/-/pnpr/v0/artifacts/blob')
+
+      let releaseQuarantineImport!: () => void
+      const waitForQuarantineImport = new Promise<void>((resolve) => {
+        releaseQuarantineImport = resolve
+      })
+      let notifyQuarantineResolveStarted!: () => void
+      const quarantineResolveStarted = new Promise<void>((resolve) => {
+        notifyQuarantineResolveStarted = resolve
+      })
+      heldResolve = { wait: waitForQuarantineImport, notifyStarted: notifyQuarantineResolveStarted }
+      const quarantineImportRestorer = createRemoteSideEffectsRestorer({
+        allowBuild: () => true,
+        configByUri: {},
+        depsGraph,
+        depsStateCache: {},
+        ignoreScripts: false,
+        pnprServer,
+        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        sideEffectsCacheRead: false,
+        storeController,
+      })!
+      const quarantineRecipient = quarantineImportRestorer.restore({
+        graphKey,
+        depPath,
+        files: { filesMap: new Map(), requiresBuild: true, resolvedFrom: 'remote' },
+        filesIndexFile: 'quarantine-recipient-row',
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })
+      await quarantineResolveStarted
+      const quarantineSource = quarantineImportRestorer.restore({
+        graphKey,
+        depPath,
+        files: {
+          filesMap: new Map(),
+          requiresBuild: true,
+          remoteSideEffectsQuarantine: new Map([[pnprServer, [quarantined[0].envelopeDigest]]]),
+          resolvedFrom: 'store',
+        },
+        filesIndexFile: 'quarantine-source-row',
+        name: packageName,
+        resolution: { integrity: sourceIntegrity } as LockfileResolution,
+        version: packageVersion,
+      })
+      releaseQuarantineImport()
+      await expect(Promise.all([quarantineRecipient, quarantineSource])).resolves.toEqual([undefined, undefined])
+      expect(quarantined).toContainEqual({
+        channel: pnprServer,
+        envelopeDigest: quarantined[0].envelopeDigest,
+        filesIndexFile: 'quarantine-recipient-row',
+      })
     } finally {
       await new Promise<void>((resolve, reject) => server.close(error => error == null ? resolve() : reject(error)))
     }
