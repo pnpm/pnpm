@@ -7,9 +7,6 @@
 //! <https://github.com/pnpm/pnpm/issues/14231>.
 #![cfg(target_os = "macos")]
 
-use crate::_utils;
-pub use _utils::*;
-
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_store_dir::STORE_VERSION;
@@ -78,13 +75,13 @@ fn warm_reinstall_is_served_from_the_canonical_slot() {
     // Unlink-then-write so the plant never reaches a store file the
     // slot might share an inode with.
     fs::remove_file(&canonical_manifest).expect("unlink the canonical manifest");
-    fs::write(&canonical_manifest, "{\"planted\":true}").expect("plant the canonical manifest");
+    fs::write(&canonical_manifest, r#"{"planted":true}"#).expect("plant the canonical manifest");
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("wipe node_modules");
     pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
     assert_eq!(
         fs::read_to_string(project_pkg_manifest(&workspace)).expect("read the project manifest"),
-        "{\"planted\":true}",
+        r#"{"planted":true}"#,
         "the warm reinstall must clone the canonical slot",
     );
 
