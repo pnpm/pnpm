@@ -97,6 +97,5 @@ fn last_line_skips_trailing_blanks() {
 #[test]
 fn check_versions_reports_the_released_pnpm_version() {
     let detail = check_versions().detail.expect("versions detail");
-    dbg!(&detail);
     assert!(detail.starts_with(&format!("pnpm {PNPM_VERSION}")), "{detail}");
 }
