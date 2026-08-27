@@ -335,6 +335,7 @@ impl ConfigOverrides {
             config.shamefully_hoist = value;
             config.explicit_settings.insert("shamefullyHoist".to_string(), value.into());
             config.apply_shamefully_hoist_derivation();
+            config.apply_virtual_store_only_derivation();
         }
         if let Some(value) = self.shell_emulator {
             config.shell_emulator = value;

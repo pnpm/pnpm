@@ -67,6 +67,12 @@ fn extract_accepts_shamefully_hoist_cli_spellings() {
         ("--shamefully-hoist", true),
         ("--shamefully-hoist=true", true),
         ("--shamefully-hoist=false", false),
+        ("--shamefully-hoist=1", true),
+        ("--shamefully-hoist=0", false),
+        ("--config.shamefully-hoist=true", true),
+        ("--config.shamefully-hoist=false", false),
+        ("--config.shamefully-hoist=1", true),
+        ("--config.shamefully-hoist=0", false),
         ("--no-shamefully-hoist", false),
     ] {
         let (overrides, remaining) = ConfigOverrides::extract(argv(["pacquet", flag, "--version"]));
@@ -82,6 +88,23 @@ fn extract_accepts_shamefully_hoist_cli_spellings() {
             Some(&serde_json::Value::Bool(expected)),
         );
     }
+}
+
+#[test]
+fn shamefully_hoist_override_preserves_virtual_store_only_precedence() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--shamefully-hoist=true", "install"]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let mut config = Config {
+        virtual_store_only: true,
+        hoist_pattern: Some(vec!["*".to_string()]),
+        ..Config::default()
+    };
+    overrides.apply(&mut config);
+
+    assert_eq!(config.hoist_pattern, Some(Vec::new()));
+    assert_eq!(config.public_hoist_pattern, Some(Vec::new()));
 }
 
 #[test]
