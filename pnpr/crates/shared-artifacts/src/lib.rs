@@ -153,20 +153,29 @@ impl SharedArtifactStore {
         })?;
         self.reserve_quota(&owner, added_bytes).await?;
 
-        let mut unused_reservation = 0_u64;
+        let mut created_bytes = 0_u64;
         for (path, bytes) in new_blobs {
             let size = bytes.len() as u64;
-            if !self.create_object(&path, bytes).await? {
-                unused_reservation += size;
+            match self.create_object(&path, bytes).await {
+                Ok(true) => created_bytes += size,
+                Ok(false) => {}
+                Err(error) => {
+                    self.release_uncommitted(&owner, added_bytes, created_bytes).await?;
+                    return Err(error);
+                }
             }
         }
-        let created = self.create_object(&variant_path, envelope_bytes).await?;
-        if !created {
-            unused_reservation += envelope_size;
+        let created = match self.create_object(&variant_path, envelope_bytes).await {
+            Ok(created) => created,
+            Err(error) => {
+                self.release_uncommitted(&owner, added_bytes, created_bytes).await?;
+                return Err(error);
+            }
+        };
+        if created {
+            created_bytes += envelope_size;
         }
-        if unused_reservation != 0 {
-            self.change_quota(&owner, unused_reservation, QuotaChange::Release).await?;
-        }
+        self.release_uncommitted(&owner, added_bytes, created_bytes).await?;
         Ok(created)
     }
 
@@ -237,11 +246,17 @@ impl SharedArtifactStore {
         };
         let entry = entry_digest(&candidate.key, &candidate.package, &candidate.source_integrity);
         let prefix = format!("{owner}/entries/{entry}/");
-        let mut entries = self.list_objects(Some(&prefix)).await?;
-        entries.retain(|entry| is_variant_file(object_name(&entry.location)));
-        entries.sort_unstable_by(|left, right| left.location.cmp(&right.location));
+        let prefix = self.object_path(&prefix);
+        let mut listing = self.store.list(Some(&prefix));
         let mut variants = Vec::new();
-        for entry in entries.into_iter().take(MAX_VARIANTS_PER_CANDIDATE) {
+        let mut scanned_variants = 0;
+        while scanned_variants < MAX_VARIANTS_PER_CANDIDATE {
+            let Some(entry) = listing.next().await else { break };
+            let entry = entry?;
+            if !is_variant_file(object_name(&entry.location)) {
+                continue;
+            }
+            scanned_variants += 1;
             budget.add_scan(entry.size)?;
             let Some(bytes) = self.read_object_path(&entry.location).await? else {
                 continue;
@@ -262,6 +277,20 @@ impl SharedArtifactStore {
 
     async fn reserve_quota(&self, owner: &str, added_bytes: u64) -> Result<()> {
         self.change_quota(owner, added_bytes, QuotaChange::Reserve).await
+    }
+
+    async fn release_uncommitted(
+        &self,
+        owner: &str,
+        reserved_bytes: u64,
+        created_bytes: u64,
+    ) -> Result<()> {
+        let unused_bytes =
+            reserved_bytes.checked_sub(created_bytes).ok_or_else(quota_counter_underflow)?;
+        if unused_bytes != 0 {
+            self.change_quota(owner, unused_bytes, QuotaChange::Release).await?;
+        }
+        Ok(())
     }
 
     async fn change_quota(&self, owner: &str, bytes: u64, change: QuotaChange) -> Result<()> {

@@ -23,5 +23,8 @@ sha2                          = { workspace = true }
 tempfile                      = { workspace = true }
 tokio                         = { workspace = true }
 
+[dev-dependencies]
+async-trait = { workspace = true }
+
 [lints]
 workspace = true

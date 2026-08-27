@@ -1,7 +1,13 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, fmt, sync::Arc};
 
+use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use object_store::{ObjectStore, ObjectStoreExt, memory::InMemory};
+use futures_util::stream::BoxStream;
+use object_store::{
+    CopyOptions, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore,
+    ObjectStoreExt, PutMultipartOptions, PutOptions, PutPayload, PutResult, RenameOptions,
+    memory::InMemory, path::Path as ObjectPath,
+};
 use pnpm_shared_artifact_protocol::{
     ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
     ArtifactManifest, ArtifactPayload, ArtifactVariant, BuilderProfile, CompatibilityConstraints,
@@ -197,6 +203,24 @@ async fn quota_is_reserved_before_objects_are_written() {
 }
 
 #[tokio::test]
+async fn failed_object_writes_release_unused_quota() {
+    let backend: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites { inner: InMemory::new() });
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let scratch = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
+
+    store.publish("acme", publication("ci/failure")).await.unwrap_err();
+
+    let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
+    let usage: ArtifactUsage =
+        serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
+            .unwrap();
+    assert_eq!(usage.global_bytes, 0);
+    assert_eq!(usage.owner_bytes.values().copied().sum::<u64>(), 0);
+}
+
+#[tokio::test]
 async fn the_variant_limit_is_applied_at_read_time() {
     let storage = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
@@ -289,5 +313,98 @@ fn publication_request(
             signature: "MAYCAQECAQE=".to_string(),
         },
         blobs,
+    }
+}
+
+#[derive(Debug)]
+struct FailArtifactWrites {
+    inner: InMemory,
+}
+
+impl fmt::Display for FailArtifactWrites {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("fail artifact writes")
+    }
+}
+
+#[async_trait]
+impl ObjectStore for FailArtifactWrites {
+    async fn put_opts(
+        &self,
+        location: &ObjectPath,
+        payload: PutPayload,
+        options: PutOptions,
+    ) -> object_store::Result<PutResult> {
+        if location.as_ref().ends_with("/quota.json") {
+            self.inner.put_opts(location, payload, options).await
+        } else {
+            Err(object_store::Error::Generic {
+                store: "test",
+                source: std::io::Error::other("injected artifact write failure").into(),
+            })
+        }
+    }
+
+    async fn put_multipart_opts(
+        &self,
+        location: &ObjectPath,
+        options: PutMultipartOptions,
+    ) -> object_store::Result<Box<dyn MultipartUpload>> {
+        self.inner.put_multipart_opts(location, options).await
+    }
+
+    async fn get_opts(
+        &self,
+        location: &ObjectPath,
+        options: GetOptions,
+    ) -> object_store::Result<GetResult> {
+        self.inner.get_opts(location, options).await
+    }
+
+    fn delete_stream(
+        &self,
+        locations: BoxStream<'static, object_store::Result<ObjectPath>>,
+    ) -> BoxStream<'static, object_store::Result<ObjectPath>> {
+        self.inner.delete_stream(locations)
+    }
+
+    fn list(
+        &self,
+        prefix: Option<&ObjectPath>,
+    ) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
+        self.inner.list(prefix)
+    }
+
+    fn list_with_offset(
+        &self,
+        prefix: Option<&ObjectPath>,
+        offset: &ObjectPath,
+    ) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
+        self.inner.list_with_offset(prefix, offset)
+    }
+
+    async fn list_with_delimiter(
+        &self,
+        prefix: Option<&ObjectPath>,
+    ) -> object_store::Result<ListResult> {
+        self.inner.list_with_delimiter(prefix).await
+    }
+
+    async fn copy_opts(
+        &self,
+        from: &ObjectPath,
+        to: &ObjectPath,
+        options: CopyOptions,
+    ) -> object_store::Result<()> {
+        self.inner.copy_opts(from, to, options).await
+    }
+
+    async fn rename_opts(
+        &self,
+        from: &ObjectPath,
+        to: &ObjectPath,
+        options: RenameOptions,
+    ) -> object_store::Result<()> {
+        self.inner.rename_opts(from, to, options).await
     }
 }
