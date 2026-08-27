@@ -131,8 +131,8 @@ mod restore {
     use crate::{AllowBuildPolicy, RequiresBuildBySnapshot, SideEffectsMapsBySnapshot};
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
     use p256::{
-        ecdsa::{SigningKey, signature::Signer as _},
-        pkcs8::EncodePublicKey as _,
+        SecretKey,
+        pkcs8::{EncodePrivateKey as _, EncodePublicKey as _},
     };
     use pnpm_config::{Config, RemoteSideEffectsCacheSettings};
     use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
@@ -206,16 +206,13 @@ mod restore {
         config
     }
 
-    fn signing_key() -> SigningKey {
-        SigningKey::from_slice(&PRIVATE_KEY_BYTES).expect("fixture private key")
+    fn secret_key() -> SecretKey {
+        SecretKey::from_slice(&PRIVATE_KEY_BYTES).expect("fixture private key")
     }
 
     fn public_key() -> String {
         BASE64.encode(
-            p256::PublicKey::from(signing_key().verifying_key())
-                .to_public_key_der()
-                .expect("encode fixture public key")
-                .as_bytes(),
+            secret_key().public_key().to_public_key_der().expect("fixture public key").as_bytes(),
         )
     }
 
@@ -257,19 +254,20 @@ mod restore {
                 deleted: Vec::new(),
             },
         };
-        let payload_bytes = serde_json::to_vec(&payload).expect("serialize payload");
-        let signature: p256::ecdsa::Signature = signing_key().sign(&payload_bytes);
+        // Signed the way a publisher signs, so the fixture cannot drift from
+        // the wire format the client verifies — and so a payload this test
+        // builds wrong fails here rather than being silently discarded as an
+        // unverifiable variant.
+        let envelope = SignedArtifactEnvelope::sign(
+            &payload,
+            KEY_ID,
+            secret_key().to_pkcs8_der().expect("fixture private key").as_bytes(),
+        )
+        .expect("sign the fixture payload");
         let response = ResolveArtifactsResponse {
             artifacts: vec![ResolvedArtifact {
                 key: candidate.key.clone(),
-                variants: vec![ArtifactVariant {
-                    envelope: SignedArtifactEnvelope {
-                        algorithm: "ecdsa-p256-sha256".to_string(),
-                        key_id: KEY_ID.to_string(),
-                        payload: BASE64.encode(payload_bytes),
-                        signature: BASE64.encode(signature.to_der().as_bytes()),
-                    },
-                }],
+                variants: vec![ArtifactVariant { envelope }],
             }],
         };
         serde_json::to_string(&response).expect("serialize response")
