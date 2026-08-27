@@ -313,7 +313,7 @@ export async function downloadSharedArtifactBlob (
   }
 ): Promise<Buffer> {
   validateOwner(opts.request.owner)
-  blobId(opts.request.integrity)
+  artifactBlobDigest(opts.request.integrity)
   const response = await request({
     registryUrl: opts.registryUrl,
     path: '-/pnpr/v0/artifacts/blob',
@@ -347,7 +347,7 @@ function serializePublishRequest (opts: PublishSharedSideEffectsOptions): Buffer
     Buffer.byteLength(opts.envelope.signature)
   for (const blob of opts.blobs) {
     if (blob == null || typeof blob !== 'object') throw new Error('Shared artifact blob upload is malformed')
-    blobId(blob.integrity)
+    artifactBlobDigest(blob.integrity)
     if (uploads.has(blob.integrity)) {
       throw new Error(`Duplicate shared artifact blob upload ${JSON.stringify(blob.integrity)}`)
     }
@@ -525,7 +525,7 @@ function validateManifest (manifest: ArtifactManifest): void {
     }
     totalSize += file.size
     if (totalSize > MAX_ARTIFACT_SIZE) throw new Error(`Shared artifact exceeds ${MAX_ARTIFACT_SIZE} bytes`)
-    blobId(file.integrity)
+    artifactBlobDigest(file.integrity)
     const previousSize = integritySizes.get(file.integrity)
     if (previousSize != null && previousSize !== file.size) {
       throw new Error(`Shared artifact blob integrity ${JSON.stringify(file.integrity)} is declared with inconsistent sizes`)
@@ -676,15 +676,12 @@ function ownersEqual (left: OwnerScope, right: OwnerScope): boolean {
  * Hex digest identifying an artifact blob's content, from its `sha512-` value.
  *
  * The same identity the store addresses its content by, so a caller holding a
- * manifest entry can ask the store whether it already has the bytes.
+ * manifest entry can ask the store whether it already has the bytes. Callers
+ * that only need the integrity checked can discard the result.
  *
  * @throws if `integrity` is not a `sha512-` value carrying a 64-byte digest.
  */
 export function artifactBlobDigest (integrity: string): string {
-  return blobId(integrity)
-}
-
-function blobId (integrity: string): string {
   if (typeof integrity !== 'string' || !integrity.startsWith('sha512-')) {
     throw new Error('Shared artifact blobs require sha512 integrity')
   }
@@ -694,7 +691,7 @@ function blobId (integrity: string): string {
 }
 
 function verifyBlob (integrity: string, bytes: Buffer): void {
-  const expected = blobId(integrity)
+  const expected = artifactBlobDigest(integrity)
   const actual = createHash('sha512').update(bytes).digest('hex')
   if (expected !== actual) throw new Error('Downloaded shared artifact blob does not match its declared digest')
 }
