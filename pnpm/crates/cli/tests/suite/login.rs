@@ -19,7 +19,9 @@
 //! always resolves (past `run`'s `NoConfigDir` guard).
 
 use command_extra::CommandExtra;
+use pipe_trait::Pipe;
 use pnpm_testing_utils::bin::CommandTempCwd;
+use std::fs;
 
 /// Spawn `pacquet <subcommand>` without a TTY against a classic-only registry
 /// (web login probe answers 404) and assert the non-interactive login
@@ -134,7 +136,7 @@ fn a_workspace_yaml_scope_is_ignored_and_reported_on_stderr() {
         )
         .create();
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    std::fs::write(workspace.join("pnpm-workspace.yaml"), "scope: '@acme'\n")
+    fs::write(workspace.join("pnpm-workspace.yaml"), "scope: '@acme'\n")
         .expect("write pnpm-workspace.yaml");
 
     let output = pacquet
@@ -156,7 +158,11 @@ fn a_workspace_yaml_scope_is_ignored_and_reported_on_stderr() {
         1,
         "stderr must name the dropped scope and where it belongs, exactly once; got:\n{stderr}",
     );
-    let auth_ini = std::fs::read_to_string(root.path().join("pnpm").join("auth.ini"))
+    let auth_ini = root
+        .path()
+        .join("pnpm")
+        .join("auth.ini")
+        .pipe(fs::read_to_string)
         .expect("login writes auth.ini");
     assert!(
         !auth_ini.contains("@acme"),
