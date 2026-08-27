@@ -99,6 +99,70 @@ fn normal_load_does_not_fill_the_repair_cache() {
 }
 
 #[test]
+fn repair_merge_preserves_valid_metadata_when_strict_parsing_fails() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    fs::write(
+        dir.path().join(Lockfile::FILE_NAME),
+        text_block! {
+            "lockfileVersion: '9.0'"
+            "settings: invalid"
+            "importers:"
+            "  .: {}"
+            "packages:"
+            "  pkg@1.0.0:"
+            "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
+            "    deprecated: stale"
+            "snapshots:"
+            "  pkg@1.0.0:"
+            "    transitivePeerDependencies: [peer]"
+            "    optional: true"
+        },
+    )
+    .expect("write pnpm-lock.yaml");
+
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
+    assert!(lazy.get().is_err(), "strict parsing must reject the malformed settings");
+
+    let package_key = "pkg@1.0.0".parse().expect("package key");
+    let repaired = lazy.get_for_fix().expect("repair load succeeds").expect("repair lockfile");
+    assert!(repaired.settings.is_none());
+    assert!(
+        repaired
+            .packages
+            .as_ref()
+            .and_then(|packages| packages.get(&package_key))
+            .is_some_and(|metadata| metadata.deprecated.is_none()),
+    );
+    assert!(
+        repaired.snapshots.as_ref().and_then(|snapshots| snapshots.get(&package_key)).is_some_and(
+            |snapshot| { !snapshot.optional && snapshot.transitive_peer_dependencies.is_none() }
+        ),
+    );
+
+    let merge = MaybeLazyLockfile::Repair(&lazy)
+        .get_for_merge()
+        .expect("merge load succeeds")
+        .expect("merge lockfile");
+    assert!(merge.settings.is_none());
+    assert_eq!(
+        merge
+            .packages
+            .as_ref()
+            .and_then(|packages| packages.get(&package_key))
+            .and_then(|metadata| metadata.deprecated.as_deref()),
+        Some("stale"),
+    );
+    assert!(
+        merge.snapshots.as_ref().and_then(|snapshots| snapshots.get(&package_key)).is_some_and(
+            |snapshot| {
+                snapshot.optional
+                    && snapshot.transitive_peer_dependencies.as_deref() == Some(&["peer".into()])
+            }
+        ),
+    );
+}
+
+#[test]
 fn empty_and_env_only_files_count_as_absent() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join(Lockfile::FILE_NAME);

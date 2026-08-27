@@ -25,6 +25,7 @@ use pnpm_resolving_deps_resolver::{
     ManifestHook, ResolveDependencyTreeError, UpdateDepth, UpdateTargets,
 };
 use pnpm_resolving_npm_resolver::{InMemoryPackageMetaCache, MergeNamedRegistriesError};
+use pnpm_resolving_resolver_base::ResolutionVerifier;
 use pnpm_store_dir::SharedVerifiedFilesCache;
 use pnpm_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{
@@ -241,6 +242,9 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// versions it resolves, and the sink it reports them back through.
     /// `None` for every other install.
     pub manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
+    /// Resolution policies used to validate a filtered repair after the
+    /// sanitized merge view has been spliced into the freshly resolved graph.
+    pub resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
     /// The pre-resolve verification of the existing lockfile, running in
     /// the background while this install resolves and materializes. The
     /// verdict is awaited before bin linking, dependency builds, and the
@@ -782,6 +786,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             prune_orphans,
             save_lockfile,
             manifest_spec_bumps,
+            resolution_verifiers,
             mut lockfile_verification_gate,
         } = self;
 
@@ -802,6 +807,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let link_options = crate::shim_link_options(config, node_linker);
         let filtered_isolated =
             is_partial_workspace_selection(real_importer_ids, selected_importer_ids) && !is_hoisted;
+        let verify_filtered_repair = matches!(update_seed_policy, UpdateSeedPolicy::FixLockfile)
+            && is_partial_workspace_selection(real_importer_ids, selected_importer_ids);
         // Materialise the caller's iterator into a `Vec` so the same
         // group set can be replayed into both the resolver (consumes
         // the iterator) and `SymlinkDirectDependencies` (needs to walk
@@ -1283,6 +1290,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 manifest_spec_bumps,
                 versions_overrider: versions_overrider.as_deref(),
             })?;
+            if verify_filtered_repair {
+                verify_merged_repair::<Reporter>(&built_lockfile, resolution_verifiers).await?;
+            }
             return finish_lockfile_only::<Reporter>(LockfileOnlyOptions {
                 built_lockfile,
                 config,
@@ -1327,6 +1337,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             manifest_spec_bumps,
             versions_overrider: versions_overrider.as_deref(),
         })?;
+        if verify_filtered_repair {
+            if let Some(gate) = lockfile_verification_gate.take() {
+                gate.wait().await.map_err(InstallWithFreshLockfileError::LockfileVerification)?;
+            }
+            verify_merged_repair::<Reporter>(&built_lockfile, resolution_verifiers).await?;
+        }
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "build_fresh_lockfile",
@@ -1930,6 +1946,19 @@ struct LockfileOnlyOptions<'a> {
     after_all_resolved_log: Option<pnpm_hooks::LogFn>,
     store_index_writer: Arc<pnpm_store_dir::StoreIndexWriter>,
     writer_task: tokio::task::JoinHandle<Result<(), pnpm_store_dir::StoreIndexError>>,
+}
+
+async fn verify_merged_repair<Reporter: self::Reporter>(
+    lockfile: &Lockfile,
+    resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> Result<(), InstallWithFreshLockfileError> {
+    pnpm_lockfile_verification::verify_lockfile_resolutions::<Reporter>(
+        lockfile,
+        resolution_verifiers,
+        &pnpm_lockfile_verification::VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .map_err(InstallWithFreshLockfileError::LockfileVerification)
 }
 
 /// Tail of the `--lockfile-only` path: persist the freshly-built

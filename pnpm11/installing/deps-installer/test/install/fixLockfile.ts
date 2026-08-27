@@ -240,6 +240,49 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
   })
 })
 
+test('--fix-lockfile preserves unselected optional snapshots in a filtered workspace install', async () => {
+  const selectedManifest = {
+    name: 'selected',
+    version: '1.0.0',
+    dependencies: { 'is-positive': '1.0.0' },
+  }
+  const unselectedManifest = {
+    name: 'unselected',
+    version: '1.0.0',
+    optionalDependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' },
+  }
+  preparePackages([
+    { location: 'selected', package: selectedManifest },
+    { location: 'unselected', package: unselectedManifest },
+  ])
+
+  const selectedRoot = path.resolve('selected') as ProjectRootDir
+  const unselectedRoot = path.resolve('unselected') as ProjectRootDir
+  const allProjects = [
+    { buildIndex: 0, manifest: selectedManifest, rootDir: selectedRoot },
+    { buildIndex: 0, manifest: unselectedManifest, rootDir: unselectedRoot },
+  ]
+  await mutateModules([
+    { mutation: 'install', rootDir: selectedRoot },
+    { mutation: 'install', rootDir: unselectedRoot },
+  ], testDefaults({ allProjects, lockfileOnly: true }))
+
+  const original = readYamlFileSync<LockfileFile>(WANTED_LOCKFILE)
+  const optionalSnapshotKeys = Object.entries(original.snapshots ?? {})
+    .filter(([, snapshot]) => snapshot.optional === true)
+    .map(([key]) => key)
+  expect(optionalSnapshotKeys.length).toBeGreaterThan(0)
+
+  await mutateModules([
+    { mutation: 'install', rootDir: selectedRoot },
+  ], testDefaults({ allProjects, fixLockfile: true, lockfileOnly: true }))
+
+  const repaired = readYamlFileSync<LockfileFile>(WANTED_LOCKFILE)
+  for (const key of optionalSnapshotKeys) {
+    expect(repaired.snapshots?.[key]?.optional).toBe(true)
+  }
+})
+
 test(
   '--fix-lockfile should install successfully when package has no dependencies but has peer dependencies with version like 1.0.0_@pnpm+y@1.0.0',
   async () => {

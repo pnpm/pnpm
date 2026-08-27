@@ -432,6 +432,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             prior_hoisted_dependencies,
             prune_orphans,
             manifest_spec_bumps,
+            resolution_verifiers: &resolution_verifiers,
             lockfile_verification_gate,
         }
         .run::<Reporter>()

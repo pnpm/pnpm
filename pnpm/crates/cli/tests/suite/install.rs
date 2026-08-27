@@ -241,6 +241,14 @@ fn filtered_fix_lockfile_preserves_unselected_snapshot_metadata() {
         .collect();
     assert!(!optional_snapshot_keys.is_empty());
 
+    let mut broken: serde_json::Value = serde_saphyr::from_str(
+        &fs::read_to_string(&lockfile_path).expect("read original lockfile"),
+    )
+    .expect("parse original lockfile as YAML value");
+    broken["settings"] = serde_json::json!("invalid");
+    fs::write(&lockfile_path, serde_saphyr::to_string(&broken).expect("serialize broken lockfile"))
+        .expect("write broken lockfile");
+
     new_pacquet_command(&workspace)
         .with_args(["--filter", "selected", "install", "--fix-lockfile", "--lockfile-only"])
         .assert()

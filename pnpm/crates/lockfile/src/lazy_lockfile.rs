@@ -17,6 +17,7 @@ pub struct LazyLockfile {
     source: Option<(PathBuf, WantedLockfileSelection)>,
     cell: OnceLock<LoadedWantedLockfile>,
     fix_cell: OnceLock<LoadedWantedLockfile>,
+    fix_merge_cell: OnceLock<LoadedWantedLockfile>,
 }
 
 impl LazyLockfile {
@@ -28,6 +29,7 @@ impl LazyLockfile {
             source: Some((dir, selection)),
             cell: OnceLock::new(),
             fix_cell: OnceLock::new(),
+            fix_merge_cell: OnceLock::new(),
         }
     }
 
@@ -36,7 +38,12 @@ impl LazyLockfile {
     /// config.
     #[must_use]
     pub fn disabled() -> Self {
-        LazyLockfile { source: None, cell: OnceLock::new(), fix_cell: OnceLock::new() }
+        LazyLockfile {
+            source: None,
+            cell: OnceLock::new(),
+            fix_cell: OnceLock::new(),
+            fix_merge_cell: OnceLock::new(),
+        }
     }
 
     /// A lockfile that is already in memory; [`Self::get`] returns it
@@ -46,7 +53,12 @@ impl LazyLockfile {
         let cell = OnceLock::new();
         cell.set(LoadedWantedLockfile { lockfile, pre_merge_importers: None })
             .expect("a fresh OnceLock accepts the first set");
-        LazyLockfile { source: None, cell, fix_cell: OnceLock::new() }
+        LazyLockfile {
+            source: None,
+            cell,
+            fix_cell: OnceLock::new(),
+            fix_merge_cell: OnceLock::new(),
+        }
     }
 
     /// The parsed wanted lockfile, loading it on first call. `None`
@@ -60,6 +72,10 @@ impl LazyLockfile {
     /// Load after discarding fields that a repairing resolution regenerates.
     pub fn get_for_fix(&self) -> Result<Option<&Lockfile>, LoadLockfileError> {
         Ok(self.load_for_fix()?.lockfile.as_ref())
+    }
+
+    fn get_for_fix_merge(&self) -> Result<Option<&Lockfile>, LoadLockfileError> {
+        Ok(self.load_for_fix_merge()?.lockfile.as_ref())
     }
 
     /// The importers the branch-lockfile fold started from, loading the
@@ -104,6 +120,18 @@ impl LazyLockfile {
         Ok(self.fix_cell.get_or_init(|| loaded))
     }
 
+    fn load_for_fix_merge(&self) -> Result<&LoadedWantedLockfile, LoadLockfileError> {
+        if let Some(loaded) = self.fix_merge_cell.get() {
+            return Ok(loaded);
+        }
+        let loaded = if let Some((dir, selection)) = self.source.as_ref() {
+            Lockfile::load_wanted_detailed_for_fix_merge(dir, selection)?
+        } else {
+            self.cell.get().cloned().unwrap_or_default()
+        };
+        Ok(self.fix_merge_cell.get_or_init(|| loaded))
+    }
+
     /// Whether a wanted lockfile is known to be available: the parsed
     /// document when already loaded, otherwise
     /// [`Lockfile::wanted_exists`]'s semantic-presence probe —
@@ -112,7 +140,9 @@ impl LazyLockfile {
     /// the repeat-install fast path.
     #[must_use]
     pub fn is_loaded_or_on_disk(&self) -> bool {
-        if let Some(loaded) = self.cell.get().or_else(|| self.fix_cell.get()) {
+        if let Some(loaded) =
+            self.cell.get().or_else(|| self.fix_cell.get()).or_else(|| self.fix_merge_cell.get())
+        {
             return loaded.lockfile.is_some();
         }
         self.source
@@ -148,7 +178,7 @@ impl<'a> MaybeLazyLockfile<'a> {
         match self {
             MaybeLazyLockfile::Loaded(lockfile) => Ok(lockfile),
             MaybeLazyLockfile::Lazy(lazy) => lazy.get(),
-            MaybeLazyLockfile::Repair(lazy) => lazy.get().or_else(|_| lazy.get_for_fix()),
+            MaybeLazyLockfile::Repair(lazy) => lazy.get().or_else(|_| lazy.get_for_fix_merge()),
         }
     }
 
