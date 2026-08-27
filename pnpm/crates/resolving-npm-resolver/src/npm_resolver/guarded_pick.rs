@@ -168,7 +168,7 @@ pub(super) fn repick_limit_reached(
 /// exact entry the next pick filters on. Fast-paths the common case where
 /// the parsed manifest version is itself the key; only falls back to
 /// locating the key by identity when a registry served a mismatched key.
-pub(super) fn blocked_packument_key(
+pub fn blocked_packument_key(
     meta: &Package,
     picked: &Arc<PackageVersion>,
     version_str: &str,

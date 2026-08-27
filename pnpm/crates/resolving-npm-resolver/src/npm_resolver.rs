@@ -23,7 +23,9 @@
 //!   store. Pacquet today goes through the picker unconditionally;
 //!   adding the fast path is a separate item.
 
-pub(crate) use resolution_result::{RegistryResolutionSource, ResolvedSpecifier};
+pub(crate) pub use guarded_pick::blocked_packument_key;
+
+use resolution_result::{RegistryResolutionSource, ResolvedSpecifier};
 
 pub(crate) use package_revision::validate_revision_selector;
 
