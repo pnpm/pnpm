@@ -516,9 +516,6 @@ impl InstallArgs {
         selection: Option<InstallFamilySelection>,
     ) -> miette::Result<()> {
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
-        if self.fix_lockfile {
-            state.lockfile.get_for_fix()?;
-        }
         let frozen_lockfile = match self.configured_frozen_lockfile(state.config) {
             _ if self.fix_lockfile || self.refresh_artifact_pins => false,
             Some(value) => value,
@@ -690,6 +687,8 @@ impl InstallArgs {
         }
         let install_lockfile = if refresh_artifact_pins {
             MaybeLazyLockfile::Loaded(refreshed_lockfile.as_ref())
+        } else if fix_lockfile {
+            MaybeLazyLockfile::Repair(lockfile)
         } else {
             MaybeLazyLockfile::Lazy(lockfile)
         };
@@ -921,12 +920,18 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     // pay no deep copy. The server-exchange paths clone at the point a
     // request body actually needs one.
     let previous_wanted: Option<&Lockfile> = if link.use_state_lockfile {
-        state
-            .lockfile
-            .get()
-            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
+        let loaded =
+            if link.fix_lockfile { state.lockfile.get_for_fix() } else { state.lockfile.get() };
+        loaded.map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
     } else {
         None
+    };
+    let merge_wanted = if link.fix_lockfile && link.use_state_lockfile {
+        state.lockfile.get().or_else(|_| state.lockfile.get_for_fix()).map_err(|err| {
+            miette::Report::new(err).wrap_err("load the lockfile for filtered merge")
+        })?
+    } else {
+        previous_wanted
     };
     // Importer ids name projects relative to the lockfile, which
     // `lockfileDir` can pin somewhere other than the workspace the
@@ -1318,7 +1323,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             .map(|root| state.config.lockfile_dir_for(root)),
     ) {
         outcome.lockfile = merge_filtered_wanted_lockfile(
-            previous_wanted,
+            merge_wanted,
             outcome.lockfile,
             real_importer_ids,
             selected_importer_ids,

@@ -279,7 +279,7 @@ mod tests;
 /// carried needs that "before": the merged lockfile no longer holds it,
 /// and only the fold's own additions may be reconciled away against the
 /// manifests. `pre_merge_importers` is `None` when no fold was attempted.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct LoadedWantedLockfile {
     pub lockfile: Option<Lockfile>,
     pub pre_merge_importers: Option<HashMap<String, ProjectSnapshot>>,
@@ -339,8 +339,23 @@ fn merge_git_branch_lockfiles(
 
 fn prepare_value_for_fix(value: &mut serde_json::Value) {
     let Some(root) = value.as_object_mut() else { return };
+    for key in [
+        "settings",
+        "catalogs",
+        "overrides",
+        "packageExtensionsChecksum",
+        "pnpmfileChecksum",
+        "ignoredOptionalDependencies",
+        "patchedDependencies",
+        "time",
+    ] {
+        discard_invalid_generated_field(root, key);
+    }
     if let Some(packages) = root.get_mut("packages").and_then(serde_json::Value::as_object_mut) {
         packages.retain(|_, metadata| {
+            if serde_json::from_value::<crate::PackageMetadata>(metadata.clone()).is_ok() {
+                return true;
+            }
             let Some(resolution) = metadata.get("resolution").cloned() else { return false };
             if serde_json::from_value::<LockfileResolution>(resolution.clone()).is_err() {
                 return false;
@@ -351,6 +366,9 @@ fn prepare_value_for_fix(value: &mut serde_json::Value) {
     }
     if let Some(snapshots) = root.get_mut("snapshots").and_then(serde_json::Value::as_object_mut) {
         for snapshot in snapshots.values_mut() {
+            if serde_json::from_value::<SnapshotEntry>(snapshot.clone()).is_ok() {
+                continue;
+            }
             let dependencies = snapshot.get("dependencies").cloned();
             let optional_dependencies = snapshot.get("optionalDependencies").cloned();
             let mut retained = serde_json::Map::new();
@@ -367,5 +385,20 @@ fn prepare_value_for_fix(value: &mut serde_json::Value) {
                 serde_json::json!({})
             };
         }
+    }
+}
+
+fn discard_invalid_generated_field(
+    root: &mut serde_json::Map<String, serde_json::Value>,
+    key: &str,
+) {
+    let Some(value) = root.get(key).cloned() else { return };
+    let mut candidate = serde_json::Map::from_iter([
+        ("lockfileVersion".to_owned(), serde_json::json!("9.0")),
+        ("importers".to_owned(), serde_json::json!({})),
+    ]);
+    candidate.insert(key.to_owned(), value);
+    if serde_json::from_value::<Lockfile>(serde_json::Value::Object(candidate)).is_err() {
+        root.remove(key);
     }
 }

@@ -95,6 +95,8 @@ fn fix_loader_discards_broken_and_derived_package_fields() {
         text_block! {
             "lockfileVersion: '9.0'"
             ""
+            "settings: invalid"
+            ""
             "importers:"
             "  .: {}"
             ""
@@ -118,15 +120,14 @@ fn fix_loader_discards_broken_and_derived_package_fields() {
 
     let lazy = LazyLockfile::deferred(tmp.path().to_path_buf(), WantedLockfileSelection::default());
     let lockfile = lazy.get_for_fix().expect("load for repair").expect("lockfile present");
+    assert!(lockfile.settings.is_none());
     let packages = lockfile.packages.as_ref().expect("packages present");
-    dbg!(packages);
     assert!(!packages.contains_key(&"broken@1.0.0".parse().expect("broken key")));
     let valid = packages.get(&"valid@1.0.0".parse().expect("valid key")).expect("valid entry");
     assert!(valid.engines.is_none());
     assert!(valid.deprecated.is_none());
 
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots present");
-    dbg!(snapshots);
     let valid =
         snapshots.get(&"valid@1.0.0".parse().expect("valid snapshot key")).expect("valid snapshot");
     assert!(valid.dependencies.as_ref().is_some_and(|deps| deps.len() == 1));

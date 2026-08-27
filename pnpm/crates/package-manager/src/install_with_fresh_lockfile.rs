@@ -134,6 +134,9 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// pins. `None` on the no-lockfile path. Corresponds to the
     /// `update: false` resolver mode.
     pub wanted_lockfile: Option<&'a Lockfile>,
+    /// Intact prior lockfile used to restore unselected projects after a
+    /// filtered repair resolves against a sanitized seed.
+    pub merge_wanted_lockfile: Option<&'a Lockfile>,
     /// Effective `nodeVersion`: an explicit config value, otherwise the
     /// minimum version declared by the root manifest's runtime engine.
     pub node_version: Option<String>,
@@ -753,6 +756,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             workspace_packages,
             update_checksums,
             wanted_lockfile,
+            merge_wanted_lockfile,
             node_version,
             meta_cache,
             node_linker,
@@ -1034,7 +1038,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // Withheld when `dedupe_injected_deps` is off, since the guard only
         // compensates for that pass not running on every re-resolution path.
         let guard_previous_importers: Option<&HashMap<String, pnpm_lockfile::ProjectSnapshot>> =
-            wanted_lockfile
+            merge_wanted_lockfile
                 .filter(|_| config.dedupe_injected_deps)
                 .map(|lockfile| &lockfile.importers);
         let guard_update_reuse_scope = update_reuse_scope.clone();
@@ -1145,7 +1149,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             None => true,
             Some(selected_importer_ids) => {
                 !is_partial_workspace_selection(real_importer_ids, Some(selected_importer_ids))
-                    && wanted_lockfile.is_some_and(|wanted_lockfile| {
+                    && merge_wanted_lockfile.is_some_and(|wanted_lockfile| {
                         wanted_lockfile.importers.len() == selected_importer_ids.len()
                     })
             }
@@ -1271,6 +1275,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 update_reuse_scope: guard_update_reuse_scope.clone(),
                 update_reuse_scopes_by_importer: guard_update_reuse_scopes_by_importer.clone(),
                 wanted_lockfile,
+                merge_wanted_lockfile,
                 real_importer_ids,
                 selected_importer_ids,
                 lockfile_dir,
@@ -1314,6 +1319,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             update_reuse_scope: guard_update_reuse_scope.clone(),
             update_reuse_scopes_by_importer: guard_update_reuse_scopes_by_importer.clone(),
             wanted_lockfile,
+            merge_wanted_lockfile,
             real_importer_ids,
             selected_importer_ids,
             lockfile_dir,
@@ -2106,6 +2112,8 @@ struct FreshLockfileBuildOptions<'a> {
     /// The previous run's lockfile, spliced back over the importers a
     /// filtered install didn't resolve. `None` on a first install.
     wanted_lockfile: Option<&'a Lockfile>,
+    /// Intact prior lockfile used when splicing back unselected importers.
+    merge_wanted_lockfile: Option<&'a Lockfile>,
     /// Every importer the workspace declares, and the subset this run
     /// resolved. Both `Some` and unequal means the install is filtered,
     /// so the unselected importers keep their previous entries.
@@ -2129,7 +2137,7 @@ struct FreshLockfileBuildOptions<'a> {
 fn build_lockfile(
     opts: FreshLockfileBuildOptions<'_>,
 ) -> Result<Lockfile, InstallWithFreshLockfileError> {
-    let wanted_lockfile = opts.wanted_lockfile;
+    let wanted_lockfile = opts.merge_wanted_lockfile;
     let real_importer_ids = opts.real_importer_ids;
     let selected_importer_ids = opts.selected_importer_ids;
     let lockfile_dir = opts.lockfile_dir;
@@ -2171,6 +2179,7 @@ fn build_fresh_lockfile(
 ) -> Result<Lockfile, DependenciesGraphToLockfileError> {
     let FreshLockfileBuildOptions {
         wanted_lockfile,
+        merge_wanted_lockfile: _,
         real_importer_ids: _,
         selected_importer_ids: _,
         lockfile_dir: _,

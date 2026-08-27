@@ -149,7 +149,6 @@ fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
     let repaired = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
         .expect("load repaired lockfile")
         .expect("repaired lockfile");
-    dbg!(&repaired);
     assert_eq!(
         repaired
             .packages
@@ -185,6 +184,76 @@ fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
             .expect("repaired snapshots")
             .values()
             .all(|snapshot| snapshot.transitive_peer_dependencies.is_none()),
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn filtered_fix_lockfile_preserves_unselected_snapshot_metadata() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root manifest");
+    let selected = workspace.join("packages/selected");
+    let unselected = workspace.join("packages/unselected");
+    fs::create_dir_all(&selected).expect("create selected project");
+    fs::create_dir_all(&unselected).expect("create unselected project");
+    fs::write(
+        selected.join("package.json"),
+        serde_json::json!({
+            "name": "selected",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write selected manifest");
+    fs::write(
+        unselected.join("package.json"),
+        serde_json::json!({
+            "name": "unselected",
+            "version": "1.0.0",
+            "optionalDependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write unselected manifest");
+    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let original = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
+        .expect("load original lockfile")
+        .expect("original lockfile");
+    let optional_snapshot_keys: std::collections::HashSet<_> = original
+        .snapshots
+        .as_ref()
+        .expect("original snapshots")
+        .iter()
+        .filter(|(_, snapshot)| snapshot.optional)
+        .map(|(key, _)| key.clone())
+        .collect();
+    assert!(!optional_snapshot_keys.is_empty());
+
+    new_pacquet_command(&workspace)
+        .with_args(["--filter", "selected", "install", "--fix-lockfile", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let repaired = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
+        .expect("load repaired lockfile")
+        .expect("repaired lockfile");
+    let repaired_snapshots = repaired.snapshots.as_ref().expect("repaired snapshots");
+    assert!(
+        optional_snapshot_keys
+            .iter()
+            .all(|key| { repaired_snapshots.get(key).is_some_and(|snapshot| snapshot.optional) }),
     );
 
     drop((root, mock_instance));

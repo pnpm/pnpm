@@ -17,6 +17,7 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) config: &'static Config,
     pub(super) manifest: &'a PackageManifest,
     pub(super) lockfile: Option<&'a Lockfile>,
+    pub(super) merge_wanted_lockfile: Option<&'a Lockfile>,
     pub(super) take_frozen_path: bool,
     pub(super) lockfile_verification_override:
         Option<super::LockfileVerificationOverride<'install>>,
@@ -97,6 +98,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         config,
         manifest,
         lockfile,
+        merge_wanted_lockfile,
         take_frozen_path,
         lockfile_verification_override,
         resolution_verifiers,
@@ -405,6 +407,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             // entries keep their pins on rewrite (the `update: false`
             // mode). State 4 (no lockfile) passes `None`.
             wanted_lockfile: lockfile,
+            merge_wanted_lockfile,
             node_version: effective_node_version,
             node_linker,
             supported_architectures,
