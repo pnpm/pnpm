@@ -165,8 +165,8 @@ catalogs:
       specifier: ^0.3.1
       version: 0.3.1
     '@pnpm/npm-lifecycle':
-      specifier: ^1100.0.0
-      version: 1100.0.0
+      specifier: ^1100.1.0
+      version: 1100.1.0
     '@pnpm/npm-package-arg':
       specifier: ^2.0.0
       version: 2.0.0
@@ -4387,7 +4387,7 @@ importers:
         version: link:../../fetching/directory-fetcher
       '@pnpm/npm-lifecycle':
         specifier: 'catalog:'
-        version: 1100.0.0(supports-color@10.2.2)(typanion@3.14.0)
+        version: 1100.1.0(supports-color@10.2.2)(typanion@3.14.0)
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
@@ -11896,8 +11896,8 @@ packages:
     resolution: {integrity: sha512-5jW/GNLdZMiw+PJ8FYSvOghoApSjsORNIro2fj8j6NHAqJxJjcHekC5/NsKaawoI5LAkU/XDDVjNC71Yz+uS1w==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/npm-lifecycle@1100.0.0':
-    resolution: {integrity: sha512-igdq1MDnShKMFLdA9uBkMZ8lI/65FUMeh7mjgd1x710qjk9JtF8bV2iYOs/hbBz6IFo98adyQvg1Trx1n5dwIw==}
+  '@pnpm/npm-lifecycle@1100.1.0':
+    resolution: {integrity: sha512-CL1iRrlTlsghpglS+IkgJu6J6FDEDA8ShqgSib55eq2c/Vha+/mYBp3Ob6epYndB25JPF2B/NYlbrBt4Cn7QCw==}
     engines: {node: '>=22.13'}
 
   '@pnpm/npm-package-arg@2.0.0':
@@ -19206,7 +19206,7 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/npm-lifecycle@1100.0.0(supports-color@10.2.2)(typanion@3.14.0)':
+  '@pnpm/npm-lifecycle@1100.1.0(supports-color@10.2.2)(typanion@3.14.0)':
     dependencies:
       '@pnpm/byline': 1.0.0
       '@pnpm/error': 1000.1.0
