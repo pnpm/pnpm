@@ -64,18 +64,12 @@ impl SnapshotEntry {
             .and_then(|pins| pins.get(&input_key))
             .and_then(|owners| owners.get(&owner))
             .and_then(|platforms| platforms.get(&platform_fingerprint));
-        if previous == Some(&envelope_digest)
-            && self.artifact_pins.as_ref().is_some_and(|pins| pins.len() == 1)
-        {
+        if previous == Some(&envelope_digest) {
             return false;
         }
-        let mut owners = self
-            .artifact_pins
-            .as_mut()
-            .and_then(|pins| pins.remove(&input_key))
-            .unwrap_or_default();
+        let pins = self.artifact_pins.get_or_insert_default();
+        let owners = pins.entry(input_key).or_default();
         owners.entry(owner).or_default().insert(platform_fingerprint, envelope_digest);
-        self.artifact_pins = Some(BTreeMap::from([(input_key, owners)]));
         true
     }
 

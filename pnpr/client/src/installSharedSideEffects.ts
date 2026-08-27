@@ -255,6 +255,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
       return false
     })
     if (eligibleBatch.length === 0) return
+    const batchPinnedEnvelopeDigests = new Map(pinnedEnvelopeDigests)
     supported ??= (async () => {
       try {
         return await pnprSupportsSharedSideEffects({ registryUrl, authorization })
@@ -280,7 +281,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
           allowedBuilds: new Set(eligibleBatch.map(({ candidate }) => candidate.package.name)),
         },
         trustedKeys,
-        pinnedEnvelopeDigests,
+        pinnedEnvelopeDigests: batchPinnedEnvelopeDigests,
       })
     } catch (err: unknown) {
       opts.warn?.(`Remote side-effects cache lookup failed: ${errorMessage(err)}`)
@@ -288,6 +289,10 @@ export function createRemoteSideEffectsRestorer<T extends string> (
       return
     }
     await Promise.all(eligibleBatch.map(async ({ candidate, resolve }) => {
+      if (collisions.has(candidate.key) || pinCollisions.has(candidate.key)) {
+        resolve(undefined)
+        return
+      }
       const artifact = resolved.get(candidate.key)
       if (artifact == null) {
         resolve(undefined)
@@ -347,8 +352,9 @@ export function createRemoteSideEffectsRestorer<T extends string> (
     const snapshot = opts.artifactPinsLockfile?.packages?.[depPath]
     if (snapshot == null) return
     const previous = snapshot.artifactPins?.[inputKey]
-    if (previous?.[ownerKey]?.[fingerprint] === envelopeDigest && Object.keys(snapshot.artifactPins ?? {}).length === 1) return
+    if (previous?.[ownerKey]?.[fingerprint] === envelopeDigest) return
     const artifactPins: ArtifactPins = {
+      ...snapshot.artifactPins,
       [inputKey]: {
         ...previous,
         [ownerKey]: {

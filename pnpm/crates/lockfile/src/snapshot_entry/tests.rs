@@ -36,7 +36,7 @@ fn optional_defaults_false_and_omits_when_false() {
 }
 
 #[test]
-fn artifact_pins_round_trip_and_repin_explicitly() {
+fn artifact_pins_round_trip_and_preserve_other_inputs() {
     let yaml = text_block! {
         "artifactPins:"
         "  dependency-side-effects:v1:deps=old:"
@@ -57,7 +57,7 @@ fn artifact_pins_round_trip_and_repin_explicitly() {
         "def456".to_string(),
     ));
     let out = serialize_yaml::to_string(&entry).expect("serialize");
-    assert!(!out.contains("deps=old"));
+    assert!(out.contains("dependency-side-effects:v1:deps=old:"));
     assert!(out.contains("dependency-side-effects:v1:deps=new:"));
     assert!(out.contains("linux-node22: def456"));
     assert!(entry.clear_artifact_pins());
