@@ -1,5 +1,5 @@
 use super::{Body, ObjectStore, S3Store};
-use crate::storage::HostedRevisionRefWrite;
+use crate::HostedRevisionRefWrite;
 use object_store::{ObjectStoreExt, PutPayload, memory::InMemory, path::Path as ObjectPath};
 use pnpr_config::S3Settings;
 use pnpr_package_name::PackageName;
@@ -117,7 +117,7 @@ async fn deleted_packument_update_is_rejected() {
 
 #[tokio::test]
 async fn concurrent_tarball_finalize_does_not_overwrite() {
-    use crate::storage::TarballFinalize;
+    use crate::TarballFinalize;
     let (store, _staging) = store_with_prefix("");
     let name = pkg("racer");
     let file = "racer-1.0.0.tgz";
@@ -282,14 +282,14 @@ async fn concurrent_revision_ref_claims_survive_other_owner_removal() {
 async fn revision_ref_writes_enforce_the_read_bound() {
     let (store, _staging) = store_with_prefix("packages");
     let digest = "A".repeat(86);
-    for index in 0..crate::storage::MAX_HOSTED_REVISION_REFS {
+    for index in 0..crate::MAX_HOSTED_REVISION_REFS {
         store
             .write_revision_ref(&digest, &format!("{index:064x}"), "owner-a", b"{}")
             .await
             .unwrap();
     }
 
-    let overflow = crate::storage::MAX_HOSTED_REVISION_REFS;
+    let overflow = crate::MAX_HOSTED_REVISION_REFS;
     let err = store
         .write_revision_ref(&digest, &format!("{overflow:064x}"), "owner-a", b"{}")
         .await
@@ -297,7 +297,7 @@ async fn revision_ref_writes_enforce_the_read_bound() {
     assert!(matches!(
         err,
         pnpr_error::RegistryError::RevisionReferenceLimit { limit }
-            if limit == crate::storage::MAX_HOSTED_REVISION_REFS
+            if limit == crate::MAX_HOSTED_REVISION_REFS
     ));
 
     assert_eq!(
@@ -313,7 +313,7 @@ async fn revision_ref_writes_enforce_the_read_bound() {
         .await
         .unwrap();
     let refs = store.read_revision_refs(&digest).await.unwrap();
-    assert_eq!(refs.len(), crate::storage::MAX_HOSTED_REVISION_REFS);
+    assert_eq!(refs.len(), crate::MAX_HOSTED_REVISION_REFS);
     assert!(refs.iter().all(|bytes| bytes == b"{}"));
 }
 
@@ -322,7 +322,7 @@ async fn concurrent_revision_ref_writes_cannot_exceed_the_limit() {
     let (store, _staging) = store_with_prefix("packages");
     let digest = "A".repeat(86);
     let mut writes = Vec::new();
-    for index in 0..crate::storage::MAX_HOSTED_REVISION_REFS * 2 {
+    for index in 0..crate::MAX_HOSTED_REVISION_REFS * 2 {
         let store = store.clone();
         let digest = digest.clone();
         writes.push(tokio::spawn(async move {
@@ -340,11 +340,11 @@ async fn concurrent_revision_ref_writes_cannot_exceed_the_limit() {
             Err(err) => panic!("unexpected revision-reference write error: {err}"),
         }
     }
-    assert_eq!(written, crate::storage::MAX_HOSTED_REVISION_REFS);
-    assert_eq!(rejected, crate::storage::MAX_HOSTED_REVISION_REFS);
+    assert_eq!(written, crate::MAX_HOSTED_REVISION_REFS);
+    assert_eq!(rejected, crate::MAX_HOSTED_REVISION_REFS);
     assert_eq!(
         store.read_revision_refs(&digest).await.unwrap().len(),
-        crate::storage::MAX_HOSTED_REVISION_REFS,
+        crate::MAX_HOSTED_REVISION_REFS,
     );
 }
 

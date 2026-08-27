@@ -1,4 +1,10 @@
-use crate::{s3::S3Store, streaming};
+mod backend;
+pub mod journal;
+pub mod publish;
+mod s3;
+pub mod streaming;
+
+use crate::s3::S3Store;
 use async_trait::async_trait;
 use axum::body::Body;
 use pnpm_crypto_hash::integrity_addressed_tarball_integrity;
@@ -21,11 +27,8 @@ use tokio::{
     io::{AsyncSeekExt, AsyncWriteExt},
 };
 
-mod backend;
-
-pub(crate) use self::backend::{
-    HostedBackend, HostedPackumentForUpdate, HostedPackumentVersion, TarballFinalize,
-};
+pub(crate) use self::backend::HostedBackend;
+pub use self::backend::{HostedPackumentForUpdate, HostedPackumentVersion, TarballFinalize};
 
 const PACKUMENT_FILE: &str = "package.json";
 pub(crate) const HOSTED_REVISION_REFS_DIR: &str = ".revisions/sha512";
@@ -47,7 +50,7 @@ struct HostedRevisionRefIndexEntry {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum HostedRevisionRefWrite {
+pub enum HostedRevisionRefWrite {
     Claimed,
     AlreadyClaimed,
     Committed,
@@ -167,7 +170,7 @@ impl HostedRevisionRefIndex {
 /// on POSIX as long as src and dest sit in the same directory (they do).
 static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 const MAX_TEMP_CREATE_ATTEMPTS: usize = 16;
-pub(crate) const PACKUMENT_WRITE_RETRIES: usize = 8;
+pub const PACKUMENT_WRITE_RETRIES: usize = 8;
 pub(crate) const RECOVERY_PACKUMENT_WRITE_RETRIES: usize = 32;
 const PACKUMENT_WRITE_CONFLICT_DELAY_MS: u64 = 5;
 const MAX_PACKUMENT_WRITE_CONFLICT_DELAY_MS: u64 = 250;
@@ -312,7 +315,7 @@ pub enum CachedPackument {
 ///   upstream refresh, so a hosted version can't be masked or lost.
 ///   Backed by a local directory by default, or an S3-compatible
 ///   object store (S3, Cloudflare R2, `MinIO`, ...) when the YAML `s3:`
-///   block is set — see [`crate::s3`].
+///   block is set — see the S3 backend.
 /// * `cached` — the disposable mirror of upstream registries. Safe to
 ///   wipe at any time; it self-heals on the next request. Always local,
 ///   on scratch/ephemeral disk.
@@ -341,14 +344,14 @@ pub struct Storage {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PackumentWrite {
+pub enum PackumentWrite {
     Written,
     Conflict,
 }
 
 /// Outcome of [`Storage::update_hosted_packument_with_retry`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PackumentUpdate {
+pub enum PackumentUpdate {
     Written,
     /// The `build` closure reported that the packument does not exist
     /// (returned `Ok(None)`), so there was nothing to update.
@@ -473,6 +476,7 @@ impl Storage {
     /// the hosted store when it's [`HostedStoreConfig::Fs`];
     /// `cache_storage` always backs the proxy cache and doubles as the
     /// S3 backend's local staging scratch.
+    #[must_use]
     pub fn new(hosted: &HostedStoreConfig, storage: PathBuf, cache_storage: PathBuf) -> Self {
         let cached = Store::new(cache_storage.clone());
         let hosted: Arc<dyn HostedBackend> = match hosted {
@@ -490,12 +494,12 @@ impl Storage {
         self.hosted.list_package_names().await
     }
 
-    pub(crate) async fn read_hosted_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
+    pub async fn read_hosted_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
         validate_revision_digest(digest)?;
         self.hosted.read_revision_refs(digest).await
     }
 
-    pub(crate) async fn write_hosted_revision_ref(
+    pub async fn write_hosted_revision_ref(
         &self,
         digest: &str,
         ref_id: &str,
@@ -520,7 +524,7 @@ impl Storage {
         self.hosted.remove_revision_ref(digest, ref_id, owner).await
     }
 
-    pub(crate) async fn commit_hosted_revision_ref(
+    pub async fn commit_hosted_revision_ref(
         &self,
         digest: &str,
         ref_id: &str,
@@ -551,14 +555,14 @@ impl Storage {
         self.hosted.read_packument(name).await
     }
 
-    pub(crate) async fn read_hosted_packument_for_update(
+    pub async fn read_hosted_packument_for_update(
         &self,
         name: &PackageName,
     ) -> Result<Option<HostedPackumentForUpdate>> {
         self.hosted.read_packument_for_update(name).await
     }
 
-    pub(crate) async fn write_hosted_packument_if_current(
+    pub async fn write_hosted_packument_if_current(
         &self,
         name: &PackageName,
         bytes: &[u8],
@@ -577,7 +581,7 @@ impl Storage {
     /// [`RegistryError::PackumentWriteConflict`]. Both the dist-tag request
     /// path and journal roll-forward go through here so their conflict handling
     /// stays in one place.
-    pub(crate) async fn update_hosted_packument_with_retry<Build>(
+    pub async fn update_hosted_packument_with_retry<Build>(
         &self,
         name: &PackageName,
         retries: usize,
@@ -761,6 +765,7 @@ impl Storage {
     /// the same local root as the staged tmp files: the hosted store
     /// root on the fs backend, the cache scratch on the S3 backend
     /// (whose staging paths live there too).
+    #[must_use]
     pub fn publish_journal(&self) -> crate::journal::PublishJournal {
         let root = self.hosted.local_scratch_root();
         crate::journal::PublishJournal::new(root.join(crate::journal::JOURNAL_DIR))
@@ -1205,7 +1210,7 @@ pub(crate) fn staged_id_of_meta_object(object: &str) -> Option<&str> {
     object.strip_suffix(STAGED_META_SUFFIX)
 }
 
-pub(crate) async fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
+pub async fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).await?;
     }
@@ -1228,7 +1233,7 @@ pub(crate) async fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn remove_atomic_write_temps(path: &Path) -> Result<()> {
+pub async fn remove_atomic_write_temps(path: &Path) -> Result<()> {
     let Some(parent) = path.parent() else {
         return Ok(());
     };
@@ -1302,8 +1307,8 @@ async fn create_tmp_file_with(
 
 /// A unique sibling of `base` (`<base>.tmp.<pid>.<counter>.<random>`).
 /// Keeping it in `base`'s directory keeps the eventual rename atomic on
-/// POSIX. Shared with [`crate::s3`]'s staging path.
-pub(crate) fn unique_tmp_path(base: &Path) -> PathBuf {
+/// POSIX. Shared with the S3 backend's staging path.
+pub fn unique_tmp_path(base: &Path) -> PathBuf {
     let counter = TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
     let mut random = [0u8; 8];

@@ -21,8 +21,8 @@ use tokio::{
     time::sleep,
 };
 
-use crate::storage::{remove_atomic_write_temps, write_atomic};
 use pnpr_error::{RegistryError, Result};
+use pnpr_storage::{remove_atomic_write_temps, write_atomic};
 
 const ARTIFACT_CACHE_DIR: &str = "shared-artifacts/v0";
 const ARTIFACT_LOCK_POLL_INTERVAL: Duration = Duration::from_millis(50);

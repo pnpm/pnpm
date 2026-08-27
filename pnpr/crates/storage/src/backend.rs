@@ -1,4 +1,4 @@
-use crate::storage::{HostedRevisionRefWrite, PackumentWrite};
+use crate::{HostedRevisionRefWrite, PackumentWrite};
 use async_trait::async_trait;
 use axum::body::Body;
 use object_store::UpdateVersion;
@@ -102,15 +102,15 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
 }
 
 #[derive(Debug)]
-pub(crate) struct HostedPackumentForUpdate {
-    pub(crate) bytes: Vec<u8>,
-    pub(crate) version: HostedPackumentVersion,
+pub struct HostedPackumentForUpdate {
+    pub bytes: Vec<u8>,
+    pub version: HostedPackumentVersion,
 }
 
 /// What a backend needs to recognize the packument it handed out, so a
 /// read-modify-write can refuse to clobber a concurrent publisher.
 #[derive(Debug)]
-pub(crate) enum HostedPackumentVersion {
+pub enum HostedPackumentVersion {
     /// The backend offers no compare-and-set. It is single-writer by
     /// construction, so there is nothing to compare against.
     Unversioned,
@@ -119,7 +119,7 @@ pub(crate) enum HostedPackumentVersion {
 
 /// Outcome of promoting a staged tarball into the hosted store.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TarballFinalize {
+pub enum TarballFinalize {
     /// The tarball was promoted: created on S3, or renamed into place on the
     /// single-node FS backend, which owns its store exclusively.
     Written,

@@ -208,7 +208,7 @@ fn sha1_hex_from_integrity_opts(opts: IntegrityOpts) -> String {
 ///
 /// * `name`, `_id` — copied from the new body.
 /// * `versions` — union; an already-hosted version is immutable except for
-///   its `deprecated` flag (see [`merge_versions`]), an upstream-only or
+///   its `deprecated` flag (see `merge_versions`), an upstream-only or
 ///   new version is taken from the body. `hosted` is the locally hosted
 ///   packument (or `None`); `existing` is the merge seed, which may instead
 ///   be the upstream packument, so immutability keys off `hosted`, not it.
@@ -393,6 +393,7 @@ fn merge_versions(existing: Option<&Value>, incoming: &Value, hosted: Option<&Va
 /// Format the current time as an ISO-8601 / RFC-3339 string with
 /// millisecond precision (e.g. `2025-01-02T03:04:05.678Z`). Matches
 /// the shape npm and verdaccio use in `time.modified`.
+#[must_use]
 pub fn now_iso() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let since_epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
@@ -404,6 +405,7 @@ pub fn now_iso() -> String {
 /// `TokenRecord::created_at` (seconds since epoch) through this same
 /// helper so both `time.modified` on packuments and `created` on
 /// tokens render with identical shape.
+#[must_use]
 pub fn iso_from_unix_millis(millis: i64) -> String {
     // Civil-time conversion without pulling in `chrono`.
     // 86_400_000 ms in a day.

@@ -10,18 +10,18 @@ use pnpm_crypto_hash::{create_hex_hash, integrity_addressed_tarball_path};
 use serde_json::{Value, json};
 use ssri::Integrity;
 
-use crate::{
+use pnpr_error::RegistryError;
+use pnpr_package_name::PackageName;
+use pnpr_policy::Identity;
+use pnpr_registry::Registry;
+use pnpr_storage::{
+    HostedPackumentVersion, PackumentWrite, TarballFinalize,
     journal::{JournaledPublish, JournaledRevisionRef},
     publish::{
         PendingAttachment, extract_attachments, merge_manifest, now_iso,
         stream_decode_verify_and_write,
     },
-    storage::{HostedPackumentVersion, PackumentWrite, TarballFinalize},
 };
-use pnpr_error::RegistryError;
-use pnpr_package_name::PackageName;
-use pnpr_policy::Identity;
-use pnpr_registry::Registry;
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, HostedOriginalRef, RegistrySource, WriteTarget,
@@ -375,7 +375,7 @@ pub(super) struct StagedPublish {
     name: PackageName,
     merged_bytes: Vec<u8>,
     base_version: Option<HostedPackumentVersion>,
-    slots: Vec<crate::storage::TarballSlot>,
+    slots: Vec<pnpr_storage::TarballSlot>,
     original_refs: Vec<JournaledRevisionRef>,
     /// Hosted-org storage namespace this publish targets, or `None` for the
     /// flat (path-less) hosted store. Threaded into the commit and journal so
@@ -673,7 +673,7 @@ fn publish_created_response() -> Response {
 /// already wrote. Errors are swallowed: the caller is already
 /// returning an error response, and a leftover `*.tmp.*` file is
 /// harmless beyond a small amount of disk.
-async fn cleanup_tmp_slots(slots: Vec<crate::storage::TarballSlot>) {
+async fn cleanup_tmp_slots(slots: Vec<pnpr_storage::TarballSlot>) {
     for slot in slots {
         let _ = tokio::fs::remove_file(&slot.tmp_path).await;
     }

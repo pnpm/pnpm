@@ -26,11 +26,10 @@
 //! failed apply and the restart.
 
 use crate::{
+    HostedRevisionRefWrite, RECOVERY_PACKUMENT_WRITE_RETRIES, Storage, TarballFinalize,
+    TarballSlot, is_canonical_revision_ref_owner,
     publish::{merge_manifest, now_iso},
-    storage::{
-        HostedRevisionRefWrite, RECOVERY_PACKUMENT_WRITE_RETRIES, Storage, TarballFinalize,
-        TarballSlot, is_canonical_revision_ref_owner, unique_tmp_path,
-    },
+    unique_tmp_path,
 };
 use pnpr_config::Config;
 use pnpr_error::{RegistryError, Result};
@@ -204,7 +203,8 @@ impl PublishJournal {
 }
 
 impl SealedTxn {
-    pub(crate) fn revision_ref_owner(&self) -> &str {
+    #[must_use]
+    pub fn revision_ref_owner(&self) -> &str {
         &self.revision_ref_owner
     }
 
@@ -227,7 +227,7 @@ impl SealedTxn {
 }
 
 /// Roll the publish journal of the storage configured in `config` to a
-/// consistent state. [`crate::serve`] and [`crate::serve_listener`]
+/// consistent state. `pnpr::serve` and `pnpr::serve_listener`
 /// call this before binding; embedders that build a router directly
 /// should call it themselves on startup.
 pub async fn recover_publish_journal(config: &Config) -> Result<()> {

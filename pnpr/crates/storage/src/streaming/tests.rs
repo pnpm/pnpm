@@ -1,5 +1,5 @@
 use super::{TarballStreamError, integrity_checker, parse_integrity, stream_verified_to_cache};
-use crate::storage::Storage;
+use crate::Storage;
 use futures_util::StreamExt;
 use pnpr_config::HostedStoreConfig;
 use pnpr_package_name::PackageName;

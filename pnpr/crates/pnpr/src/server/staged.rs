@@ -29,12 +29,10 @@ use super::{
     commit_publishes, json_response, not_found, private_no_cache, resolve_write_target,
     stage_publish, validate_publish_doc,
 };
-use crate::{
-    publish::{extract_attachments, now_iso},
-    search::percent_decode,
-};
+use crate::search::percent_decode;
 use pnpr_error::RegistryError;
 use pnpr_package_name::PackageName;
+use pnpr_storage::publish::{extract_attachments, now_iso};
 
 /// One staged publish's metadata, stored next to the held publish body and
 /// served by the list/view endpoints (without the `registry` field, which is

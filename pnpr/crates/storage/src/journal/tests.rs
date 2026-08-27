@@ -2,7 +2,7 @@ use super::{
     JournaledPublish, JournaledRevisionRef, MANIFEST_FILE, Manifest, cleanup_conflicted_tmp_paths,
     drop_conflicted_versions, revision_ref_owner, roll_forward, sync_dir,
 };
-use crate::storage::{HostedRevisionRefWrite, Storage, TarballFinalize};
+use crate::{HostedRevisionRefWrite, Storage, TarballFinalize};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use object_store::{ObjectStore, memory::InMemory};
 use pnpr_config::HostedStoreConfig;
@@ -170,7 +170,7 @@ async fn roll_forward_drops_a_version_that_cannot_reserve_a_revision_reference()
     let storage =
         Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"));
     let digest = URL_SAFE_NO_PAD.encode([7_u8; 64]);
-    for index in 0..crate::storage::MAX_HOSTED_REVISION_REFS {
+    for index in 0..crate::MAX_HOSTED_REVISION_REFS {
         storage
             .write_hosted_revision_ref(&digest, &format!("{index:064x}"), "existing-owner", b"{}")
             .await
@@ -212,7 +212,7 @@ async fn roll_forward_drops_a_version_that_cannot_reserve_a_revision_reference()
     assert_eq!(hosted["time"].get("1.0.0"), None);
     assert_eq!(
         storage.read_hosted_revision_refs(&digest).await.unwrap().len(),
-        crate::storage::MAX_HOSTED_REVISION_REFS,
+        crate::MAX_HOSTED_REVISION_REFS,
     );
 }
 
@@ -224,7 +224,7 @@ async fn roll_forward_only_removes_transaction_owned_references_for_a_dropped_ve
     let transaction_owned_digest = URL_SAFE_NO_PAD.encode([5_u8; 64]);
     let previously_owned_digest = URL_SAFE_NO_PAD.encode([6_u8; 64]);
     let full_digest = URL_SAFE_NO_PAD.encode([7_u8; 64]);
-    for index in 0..crate::storage::MAX_HOSTED_REVISION_REFS {
+    for index in 0..crate::MAX_HOSTED_REVISION_REFS {
         storage
             .write_hosted_revision_ref(
                 &full_digest,

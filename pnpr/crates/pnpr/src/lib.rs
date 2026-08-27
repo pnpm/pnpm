@@ -7,18 +7,12 @@
 //!
 //! See <https://github.com/pnpm/pnpm> for the parent project.
 
-mod journal;
 mod osv;
-mod publish;
 mod resolver;
-mod s3;
 mod search;
 mod server;
 mod shared_artifacts;
-mod storage;
-mod streaming;
 
-pub use journal::recover_publish_journal;
 pub use pnpr_auth::{
     AuthState, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend, UserStore,
     identify,
@@ -35,6 +29,7 @@ pub use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRul
 pub use pnpr_registry::{
     ConcreteKind, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
 };
+pub use pnpr_storage::journal::recover_publish_journal;
 pub use server::{
     router, router_with_auth, serve, serve_listener, try_router, try_router_with_auth,
 };

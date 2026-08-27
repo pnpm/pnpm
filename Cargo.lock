@@ -6011,6 +6011,7 @@ dependencies = [
  "pnpr-policy",
  "pnpr-registry",
  "pnpr-route",
+ "pnpr-storage",
  "pnpr-upstream",
  "reqwest",
  "rusqlite",
@@ -6147,6 +6148,29 @@ dependencies = [
  "sha2",
  "tracing",
  "wax",
+]
+
+[[package]]
+name = "pnpr-storage"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "axum 0.8.9",
+ "base64 0.23.1",
+ "futures-util",
+ "getrandom 0.4.3",
+ "object_store",
+ "pnpm-crypto-hash",
+ "pnpr-config",
+ "pnpr-error",
+ "pnpr-package-name",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tempfile",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

@@ -20,11 +20,6 @@ use self::{
     routing::router_with_auth_and_osv,
 };
 
-use crate::{
-    publish::{iso_from_unix_millis, now_iso},
-    storage::Storage,
-    streaming,
-};
 use axum::{
     Router,
     body::Body,
@@ -47,6 +42,12 @@ use pnpr_error::RegistryError;
 use pnpr_package_name::PackageName;
 use pnpr_policy::Identity;
 use pnpr_registry::{ConcreteKind, Registry, Resolved};
+use pnpr_storage::{
+    Storage,
+    publish::{iso_from_unix_millis, now_iso},
+    streaming,
+};
+
 use pnpr_upstream::{
     CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
     extract_upstream_version_manifest, extract_version_manifest, rewrite_tarball_urls,
@@ -244,7 +245,7 @@ fn load_active_osv_index(config: &Config) -> pnpr_error::Result<Option<Arc<crate
 /// and both mounted surfaces consult caller identity.
 async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     if config.registry.enabled {
-        crate::journal::recover_publish_journal(config).await?;
+        pnpr_storage::journal::recover_publish_journal(config).await?;
     }
     AuthState::load(&config.auth, &config.backend).await
 }

@@ -13,7 +13,7 @@
 //! resolver `SQLite` stores stay on local disk regardless —
 //! only the hosted store is pluggable.
 
-use crate::storage::{
+use crate::{
     HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR, HostedBackend,
     HostedPackumentForUpdate, HostedPackumentVersion, HostedRevisionRefIndex,
     HostedRevisionRefWrite, PackumentWrite, STAGED_DIR, TarballFinalize, staged_id_of_meta_object,
@@ -39,7 +39,7 @@ const PACKUMENT_FILE: &str = "package.json";
 const REVISION_REF_WRITE_RETRIES: usize = 32;
 
 /// Object-store-backed hosted store. Mirrors the verdaccio-shaped
-/// key layout the on-disk [`crate::storage`] uses
+/// key layout the on-disk [`crate`] uses
 /// (`<prefix><pkg>/package.json`, `<prefix><pkg>/<basename>.tgz`) so a
 /// bucket and a directory hold the same shape.
 #[derive(Debug, Clone)]
@@ -178,7 +178,7 @@ impl S3Store {
     /// the bucket once the verification passes.
     pub async fn staging_tmp_path(&self, _name: &PackageName, filename: &str) -> Result<PathBuf> {
         fs::create_dir_all(&self.staging_dir).await?;
-        Ok(crate::storage::unique_tmp_path(&self.staging_dir.join(filename)))
+        Ok(crate::unique_tmp_path(&self.staging_dir.join(filename)))
     }
 
     pub async fn upload_tarball(
