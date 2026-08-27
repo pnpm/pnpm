@@ -270,7 +270,7 @@ Benchmarks on an app with lots of dependencies:
 
 ## Nix
 
-The project provides optional Nix flake outputs for users who already use Nix. The flake exposes the prebuilt release binary as `#prebuilt` (also `#default`) and the nixpkgs-packaged version as `#nixpkgs`.
+The project provides optional Nix flake outputs for users who already use Nix. The flake exposes the prebuilt release binary as `#prebuilt` (also `#default`), a from-source build of the Rust CLI as `#source`, and the nixpkgs-packaged version as `#nixpkgs`.
 
 ```bash
 # Run without installing (prebuilt binary, default)
@@ -279,8 +279,9 @@ nix run github:pnpm/pnpm
 # Install into your profile
 nix profile add github:pnpm/pnpm
 
-# Explicitly choose prebuilt or nixpkgs
+# Explicitly choose prebuilt, source, or nixpkgs
 nix run github:pnpm/pnpm#prebuilt
+nix run github:pnpm/pnpm#source
 nix run github:pnpm/pnpm#nixpkgs
 ```
 

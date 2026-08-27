@@ -67,3 +67,9 @@ jobs:
         # (realises inside the sandbox, no network).
         if: github.event_name != 'pull_request'
         run: nix run .#default -- --version
+
+      - name: nix build .#source
+        # Exercises the from-source Rust build path. This is slower than
+        # the prebuilt build but validates that the Cargo workspace
+        # compiles correctly with the pinned nixpkgs toolchain.
+        run: nix build .#source --print-build-logs
