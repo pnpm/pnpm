@@ -198,9 +198,9 @@ pub fn router(config: Config) -> Router {
 }
 
 /// Fallible counterpart to [`router`]: surfaces an invalid config, an
-/// unloadable OSV database (when `osv.enabled`), and a hosted object store
-/// that will not open as errors instead of panicking, for embedders that
-/// build the router directly rather than via [`serve`].
+/// unloadable OSV database (when `osv.enabled`), and hosted-store settings
+/// that don't build a client as errors instead of panicking, for embedders
+/// that build the router directly rather than via [`serve`].
 pub fn try_router(config: Config) -> pnpr_error::Result<Router> {
     let max_users = config.auth.htpasswd.max_users;
     try_router_with_auth(config, AuthState::in_memory_with_max_users(max_users))
@@ -211,12 +211,11 @@ pub fn try_router(config: Config) -> pnpr_error::Result<Router> {
 /// tests that want to override the bcrypt cost or pre-seed users.
 ///
 /// Panics if the config is invalid, an enabled OSV database can't load, or
-/// the hosted object store can't be opened — the last of which needs
-/// reachable credentials, so it is a real possibility at startup. Call
+/// the hosted object store's settings don't build a client. Call
 /// [`try_router_with_auth`] to handle these as recoverable errors.
 pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
     try_router_with_auth(config, auth)
-        .expect("pnpr config must be valid, and any enabled OSV database and the hosted object store must open, before building the router")
+        .expect("pnpr config must be valid, and any enabled OSV database and hosted-store client must build, before building the router")
 }
 
 /// Fallible counterpart to [`router_with_auth`].
@@ -285,10 +284,13 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     let osv_index = load_active_osv_index(&config)?;
     let auth = load_startup_auth(&config).await?;
     let listen = config.listen;
-    let app = router_with_auth_and_osv(config, auth, osv_index);
+    // Build the router before taking the port: it can fail, and a failure
+    // should not leave a bound socket behind or put a `pnpr listening` line
+    // immediately above the error saying it is not.
+    let app = router_with_auth_and_osv(config, auth, osv_index)?;
     let listener = NodelayTcpListener(tokio::net::TcpListener::bind(listen).await?);
     tracing::info!(%listen, "pnpr listening");
-    axum::serve(listener, app?.into_make_service_with_connect_info::<PeerAddr>())
+    axum::serve(listener, app.into_make_service_with_connect_info::<PeerAddr>())
         .with_graceful_shutdown(shutdown_signal())
         .await?;
     Ok(())
@@ -326,11 +328,11 @@ pub async fn serve_listener(
     // would silently fall back to in-memory auth and ignore a persisted
     // htpasswd / SQLite store or a configured `backend:`.
     let auth = load_startup_auth(&config).await?;
-    let app = router_with_auth_and_osv(config, auth, osv_index);
+    let app = router_with_auth_and_osv(config, auth, osv_index)?;
     tracing::info!(%listen, "pnpr listening");
     axum::serve(
         NodelayTcpListener(listener),
-        app?.into_make_service_with_connect_info::<PeerAddr>(),
+        app.into_make_service_with_connect_info::<PeerAddr>(),
     )
     .with_graceful_shutdown(shutdown_signal())
     .await?;

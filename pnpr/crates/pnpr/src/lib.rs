@@ -18,8 +18,8 @@ pub use pnpr_config::{
     AccessSpec, AuthConfig, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML,
     FeatureOverrides, HostedConfig, HostedStoreConfig, HtpasswdConfig, LibsqlSettings, LogConfig,
     LogFormat, LogLevel, MaxUsers, OsvConfig, PackageAccess, PublicRoute, RegistryFeature,
-    ResolverFeature, RoutePolicy, SqlBackendSettings, Teams, TokensConfig, UpstreamConfig,
-    default_cache_dir,
+    ResolverFeature, RoutePolicy, S3Settings, SqlBackendSettings, Teams, TokensConfig,
+    UpstreamConfig, default_cache_dir,
 };
 pub use pnpr_error::{RegistryError, Result};
 pub use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};

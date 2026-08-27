@@ -8,7 +8,7 @@ use crate::s3::S3Store;
 use async_trait::async_trait;
 use axum::body::Body;
 use pnpm_crypto_hash::integrity_addressed_tarball_integrity;
-use pnpr_config::{HostedStoreConfig, build_s3_store};
+use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::PackageName;
 use serde::{Deserialize, Serialize};
@@ -489,9 +489,11 @@ impl Storage {
                 settings.normalized_prefix(),
                 cache_storage,
             )),
-            HostedStoreConfig::ObjectStore { store, prefix } => {
-                Arc::new(S3Store::new(Arc::clone(store), prefix.clone(), cache_storage))
-            }
+            HostedStoreConfig::ObjectStore { store, prefix } => Arc::new(S3Store::new(
+                Arc::clone(store),
+                normalize_key_prefix(Some(prefix)),
+                cache_storage,
+            )),
         };
         Ok(Self { hosted, cached })
     }

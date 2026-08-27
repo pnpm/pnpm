@@ -310,14 +310,9 @@ impl fmt::Debug for S3Settings {
 impl S3Settings {
     /// The configured key prefix, normalized to either `""` or a value
     /// ending in `/` so it can be string-concatenated onto object keys.
+    #[must_use]
     pub fn normalized_prefix(&self) -> String {
-        match self.prefix.as_deref().map(str::trim).filter(|text| !text.is_empty()) {
-            None => String::new(),
-            Some(prefix) => {
-                let trimmed = prefix.trim_matches('/');
-                if trimmed.is_empty() { String::new() } else { format!("{trimmed}/") }
-            }
-        }
+        normalize_key_prefix(self.prefix.as_deref())
     }
 }
 
@@ -363,10 +358,24 @@ fn s3_builder(settings: &S3Settings) -> AmazonS3Builder {
     builder.with_allow_http(settings.allow_http.unwrap_or(false))
 }
 
+/// A key prefix normalized to either `""` or a value ending in `/`, so the
+/// store can concatenate it onto an object key. Every prefix reaching a store
+/// goes through this — a raw `packages` would otherwise key `packagesfoo/…`.
+#[must_use]
+pub fn normalize_key_prefix(prefix: Option<&str>) -> String {
+    match prefix.map(str::trim).filter(|text| !text.is_empty()) {
+        None => String::new(),
+        Some(prefix) => {
+            let trimmed = prefix.trim_matches('/');
+            if trimmed.is_empty() { String::new() } else { format!("{trimmed}/") }
+        }
+    }
+}
+
 /// The resolved hosted-store backend. Like [`BackendConfig`], this carries
-/// settings rather than a live client: opening an object store can fail on
-/// credentials or an unreachable endpoint, and parsing a config file is not
-/// the place to find that out. `Storage::new` opens it.
+/// settings rather than a live client, so a parsed config stays plain data —
+/// nothing here holds a constructed `ObjectStore` that a reader has to reason
+/// about the lifetime of. `Storage::new` builds the client.
 #[derive(Debug, Clone)]
 pub enum HostedStoreConfig {
     /// Local directory — [`Config::storage`].
@@ -375,7 +384,8 @@ pub enum HostedStoreConfig {
     S3(S3Settings),
     /// A caller-supplied object store. Parsing never produces this variant —
     /// it is how an embedder brings its own [`ObjectStore`]: a provider pnpr
-    /// has no settings shape for, or an in-memory one under test.
+    /// has no settings shape for, or an in-memory one under test. `prefix` is
+    /// normalized on the way in, so a raw `packages` works.
     ObjectStore { store: Arc<dyn ObjectStore>, prefix: String },
 }
 
