@@ -9,6 +9,7 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{
     CatalogResolutionResult, WantedDependency as CatalogWantedDependency, resolve_from_catalog,
 };
@@ -238,8 +239,22 @@ impl DlxArgs {
 
         // `pkgs = package ?? [command]`. With `--package`, the command
         // names the bin to run; otherwise the command is also the package.
-        let pkgs: Vec<String> =
+        let mut pkgs: Vec<String> =
             if package.is_empty() { vec![bin_command.clone()] } else { package.clone() };
+        let needs_caller_catalogs = pkgs.iter().any(|pkg| {
+            parse_wanted_dependency(pkg)
+                .bare_specifier
+                .as_deref()
+                .is_some_and(|bare_specifier| parse_catalog_protocol(bare_specifier).is_some())
+        }) || config
+            .overrides
+            .as_ref()
+            .is_some_and(|overrides| overrides.values().any(|spec| spec.starts_with("catalog:")));
+        let caller_catalogs =
+            needs_caller_catalogs.then(|| read_caller_catalogs(config)).transpose()?;
+        if let Some(catalogs) = &caller_catalogs {
+            pkgs = dereference_catalog_specs(&pkgs, catalogs)?;
+        }
 
         // Read the config values needed before (and after) the install,
         // because the install path consumes `config` to anchor it at the
@@ -282,6 +297,7 @@ impl DlxArgs {
                     &allow_build,
                     &supported_architectures,
                     config,
+                    caller_catalogs.as_ref(),
                 )
                 .await
                 {
@@ -316,6 +332,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     allow_build: &[String],
     supported_architectures: &SupportedArchitecturesArgs,
     config: &'static mut Config,
+    caller_catalogs: Option<&Catalogs>,
 ) -> miette::Result<()> {
     fs::create_dir_all(prepare_dir)
         .map_err(|source| DlxError::Cache { dir: prepare_dir.display().to_string(), source })?;
@@ -342,22 +359,10 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // The cache install is always fresh, so no lockfile is loaded from
     // the process working directory.
     config.lockfile = false;
-    // The cache install is not part of the caller workspace. Resolve its
-    // catalog references before anchoring it at the cache directory.
-    let caller_catalogs = if let Some(workspace_dir) = config.workspace_dir.as_deref() {
-        let workspace_manifest =
-            pnpm_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
-        get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
-            .into_diagnostic()
-            .wrap_err("reading the caller's catalogs for the dlx install")?
-    } else {
-        Catalogs::default()
-    };
-    let pkgs = dereference_catalog_specs(pkgs, &caller_catalogs)?;
-    if let Some(overrides) = config.overrides.as_ref()
+    if let (Some(overrides), Some(catalogs)) = (config.overrides.as_ref(), caller_catalogs)
         && overrides.values().any(|spec| spec.starts_with("catalog:"))
     {
-        let resolved = parse_overrides_iter(overrides.iter(), &caller_catalogs)
+        let resolved = parse_overrides_iter(overrides.iter(), catalogs)
             .map_err(miette::Report::new)?
             .into_iter()
             .map(|entry| (entry.selector, entry.new_bare_specifier))
@@ -390,7 +395,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // unable to distinguish two callers with different policies.
     config.dangerously_allow_all_builds = false;
     config.allow_builds.clear();
-    for spec in &pkgs {
+    for spec in pkgs {
         if let Some(alias) = parse_wanted_dependency(spec).alias {
             config.allow_builds.insert(alias, true);
         }
@@ -405,7 +410,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
             .wrap_err("initialize the dlx install state")?;
         add_package::<Reporter, _>(
             state,
-            &pkg,
+            pkg,
             // dlx records the default caret range; the spec is throwaway.
             RangeSpecStyle::default(),
             // dlx never catalogs.
@@ -418,6 +423,17 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
         .await?;
     }
     Ok(())
+}
+
+fn read_caller_catalogs(config: &Config) -> miette::Result<Catalogs> {
+    let Some(workspace_dir) = config.workspace_dir.as_deref() else {
+        return Ok(Catalogs::default());
+    };
+    let workspace_manifest =
+        pnpm_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
+    get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+        .into_diagnostic()
+        .wrap_err("reading the caller's catalogs for the dlx install")
 }
 
 fn dereference_catalog_specs(pkgs: &[String], catalogs: &Catalogs) -> miette::Result<Vec<String>> {
