@@ -182,6 +182,7 @@ async fn cold_batch_links_slots_in_parallel() {
         requester: &requester,
         store_index_writer: &store_index_writer,
         store_context: None,
+        cas_prefetch: None,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
         include_optional_dependencies: true,
@@ -315,6 +316,7 @@ async fn shared_store_context_materializes_a_warm_package() {
         logged_methods: &logged_methods,
         requester: &requester,
         store_index_writer: &store_index_writer,
+        cas_prefetch: None,
         store_context: Some(CreateVirtualStoreStoreContext {
             index: Some(&shared_index),
             verified_files_cache: &verified_files_cache,
@@ -442,6 +444,7 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
         requester: &requester,
         store_index_writer: &store_index_writer,
         store_context: None,
+        cas_prefetch: None,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
         include_optional_dependencies: true,

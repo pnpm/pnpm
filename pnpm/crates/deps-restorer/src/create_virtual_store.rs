@@ -91,6 +91,115 @@ pub struct CreateVirtualStoreStoreContext<'a> {
     pub verified_files_cache: &'a SharedVerifiedFilesCache,
 }
 
+/// The store-side half of [`CreateVirtualStore::run`]'s planning,
+/// started ahead of the rest: the store-index open, the per-snapshot
+/// cache-key derivation, and the warm-cache prefetch task those keys
+/// feed.
+///
+/// [`CreateVirtualStore::run`] starts one itself when the caller passes
+/// none. A caller that has independent async work to do between
+/// planning and materialization — the frozen install path's
+/// installability host detection, whose `node --version` costs more
+/// than the entire prefetch — starts it early via [`Self::start`] and
+/// hands it over through [`CreateVirtualStore::cas_prefetch`], so the
+/// prefetch's store reads run under that work instead of after it.
+pub struct CasPrefetch {
+    store_index: Option<SharedReadonlyStoreIndex>,
+    verified_files_cache: SharedVerifiedFilesCache,
+    /// One entry per lockfile snapshot. Values keep the derivation
+    /// `Result` so [`snapshot_plan::plan_snapshots`] can preserve the
+    /// strict/lenient asymmetry documented there: a survivor propagates
+    /// its error, a skipped snapshot swallows it.
+    cache_keys: HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
+    task: tokio::task::JoinHandle<PrefetchResult>,
+}
+
+impl CasPrefetch {
+    /// Derive every snapshot's store-index cache key and spawn the
+    /// warm-cache prefetch over the keys that exist. Read-only against
+    /// the store apart from the `SQLite` open, so it is safe to run
+    /// concurrently with anything that does not write store rows —
+    /// but, like the rest of the store planning, only after the
+    /// offline lockfile checks.
+    ///
+    /// `snapshots` and `packages` must be the same maps later given to
+    /// [`CreateVirtualStore::run`]: the plan pass consumes one derived
+    /// key per snapshot.
+    pub async fn start(
+        config: &'static Config,
+        snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+        packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+        supported_architectures: Option<&pnpm_package_is_installable::SupportedArchitectures>,
+        store_context: Option<&CreateVirtualStoreStoreContext<'_>>,
+    ) -> Self {
+        let store_dir: &'static _ = &config.store_dir;
+        // Open the read-only SQLite index once for the whole run instead
+        // of per snapshot. Every `InstallPackageBySnapshot` performs a
+        // cache lookup against this index before falling through to the
+        // network; on a 1352-package lockfile the per-snapshot reopen
+        // accounted for ~1.3 s of wall time even with a fully populated
+        // store (see <https://github.com/pnpm/pacquet/issues/260>). A
+        // `None` here means the store has no `index.db` yet (first
+        // install against an empty store), in which case every lookup
+        // would miss — so the handle stays `Option`al and lookups
+        // short-circuit. The open itself is synchronous SQLite I/O
+        // parked on the blocking pool; `open_shared` degrades a
+        // blocking-task failure to `None` so the install still makes
+        // progress with cache misses.
+        let store_index = match store_context.and_then(|context| context.index) {
+            Some(index) => Some(Arc::clone(index)),
+            None => StoreIndex::open_shared(store_dir, config.frozen_store).await,
+        };
+        // Install-scoped `verifiedFilesCache`: one `Arc<DashSet>` for
+        // the duration of the install, so a CAFS path verified for one
+        // snapshot is not re-stat'd for another.
+        let verified_files_cache = store_context
+            .map_or_else(SharedVerifiedFilesCache::default, |context| {
+                Arc::clone(context.verified_files_cache)
+            });
+        let cache_keys: HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>> =
+            match (snapshots, packages) {
+                (Some(snapshots), Some(packages)) => {
+                    let selector = runtime_platform_selector(supported_architectures);
+                    snapshots
+                        .keys()
+                        .map(|snapshot_key| {
+                            let cache_key = snapshot_cache_key(
+                                snapshot_key,
+                                packages,
+                                config.ignore_scripts,
+                                &selector,
+                            );
+                            (snapshot_key.clone(), cache_key)
+                        })
+                        .collect()
+                }
+                _ => HashMap::new(),
+            };
+        // Sorted + deduplicated so `prefetch_cas_paths` doesn't redo
+        // identical SELECT + integrity-check work for peer variants of
+        // one package. Derived leniently over the whole lockfile — the
+        // superset over what the plan pass will keep merely prefetches
+        // a few rows nothing reads.
+        let mut cache_key_refs: Vec<&str> = cache_keys
+            .values()
+            .filter_map(|cache_key| cache_key.as_ref().ok())
+            .filter_map(|cache_key| cache_key.value.as_deref())
+            .collect();
+        cache_key_refs.sort_unstable();
+        cache_key_refs.dedup();
+        let prefetch_keys: Vec<String> = cache_key_refs.into_iter().map(String::from).collect();
+        let task = tokio::spawn(prefetch_cas_paths(
+            store_index.clone(),
+            store_dir,
+            prefetch_keys,
+            config.verify_store_integrity,
+            SharedVerifiedFilesCache::clone(&verified_files_cache),
+        ));
+        CasPrefetch { store_index, verified_files_cache, cache_keys, task }
+    }
+}
+
 /// A snapshot paired with the store-index cache key it is looked up
 /// by. `None` for a resolution that never goes through the CAFS
 /// (directory and git), which therefore has no row to prefetch.
@@ -170,6 +279,11 @@ pub struct CreateVirtualStore<'a> {
     /// `BuildModules` for the side-effects-cache WRITE path.
     pub store_index_writer: &'a std::sync::Arc<StoreIndexWriter>,
     pub store_context: Option<CreateVirtualStoreStoreContext<'a>>,
+    /// A [`CasPrefetch`] the caller started early so its store reads
+    /// overlap caller-side async work; `None` makes [`Self::run`] start
+    /// one itself. Must have been started with this run's `snapshots` /
+    /// `packages`.
+    pub cas_prefetch: Option<CasPrefetch>,
     /// `allowBuilds` gate, shared with `BuildModules`. The cold-batch
     /// path threads this into the git fetcher so `preparePackage` can
     /// reject `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` for packages that aren't
@@ -208,7 +322,7 @@ pub struct CreateVirtualStore<'a> {
     /// ([`crate::dir_clone_cache`]), built by the install entry points
     /// when [`crate::DirCloneCache::eligible`] holds. Threaded into
     /// every slot link that passes `dir_clone_cacheable`.
-    pub dir_clone_cache: Option<&'a crate::DirCloneCache>,
+    pub dir_clone_cache: Option<&'a crate::DirCloneCache<'a>>,
     /// Cache keys whose package status (`fetched` or `found_in_store`)
     /// has already been emitted earlier in this install. The warm batch
     /// still emits `resolved` for those packages, but skips the second
@@ -293,6 +407,7 @@ impl CreateVirtualStore<'_> {
             requester,
             store_index_writer,
             store_context,
+            cas_prefetch,
             allow_build_policy,
             skipped,
             include_optional_dependencies,
@@ -327,27 +442,29 @@ impl CreateVirtualStore<'_> {
         };
         let packages = packages.ok_or(CreateVirtualStoreError::MissingPackagesSection)?;
 
-        // Open the read-only SQLite index once for the whole run instead of
-        // per snapshot. Every `InstallPackageBySnapshot` performs a cache
-        // lookup against this index before falling through to the network;
-        // on a 1352-package lockfile the per-snapshot reopen accounted for
-        // ~1.3 s of wall time even with a fully populated store (see <https://github.com/pnpm/pacquet/issues/260>).
-        // A `None` here means the store has no `index.db` yet (first install
-        // against an empty store), in which case every lookup would miss —
-        // so we keep the handle `Option`al and short-circuit.
-        //
-        // The open itself is synchronous SQLite I/O (`Connection::open_with_flags`
-        // + a `PRAGMA busy_timeout`), so park it on the blocking pool instead
-        // of stalling the reactor thread, even for the sub-millisecond it
-        // usually takes.
-        //
-        // A `JoinError` here (blocking-task panic, or cancellation during
-        // runtime shutdown) is degraded into `None` so the install still
-        // makes progress — cache lookups just miss. `shared_readonly_in`
-        // already yields `None` for a first-time install against an empty
-        // store, and downstream callers handle that shape correctly. We
-        // surface the error at `warn!` so a silent task panic or
-        // cancellation is still diagnosable in the log.
+        // The prefetch carries the run's store handles — the shared
+        // read-only index and the install-scoped `verifiedFilesCache`
+        // (one `Arc<DashSet>` per install, so a CAFS path verified for
+        // one snapshot is not re-stat'd for another) — plus the derived
+        // cache keys and the in-flight lookup task.
+        let CasPrefetch {
+            store_index,
+            verified_files_cache,
+            cache_keys: mut snapshot_cache_keys,
+            task: prefetch_task,
+        } = match cas_prefetch {
+            Some(cas_prefetch) => cas_prefetch,
+            None => {
+                CasPrefetch::start(
+                    config,
+                    Some(snapshots),
+                    Some(packages),
+                    supported_architectures,
+                    store_context.as_ref(),
+                )
+                .await
+            }
+        };
         let store_dir: &'static _ = &config.store_dir;
 
         // Eagerly create `files/00..ff` under the v11 store root so per-
@@ -373,10 +490,6 @@ impl CreateVirtualStore<'_> {
                 None
             };
 
-        let store_index = match store_context.as_ref().and_then(|context| context.index) {
-            Some(index) => Some(Arc::clone(index)),
-            None => StoreIndex::open_shared(store_dir, config.frozen_store).await,
-        };
         let store_index_ref = store_index.as_ref();
 
         // The batched store-index writer is owned by the caller
@@ -389,56 +502,19 @@ impl CreateVirtualStore<'_> {
         // `InstallPackageBySnapshot.store_index_writer`.
         let store_index_writer_ref = Some(store_index_writer);
 
-        // Install-scoped `verifiedFilesCache`. One `Arc<DashSet>` lives
-        // for the duration of the install; every per-snapshot fetch
-        // gets the same handle. A CAFS path verified on snapshot A
-        // populates the set so snapshot B's verify pass skips the stat
-        // / re-hash cost.
-        let verified_files_cache = store_context
-            .map_or_else(SharedVerifiedFilesCache::default, |context| {
-                Arc::clone(context.verified_files_cache)
-            });
-
-        // Batch every cache lookup the per-snapshot futures would otherwise
-        // each fan into `tokio::task::spawn_blocking`. With 1352 snapshots
-        // hitting the default 512-thread blocking pool, each task's actual
-        // work (≈40 µs SELECT + per-file integrity stats) gets dwarfed by
-        // OS context-switching among hundreds of competing threads
-        // (sample-profiling: 20-60 ms wall per call, sum 26-82 s). Doing
-        // the same `SELECT`s and integrity checks on one thread holding the
-        // index mutex once is dramatically faster — and turns each
-        // per-snapshot future's cache lookup into a synchronous
-        // `HashMap::get`.
-        //
-        // Compute the cache keys upfront from `(integrity, pkg_id)` for
-        // every snapshot whose metadata has a tarball-style resolution.
-        // Tarball-and-Registry resolutions both ship an `Integrity`;
-        // Directory and Git resolutions don't go through CAFS at all,
-        // so skipping them here matches the per-snapshot path's check.
-        // [`snapshot_cache_key`] is the shared key-derivation helper —
-        // a future change to the resolution-type handling or key
-        // shape stays in one place (Copilot review on <https://github.com/pnpm/pacquet/pull/292>).
-        //
-        // Walk `snapshots` once, stash the per-snapshot cache key
-        // alongside its `(snapshot_key, snapshot)` tuple, and reuse
-        // the stashed key for both the prefetch input and the
-        // warm/cold partition below. A separate pass to recompute
-        // each key would re-allocate two strings per snapshot for
-        // nothing (Copilot follow-up review on <https://github.com/pnpm/pacquet/pull/292>).
-        //
-        // Lockfiles with peer-dependency variants of the same package
-        // (e.g. `react-dom@17.0.2(react@17.0.2)` plus
-        // `react-dom@17.0.2(react@18.2.0)`) collapse to one cache key
-        // because the key is built from `metadata_key.without_peer()`.
-        // Sort + dedup the prefetch input so `prefetch_cas_paths`
-        // doesn't redo identical SELECT + integrity-check work for
-        // every peer variant.
+        // The plan pass consumes the keys [`CasPrefetch::start`]
+        // derived (one per snapshot, kept as `Result`s so the
+        // strict/lenient asymmetry documented on `plan_snapshots`
+        // survives the early derivation), stashing each survivor's key
+        // alongside its `(snapshot_key, snapshot)` tuple for the
+        // warm/cold partition below. Its slot probes run while the
+        // prefetch task reads the store index.
         let snapshot_plan::SnapshotPlan {
             survivors: mut snapshot_entries,
             skipped_entries,
             marker_rebuilds,
             has_git_hosted_survivor,
-        } = snapshot_plan::plan_snapshots::<Reporter>(&snapshot_plan::SnapshotPlanInputs {
+        } = snapshot_plan::plan_snapshots::<Reporter>(snapshot_plan::SnapshotPlanInputs {
             snapshots,
             packages,
             current_snapshots,
@@ -449,8 +525,7 @@ impl CreateVirtualStore<'_> {
             link_dependencies: !is_hoisted && config.symlink,
             is_hoisted,
             include_optional_dependencies,
-            ignore_scripts: config.ignore_scripts,
-            runtime_platform_selector: &runtime_platform_selector,
+            cache_keys: &mut snapshot_cache_keys,
         })?;
         let materialized_snapshots =
             snapshot_entries.iter().map(|(snapshot_key, _, _)| (*snapshot_key).clone()).collect();
@@ -473,26 +548,17 @@ impl CreateVirtualStore<'_> {
             },
         }));
 
-        // Union the cache keys from survivors and skipped snapshots
-        // so the prefetch covers everyone the build phase might need
-        // to gate on. Sorted + deduplicated to avoid redundant SQL
-        // queries in `prefetch_cas_paths`.
-        let mut cache_key_refs: Vec<&str> = snapshot_entries
-            .iter()
-            .chain(skipped_entries.iter())
-            .filter_map(|(_, _, k)| k.as_deref())
-            .collect();
-        cache_key_refs.sort_unstable();
-        cache_key_refs.dedup();
-        let cache_keys: Vec<String> = cache_key_refs.into_iter().map(String::from).collect();
-        let prefetch = prefetch_cas_paths(
-            store_index.clone(),
-            store_dir,
-            cache_keys,
-            config.verify_store_integrity,
-            SharedVerifiedFilesCache::clone(&verified_files_cache),
-        )
-        .await;
+        // A joined-task failure degrades to an empty result: every
+        // lookup misses and the snapshots fall through to their
+        // per-snapshot path, the same shape as a store with no index.
+        let prefetch = prefetch_task.await.unwrap_or_else(|error| {
+            tracing::warn!(
+                target: "pacquet::install",
+                ?error,
+                "warm-cache prefetch task failed; treating every lookup as a miss",
+            );
+            PrefetchResult::default()
+        });
         enforce_cached_git_prepare_policy(
             &mut snapshot_entries,
             packages,
@@ -1243,7 +1309,7 @@ struct LinkSlotsParallel<'a> {
     batch: &'static str,
     slots: &'a [SlotLink<'a>],
     layout: &'a crate::VirtualStoreLayout,
-    dir_clone_cache: Option<&'a crate::DirCloneCache>,
+    dir_clone_cache: Option<&'a crate::DirCloneCache<'a>>,
     symlink: bool,
     import_method: PackageImportMethod,
     logged_methods: &'a AtomicU8,
