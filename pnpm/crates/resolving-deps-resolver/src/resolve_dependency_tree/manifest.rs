@@ -29,10 +29,11 @@ use super::{
 ///    `ERR_PNPM_UNUSED_PATCH` check sees the hit.
 ///
 /// Packages whose resolver didn't supply [`pnpm_resolving_resolver_base::ResolveResult::name_ver`]
-/// use the manifest's `name` and `version`. Git, tarball, and local
-/// resolvers learn their identity from that manifest at fetch time. The
-/// lookup is skipped when either field is unavailable or no patches are
-/// configured.
+/// use the manifest's `name` and, for non-directory resolutions, its
+/// `version`. Local directories remain linked rather than patched, matching
+/// the TypeScript CLI and the lockfile format, which omits their manifest
+/// version. The lookup is skipped when either field is unavailable or no
+/// patches are configured.
 pub(super) async fn build_pkg_id_with_patch_hash(
     ctx: &TreeCtx,
     result: &pnpm_resolving_resolver_base::ResolveResult,
@@ -63,11 +64,16 @@ pub(super) async fn build_pkg_id_with_patch_hash(
         .as_ref()
         .and_then(|manifest| manifest.get("name"))
         .and_then(serde_json::Value::as_str);
-    let manifest_version = result
-        .manifest
-        .as_ref()
-        .and_then(|manifest| manifest.get("version"))
-        .and_then(serde_json::Value::as_str);
+    let manifest_version =
+        (!matches!(result.resolution, pnpm_lockfile::LockfileResolution::Directory(_)))
+            .then(|| {
+                result
+                    .manifest
+                    .as_ref()
+                    .and_then(|manifest| manifest.get("version"))
+                    .and_then(serde_json::Value::as_str)
+            })
+            .flatten();
     let (name, version) = match (result.name_ver.as_ref(), manifest_name) {
         (Some(name_ver), _) => (name_ver.name.to_string(), name_ver.suffix.to_string()),
         (None, Some(name)) => (name.to_string(), manifest_version.unwrap_or_default().to_string()),
