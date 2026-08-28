@@ -20,6 +20,7 @@ use miette::Diagnostic;
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use std::{
     collections::BTreeSet,
+    fs::{self, DirEntry},
     io::ErrorKind,
     path::{Path, PathBuf},
 };
@@ -170,25 +171,28 @@ pub fn find_workspace_projects_no_check(
     // silently dropped from the workspace.
     let mut manifest_paths: BTreeSet<PathBuf> = BTreeSet::new();
     for pattern in include_patterns {
-        if let Some(parent) = literal_terminal_star_parent(pattern) {
-            collect_manifests_in_children(
-                &workspace_root.join(parent),
-                workspace_root,
-                &ignore_template,
-                &user_negations,
-                &mut manifest_paths,
-            )?;
-            continue;
-        }
-        if let Some(directory) = literal_directory_pattern(pattern) {
-            collect_literal_manifests_in(
-                &workspace_root.join(directory),
-                workspace_root,
-                &ignore_template,
-                &user_negations,
-                &mut manifest_paths,
-            );
-            continue;
+        match specialized_pattern(pattern) {
+            Some(SpecializedPattern::ChildrenOf(parent)) => {
+                collect_manifests_in_children(
+                    &workspace_root.join(parent),
+                    workspace_root,
+                    &ignore_template,
+                    &user_negations,
+                    &mut manifest_paths,
+                )?;
+                continue;
+            }
+            Some(SpecializedPattern::Literal(directory)) => {
+                collect_literal_manifests_in(
+                    &workspace_root.join(directory),
+                    workspace_root,
+                    &ignore_template,
+                    &user_negations,
+                    &mut manifest_paths,
+                );
+                continue;
+            }
+            None => {}
         }
 
         for normalized in normalize_manifest_patterns(pattern) {
@@ -301,13 +305,18 @@ fn normalize_directory_pattern(pattern: &str) -> Option<&str> {
     Some(trimmed)
 }
 
-fn literal_directory_pattern(pattern: &str) -> Option<&str> {
-    normalize_directory_pattern(pattern).filter(|pattern| is_safe_relative_literal(pattern))
+#[derive(Debug, PartialEq, Eq)]
+enum SpecializedPattern<'pattern> {
+    Literal(&'pattern str),
+    ChildrenOf(&'pattern str),
 }
 
-fn literal_terminal_star_parent(pattern: &str) -> Option<&str> {
-    let parent = normalize_directory_pattern(pattern)?.strip_suffix("/*")?;
-    is_safe_relative_literal(parent).then_some(parent)
+fn specialized_pattern(pattern: &str) -> Option<SpecializedPattern<'_>> {
+    let pattern = normalize_directory_pattern(pattern)?;
+    if let Some(parent) = pattern.strip_suffix("/*") {
+        return is_safe_relative_literal(parent).then_some(SpecializedPattern::ChildrenOf(parent));
+    }
+    is_safe_relative_literal(pattern).then_some(SpecializedPattern::Literal(pattern))
 }
 
 fn is_safe_relative_literal(pattern: &str) -> bool {
@@ -332,31 +341,15 @@ fn collect_manifests_in_children(
     user_negations: &wax::Any<'_>,
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) -> Result<(), FindWorkspaceProjectsError> {
-    let walk_error = |source: std::io::Error| FindWorkspaceProjectsError::Walk {
-        root: workspace_root.to_path_buf(),
-        source,
-    };
-    let entries = match std::fs::read_dir(parent) {
-        Ok(entries) => entries,
-        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
-        Err(err) => return Err(walk_error(err)),
-    };
-    for entry in entries {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(err) if err.kind() == ErrorKind::NotFound => continue,
-            Err(err) => return Err(walk_error(err)),
-        };
+    for_each_directory_entry(parent, workspace_root, |entry| {
         if entry.file_name().as_encoded_bytes().first() == Some(&b'.') {
-            continue;
+            return Ok(());
         }
-        let file_type = match entry.file_type() {
-            Ok(file_type) => file_type,
-            Err(err) if err.kind() == ErrorKind::NotFound => continue,
-            Err(err) => return Err(walk_error(err)),
-        };
-        if !file_type.is_dir() {
-            continue;
+        if !ignore_not_found(entry.file_type())
+            .map_err(|source| workspace_walk_error(workspace_root, source))?
+            .is_some_and(|file_type| file_type.is_dir())
+        {
+            return Ok(());
         }
         collect_manifests_in_child(
             &entry.path(),
@@ -364,9 +357,8 @@ fn collect_manifests_in_children(
             built_in_ignores,
             user_negations,
             manifest_paths,
-        )?;
-    }
-    Ok(())
+        )
+    })
 }
 
 fn collect_literal_manifests_in(
@@ -398,30 +390,51 @@ fn collect_manifests_in_child(
     user_negations: &wax::Any<'_>,
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) -> Result<(), FindWorkspaceProjectsError> {
-    let walk_error = |source: std::io::Error| FindWorkspaceProjectsError::Walk {
-        root: workspace_root.to_path_buf(),
-        source,
-    };
-    let entries = match std::fs::read_dir(directory) {
-        Ok(entries) => entries,
-        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
-        Err(err) => return Err(walk_error(err)),
-    };
-    for entry in entries {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(err) if err.kind() == ErrorKind::NotFound => continue,
-            Err(err) => return Err(walk_error(err)),
-        };
+    for_each_directory_entry(directory, workspace_root, |entry| {
         if !PROJECT_MANIFEST_BASENAMES.iter().any(|basename| entry.file_name() == *basename) {
-            continue;
+            return Ok(());
         }
         let manifest_path = entry.path();
         if !is_ignored_manifest(&manifest_path, workspace_root, built_in_ignores, user_negations) {
             manifest_paths.insert(manifest_path);
         }
+        Ok(())
+    })
+}
+
+fn for_each_directory_entry(
+    directory: &Path,
+    workspace_root: &Path,
+    mut visit: impl FnMut(DirEntry) -> Result<(), FindWorkspaceProjectsError>,
+) -> Result<(), FindWorkspaceProjectsError> {
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(source) => return Err(workspace_walk_error(workspace_root, source)),
+    };
+    for entry in entries {
+        if let Some(entry) = ignore_not_found(entry)
+            .map_err(|source| workspace_walk_error(workspace_root, source))?
+        {
+            visit(entry)?;
+        }
     }
     Ok(())
+}
+
+fn ignore_not_found<T>(result: std::io::Result<T>) -> std::io::Result<Option<T>> {
+    match result {
+        Ok(value) => Ok(Some(value)),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+fn workspace_walk_error(
+    workspace_root: &Path,
+    source: std::io::Error,
+) -> FindWorkspaceProjectsError {
+    FindWorkspaceProjectsError::Walk { root: workspace_root.to_path_buf(), source }
 }
 
 fn is_ignored_manifest(

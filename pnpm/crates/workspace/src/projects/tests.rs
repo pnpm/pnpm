@@ -1,6 +1,6 @@
 use super::{
-    FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, find_workspace_projects,
-    literal_directory_pattern, literal_terminal_star_parent,
+    FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, SpecializedPattern,
+    find_workspace_projects, ignore_not_found, specialized_pattern,
 };
 use pretty_assertions::assert_eq;
 use std::{fs, io::ErrorKind};
@@ -21,10 +21,19 @@ fn make_yaml_project(root: &std::path::Path, rel: &str, name: &str) {
 
 #[test]
 fn recognizes_specialized_workspace_patterns() {
-    assert_eq!(literal_directory_pattern("packages/alpha"), Some("packages/alpha"));
-    assert_eq!(literal_directory_pattern("packages/alpha/"), Some("packages/alpha"));
-    assert_eq!(literal_terminal_star_parent("packages/*"), Some("packages"));
-    assert_eq!(literal_terminal_star_parent("packages/*/"), Some("packages"));
+    assert_eq!(
+        specialized_pattern("packages/alpha"),
+        Some(SpecializedPattern::Literal("packages/alpha")),
+    );
+    assert_eq!(
+        specialized_pattern("packages/alpha/"),
+        Some(SpecializedPattern::Literal("packages/alpha")),
+    );
+    assert_eq!(specialized_pattern("packages/*"), Some(SpecializedPattern::ChildrenOf("packages")),);
+    assert_eq!(
+        specialized_pattern("packages/*/"),
+        Some(SpecializedPattern::ChildrenOf("packages")),
+    );
 }
 
 #[test]
@@ -33,24 +42,26 @@ fn leaves_other_workspace_patterns_to_the_generic_walk() {
         "../shared",
         "/shared",
         "C:/shared",
-        "packages/*",
         "packages/**",
         "packages/{alpha,beta}",
         "packages/./alpha",
-    ] {
-        assert_eq!(literal_directory_pattern(pattern), None, "literal: {pattern}");
-    }
-    for pattern in [
         "../shared/*",
         "/shared/*",
         "C:/shared/*",
         "packages/*/*",
-        "packages/**",
         "packages/{alpha,beta}/*",
         "packages/./*",
     ] {
-        assert_eq!(literal_terminal_star_parent(pattern), None, "terminal star: {pattern}");
+        assert_eq!(specialized_pattern(pattern), None, "pattern: {pattern}");
     }
+}
+
+#[test]
+fn ignores_only_not_found_errors() {
+    assert_eq!(ignore_not_found(Ok("entry")).unwrap(), Some("entry"));
+    assert_eq!(ignore_not_found::<()>(Err(ErrorKind::NotFound.into())).unwrap(), None);
+    let error = ignore_not_found::<()>(Err(ErrorKind::PermissionDenied.into())).unwrap_err();
+    assert_eq!(error.kind(), ErrorKind::PermissionDenied);
 }
 
 #[test]
