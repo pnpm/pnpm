@@ -3,13 +3,14 @@ import { beforeEach, expect, jest, test } from '@jest/globals'
 const cleanOrphanedInstallDirs = jest.fn()
 const createInstallDir = jest.fn()
 const getHashLink = jest.fn()
+const getGlobalPackageDetails = jest.fn<(pkg: unknown) => Promise<Array<{ alias: string, version: string }>>>().mockResolvedValue([])
 const getInstalledBinNames = jest.fn<() => Promise<string[]>>().mockResolvedValue([])
 const scanGlobalPackages = jest.fn()
 const checkGlobalBinConflicts = jest.fn<() => Promise<Set<string>>>().mockResolvedValue(new Set())
 const installGlobalPackages = jest.fn<(...args: unknown[]) => Promise<{ ignoredBuilds: undefined, resolutionPolicyViolations: [] }>>()
   .mockResolvedValue({ ignoredBuilds: undefined, resolutionPolicyViolations: [] })
 const promptApproveGlobalBuilds = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
-const readInstalledPackages = jest.fn<() => Promise<[]>>().mockResolvedValue([])
+const readInstalledPackages = jest.fn<(installDir: string) => Promise<Array<{ alias: string, manifest: { name: string, version: string } }>>>().mockResolvedValue([])
 const summaryDebug = jest.fn()
 const activateGlobalInstall = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['fresh']))
 const cleanupReplacedGlobalInstalls = jest.fn<(opts: unknown) => Promise<void>>().mockResolvedValue(undefined)
@@ -18,6 +19,7 @@ jest.unstable_mockModule('@pnpm/core-loggers', () => ({ summaryLogger: { debug: 
 jest.unstable_mockModule('@pnpm/global.packages', () => ({
   cleanOrphanedInstallDirs,
   createInstallDir,
+  getGlobalPackageDetails,
   getHashLink,
   getInstalledBinNames,
   scanGlobalPackages,
@@ -34,7 +36,9 @@ beforeEach(() => {
   jest.clearAllMocks()
   checkGlobalBinConflicts.mockResolvedValue(new Set())
   cleanupReplacedGlobalInstalls.mockResolvedValue(undefined)
+  getGlobalPackageDetails.mockResolvedValue([])
   getInstalledBinNames.mockResolvedValue([])
+  readInstalledPackages.mockResolvedValue([])
   activateGlobalInstall.mockResolvedValue(new Set(['fresh']))
 })
 
@@ -275,4 +279,78 @@ test('global update reports nothing to do when only the pnpm CLI is installed gl
 
   expect(output).toBe('No global packages to update. Run "pnpm self-update" to update pnpm itself.')
   expect(installGlobalPackages).not.toHaveBeenCalled()
+})
+
+// `--latest` resolves the `latest` dist-tag, which points at an older release
+// than the one installed whenever that came from another tag or from a major
+// that has not been promoted yet. An update must never move a package
+// backwards, so the group is reinstalled holding it where it is
+// (pnpm/pnpm#14270).
+test('global update --latest reinstalls a package it would have downgraded', async () => {
+  createInstallDir
+    .mockReturnValueOnce('/global/v11/install-1')
+    .mockReturnValueOnce('/global/v11/install-2')
+  getHashLink.mockReturnValue('/global/v11/hash-mixed')
+  scanGlobalPackages.mockReturnValue([
+    {
+      dependencies: { prerelease: '^2.0.0', stable: '^1.0.0' },
+      hash: 'hash-mixed',
+      installDir: '/global/v11/old-mixed',
+    },
+  ])
+  getGlobalPackageDetails.mockResolvedValue([
+    { alias: 'prerelease', version: '2.0.0' },
+    { alias: 'stable', version: '1.0.0' },
+  ])
+  readInstalledPackages
+    .mockResolvedValueOnce([
+      { alias: 'prerelease', manifest: { name: 'prerelease', version: '1.9.0' } },
+      { alias: 'stable', manifest: { name: 'stable', version: '1.2.0' } },
+    ])
+    .mockResolvedValueOnce([
+      { alias: 'prerelease', manifest: { name: 'prerelease', version: '2.0.0' } },
+      { alias: 'stable', manifest: { name: 'stable', version: '1.2.0' } },
+    ])
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    latest: true,
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(installGlobalPackages).toHaveBeenCalledTimes(2)
+  expect(installGlobalPackages).toHaveBeenNthCalledWith(
+    1,
+    expect.objectContaining({ dir: '/global/v11/install-1' }),
+    ['prerelease', 'stable']
+  )
+  // Only the one that went backwards is held; the other keeps its update.
+  expect(installGlobalPackages).toHaveBeenNthCalledWith(
+    2,
+    expect.objectContaining({ dir: '/global/v11/install-2' }),
+    ['prerelease@2.0.0', 'stable']
+  )
+  expect(activateGlobalInstall).toHaveBeenCalledWith(
+    expect.objectContaining({ installDir: '/global/v11/install-2' })
+  )
+})
+
+test('global update --latest installs once when nothing moves backwards', async () => {
+  createInstallDir.mockReturnValueOnce('/global/v11/install-1')
+  getHashLink.mockReturnValue('/global/v11/hash-foo')
+  scanGlobalPackages.mockReturnValue([
+    { dependencies: { foo: '^1.0.0' }, hash: 'hash-foo', installDir: '/global/v11/old-foo' },
+  ])
+  getGlobalPackageDetails.mockResolvedValue([{ alias: 'foo', version: '1.0.0' }])
+  readInstalledPackages.mockResolvedValue([
+    { alias: 'foo', manifest: { name: 'foo', version: '2.0.0' } },
+  ])
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    latest: true,
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(installGlobalPackages).toHaveBeenCalledTimes(1)
 })

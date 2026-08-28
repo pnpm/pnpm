@@ -224,8 +224,10 @@ struct Sink {
     columns: usize,
     rows: Option<usize>,
     committed_lines: usize,
-    /// Whether the frame the differ is holding outgrew the terminal anyway.
-    frame_outgrew_terminal: bool,
+    /// How many rows the frame the differ is holding takes up, and whether it
+    /// already outgrew the terminal it was drawn on.
+    rendered_frame_rows: usize,
+    rendered_frame_outgrew_terminal: bool,
     /// Probe for the output terminal's dimensions. A field so a test can pin
     /// them instead of measuring the terminal the test runner happens to
     /// inherit.
@@ -276,7 +278,8 @@ impl Sink {
             columns,
             rows,
             committed_lines: 0,
-            frame_outgrew_terminal: false,
+            rendered_frame_rows: 0,
+            rendered_frame_outgrew_terminal: false,
             terminal_size,
             frame_buf: String::new(),
             throttle,
@@ -431,6 +434,10 @@ impl Sink {
         // One row is left over for the cursor line that the trailing newline
         // puts below the frame.
         let max_rows = rows.saturating_sub(1).max(1);
+        let uncommitted_rows: usize = lines[self.committed_lines..]
+            .iter()
+            .map(|line| rendered_rows(line, self.columns))
+            .sum();
         // The last line always stays in the frame — there would be nothing left
         // to redraw otherwise — so the walk upwards starts one line above it.
         let mut first_visible = lines.len() - 1;
@@ -443,19 +450,24 @@ impl Sink {
             frame_rows += line_rows;
             first_visible = idx;
         }
-        // The tail from `first_visible` fits, unless the one line that has to
-        // stay in the frame does not fit on its own. Then its start is off
-        // screen and no cursor move can reach it — nor anything in a frame left
-        // over from such a round — so a fresh frame is started below and the
-        // lines are reprinted rather than revised.
-        let cannot_revise = self.frame_outgrew_terminal;
-        self.frame_outgrew_terminal = frame_rows > max_rows;
-        if cannot_revise || self.frame_outgrew_terminal {
-            self.diff = diff::Diff::new(self.columns);
-        }
+        // A frame taller than the terminal has scrolled its own top away —
+        // whether because a line outgrew the screen or because the window shrank
+        // under it — so no cursor move reaches back into it, and growing the
+        // window again does not bring it back. Start afresh below instead,
+        // reprinting rather than revising, and leave the commit for the next
+        // frame, whose layout is one this differ laid out itself.
+        let cannot_revise =
+            self.rendered_frame_outgrew_terminal || self.rendered_frame_rows > max_rows;
         if cannot_revise || first_visible == self.committed_lines {
+            self.rendered_frame_rows = uncommitted_rows;
+            self.rendered_frame_outgrew_terminal = uncommitted_rows > max_rows;
+            if cannot_revise || self.rendered_frame_outgrew_terminal {
+                self.diff = diff::Diff::new(self.columns);
+            }
             return;
         }
+        self.rendered_frame_rows = frame_rows;
+        self.rendered_frame_outgrew_terminal = false;
         // Shrinking the frame to just the overflow leaves those lines untouched
         // where they already are, erases the rest of the frame below them, and
         // parks the cursor on the next line — where the restarted differ picks

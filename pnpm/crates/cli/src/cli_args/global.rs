@@ -32,6 +32,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
+use node_semver::Version;
 use pnpm_cmd_shim::{
     Host as CmdShimHost, LinkBinsOptions, PackageBinSource, link_bins_of_packages_context_aware,
     link_bins_of_packages_with_excludes, link_virtual_shims, remove_bin as remove_cmd_shim,
@@ -43,7 +44,7 @@ use pnpm_fs::{is_subdir, lexical_normalize, remove_symlink_dir, symlink_dir};
 use pnpm_global::{
     GlobalPackageInfo, check_global_bin_conflicts, clean_orphaned_install_dirs,
     create_global_cache_key, create_install_dir, find_global_package, get_hash_link,
-    get_installed_bin_names, read_direct_dependencies, read_installed_packages,
+    get_installed_bin_names, installed_versions, read_direct_dependencies, read_installed_packages,
     scan_global_packages,
 };
 use pnpm_package_is_installable::SupportedArchitectures;
@@ -388,7 +389,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     // resolve pnpm from the `latest` dist-tag and relink the bins, silently
     // rolling the running pnpm back to whatever `latest` points at.
     let all: Vec<GlobalPackageInfo> =
-        scanned.into_iter().filter(|pkg| !is_pnpm_cli_only_group(pkg)).collect();
+        scanned.into_iter().filter(|pkg| !has_pnpm_cli_dependency(pkg)).collect();
     if all.is_empty() {
         println!(r#"No global packages to update. Run "pnpm self-update" to update pnpm itself."#);
         return Ok(());
@@ -409,8 +410,9 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     }
 
     for pkg in &to_update {
-        let selectors = update_selectors(&pkg.dependencies, latest);
-        let (install_dir, config) = Box::pin(run_group_install::<Reporter>(
+        let versions_before = installed_versions(&pkg.install_dir);
+        let mut selectors = update_selectors(&pkg.dependencies, latest, &HashMap::new());
+        let mut install_dir = Box::pin(run_group_install::<Reporter>(
             base_config,
             &global_pkg_dir,
             &selectors,
@@ -420,8 +422,30 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             // from the global `allowBuilds` loaded in `run_group_install`.
             &[],
         ))
-        .await?;
-        let _ = config;
+        .await?
+        .0;
+
+        // An update must never move a package backwards, and `--latest` can:
+        // the `latest` dist-tag points at an older release than the one
+        // installed whenever that came from another tag, or from a major that
+        // has not been promoted to `latest` yet. Reinstall those held at the
+        // version that is already there, so the rest of the group still gets
+        // its update.
+        let pins = downgraded_versions(&pkg.dependencies, &versions_before, &install_dir);
+        if !pins.is_empty() {
+            let _ = fs::remove_dir_all(&install_dir);
+            selectors = update_selectors(&pkg.dependencies, latest, &pins);
+            install_dir = Box::pin(run_group_install::<Reporter>(
+                base_config,
+                &global_pkg_dir,
+                &selectors,
+                range_spec_style,
+                supported_architectures.clone(),
+                &[],
+            ))
+            .await?
+            .0;
+        }
 
         let pkgs = read_installed_packages(&install_dir);
         let dependencies = read_direct_dependencies(&install_dir);
@@ -527,15 +551,45 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
 
 /// With `--latest`, a dependency is reduced to its bare alias so the newest
 /// registry version is resolved.
-fn update_selectors(dependencies: &[(String, String)], latest: bool) -> Vec<String> {
+/// The selectors that reinstall a group. With `--latest` a plain version spec
+/// is dropped so the newest release is picked; `pins` holds back the aliases
+/// that would otherwise move backwards.
+fn update_selectors(
+    dependencies: &[(String, String)],
+    latest: bool,
+    pins: &HashMap<String, String>,
+) -> Vec<String> {
     dependencies
         .iter()
         .map(|(alias, spec)| {
-            if latest && is_plain_version_spec(spec) {
+            if let Some(pin) = pins.get(alias) {
+                format!("{alias}@{pin}")
+            } else if latest && is_plain_version_spec(spec) {
                 alias.clone()
             } else {
                 format!("{alias}@{spec}")
             }
+        })
+        .collect()
+}
+
+/// The versions the group at `install_dir` moved backwards from, by alias. Only
+/// plain version dependencies are considered: every other spec form says where
+/// the package comes from, so holding it at a bare version would resolve a
+/// different package from the default registry.
+fn downgraded_versions(
+    dependencies: &[(String, String)],
+    versions_before: &HashMap<String, String>,
+    install_dir: &Path,
+) -> HashMap<String, String> {
+    let installed = installed_versions(install_dir);
+    dependencies
+        .iter()
+        .filter(|(_, spec)| is_plain_version_spec(spec))
+        .filter_map(|(alias, _)| {
+            let before = Version::parse(versions_before.get(alias)?).ok()?;
+            let now = Version::parse(installed.get(alias)?).ok()?;
+            (now < before).then(|| (alias.clone(), before.to_string()))
         })
         .collect()
 }
@@ -1249,10 +1303,16 @@ fn should_replace_existing_package(
     is_pnpm_cli_only_group(pkg) && aliases_to_replace.iter().any(|alias| pkg.has_alias(alias))
 }
 
-/// Whether `pkg` is a global group holding nothing but the pnpm CLI — the
-/// install that `pnpm self-update` owns. `add -g` refuses to create one and
-/// `update -g` leaves an existing one alone.
-pub fn is_pnpm_cli_only_group(pkg: &GlobalPackageInfo) -> bool {
+/// Whether `pkg` is a global group the pnpm CLI is installed in — the install
+/// that `pnpm self-update` owns. `update -g` leaves the whole group alone:
+/// reinstalling it would relink pnpm's bin whatever else the group holds.
+pub fn has_pnpm_cli_dependency(pkg: &GlobalPackageInfo) -> bool {
+    pkg.dependencies.iter().any(|(alias, spec)| is_pnpm_cli_dependency(alias, Some(spec)))
+}
+
+/// Whether `pkg` is a global group holding nothing but the pnpm CLI. `add -g`
+/// refuses to create one.
+fn is_pnpm_cli_only_group(pkg: &GlobalPackageInfo) -> bool {
     !pkg.dependencies.is_empty()
         && pkg.dependencies.iter().all(|(alias, spec)| is_pnpm_cli_dependency(alias, Some(spec)))
 }

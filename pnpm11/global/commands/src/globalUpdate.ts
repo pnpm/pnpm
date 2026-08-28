@@ -6,19 +6,21 @@ import { summaryLogger } from '@pnpm/core-loggers'
 import {
   cleanOrphanedInstallDirs,
   createInstallDir,
+  getGlobalPackageDetails,
   getHashLink,
   type GlobalPackageInfo,
   scanGlobalPackages,
 } from '@pnpm/global.packages'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
+import semver from 'semver'
 
 import { getBinNamesOfOtherGroups } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { activateGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
 import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
-import { isPnpmCliOnlyGroup } from './pnpmCliPackages.js'
+import { hasPnpmCliDependency } from './pnpmCliPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
-import { readInstalledPackages } from './readInstalledPackages.js'
+import { type InstalledGroupPackage, readInstalledPackages } from './readInstalledPackages.js'
 
 export type GlobalUpdateOptions = CreateStoreControllerOptions & {
   bin?: string
@@ -46,7 +48,7 @@ export async function handleGlobalUpdate (
   if (scannedPackages.length === 0) {
     return 'No global packages found'
   }
-  const allPackages = scannedPackages.filter((pkg) => !isPnpmCliOnlyGroup(pkg))
+  const allPackages = scannedPackages.filter((pkg) => !hasPnpmCliDependency(pkg))
   if (allPackages.length === 0) {
     return 'No global packages to update. Run "pnpm self-update" to update pnpm itself.'
   }
@@ -84,52 +86,31 @@ async function updateGlobalPackageGroup (
   pkg: GlobalPackageInfo,
   commands: CommandHandlerMap
 ): Promise<void> {
-  const installDir = createInstallDir(globalDir)
-
-  // When --latest, just pass alias names to get the latest version.
-  // Otherwise, pass alias@spec to update within the existing range.
-  const depSpecs = Object.entries(pkg.dependencies).map(
-    ([alias, spec]) => opts.latest && isPlainVersionSpec(spec) ? alias : `${alias}@${spec}`
+  const versionsBefore = new Map(
+    (await getGlobalPackageDetails(pkg)).map(({ alias, version }) => [alias, version])
   )
-
-  const include = {
-    dependencies: true,
-    devDependencies: false,
-    optionalDependencies: true,
+  let install = await installGroup(opts, globalDir, depSpecsForUpdate(pkg.dependencies, opts.latest))
+  // An update must never move a package backwards, and `--latest` can: the
+  // `latest` dist-tag points at an older release than the one installed
+  // whenever that came from another tag, or from a major that has not been
+  // promoted to `latest` yet. Reinstall those held at the version that is
+  // already there, so the rest of the group still gets its update.
+  const pins = downgradedVersions(pkg.dependencies, versionsBefore, install.pkgs)
+  if (pins.size > 0) {
+    await fs.promises.rm(install.installDir, { recursive: true, force: true })
+    install = await installGroup(opts, globalDir, depSpecsForUpdate(pkg.dependencies, opts.latest, pins))
   }
-  const allowBuilds = opts.allowBuilds ?? {}
-
-  const { ignoredBuilds, resolutionPolicyViolations } = await installGlobalPackages({
-    ...opts,
-    global: false,
-    bin: path.join(installDir, 'node_modules/.bin'),
-    dir: installDir,
-    lockfileDir: installDir,
-    rootProjectManifestDir: installDir,
-    rootProjectManifest: undefined,
-    saveProd: true,
-    saveDev: false,
-    saveOptional: false,
-    savePeer: false,
-    workspaceDir: undefined,
-    sharedWorkspaceLockfile: false,
-    lockfileOnly: false,
-    include,
-    includeDirect: include,
-    allowBuilds,
-    omitSummaryLog: true,
-  }, depSpecs)
+  const { installDir, pkgs, ignoredBuilds, resolutionPolicyViolations } = install
 
   await promptApproveGlobalBuilds({
     globalPkgDir: globalDir,
     installDir,
     ignoredBuilds,
-    allowBuilds,
+    allowBuilds: opts.allowBuilds ?? {},
     inheritedOpts: opts,
   }, commands)
 
   // Check for bin name conflicts with other global packages
-  const pkgs = await readInstalledPackages(installDir)
   let binsToSkip: Set<string>
   try {
     binsToSkip = await checkGlobalBinConflicts({
@@ -161,6 +142,94 @@ async function updateGlobalPackageGroup (
     protectedBins,
   })
   await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
+}
+
+interface GroupInstall {
+  installDir: string
+  pkgs: InstalledGroupPackage[]
+  ignoredBuilds: Awaited<ReturnType<typeof installGlobalPackages>>['ignoredBuilds']
+  resolutionPolicyViolations: ResolutionPolicyViolation[]
+}
+
+/** Installs `depSpecs` into a fresh directory under the global packages dir. */
+async function installGroup (
+  opts: GlobalUpdateOptions,
+  globalDir: string,
+  depSpecs: string[]
+): Promise<GroupInstall> {
+  const installDir = createInstallDir(globalDir)
+  const include = {
+    dependencies: true,
+    devDependencies: false,
+    optionalDependencies: true,
+  }
+  const { ignoredBuilds, resolutionPolicyViolations } = await installGlobalPackages({
+    ...opts,
+    global: false,
+    bin: path.join(installDir, 'node_modules/.bin'),
+    dir: installDir,
+    lockfileDir: installDir,
+    rootProjectManifestDir: installDir,
+    rootProjectManifest: undefined,
+    saveProd: true,
+    saveDev: false,
+    saveOptional: false,
+    savePeer: false,
+    workspaceDir: undefined,
+    sharedWorkspaceLockfile: false,
+    lockfileOnly: false,
+    include,
+    includeDirect: include,
+    allowBuilds: opts.allowBuilds ?? {},
+    omitSummaryLog: true,
+  }, depSpecs)
+  return {
+    installDir,
+    pkgs: await readInstalledPackages(installDir),
+    ignoredBuilds,
+    resolutionPolicyViolations,
+  }
+}
+
+/**
+ * The selectors that reinstall a group. With `--latest` a plain version spec is
+ * dropped so the newest release is picked; `pins` holds back the aliases that
+ * would otherwise move backwards.
+ */
+function depSpecsForUpdate (
+  dependencies: Record<string, string>,
+  latest?: boolean,
+  pins: ReadonlyMap<string, string> = new Map()
+): string[] {
+  return Object.entries(dependencies).map(([alias, spec]) => {
+    const pin = pins.get(alias)
+    if (pin != null) return `${alias}@${pin}`
+    return latest && isPlainVersionSpec(spec) ? alias : `${alias}@${spec}`
+  })
+}
+
+/**
+ * The versions `installed` moved backwards from, by alias. Only plain version
+ * dependencies are considered: every other spec form says where the package
+ * comes from, so holding it at a bare version would resolve a different package
+ * from the default registry.
+ */
+function downgradedVersions (
+  dependencies: Record<string, string>,
+  versionsBefore: ReadonlyMap<string, string>,
+  installed: readonly InstalledGroupPackage[]
+): Map<string, string> {
+  const pins = new Map<string, string>()
+  for (const { alias, manifest } of installed) {
+    const before = versionsBefore.get(alias)
+    const spec = dependencies[alias]
+    if (before == null || spec == null || !isPlainVersionSpec(spec)) continue
+    if (semver.valid(before) == null || semver.valid(manifest.version) == null) continue
+    if (semver.lt(manifest.version, before)) {
+      pins.set(alias, before)
+    }
+  }
+  return pins
 }
 
 // Only a plain version range may be dropped in favor of the bare alias.

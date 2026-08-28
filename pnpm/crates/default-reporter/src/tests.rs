@@ -231,3 +231,34 @@ fn a_resize_starts_a_fresh_frame() {
         cursor_ups(&output),
     );
 }
+
+/// The window can shrink under a frame that fitted when it was drawn. Its top
+/// has scrolled away just as surely as an over-tall line's, so it cannot be
+/// revised either — including by the handover that commits the overflow.
+#[test]
+fn a_shrinking_window_starts_a_fresh_frame() {
+    const COLUMNS: usize = 80;
+
+    let mut sink = Sink::new();
+    sink.terminal_size = || Some((COLUMNS, Some(24)));
+    sink.diff = crate::diff::Diff::new(COLUMNS);
+    let mut writes = Vec::new();
+
+    let frame = |resolved: usize| -> Output {
+        let lines: Vec<String> =
+            (0..20).map(|group| format!("install-{group}: resolved {resolved}")).collect();
+        Output::Frame(lines.join("\n"))
+    };
+    sink.write_to(frame(1), false, &mut writes);
+
+    sink.terminal_size = || Some((COLUMNS, Some(6)));
+    writes.clear();
+    sink.write_to(frame(2), false, &mut writes);
+
+    let output = String::from_utf8(writes).expect("utf8 output");
+    assert!(
+        cursor_ups(&output).iter().all(|up| *up < 6),
+        "a frame the window shrank under must not be moved into, got: {:?}",
+        cursor_ups(&output),
+    );
+}

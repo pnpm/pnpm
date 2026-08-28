@@ -7,7 +7,7 @@ use pnpm_fs::is_symlink_or_junction;
 use pnpm_resolving_deps_resolver::is_valid_dependency_alias;
 use serde_json::Value;
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeSet, HashMap},
     io,
     path::{Path, PathBuf},
     sync::Arc,
@@ -93,8 +93,25 @@ pub fn find_global_package(
 /// dependency of `info`.
 #[must_use]
 pub fn get_global_package_details(info: &GlobalPackageInfo) -> Vec<InstalledGlobalPackage> {
-    let modules_dir = info.install_dir.join("node_modules");
-    info.dependencies
+    installed_packages(&info.install_dir, &info.dependencies)
+}
+
+/// The installed version of each direct dependency of the group installed at
+/// `install_dir`, by alias.
+#[must_use]
+pub fn installed_versions(install_dir: &Path) -> HashMap<String, String> {
+    installed_packages(install_dir, &read_direct_dependencies(install_dir))
+        .into_iter()
+        .map(|installed| (installed.alias, installed.version))
+        .collect()
+}
+
+fn installed_packages(
+    install_dir: &Path,
+    dependencies: &[(String, String)],
+) -> Vec<InstalledGlobalPackage> {
+    let modules_dir = install_dir.join("node_modules");
+    dependencies
         .iter()
         .filter_map(|(alias, _)| {
             let manifest = read_package_json(&modules_dir.join(alias))?;

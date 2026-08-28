@@ -387,3 +387,62 @@ test('never revises a frame that outgrew the terminal', async () => {
     stop()
   }
 })
+
+// The window can shrink under a frame that fitted when it was drawn. Its top
+// has scrolled away just as surely as an over-tall line's, so it cannot be
+// revised either — including by the handover that commits the overflow.
+test('a shrinking window starts a fresh frame', async () => {
+  const writes: string[] = []
+  const stdout = {
+    columns: 120,
+    rows: 24,
+    write: (chunk: string) => {
+      writes.push(chunk)
+      return true
+    },
+  }
+  const mockProcess = { stdout, stderr: { write: () => true } }
+
+  const cwd = '/home/jane/project'
+  const streamParser = createStreamParser()
+  const stop = initDefaultReporter({
+    streamParser: streamParser as StreamParser<logs.Log>,
+    reportingOptions: { throttleProgress: 0 },
+    context: {
+      argv: ['update'],
+      config: { dir: cwd } as ReporterPnpmConfig,
+      process: mockProcess as unknown as NodeJS.Process,
+    },
+  })
+
+  const groupDir = (group: number): string => `${cwd}/global/install-${group}`
+
+  try {
+    await yieldTick()
+
+    const groupCount = 20
+    for (let group = 0; group < groupCount; group++) {
+      stageLogger.debug({ prefix: groupDir(group), stage: 'resolution_started' })
+      progressLogger.debug({
+        packageId: 'registry.npmjs.org/foo/1.0.0',
+        requester: groupDir(group),
+        status: 'resolved',
+      })
+    }
+    await waitFor(writes, w => w.some(s => stripAnsi(s).includes(`install-${groupCount - 1}`)))
+
+    stdout.rows = 6
+    const writesBeforeShrink = writes.length
+    progressLogger.debug({
+      packageId: 'registry.npmjs.org/bar/1.0.0',
+      requester: groupDir(0),
+      status: 'resolved',
+    })
+    await waitFor(writes, w => w.length > writesBeforeShrink)
+
+    const afterShrink = writes.slice(writesBeforeShrink).join('')
+    expect(Math.max(0, ...cursorUps(afterShrink))).toBeLessThan(stdout.rows)
+  } finally {
+    stop()
+  }
+})

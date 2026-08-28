@@ -14,7 +14,7 @@ import { types as allTypes } from '@pnpm/config.reader'
 import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector, shouldCheckGitHubActions, updateGitHubActions } from '@pnpm/deps.github-actions'
 import { outdatedDepsOfProjects } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
-import { handleGlobalUpdate, isPnpmCliOnlyGroup } from '@pnpm/global.commands'
+import { handleGlobalUpdate, hasPnpmCliDependency } from '@pnpm/global.commands'
 import { scanGlobalPackages } from '@pnpm/global.packages'
 import type { UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
 import { globalInfo } from '@pnpm/logger'
@@ -247,8 +247,8 @@ async function selectGlobalPackageGroups (
   const scannedPackages = scanGlobalPackages(opts.globalPkgDir!)
   if (scannedPackages.length === 0) return 'No global packages found'
   // The pnpm CLI's own global install belongs to `pnpm self-update`, so it is
-  // never offered as a choice. See `isPnpmCliOnlyGroup`.
-  const globalPackages = scannedPackages.filter((pkg) => !isPnpmCliOnlyGroup(pkg))
+  // never offered as a choice. See `hasPnpmCliDependency`.
+  const globalPackages = scannedPackages.filter((pkg) => !hasPnpmCliDependency(pkg))
   if (globalPackages.length === 0) {
     return 'No global packages to update. Run "pnpm self-update" to update pnpm itself.'
   }

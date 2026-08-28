@@ -81,10 +81,12 @@ export function initDefaultReporter (
   }
   let diff = newDiffer()
   // How many leading lines of the view have scrolled out of the differ's frame
-  // and been committed to the scrollback, and whether the frame the differ is
-  // holding outgrew the terminal anyway. See `commitOverflow`.
+  // and been committed to the scrollback, how many rows the frame the differ is
+  // holding takes up, and whether it already outgrew the terminal it was drawn
+  // on. See `commitOverflow`.
   let committedLines = 0
-  let frameOutgrewTerminal = false
+  let renderedFrameRows = 0
+  let renderedFrameOutgrewTerminal = false
   // Hold redraws while an interactive prompt owns the terminal (see PromptMessage).
   let promptActive = false
   const onLog = (log: logs.Log): void => {
@@ -159,6 +161,10 @@ export function initDefaultReporter (
     // One row is left over for the cursor line that the trailing EOL puts
     // below the frame.
     const maxRows = Math.max(rows - 1, 1)
+    let uncommittedRows = 0
+    for (let i = committedLines; i < lines.length; i++) {
+      uncommittedRows += renderedRows(lines[i], width)
+    }
     // The last line always stays in the frame — there would be nothing left to
     // redraw otherwise — so the walk upwards starts one line above it.
     let firstVisible = lines.length - 1
@@ -169,17 +175,21 @@ export function initDefaultReporter (
       frameRows += lineRows
       firstVisible = i
     }
-    // The tail from `firstVisible` fits, unless the one line that has to stay in
-    // the frame does not fit on its own. Then its start is off screen and no
-    // cursor move can reach it — nor anything in a frame left over from such a
-    // round — so a fresh frame is started below and the lines are reprinted
-    // rather than revised.
-    const cannotRevise = frameOutgrewTerminal
-    frameOutgrewTerminal = frameRows > maxRows
-    if (cannotRevise || frameOutgrewTerminal) {
-      diff = newDiffer()
+    // A frame taller than the terminal has scrolled its own top away — whether
+    // because a line outgrew the screen or because the window shrank under it —
+    // so no cursor move reaches back into it, and growing the window again does
+    // not bring it back. Start afresh below instead, reprinting rather than
+    // revising, and leave the commit for the next frame, whose layout is one
+    // this differ laid out itself.
+    const cannotRevise = renderedFrameOutgrewTerminal || renderedFrameRows > maxRows
+    if (cannotRevise || firstVisible === committedLines) {
+      renderedFrameRows = uncommittedRows
+      renderedFrameOutgrewTerminal = uncommittedRows > maxRows
+      if (cannotRevise || renderedFrameOutgrewTerminal) diff = newDiffer()
+      return ''
     }
-    if (cannotRevise || firstVisible === committedLines) return ''
+    renderedFrameRows = frameRows
+    renderedFrameOutgrewTerminal = false
     // Shrinking the frame to just the overflow leaves those lines untouched
     // where they already are, erases the rest of the frame below them, and
     // parks the cursor on the next line — where the fresh differ starts.

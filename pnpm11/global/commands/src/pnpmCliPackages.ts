@@ -14,6 +14,15 @@ import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
  */
 const PNPM_CLI_PACKAGE_NAMES: ReadonlySet<string> = new Set(['pnpm', '@pnpm/exe'])
 
+/**
+ * Whether `pkg` is a global group the pnpm CLI is installed in. `update -g`
+ * leaves the whole group alone: reinstalling it would relink pnpm's bin
+ * whatever else the group holds.
+ */
+export function hasPnpmCliDependency (pkg: Pick<GlobalPackageInfo, 'dependencies'>): boolean {
+  return Object.entries(pkg.dependencies).some(([alias, spec]) => isPnpmCliDependency(alias, spec))
+}
+
 /** Whether `pkg` is a global group holding nothing but the pnpm CLI. */
 export function isPnpmCliOnlyGroup (pkg: Pick<GlobalPackageInfo, 'dependencies'>): boolean {
   const deps = Object.entries(pkg.dependencies)
