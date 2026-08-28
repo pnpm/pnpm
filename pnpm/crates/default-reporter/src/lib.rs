@@ -224,6 +224,8 @@ struct Sink {
     columns: usize,
     rows: Option<usize>,
     committed_lines: usize,
+    /// Whether the frame the differ is holding outgrew the terminal anyway.
+    frame_outgrew_terminal: bool,
     /// Probe for the output terminal's dimensions. A field so a test can pin
     /// them instead of measuring the terminal the test runner happens to
     /// inherit.
@@ -274,6 +276,7 @@ impl Sink {
             columns,
             rows,
             committed_lines: 0,
+            frame_outgrew_terminal: false,
             terminal_size,
             frame_buf: String::new(),
             throttle,
@@ -440,14 +443,17 @@ impl Sink {
             frame_rows += line_rows;
             first_visible = idx;
         }
-        if first_visible == self.committed_lines {
-            if frame_rows > max_rows {
-                // The one line that has to stay in the frame does not fit on
-                // its own, so its start is off screen and no cursor move can
-                // reach it. Start a fresh frame below instead of walking off
-                // the top: the line is reprinted rather than revised.
-                self.diff = diff::Diff::new(self.columns);
-            }
+        // The tail from `first_visible` fits, unless the one line that has to
+        // stay in the frame does not fit on its own. Then its start is off
+        // screen and no cursor move can reach it — nor anything in a frame left
+        // over from such a round — so a fresh frame is started below and the
+        // lines are reprinted rather than revised.
+        let cannot_revise = self.frame_outgrew_terminal;
+        self.frame_outgrew_terminal = frame_rows > max_rows;
+        if cannot_revise || self.frame_outgrew_terminal {
+            self.diff = diff::Diff::new(self.columns);
+        }
+        if cannot_revise || first_visible == self.committed_lines {
             return;
         }
         // Shrinking the frame to just the overflow leaves those lines untouched

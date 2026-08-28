@@ -189,8 +189,13 @@ fn a_line_taller_than_the_terminal_is_reprinted_rather_than_revised() {
         sink.write_to(Output::Frame(line), false, &mut writes);
     }
 
+    // The frame left over from an unfittable round is just as unreachable, so a
+    // shorter frame after one may not be diffed against it either.
+    sink.write_to(Output::Frame("Progress: resolved 5".to_string()), false, &mut writes);
+
     let output = String::from_utf8(writes).expect("utf8 output");
-    assert!(output.contains("resolved 4"), "the latest frame must be rendered: {output:?}");
+    assert!(output.contains("resolved 4"), "the tall frame must be rendered: {output:?}");
+    assert!(output.contains("resolved 5"), "the short frame must be rendered: {output:?}");
     assert!(
         cursor_ups(&output).is_empty(),
         "an unreachable line must not be redrawn, got: {:?}",

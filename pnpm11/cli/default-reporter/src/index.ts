@@ -81,8 +81,10 @@ export function initDefaultReporter (
   }
   let diff = newDiffer()
   // How many leading lines of the view have scrolled out of the differ's frame
-  // and been committed to the scrollback. See `commitOverflow`.
+  // and been committed to the scrollback, and whether the frame the differ is
+  // holding outgrew the terminal anyway. See `commitOverflow`.
   let committedLines = 0
+  let frameOutgrewTerminal = false
   // Hold redraws while an interactive prompt owns the terminal (see PromptMessage).
   let promptActive = false
   const onLog = (log: logs.Log): void => {
@@ -167,16 +169,17 @@ export function initDefaultReporter (
       frameRows += lineRows
       firstVisible = i
     }
-    if (firstVisible === committedLines) {
-      if (frameRows > maxRows) {
-        // The one line that has to stay in the frame does not fit on its own,
-        // so its start is off screen and no cursor move can reach it. Start a
-        // fresh frame below instead of walking off the top: the line is
-        // reprinted rather than revised.
-        diff = newDiffer()
-      }
-      return ''
+    // The tail from `firstVisible` fits, unless the one line that has to stay in
+    // the frame does not fit on its own. Then its start is off screen and no
+    // cursor move can reach it — nor anything in a frame left over from such a
+    // round — so a fresh frame is started below and the lines are reprinted
+    // rather than revised.
+    const cannotRevise = frameOutgrewTerminal
+    frameOutgrewTerminal = frameRows > maxRows
+    if (cannotRevise || frameOutgrewTerminal) {
+      diff = newDiffer()
     }
+    if (cannotRevise || firstVisible === committedLines) return ''
     // Shrinking the frame to just the overflow leaves those lines untouched
     // where they already are, erases the rest of the frame below them, and
     // parks the cursor on the next line — where the fresh differ starts.

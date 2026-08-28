@@ -335,3 +335,55 @@ test('a resize starts a fresh frame', async () => {
     stop()
   }
 })
+
+// A frame taller than the terminal has scrolled its own top away, so nothing in
+// it can be revised afterwards — not even once the terminal is big enough to
+// hold the next frame. It has to be drawn afresh below instead.
+test('never revises a frame that outgrew the terminal', async () => {
+  const writes: string[] = []
+  const stdout = {
+    columns: 20,
+    rows: 4,
+    write: (chunk: string) => {
+      writes.push(chunk)
+      return true
+    },
+  }
+  const mockProcess = { stdout, stderr: { write: () => true } }
+
+  const cwd = '/home/jane/project'
+  const streamParser = createStreamParser()
+  const stop = initDefaultReporter({
+    streamParser: streamParser as StreamParser<logs.Log>,
+    reportingOptions: { throttleProgress: 0 },
+    context: {
+      argv: ['install'],
+      config: { dir: cwd } as ReporterPnpmConfig,
+      process: mockProcess as unknown as NodeJS.Process,
+    },
+  })
+
+  try {
+    await yieldTick()
+
+    // One progress line, wrapping to more rows than this terminal has: the
+    // requester is zoomed out into a prefix, so the line is well over 20 columns.
+    const requester = `${cwd}/packages/a-fairly-long-workspace-package-name`
+    stageLogger.debug({ prefix: requester, stage: 'resolution_started' })
+    progressLogger.debug({ packageId: 'registry.npmjs.org/foo/1.0.0', requester, status: 'resolved' })
+    await waitFor(writes, w => w.some(s => stripAnsi(s).includes('resolved 1')))
+
+    // The terminal grows enough for the next frame to fit, but the one on
+    // screen has already scrolled.
+    stdout.rows = 24
+    const writesBeforeGrow = writes.length
+    progressLogger.debug({ packageId: 'registry.npmjs.org/bar/1.0.0', requester, status: 'resolved' })
+    await waitFor(writes, w => w.length > writesBeforeGrow)
+
+    const afterGrow = writes.slice(writesBeforeGrow).join('')
+    expect(stripAnsi(afterGrow)).toContain('resolved 2')
+    expect(cursorUps(afterGrow)).toEqual([])
+  } finally {
+    stop()
+  }
+})
