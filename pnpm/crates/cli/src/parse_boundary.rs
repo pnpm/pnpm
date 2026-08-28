@@ -227,7 +227,7 @@ fn option_width(arg: &str, next: Option<&str>, arity: &ArgTable) -> Option<usize
         // the same option owns it, there and here.
         return match arity.long_consumes_value(name) {
             Some(consumes_value) => Some(1 + usize::from(consumes_value)),
-            None => Some(crate::config_overrides::bare_setting_flag_width(name, next).unwrap_or(1)),
+            None => Some(crate::config_overrides::bare_setting_flag_width(name, next)),
         };
     }
     let short = rest.chars().next().expect("checked non-empty");

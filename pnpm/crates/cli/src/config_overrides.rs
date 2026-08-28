@@ -181,12 +181,18 @@ impl ConfigOverrides {
             }
             // The token after a `--<setting> <value>` pair's flag, unless
             // the flag ends argv or that token is already the child's.
+            //
+            // A token that opens with `-` is never a value: it is the
+            // `--` separator, another flag, or a short option. Claiming
+            // one would drop the separator and point a path setting at a
+            // directory literally named `--`; leaving it in place makes
+            // the valueless flag clap's to report.
             let mut following = |accept: fn(&str) -> bool| {
                 let value = argv
                     .peek()
                     .filter(|&&(index, _)| !is_forwarded(index))
                     .and_then(|(_, token)| token.to_str())
-                    .filter(|token| accept(token))
+                    .filter(|token| !token.starts_with('-') && accept(token))
                     .map(str::to_owned)?;
                 argv.next();
                 Some(value)
@@ -839,13 +845,16 @@ pub(crate) fn bare_boolean_setting_claims(flag: &str, next: Option<&str>) -> boo
 
 /// How many argv slots a bare `--<setting>` flag occupies, given the
 /// token after it — for the scan that has to find the subcommand before
-/// the settings are stripped. `None` for a token that is not one of the
-/// [`BARE_SETTING_FLAGS`], leaving the arity to clap's own tables.
-pub(crate) fn bare_setting_flag_width(flag: &str, next: Option<&str>) -> Option<usize> {
-    match named_bare_setting_flag(flag)? {
-        (_, SettingArity::Boolean) => Some(1 + usize::from(next.is_some_and(is_boolean_value))),
-        (_, SettingArity::Value(_)) => Some(2),
-    }
+/// the settings are stripped. `1` for a token that is not one of the
+/// [`BARE_SETTING_FLAGS`], or one whose value is missing, which
+/// [`ConfigOverrides::extract`] hands to clap intact.
+pub(crate) fn bare_setting_flag_width(flag: &str, next: Option<&str>) -> usize {
+    let claims_next = match named_bare_setting_flag(flag) {
+        Some((_, SettingArity::Boolean)) => next.is_some_and(is_boolean_value),
+        Some((_, SettingArity::Value(_))) => next.is_some_and(|next| !next.starts_with('-')),
+        None => false,
+    };
+    1 + usize::from(claims_next)
 }
 
 fn scoped_registry_key(key: &str) -> Option<&str> {

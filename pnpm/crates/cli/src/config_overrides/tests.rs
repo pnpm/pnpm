@@ -960,3 +960,27 @@ fn a_boolean_settings_value_is_claimed_even_when_a_command_declares_the_name() {
     assert!(config.lockfile);
     assert_eq!(config.registry, "https://example.test/");
 }
+
+/// A `--` or another flag is never a setting's value: claiming one would
+/// drop the separator and point `modulesDir` at a directory named `--`.
+#[test]
+fn a_setting_flag_never_claims_a_separator_or_another_flag() {
+    for tokens in [
+        ["--modules-dir", "--", "extra"].as_slice(),
+        &["--modules-dir", "--"],
+        &["--modules-dir", "--prod"],
+        &["--modules-dir", "-C"],
+    ] {
+        let command_line = ["pacquet", "install"]
+            .into_iter()
+            .chain(tokens.iter().copied())
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        let (overrides, remaining) = ConfigOverrides::extract(command_line.clone());
+        assert_eq!(remaining, command_line, "{tokens:?}");
+
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert_eq!(config.modules_dir, Config::default().modules_dir, "{tokens:?}");
+    }
+}
