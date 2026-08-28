@@ -92,6 +92,15 @@ impl DirLock {
             sleep(POLL_INTERVAL);
         }
     }
+
+    /// Reports whether this acquisition still owns the lock after a possible takeover.
+    pub fn is_owner(&self) -> io::Result<bool> {
+        match fs::read_to_string(self.path.join(OWNER_FILE)) {
+            Ok(owner) => Ok(owner == self.token),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error),
+        }
+    }
 }
 
 fn is_transient_release_error(

@@ -179,6 +179,33 @@ test('resumeTaskGraphFrom drops only the anchor\'s transitive dependencies', () 
   expect(resumed.get(taskKey(dir('c'), 'build'))!.dependencies).toStrictEqual([taskKey(dir('b'), 'build')])
 })
 
+test('resumeTaskGraphFrom drops exact completed tasks when state is available', () => {
+  const graph = buildGraph({
+    dependency: { scripts: ['build'] },
+    anchor: { dependencies: ['dependency'], scripts: ['build'] },
+    completed: { scripts: ['build'] },
+  }, 'build')
+
+  const resumed = resumeTaskGraphFrom(graph, {
+    resumeFrom: 'anchor',
+    selectedProjectsGraph: Object.fromEntries(['dependency', 'anchor', 'completed'].map((name) => [
+      dir(name),
+      { dependencies: [], package: { manifest: { name } } },
+    ])) as never,
+    taskName: 'build',
+    completedTasks: new Set([
+      taskKey(dir('anchor'), 'build'),
+      taskKey(dir('completed'), 'build'),
+    ]),
+  })
+
+  expect([...resumed.keys()].sort()).toStrictEqual([
+    taskKey(dir('anchor'), 'build'),
+    taskKey(dir('dependency'), 'build'),
+  ].sort())
+  expect(resumed.get(taskKey(dir('anchor'), 'build'))!.dependencies).toStrictEqual([taskKey(dir('dependency'), 'build')])
+})
+
 test('resumeTaskGraphFrom throws when the package is not selected', () => {
   const graph = buildGraph({ a: { scripts: ['build'] } }, 'build')
   expect(() => resumeTaskGraphFrom(graph, {

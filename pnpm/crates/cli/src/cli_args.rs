@@ -85,6 +85,7 @@ pub mod stars;
 pub mod store;
 pub mod sudo_guard;
 pub mod supported_architectures;
+mod task_run_state;
 pub mod team;
 pub mod undeprecate;
 pub mod unlink;

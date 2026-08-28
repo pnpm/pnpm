@@ -4337,6 +4337,9 @@ importers:
       which:
         specifier: 'catalog:'
         version: '@pnpm/which@3.0.1'
+      write-file-atomic:
+        specifier: 'catalog:'
+        version: 7.0.1
       write-json-file:
         specifier: 'catalog:'
         version: 7.0.0
@@ -4374,6 +4377,9 @@ importers:
       '@types/which':
         specifier: 'catalog:'
         version: 3.0.4
+      '@types/write-file-atomic':
+        specifier: 'catalog:'
+        version: 4.0.3
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2

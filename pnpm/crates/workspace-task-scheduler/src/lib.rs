@@ -277,6 +277,7 @@ pub fn resume_task_graph_from(
     graph: TaskGraph,
     anchor_project: &Path,
     task_name: &str,
+    completed_tasks: Option<&HashSet<TaskKey>>,
 ) -> TaskGraph {
     let anchor =
         TaskKey { project: anchor_project.to_path_buf(), task_name: task_name.to_string() };
@@ -285,14 +286,16 @@ pub fn resume_task_graph_from(
         // nothing to skip.
         return graph;
     };
-    let mut dropped: HashSet<TaskKey> = HashSet::new();
-    let mut stack: Vec<TaskKey> = anchor_node.dependencies.clone();
-    while let Some(key) = stack.pop() {
-        if !dropped.insert(key.clone()) {
-            continue;
-        }
-        stack.extend(graph[&key].dependencies.iter().cloned());
-    }
+    let dropped = completed_tasks.map_or_else(
+        || transitive_dependencies(&graph, anchor_node),
+        |completed| {
+            completed
+                .iter()
+                .filter(|key| **key != anchor && graph.contains_key(*key))
+                .cloned()
+                .collect()
+        },
+    );
     graph
         .into_iter()
         .filter(|(key, _)| !dropped.contains(key))
@@ -301,6 +304,18 @@ pub fn resume_task_graph_from(
             (key, node)
         })
         .collect()
+}
+
+fn transitive_dependencies(graph: &TaskGraph, anchor: &TaskNode) -> HashSet<TaskKey> {
+    let mut dependencies: HashSet<TaskKey> = HashSet::new();
+    let mut stack: Vec<TaskKey> = anchor.dependencies.clone();
+    while let Some(key) = stack.pop() {
+        if !dependencies.insert(key.clone()) {
+            continue;
+        }
+        stack.extend(graph[&key].dependencies.iter().cloned());
+    }
+    dependencies
 }
 
 /// Whether at most one script can ever be in flight, which is when output

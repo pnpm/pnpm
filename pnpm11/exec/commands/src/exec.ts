@@ -21,6 +21,7 @@ import {
   sequenceTasks,
   type TaskCompletion,
   type TaskGraph,
+  type TaskKey,
   taskKey,
   type TaskNode,
 } from '@pnpm/workspace.task-scheduler'
@@ -40,6 +41,7 @@ import {
   shorthands as runShorthands,
 } from './run.js'
 import { runDepsStatusCheck } from './runDepsStatusCheck.js'
+import { taskRunExecutionSettings, type TaskRunState, TaskRunStateContext } from './taskRunState.js'
 import { trackedExeca } from './trackedExeca.js'
 
 export const shorthands: Record<string, string | string[]> = {
@@ -218,12 +220,33 @@ export async function handler (
     throw new PnpmError('RECURSIVE_EXEC_NO_PACKAGE', 'No package found in this workspace')
   }
 
+  const fullTaskGraph = taskGraph
+  const baseExtraEnv: Record<string, string | undefined> = {
+    ...opts.extraEnv,
+    ...(opts.nodeOptions ? { NODE_OPTIONS: keepEsmNodePathLoaderOption(opts.nodeOptions, opts.extraEnv?.NODE_OPTIONS) } : {}),
+  }
+  let taskRunStateContext: TaskRunStateContext | undefined
+  if (opts.recursive) {
+    taskRunStateContext = new TaskRunStateContext({
+      command: 'exec',
+      params: [...params, `shell-mode=${Boolean(opts.shellMode)}`],
+      settings: taskRunExecutionSettings({ ...opts, extraEnv: baseExtraEnv }),
+      graph: fullTaskGraph,
+      workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
+      scriptCommands: () => [],
+    })
+  }
   if (opts.resumeFrom) {
-    taskGraph = resumeTaskGraphFrom(taskGraph, {
+    const resumeOptions = {
       resumeFrom: opts.resumeFrom,
       selectedProjectsGraph: opts.selectedProjectsGraph,
       taskName: commandName,
-    })
+    }
+    taskGraph = resumeTaskGraphFrom(fullTaskGraph, resumeOptions)
+    const completedTasks = await taskRunStateContext?.readCompletedTasks()
+    if (completedTasks != null) {
+      taskGraph = resumeTaskGraphFrom(fullTaskGraph, { ...resumeOptions, completedTasks })
+    }
   }
 
   // Also the cycle check: a cyclic graph cannot be scheduled, and sequenced
@@ -232,6 +255,15 @@ export async function handler (
     workspaceDir: opts.workspaceDir ?? opts.dir,
     ignoreCycles: opts.ignoreWorkspaceCycles,
   })
+
+  let taskRunState: TaskRunState | undefined
+  if (taskRunStateContext != null) {
+    const initiallyCompleted = new Set<TaskKey>()
+    for (const key of fullTaskGraph.keys()) {
+      if (!taskGraph.has(key)) initiallyCompleted.add(key)
+    }
+    taskRunState = await taskRunStateContext.start(initiallyCompleted)
+  }
 
   const result: RecursiveSummary = {}
   for (const node of taskGraph.values()) {
@@ -251,9 +283,9 @@ export async function handler (
   ]
   const reporterShowPrefix = opts.recursive && opts.reporterHidePrefix === false
 
-  const runTask = async (node: TaskNode): Promise<TaskCompletion> => {
+  const runTask = async (node: TaskNode, key: TaskKey): Promise<TaskCompletion> => {
     try {
-      return await runCommandTask(node)
+      return await runCommandTask(node, key)
     } catch (err: unknown) {
       // An error the per-project handling could not absorb is an
       // infrastructure failure: hold it for rethrow and stop the run.
@@ -262,7 +294,7 @@ export async function handler (
     }
   }
 
-  const runCommandTask = async (node: TaskNode): Promise<TaskCompletion> =>
+  const runCommandTask = async (node: TaskNode, key: TaskKey): Promise<TaskCompletion> =>
     limitRun(async (): Promise<TaskCompletion> => {
       // Under --bail a failure stops dispatch, but a task already queued
       // behind the concurrency limit has been dispatched in name only —
@@ -276,10 +308,7 @@ export async function handler (
       try {
         const pnpPath = workspacePnpPath ?? existsPnp(prefix)
         const packageMapPath = workspacePackageMapPath || (opts.nodeExperimentalPackageMap && existsPackageMap(prefix))
-        const extraEnv: Record<string, string | undefined> = {
-          ...opts.extraEnv,
-          ...(opts.nodeOptions ? { NODE_OPTIONS: keepEsmNodePathLoaderOption(opts.nodeOptions, opts.extraEnv?.NODE_OPTIONS) } : {}),
-        }
+        const extraEnv = { ...baseExtraEnv }
         if (pnpPath) {
           Object.assign(extraEnv, makeNodeRequireOption(pnpPath, extraEnv))
         }
@@ -375,7 +404,6 @@ export async function handler (
         }
         result[prefix].status = 'passed'
         result[prefix].duration = getExecutionDuration(startTime)
-        return 'passed'
       } catch (err: any) { // eslint-disable-line
         if (isErrorCommandNotFound(params[0], err, prefix, prependPaths)) {
           err.message = `Command "${params[0]}" not found`
@@ -408,37 +436,45 @@ export async function handler (
         }
         return 'failed'
       }
+      await taskRunState?.recordPassed(key, node)
+      return 'passed'
     })
 
-  await scheduleTasks(taskGraph, {
-    bail: Boolean(opts.bail),
-    runTask,
-    onTaskSkipped: (node) => {
-      result[node.project].status = 'skipped'
-    },
-  })
+  try {
+    await scheduleTasks(taskGraph, {
+      bail: Boolean(opts.bail),
+      runTask,
+      onTaskSkipped: (node) => {
+        result[node.project].status = 'skipped'
+      },
+    })
 
-  if (abortError !== undefined) {
-    throw abortError
-  }
-  if (firstError != null) {
+    if (abortError !== undefined) {
+      throw abortError
+    }
+    if (firstError != null) {
+      if (opts.reportSummary) {
+        await writeRecursiveSummary({
+          dir: opts.lockfileDir ?? opts.dir,
+          summary: result,
+        })
+      }
+      throw firstError
+    }
+
     if (opts.reportSummary) {
       await writeRecursiveSummary({
         dir: opts.lockfileDir ?? opts.dir,
         summary: result,
       })
     }
-    throw firstError
+    throwOnCommandFail('pnpm recursive exec', result)
+    await taskRunState?.finish()
+    return { exitCode }
+  } catch (err: unknown) {
+    await taskRunState?.close()
+    throw err
   }
-
-  if (opts.reportSummary) {
-    await writeRecursiveSummary({
-      dir: opts.lockfileDir ?? opts.dir,
-      summary: result,
-    })
-  }
-  throwOnCommandFail('pnpm recursive exec', result)
-  return { exitCode }
 }
 
 async function createExecCommandNotFoundHint (

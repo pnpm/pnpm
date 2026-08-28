@@ -12,10 +12,13 @@
 //! project concurrently.
 
 use super::{ExecArgs, ExecError, prepare_command, read_package_name, spawn_in_dir};
-use crate::cli_args::recursive::{
-    AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-    filtered_projects_dependencies, find_resume_root, select_recursive_projects,
-    write_recursive_summary,
+use crate::cli_args::{
+    recursive::{
+        AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
+        filtered_projects_dependencies, find_resume_root, select_recursive_projects,
+        write_recursive_summary,
+    },
+    task_run_state::{TaskRunExecutionSettings, TaskRunStateContext, task_run_execution_settings},
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -28,6 +31,7 @@ use pnpm_workspace_task_scheduler::{
     resume_task_graph_from, reverse_task_graph, schedule_tasks, sequence_tasks,
 };
 use std::{
+    collections::HashSet,
     path::{Path, PathBuf},
     sync::Mutex,
     time::Instant,
@@ -135,10 +139,46 @@ pub async fn exec_recursive(
     if args.reverse {
         task_graph = reverse_task_graph(&task_graph);
     }
-    if let Some(resume_from) = &args.resume_from {
-        let anchor = find_resume_root(resume_from, graph)?;
-        task_graph = resume_task_graph_from(task_graph, &anchor, command_name);
-    }
+    let full_task_graph = task_graph;
+    let mut state_params = args.command.clone();
+    state_params.push(format!("shell-mode={}", args.shell_mode));
+    let state_extra_env = config.extra_env_with_node_options();
+    let state_settings = task_run_execution_settings(&TaskRunExecutionSettings {
+        extra_bin_paths: &config.extra_bin_paths,
+        extra_env: &state_extra_env,
+        modules_dir: &config.modules_dir,
+        node_experimental_package_map: config.node_experimental_package_map,
+        node_options: config.node_options.as_deref(),
+        user_agent: &config.user_agent,
+    });
+    let task_run_state_context = TaskRunStateContext::new(
+        "exec",
+        &state_params,
+        &state_settings,
+        &full_task_graph,
+        workspace_root,
+        |_, _| Vec::new(),
+    );
+    let resume_anchor = args
+        .resume_from
+        .as_ref()
+        .map(|resume_from| find_resume_root(resume_from, graph))
+        .transpose()?;
+    let completed_tasks = resume_anchor
+        .as_ref()
+        .map(|_| task_run_state_context.read_completed_tasks())
+        .transpose()?
+        .flatten();
+    task_graph = if let Some(anchor) = resume_anchor {
+        resume_task_graph_from(
+            full_task_graph.clone(),
+            &anchor,
+            command_name,
+            completed_tasks.as_ref(),
+        )
+    } else {
+        full_task_graph.clone()
+    };
     // Also the cycle check: a cyclic graph cannot be scheduled, and
     // sequenced into an arbitrary order it would succeed or fail by luck.
     sequence_tasks(
@@ -149,6 +189,10 @@ pub async fn exec_recursive(
             emit,
         },
     )?;
+
+    let initially_completed: HashSet<TaskKey> =
+        full_task_graph.keys().filter(|key| !task_graph.contains_key(*key)).cloned().collect();
+    let task_run_state = task_run_state_context.start(&initially_completed)?;
 
     let bail = !args.no_bail;
     let concurrency = if args.parallel {
@@ -163,6 +207,7 @@ pub async fn exec_recursive(
             .collect(),
     );
     let first_failure: Mutex<Option<String>> = Mutex::new(None);
+    let abort: Mutex<Option<miette::Report>> = Mutex::new(None);
     let process_tracker = bail.then(ProcessTracker::default);
 
     let run_task = |node: &TaskNode| -> TaskCompletion {
@@ -186,7 +231,22 @@ pub async fn exec_recursive(
         match execution.message {
             None => {
                 entry.status = Status::Passed;
-                TaskCompletion::Passed
+                drop(result);
+                let key =
+                    TaskKey { project: node.project.clone(), task_name: node.task_name.clone() };
+                match task_run_state.record_passed(&key, node, workspace_root) {
+                    Ok(()) => TaskCompletion::Passed,
+                    Err(error) => {
+                        let mut abort = abort.lock().expect("abort slot lock is not poisoned");
+                        if abort.is_none() {
+                            *abort = Some(error);
+                        }
+                        if let Some(process_tracker) = &process_tracker {
+                            process_tracker.cancel();
+                        }
+                        TaskCompletion::Aborted
+                    }
+                }
             }
             Some(message) => {
                 if process_tracker.as_ref().is_some_and(|tracker| !tracker.cancel()) {
@@ -220,6 +280,10 @@ pub async fn exec_recursive(
         },
     );
 
+    if let Some(error) = abort.into_inner().expect("abort slot lock is not poisoned") {
+        return Err(error);
+    }
+
     let result = result.into_inner().expect("summary lock is not poisoned");
     if bail
         && let Some(prefix) =
@@ -239,6 +303,7 @@ pub async fn exec_recursive(
     if failures > 0 {
         return Err(RecursiveExecError::RecursiveFail { count: failures }.into());
     }
+    task_run_state.finish()?;
     Ok(())
 }
 

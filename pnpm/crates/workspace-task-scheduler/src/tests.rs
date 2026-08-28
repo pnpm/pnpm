@@ -9,7 +9,7 @@ use indexmap::IndexMap;
 use pnpm_config::TaskSettings;
 use pnpm_reporter::LogEvent;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{
         Condvar, Mutex,
@@ -210,7 +210,7 @@ fn resume_drops_only_the_anchors_transitive_dependencies() {
         None,
     );
 
-    let resumed = resume_task_graph_from(graph, &dir("b"), "build");
+    let resumed = resume_task_graph_from(graph, &dir("b"), "build", None);
 
     assert_eq!(resumed.len(), 3);
     assert!(!resumed.contains_key(&key("a", "build")));
@@ -218,6 +218,28 @@ fn resume_drops_only_the_anchors_transitive_dependencies() {
     assert!(resumed[&key("b", "build")].dependencies.is_empty());
     assert_eq!(resumed[&key("c", "build")].dependencies, vec![key("b", "build")]);
     assert!(resumed.contains_key(&key("unrelated", "build")));
+}
+
+#[test]
+fn resume_drops_exact_completed_tasks_when_state_is_available() {
+    let graph = build_graph(
+        &[
+            ("dependency", project(&[], &["build"])),
+            ("anchor", project(&["dependency"], &["build"])),
+            ("completed", project(&[], &["build"])),
+        ],
+        "build",
+        None,
+    );
+    let completed = HashSet::from([key("anchor", "build"), key("completed", "build")]);
+
+    let resumed = resume_task_graph_from(graph, &dir("anchor"), "build", Some(&completed));
+
+    assert_eq!(resumed.len(), 2);
+    assert!(resumed.contains_key(&key("anchor", "build")));
+    assert!(resumed.contains_key(&key("dependency", "build")));
+    assert!(!resumed.contains_key(&key("completed", "build")));
+    assert_eq!(resumed[&key("anchor", "build")].dependencies, vec![key("dependency", "build")]);
 }
 
 #[test]
