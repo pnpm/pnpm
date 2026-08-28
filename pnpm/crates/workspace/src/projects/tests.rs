@@ -29,7 +29,7 @@ fn recognizes_specialized_workspace_patterns() {
         specialized_pattern("packages/alpha/"),
         Some(SpecializedPattern::Literal("packages/alpha")),
     );
-    assert_eq!(specialized_pattern("packages/*"), Some(SpecializedPattern::ChildrenOf("packages")),);
+    assert_eq!(specialized_pattern("packages/*"), Some(SpecializedPattern::ChildrenOf("packages")));
     assert_eq!(
         specialized_pattern("packages/*/"),
         Some(SpecializedPattern::ChildrenOf("packages")),
