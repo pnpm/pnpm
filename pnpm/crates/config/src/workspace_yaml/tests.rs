@@ -1388,6 +1388,44 @@ fn malformed_json_names_the_environment_variable_that_was_set() {
     );
 }
 
+/// Precedence is by presence, not by validity: a malformed value under the name
+/// matching the setting is not quietly replaced by a valid one under the older
+/// name, because that would use a variable the reader did not reach for and
+/// leave the broken one unreported.
+#[test]
+fn a_malformed_canonical_value_is_not_replaced_by_a_valid_older_one() {
+    struct Both;
+    impl crate::EnvVar for Both {
+        fn var(key: &str) -> Option<String> {
+            match key {
+                "PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS" => Some("not json".to_string()),
+                "PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS" => {
+                    Some(r#"{"acme-2026":"AA=="}"#.to_string())
+                }
+                _ => None,
+            }
+        }
+    }
+
+    let mut config = Config::new();
+    let warnings = crate::tests::capture_warnings(|| {
+        config.apply_remote_side_effects_cache_env::<Both>();
+    });
+
+    let warning = warnings
+        .iter()
+        .find(|warning| warning.contains("not a string-valued JSON object"))
+        .expect("a warning about the malformed variable");
+    assert!(
+        warning.contains("PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS"),
+        "expected the variable that was selected, got {warning}",
+    );
+    assert!(
+        config.remote_side_effects_cache.is_none_or(|shared| shared.trusted_keys.is_none()),
+        "the older variable's value must not stand in for the malformed one",
+    );
+}
+
 /// When both spellings are set, the one matching the setting decides.
 #[test]
 fn the_canonical_environment_spelling_wins() {

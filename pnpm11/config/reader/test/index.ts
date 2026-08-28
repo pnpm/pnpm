@@ -6127,3 +6127,19 @@ test('getConfig() names the environment variable the user actually set when its 
     })).rejects.toThrow(/PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS/)
   })
 })
+
+test('getConfig() does not fall back to a valid older variable when the canonical one is malformed', async () => {
+  // Precedence is by presence, not by validity: falling back would use a
+  // variable the reader did not reach for and leave the broken one unreported.
+  prepareEmpty()
+  await withEnv({
+    PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS: 'not json',
+    PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS: '{"acme-2026":"AA=="}',
+  }, async () => {
+    await expect(getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })).rejects.toThrow(/PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS/)
+  })
+})
