@@ -7,10 +7,10 @@ use crate::defaults::{default_state_dir, default_store_dir};
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::env_guard::EnvGuard;
 use pretty_assertions::assert_eq;
-use std::fmt::Write as _;
 use std::{
     env,
     ffi::OsString,
+    fmt::Write as _,
     io,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
