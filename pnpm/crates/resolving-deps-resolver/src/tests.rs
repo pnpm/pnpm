@@ -2570,9 +2570,10 @@ mod patched_dependencies {
         sync::{Arc, Mutex},
     };
 
+    use pnpm_lockfile::{DirectoryResolution, GitResolution, LockfileResolution};
     use pnpm_package_manifest::DependencyGroup;
     use pnpm_patching::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem, PatchGroupRecord};
-    use pnpm_resolving_resolver_base::ResolveOptions;
+    use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveOptions};
     use pretty_assertions::assert_eq;
 
     use super::{StubResolver, fake_manifest, fake_result};
@@ -2635,6 +2636,90 @@ mod patched_dependencies {
             result.direct_dependencies_by_alias.get("foo"),
             Some(&DepPath::from("foo@1.0.0(patch_hash=abc123)".to_string())),
         );
+    }
+
+    #[tokio::test]
+    async fn patches_git_dependency_with_manifest_version() {
+        let git_ref = "git+file:///repo#0123456789012345678901234567890123456789";
+        let mut result =
+            fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" }));
+        result.id = PkgResolutionId::from(git_ref);
+        result.name_ver = None;
+        result.latest = None;
+        result.resolution = LockfileResolution::Git(GitResolution {
+            repo: "file:///repo".to_string(),
+            commit: "0123456789012345678901234567890123456789".to_string(),
+            integrity: None,
+            path: None,
+        });
+        result.resolved_via = "git-repository".to_string();
+
+        let mut table = HashMap::default();
+        table.insert(("foo".to_string(), git_ref.to_string()), result);
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": git_ref }));
+        let mut groups = PatchGroupRecord::new();
+        groups.insert("foo".to_string(), exact_group("1.0.0", "foo@1.0.0", "abc123"));
+
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: Some(Arc::new(groups)),
+                manifest_hook: None,
+                overrides_hook: None,
+                pnpmfile_hook: None,
+                read_package_log: None,
+                auto_install_peers: false,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(tree.direct[0].id, format!("foo@{git_ref}(patch_hash=abc123)"));
+        assert!(tree.applied_patches.contains("foo@1.0.0"));
+    }
+
+    #[tokio::test]
+    async fn leaves_local_directory_dependencies_unpatched() {
+        let local_ref = "file:../foo";
+        let mut result =
+            fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" }));
+        result.id = PkgResolutionId::from(local_ref);
+        result.name_ver = None;
+        result.latest = None;
+        result.resolution =
+            LockfileResolution::Directory(DirectoryResolution { directory: "../foo".to_string() });
+        result.resolved_via = "local-filesystem".to_string();
+
+        let mut table = HashMap::default();
+        table.insert(("foo".to_string(), local_ref.to_string()), result);
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": local_ref }));
+        let mut groups = PatchGroupRecord::new();
+        groups.insert("foo".to_string(), exact_group("1.0.0", "foo@1.0.0", "abc123"));
+
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: Some(Arc::new(groups)),
+                manifest_hook: None,
+                overrides_hook: None,
+                pnpmfile_hook: None,
+                read_package_log: None,
+                auto_install_peers: false,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(tree.direct[0].id, "foo@file:../foo");
+        assert!(tree.applied_patches.is_empty());
     }
 
     #[tokio::test]
