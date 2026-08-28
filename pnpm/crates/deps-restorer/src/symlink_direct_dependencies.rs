@@ -250,34 +250,52 @@ where
         // in `root_targets`, not the root importer's on-disk state), and
         // a serial walk would insert a fork-join barrier per importer
         // between the filesystem batches.
-        keys.par_iter().try_for_each(|importer_id| {
-            // Safe: `keys` came from `importers.keys()`.
-            let project_snapshot = &importers[*importer_id];
-            let project_dir = importer_root_dir(workspace_root, importer_id);
-            let modules_dir = project_dir.join(modules_dir_name);
+        //
+        // Keys that case-fold to one string may still alias one
+        // directory on a case-insensitive filesystem (macOS, Windows).
+        // A real pnpm lockfile can't produce them — project discovery
+        // would have collapsed the directories — but a hostile lockfile
+        // can, and two tasks mutating one `node_modules` would race.
+        // Case-folded collisions therefore share a task and run in
+        // sorted order, keeping the serial pass's deterministic
+        // last-writer outcome; on a case-sensitive filesystem the
+        // group members are genuinely distinct directories and merely
+        // share a task.
+        let mut task_groups: BTreeMap<String, Vec<&str>> = BTreeMap::new();
+        for importer_id in keys {
+            task_groups.entry(importer_id.to_lowercase()).or_default().push(importer_id);
+        }
+        let task_groups: Vec<Vec<&str>> = task_groups.into_values().collect();
+        task_groups.par_iter().try_for_each(|group| {
+            group.iter().try_for_each(|importer_id| {
+                // Safe: the groups were built from `importers.keys()`.
+                let project_snapshot = &importers[*importer_id];
+                let project_dir = importer_root_dir(workspace_root, importer_id);
+                let modules_dir = project_dir.join(modules_dir_name);
 
-            // Only non-root importers get deduped against root: the
-            // root project is linked unfiltered, then each sibling's
-            // list is trimmed against what root links.
-            let dedupe_against = match (&root_targets, *importer_id) {
-                (Some(targets), id) if id != "." => Some(targets),
-                _ => None,
-            };
+                // Only non-root importers get deduped against root: the
+                // root project is linked unfiltered, then each sibling's
+                // list is trimmed against what root links.
+                let dedupe_against = match (&root_targets, *importer_id) {
+                    (Some(targets), id) if id != "." => Some(targets),
+                    _ => None,
+                };
 
-            link_one_importer::<Reporter>(
-                importer_id,
-                layout,
-                project_snapshot,
-                packages,
-                &project_dir,
-                &modules_dir,
-                dependency_groups.iter().copied(),
-                skipped,
-                link_only,
-                dedupe_against,
-                config.symlink,
-                link_options,
-            )
+                link_one_importer::<Reporter>(
+                    importer_id,
+                    layout,
+                    project_snapshot,
+                    packages,
+                    &project_dir,
+                    &modules_dir,
+                    dependency_groups.iter().copied(),
+                    skipped,
+                    link_only,
+                    dedupe_against,
+                    config.symlink,
+                    link_options,
+                )
+            })
         })
     }
 }
