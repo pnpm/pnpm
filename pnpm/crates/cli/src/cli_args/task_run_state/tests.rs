@@ -307,3 +307,55 @@ fn finishing_an_older_invocation_preserves_the_newer_invocation_journal() {
     newer.finish().expect("finish newer state");
     assert!(context.read_completed_tasks().expect("read finished state").is_none());
 }
+
+#[test]
+fn a_stale_pointer_does_not_hide_a_newer_published_invocation_journal() {
+    let workspace = tempfile::tempdir().expect("create workspace");
+    let project = workspace.path().join("project");
+    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
+    let graph: TaskGraph = IndexMap::from([(
+        key.clone(),
+        TaskNode {
+            project,
+            task_name: "build".to_string(),
+            concurrency: None,
+            scripts: vec!["build".to_string()],
+            requested: true,
+            dependencies: Vec::new(),
+        },
+    )]);
+    let context = TaskRunStateContext::new(
+        "run",
+        &["build".to_string()],
+        &[],
+        &graph,
+        workspace.path(),
+        |_, _| vec!["build-command".to_string()],
+    );
+    let older = context.start(&HashSet::new()).expect("start older state");
+    let older_contents = fs::read_to_string(&older.file_path).expect("read older state");
+    let older_header = older_contents.lines().next().expect("older state has a header");
+    let newer = context.start(&HashSet::from([key.clone()])).expect("start newer state");
+
+    fs::remove_file(&newer.published_path).expect("remove publication marker");
+    fs::write(&context.latest_state_path, older_header).expect("write stale pointer");
+    let completed = context
+        .read_completed_tasks()
+        .expect("read older state")
+        .expect("older state remains compatible");
+    assert!(completed.is_empty());
+    fs::write(&newer.published_path, []).expect("write publication marker");
+
+    let completed = context
+        .read_completed_tasks()
+        .expect("read newer state")
+        .expect("newer state remains compatible");
+    assert_eq!(completed, HashSet::from([key.clone()]));
+    older.finish().expect("finish older state");
+    let completed = context
+        .read_completed_tasks()
+        .expect("read newer state")
+        .expect("newer state remains compatible");
+    assert_eq!(completed, HashSet::from([key]));
+    newer.finish().expect("finish newer state");
+}

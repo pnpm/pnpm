@@ -337,6 +337,41 @@ test('finishing an older invocation preserves the newer invocation journal', asy
   await expect(context.readCompletedTasks()).resolves.toBeUndefined()
 })
 
+test('a stale pointer does not hide a newer published invocation journal', async () => {
+  const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-task-state-'))
+  temporaryDirectories.push(workspaceDir)
+  const project = path.join(workspaceDir, 'project') as ProjectRootDir
+  const key = taskKey(project, 'build')
+  const graph: TaskGraph = new Map([[key, {
+    project,
+    taskName: 'build',
+    scripts: ['build'],
+    requested: true,
+    dependencies: [],
+  }]])
+  const context = new TaskRunStateContext({
+    command: 'run',
+    params: ['build'],
+    graph,
+    workspaceDir,
+    scriptCommands: () => ['build-command'],
+  })
+  const older = await context.start(new Set())
+  const olderHeader = (await fs.readFile(older.filePath, 'utf8')).split('\n')[0]
+  const newer = await context.start(new Set([key]))
+  const newerPublishedPath = newer.filePath.replace(/\.jsonl$/, '.published')
+
+  await fs.unlink(newerPublishedPath)
+  await fs.writeFile(context.latestStatePath, olderHeader)
+  await expect(context.readCompletedTasks()).resolves.toStrictEqual(new Set())
+  await fs.writeFile(newerPublishedPath, '')
+
+  await expect(context.readCompletedTasks()).resolves.toStrictEqual(new Set([key]))
+  await older.finish()
+  await expect(context.readCompletedTasks()).resolves.toStrictEqual(new Set([key]))
+  await newer.finish()
+})
+
 test('a stale start does not overwrite a newer invocation', async () => {
   const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-task-state-'))
   temporaryDirectories.push(workspaceDir)

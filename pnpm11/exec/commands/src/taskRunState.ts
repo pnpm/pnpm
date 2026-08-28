@@ -11,12 +11,14 @@ import writeFileAtomic from 'write-file-atomic'
 const STATE_VERSION = 1
 const STATE_DIR = '.pnpm-task-run-state-v1'
 const LATEST_STATE_FILE = 'latest.json'
+const PUBLISHED_SUFFIX = '.published'
 const START_LOCK_DIR = 'start.lock'
 const LOCK_OWNER_FILE = 'owner'
 const LOCK_POLL_INTERVAL_MS = 50
 const LOCK_WAIT_MS = 2_000
 const LOCK_ABANDONED_MS = 30_000
-const RUN_ID = /^[0-9a-f-]{1,128}$/
+const RUN_GENERATION_LENGTH = 12
+const RUN_ID = /^[0-9a-f]{12}-[0-9a-f-]{1,115}$/
 
 interface TaskId {
   project: string
@@ -128,7 +130,14 @@ export class TaskRunStateContext {
       return undefined
     }
     if (latest.version !== STATE_VERSION || latest.invocation !== this.invocation || !RUN_ID.test(latest.run)) return undefined
-    const filePath = this.journalPath(latest.run)
+    let run: string
+    try {
+      run = await this.newestJournalRun(latest.run)
+    } catch (err: unknown) {
+      if (isStateUnavailableError(err)) return undefined
+      throw err
+    }
+    const filePath = this.journalPath(run)
     let contents: string
     try {
       contents = await fs.readFile(filePath, 'utf8')
@@ -147,7 +156,7 @@ export class TaskRunStateContext {
     } catch {
       return undefined
     }
-    if (header.version !== STATE_VERSION || header.invocation !== this.invocation || header.run !== latest.run) return undefined
+    if (header.version !== STATE_VERSION || header.invocation !== this.invocation || header.run !== run) return undefined
     const completed = new Set<TaskKey>()
     for (const line of lines.slice(1)) {
       let record: TaskRecord
@@ -165,13 +174,8 @@ export class TaskRunStateContext {
   }
 
   async start (completedTasks: ReadonlySet<TaskKey>): Promise<TaskRunState> {
-    const run = crypto.randomUUID()
-    const header: StateHeader = { version: STATE_VERSION, invocation: this.invocation, run }
-    const completed = [...completedTasks]
-      .map((key): TaskRecord => ({ run, ...taskId(this.opts.graph.get(key)!, this.opts.workspaceDir) }))
-      .sort(compareTaskIds)
-    const contents = [header, ...completed].map((record) => JSON.stringify(record)).join('\n') + '\n'
-    const filePath = this.journalPath(run)
+    let run = createRunId(Date.now())
+    let filePath = this.journalPath(run)
     let file: FileHandle | undefined
     let journalCreated = false
     let lock: StateStartLock | undefined
@@ -179,8 +183,15 @@ export class TaskRunStateContext {
       await this.validateStateDirectory(true)
       lock = await StateStartLock.acquire(path.join(this.stateDir, START_LOCK_DIR))
       if (lock == null) {
-        return new TaskRunState(filePath, undefined, this.opts.workspaceDir, run, completedTasks)
+        return new TaskRunState(filePath, this.publishedPath(run), undefined, this.opts.workspaceDir, run, completedTasks)
       }
+      run = await this.nextRunId()
+      filePath = this.journalPath(run)
+      const header: StateHeader = { version: STATE_VERSION, invocation: this.invocation, run }
+      const completed = [...completedTasks]
+        .map((key): TaskRecord => ({ run, ...taskId(this.opts.graph.get(key)!, this.opts.workspaceDir) }))
+        .sort(compareTaskIds)
+      const contents = [header, ...completed].map((record) => JSON.stringify(record)).join('\n') + '\n'
       await writeFileAtomic(filePath, contents, { mode: 0o600 })
       journalCreated = true
       file = await fs.open(filePath, 'a')
@@ -189,24 +200,61 @@ export class TaskRunStateContext {
         file = undefined
         await unlinkIfExists(filePath)
         journalCreated = false
-        return new TaskRunState(filePath, undefined, this.opts.workspaceDir, run, completedTasks)
+        return new TaskRunState(filePath, this.publishedPath(run), undefined, this.opts.workspaceDir, run, completedTasks)
       }
       await writeFileAtomic(this.latestStatePath, JSON.stringify(header), { mode: 0o600 })
+      await writeFileAtomic(this.publishedPath(run), '', { mode: 0o600 })
     } catch (err: unknown) {
       await file?.close().catch(() => {})
       if (journalCreated) await unlinkIfExists(filePath).catch(() => {})
+      await unlinkIfExists(this.publishedPath(run)).catch(() => {})
       if (isStateUnavailableError(err)) {
-        return new TaskRunState(filePath, undefined, this.opts.workspaceDir, run, completedTasks)
+        return new TaskRunState(filePath, this.publishedPath(run), undefined, this.opts.workspaceDir, run, completedTasks)
       }
       throw err
     } finally {
       await lock?.release()
     }
-    return new TaskRunState(filePath, file, this.opts.workspaceDir, run, completedTasks)
+    return new TaskRunState(filePath, this.publishedPath(run), file, this.opts.workspaceDir, run, completedTasks)
   }
 
   private journalPath (run: string): string {
     return path.join(this.stateDir, `${this.invocation}.${run}.jsonl`)
+  }
+
+  private publishedPath (run: string): string {
+    return path.join(this.stateDir, `${this.invocation}.${run}${PUBLISHED_SUFFIX}`)
+  }
+
+  private async newestJournalRun (latestRun: string): Promise<string> {
+    let newestRun = latestRun
+    const prefix = `${this.invocation}.`
+    const names = new Set(await fs.readdir(this.stateDir))
+    for (const name of names) {
+      if (!name.startsWith(prefix) || !name.endsWith('.jsonl')) continue
+      const run = name.slice(prefix.length, -'.jsonl'.length)
+      if (RUN_ID.test(run) && names.has(`${prefix}${run}${PUBLISHED_SUFFIX}`) && runGeneration(run) > runGeneration(newestRun)) newestRun = run
+    }
+    return newestRun
+  }
+
+  private async nextRunId (): Promise<string> {
+    let newestGeneration = Date.now().toString(16).padStart(RUN_GENERATION_LENGTH, '0')
+    try {
+      const latest = JSON.parse(await fs.readFile(this.latestStatePath, 'utf8')) as StateHeader
+      if (latest.invocation === this.invocation && RUN_ID.test(latest.run)) {
+        newestGeneration = maxString(newestGeneration, runGeneration(latest.run))
+      }
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code !== 'ENOENT') throw err
+    }
+    const prefix = `${this.invocation}.`
+    for (const name of await fs.readdir(this.stateDir)) {
+      if (!name.startsWith(prefix) || !name.endsWith('.jsonl')) continue
+      const run = name.slice(prefix.length, -'.jsonl'.length)
+      if (RUN_ID.test(run)) newestGeneration = maxString(newestGeneration, runGeneration(run))
+    }
+    return createRunId(Number.parseInt(newestGeneration, 16) + 1)
   }
 
   private async validateStateDirectory (create: boolean): Promise<boolean> {
@@ -215,8 +263,21 @@ export class TaskRunStateContext {
   }
 }
 
+function createRunId (generation: number): string {
+  return `${generation.toString(16).padStart(RUN_GENERATION_LENGTH, '0')}-${crypto.randomUUID()}`
+}
+
+function runGeneration (run: string): string {
+  return run.slice(0, RUN_GENERATION_LENGTH)
+}
+
+function maxString (left: string, right: string): string {
+  return left > right ? left : right
+}
+
 export class TaskRunState {
   readonly filePath: string
+  private readonly publishedPath: string
   private readonly file: FileHandle | undefined
   private readonly workspaceDir: string
   private readonly run: string
@@ -227,12 +288,14 @@ export class TaskRunState {
 
   constructor (
     filePath: string,
+    publishedPath: string,
     file: FileHandle | undefined,
     workspaceDir: string,
     run: string,
     completedTasks: ReadonlySet<TaskKey>
   ) {
     this.filePath = filePath
+    this.publishedPath = publishedPath
     this.file = file
     this.workspaceDir = workspaceDir
     this.run = run
@@ -267,6 +330,7 @@ export class TaskRunState {
     if (unavailable) {
       await this.close().catch(() => {})
       await unlinkIfExists(this.filePath).catch(() => {})
+      await unlinkIfExists(this.publishedPath).catch(() => {})
     }
   }
 
@@ -275,6 +339,7 @@ export class TaskRunState {
     await this.close()
     try {
       await unlinkIfExists(this.filePath)
+      await unlinkIfExists(this.publishedPath)
     } catch (err: unknown) {
       if (!isStateUnavailableError(err)) throw err
     }

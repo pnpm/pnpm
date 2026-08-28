@@ -4,6 +4,7 @@ use pnpm_workspace_task_scheduler::{TaskGraph, TaskKey, TaskNode};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
+    ffi::OsStr,
     fs::{self, File, OpenOptions},
     io::{self, Write as _},
     path::{Path, PathBuf},
@@ -17,9 +18,11 @@ use std::{
 const STATE_VERSION: u8 = 1;
 const STATE_DIR: &str = ".pnpm-task-run-state-v1";
 const LATEST_STATE_FILE: &str = "latest.json";
+const PUBLISHED_SUFFIX: &str = ".published";
 const START_LOCK_DIR: &str = "start.lock";
 const LOCK_WAIT: Duration = Duration::from_secs(2);
 const LOCK_ABANDONED_AFTER: Duration = Duration::from_secs(30);
+const RUN_GENERATION_LENGTH: usize = 12;
 static RUN_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -194,7 +197,12 @@ impl TaskRunStateContext {
         {
             return Ok(None);
         }
-        let file_path = self.journal_path(&latest.run);
+        let run = match self.newest_journal_run(&latest.run) {
+            Ok(run) => run,
+            Err(error) if error.is_unavailable() => return Ok(None),
+            Err(error) => return Err(error.into_report()),
+        };
+        let file_path = self.journal_path(&run);
         let contents = match fs::read(&file_path) {
             Ok(contents) => contents,
             Err(error)
@@ -222,7 +230,7 @@ impl TaskRunStateContext {
         let Ok(header) = serde_json::from_str::<StateHeader>(header) else { return Ok(None) };
         if header.version != STATE_VERSION
             || header.invocation != self.invocation
-            || header.run != latest.run
+            || header.run != run
         {
             return Ok(None);
         }
@@ -240,31 +248,20 @@ impl TaskRunStateContext {
     }
 
     pub fn start(&self, completed_tasks: &HashSet<TaskKey>) -> miette::Result<TaskRunState> {
-        let run = run_id();
-        let header = StateHeader {
-            version: STATE_VERSION,
-            invocation: self.invocation.clone(),
-            run: run.clone(),
-        };
         let mut completed: Vec<&TaskId> =
             completed_tasks.iter().map(|key| &self.ids_by_key[key]).collect();
         completed.sort();
-        let mut contents = serde_json::to_string(&header).expect("task state header serializes");
-        contents.push('\n');
-        for id in &completed {
-            let record =
-                TaskRecord { run: run.clone(), project: id.project.clone(), task: id.task.clone() };
-            contents.push_str(&serde_json::to_string(&record).expect("task record serializes"));
-            contents.push('\n');
-        }
-        let file_path = self.journal_path(&run);
-        let file = match self.start_file(&file_path, &contents, &header) {
-            Ok(file) => file,
-            Err(error) if error.is_unavailable() => None,
+        let (file_path, run, file) = match self.start_file(&completed) {
+            Ok(state) => state,
+            Err(error) if error.is_unavailable() => {
+                let run = run_id(current_generation());
+                (self.journal_path(&run), run, None)
+            }
             Err(error) => return Err(error.into_report()),
         };
         Ok(TaskRunState {
             file_path,
+            published_path: self.published_path(&run),
             writer: Mutex::new(TaskRunStateWriter {
                 file,
                 run,
@@ -275,54 +272,131 @@ impl TaskRunStateContext {
 
     fn start_file(
         &self,
-        file_path: &Path,
-        contents: &str,
-        header: &StateHeader,
-    ) -> Result<Option<File>, StateStorageError> {
+        completed: &[&TaskId],
+    ) -> Result<(PathBuf, String, Option<File>), StateStorageError> {
         self.validate_state_directory(true)?;
         let lock_path = self.state_dir.join(START_LOCK_DIR);
         let Some(lock) =
             pnpm_fs::DirLock::acquire(lock_path.clone(), LOCK_WAIT, LOCK_ABANDONED_AFTER)
                 .map_err(|error| StateStorageError::io(error, "locking", &lock_path))?
         else {
-            return Ok(None);
+            let run = run_id(current_generation());
+            return Ok((self.journal_path(&run), run, None));
         };
-        pnpm_fs::write_atomic(file_path, contents.as_bytes())
-            .map_err(|error| StateStorageError::io(error, "writing", file_path))?;
-        let file = match OpenOptions::new().append(true).open(file_path) {
+        let run = self.next_run_id()?;
+        let header = StateHeader {
+            version: STATE_VERSION,
+            invocation: self.invocation.clone(),
+            run: run.clone(),
+        };
+        let mut contents = serde_json::to_string(&header).expect("task state header serializes");
+        contents.push('\n');
+        for id in completed {
+            let record =
+                TaskRecord { run: run.clone(), project: id.project.clone(), task: id.task.clone() };
+            contents.push_str(&serde_json::to_string(&record).expect("task record serializes"));
+            contents.push('\n');
+        }
+        let file_path = self.journal_path(&run);
+        pnpm_fs::write_atomic(&file_path, contents.as_bytes())
+            .map_err(|error| StateStorageError::io(error, "writing", &file_path))?;
+        let file = match OpenOptions::new().append(true).open(&file_path) {
             Ok(file) => file,
             Err(error) => {
-                let _ = fs::remove_file(file_path);
-                return Err(StateStorageError::io(error, "opening", file_path));
+                let _ = fs::remove_file(&file_path);
+                return Err(StateStorageError::io(error, "opening", &file_path));
             }
         };
         match lock.is_owner() {
             Ok(true) => {}
             Ok(false) => {
                 drop(file);
-                let _ = fs::remove_file(file_path);
-                return Ok(None);
+                let _ = fs::remove_file(&file_path);
+                return Ok((file_path, run, None));
             }
             Err(error) => {
                 drop(file);
-                let _ = fs::remove_file(file_path);
+                let _ = fs::remove_file(&file_path);
                 return Err(StateStorageError::io(error, "checking", &lock_path));
             }
         }
         let latest_write = pnpm_fs::write_atomic(
             &self.latest_state_path,
-            serde_json::to_string(header).expect("latest task state serializes").as_bytes(),
+            serde_json::to_string(&header).expect("latest task state serializes").as_bytes(),
         );
         if let Err(error) = latest_write {
             drop(file);
-            let _ = fs::remove_file(file_path);
+            let _ = fs::remove_file(&file_path);
             return Err(StateStorageError::io(error, "writing", &self.latest_state_path));
         }
-        Ok(Some(file))
+        let published_path = self.published_path(&run);
+        if let Err(error) = pnpm_fs::write_atomic(&published_path, &[]) {
+            drop(file);
+            let _ = fs::remove_file(&file_path);
+            let _ = fs::remove_file(&published_path);
+            return Err(StateStorageError::io(error, "writing", &published_path));
+        }
+        Ok((file_path, run, Some(file)))
     }
 
     fn journal_path(&self, run: &str) -> PathBuf {
         self.state_dir.join(format!("{}.{run}.jsonl", self.invocation))
+    }
+
+    fn published_path(&self, run: &str) -> PathBuf {
+        self.state_dir.join(format!("{}.{run}{PUBLISHED_SUFFIX}", self.invocation))
+    }
+
+    fn newest_journal_run(&self, latest_run: &str) -> Result<String, StateStorageError> {
+        let mut newest_run = latest_run.to_string();
+        let prefix = format!("{}.", self.invocation);
+        let entries = fs::read_dir(&self.state_dir)
+            .map_err(|error| StateStorageError::io(error, "reading", &self.state_dir))?;
+        let mut names = HashSet::new();
+        for entry in entries {
+            let entry =
+                entry.map_err(|error| StateStorageError::io(error, "reading", &self.state_dir))?;
+            names.insert(entry.file_name());
+        }
+        for name in &names {
+            let Some(name) = name.to_str() else { continue };
+            let Some(run) = name.strip_prefix(&prefix).and_then(|name| name.strip_suffix(".jsonl"))
+            else {
+                continue;
+            };
+            let published_name = format!("{prefix}{run}{PUBLISHED_SUFFIX}");
+            if is_run_id(run)
+                && names.contains(OsStr::new(&published_name))
+                && run_generation(run) > run_generation(&newest_run)
+            {
+                newest_run = run.to_string();
+            }
+        }
+        Ok(newest_run)
+    }
+
+    fn next_run_id(&self) -> Result<String, StateStorageError> {
+        let mut newest_run = run_id(current_generation());
+        match fs::read_to_string(&self.latest_state_path) {
+            Ok(contents) => {
+                if let Ok(latest) = serde_json::from_str::<StateHeader>(&contents)
+                    && latest.invocation == self.invocation
+                    && is_run_id(&latest.run)
+                    && run_generation(&latest.run) > run_generation(&newest_run)
+                {
+                    newest_run = latest.run;
+                }
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(StateStorageError::io(error, "reading", &self.latest_state_path));
+            }
+        }
+        newest_run = self.newest_journal_run(&newest_run)?;
+        let generation = u64::from_str_radix(run_generation(&newest_run), 16)
+            .expect("validated run generation")
+            .saturating_add(1);
+        Ok(run_id(generation))
     }
 
     fn validate_state_directory(&self, create: bool) -> Result<bool, StateStorageError> {
@@ -336,6 +410,7 @@ impl TaskRunStateContext {
 
 pub struct TaskRunState {
     file_path: PathBuf,
+    published_path: PathBuf,
     writer: Mutex<TaskRunStateWriter>,
 }
 
@@ -371,6 +446,7 @@ impl TaskRunState {
                 writer.file.take();
                 drop(writer);
                 let _ = fs::remove_file(&self.file_path);
+                let _ = fs::remove_file(&self.published_path);
                 return Ok(());
             }
             writer.completed.remove(key);
@@ -388,12 +464,20 @@ impl TaskRunState {
         }
         drop(file);
         match fs::remove_file(&self.file_path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) if is_state_unavailable_error(&error) => return Ok(()),
+            Err(error) => Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("removing {}", self.file_path.display()))?,
+        }
+        match fs::remove_file(&self.published_path) {
             Ok(()) => Ok(()),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
             Err(error) if is_state_unavailable_error(&error) => Ok(()),
             Err(error) => Err(error)
                 .into_diagnostic()
-                .wrap_err_with(|| format!("removing {}", self.file_path.display())),
+                .wrap_err_with(|| format!("removing {}", self.published_path.display())),
         }
     }
 }
@@ -409,11 +493,19 @@ fn task_id(node: &TaskNode, workspace_dir: &Path) -> TaskId {
 }
 
 fn is_run_id(run: &str) -> bool {
-    !run.is_empty()
+    run.len() > RUN_GENERATION_LENGTH + 1
         && run.len() <= 128
-        && run
+        && run.as_bytes()[RUN_GENERATION_LENGTH] == b'-'
+        && run[..RUN_GENERATION_LENGTH]
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        && run[RUN_GENERATION_LENGTH + 1..]
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte) || byte == b'-')
+}
+
+fn run_generation(run: &str) -> &str {
+    &run[..RUN_GENERATION_LENGTH]
 }
 
 fn validate_real_directory(path: &Path, create: bool) -> Result<bool, StateStorageError> {
@@ -482,11 +574,15 @@ fn is_state_unavailable_error(error: &io::Error) -> bool {
     matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ReadOnlyFilesystem)
 }
 
-fn run_id() -> String {
-    let timestamp =
-        SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |duration| duration.as_nanos());
+fn current_generation() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_millis().try_into().unwrap_or(u64::MAX))
+}
+
+fn run_id(generation: u64) -> String {
     let sequence = RUN_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    format!("{}-{timestamp}-{sequence}", std::process::id())
+    format!("{generation:012x}-{}-{sequence}", std::process::id())
 }
 
 #[cfg(test)]
