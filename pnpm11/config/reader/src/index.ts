@@ -296,6 +296,10 @@ export async function getConfig (opts: {
 
   // Track which keys are explicitly set (not defaults)
   const explicitlySetKeys = new Set<string>(Object.keys(configFromCliOpts))
+  // The command line alone, before any config file adds to the set above. A
+  // `registry` a yaml declared is explicit too, but it is not the command
+  // line, and only the command line outranks the `_auth` environment.
+  const registrySetOnCommandLine = explicitlySetKeys.has('registry')
   pnpmConfig.explicitlySetKeys = explicitlySetKeys
   pnpmConfig.cliOptions = cliOptions
 
@@ -391,6 +395,10 @@ export async function getConfig (opts: {
   }
   pnpmConfig.packageManagerRegistries = {
     default: normalizeRegistryUrl(trustedAuthConfig.registry as string),
+    // The file fallback applies to the bootstrap cascade too, so a registry
+    // reached only through a stored credential is reached the same way when
+    // pnpm downloads itself as when it installs.
+    ...npmrcResult.jsonAuth.fallbackRegistries,
     ...trustedNetworkConfigs.registries,
     // `_auth` routes apply here too so bootstrap (self-download / version
     // switching) resolves the same way as regular installs.
@@ -564,25 +572,40 @@ export async function getConfig (opts: {
     }
   }
 
-  // Precedence: builtin < .npmrc < yaml < `_auth` < CLI. CLI
+  // Precedence: builtin < .npmrc < `_auth` file < yaml < `_auth` env < CLI. CLI
   // `--@scope:registry` / `--registry` already entered `registriesFromNpmrc`
   // via `authConfig`, so they're re-applied last here to avoid being buried
   // by yaml. `cliScopedRegistries` iterates raw `cliOptions` because
   // `explicitlySetKeys` is camelCased, which mangles `@org-a:registry`.
+  // A `registry:` in either yaml declares the default as plainly as a
+  // `registries` entry does, but reaches `pnpmConfig.registry` instead of the
+  // map, so it has to be restated here to outrank the `_auth` file fallback.
+  // Asked of the key rather than of its value: pinning the registry a lower
+  // layer already resolved to is still a declaration.
+  const declaredDefault =
+    explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string'
+      ? { default: normalizeRegistryUrl(pnpmConfig.registry) }
+      : undefined
   pnpmConfig.registriesByScope = {
     ...registriesFromNpmrc,
+    // The global config file's `_auth` only fills in what nothing declares:
+    // it is where a `pnpm login` stores a credential, and holding one is not
+    // a statement about where packages come from.
+    ...npmrcResult.jsonAuth.fallbackRegistries,
     ...globalYamlRegistries,
     ...workspaceManifestRegistries,
-    // `_auth` routes win over repo-controlled yaml on conflicting scopes.
+    ...declaredDefault,
+    // The `_auth` env var is the operator's channel — a CI runner pointed at
+    // a mandated proxy — so its routes win over what any file declares.
     ...npmrcResult.jsonAuth.registries,
     // CLI per-scope registries last, so `--@scope:registry=...` wins over
-    // both yaml and `_auth` ("CLI > _auth > yaml").
+    // both yaml and `_auth` ("CLI > _auth env > yaml > _auth file").
     ...cliScopedRegistries,
   }
   // Re-apply an unscoped `--registry` CLI flag last for the same reason
   // as `cliScopedRegistries` — it entered `registriesFromNpmrc` via
   // `authConfig.registry` and would otherwise be buried by env JSON.
-  if (explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string') {
+  if (registrySetOnCommandLine && typeof pnpmConfig.registry === 'string') {
     pnpmConfig.registriesByScope.default = normalizeRegistryUrl(pnpmConfig.registry)
   }
   if (!pnpmConfig.registriesByScope.default) {
@@ -599,7 +622,7 @@ export async function getConfig (opts: {
   // registry configured in pnpm-workspace.yaml. Only sync when the workspace
   // manifest actually contributed a different default than what .npmrc provided,
   // and when registry was not explicitly set via CLI.
-  if (!explicitlySetKeys.has('registry') && pnpmConfig.registriesByScope.default !== registriesFromNpmrc.default) {
+  if (!registrySetOnCommandLine && pnpmConfig.registriesByScope.default !== registriesFromNpmrc.default) {
     pnpmConfig.registry = pnpmConfig.registriesByScope.default
   }
 
