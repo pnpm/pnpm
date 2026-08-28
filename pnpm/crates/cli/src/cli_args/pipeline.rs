@@ -53,6 +53,7 @@ mod report;
 
 use cache::{CacheDisposition, TaskCache};
 use report::RunReport;
+pub use report::RunUpload;
 
 /// The base ref the affected selection falls back to when neither
 /// `--base` nor the `pipelineBase` setting names one.
@@ -92,6 +93,17 @@ pub struct PipelineArgs {
     /// with HEAD). Overrides the `pipelineBase` setting.
     #[clap(long)]
     pub base: Option<String>,
+
+    /// Publish the run's summary and event stream to the configured pnpr
+    /// server (the `pnprServer` setting) once the run settles.
+    #[clap(long)]
+    pub report: bool,
+
+    /// Publish the run to this pnpr server instead of the `pnprServer`
+    /// setting — which also drives install offloading, so a server that
+    /// only stores runs is better named here.
+    #[clap(long = "report-to", value_name = "URL")]
+    pub report_to: Option<String>,
 }
 
 /// The pipeline-specific inputs of one invocation, split off
@@ -103,6 +115,39 @@ pub struct PipelineInvocation {
     pub no_cache: bool,
     pub full: bool,
     pub base: Option<String>,
+    pub report: bool,
+    pub report_to: Option<String>,
+}
+
+/// How the run ended, and what a `--report` submission would carry. The
+/// failure exit is raised by the dispatcher after any reporting, so a
+/// failed run is still recorded.
+pub struct PipelineOutcome {
+    pub failed_tasks: usize,
+    pub upload: Option<RunUpload>,
+}
+
+impl PipelineOutcome {
+    fn without_upload() -> Self {
+        PipelineOutcome { failed_tasks: 0, upload: None }
+    }
+}
+
+/// The identity runs are recorded under on the server: the workspace
+/// directory's name plus the same path hash that keys the local pipeline
+/// data, so two checkouts of one repository stay distinguishable.
+fn workspace_identity(workspace_root: &Path) -> String {
+    let basename: String = workspace_root
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default()
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-'))
+        .take(50)
+        .collect();
+    let slug = pnpm_crypto_hash::create_short_hash(&workspace_root.to_string_lossy());
+    let basename = basename.trim_start_matches('.');
+    if basename.is_empty() { slug } else { format!("{basename}-{slug}") }
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -137,7 +182,7 @@ pub fn run_pipeline(
     config: &Config,
     dir: &Path,
     reporter: ReporterType,
-) -> miette::Result<()> {
+) -> miette::Result<PipelineOutcome> {
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
     let emit = reporter_emit(reporter);
     let silent = matches!(reporter, ReporterType::Ndjson | ReporterType::Silent);
@@ -177,7 +222,10 @@ pub fn run_pipeline(
         println!("No projects are affected since {base} — nothing to run.");
         let report_dir = report.write(&pipeline_data_dir(config, workspace_root))?;
         println!("Report: {}", report_dir.display());
-        return Ok(());
+        return Ok(PipelineOutcome {
+            failed_tasks: 0,
+            upload: Some(report.to_upload(workspace_identity(workspace_root))),
+        });
     }
 
     let selected_graph: ProjectGraph<GraphPkg<'_>> = graph
@@ -222,7 +270,7 @@ pub fn run_pipeline(
                 render_task_graph_dry_run(&task_graph, &sequenced_tasks, workspace_root),
             );
         }
-        return Ok(());
+        return Ok(PipelineOutcome::without_upload());
     }
 
     let cache = TaskCache::open(&pipeline_data_dir(config, workspace_root), workspace_root)?;
@@ -313,10 +361,10 @@ pub fn run_pipeline(
     );
     println!("Report: {}", report_dir.display());
 
-    if failed > 0 {
-        return Err(PipelineError::PipelineFail { count: failed }.into());
-    }
-    Ok(())
+    Ok(PipelineOutcome {
+        failed_tasks: failed,
+        upload: Some(report.to_upload(workspace_identity(workspace_root))),
+    })
 }
 
 /// Where the pipeline keeps its task cache, restore records, and run

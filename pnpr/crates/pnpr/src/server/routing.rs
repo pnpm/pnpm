@@ -30,16 +30,18 @@ use serde::Deserialize;
 use super::{
     AppInner, AppState, AuthedCaller, MAX_ARTIFACT_BLOB_BODY_BYTES,
     MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES, MAX_LOGIN_BODY_BYTES,
-    MAX_PUBLISH_BODY_BYTES, StripedLocks, TargetRegistry, addressed_registry, authenticate, batch,
-    caller_scoped, cargo, compiler_cache, compute_upstream_cache_namespace, delete_package,
-    delete_session_token, delete_tarball, delete_token_by_key, get_dist_tags, get_org_teams,
-    get_profile, get_team_members, get_token_list, get_whoami, loggable_uri, not_found,
-    pnpr_protocols_disabled, private_no_cache, publish_package, put_login, pypi,
-    reject_team_mutation, remove_dist_tag, require_artifact_caller, require_resolver_caller,
-    serve_artifact_blob, serve_batch_publish, serve_org_packages, serve_packument, serve_ping,
-    serve_pnpr_handshake, serve_publish_artifact, serve_resolve, serve_resolve_artifacts,
-    serve_revision_tarball, serve_search, serve_tarball, serve_verify_lockfile,
-    serve_version_manifest, set_dist_tag, staged, update_packument,
+    MAX_PIPELINE_RUN_BODY_BYTES, MAX_PUBLISH_BODY_BYTES, StripedLocks, TargetRegistry,
+    addressed_registry, authenticate, batch, caller_scoped, cargo, compiler_cache,
+    compute_upstream_cache_namespace, delete_package, delete_session_token, delete_tarball,
+    delete_token_by_key, get_dist_tags, get_org_teams, get_profile, get_team_members,
+    get_token_list, get_whoami, loggable_uri, not_found, pnpr_protocols_disabled, private_no_cache,
+    publish_package, put_login, pypi, reject_team_mutation, remove_dist_tag,
+    require_artifact_caller, require_pipeline_caller, require_resolver_caller, serve_artifact_blob,
+    serve_batch_publish, serve_get_pipeline_run, serve_list_pipeline_runs, serve_org_packages,
+    serve_packument, serve_ping, serve_pipeline_ui, serve_pnpr_handshake, serve_publish_artifact,
+    serve_publish_pipeline_run, serve_resolve, serve_resolve_artifacts, serve_revision_tarball,
+    serve_search, serve_tarball, serve_verify_lockfile, serve_version_manifest, set_dist_tag,
+    staged, update_packument,
 };
 
 pub(super) fn router_with_auth_and_osv(
@@ -62,6 +64,10 @@ pub(super) fn router_with_auth_and_osv(
     let registry_enabled = config.registry.enabled;
     let resolver_enabled = config.resolver.enabled;
     let artifacts_enabled = config.artifacts.enabled;
+    let pipeline_enabled = config.pipeline.enabled;
+    let pipeline_runs = pipeline_enabled
+        .then(|| pnpr_pipeline_runs::PipelineRunStore::new(&config.storage))
+        .transpose()?;
     let artifacts = artifacts_enabled
         .then(|| {
             pnpr_shared_artifacts::SharedArtifactStore::new(
@@ -101,6 +107,7 @@ pub(super) fn router_with_auth_and_osv(
             storage,
             artifacts,
             compiler_cache_uploads: tokio::sync::Semaphore::new(2),
+            pipeline_runs,
             upstreams,
             upstream_cache_namespaces,
             config,
@@ -128,7 +135,7 @@ pub(super) fn router_with_auth_and_osv(
     // expects the "no pnpr protocols here" 404. The `/-/pnpr/v0/*` endpoints
     // carry no capability probe, so they are left unmounted rather than
     // stubbed.
-    if resolver_enabled || artifacts_enabled || registry_enabled {
+    if resolver_enabled || artifacts_enabled || registry_enabled || pipeline_enabled {
         router = router.route("/-/pnpr", get(serve_pnpr_handshake));
     } else {
         router = router.route("/-/pnpr", any(pnpr_protocols_disabled));
@@ -195,6 +202,33 @@ pub(super) fn router_with_auth_and_osv(
                     )),
             );
     }
+    if pipeline_enabled {
+        router = router
+            .route(
+                "/-/pnpr/v0/pipeline/runs",
+                put(serve_publish_pipeline_run)
+                    .get(serve_list_pipeline_runs)
+                    .route_layer(DefaultBodyLimit::max(MAX_PIPELINE_RUN_BODY_BYTES))
+                    .route_layer(middleware::from_fn_with_state(
+                        state.clone(),
+                        require_pipeline_caller,
+                    )),
+            )
+            .route(
+                "/-/pnpr/v0/pipeline/runs/{workspace}/{run_id}",
+                get(serve_get_pipeline_run).route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_pipeline_caller,
+                )),
+            )
+            // The viewer page is static HTML with no data of its own; the
+            // reads it issues are what authenticate.
+            .route("/-/pnpr/v0/pipeline", get(serve_pipeline_ui));
+    }
+    // The npm-registry surface: every packument/tarball read, publish,
+    // unpublish, dist-tag, and search. When the surface is off (no registries
+    // declared, or `--disable-registry`), none of these routes are mounted.
+    // Resolver- and artifacts-only tiers expose no registry surface at all.
     if registry_enabled {
         let npm = npm_registry_routes();
         router = router
