@@ -33,6 +33,7 @@ fn eligible_only_for_isolated_clone_capable_local_virtual_store() {
 #[cfg(target_os = "macos")]
 mod macos {
     use super::{Config, DirCloneCache, NodeLinker, PackageImportMethod};
+    use crate::dir_clone_cache::EngineNameSource;
     use pnpm_lockfile::{PackageKey, SnapshotEntry};
     use pnpm_reporter::{LogEvent, Reporter};
     use std::{collections::HashMap, fs, path::PathBuf, sync::atomic::AtomicU8};
@@ -43,13 +44,21 @@ mod macos {
         fn emit(_: &LogEvent) {}
     }
 
-    /// Build a cache whose canonical root is `links_root`, with one
-    /// snapshot so the layout precomputes its hashed slot. The
+    fn one_snapshot(key: &PackageKey) -> HashMap<PackageKey, SnapshotEntry> {
+        HashMap::from([(key.clone(), SnapshotEntry::default())])
+    }
+
+    /// Build a cache whose canonical root is `links_root`, with
+    /// `snapshots` so the layout precomputes their hashed slots. The
     /// virtual-store dir is pinned next to the links root so the
     /// capability probe in `build` clones within one volume — the
     /// default would point at the crate's working directory, which may
     /// live on another volume than the temp root.
-    fn cache_for_one_snapshot(links_root: &std::path::Path, key: &PackageKey) -> DirCloneCache {
+    fn cache_for_snapshots<'a>(
+        links_root: &std::path::Path,
+        snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+        engine: EngineNameSource,
+    ) -> DirCloneCache<'a> {
         let config = Config {
             enable_global_virtual_store: false,
             package_import_method: PackageImportMethod::Clone,
@@ -57,13 +66,11 @@ mod macos {
             virtual_store_dir: links_root.with_file_name("probe-virtual-store"),
             ..Config::default()
         };
-        let snapshots: HashMap<PackageKey, SnapshotEntry> =
-            HashMap::from([(key.clone(), SnapshotEntry::default())]);
         DirCloneCache::build(
             &config,
             NodeLinker::Isolated,
-            None,
-            Some(&snapshots),
+            engine,
+            Some(snapshots),
             None,
             None,
             None,
@@ -72,7 +79,10 @@ mod macos {
     }
 
     /// Deleting the CAS blob between the two imports is what proves
-    /// the second one reads only the canonical slot.
+    /// the second one reads only the canonical slot. The engine name
+    /// arrives through a pending slot filled from another thread, so
+    /// the first import also proves the lazy layout blocks until the
+    /// deferred probe delivers.
     #[test]
     fn try_import_populates_canonical_slot_and_clones_it() {
         let dir = tempdir().expect("tempdir");
@@ -89,7 +99,20 @@ mod macos {
 
         let key: PackageKey = "foo@1.0.0".parse().expect("valid snapshot key");
         let links_root = dir.path().join("links");
-        let cache = cache_for_one_snapshot(&links_root, &key);
+        let snapshots = one_snapshot(&key);
+        let engine_slot = std::sync::Arc::new(std::sync::OnceLock::new());
+        let probe = std::thread::spawn({
+            let engine_slot = std::sync::Arc::clone(&engine_slot);
+            move || {
+                std::thread::sleep(std::time::Duration::from_millis(30));
+                let _ = engine_slot.set(Some("node-22".to_string()));
+            }
+        });
+        let cache = cache_for_snapshots(
+            &links_root,
+            &snapshots,
+            EngineNameSource::Pending(std::sync::Arc::clone(&engine_slot)),
+        );
         let logged = AtomicU8::new(0);
 
         let first_target = dir.path().join("first/node_modules/foo");
@@ -132,6 +155,7 @@ mod macos {
             fs::read(second_target.join("lib/index.js")).expect("cloned file"),
             b"module.exports = 1",
         );
+        probe.join().expect("probe thread");
     }
 
     /// An existing dirent at the target belongs to the marker/repair
@@ -140,7 +164,12 @@ mod macos {
     fn try_import_declines_an_occupied_target() {
         let dir = tempdir().expect("tempdir");
         let key: PackageKey = "foo@1.0.0".parse().expect("valid snapshot key");
-        let cache = cache_for_one_snapshot(&dir.path().join("links"), &key);
+        let snapshots = one_snapshot(&key);
+        let cache = cache_for_snapshots(
+            &dir.path().join("links"),
+            &snapshots,
+            EngineNameSource::Ready(None),
+        );
         let logged = AtomicU8::new(0);
         let target = dir.path().join("slot/node_modules/foo");
         fs::create_dir_all(&target).expect("pre-create target");
@@ -160,7 +189,12 @@ mod macos {
         let dir = tempdir().expect("tempdir");
         let key: PackageKey = "foo@1.0.0".parse().expect("valid snapshot key");
         let other: PackageKey = "bar@2.0.0".parse().expect("valid snapshot key");
-        let cache = cache_for_one_snapshot(&dir.path().join("links"), &key);
+        let snapshots = one_snapshot(&key);
+        let cache = cache_for_snapshots(
+            &dir.path().join("links"),
+            &snapshots,
+            EngineNameSource::Ready(None),
+        );
         let logged = AtomicU8::new(0);
         let target = dir.path().join("slot/node_modules/bar");
         fs::create_dir_all(target.parent().unwrap()).expect("create slot node_modules");

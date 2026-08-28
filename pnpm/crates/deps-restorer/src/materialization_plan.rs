@@ -20,6 +20,7 @@ use pnpm_package_is_installable::{InstallabilityError, SupportedArchitectures};
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
+    sync::{Arc, OnceLock},
 };
 
 /// The host Node, reduced to what the phases after the installability
@@ -36,6 +37,28 @@ pub struct HostNode {
 impl From<&InstallabilityHost> for HostNode {
     fn from(host: &InstallabilityHost) -> Self {
         HostNode { version: host.node_version.clone(), detected: host.node_detected }
+    }
+}
+
+/// A host detection that is either done or still probing on a spawned
+/// task. The frozen install path spawns the detection early and only
+/// resolves it once the skip set needs the host, so the `node
+/// --version` inside overlaps the store-side warm-cache prefetch
+/// instead of serializing before it.
+pub enum HostDetection {
+    Resolved(Option<InstallabilityHost>),
+    Pending(tokio::task::JoinHandle<Option<InstallabilityHost>>),
+}
+
+impl HostDetection {
+    /// Wait for the detection. A joined-task failure degrades to `None`
+    /// — the same "no installability checks this run" shape as a
+    /// lockfile that needs none.
+    pub async fn resolve(self) -> Option<InstallabilityHost> {
+        match self {
+            HostDetection::Resolved(host) => host,
+            HostDetection::Pending(task) => task.await.ok().flatten(),
+        }
     }
 }
 
@@ -190,6 +213,71 @@ pub fn compute_skip_set<Reporter: pnpm_reporter::Reporter>(
     Ok(skipped)
 }
 
+/// A `node --version` probe still in flight. See
+/// [`resolve_engine_name`] for when one is spawned.
+///
+/// The result is delivered twice: [`Self::handle`] for the async
+/// consumer (the side-effects-cache key in the build phase, awaited
+/// after linking), and a shared slot for a synchronous consumer that
+/// needs the name from a worker thread before the handle is awaited —
+/// the directory-clone cache's lazily built layout (see
+/// [`crate::DirCloneCache`]).
+pub struct DeferredEngineName {
+    pub handle: tokio::task::JoinHandle<Option<String>>,
+    shared: Arc<OnceLock<Option<String>>>,
+}
+
+impl DeferredEngineName {
+    fn spawn() -> Self {
+        /// Fills the slot with `None` on unwind: a synchronous consumer
+        /// blocked in [`OnceLock::wait`] would otherwise sleep forever
+        /// if the probe panicked.
+        struct FillOnDrop(Arc<OnceLock<Option<String>>>);
+        impl Drop for FillOnDrop {
+            fn drop(&mut self) {
+                let _ = self.0.set(None);
+            }
+        }
+
+        let shared = Arc::new(OnceLock::new());
+        let handle = tokio::task::spawn_blocking({
+            let shared = Arc::clone(&shared);
+            move || {
+                let guard = FillOnDrop(Arc::clone(&shared));
+                let name = probe_engine_name();
+                let _ = shared.set(name.clone());
+                drop(guard);
+                name
+            }
+        });
+        DeferredEngineName { handle, shared }
+    }
+
+    /// The slot the probe fills on completion. Blocking on it via
+    /// [`OnceLock::wait`] must happen off the async reactor.
+    #[must_use]
+    pub fn shared(&self) -> Arc<OnceLock<Option<String>>> {
+        Arc::clone(&self.shared)
+    }
+}
+
+fn probe_engine_name() -> Option<String> {
+    pnpm_graph_hasher::detect_node_major()
+        .map(|major| pnpm_graph_hasher::engine_name(major, None, None))
+}
+
+/// The engine name a detected host implies. `None` for the synthetic
+/// fallback host: a bogus `99999.0.0`-derived key must not poison the
+/// side-effects cache or the GVS hash.
+#[must_use]
+pub fn engine_name_from_host(host_node: &HostNode) -> Option<String> {
+    if !host_node.detected {
+        return None;
+    }
+    parse_major_from_version(&host_node.version)
+        .map(|major| pnpm_graph_hasher::engine_name(major, None, None))
+}
+
 /// Resolve the engine name that keys the install's store slots and the
 /// side-effects-cache prefix.
 ///
@@ -198,33 +286,25 @@ pub fn compute_skip_set<Reporter: pnpm_reporter::Reporter>(
 /// splitting it under whatever `node --version` the shell reports. Then
 /// the already-detected host, then a probe.
 ///
-/// The probe comes back as a still-running
-/// [`JoinHandle`][tokio::task::JoinHandle] so it overlaps the
-/// virtual-store I/O — except under the global virtual store, whose
-/// layout needs the name synchronously.
+/// The probe comes back as a still-running [`DeferredEngineName`] so it
+/// overlaps the virtual-store I/O — except under the global virtual
+/// store, whose layout needs the name synchronously.
 pub async fn resolve_engine_name(
     enable_global_virtual_store: bool,
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     host_node: Option<&HostNode>,
-) -> (Option<String>, Option<tokio::task::JoinHandle<Option<String>>>) {
-    fn probe() -> Option<String> {
-        pnpm_graph_hasher::detect_node_major()
-            .map(|major| pnpm_graph_hasher::engine_name(major, None, None))
-    }
-
+) -> (Option<String>, Option<DeferredEngineName>) {
     if let Some(major) = find_runtime_node_major(snapshots) {
         return (Some(pnpm_graph_hasher::engine_name(major, None, None)), None);
     }
     match host_node {
-        Some(HostNode { version, detected: true }) => (
-            parse_major_from_version(version)
-                .map(|major| pnpm_graph_hasher::engine_name(major, None, None)),
-            None,
-        ),
+        Some(host_node @ HostNode { detected: true, .. }) => {
+            (engine_name_from_host(host_node), None)
+        }
         Some(HostNode { detected: false, .. }) => (None, None),
         None if enable_global_virtual_store => {
-            (tokio::task::spawn_blocking(probe).await.ok().flatten(), None)
+            (tokio::task::spawn_blocking(probe_engine_name).await.ok().flatten(), None)
         }
-        None => (None, Some(tokio::task::spawn_blocking(probe))),
+        None => (None, Some(DeferredEngineName::spawn())),
     }
 }

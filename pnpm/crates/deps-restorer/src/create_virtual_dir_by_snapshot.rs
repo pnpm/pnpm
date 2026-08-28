@@ -95,7 +95,7 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     /// eligible ([`DirCloneCache::eligible`]) or when the caller's
     /// per-slot qualification says this slot must take the per-file
     /// import.
-    pub dir_clone_cache: Option<&'a DirCloneCache>,
+    pub dir_clone_cache: Option<&'a DirCloneCache<'a>>,
     #[cfg(test)]
     pub link_concurrency_probe: Option<&'a tests::LinkConcurrencyProbe>,
 }

@@ -1391,14 +1391,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .as_ref()
             .map(pnpm_deps_restorer::materialization_plan::HostNode::from);
 
-        // A cache-eligible install needs the engine name synchronously
-        // like GVS does — see [`DirCloneCache::build`] for why the two
-        // must agree.
-        let dir_clone_cache_eligible =
-            pnpm_deps_restorer::DirCloneCache::eligible(config, node_linker);
-        let (engine_name, deferred_engine_handle) =
+        let (engine_name, deferred_engine_name) =
             pnpm_deps_restorer::materialization_plan::resolve_engine_name(
-                config.enable_global_virtual_store || dir_clone_cache_eligible,
+                config.enable_global_virtual_store,
                 initial_materialization_lockfile.snapshots.as_ref(),
                 host_node.as_ref(),
             )
@@ -1414,19 +1409,18 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             Some(&allow_build_policy),
             Some(lockfile_dir),
         );
-        let dir_clone_cache = dir_clone_cache_eligible
-            .then(|| {
-                pnpm_deps_restorer::DirCloneCache::build(
-                    config,
-                    node_linker,
-                    engine_name.as_deref(),
-                    initial_materialization_lockfile.snapshots.as_ref(),
-                    initial_materialization_lockfile.packages.as_ref(),
-                    Some(&allow_build_policy),
-                    Some(lockfile_dir),
-                )
-            })
-            .flatten();
+        let dir_clone_cache = pnpm_deps_restorer::DirCloneCache::build(
+            config,
+            node_linker,
+            match &deferred_engine_name {
+                Some(deferred) => pnpm_deps_restorer::EngineNameSource::Pending(deferred.shared()),
+                None => pnpm_deps_restorer::EngineNameSource::Ready(engine_name.clone()),
+            },
+            initial_materialization_lockfile.snapshots.as_ref(),
+            initial_materialization_lockfile.packages.as_ref(),
+            Some(&allow_build_policy),
+            Some(lockfile_dir),
+        );
         if config.enable_global_virtual_store {
             tracing::info!(
                 target: "pacquet::install::phase",
@@ -1526,6 +1520,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 index: store_index_ref,
                 verified_files_cache: &verified_files_cache,
             }),
+            cas_prefetch: None,
             allow_build_policy: &allow_build_policy,
             skipped: &skipped,
             include_optional_dependencies: include_transitive_optional_dependencies,
@@ -1656,8 +1651,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // Resolve the deferred `node --version` probe (non-GVS path);
         // it overlapped `CreateVirtualStore` above. Falls back to the
         // synchronous value when the probe wasn't deferred.
-        let engine_name = match deferred_engine_handle {
-            Some(handle) => handle.await.ok().flatten(),
+        let engine_name = match deferred_engine_name {
+            Some(deferred) => deferred.handle.await.ok().flatten(),
             None => engine_name,
         };
 
