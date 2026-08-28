@@ -5,11 +5,12 @@ use crate::{
         WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
-    emit_initial_package_manifest, included_direct_groups, package_manifest_prefix,
-    selected_project_indices,
+    defer_ignored_builds, emit_initial_package_manifest, included_direct_groups,
+    package_manifest_prefix, selected_project_indices,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pipe_trait::Pipe;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
@@ -103,7 +104,7 @@ impl Remove<'_> {
         validate_removable(manifest, package_names, save_type).map_err(RemoveError::Validation)?;
         prepare_manifest::<Reporter>(manifest, package_names, save_type);
 
-        Install {
+        let ignored_builds = Install {
             tarball_mem_cache,
             http_client,
             http_client_arc,
@@ -155,6 +156,7 @@ impl Remove<'_> {
         }
         .run::<Reporter>()
         .await
+        .pipe(defer_ignored_builds)
         .map_err(RemoveError::Install)?;
 
         persist_manifest::<Reporter>(manifest)?;
@@ -164,6 +166,9 @@ impl Remove<'_> {
 
         post_install_prune(config, None, manifest).map_err(RemoveError::WriteWorkspaceManifest)?;
 
+        if let Some(ignored_builds) = ignored_builds {
+            return Err(RemoveError::Install(ignored_builds));
+        }
         Ok(())
     }
 
@@ -206,7 +211,7 @@ impl Remove<'_> {
             manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf()
         });
 
-        Install {
+        let ignored_builds = Install {
             tarball_mem_cache,
             http_client,
             http_client_arc,
@@ -250,6 +255,7 @@ impl Remove<'_> {
             active_manifest_is_standin,
         })
         .await
+        .pipe(defer_ignored_builds)
         .map_err(RemoveError::Install)?;
 
         persist_selected_manifests::<Reporter>(projects, &selected_indices)?;
@@ -259,6 +265,9 @@ impl Remove<'_> {
 
         post_install_prune(config, Some(&workspace_root), manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
+        if let Some(ignored_builds) = ignored_builds {
+            return Err(RemoveError::Install(ignored_builds));
+        }
         Ok(())
     }
 }

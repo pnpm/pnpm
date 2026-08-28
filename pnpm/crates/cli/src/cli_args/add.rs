@@ -154,11 +154,6 @@ pub struct AddArgs {
     pub lockfile_only: bool,
     #[clap(flatten)]
     pub lockfile_dir: LockfileDirArg,
-    /// The directory with links to the store (default is `node_modules/.pnpm`).
-    /// All direct and indirect dependencies of the project are linked into this directory
-    #[clap(long = "virtual-store-dir", default_value = "node_modules/.pnpm")]
-    pub virtual_store_dir: Option<PathBuf>, // TODO: make use of this
-
     /// Install the package globally, linking its bins into the global bin directory.
     #[clap(short = 'g', long)]
     pub global: bool,

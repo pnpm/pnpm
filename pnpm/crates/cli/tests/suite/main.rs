@@ -108,6 +108,7 @@ mod scope_report;
 mod search;
 mod self_update;
 mod set_script;
+mod setting_flags;
 mod side_effects_cache;
 mod stage;
 mod stale_pin_dedupe;

@@ -1,11 +1,12 @@
 use pnpm_config::{
-    ColorMode, Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail,
-    RuntimeOnFail, VerifyDepsBeforeRun, default_state_dir,
+    ColorMode, Config, EnvVar, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir, LinkProbe,
+    NodeLinker, PackageImportMethod, PmOnFail, RuntimeOnFail, TrustPolicy, VerifyDepsBeforeRun,
+    default_state_dir, resolve_child_concurrency,
 };
 use pnpm_fs::lexical_normalize;
 use pnpm_store_dir::StoreDir;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     ffi::{OsStr, OsString},
     path::Path,
 };
@@ -110,14 +111,20 @@ pub struct ConfigOverrides {
     reverse: Option<bool>,
     shamefully_hoist: Option<bool>,
     shell_emulator: Option<bool>,
+    side_effects_cache: Option<bool>,
+    side_effects_cache_readonly: Option<bool>,
     skip_manifest_obfuscation: Option<bool>,
     sort: Option<bool>,
     use_beta_cli: Option<bool>,
     registry: Option<String>,
     scope: Option<String>,
     registries: BTreeMap<String, String>,
+    child_concurrency: Option<i32>,
     deploy_all_files: Option<bool>,
     force_legacy_deploy: Option<bool>,
+    global_dir: Option<String>,
+    hoist: Option<bool>,
+    hoist_pattern: Option<Vec<String>>,
     ignore_scripts: Option<bool>,
     inject_workspace_packages: Option<bool>,
     /// `maxsockets`, npm's spelling of [`Self::max_sockets`]. Kept apart
@@ -129,10 +136,22 @@ pub struct ConfigOverrides {
     minimum_release_age_exclude: Option<Vec<String>>,
     minimum_release_age_ignore_missing_time: Option<bool>,
     minimum_release_age_strict: Option<bool>,
+    /// The raw `modulesDir` / `virtualStoreDir` spellings, kept unresolved
+    /// so [`Config::anchor_lockfile_paths`] can re-resolve them against
+    /// whichever directory ends up anchoring the install.
+    modules_dir: Option<String>,
+    virtual_store_dir: Option<String>,
     node_linker: Option<NodeLinker>,
+    optimistic_repeat_install: Option<bool>,
+    package_import_method: Option<PackageImportMethod>,
     pm_on_fail: Option<PmOnFail>,
+    public_hoist_pattern: Option<Vec<String>>,
     runtime_on_fail: Option<RuntimeOnFail>,
     shared_workspace_lockfile: Option<bool>,
+    strict_peer_dependencies: Option<bool>,
+    trust_policy: Option<TrustPolicy>,
+    trust_policy_exclude: Option<Vec<String>>,
+    trust_policy_ignore_after: Option<u64>,
     verify_deps_before_run: Option<VerifyDepsBeforeRun>,
     https_proxy: Option<String>,
     http_proxy: Option<String>,
@@ -140,29 +159,59 @@ pub struct ConfigOverrides {
 }
 
 impl ConfigOverrides {
-    /// Pull `--config.<key>=<value>` tokens out of `argv` and collect
-    /// them. Returns the parsed overrides together with the remaining
-    /// argv tokens (in their original order) for clap to parse.
+    /// Pull `--config.<key>=<value>` tokens and [`BARE_SETTING_FLAGS`]
+    /// spellings out of `argv` and collect them. Returns the parsed
+    /// overrides together with the remaining argv tokens (in their
+    /// original order) for clap to parse.
     pub fn extract<Argv>(argv: Argv) -> (Self, Vec<OsString>)
     where
         Argv: IntoIterator<Item = OsString>,
     {
         let argv = argv.into_iter().collect::<Vec<_>>();
         let passthrough_from = crate::parse_boundary::passthrough_from(&argv);
+        let claimed_by_command = crate::parse_boundary::subcommand_option_names(&argv);
+        let is_forwarded = |index: usize| passthrough_from.is_some_and(|from| index >= from);
         let mut overrides = Self::default();
         let mut remaining = Vec::new();
-        for (index, arg) in argv.into_iter().enumerate() {
-            if passthrough_from.is_some_and(|boundary| index >= boundary) {
+        let mut argv = argv.into_iter().enumerate().peekable();
+        while let Some((index, arg)) = argv.next() {
+            if is_forwarded(index) {
                 remaining.push(arg);
                 continue;
             }
-            match classify(&arg) {
+            // The token after a `--<setting> <value>` pair's flag, when the
+            // setting claims it — see [`claims_as_value`]. `None` when the
+            // flag ends argv, the token is already the child's, or it is
+            // not a value the setting takes, all of which leave the
+            // valueless flag for clap to report.
+            let mut following = |key: &str| {
+                let value = argv
+                    .peek()
+                    .filter(|&&(index, _)| !is_forwarded(index))
+                    .and_then(|(_, token)| token.to_str())
+                    .filter(|token| claims_as_value(key, token))
+                    .map(str::to_owned)?;
+                argv.next();
+                Some(value)
+            };
+            match classify(&arg, &claimed_by_command) {
                 ConfigToken::WellFormed { key, value }
                     if matches!(key, "state-dir" | "store-dir") =>
                 {
                     remaining.push(OsString::from(format!("--{key}={value}")));
                 }
                 ConfigToken::WellFormed { key, value } => overrides.set(key, value),
+                ConfigToken::BooleanFollows(key) => {
+                    overrides.set(key, following(key).as_deref().unwrap_or("true"));
+                }
+                // A flag whose value is missing — because it ends argv, or
+                // because the token after it is one the setting does not
+                // take — goes back in place for clap to report; see
+                // [`classify`].
+                ConfigToken::ValueFollows(key) => match following(key) {
+                    Some(value) => overrides.set(key, &value),
+                    None => remaining.push(arg),
+                },
                 ConfigToken::Malformed => {}
                 ConfigToken::NotOurs => remaining.push(arg),
             }
@@ -183,7 +232,9 @@ impl ConfigOverrides {
             "ignore-workspace-root-check" => {
                 self.ignore_workspace_root_check = parse_bool(value);
             }
+            "hoist" => self.hoist = parse_bool(value),
             "lockfile" => self.lockfile = parse_bool(value),
+            "optimistic-repeat-install" => self.optimistic_repeat_install = parse_bool(value),
             "optional" => self.optional = parse_bool(value),
             "package-lock" => self.package_lock = parse_bool(value),
             "pending" => self.pending = parse_bool(value),
@@ -191,10 +242,15 @@ impl ConfigOverrides {
             "reverse" => self.reverse = parse_bool(value),
             "shamefully-hoist" => self.shamefully_hoist = parse_bool(value),
             "shell-emulator" => self.shell_emulator = parse_bool(value),
+            "side-effects-cache" => self.side_effects_cache = parse_bool(value),
+            "side-effects-cache-readonly" => {
+                self.side_effects_cache_readonly = parse_bool(value);
+            }
             "skip-manifest-obfuscation" => {
                 self.skip_manifest_obfuscation = parse_bool(value);
             }
             "sort" => self.sort = parse_bool(value),
+            "strict-peer-dependencies" => self.strict_peer_dependencies = parse_bool(value),
             "use-beta-cli" => self.use_beta_cli = parse_bool(value),
             _ => {}
         }
@@ -218,12 +274,24 @@ impl ConfigOverrides {
             self.no_proxy = Some(value.to_string());
             return;
         }
+        if key == "child-concurrency" {
+            self.child_concurrency = value.parse().ok();
+            return;
+        }
         if key == "deploy-all-files" {
             self.deploy_all_files = parse_bool(value);
             return;
         }
         if key == "force-legacy-deploy" {
             self.force_legacy_deploy = parse_bool(value);
+            return;
+        }
+        if key == "global-dir" {
+            self.global_dir = Some(value.to_string());
+            return;
+        }
+        if key == "hoist-pattern" {
+            self.hoist_pattern.get_or_insert_default().push(value.to_string());
             return;
         }
         if key == "ignore-scripts" {
@@ -260,8 +328,20 @@ impl ConfigOverrides {
             self.minimum_release_age_strict = parse_bool(value);
             return;
         }
+        if key == "modules-dir" {
+            self.modules_dir = Some(value.to_string());
+            return;
+        }
         if key == "node-linker" {
             self.node_linker = parse_enum(value);
+            return;
+        }
+        if key == "package-import-method" {
+            self.package_import_method = parse_enum(value);
+            return;
+        }
+        if key == "public-hoist-pattern" {
+            self.public_hoist_pattern.get_or_insert_default().push(value.to_string());
             return;
         }
         if key == "pm-on-fail" {
@@ -280,6 +360,22 @@ impl ConfigOverrides {
             self.verify_deps_before_run = value.parse().ok();
             return;
         }
+        if key == "trust-policy" {
+            self.trust_policy = parse_enum(value);
+            return;
+        }
+        if key == "trust-policy-exclude" {
+            self.trust_policy_exclude.get_or_insert_default().push(value.to_string());
+            return;
+        }
+        if key == "trust-policy-ignore-after" {
+            self.trust_policy_ignore_after = value.parse().ok();
+            return;
+        }
+        if key == "virtual-store-dir" {
+            self.virtual_store_dir = Some(value.to_string());
+            return;
+        }
         if let Some(scope) = scoped_registry_key(key) {
             self.registries.insert(scope.to_owned(), normalize_registry_url(value));
         }
@@ -288,7 +384,10 @@ impl ConfigOverrides {
     /// Layer the CLI overrides on top of a [`Config`] that has already
     /// been built from defaults, `.npmrc`, and `pnpm-workspace.yaml`.
     /// Mirrors pnpm 11's "CLI > yaml > .npmrc > defaults" precedence.
-    pub fn apply(&self, config: &mut Config) {
+    ///
+    /// `dir` is the canonicalized `--dir`, the fallback base for a
+    /// relative path-valued setting outside a workspace.
+    pub fn apply(&self, config: &mut Config, dir: &Path) {
         config.apply_proxy_cli_overrides(
             self.https_proxy.as_deref(),
             self.http_proxy.as_deref(),
@@ -334,6 +433,33 @@ impl ConfigOverrides {
         if let Some(value) = self.shamefully_hoist {
             config.shamefully_hoist = value;
             config.explicit_settings.insert("shamefullyHoist".to_string(), value.into());
+        }
+        if let Some(value) = self.hoist {
+            config.hoist = value;
+            config.explicit_settings.insert("hoist".to_string(), value.into());
+        }
+        if let Some(value) = &self.hoist_pattern {
+            config.hoist_pattern = Some(value.clone());
+            config.explicit_settings.insert("hoistPattern".to_string(), value.as_slice().into());
+        }
+        if let Some(value) = &self.public_hoist_pattern {
+            config.public_hoist_pattern = Some(value.clone());
+            config
+                .explicit_settings
+                .insert("publicHoistPattern".to_string(), value.as_slice().into());
+        }
+        if self.shamefully_hoist.is_some()
+            || self.hoist.is_some()
+            || self.hoist_pattern.is_some()
+            || self.public_hoist_pattern.is_some()
+        {
+            // `hoist: false` nullifies the private pattern whichever layer
+            // supplied either, so the two derivations below re-run over the
+            // command line's contribution the way `WorkspaceSettings::apply_to`
+            // runs them over yaml's.
+            if !config.hoist {
+                config.hoist_pattern = None;
+            }
             config.apply_shamefully_hoist_derivation();
             config.apply_virtual_store_only_derivation();
         }
@@ -435,6 +561,93 @@ impl ConfigOverrides {
         {
             config.verify_deps_before_run = value;
         }
+        // `pnpm config get <setting>` answers from the explicitly-set
+        // settings, and pnpm seeds those from the command line as well as
+        // from the config files, so each override below records itself
+        // there alongside the value it resolves.
+        if let Some(value) = self.package_import_method {
+            config.package_import_method = value;
+            config
+                .explicit_settings
+                .insert("packageImportMethod".to_string(), setting_value(value));
+        }
+        if let Some(value) = self.child_concurrency {
+            config.child_concurrency = resolve_child_concurrency(Some(value));
+            config.explicit_settings.insert("childConcurrency".to_string(), value.into());
+        }
+        if let Some(value) = self.strict_peer_dependencies {
+            config.strict_peer_dependencies = value;
+            config.explicit_settings.insert("strictPeerDependencies".to_string(), value.into());
+        }
+        if let Some(value) = self.side_effects_cache {
+            config.side_effects_cache = value;
+            config.explicit_settings.insert("sideEffectsCache".to_string(), value.into());
+        }
+        if let Some(value) = self.side_effects_cache_readonly {
+            config.side_effects_cache_readonly = value;
+            config.explicit_settings.insert("sideEffectsCacheReadonly".to_string(), value.into());
+        }
+        if let Some(value) = self.optimistic_repeat_install {
+            config.optimistic_repeat_install = value;
+            config.explicit_settings.insert("optimisticRepeatInstall".to_string(), value.into());
+        }
+        if let Some(value) = self.trust_policy {
+            config.trust_policy = value;
+            config.explicit_settings.insert("trustPolicy".to_string(), setting_value(value));
+        }
+        if let Some(value) = &self.trust_policy_exclude {
+            config.trust_policy_exclude = Some(value.clone());
+            config
+                .explicit_settings
+                .insert("trustPolicyExclude".to_string(), value.as_slice().into());
+        }
+        if let Some(value) = self.trust_policy_ignore_after {
+            config.trust_policy_ignore_after = Some(value);
+            config.explicit_settings.insert("trustPolicyIgnoreAfter".to_string(), value.into());
+        }
+        if let Some(value) = self.global_dir.as_deref().filter(|value| !value.is_empty()) {
+            let global_dir = lexical_normalize(&dir.join(value));
+            config.global_pkg_dir = Some(global_dir.join(GLOBAL_LAYOUT_VERSION));
+            config.global_dir = Some(global_dir);
+            config.explicit_settings.insert("globalDir".to_string(), value.into());
+        }
+        self.apply_lockfile_anchored_paths(config, dir);
+    }
+
+    /// Re-anchor the root `node_modules` and the virtual store onto a
+    /// command-line `--modules-dir` / `--virtual-store-dir`.
+    ///
+    /// Both reach [`Config::explicit_settings`] as the raw spelling, which
+    /// is what [`Config::anchor_lockfile_paths`] resolves — so a later
+    /// `--lockfile-dir` pin moves the CLI-set paths along with it.
+    fn apply_lockfile_anchored_paths(&self, config: &mut Config, dir: &Path) {
+        let raw_settings = [
+            ("modulesDir", self.modules_dir.as_deref()),
+            ("virtualStoreDir", self.virtual_store_dir.as_deref()),
+        ];
+        let mut anchored = false;
+        for (setting, value) in raw_settings {
+            if let Some(value) = value {
+                config.explicit_settings.insert(setting.to_string(), value.into());
+                anchored = true;
+            }
+        }
+        if !anchored {
+            return;
+        }
+        let anchor = config
+            .lockfile_dir
+            .clone()
+            .or_else(|| config.workspace_dir.clone())
+            .unwrap_or_else(|| dir.to_path_buf());
+        config.anchor_lockfile_paths(&anchor);
+        let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
+        let global_virtual_store_dir_explicit =
+            config.explicit_settings.contains_key("globalVirtualStoreDir");
+        config.apply_global_virtual_store_derivation(
+            virtual_store_dir_explicit,
+            global_virtual_store_dir_explicit,
+        );
     }
 }
 
@@ -447,7 +660,16 @@ fn verify_deps_env_is_set() -> bool {
 }
 
 enum ConfigToken<'a> {
-    WellFormed { key: &'a str, value: &'a str },
+    WellFormed {
+        key: &'a str,
+        value: &'a str,
+    },
+    /// A bare `--<setting>` for a boolean setting: `true`, unless the next
+    /// argv token spells a boolean and is claimed as its value.
+    BooleanFollows(&'static str),
+    /// A bare `--<setting>` for a value-taking setting: the next argv
+    /// token is its value.
+    ValueFollows(&'static str),
     Malformed,
     NotOurs,
 }
@@ -457,7 +679,22 @@ enum ConfigToken<'a> {
 /// `--config.` prefix is claimed, so a typo like `--config.foo` never
 /// escapes into clap's "unexpected argument" path; every other token is
 /// returned untouched.
-fn classify(arg: &OsStr) -> ConfigToken<'_> {
+///
+/// `claimed_by_command` names the options the invoked command declares
+/// itself, which win over the setting of the same name — see
+/// [`subcommand_option_names`].
+///
+/// A setting given a value it does not take — a misspelled boolean, an
+/// unknown `--trust-policy`, a non-numeric `--child-concurrency` — is
+/// left for clap, which reports it as an unexpected argument. Dropping
+/// it instead would leave the install running under a setting the user
+/// believes they changed, which for a supply-chain setting like
+/// `trustPolicy` means failing open.
+///
+/// [`subcommand_option_names`]: crate::parse_boundary::subcommand_option_names
+fn classify<'a>(arg: &'a OsStr, claimed_by_command: &HashSet<&str>) -> ConfigToken<'a> {
+    let setting =
+        |key: &str| named_bare_setting_flag(key).filter(|_| !claimed_by_command.contains(key));
     let Some(arg) = arg.to_str() else {
         return ConfigToken::NotOurs;
     };
@@ -468,34 +705,159 @@ fn classify(arg: &OsStr) -> ConfigToken<'_> {
         if key.is_empty() {
             return ConfigToken::Malformed;
         }
-        if key == "shamefully-hoist" && parse_bool(value).is_none() {
+        // The dotted spelling names a setting outright, so a command
+        // option of the same name never shadows it.
+        if !setting_takes(key, value) {
             return ConfigToken::NotOurs;
         }
         return ConfigToken::WellFormed { key, value };
     }
-    match arg {
-        "--shamefully-hoist" => {
-            return ConfigToken::WellFormed { key: "shamefully-hoist", value: "true" };
-        }
-        "--no-shamefully-hoist" => {
-            return ConfigToken::WellFormed { key: "shamefully-hoist", value: "false" };
-        }
-        _ => {}
+    let Some(flag) = arg.strip_prefix("--") else {
+        return ConfigToken::NotOurs;
+    };
+    if let Some(negated) = flag.strip_prefix("no-")
+        && let Some((key, SettingArity::Boolean)) = setting(negated)
+    {
+        return ConfigToken::WellFormed { key, value: "false" };
     }
-    match arg.strip_prefix("--").and_then(|flag| flag.split_once('=')) {
-        Some(("shamefully-hoist", value)) if parse_bool(value).is_none() => ConfigToken::NotOurs,
-        Some((key, value)) if BARE_SETTING_FLAGS.contains(&key) => {
-            ConfigToken::WellFormed { key, value }
-        }
-        _ => ConfigToken::NotOurs,
+    let Some((key, value)) = flag.split_once('=') else {
+        return match setting(flag) {
+            Some((key, SettingArity::Boolean)) => ConfigToken::BooleanFollows(key),
+            Some((key, _)) => ConfigToken::ValueFollows(key),
+            None => ConfigToken::NotOurs,
+        };
+    };
+    match setting(key) {
+        Some(_) if !setting_takes(key, value) => ConfigToken::NotOurs,
+        Some((key, _)) => ConfigToken::WellFormed { key, value },
+        None => ConfigToken::NotOurs,
     }
 }
 
-/// Settings pnpm's own error hints tell the user to pass as a bare
-/// `--<setting>=<value>` flag. pnpm accepts every setting that way; pacquet
-/// only declares a clap flag for a subset, so these are recognized here to
-/// keep the hints they appear in actionable.
-const BARE_SETTING_FLAGS: [&str; 3] = ["pm-on-fail", "runtime-on-fail", "shamefully-hoist"];
+/// How much of argv a bare `--<setting>` flag claims, and which values it
+/// takes there. A setting whose value is a list repeats the flag, one
+/// value per occurrence.
+#[derive(Debug, Clone, Copy)]
+enum SettingArity {
+    /// `--<setting>`, `--no-<setting>`, `--<setting>=<bool>`, and
+    /// `--<setting> <bool>`.
+    Boolean,
+    /// A path, a glob pattern, or another free-form value: every spelling
+    /// is one the setting takes, so the token after the flag is claimed
+    /// only when it cannot be anything else — see [`claims_as_value`].
+    Text,
+    /// A value the carried predicate accepts, and only such a value.
+    Parsed(fn(&str) -> bool),
+}
+
+/// Settings pnpm accepts as a bare `--<setting>` command-line flag, with
+/// the values each takes.
+///
+/// pnpm declares a `nopt` type for every setting, which makes all of them
+/// spellable on the command line; pacquet declares a clap flag for only a
+/// subset, so the rest are recognized here and layered onto [`Config`]
+/// exactly like a `--config.<setting>=<value>` token
+/// ([pnpm/pnpm#14281](https://github.com/pnpm/pnpm/issues/14281)). A
+/// setting the invoked command declares as its own option is left for
+/// clap; a setting that collides with a *global* option would be claimed
+/// on every command line and so must not appear here at all.
+const BARE_SETTING_FLAGS: [(&str, SettingArity); 19] = [
+    ("child-concurrency", SettingArity::Parsed(is_i32)),
+    ("global-dir", SettingArity::Text),
+    ("hoist", SettingArity::Boolean),
+    ("hoist-pattern", SettingArity::Text),
+    ("lockfile", SettingArity::Boolean),
+    ("modules-dir", SettingArity::Text),
+    ("optimistic-repeat-install", SettingArity::Boolean),
+    ("package-import-method", SettingArity::Parsed(is_enum::<PackageImportMethod>)),
+    ("pm-on-fail", SettingArity::Parsed(is_enum::<PmOnFail>)),
+    ("public-hoist-pattern", SettingArity::Text),
+    ("runtime-on-fail", SettingArity::Parsed(is_enum::<RuntimeOnFail>)),
+    ("shamefully-hoist", SettingArity::Boolean),
+    ("side-effects-cache", SettingArity::Boolean),
+    ("side-effects-cache-readonly", SettingArity::Boolean),
+    ("strict-peer-dependencies", SettingArity::Boolean),
+    ("trust-policy", SettingArity::Parsed(is_enum::<TrustPolicy>)),
+    ("trust-policy-exclude", SettingArity::Text),
+    ("trust-policy-ignore-after", SettingArity::Parsed(is_u64)),
+    ("virtual-store-dir", SettingArity::Text),
+];
+
+fn is_i32(value: &str) -> bool {
+    value.parse::<i32>().is_ok()
+}
+
+fn is_u64(value: &str) -> bool {
+    value.parse::<u64>().is_ok()
+}
+
+fn is_enum<Value: serde::de::DeserializeOwned>(value: &str) -> bool {
+    parse_enum::<Value>(value).is_some()
+}
+
+fn named_bare_setting_flag(key: &str) -> Option<(&'static str, SettingArity)> {
+    BARE_SETTING_FLAGS.into_iter().find(|&(name, _)| name == key)
+}
+
+/// Whether `value` is a spelling the `key` setting takes. `true` for a
+/// key outside [`BARE_SETTING_FLAGS`], which keeps the `--config.<key>`
+/// tolerance for the settings pacquet has not ported.
+fn setting_takes(key: &str, value: &str) -> bool {
+    match named_bare_setting_flag(key) {
+        Some((_, SettingArity::Boolean)) => parse_bool(value).is_some(),
+        Some((_, SettingArity::Text)) => true,
+        Some((_, SettingArity::Parsed(takes))) => takes(value),
+        None => true,
+    }
+}
+
+/// Whether the `key` setting claims `token` — the argv token after its
+/// flag — as its value.
+///
+/// A free-form setting refuses one that opens with `-`: that token is the
+/// `--` separator, another flag, or a short option, and claiming it would
+/// drop the separator or point a path setting at a directory named `--`.
+/// A parsed setting decides on its own terms instead, which is what lets
+/// `--child-concurrency -1` mean "every core but one".
+fn claims_as_value(key: &str, token: &str) -> bool {
+    match named_bare_setting_flag(key) {
+        Some((_, SettingArity::Boolean)) => is_boolean_value(token),
+        Some((_, SettingArity::Text)) => !token.starts_with('-'),
+        Some((_, SettingArity::Parsed(takes))) => takes(token),
+        None => false,
+    }
+}
+
+/// Whether a token spells a boolean a bare `--<setting>` flag claims as
+/// its value — the same spellings the `--<setting>=<bool>` form takes,
+/// so the two agree. Only a boolean is claimed, which is what leaves
+/// `pnpm --shamefully-hoist install` its command.
+fn is_boolean_value(token: &str) -> bool {
+    parse_bool(token).is_some()
+}
+
+/// Whether a bare boolean setting flag claims `next` as its value.
+///
+/// The scan that has to find the subcommand applies this ahead of clap's
+/// own arity: nothing else on a command line is spelled `true` /
+/// `false`, so stepping over that token is right whichever reading of
+/// the flag ends up applying — a command's option of the same name, or
+/// the setting. Without it the two readings disagree on width for a name
+/// that is both, and `pnpm --lockfile true --config.registry=… install`
+/// loses everything past the boolean to the script fallback.
+pub(crate) fn bare_boolean_setting_claims(flag: &str, next: Option<&str>) -> bool {
+    matches!(named_bare_setting_flag(flag), Some((_, SettingArity::Boolean)))
+        && next.is_some_and(is_boolean_value)
+}
+
+/// How many argv slots a bare `--<setting>` flag occupies, given the
+/// token after it — for the scan that has to find the subcommand before
+/// the settings are stripped. `1` for a token that is not one of the
+/// [`BARE_SETTING_FLAGS`], or one whose value is missing, which
+/// [`ConfigOverrides::extract`] hands to clap intact.
+pub(crate) fn bare_setting_flag_width(flag: &str, next: Option<&str>) -> usize {
+    1 + usize::from(next.is_some_and(|next| claims_as_value(flag, next)))
+}
 
 fn scoped_registry_key(key: &str) -> Option<&str> {
     key.strip_suffix(":registry")
@@ -522,6 +884,12 @@ fn normalize_registry_url(registry: &str) -> String {
 
 fn parse_enum<Value: serde::de::DeserializeOwned>(value: &str) -> Option<Value> {
     serde_json::from_value(serde_json::Value::String(value.to_string())).ok()
+}
+
+/// An enum setting's kebab-case spelling, for [`Config::explicit_settings`]
+/// — the form the config files and `pnpm config get` use.
+fn setting_value<Value: serde::Serialize>(value: Value) -> serde_json::Value {
+    serde_json::to_value(value).unwrap_or(serde_json::Value::Null)
 }
 
 fn parse_bool(value: &str) -> Option<bool> {
