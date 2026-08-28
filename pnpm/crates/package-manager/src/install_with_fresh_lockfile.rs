@@ -141,6 +141,15 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// Effective `nodeVersion`: an explicit config value, otherwise the
     /// minimum version declared by the root manifest's runtime engine.
     pub node_version: Option<String>,
+    /// A host detection the install entry point spawned right after
+    /// the wanted lockfile parsed (see
+    /// [`pnpm_deps_restorer::materialization_plan::HostDetection::spawn`]).
+    /// By the time resolution finishes its `node --version` has long
+    /// completed, so the installability check that runs after
+    /// resolution costs nothing. Must have been spawned with this
+    /// install's `node_version` / `supported_architectures` /
+    /// `engine_strict`. `None` runs the detection here.
+    pub early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
     /// Per-install packument cache shared with the lockfile-verifier
     /// constructed in [`Install::run`](crate::Install::run). The
     /// resolver writes to it during `pick_package`; the verifier reads
@@ -762,6 +771,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             wanted_lockfile,
             merge_wanted_lockfile,
             node_version,
+            early_host_detection,
             meta_cache,
             node_linker,
             supported_architectures,
@@ -1379,14 +1389,18 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     crate::any_installability_constraint(snapshots, packages)
                 })
             });
-        let installability_host =
-            pnpm_deps_restorer::materialization_plan::detect_installability_host(
-                needs_installability_check,
-                config.engine_strict,
-                node_version,
-                supported_architectures,
-            )
-            .await;
+        let installability_host = match (early_host_detection, needs_installability_check) {
+            (Some(detection), true) => detection.resolve().await,
+            (_, needed) => {
+                pnpm_deps_restorer::materialization_plan::detect_installability_host(
+                    needed,
+                    config.engine_strict,
+                    node_version,
+                    supported_architectures,
+                )
+                .await
+            }
+        };
         let host_node = installability_host
             .as_ref()
             .map(pnpm_deps_restorer::materialization_plan::HostNode::from);

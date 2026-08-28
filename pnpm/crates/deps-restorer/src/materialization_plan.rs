@@ -58,6 +58,35 @@ pub enum HostDetection {
 }
 
 impl HostDetection {
+    /// Spawn the detection so it runs under whatever the caller does
+    /// next. The earlier this is called, the more of the probe's `node`
+    /// startup hides — the install entry point spawns one right after
+    /// the wanted lockfile parses, when the lockfile carries a
+    /// constraint that will need the host.
+    #[must_use]
+    pub fn spawn(
+        engine_strict: bool,
+        node_version: Option<String>,
+        supported_architectures: Option<SupportedArchitectures>,
+    ) -> Self {
+        HostDetection::Pending {
+            task: tokio::spawn({
+                let supported_architectures = supported_architectures.clone();
+                async move {
+                    detect_installability_host(
+                        true,
+                        engine_strict,
+                        node_version,
+                        supported_architectures.as_ref(),
+                    )
+                    .await
+                }
+            }),
+            engine_strict,
+            supported_architectures,
+        }
+    }
+
     /// Wait for the detection. A joined-task failure degrades to the
     /// synthetic fallback host, so the installability checks still run
     /// — the same degradation [`detect_installability_host`] applies
