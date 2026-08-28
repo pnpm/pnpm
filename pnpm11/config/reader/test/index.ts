@@ -2899,6 +2899,85 @@ test('a malformed global yaml _auth value aborts the load', async () => {
   })).rejects.toThrow('object keyed by scope')
 })
 
+test('a registry declared in pnpm-workspace.yaml beats the global _auth file', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', { registry: 'https://project-choice.example/' })
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://private.example': {
+          '@': { authToken: 'stored-token' },
+        },
+      },
+    },
+    { workspaceDir: process.cwd() }
+  )
+
+  // The credential still reaches the registry it was written for.
+  expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
+  // But a stored login is not a statement about where packages come from.
+  expect(config.registry).toBe('https://project-choice.example/')
+  expect(config.registriesByScope.default).toBe('https://project-choice.example/')
+})
+
+test('a scope declared in pnpm-workspace.yaml beats the global _auth file', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: { 'https://project-choice.example/': { scopes: ['@org'] } },
+  })
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://private.example': {
+          '@org': { authToken: 'stored-token' },
+        },
+      },
+    },
+    { workspaceDir: process.cwd() }
+  )
+
+  expect(config.registriesByScope['@org']).toBe('https://project-choice.example/')
+})
+
+test('the global _auth file still routes a scope nothing else declares', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@org': { authToken: 'stored-token' },
+      },
+    },
+  })
+
+  expect(config.registriesByScope['@org']).toBe('https://private.example/')
+})
+
+test('the _auth env var still overrides a registry declared in pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', { registry: 'https://project-choice.example/' })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://my-npm-proxy.example': { '@': { authToken: 'proxy-token' } },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  // The environment is the operator's channel: a mandated CI proxy still wins.
+  expect(config.registry).toBe('https://my-npm-proxy.example/')
+})
+
 test('_auth in a project pnpm-workspace.yaml is ignored (not honored as registry auth)', async () => {
   prepareEmpty()
 

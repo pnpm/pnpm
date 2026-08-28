@@ -4285,3 +4285,72 @@ pub fn a_detached_head_leaves_the_install_on_the_shared_lockfile() {
     assert_eq!(config.git_branch_lockfile_name, None);
     assert_eq!(config.wanted_lockfile_name(), "pnpm-lock.yaml");
 }
+
+/// Writing a global `config.yaml` whose `_auth` credits `registry` and the
+/// project manifest `project_yaml`, then loading config from that project.
+fn load_with_auth_file(auth_yaml: &str, project_yaml: Option<&str>) -> Config {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), auth_yaml).expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    if let Some(project_yaml) = project_yaml {
+        fs::write(project.path().join("pnpm-workspace.yaml"), project_yaml)
+            .expect("write pnpm-workspace.yaml");
+    }
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+
+    load_with_fake_env(project.path())
+}
+
+const STORED_LOGIN: &str = "\
+_auth:
+  https://private.example/:
+    '@': { authToken: stored-token }
+    '@org': { authToken: stored-org-token }
+";
+
+/// The global config file's `_auth` is where a `pnpm login` stores what it
+/// was granted. Holding a credential for a registry is not a statement that
+/// packages come from it, so a project that declares its own registry keeps
+/// it.
+#[test]
+pub fn a_declared_registry_beats_the_global_auth_file() {
+    let config =
+        load_with_auth_file(STORED_LOGIN, Some("registry: https://project-choice.example/\n"));
+
+    assert_eq!(config.registry, "https://project-choice.example/");
+    // The credential still reaches the registry it was written for.
+    assert_eq!(
+        config.auth_tokens_by_uri.get("//private.example/").map(String::as_str),
+        Some("stored-token"),
+    );
+}
+
+#[test]
+pub fn a_declared_scope_route_beats_the_global_auth_file() {
+    let config = load_with_auth_file(
+        STORED_LOGIN,
+        Some("registries:\n  https://project-org.example/:\n    scopes: ['@org']\n"),
+    );
+
+    assert_eq!(
+        config.registries_by_scope.get("@org").map(String::as_str),
+        Some("https://project-org.example/"),
+    );
+}
+
+/// Only what something else declares is kept back; the stored credential
+/// still supplies a route nothing competes for.
+#[test]
+pub fn the_global_auth_file_routes_what_nothing_else_declares() {
+    let config = load_with_auth_file(STORED_LOGIN, None);
+
+    assert_eq!(config.registry, "https://private.example/");
+    assert_eq!(
+        config.registries_by_scope.get("@org").map(String::as_str),
+        Some("https://private.example/"),
+    );
+}

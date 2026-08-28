@@ -38,16 +38,22 @@ export interface NpmrcConfigResult {
  *
  * - `auth` — `.npmrc`-shaped URL-scoped keys (`//host/:_authToken`, …)
  *   ready to merge into the existing auth-config pipeline.
- * - `registries` — trusted scope→URL routes inferred from the same
- *   value. `"default"` is set by the `"@"` scope; `"@org"` by a package
- *   scope. Because both the credential and its destination host arrive
- *   in one trusted value, repo-controlled `pnpm-workspace.yaml` /
- *   project `.npmrc` cannot redirect these tokens to a different host.
+ * - `registries` — trusted scope→URL routes inferred from the `_auth`
+ *   **environment variable**. `"default"` is set by the `"@"` scope;
+ *   `"@org"` by a package scope. The environment is the operator's
+ *   channel — a CI runner pointed at a mandated proxy — so these outrank
+ *   what any config file declares, and repo-controlled
+ *   `pnpm-workspace.yaml` / project `.npmrc` cannot redirect them.
  *   Merged above workspace yaml but below CLI flags.
+ * - `fallbackRegistries` — the same routes inferred from the `_auth` of
+ *   the global config **file**. That file is the user's own store rather
+ *   than a mandate, so an explicitly declared `registries` / `registry`
+ *   outranks it and it only fills in what nothing else declares.
  */
 export interface JsonAuthResult {
   auth: Record<string, string>
   registries: Record<string, string>
+  fallbackRegistries: Record<string, string>
 }
 
 export interface LoadNpmrcConfigOpts {
@@ -134,7 +140,8 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   const globalConfigJsonAuth = readGlobalConfigAuth(opts.globalConfigAuth)
   const jsonAuth: JsonAuthResult = {
     auth: { ...globalConfigJsonAuth.auth, ...envJsonAuth.auth },
-    registries: { ...globalConfigJsonAuth.registries, ...envJsonAuth.registries },
+    registries: envJsonAuth.registries,
+    fallbackRegistries: globalConfigJsonAuth.registries,
   }
 
   // Read pnpm builtin rc + inline defaults
@@ -241,7 +248,7 @@ function readUrlScopedEnvConfig (env: Record<string, string | undefined>): Recor
 
 function readJsonAuthEnv (env: Record<string, string | undefined>): JsonAuthResult {
   const value = readJsonAuthEnvValue(env)
-  if (value == null) return { auth: {}, registries: {} }
+  if (value == null) return { auth: {}, registries: {}, fallbackRegistries: {} }
 
   let parsed: unknown
   try {
@@ -287,12 +294,12 @@ function parseJsonAuth (parsed: unknown, source: string): JsonAuthResult {
       registries[scope === '@' ? 'default' : scope] = registry.normalized
     }
   }
-  return { auth, registries }
+  return { auth, registries, fallbackRegistries: {} }
 }
 
 /** Parse `_auth` from the global pnpm config yaml (already a parsed object). */
 function readGlobalConfigAuth (globalConfigAuth: unknown): JsonAuthResult {
-  if (globalConfigAuth == null) return { auth: {}, registries: {} }
+  if (globalConfigAuth == null) return { auth: {}, registries: {}, fallbackRegistries: {} }
   return parseJsonAuth(globalConfigAuth, '_auth')
 }
 

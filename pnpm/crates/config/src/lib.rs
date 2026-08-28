@@ -3474,6 +3474,12 @@ impl Config {
         }
 
         npmrc_auth.apply_registry_and_warn(&mut self);
+        // The routing before any config file speaks, so that applying the
+        // `_auth` file routes below can tell a declaration from a default.
+        let routes_before_files = crate::npmrc_auth::RegistryRoutes {
+            registry: self.registry.clone(),
+            by_scope: self.registries_by_scope.clone(),
+        };
         // Proxy cascade fires unconditionally — even when no `.npmrc`
         // is found — because the env-var fallback is a normalization step
         // on the resolved config, not a function of `.npmrc` presence.
@@ -3624,7 +3630,7 @@ impl Config {
         // repo-controlled registries) but before `PNPM_CONFIG_*` (so an
         // explicit `pnpm_config_registry` / `--registry` still wins) —
         // pnpm's "CLI > _auth > yaml" precedence.
-        npmrc_auth.apply_json_env_registries(&mut self);
+        npmrc_auth.apply_json_env_registries(&mut self, &routes_before_files);
 
         // Apply `PNPM_CONFIG_*` env vars *after* `pnpm-workspace.yaml`:
         // env vars override yaml. The `WorkspaceSettings::apply_to`
@@ -3870,7 +3876,11 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
     trusted_auth.warnings.clear();
     let mut config = Config::default();
     trusted_auth.apply_registry_and_warn(&mut config);
-    trusted_auth.apply_json_env_registries(&mut config);
+    let routes_before_files = crate::npmrc_auth::RegistryRoutes {
+        registry: config.registry.clone(),
+        by_scope: config.registries_by_scope.clone(),
+    };
+    trusted_auth.apply_json_env_registries(&mut config, &routes_before_files);
     trusted_auth.apply_proxy_cascade::<Sys>(&mut config);
     trusted_auth.apply_tls_and_local_address(&mut config);
     trusted_auth.build_auth_headers(&mut config)?;

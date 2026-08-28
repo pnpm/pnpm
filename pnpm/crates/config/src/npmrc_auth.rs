@@ -96,12 +96,22 @@ pub(crate) struct NpmrcAuth {
     /// preserved verbatim through to [`PerRegistryTls`] construction
     /// so lookup keys stay byte-equivalent to the keys as written.
     pub tls_by_uri: HashMap<String, RegistryTls>,
-    /// Scope→URL registry routes inferred from `_auth` (`"@"` → `"default"`,
-    /// `"@org"` → that scope). Safe because the credential and its
-    /// destination host come from the same trusted value, so repo config
-    /// can't redirect the token elsewhere. Applied after workspace yaml by
+    /// Scope→URL registry routes inferred from the `_auth` **environment
+    /// variable** (`"@"` → `"default"`, `"@org"` → that scope). Safe because
+    /// the credential and its destination host come from the same trusted
+    /// value, so repo config can't redirect the token elsewhere. The
+    /// environment is the operator's channel — a CI runner pointed at a
+    /// mandated proxy — so these outrank what any config file declares.
+    /// Applied after workspace yaml by
     /// [`Self::apply_json_env_registries`].
     pub json_env_registries: BTreeMap<String, String>,
+    /// The same routes inferred from the `_auth` of the global config
+    /// **file**. That file is the user's own store rather than a mandate —
+    /// it is where `pnpm login` puts a credential — so a `registry` or
+    /// `registries` a config file declares outranks these, and they fill in
+    /// only what nothing else declares. See
+    /// [`Self::apply_json_env_registries`].
+    pub json_file_registries: BTreeMap<String, String>,
     /// Raw INI config keys (those for which
     /// [`crate::config_types::is_ini_config_key`] holds), post-`${VAR}`
     /// substitution, captured verbatim for `pnpm config get` / `list`. This
@@ -234,7 +244,10 @@ impl NpmrcAuth {
     ) -> Result<Self, serde_json::Error> {
         let mut auth = NpmrcAuth::default();
         if let Some(global_value) = global_value {
-            auth.apply_json_auth(serde_json::from_value(global_value.clone())?);
+            auth.apply_json_auth(
+                serde_json::from_value(global_value.clone())?,
+                JsonAuthOrigin::File,
+            );
         }
         // Lowercase is the documented form; UPPER covers the all-caps shell
         // convention some CI runners apply.
@@ -242,7 +255,7 @@ impl NpmrcAuth {
             .filter(|value| !value.is_empty())
             .or_else(|| Sys::var("PNPM_CONFIG__AUTH").filter(|value| !value.is_empty()));
         if let Some(value) = env_value {
-            auth.apply_json_auth(serde_json::from_str(&value)?);
+            auth.apply_json_auth(serde_json::from_str(&value)?, JsonAuthOrigin::Env);
         }
         Ok(auth)
     }
@@ -251,7 +264,7 @@ impl NpmrcAuth {
     /// object applied after the global one overrides on conflict): each
     /// entry becomes a `//host/:_authToken` credential and an inferred
     /// registry route (see [`Self::json_env_registries`]).
-    fn apply_json_auth(&mut self, parsed: JsonAuth) {
+    fn apply_json_auth(&mut self, parsed: JsonAuth, origin: JsonAuthOrigin) {
         for (registry, scopes) in parsed.0 {
             for (scope, creds) in scopes {
                 let key = match &scope {
@@ -268,7 +281,11 @@ impl NpmrcAuth {
                     JsonAuthScope::Default => "default".to_string(),
                     JsonAuthScope::Package(scope) => scope,
                 };
-                self.json_env_registries.insert(route_key, registry.normalized.clone());
+                let routes = match origin {
+                    JsonAuthOrigin::Env => &mut self.json_env_registries,
+                    JsonAuthOrigin::File => &mut self.json_file_registries,
+                };
+                routes.insert(route_key, registry.normalized.clone());
             }
         }
     }
@@ -565,7 +582,27 @@ impl NpmrcAuth {
     /// [`Self::apply_registry_and_warn`] (which runs *before* workspace
     /// yaml), this is called *after* yaml so the inferred routes win over
     /// repo-controlled registries.
-    pub fn apply_json_env_registries(&mut self, config: &mut Config) {
+    ///
+    /// `before_files` is the routing as it stood before any config file
+    /// spoke, which is what lets the file-sourced routes tell a declaration
+    /// from a default: they replace only what no config file has since
+    /// changed. The environment-sourced ones replace whatever they find.
+    pub fn apply_json_env_registries(
+        &mut self,
+        config: &mut Config,
+        before_files: &RegistryRoutes,
+    ) {
+        for (scope, url) in std::mem::take(&mut self.json_file_registries) {
+            if scope == "default" {
+                if config.registry == before_files.registry {
+                    config.registry.clone_from(&url);
+                }
+                continue;
+            }
+            if config.registries_by_scope.get(&scope) == before_files.by_scope.get(&scope) {
+                config.registries_by_scope.insert(scope, url);
+            }
+        }
         for (scope, url) in std::mem::take(&mut self.json_env_registries) {
             if scope == "default" {
                 config.registry.clone_from(&url);
@@ -758,6 +795,9 @@ impl NpmrcAuth {
         }
         for (scope, registry) in lower.json_env_registries {
             self.json_env_registries.entry(scope).or_insert(registry);
+        }
+        for (scope, registry) in lower.json_file_registries {
+            self.json_file_registries.entry(scope).or_insert(registry);
         }
         for (key, value) in lower.raw_ini_config {
             self.raw_ini_config.entry(key).or_insert(value);
@@ -1205,6 +1245,26 @@ fn apply_creds_field(creds: &mut RawCreds, field: &str, value: String) {
         "tokenHelper" => creds.token_helper = Some(value),
         _ => {}
     }
+}
+
+/// The registry and its scope routes at a point in the cascade, so a later
+/// layer can tell what a config file has since declared from what it left
+/// alone. Taken before the files are applied; see
+/// [`NpmrcAuth::apply_json_env_registries`].
+#[derive(Debug, Default, Clone)]
+pub struct RegistryRoutes {
+    pub registry: String,
+    pub by_scope: BTreeMap<String, String>,
+}
+
+/// Which of `_auth`'s two trusted sources a value came from. They differ in
+/// standing, not in shape: the environment is the operator's channel and
+/// mandates its routes, while the config file is the user's own store and
+/// only fills in what nothing else declares.
+#[derive(Clone, Copy)]
+enum JsonAuthOrigin {
+    Env,
+    File,
 }
 
 /// The parsed `_auth` setting: registry URL → scope → credentials.
