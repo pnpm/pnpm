@@ -1287,6 +1287,52 @@ remoteSideEffectsCache:
     assert_eq!(shared.key_id.as_deref(), Some("acme-2026"));
 }
 
+/// The variables are named for the setting they configure, and the names that
+/// matched the older spelling keep working — a machine set up before the rename
+/// is not something a `pnpm install` should start ignoring.
+#[test]
+fn the_remote_tier_reads_both_environment_spellings() {
+    struct Canonical;
+    impl crate::EnvVar for Canonical {
+        fn var(key: &str) -> Option<String> {
+            match key {
+                "PNPM_SIDE_EFFECTS_CACHE_REMOTE_KEY_ID" => Some("canonical".to_string()),
+                _ => None,
+            }
+        }
+    }
+    struct Older;
+    impl crate::EnvVar for Older {
+        fn var(key: &str) -> Option<String> {
+            match key {
+                "PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID" => Some("older".to_string()),
+                _ => None,
+            }
+        }
+    }
+    struct Both;
+    impl crate::EnvVar for Both {
+        fn var(key: &str) -> Option<String> {
+            match key {
+                "PNPM_SIDE_EFFECTS_CACHE_REMOTE_KEY_ID" => Some("canonical".to_string()),
+                "PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID" => Some("older".to_string()),
+                _ => None,
+            }
+        }
+    }
+
+    for (expected, apply) in [("canonical", 0), ("older", 1), ("canonical", 2)] {
+        let mut config = Config::new();
+        match apply {
+            0 => config.apply_remote_side_effects_cache_env::<Canonical>(),
+            1 => config.apply_remote_side_effects_cache_env::<Older>(),
+            _ => config.apply_remote_side_effects_cache_env::<Both>(),
+        }
+        let shared = config.remote_side_effects_cache.expect("shared cache config");
+        assert_eq!(shared.key_id.as_deref(), Some(expected));
+    }
+}
+
 /// The environment holds the signing material a CI runner must not commit, so
 /// it is the last word on the section.
 #[test]

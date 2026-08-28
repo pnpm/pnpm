@@ -6037,3 +6037,30 @@ test('getConfig() prefers the canonical org across the two remote spellings', as
 
   expect(config.remoteSideEffectsCache).toStrictEqual({ org: 'canonical' })
 })
+
+test('getConfig() reads the remote tier from either environment spelling', async () => {
+  // The variables are named for the setting they configure, and the names that
+  // matched the older spelling keep working — a machine set up before the
+  // rename is not something an install should start ignoring.
+  prepareEmpty()
+  process.env.PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID = 'older'
+  try {
+    const older = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+    expect(older.config.remoteSideEffectsCache?.keyId).toBe('older')
+
+    process.env.PNPM_SIDE_EFFECTS_CACHE_REMOTE_KEY_ID = 'canonical'
+    const both = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+    expect(both.config.remoteSideEffectsCache?.keyId).toBe('canonical')
+  } finally {
+    delete process.env.PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID
+    delete process.env.PNPM_SIDE_EFFECTS_CACHE_REMOTE_KEY_ID
+  }
+})
