@@ -271,10 +271,11 @@ Every candidate and signed payload carries a discriminated subject. Dependency
 side effects use `{ kind: 'dependency-side-effects', package,
 sourceIntegrity }` with a `dependency-side-effects:v1:` input key; workspace
 tasks use `{ kind: 'workspace-task', project, task }` with a
-`workspace-task:v1:` input key. The subject, input key, artifact kind, and owner
-must all match the current candidate. A publisher owner is valid only for a
-dependency subject and must equal its package name; workspace tasks require an
-organization owner. Input keys do not contain host platform identity;
+`workspace-task:v1:` input key. The signed payload's artifact kind and input-key
+prefix must match its subject. Its input key, subject, and owner must match the
+candidate. A publisher owner is valid only for a dependency subject and must
+equal its package name; workspace tasks require an organization owner. Input
+keys do not contain host platform identity;
 compatibility tags live in the signed payload. Dependency eligibility is
 supplied independently by the caller and is checked before lookup.
 
