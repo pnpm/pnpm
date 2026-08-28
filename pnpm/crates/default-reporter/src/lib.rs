@@ -218,7 +218,7 @@ struct Sink {
     /// (an atomic update other writers can't interleave into).
     frame_buf: String,
     /// The differ's frame width, and the terminal height the frame has to fit
-    /// into. Re-read from `terminal_size` on every frame so a window resize
+    /// into. Re-read from [`terminal_size`] on every frame so a window resize
     /// takes effect. See [`Sink::commit_overflow`].
     columns: usize,
     rows: Option<usize>,
