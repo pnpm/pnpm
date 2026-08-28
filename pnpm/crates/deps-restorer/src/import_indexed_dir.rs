@@ -9,6 +9,7 @@ use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
+    ffi::OsString,
     fs, io,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU8, AtomicU64, Ordering},
@@ -75,10 +76,6 @@ pub enum ImportIndexedDirError {
         #[error(source)]
         error: io::Error,
     },
-    #[display(
-        "the indexed file map already contains a node_modules/ entry at {path:?}, which would conflict with the directory being preserved"
-    )]
-    NodeModulesCollision { path: PathBuf },
     #[display("failed to remove existing directory {path:?} prior to swap: {error}")]
     RemoveExisting {
         path: PathBuf,
@@ -118,6 +115,27 @@ enum Placement {
     /// not match the store entry, so a file damaged or truncated by an
     /// interrupted import is healed rather than adopted.
     Repair,
+}
+
+enum PreservedModules {
+    None,
+    Directory,
+    Entries(Vec<OsString>),
+}
+
+impl PreservedModules {
+    fn has_moved_data(&self) -> bool {
+        match self {
+            PreservedModules::None => false,
+            PreservedModules::Directory => true,
+            PreservedModules::Entries(entries) => !entries.is_empty(),
+        }
+    }
+}
+
+struct PreserveModulesFailure {
+    error: io::Error,
+    preserved: PreservedModules,
 }
 
 impl Placement {
@@ -630,33 +648,31 @@ fn stage_and_swap<Reporter: self::Reporter>(
         None
     };
 
-    // 3. Preserve `node_modules/` if it's a real directory. Track the
-    //    move so steps 4 and 5 can rescue it on failure.
-    //
-    //    Indexed file maps for npm tarballs never contain
-    //    `node_modules/` entries (npm and pnpm strip them at pack
-    //    time), so a pre-existing `<stage>/node_modules/` would be
-    //    pathological; surface it as an error rather than silently
-    //    merging. Upstream's `moveOrMergeModulesDirs` performs a real
-    //    merge for this case, but the hoisted-linker call site does
-    //    not exercise it in practice.
-    let nm_moved = match nm_kind {
+    // 3. Preserve `node_modules/` if it's a real directory. A package
+    //    may ship bundled dependencies, so merge non-conflicting
+    //    top-level entries when the staged import already has its own
+    //    `node_modules/`. The staged package wins conflicts, matching
+    //    pnpm's `moveOrMergeModulesDirs`.
+    let preserved_modules = match nm_kind {
         Some(file_type) if file_type.is_dir() => {
-            if stage_modules.exists() {
-                let _ = fs::remove_dir_all(&stage);
-                return Err(ImportIndexedDirError::NodeModulesCollision { path: stage_modules });
+            match preserve_modules_dir(&target_modules, &stage_modules) {
+                Ok(preserved) => preserved,
+                Err(PreserveModulesFailure { error, preserved }) => {
+                    finalize_stage_cleanup_after_failure(
+                        &preserved,
+                        &stage,
+                        &stage_modules,
+                        &target_modules,
+                    );
+                    return Err(ImportIndexedDirError::PreserveModulesDir {
+                        from: target_modules,
+                        to: stage_modules,
+                        error,
+                    });
+                }
             }
-            if let Err(error) = fs::rename(&target_modules, &stage_modules) {
-                let _ = fs::remove_dir_all(&stage);
-                return Err(ImportIndexedDirError::PreserveModulesDir {
-                    from: target_modules,
-                    to: stage_modules,
-                    error,
-                });
-            }
-            true
         }
-        Some(_) | None => false,
+        Some(_) | None => PreservedModules::None,
     };
 
     // 4. Remove the old contents. If this fails after step 3, the
@@ -664,7 +680,12 @@ fn stage_and_swap<Reporter: self::Reporter>(
     //    try to move it back into place before bailing, and leak
     //    the staging directory if the move can't run.
     if let Err(error) = fs::remove_dir_all(dir_path) {
-        finalize_stage_cleanup_after_failure(nm_moved, &stage, &stage_modules, &target_modules);
+        finalize_stage_cleanup_after_failure(
+            &preserved_modules,
+            &stage,
+            &stage_modules,
+            &target_modules,
+        );
         return Err(ImportIndexedDirError::RemoveExisting { path: dir_path.to_path_buf(), error });
     }
 
@@ -679,15 +700,70 @@ fn stage_and_swap<Reporter: self::Reporter>(
         // `create_dir_all` is the gate: without `dir_path`, the rescue
         // rename has no destination. Treat its failure as "rescue
         // can't run" and leak the staging directory below.
-        let rescue_target_ready = !nm_moved || fs::create_dir_all(dir_path).is_ok();
+        let rescue_target_ready =
+            !preserved_modules.has_moved_data() || fs::create_dir_all(dir_path).is_ok();
         if rescue_target_ready {
-            finalize_stage_cleanup_after_failure(nm_moved, &stage, &stage_modules, &target_modules);
+            finalize_stage_cleanup_after_failure(
+                &preserved_modules,
+                &stage,
+                &stage_modules,
+                &target_modules,
+            );
         } else {
             leak_stage(&stage, &stage_modules);
         }
         return Err(ImportIndexedDirError::Swap { from: stage, to: dir_path.to_path_buf(), error });
     }
     Ok(())
+}
+
+fn preserve_modules_dir(
+    source: &Path,
+    destination: &Path,
+) -> Result<PreservedModules, PreserveModulesFailure> {
+    match fs::rename(source, destination) {
+        Ok(()) => return Ok(PreservedModules::Directory),
+        Err(error) if is_modules_dir_collision(&error) => {}
+        Err(error) => {
+            return Err(PreserveModulesFailure { error, preserved: PreservedModules::None });
+        }
+    }
+
+    let destination_entries = fs::read_dir(destination)
+        .and_then(|entries| entries.map(|entry| entry.map(|entry| entry.file_name())).collect())
+        .map_err(|error| PreserveModulesFailure { error, preserved: PreservedModules::None })?;
+    let destination_entries: HashSet<OsString> = destination_entries;
+    let source_entries = fs::read_dir(source)
+        .map_err(|error| PreserveModulesFailure { error, preserved: PreservedModules::None })?;
+    let mut moved_entries = Vec::new();
+
+    for entry in source_entries {
+        let entry = entry.map_err(|error| PreserveModulesFailure {
+            error,
+            preserved: PreservedModules::Entries(moved_entries.clone()),
+        })?;
+        let name = entry.file_name();
+        if destination_entries.contains(&name) {
+            continue;
+        }
+        fs::rename(entry.path(), destination.join(&name)).map_err(|error| {
+            PreserveModulesFailure {
+                error,
+                preserved: PreservedModules::Entries(moved_entries.clone()),
+            }
+        })?;
+        moved_entries.push(name);
+    }
+    Ok(PreservedModules::Entries(moved_entries))
+}
+
+fn is_modules_dir_collision(error: &io::Error) -> bool {
+    matches!(
+        error.kind(),
+        io::ErrorKind::AlreadyExists
+            | io::ErrorKind::DirectoryNotEmpty
+            | io::ErrorKind::PermissionDenied,
+    )
 }
 
 /// Combined post-failure cleanup for steps 4 and 5: restore the
@@ -699,12 +775,12 @@ fn stage_and_swap<Reporter: self::Reporter>(
 /// install failure with data loss. The emit warning gives an
 /// operator the exact path to recover from.
 fn finalize_stage_cleanup_after_failure(
-    nm_moved: bool,
+    preserved_modules: &PreservedModules,
     stage: &Path,
     stage_modules: &Path,
     target_modules: &Path,
 ) {
-    let restored = restore_preserved_node_modules(nm_moved, stage_modules, target_modules);
+    let restored = restore_preserved_node_modules(preserved_modules, stage_modules, target_modules);
     if restored {
         let _ = fs::remove_dir_all(stage);
     } else {
@@ -718,25 +794,31 @@ fn finalize_stage_cleanup_after_failure(
 /// caller must not clean up the staging directory (it contains the
 /// user's only copy of the data).
 fn restore_preserved_node_modules(
-    nm_moved: bool,
+    preserved_modules: &PreservedModules,
     stage_modules: &Path,
     target_modules: &Path,
 ) -> bool {
-    if !nm_moved {
-        return true;
-    }
-    match fs::rename(stage_modules, target_modules) {
-        Ok(()) => true,
-        Err(error) => {
-            tracing::warn!(
-                target: "pacquet::import_indexed_dir",
-                ?stage_modules,
-                ?target_modules,
-                %error,
-                "failed to restore preserved node_modules/ after a partial stage-and-swap",
-            );
-            false
-        }
+    let result = match preserved_modules {
+        PreservedModules::None => return true,
+        PreservedModules::Directory => fs::rename(stage_modules, target_modules),
+        PreservedModules::Entries(entries) => fs::create_dir_all(target_modules).and_then(|()| {
+            for entry in entries {
+                fs::rename(stage_modules.join(entry), target_modules.join(entry))?;
+            }
+            Ok(())
+        }),
+    };
+    if let Err(error) = result {
+        tracing::warn!(
+            target: "pacquet::import_indexed_dir",
+            ?stage_modules,
+            ?target_modules,
+            %error,
+            "failed to restore preserved node_modules/ after a partial stage-and-swap",
+        );
+        false
+    } else {
+        true
     }
 }
 
