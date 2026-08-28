@@ -1,5 +1,7 @@
 //! Running one package's build scripts.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use super::{
     AllowBuildPolicy, BTreeSet, BuildModulesError, HashMap, LogEvent, LogLevel, Mutex,
     NEEDS_BUILD_MARKER, PackageImportMethod, PackageKey, Path, PathBuf, RebuildOptions, Reporter,
@@ -50,6 +52,11 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     ignore_scripts: bool,
     import_method: PackageImportMethod,
     logged_methods: &std::sync::atomic::AtomicU8,
+    // Raised before any write that can change a linked slot's contents
+    // (side-effects overlay, patch, lifecycle script) — set
+    // pre-attempt, so a half-applied write still counts. See
+    // `BuildModulesOutput::mutated_slots`.
+    slot_mutations: &AtomicBool,
     rebuild: Option<&RebuildOptions>,
 ) -> Result<(), BuildModulesError> {
     let metadata_key = snapshot_key.without_peer();
@@ -246,6 +253,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
             // The overlay carries the patched / built contents, so it
             // has to reach every hoisted copy for the same reason patch
             // application does.
+            slot_mutations.store(true, Ordering::Relaxed);
             let mut satisfied = true;
             for pkg_dir in pkg_roots_for_key(layout, pkg_roots_by_key, snapshot_key) {
                 // No slot to materialize into (skipped / never linked) —
@@ -374,6 +382,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
         // linker a version conflict nests further copies under their
         // consumers; leaving those unpatched would silently run the very
         // code the patch replaces.
+        slot_mutations.store(true, Ordering::Relaxed);
         for patched_dir in pkg_roots_for_key(layout, pkg_roots_by_key, snapshot_key) {
             if !patched_dir.exists() {
                 continue;
@@ -388,6 +397,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     };
 
     let has_side_effects = if should_run_scripts {
+        slot_mutations.store(true, Ordering::Relaxed);
         let result = run_postinstall_hooks::<Reporter>(&RunPostinstallHooks {
             dep_path: &snapshot_key.to_string(),
             pkg_root: &pkg_dir,
