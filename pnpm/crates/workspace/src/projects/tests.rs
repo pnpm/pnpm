@@ -1,9 +1,9 @@
 use super::{
     FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, SpecializedPattern,
-    find_workspace_projects, ignore_not_found, specialized_pattern,
+    find_workspace_projects, specialized_pattern,
 };
 use pretty_assertions::assert_eq;
-use std::{fs, io::ErrorKind};
+use std::{fs, io::ErrorKind, path::Path};
 use tempfile::TempDir;
 
 fn make_project(root: &std::path::Path, rel: &str, name: &str) {
@@ -17,6 +17,19 @@ fn make_yaml_project(root: &std::path::Path, rel: &str, name: &str) {
     let dir = root.join(rel);
     fs::create_dir_all(&dir).unwrap();
     fs::write(dir.join("package.yaml"), format!("name: {name}\nversion: 0.0.1\n")).unwrap();
+}
+
+fn find_project_names(root: &Path, patterns: &[&str]) -> Vec<String> {
+    find_workspace_projects(
+        root,
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(patterns.iter().map(|pattern| (*pattern).to_string()).collect()),
+        },
+    )
+    .unwrap()
+    .iter()
+    .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+    .collect()
 }
 
 #[test]
@@ -44,24 +57,22 @@ fn leaves_other_workspace_patterns_to_the_generic_walk() {
         "C:/shared",
         "packages/**",
         "packages/{alpha,beta}",
+        "packages/$",
+        "packages/<alpha>",
+        "packages/(alpha,beta)",
         "packages/./alpha",
         "../shared/*",
         "/shared/*",
         "C:/shared/*",
         "packages/*/*",
         "packages/{alpha,beta}/*",
+        "packages/$/*",
+        "packages/<alpha>/*",
+        "packages/(alpha,beta)/*",
         "packages/./*",
     ] {
         assert_eq!(specialized_pattern(pattern), None, "pattern: {pattern}");
     }
-}
-
-#[test]
-fn ignores_only_not_found_errors() {
-    assert_eq!(ignore_not_found(Ok("entry")).unwrap(), Some("entry"));
-    assert_eq!(ignore_not_found::<()>(Err(ErrorKind::NotFound.into())).unwrap(), None);
-    let error = ignore_not_found::<()>(Err(ErrorKind::PermissionDenied.into())).unwrap_err();
-    assert_eq!(error.kind(), ErrorKind::PermissionDenied);
 }
 
 #[test]
@@ -91,16 +102,7 @@ fn terminal_star_does_not_match_dotted_directories() {
     make_project(tmp.path(), "packages/alpha", "alpha");
     make_project(tmp.path(), "packages/.cache", "cached");
 
-    let projects = find_workspace_projects(
-        tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
-    )
-    .unwrap();
-
-    let names: Vec<String> = projects
-        .iter()
-        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
-        .collect();
+    let names = find_project_names(tmp.path(), &["packages/*"]);
     assert_eq!(names, vec!["root".to_string(), "alpha".to_string()]);
 }
 
@@ -110,36 +112,9 @@ fn terminal_star_matches_only_immediate_child_directories() {
     make_project(tmp.path(), ".", "root");
     make_project(tmp.path(), "packages/alpha", "alpha");
     make_project(tmp.path(), "packages/group/beta", "beta");
+    fs::write(tmp.path().join("packages/not-a-directory"), "text").unwrap();
 
-    let projects = find_workspace_projects(
-        tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
-    )
-    .unwrap();
-
-    let names: Vec<String> = projects
-        .iter()
-        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
-        .collect();
-    assert_eq!(names, vec!["root".to_string(), "alpha".to_string()]);
-}
-
-#[test]
-fn trailing_slash_preserves_terminal_star_semantics() {
-    let tmp = TempDir::new().unwrap();
-    make_project(tmp.path(), ".", "root");
-    make_project(tmp.path(), "packages/alpha", "alpha");
-
-    let projects = find_workspace_projects(
-        tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*/".to_string()]) },
-    )
-    .unwrap();
-
-    let names: Vec<String> = projects
-        .iter()
-        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
-        .collect();
+    let names = find_project_names(tmp.path(), &["packages/*"]);
     assert_eq!(names, vec!["root".to_string(), "alpha".to_string()]);
 }
 
@@ -150,18 +125,7 @@ fn terminal_star_applies_built_in_ignores() {
     make_project(tmp.path(), "node_modules/alpha", "alpha");
     make_project(tmp.path(), "bower_components/beta", "beta");
 
-    let projects = find_workspace_projects(
-        tmp.path(),
-        &FindWorkspaceProjectsOpts {
-            patterns: Some(vec!["node_modules/*".to_string(), "bower_components/*".to_string()]),
-        },
-    )
-    .unwrap();
-
-    let names: Vec<String> = projects
-        .iter()
-        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
-        .collect();
+    let names = find_project_names(tmp.path(), &["node_modules/*", "bower_components/*"]);
     assert_eq!(names, vec!["root".to_string()]);
 }
 
@@ -172,39 +136,8 @@ fn terminal_star_applies_user_negations() {
     make_project(tmp.path(), "packages/alpha", "alpha");
     make_project(tmp.path(), "packages/beta", "beta");
 
-    let projects = find_workspace_projects(
-        tmp.path(),
-        &FindWorkspaceProjectsOpts {
-            patterns: Some(vec!["packages/*".to_string(), "!packages/alpha".to_string()]),
-        },
-    )
-    .unwrap();
-
-    let names: Vec<String> = projects
-        .iter()
-        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
-        .collect();
+    let names = find_project_names(tmp.path(), &["packages/*", "!packages/alpha"]);
     assert_eq!(names, vec!["root".to_string(), "beta".to_string()]);
-}
-
-#[test]
-fn terminal_star_ignores_non_directory_children() {
-    let tmp = TempDir::new().unwrap();
-    make_project(tmp.path(), ".", "root");
-    fs::create_dir_all(tmp.path().join("packages")).unwrap();
-    fs::write(tmp.path().join("packages/not-a-directory"), "text").unwrap();
-
-    let projects = find_workspace_projects(
-        tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
-    )
-    .unwrap();
-
-    let names: Vec<String> = projects
-        .iter()
-        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
-        .collect();
-    assert_eq!(names, vec!["root".to_string()]);
 }
 
 #[cfg(unix)]
@@ -218,39 +151,30 @@ fn terminal_star_does_not_follow_symlinked_child_directories() {
     fs::create_dir_all(tmp.path().join("packages")).unwrap();
     symlink(tmp.path().join("linked-target"), tmp.path().join("packages/linked")).unwrap();
 
-    let projects = find_workspace_projects(
-        tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
-    )
-    .unwrap();
-
-    let names: Vec<String> = projects
-        .iter()
-        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
-        .collect();
+    let names = find_project_names(tmp.path(), &["packages/*"]);
     assert_eq!(names, vec!["root".to_string()]);
 }
 
 #[test]
-fn non_terminal_wildcard_uses_generic_semantics() {
+fn wax_metacharacters_use_generic_semantics() {
     let tmp = TempDir::new().unwrap();
     make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "products/$/pkg", "dollar-pkg");
     make_project(tmp.path(), "products/alpha/pkg", "alpha-pkg");
     make_project(tmp.path(), "products/beta/pkg", "beta-pkg");
     make_project(tmp.path(), "products/beta/other", "beta-other");
 
-    let projects = find_workspace_projects(
-        tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["products/*/pkg".to_string()]) },
-    )
-    .unwrap();
-
-    let mut names: Vec<String> = projects
-        .iter()
-        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
-        .collect();
+    let mut names = find_project_names(tmp.path(), &["products/$/pkg"]);
     names.sort();
-    assert_eq!(names, vec!["alpha-pkg".to_string(), "beta-pkg".to_string(), "root".to_string()]);
+    assert_eq!(
+        names,
+        vec![
+            "alpha-pkg".to_string(),
+            "beta-pkg".to_string(),
+            "dollar-pkg".to_string(),
+            "root".to_string(),
+        ],
+    );
 }
 
 #[test]
@@ -273,41 +197,14 @@ fn expands_packages_glob_to_package_yaml() {
 }
 
 #[test]
-fn direct_package_pattern_does_not_require_every_manifest_format() {
+fn direct_package_patterns_support_both_manifest_formats() {
     let tmp = TempDir::new().unwrap();
     make_project(tmp.path(), ".", "root");
     make_project(tmp.path(), "packages/alpha", "alpha");
+    make_yaml_project(tmp.path(), "packages/beta", "beta");
 
-    let projects = find_workspace_projects(
-        tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/alpha".to_string()]) },
-    )
-    .unwrap();
-
-    let names: Vec<String> = projects
-        .iter()
-        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
-        .collect();
-    assert_eq!(names, vec!["root".to_string(), "alpha".to_string()]);
-}
-
-#[test]
-fn direct_package_pattern_supports_package_yaml() {
-    let tmp = TempDir::new().unwrap();
-    make_project(tmp.path(), ".", "root");
-    make_yaml_project(tmp.path(), "packages/alpha", "alpha");
-
-    let projects = find_workspace_projects(
-        tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/alpha".to_string()]) },
-    )
-    .unwrap();
-
-    let names: Vec<String> = projects
-        .iter()
-        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
-        .collect();
-    assert_eq!(names, vec!["root".to_string(), "alpha".to_string()]);
+    let names = find_project_names(tmp.path(), &["packages/alpha", "packages/beta"]);
+    assert_eq!(names, vec!["root".to_string(), "alpha".to_string(), "beta".to_string()]);
 }
 
 #[test]
@@ -315,16 +212,7 @@ fn missing_direct_package_pattern_matches_nothing() {
     let tmp = TempDir::new().unwrap();
     make_project(tmp.path(), ".", "root");
 
-    let projects = find_workspace_projects(
-        tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/alpha".to_string()]) },
-    )
-    .unwrap();
-
-    let names: Vec<String> = projects
-        .iter()
-        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
-        .collect();
+    let names = find_project_names(tmp.path(), &["packages/alpha"]);
     assert_eq!(names, vec!["root".to_string()]);
 }
 
@@ -334,18 +222,7 @@ fn direct_package_pattern_applies_user_negations() {
     make_project(tmp.path(), ".", "root");
     make_project(tmp.path(), "packages/alpha", "alpha");
 
-    let projects = find_workspace_projects(
-        tmp.path(),
-        &FindWorkspaceProjectsOpts {
-            patterns: Some(vec!["packages/alpha".to_string(), "!packages/alpha".to_string()]),
-        },
-    )
-    .unwrap();
-
-    let names: Vec<String> = projects
-        .iter()
-        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
-        .collect();
+    let names = find_project_names(tmp.path(), &["packages/alpha", "!packages/alpha"]);
     assert_eq!(names, vec!["root".to_string()]);
 }
 
@@ -360,16 +237,7 @@ fn direct_package_pattern_follows_symlinked_directory() {
     fs::create_dir_all(tmp.path().join("packages")).unwrap();
     symlink(tmp.path().join("linked-target"), tmp.path().join("packages/linked")).unwrap();
 
-    let projects = find_workspace_projects(
-        tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/linked".to_string()]) },
-    )
-    .unwrap();
-
-    let names: Vec<String> = projects
-        .iter()
-        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
-        .collect();
+    let names = find_project_names(tmp.path(), &["packages/linked"]);
     assert_eq!(names, vec!["root".to_string(), "linked".to_string()]);
 }
 

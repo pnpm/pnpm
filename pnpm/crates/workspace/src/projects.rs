@@ -143,8 +143,9 @@ pub fn find_workspace_projects_no_check(
     // wax's `not` takes a single pattern; combine the ignores with
     // `wax::any` so the walk filters them all in one pass (ignoring
     // `**/node_modules/**` and `**/bower_components/**`).
-    // Built once outside the per-pattern loop and reused by both the
-    // specialized paths and the generic walks.
+    // Built once outside the per-pattern loop to avoid reparsing the
+    // constant ignores. Specialized paths borrow it, while generic walks
+    // clone it into each `Walk::not` call.
     let ignore_template = wax::any(IGNORE_PATTERNS.iter().copied()).map_err(|err| {
         FindWorkspaceProjectsError::InvalidGlob {
             pattern: "<built-in ignore>".to_string(),
@@ -320,16 +321,16 @@ fn specialized_pattern(pattern: &str) -> Option<SpecializedPattern<'_>> {
 }
 
 fn is_safe_relative_literal(pattern: &str) -> bool {
-    is_literal_pattern(pattern)
+    !pattern.chars().any(|ch| ch == '\\' || wax::is_meta_character(ch))
         && !pattern.starts_with('/')
-        && !pattern.contains('\\')
-        && !pattern.contains(':')
         && pattern
             .split('/')
             .all(|component| !component.is_empty() && component != "." && component != "..")
 }
 
 fn normalize_manifest_patterns(pattern: &str) -> Vec<String> {
+    // Generic glob walks match manifest files, so append every supported
+    // manifest basename to the normalized directory pattern.
     let Some(trimmed) = normalize_directory_pattern(pattern) else { return Vec::new() };
     PROJECT_MANIFEST_BASENAMES.iter().map(|basename| format!("{trimmed}/{basename}")).collect()
 }
