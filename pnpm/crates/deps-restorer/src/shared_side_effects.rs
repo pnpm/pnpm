@@ -12,8 +12,8 @@ use pnpm_pnpr_client::{
     ArtifactManifest, ArtifactPayload, BuilderProfile, CompatibilityConstraints,
     LinuxGlibcPlatform, MacOsPlatform, OwnerScope, PackageIdentity, PnprClient, PnprClientError,
     PublishArtifactRequest, RejectedArtifact, ResolveArtifactsOptions, SignedArtifactEnvelope,
-    blob_id, linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags, macos_tag,
-    platform_fingerprint,
+    WindowsPlatform, blob_id, linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags,
+    macos_tag, platform_fingerprint, windows_supported_tags, windows_tag,
 };
 use pnpm_shared_artifact_protocol::compatibility_rank;
 use pnpm_store_dir::{CafsFileInfo, RemoteSideEffectsOrigin, SideEffectsDiff, StoreIndexWriter};
@@ -23,6 +23,10 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
     sync::Arc,
+};
+#[cfg(windows)]
+use windows_sys::{
+    Wdk::System::SystemServices::RtlGetVersion, Win32::System::SystemInformation::OSVERSIONINFOW,
 };
 
 pub(crate) type BaseCasPaths = HashMap<PackageKey, HashMap<String, PathBuf>>;
@@ -44,6 +48,7 @@ pub struct SharedSideEffectsPublisher {
 enum ArtifactPlatform<'a> {
     LinuxGlibc(LinuxGlibcPlatform<'a>),
     MacOs(MacOsPlatform<'a>),
+    Windows(WindowsPlatform<'a>),
 }
 
 impl ArtifactPlatform<'_> {
@@ -51,6 +56,7 @@ impl ArtifactPlatform<'_> {
         match self {
             Self::LinuxGlibc(platform) => platform.node_major,
             Self::MacOs(platform) => platform.node_major,
+            Self::Windows(platform) => platform.node_major,
         }
     }
 
@@ -60,6 +66,7 @@ impl ArtifactPlatform<'_> {
         match self {
             Self::LinuxGlibc(platform) => linux_glibc_supported_tags(platform),
             Self::MacOs(platform) => macos_supported_tags(platform),
+            Self::Windows(platform) => windows_supported_tags(platform),
         }
     }
 
@@ -67,6 +74,7 @@ impl ArtifactPlatform<'_> {
         match self {
             Self::LinuxGlibc(platform) => linux_glibc_tag(platform),
             Self::MacOs(platform) => macos_tag(platform),
+            Self::Windows(platform) => windows_tag(platform),
         }
     }
 }
@@ -920,6 +928,16 @@ fn artifact_platform(
                 macos_minor,
             }))
         }
+        "win32" => {
+            let (windows_major, windows_minor, windows_build) = windows_kernel_version()?;
+            Some(ArtifactPlatform::Windows(WindowsPlatform {
+                architecture,
+                node_major,
+                windows_major,
+                windows_minor,
+                windows_build,
+            }))
+        }
         _ => None,
     }
 }
@@ -935,6 +953,34 @@ fn parse_macos_product_version(value: &str) -> Option<(u32, u32)> {
     let major = components.next()?.parse().ok()?;
     let minor = components.next()?.parse().ok()?;
     (major > 0 && major < 1_000_000 && minor < 1_000_000).then_some((major, minor))
+}
+
+#[cfg(windows)]
+fn windows_kernel_version() -> Option<(u32, u32, u32)> {
+    let mut version = OSVERSIONINFOW {
+        dwOSVersionInfoSize: u32::try_from(std::mem::size_of::<OSVERSIONINFOW>()).ok()?,
+        ..Default::default()
+    };
+    // SAFETY: `version` is a writable OSVERSIONINFOW with its required size field initialized.
+    if unsafe { RtlGetVersion(&raw mut version) } != 0 {
+        return None;
+    }
+    validate_windows_kernel_version(
+        version.dwMajorVersion,
+        version.dwMinorVersion,
+        version.dwBuildNumber,
+    )
+}
+
+#[cfg(not(windows))]
+fn windows_kernel_version() -> Option<(u32, u32, u32)> {
+    None
+}
+
+#[cfg(any(windows, test))]
+fn validate_windows_kernel_version(major: u32, minor: u32, build: u32) -> Option<(u32, u32, u32)> {
+    (major > 0 && major < 1_000 && minor < 1_000 && build > 0 && build < 1_000_000)
+        .then_some((major, minor, build))
 }
 
 fn patch_hash(snapshot_key: &PackageKey) -> Option<String> {

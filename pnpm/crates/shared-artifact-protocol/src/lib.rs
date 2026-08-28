@@ -35,6 +35,8 @@ pub const MAX_SIGNATURE_SIZE: usize = 72;
 pub const MAX_ENCODED_SIGNED_PAYLOAD_SIZE: usize = MAX_SIGNED_PAYLOAD_SIZE.div_ceil(3) * 4;
 pub const MAX_ENCODED_SIGNATURE_SIZE: usize = MAX_SIGNATURE_SIZE.div_ceil(3) * 4;
 pub const MAX_RESOLVE_RESPONSE_SIZE: usize = 16 * 1024 * 1024;
+const COMPATIBILITY_FLOOR_RANK_OFFSET: u64 = 64;
+const COMPATIBILITY_FLOOR_RANK_STRIDE: u64 = 1_000_000_000_000;
 
 #[derive(Debug, Display, Error)]
 pub enum ArtifactProtocolError {
@@ -76,6 +78,15 @@ pub struct MacOsPlatform<'a> {
     pub node_major: u32,
     pub macos_major: u32,
     pub macos_minor: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WindowsPlatform<'a> {
+    pub architecture: &'a str,
+    pub node_major: u32,
+    pub windows_major: u32,
+    pub windows_minor: u32,
+    pub windows_build: u32,
 }
 
 impl OwnerScope {
@@ -621,6 +632,14 @@ pub fn compatibility_rank(
     supported_tags: &[String],
 ) -> Option<u64> {
     validate_supported_tags(supported_tags).ok()?;
+    compatibility_rank_prevalidated(constraints, supported_tags)
+}
+
+#[must_use]
+pub fn compatibility_rank_prevalidated(
+    constraints: &CompatibilityConstraints,
+    supported_tags: &[String],
+) -> Option<u64> {
     match constraints {
         CompatibilityConstraints::Universal => Some(u64::MAX),
         CompatibilityConstraints::Tagged { tags } => supported_tags
@@ -631,22 +650,15 @@ pub fn compatibility_rank(
                     if artifact == supported {
                         return u64::try_from(index).ok();
                     }
-                    let ParsedCompatibilityTag::MacOs(consumer) =
-                        parse_compatibility_tag(supported).ok()?
-                    else {
-                        return None;
-                    };
-                    let ParsedCompatibilityTag::MacOs(artifact) =
-                        parse_compatibility_tag(artifact).ok()?
-                    else {
-                        return None;
-                    };
-                    if consumer.architecture != artifact.architecture
-                        || consumer.node_major != artifact.node_major
-                    {
-                        return None;
-                    }
-                    macos_version_rank(consumer).checked_sub(macos_version_rank(artifact))
+                    let distance = version_floor_rank(
+                        parse_compatibility_tag(supported).ok()?,
+                        parse_compatibility_tag(artifact).ok()?,
+                    )?;
+                    u64::try_from(index)
+                        .ok()?
+                        .checked_mul(COMPATIBILITY_FLOOR_RANK_STRIDE)?
+                        .checked_add(COMPATIBILITY_FLOOR_RANK_OFFSET)?
+                        .checked_add(distance)
                 })
             })
             .min(),
@@ -699,6 +711,22 @@ pub fn macos_supported_tags(
     platform: MacOsPlatform<'_>,
 ) -> Result<Vec<String>, ArtifactProtocolError> {
     Ok(vec![macos_tag(platform)?])
+}
+
+pub fn windows_tag(platform: WindowsPlatform<'_>) -> Result<String, ArtifactProtocolError> {
+    let WindowsPlatform { architecture, node_major, windows_major, windows_minor, windows_build } =
+        platform;
+    let tag = format!(
+        "{COMPATIBILITY_TAG_SCHEMA}:win32-{architecture}-node{node_major}-windows{windows_major}.{windows_minor}.{windows_build}",
+    );
+    validate_compatibility_tag(&tag)?;
+    Ok(tag)
+}
+
+pub fn windows_supported_tags(
+    platform: WindowsPlatform<'_>,
+) -> Result<Vec<String>, ArtifactProtocolError> {
+    Ok(vec![windows_tag(platform)?])
 }
 
 pub fn platform_fingerprint(supported_tags: &[String]) -> Result<String, ArtifactProtocolError> {
@@ -792,6 +820,7 @@ fn validate_compatibility_tag(tag: &str) -> Result<(), ArtifactProtocolError> {
 enum ParsedCompatibilityTag<'a> {
     Linux,
     MacOs(MacOsPlatform<'a>),
+    Windows(WindowsPlatform<'a>),
 }
 
 fn parse_compatibility_tag(tag: &str) -> Result<ParsedCompatibilityTag<'_>, ArtifactProtocolError> {
@@ -839,7 +868,31 @@ fn parse_compatibility_tag(tag: &str) -> Result<ParsedCompatibilityTag<'_>, Arti
                 macos_minor,
             }))
         }
-        _ => Err(invalid_tag("v1 only defines Linux and macOS tags")),
+        "win32" => {
+            let windows = runtime
+                .strip_prefix("windows")
+                .ok_or_else(|| invalid_tag("missing Windows floor"))?;
+            let mut components = windows.split('.');
+            let (Some(major), Some(minor), Some(build), None) =
+                (components.next(), components.next(), components.next(), components.next())
+            else {
+                return Err(invalid_tag("Windows floor must be major.minor.build"));
+            };
+            let windows_major =
+                parse_windows_version_component(major, "Windows major version", false, 1_000)?;
+            let windows_minor =
+                parse_windows_version_component(minor, "Windows minor version", true, 1_000)?;
+            let windows_build =
+                parse_windows_version_component(build, "Windows build number", false, 1_000_000)?;
+            Ok(ParsedCompatibilityTag::Windows(WindowsPlatform {
+                architecture,
+                node_major,
+                windows_major,
+                windows_minor,
+                windows_build,
+            }))
+        }
+        _ => Err(invalid_tag("v1 only defines Linux, macOS, and Windows tags")),
     }
 }
 
@@ -857,6 +910,46 @@ fn parse_macos_version_component(
 
 fn macos_version_rank(platform: MacOsPlatform<'_>) -> u64 {
     u64::from(platform.macos_major) * 1_000_000 + u64::from(platform.macos_minor)
+}
+
+fn parse_windows_version_component(
+    value: &str,
+    label: &str,
+    allow_zero: bool,
+    exclusive_maximum: u32,
+) -> Result<u32, ArtifactProtocolError> {
+    let number = parse_canonical_number(value, label, allow_zero)?;
+    if number >= exclusive_maximum {
+        return Err(invalid_tag(&format!("{label} is too large")));
+    }
+    Ok(number)
+}
+
+fn windows_version_rank(platform: WindowsPlatform<'_>) -> u64 {
+    u64::from(platform.windows_major) * 1_000_000_000
+        + u64::from(platform.windows_minor) * 1_000_000
+        + u64::from(platform.windows_build)
+}
+
+fn version_floor_rank(
+    consumer: ParsedCompatibilityTag<'_>,
+    artifact: ParsedCompatibilityTag<'_>,
+) -> Option<u64> {
+    match (consumer, artifact) {
+        (ParsedCompatibilityTag::MacOs(consumer), ParsedCompatibilityTag::MacOs(artifact))
+            if consumer.architecture == artifact.architecture
+                && consumer.node_major == artifact.node_major =>
+        {
+            macos_version_rank(consumer).checked_sub(macos_version_rank(artifact))
+        }
+        (ParsedCompatibilityTag::Windows(consumer), ParsedCompatibilityTag::Windows(artifact))
+            if consumer.architecture == artifact.architecture
+                && consumer.node_major == artifact.node_major =>
+        {
+            windows_version_rank(consumer).checked_sub(windows_version_rank(artifact))
+        }
+        _ => None,
+    }
 }
 
 fn parse_canonical_number(

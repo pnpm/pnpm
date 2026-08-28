@@ -16,6 +16,8 @@ import {
   resolveSharedSideEffects,
   signedArtifactEnvelopeDigest,
   verifySignedArtifactEnvelope,
+  windowsCompatibilityTag,
+  windowsSupportedTags,
 } from '@pnpm/pnpr.client'
 
 const contents = Buffer.from('native-addon')
@@ -23,10 +25,6 @@ const integrity = `sha512-${createHash('sha512').update(contents).digest('base64
 
 function linux (glibcMinor: number, architecture = 'x64') {
   return { architecture, nodeMajor: 22, glibcMajor: 2, glibcMinor }
-}
-
-function macOS (macOSMajor: number, macOSMinor: number, architecture = 'arm64') {
-  return { architecture, nodeMajor: 22, macOSMajor, macOSMinor }
 }
 
 function payload (): ArtifactPayload {
@@ -193,22 +191,54 @@ describe('signed shared artifacts', () => {
     expect(compatibilityRank({
       kind: 'tagged',
       tags: [macOSCompatibilityTag(macOS(15, 4))],
-    }, macOSSupported)).toBe(1)
+    }, macOSSupported)).toBe(65)
     expect(compatibilityRank({
       kind: 'tagged',
       tags: [macOSCompatibilityTag(macOS(14, 6))],
-    }, macOSSupported)).toBe(999_999)
+    }, macOSSupported)).toBe(1_000_063)
     expect(compatibilityRank({
       kind: 'tagged',
       tags: [macOSCompatibilityTag(macOS(16, 0))],
     }, macOSSupported)).toBeUndefined()
     expect(compatibilityRank({ kind: 'universal' }, macOSSupported)).toBe(Number.MAX_SAFE_INTEGER)
 
+    const multipleMacOSSupported = [
+      macOSCompatibilityTag(macOS(15, 5)),
+      macOSCompatibilityTag(macOS(14, 6)),
+    ]
+    expect(compatibilityRank({
+      kind: 'tagged',
+      tags: [macOSCompatibilityTag(macOS(14, 6))],
+    }, multipleMacOSSupported)).toBe(1)
+    expect(compatibilityRank({
+      kind: 'tagged',
+      tags: [macOSCompatibilityTag(macOS(15, 4))],
+    }, multipleMacOSSupported)).toBe(65)
+
+    const windowsSupported = windowsSupportedTags(windows(10, 0, 26_100))
+    expect(windowsSupported).toEqual(['pnpm:v1:win32-x64-node22-windows10.0.26100'])
+    expect(platformFingerprint(windowsSupported)).toBe('f5590f12a6d651acdcb3b60d7d25a5d2e1ad2f5af3e53d841391dec9e871c46e')
+    expect(compatibilityRank({
+      kind: 'tagged',
+      tags: [windowsCompatibilityTag(windows(10, 0, 22_621))],
+    }, windowsSupported)).toBe(3_543)
+    expect(compatibilityRank({
+      kind: 'tagged',
+      tags: [windowsCompatibilityTag(windows(6, 3, 9_600))],
+    }, windowsSupported)).toBe(3_997_016_564)
+    expect(compatibilityRank({
+      kind: 'tagged',
+      tags: [windowsCompatibilityTag(windows(10, 0, 26_101))],
+    }, windowsSupported)).toBeUndefined()
+    expect(compatibilityRank({ kind: 'universal' }, windowsSupported)).toBe(Number.MAX_SAFE_INTEGER)
+
     for (const invalid of [
       'pnpm:v2:linux-x64-node22-glibc2.17',
       'pnpm:v1:darwin-x64-node22-glibc2.17',
       'pnpm:v1:darwin-x64-node22-macos15',
       'pnpm:v1:darwin-x64-node22-macos015.5',
+      'pnpm:v1:win32-x64-node22-windows10.0',
+      'pnpm:v1:win32-x64-node22-windows10.0.026100',
       'pnpm:v1:linux-x64-node022-glibc2.17',
       'pnpm:v1:linux-x64-node22-glibc02.17',
       'pnpm:v1:linux-x64-node22-glibc2',
@@ -464,6 +494,14 @@ describe('signed shared artifacts', () => {
     }, 'unused')).toThrow(/canonical P-256 DER/)
   })
 })
+
+function macOS (macOSMajor: number, macOSMinor: number, architecture = 'arm64') {
+  return { architecture, nodeMajor: 22, macOSMajor, macOSMinor }
+}
+
+function windows (windowsMajor: number, windowsMinor: number, windowsBuild: number, architecture = 'x64') {
+  return { architecture, nodeMajor: 22, windowsMajor, windowsMinor, windowsBuild }
+}
 
 async function listen (server: ReturnType<typeof createServer>): Promise<string> {
   await new Promise<void>((resolve, reject) => {

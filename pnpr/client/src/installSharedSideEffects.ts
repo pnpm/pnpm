@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { createPrivateKey } from 'node:crypto'
 import fs from 'node:fs/promises'
+import { release as osRelease } from 'node:os'
 import util from 'node:util'
 
 import { calcDepState, calcDepStateInputKey, type DepsGraph, type DepsStateCache } from '@pnpm/deps.graph-hasher'
@@ -33,6 +34,9 @@ import {
   type SignedArtifactEnvelope,
   type VerifiedArtifact,
   verifyStoredSharedSideEffects,
+  windowsCompatibilityTag,
+  type WindowsPlatform,
+  windowsSupportedTags,
 } from './sharedSideEffects.js'
 
 export interface RemoteSideEffectsInstallNode<T extends string> {
@@ -88,6 +92,7 @@ export interface RemoteSideEffectsRestorer<T extends string> {
 type ArtifactPlatform =
   | { kind: 'linuxGlibc', platform: LinuxGlibcPlatform }
   | { kind: 'macOS', platform: MacOSPlatform }
+  | { kind: 'windows', platform: WindowsPlatform }
 
 /**
  * How long the first queued candidate waits for company before its lookup
@@ -694,7 +699,8 @@ async function artifactManifest (upload: UploadPkgToStoreResult): Promise<{
 
 function currentArtifactPlatform (nodeVersion?: string): ArtifactPlatform | undefined {
   if (!['x64', 'arm64'].includes(process.arch)) return undefined
-  const nodeMajor = Number((nodeVersion ?? process.version).replace(/^v/, '').split('.')[0])
+  const version = nodeVersion ?? process.version
+  const nodeMajor = Number((version.startsWith('v') ? version.slice(1) : version).split('.')[0])
   if (!Number.isSafeInteger(nodeMajor) || nodeMajor <= 0) return undefined
   if (process.platform === 'linux') {
     const report = process.report?.getReport() as { header?: { glibcVersionRuntime?: string } }
@@ -705,30 +711,50 @@ function currentArtifactPlatform (nodeVersion?: string): ArtifactPlatform | unde
       platform: { architecture: process.arch, nodeMajor, glibcMajor, glibcMinor },
     }
   }
-  if (process.platform !== 'darwin') return undefined
-  const version = macOSProductVersion()
-  if (version == null) return undefined
-  return {
-    kind: 'macOS',
-    platform: {
-      architecture: process.arch,
-      nodeMajor,
-      macOSMajor: version.major,
-      macOSMinor: version.minor,
-    },
+  if (process.platform === 'darwin') {
+    const version = macOSProductVersion()
+    if (version == null) return undefined
+    return {
+      kind: 'macOS',
+      platform: {
+        architecture: process.arch,
+        nodeMajor,
+        macOSMajor: version.major,
+        macOSMinor: version.minor,
+      },
+    }
   }
+  if (process.platform === 'win32') {
+    const version = windowsKernelVersion(osRelease())
+    if (version == null) return undefined
+    return {
+      kind: 'windows',
+      platform: {
+        architecture: process.arch,
+        nodeMajor,
+        windowsMajor: version.major,
+        windowsMinor: version.minor,
+        windowsBuild: version.build,
+      },
+    }
+  }
+  return undefined
 }
 
 function artifactCompatibilityTag (artifactPlatform: ArtifactPlatform): string {
-  return artifactPlatform.kind === 'linuxGlibc'
-    ? linuxGlibcCompatibilityTag(artifactPlatform.platform)
-    : macOSCompatibilityTag(artifactPlatform.platform)
+  switch (artifactPlatform.kind) {
+    case 'linuxGlibc': return linuxGlibcCompatibilityTag(artifactPlatform.platform)
+    case 'macOS': return macOSCompatibilityTag(artifactPlatform.platform)
+    case 'windows': return windowsCompatibilityTag(artifactPlatform.platform)
+  }
 }
 
 function artifactSupportedTags (artifactPlatform: ArtifactPlatform): string[] {
-  return artifactPlatform.kind === 'linuxGlibc'
-    ? linuxGlibcSupportedTags(artifactPlatform.platform)
-    : macOSSupportedTags(artifactPlatform.platform)
+  switch (artifactPlatform.kind) {
+    case 'linuxGlibc': return linuxGlibcSupportedTags(artifactPlatform.platform)
+    case 'macOS': return macOSSupportedTags(artifactPlatform.platform)
+    case 'windows': return windowsSupportedTags(artifactPlatform.platform)
+  }
 }
 
 let cachedMacOSProductVersion: { major: number, minor: number } | null | undefined
@@ -749,6 +775,18 @@ function macOSProductVersion (): { major: number, minor: number } | undefined {
     cachedMacOSProductVersion = null
   }
   return cachedMacOSProductVersion ?? undefined
+}
+
+function windowsKernelVersion (release: string): { major: number, minor: number, build: number } | undefined {
+  const components = release.split('.')
+  if (components.length !== 3) return undefined
+  const [major, minor, build] = components.map(Number)
+  if (
+    !Number.isSafeInteger(major) || major <= 0 || major >= 1_000 ||
+    !Number.isSafeInteger(minor) || minor < 0 || minor >= 1_000 ||
+    !Number.isSafeInteger(build) || build <= 0 || build >= 1_000_000
+  ) return undefined
+  return { major, minor, build }
 }
 
 function verifiedIntegrity (resolution: LockfileResolution): string | undefined {

@@ -38,12 +38,13 @@ pub use pnpm_shared_artifact_protocol::{
     ArtifactManifest, ArtifactPayload, BuilderProfile, COMPATIBILITY_TAG_SCHEMA,
     CompatibilityConstraints, INPUT_KEY_PREFIX, LinuxGlibcPlatform, MacOsPlatform, OwnerScope,
     PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest, SIGNATURE_ALGORITHM,
-    SignedArtifactEnvelope, blob_id, linux_glibc_supported_tags, linux_glibc_tag,
-    macos_supported_tags, macos_tag, platform_fingerprint,
+    SignedArtifactEnvelope, WindowsPlatform, blob_id, linux_glibc_supported_tags, linux_glibc_tag,
+    macos_supported_tags, macos_tag, platform_fingerprint, windows_supported_tags, windows_tag,
 };
 use pnpm_shared_artifact_protocol::{
     MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
-    ResolveArtifactsResponse, compatibility_rank, validate_supported_tags, verify_blob,
+    ResolveArtifactsResponse, compatibility_rank_prevalidated, validate_supported_tags,
+    verify_blob,
 };
 
 /// The `registries` a request declares, keyed by registry URL.
@@ -636,7 +637,8 @@ impl PnprClient {
                 if !artifact_matches_candidate(&payload, candidate) {
                     continue;
                 }
-                let Some(rank) = compatibility_rank(&payload.compatibility, &opts.supported_tags)
+                let Some(rank) =
+                    compatibility_rank_prevalidated(&payload.compatibility, &opts.supported_tags)
                 else {
                     continue;
                 };

@@ -46,4 +46,7 @@ export {
   verifySignedArtifactEnvelope,
   verifyStoredSharedSideEffects,
   type VerifyStoredSharedSideEffectsOptions,
+  windowsCompatibilityTag,
+  type WindowsPlatform,
+  windowsSupportedTags,
 } from './sharedSideEffects.js'

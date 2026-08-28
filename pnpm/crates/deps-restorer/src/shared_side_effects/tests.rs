@@ -1,4 +1,4 @@
-use super::{package_version, parse_macos_product_version};
+use super::{package_version, parse_macos_product_version, validate_windows_kernel_version};
 use pnpm_lockfile::PackageKey;
 
 #[test]
@@ -6,6 +6,13 @@ fn parses_macos_product_versions() {
     assert_eq!(parse_macos_product_version("15.5.1\n"), Some((15, 5)));
     assert_eq!(parse_macos_product_version("26.0\n"), Some((26, 0)));
     assert_eq!(parse_macos_product_version("Darwin 25.0\n"), None);
+}
+
+#[test]
+fn validates_windows_kernel_versions() {
+    assert_eq!(validate_windows_kernel_version(10, 0, 26_100), Some((10, 0, 26_100)));
+    assert_eq!(validate_windows_kernel_version(0, 0, 26_100), None);
+    assert_eq!(validate_windows_kernel_version(10, 0, 0), None);
 }
 
 #[test]
@@ -458,9 +465,10 @@ mod restore {
                 target_env = "gnu",
                 any(target_arch = "x86_64", target_arch = "aarch64")
             ),
-            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64"))
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
         )),
-        ignore = "the remote side-effects cache only serves glibc Linux and macOS on x64 and arm64"
+        ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
     )]
     async fn content_the_store_lacks_is_downloaded() {
         let store = tempfile::tempdir().expect("tempdir");
@@ -486,9 +494,10 @@ mod restore {
                 target_env = "gnu",
                 any(target_arch = "x86_64", target_arch = "aarch64")
             ),
-            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64"))
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
         )),
-        ignore = "the remote side-effects cache only serves glibc Linux and macOS on x64 and arm64"
+        ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
     )]
     async fn content_the_store_already_holds_is_not_downloaded() {
         let store = tempfile::tempdir().expect("tempdir");

@@ -11,9 +11,10 @@ use sha2::{Digest as _, Sha512};
 use crate::{
     ARTIFACT_KIND, ArtifactBlobUpload, ArtifactFile, ArtifactManifest, ArtifactPayload,
     BuilderProfile, CompatibilityConstraints, LinuxGlibcPlatform, MacOsPlatform, OwnerScope,
-    PackageIdentity, PublishArtifactRequest, SIGNATURE_ALGORITHM, SignedArtifactEnvelope, blob_id,
-    compatibility_rank, linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags,
-    macos_tag, platform_fingerprint, validate_manifest_path, verify_blob,
+    PackageIdentity, PublishArtifactRequest, SIGNATURE_ALGORITHM, SignedArtifactEnvelope,
+    WindowsPlatform, blob_id, compatibility_rank, linux_glibc_supported_tags, linux_glibc_tag,
+    macos_supported_tags, macos_tag, platform_fingerprint, validate_manifest_path, verify_blob,
+    windows_supported_tags, windows_tag,
 };
 
 fn integrity(bytes: &[u8]) -> String {
@@ -26,6 +27,15 @@ fn linux(architecture: &str, glibc_minor: u32) -> LinuxGlibcPlatform<'_> {
 
 fn macos(architecture: &str, macos_major: u32, macos_minor: u32) -> MacOsPlatform<'_> {
     MacOsPlatform { architecture, node_major: 22, macos_major, macos_minor }
+}
+
+fn windows(
+    architecture: &str,
+    windows_major: u32,
+    windows_minor: u32,
+    windows_build: u32,
+) -> WindowsPlatform<'_> {
+    WindowsPlatform { architecture, node_major: 22, windows_major, windows_minor, windows_build }
 }
 
 fn payload(file_integrity: String) -> ArtifactPayload {
@@ -305,7 +315,7 @@ fn macos_compatibility_uses_product_version_floors() {
             },
             &supported,
         ),
-        Some(1),
+        Some(65),
     );
     assert_eq!(
         compatibility_rank(
@@ -314,12 +324,74 @@ fn macos_compatibility_uses_product_version_floors() {
             },
             &supported,
         ),
-        Some(999_999),
+        Some(1_000_063),
     );
     assert_eq!(
         compatibility_rank(
             &CompatibilityConstraints::Tagged {
                 tags: vec![macos_tag(macos("arm64", 16, 0)).unwrap()],
+            },
+            &supported,
+        ),
+        None,
+    );
+    assert_eq!(
+        compatibility_rank(&CompatibilityConstraints::Universal, &supported),
+        Some(u64::MAX),
+    );
+
+    let multiple_supported =
+        vec![macos_tag(macos("arm64", 15, 5)).unwrap(), macos_tag(macos("arm64", 14, 6)).unwrap()];
+    assert_eq!(
+        compatibility_rank(
+            &CompatibilityConstraints::Tagged {
+                tags: vec![macos_tag(macos("arm64", 14, 6)).unwrap()],
+            },
+            &multiple_supported,
+        ),
+        Some(1),
+    );
+    assert_eq!(
+        compatibility_rank(
+            &CompatibilityConstraints::Tagged {
+                tags: vec![macos_tag(macos("arm64", 15, 4)).unwrap()],
+            },
+            &multiple_supported,
+        ),
+        Some(65),
+    );
+}
+
+#[test]
+fn windows_compatibility_uses_kernel_version_floors() {
+    let supported = windows_supported_tags(windows("x64", 10, 0, 26_100)).unwrap();
+    assert_eq!(supported, ["pnpm:v1:win32-x64-node22-windows10.0.26100"]);
+    assert_eq!(
+        platform_fingerprint(&supported).unwrap(),
+        "f5590f12a6d651acdcb3b60d7d25a5d2e1ad2f5af3e53d841391dec9e871c46e",
+    );
+    assert_eq!(
+        compatibility_rank(
+            &CompatibilityConstraints::Tagged {
+                tags: vec![windows_tag(windows("x64", 10, 0, 22_621)).unwrap()],
+            },
+            &supported,
+        ),
+        Some(3_543),
+    );
+    assert_eq!(
+        compatibility_rank(
+            &CompatibilityConstraints::Tagged {
+                tags: vec![windows_tag(windows("x64", 6, 3, 9_600)).unwrap()],
+            },
+            &supported,
+        ),
+        Some(3_997_016_564),
+    );
+    assert_eq!(
+        compatibility_rank(
+            &CompatibilityConstraints::Tagged {
+                tags: vec![windows_tag(windows("x64", 10, 0, 26_101)).unwrap()],
             },
             &supported,
         ),
@@ -353,6 +425,8 @@ fn compatibility_tags_and_platform_fingerprints_are_canonical() {
         "pnpm:v1:darwin-x64-node22-glibc2.17",
         "pnpm:v1:darwin-x64-node22-macos15",
         "pnpm:v1:darwin-x64-node22-macos015.5",
+        "pnpm:v1:win32-x64-node22-windows10.0",
+        "pnpm:v1:win32-x64-node22-windows10.0.026100",
         "pnpm:v1:linux-x64-node022-glibc2.17",
         "pnpm:v1:linux-x64-node22-glibc02.17",
         "pnpm:v1:linux-x64-node22-glibc2",

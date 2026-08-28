@@ -52,6 +52,14 @@ export interface MacOSPlatform {
   macOSMinor: number
 }
 
+export interface WindowsPlatform {
+  architecture: string
+  nodeMajor: number
+  windowsMajor: number
+  windowsMinor: number
+  windowsBuild: number
+}
+
 export interface BuilderProfile {
   imageDigest?: string
   architectureBaseline: string
@@ -300,7 +308,7 @@ export async function resolveSharedSideEffects (
         payload.sourceIntegrity !== candidate.sourceIntegrity ||
         !ownersEqual(payload.owner, candidate.owner)
       ) continue
-      const rank = compatibilityRank(payload.compatibility, opts.supportedTags)
+      const rank = rankCompatibility(payload.compatibility, opts.supportedTags)
       if (rank == null) continue
       const pinnedDigest = opts.pinnedEnvelopeDigests?.get(candidate.key)
       if (pinnedDigest != null && digest !== pinnedDigest) continue
@@ -689,6 +697,10 @@ export function compatibilityRank (constraints: CompatibilityConstraints, suppor
   } catch {
     return undefined
   }
+  return rankCompatibility(constraints, supportedTags)
+}
+
+function rankCompatibility (constraints: CompatibilityConstraints, supportedTags: string[]): number | undefined {
   if (constraints.kind === 'universal') return Number.MAX_SAFE_INTEGER
   let bestRank: number | undefined
   for (let index = 0; index < supportedTags.length; index++) {
@@ -698,24 +710,25 @@ export function compatibilityRank (constraints: CompatibilityConstraints, suppor
         bestRank = Math.min(bestRank ?? index, index)
         continue
       }
-      let consumer: MacOSPlatform | undefined
-      let artifact: MacOSPlatform | undefined
+      let consumer: VersionedPlatform | undefined
+      let artifact: VersionedPlatform | undefined
       try {
-        consumer = parseMacOSCompatibilityTag(supportedTag)
-        artifact = parseMacOSCompatibilityTag(artifactTag)
+        consumer = parseVersionedCompatibilityTag(supportedTag)
+        artifact = parseVersionedCompatibilityTag(artifactTag)
       } catch {
         return undefined
       }
       if (
         consumer == null ||
         artifact == null ||
-        consumer.architecture !== artifact.architecture ||
-        consumer.nodeMajor !== artifact.nodeMajor
+        consumer.kind !== artifact.kind ||
+        consumer.platform.architecture !== artifact.platform.architecture ||
+        consumer.platform.nodeMajor !== artifact.platform.nodeMajor
       ) continue
-      const consumerVersion = macOSVersionRank(consumer)
-      const artifactVersion = macOSVersionRank(artifact)
+      const consumerVersion = versionedPlatformRank(consumer)
+      const artifactVersion = versionedPlatformRank(artifact)
       if (consumerVersion < artifactVersion) continue
-      const rank = consumerVersion - artifactVersion
+      const rank = 64 + index * 1_000_000_000_000 + consumerVersion - artifactVersion
       bestRank = Math.min(bestRank ?? rank, rank)
     }
   }
@@ -749,6 +762,10 @@ export function linuxGlibcSupportedTags (
   )
 }
 
+export function macOSSupportedTags (platform: MacOSPlatform): string[] {
+  return [macOSCompatibilityTag(platform)]
+}
+
 export function macOSCompatibilityTag (
   platform: MacOSPlatform
 ): string {
@@ -758,8 +775,17 @@ export function macOSCompatibilityTag (
   return tag
 }
 
-export function macOSSupportedTags (platform: MacOSPlatform): string[] {
-  return [macOSCompatibilityTag(platform)]
+export function windowsSupportedTags (platform: WindowsPlatform): string[] {
+  return [windowsCompatibilityTag(platform)]
+}
+
+export function windowsCompatibilityTag (
+  platform: WindowsPlatform
+): string {
+  const { architecture, nodeMajor, windowsMajor, windowsMinor, windowsBuild } = platform
+  const tag = `${COMPATIBILITY_TAG_SCHEMA}:win32-${architecture}-node${nodeMajor}-windows${windowsMajor}.${windowsMinor}.${windowsBuild}`
+  validateCompatibilityTag(tag)
+  return tag
 }
 
 export function platformFingerprint (supportedTags: string[]): string {
@@ -808,26 +834,55 @@ function validateCompatibilityTag (tag: string): void {
     if (major >= 1_000_000 || minor >= 1_000_000) {
       throw new Error('Shared artifact macOS version component is too large')
     }
+  } else if (os === 'win32') {
+    const windows = runtime.startsWith('windows') ? runtime.slice(7) : ''
+    const version = windows.split('.')
+    if (version.length !== 3) throw new Error('Shared artifact Windows floor must be major.minor.build')
+    const major = parseCanonicalNumber(version[0], 'Windows major version', false)
+    const minor = parseCanonicalNumber(version[1], 'Windows minor version', true)
+    const build = parseCanonicalNumber(version[2], 'Windows build number', false)
+    if (major >= 1_000 || minor >= 1_000 || build >= 1_000_000) {
+      throw new Error('Shared artifact Windows version component is too large')
+    }
   } else {
-    throw new Error('Shared artifact compatibility tag only supports Linux and macOS in v1')
+    throw new Error('Shared artifact compatibility tag only supports Linux, macOS, and Windows in v1')
   }
 }
 
-function parseMacOSCompatibilityTag (tag: string): MacOSPlatform | undefined {
+type VersionedPlatform =
+  | { kind: 'macOS', platform: MacOSPlatform }
+  | { kind: 'windows', platform: WindowsPlatform }
+
+function parseVersionedCompatibilityTag (tag: string): VersionedPlatform | undefined {
   validateCompatibilityTag(tag)
   const [os, architecture, node, runtime] = tag.slice(COMPATIBILITY_TAG_SCHEMA.length + 1).split('-')
-  if (os !== 'darwin') return undefined
-  const [macOSMajor, macOSMinor] = runtime.slice(5).split('.').map(Number)
-  return {
-    architecture,
-    nodeMajor: Number(node.slice(4)),
-    macOSMajor,
-    macOSMinor,
+  const nodeMajor = Number(node.slice(4))
+  if (os === 'darwin') {
+    const [macOSMajor, macOSMinor] = runtime.slice(5).split('.').map(Number)
+    return {
+      kind: 'macOS',
+      platform: { architecture, nodeMajor, macOSMajor, macOSMinor },
+    }
   }
+  if (os === 'win32') {
+    const [windowsMajor, windowsMinor, windowsBuild] = runtime.slice(7).split('.').map(Number)
+    return {
+      kind: 'windows',
+      platform: { architecture, nodeMajor, windowsMajor, windowsMinor, windowsBuild },
+    }
+  }
+  return undefined
 }
 
-function macOSVersionRank (platform: MacOSPlatform): number {
-  return platform.macOSMajor * 1_000_000 + platform.macOSMinor
+function versionedPlatformRank (versionedPlatform: VersionedPlatform): number {
+  if (versionedPlatform.kind === 'macOS') {
+    return versionedPlatform.platform.macOSMajor * 1_000_000 + versionedPlatform.platform.macOSMinor
+  }
+  return (
+    versionedPlatform.platform.windowsMajor * 1_000_000_000 +
+    versionedPlatform.platform.windowsMinor * 1_000_000 +
+    versionedPlatform.platform.windowsBuild
+  )
 }
 
 function parseCanonicalNumber (value: string, label: string, allowZero: boolean): number {

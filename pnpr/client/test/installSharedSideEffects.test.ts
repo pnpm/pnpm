@@ -18,6 +18,7 @@ import {
   publishBuiltSharedSideEffects,
   type SignedArtifactEnvelope,
   verifySignedArtifactEnvelope,
+  windowsCompatibilityTag,
 } from '@pnpm/pnpr.client'
 import type { PackageFilesResponse, SideEffectsDiff, StoreController } from '@pnpm/store.controller-types'
 import type { DepPath } from '@pnpm/types'
@@ -920,11 +921,17 @@ function currentArtifactCompatibilityTag (): string | undefined {
     if (![glibcMajor, glibcMinor].every(Number.isSafeInteger)) return undefined
     return linuxGlibcCompatibilityTag({ architecture: process.arch, nodeMajor, glibcMajor, glibcMinor })
   }
-  if (process.platform !== 'darwin') return undefined
-  const [macOSMajor, macOSMinor] = execFileSync('/usr/bin/sw_vers', ['-productVersion'], {
-    encoding: 'utf8',
-  }).trim().split('.').map(Number)
-  return macOSCompatibilityTag({ architecture: process.arch, nodeMajor, macOSMajor, macOSMinor })
+  if (process.platform === 'darwin') {
+    const [macOSMajor, macOSMinor] = execFileSync('/usr/bin/sw_vers', ['-productVersion'], {
+      encoding: 'utf8',
+    }).trim().split('.').map(Number)
+    return macOSCompatibilityTag({ architecture: process.arch, nodeMajor, macOSMajor, macOSMinor })
+  }
+  if (process.platform === 'win32') {
+    const [windowsMajor, windowsMinor, windowsBuild] = os.release().split('.').map(Number)
+    return windowsCompatibilityTag({ architecture: process.arch, nodeMajor, windowsMajor, windowsMinor, windowsBuild })
+  }
+  return undefined
 }
 
 async function listen (server: ReturnType<typeof createServer>): Promise<string> {
