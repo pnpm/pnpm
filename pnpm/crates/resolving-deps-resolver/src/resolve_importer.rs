@@ -959,17 +959,14 @@ fn locked_peer_versions_for_key(
     key: &pnpm_lockfile::PkgNameVerPeer,
 ) -> Vec<(String, String)> {
     let explicit = peer_suffix_versions(key.suffix.peer()).collect::<Vec<_>>();
-    if !explicit.is_empty() || !is_hashed_peer_suffix(key.suffix.peer()) {
-        return explicit;
-    }
     let Some(snapshot) = lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(key))
     else {
-        return Vec::new();
+        return explicit;
     };
     let Some(metadata) =
         lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()))
     else {
-        return Vec::new();
+        return explicit;
     };
     let peer_names = metadata
         .peer_dependencies
@@ -996,12 +993,6 @@ fn peer_suffix_versions(peer_suffix: &str) -> impl Iterator<Item = (String, Stri
         let segment = peer_suffix[start + 1..].split(['(', ')']).next()?;
         let (name, version) = segment.rsplit_once('@')?;
         (!name.is_empty()).then(|| (name.to_string(), version.to_string()))
-    })
-}
-
-fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
-    peer_suffix.rsplit_once('(').and_then(|(_, tail)| tail.strip_suffix(')')).is_some_and(|hash| {
-        hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
     })
 }
 

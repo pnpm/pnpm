@@ -198,6 +198,72 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
     assert!(names_by_alias.is_empty());
 }
 
+#[test]
+fn explicit_peer_suffix_uses_the_dependency_alias() {
+    use pnpm_lockfile::{
+        ComVer, DirectoryResolution, Lockfile, LockfileResolution, LockfileVersion,
+        PackageMetadata, PkgName, PkgNameVerPeer, SnapshotDepRef, SnapshotEntry,
+    };
+
+    let package_key = PkgNameVerPeer::from_str("consumer@1.0.0").unwrap();
+    let snapshot_key = PkgNameVerPeer::from_str("consumer@1.0.0(alias-provider@1.0.0)").unwrap();
+    let lockfile = Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: std::collections::HashMap::new(),
+        packages: Some(std::collections::HashMap::from([(
+            package_key,
+            PackageMetadata {
+                resolution: LockfileResolution::Directory(DirectoryResolution {
+                    directory: "consumer".to_string(),
+                }),
+                version: None,
+                engines: None,
+                cpu: None,
+                os: None,
+                libc: None,
+                deprecated: None,
+                has_bin: None,
+                prepare: None,
+                bundled_dependencies: None,
+                peer_dependencies: Some(std::collections::HashMap::from([(
+                    "peer".to_string(),
+                    "*".to_string(),
+                )])),
+                peer_dependencies_meta: None,
+            },
+        )])),
+        snapshots: Some(std::collections::HashMap::from([(
+            snapshot_key,
+            SnapshotEntry {
+                dependencies: Some(std::collections::HashMap::from([(
+                    PkgName::parse("peer").unwrap(),
+                    SnapshotDepRef::Alias(
+                        PkgNameVerPeer::from_str("alias-provider@1.0.0").unwrap(),
+                    ),
+                )])),
+                ..SnapshotEntry::default()
+            },
+        )])),
+        time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
+    };
+
+    let ImporterLockedPeerContext { versions, names_by_alias } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
+    );
+    assert!(names_by_alias.is_empty());
+}
+
 fn locked_peer_names(wanted_lockfile: Option<&pnpm_lockfile::Lockfile>) -> HashSet<String> {
     let Some(lockfile) = wanted_lockfile else {
         return HashSet::default();
