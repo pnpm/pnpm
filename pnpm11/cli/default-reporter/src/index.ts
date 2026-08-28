@@ -110,7 +110,9 @@ export function initDefaultReporter (
     if (!view.endsWith(EOL)) view += EOL
     const lines = view.slice(0, -EOL.length).split(EOL)
     const committed = commitOverflow(lines)
-    const frame = `${lines.slice(committedLines).join(EOL)}${EOL}`
+    // The lines from `committedLines` on are already laid out contiguously in
+    // the view, so the visible frame is a slice of it rather than a second copy.
+    const frame = view.slice(viewOffsetOfLine(lines, committedLines))
     // `\r` resets the column to 0 in case an external process (e.g. an SSH
     // passphrase prompt) left the cursor mid-line. `ansi-diff` then writes
     // only the differential — the characters that actually changed between
@@ -142,7 +144,7 @@ export function initDefaultReporter (
       return ''
     }
     const rows = stream.rows
-    if (!rows || lines.length === committedLines + 1) return ''
+    if (!rows) return ''
     const width = stream.columns ?? outputMaxWidth
     // One row is left over for the cursor line that the trailing EOL puts
     // below the frame.
@@ -157,7 +159,16 @@ export function initDefaultReporter (
       frameRows += lineRows
       firstVisible = i
     }
-    if (firstVisible === committedLines) return ''
+    if (firstVisible === committedLines) {
+      if (frameRows > maxRows) {
+        // The one line that has to stay in the frame does not fit on its own,
+        // so its start is off screen and no cursor move can reach it. Start a
+        // fresh frame below instead of walking off the top: the line is
+        // reprinted rather than revised.
+        diff = newDiffer()
+      }
+      return ''
+    }
     // Shrinking the frame to just the overflow leaves those lines untouched
     // where they already are, erases the rest of the frame below them, and
     // parks the cursor on the next line — where the fresh differ starts.
@@ -170,6 +181,15 @@ export function initDefaultReporter (
     subscription.unsubscribe()
     opts.streamParser.removeListener('data', onLog)
   }
+}
+
+/** Where the `index`-th of `lines` starts in the view they were split from. */
+function viewOffsetOfLine (lines: string[], index: number): number {
+  let offset = 0
+  for (let i = 0; i < index; i++) {
+    offset += lines[i].length + EOL.length
+  }
+  return offset
 }
 
 /** How many terminal rows `line` occupies once wrapped at `width`. */

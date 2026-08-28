@@ -378,8 +378,8 @@ impl Sink {
                 self.frame_buf.clear();
                 self.frame_buf.push('\r');
                 self.commit_overflow(&lines);
-                let visible = format!("{}\n", lines[self.committed_lines..].join("\n"));
-                self.diff.update_into(&visible, &mut self.frame_buf);
+                let visible = &frame[frame_offset_of_line(&frame, &lines, self.committed_lines)..];
+                self.diff.update_into(visible, &mut self.frame_buf);
                 self.frame_buf.push_str("\x1b[K\x1b[0J");
                 let _ = out.write_all(self.frame_buf.as_bytes());
             }
@@ -417,9 +417,6 @@ impl Sink {
             return;
         }
         let Some(rows) = self.rows else { return };
-        if lines.len() == self.committed_lines + 1 {
-            return;
-        }
         // One row is left over for the cursor line that the trailing newline
         // puts below the frame.
         let max_rows = rows.saturating_sub(1).max(1);
@@ -436,6 +433,13 @@ impl Sink {
             first_visible = idx;
         }
         if first_visible == self.committed_lines {
+            if frame_rows > max_rows {
+                // The one line that has to stay in the frame does not fit on
+                // its own, so its start is off screen and no cursor move can
+                // reach it. Start a fresh frame below instead of walking off
+                // the top: the line is reprinted rather than revised.
+                self.diff = diff::Diff::new(self.columns);
+            }
             return;
         }
         // Shrinking the frame to just the overflow leaves those lines untouched
@@ -467,6 +471,14 @@ fn terminal_size() -> Option<(usize, Option<usize>)> {
 #[cfg(not(unix))]
 fn terminal_size() -> Option<(usize, Option<usize>)> {
     None
+}
+
+/// Where the `index`-th of `lines` starts in the `frame` they were split from.
+/// The lines from there on are already laid out contiguously in `frame`, so the
+/// visible part of a frame is a borrow rather than a second copy of it.
+fn frame_offset_of_line(frame: &str, lines: &[&str], index: usize) -> usize {
+    let trailing: usize = lines[index..].iter().map(|line| line.len() + '\n'.len_utf8()).sum();
+    frame.len() - trailing
 }
 
 /// How many terminal rows `line` occupies once wrapped at `width`.

@@ -14,8 +14,10 @@ import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
  */
 const PNPM_CLI_PACKAGE_NAMES: ReadonlySet<string> = new Set(['pnpm', '@pnpm/exe'])
 
-export function isPnpmCliPackageName (name: string): boolean {
-  return PNPM_CLI_PACKAGE_NAMES.has(name)
+/** Whether `pkg` is a global group holding nothing but the pnpm CLI. */
+export function isPnpmCliOnlyGroup (pkg: Pick<GlobalPackageInfo, 'dependencies'>): boolean {
+  const deps = Object.entries(pkg.dependencies)
+  return deps.length > 0 && deps.every(([alias, spec]) => isPnpmCliDependency(alias, spec))
 }
 
 /**
@@ -24,13 +26,7 @@ export function isPnpmCliPackageName (name: string): boolean {
  * another name — the install still carries pnpm's own `pnpm` bin.
  */
 export function isPnpmCliDependency (alias: string, spec?: string): boolean {
-  return isPnpmCliPackageName(npmAliasTarget(spec) ?? alias)
-}
-
-/** Whether `pkg` is a global group holding nothing but the pnpm CLI. */
-export function isPnpmCliOnlyGroup (pkg: Pick<GlobalPackageInfo, 'dependencies'>): boolean {
-  const deps = Object.entries(pkg.dependencies)
-  return deps.length > 0 && deps.every(([alias, spec]) => isPnpmCliDependency(alias, spec))
+  return PNPM_CLI_PACKAGE_NAMES.has(npmAliasTarget(spec) ?? alias)
 }
 
 /** The package an `npm:` alias points at, or `undefined` for any other spec. */

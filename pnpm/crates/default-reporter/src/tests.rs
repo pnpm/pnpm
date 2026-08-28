@@ -165,3 +165,35 @@ fn a_frame_shorter_than_the_committed_prefix_is_rendered_whole() {
     let output = String::from_utf8(writes).expect("utf8 output");
     assert!(output.contains("Error: boom"), "the error frame must be rendered, got: {output:?}");
 }
+
+/// A single logical line can wrap to more rows than the terminal has, and then
+/// even the one line the frame must keep has its start off screen. Redrawing it
+/// would move the cursor above the top of the screen, so it is reprinted below
+/// instead of revised in place.
+#[test]
+fn a_line_taller_than_the_terminal_is_reprinted_rather_than_revised() {
+    const ROWS: usize = 4;
+    const COLUMNS: usize = 20;
+
+    let mut sink = Sink::new();
+    sink.terminal_size = || Some((COLUMNS, Some(ROWS)));
+    sink.diff = crate::diff::Diff::new(COLUMNS);
+    let mut writes = Vec::new();
+
+    for resolved in 1..=4 {
+        let line = format!(
+            "global/install-0: Progress: resolved {resolved}, reused 0, downloaded 0, added 0",
+        );
+        // `commit_overflow` keeps one row spare for the cursor line.
+        assert!(line.len() > COLUMNS * (ROWS - 1), "the line has to outgrow the terminal");
+        sink.write_to(Output::Frame(line), false, &mut writes);
+    }
+
+    let output = String::from_utf8(writes).expect("utf8 output");
+    assert!(output.contains("resolved 4"), "the latest frame must be rendered: {output:?}");
+    assert!(
+        cursor_ups(&output).is_empty(),
+        "an unreachable line must not be redrawn, got: {:?}",
+        cursor_ups(&output),
+    );
+}
