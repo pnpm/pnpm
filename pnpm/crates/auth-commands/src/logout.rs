@@ -144,7 +144,7 @@ where
     let registry = normalize_registry_url(opts.registry.unwrap_or(DEFAULT_REGISTRY));
     // Canonicalized the way the reader and `pnpm login` canonicalize, so that
     // logging out names the same registry logging in did however the URL was
-    // spelled on the command line. An unparseable one keeps its own spelling:
+    // spelled on the command line. An unparsable one keeps its own spelling:
     // it matches no stored credential either way, and `NotLoggedIn` names it
     // as the user typed it.
     let registry = validate_json_auth_registry(&registry).unwrap_or_else(|_| registry.into_owned());
