@@ -154,33 +154,40 @@ fn dlx_resolves_a_package_spec_against_a_named_caller_catalog() {
 }
 
 /// A spec naming a catalog that holds no entry for it is a user error, and
-/// must stay one once the caller's catalogs are consulted.
+/// must stay one once the caller's catalogs are consulted. The failure
+/// comes before the install, so neither case needs the mocked registry.
 #[test]
-#[cfg_attr(not(unix), ignore = "dlx bin execution is only exercised on Unix")]
 fn dlx_fails_when_a_package_spec_is_missing_from_the_catalog() {
-    let CommandTempCwd { pacquet, root, workspace, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    for (catalogs_yaml, spec, catalog_name) in [
+        ("catalog:\n  is-positive: 3.1.0\n", "@foo/touch-file-one-bin@catalog:", "default"),
+        (
+            "catalogs:\n  tools:\n    is-positive: 3.1.0\n",
+            "@foo/touch-file-one-bin@catalog:tools",
+            "tools",
+        ),
+    ] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
 
-    append_workspace_yaml_key(&workspace, "catalog", "{ is-positive: 3.1.0 }");
+        std::fs::write(workspace.join("pnpm-workspace.yaml"), catalogs_yaml)
+            .expect("write the caller's catalogs");
 
-    let output = pacquet
-        .with_args(["dlx", "@foo/touch-file-one-bin@catalog:"])
-        .output()
-        .expect("run pacquet dlx");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    eprintln!("STDERR:\n{stderr}\n");
-    assert!(!output.status.success(), "dlx with a missing catalog entry must fail");
-    assert!(
-        stderr.contains("ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC"),
-        "the failure must carry the missing-entry error code: {stderr}",
-    );
-    assert!(
-        flatten_report(&stderr)
-            .contains("Nocatalogentry'@foo/touch-file-one-bin'wasfoundforcatalog'default'."),
-        "the failure must name the missing entry and its catalog: {stderr}",
-    );
+        let output = pacquet.with_args(["dlx", spec]).output().expect("run pacquet dlx");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("STDERR:\n{stderr}\n");
+        assert!(!output.status.success(), "dlx with a missing catalog entry must fail");
+        assert!(
+            stderr.contains("ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC"),
+            "the failure must carry the missing-entry error code: {stderr}",
+        );
+        assert!(
+            flatten_report(&stderr).contains(&format!(
+                "Nocatalogentry'@foo/touch-file-one-bin'wasfoundforcatalog'{catalog_name}'."
+            )),
+            "the failure must name the missing entry and its catalog: {stderr}",
+        );
 
-    drop(root);
+        drop(root);
+    }
 }
 
 /// pnpm's dlx installs the package unpatched, and the caller's patch paths

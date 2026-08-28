@@ -1,6 +1,9 @@
 use crate::{
     State,
-    cli_args::{add::add_package, supported_architectures::SupportedArchitecturesArgs},
+    cli_args::{
+        add::add_package, catalogs::configured_catalogs,
+        supported_architectures::SupportedArchitecturesArgs,
+    },
     engine_pm::{channel::PackageManager, provision::provision},
     path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
     shim_dispatch::materialize_runtime,
@@ -13,7 +16,6 @@ use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{
     CatalogResolutionResult, WantedDependency as CatalogWantedDependency, resolve_from_catalog,
 };
-use pnpm_catalogs_types::Catalogs;
 use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::parse_overrides_iter;
@@ -245,7 +247,7 @@ impl DlxArgs {
         // version also feeds the cache key: two callers whose catalogs pin
         // different versions of the same package must not share a cache
         // entry.
-        let pkgs = resolve_catalog_specs(&pkgs, config.workspace_dir.as_deref())?;
+        let pkgs = resolve_catalog_specs(&pkgs, config)?;
 
         // Read the config values needed before (and after) the install,
         // because the install path consumes `config` to anchor it at the
@@ -359,7 +361,11 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
         (config.overrides.as_ref(), config.workspace_dir.as_deref())
         && overrides.values().any(|spec| spec.starts_with("catalog:"))
     {
-        let catalogs = read_caller_catalogs(workspace_dir)?;
+        let workspace_manifest =
+            pnpm_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
+        let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+            .into_diagnostic()
+            .wrap_err("reading the caller's catalogs for the dlx install")?;
         let resolved = parse_overrides_iter(overrides.iter(), &catalogs)
             .map_err(miette::Report::new)?
             .into_iter()
@@ -604,35 +610,21 @@ async fn run_package_manager<Reporter: self::Reporter + 'static>(
     )
 }
 
-/// The catalogs of the workspace the dlx invocation was made from. The
-/// throwaway cache project has none of its own, so both the `overrides`
-/// and the package specs it inherits are dereferenced against these.
-fn read_caller_catalogs(workspace_dir: &Path) -> miette::Result<Catalogs> {
-    let workspace_manifest =
-        pnpm_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
-    get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
-        .into_diagnostic()
-        .wrap_err("reading the caller's catalogs for the dlx install")
-}
-
 /// Replace the `catalog:` specifier of each dlx package spec with the
-/// specifier the caller workspace's catalogs hold. Any other spec passes
-/// through untouched, and the catalogs are only read when at least one
-/// spec needs them. A misconfigured entry is reported as the pnpm error
-/// the caller would get from `pnpm add`.
-fn resolve_catalog_specs(
-    pkgs: &[String],
-    workspace_dir: Option<&Path>,
-) -> miette::Result<Vec<String>> {
+/// specifier the caller's catalogs hold. Any other spec passes through
+/// untouched, and the catalogs are only read when at least one spec needs
+/// them. A misconfigured entry is reported as the pnpm error the caller
+/// would get from `pnpm add`.
+fn resolve_catalog_specs(pkgs: &[String], config: &Config) -> miette::Result<Vec<String>> {
     let uses_catalog = |pkg: &String| {
         parse_wanted_dependency(pkg)
             .bare_specifier
             .is_some_and(|bare_specifier| parse_catalog_protocol(&bare_specifier).is_some())
     };
-    let Some(workspace_dir) = workspace_dir.filter(|_| pkgs.iter().any(uses_catalog)) else {
+    if !pkgs.iter().any(uses_catalog) {
         return Ok(pkgs.to_vec());
-    };
-    let catalogs = read_caller_catalogs(workspace_dir)?;
+    }
+    let catalogs = configured_catalogs(config)?;
     pkgs.iter()
         .map(|pkg| {
             let parsed = parse_wanted_dependency(pkg);
