@@ -154,7 +154,7 @@ export interface Config extends OptionsFromRootManifest {
    * {@link Config.remoteSideEffectsCache} before any consumer sees it.
    */
   sideEffectsCache?: boolean | SideEffectsCacheSettings
-  /** The older spelling of `sideEffectsCache: { read: true, write: false }`. */
+  /** The boolean spelling of `sideEffectsCache: { read: true, write: false }`. */
   sideEffectsCacheReadonly?: boolean
   sideEffectsCacheRead?: boolean
   sideEffectsCacheWrite?: boolean

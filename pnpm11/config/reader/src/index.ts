@@ -1310,16 +1310,14 @@ type ProjectManifestSkippedKey =
   | typeof LOGIN_TARGET_KEYS[number]
 
 /**
- * `sideEffectsCache` is the whole declaration: whether a build is restored,
- * whether one is saved, and the remote tier that shares it between machines.
+ * Resolves the four accepted spellings into the three fields consumers read.
  *
- * The spellings it replaced still work, because they were a released surface:
- * `sideEffectsCache: true` is the shorthand for reading and writing,
+ * `sideEffectsCache: true` sets reading and writing together,
  * `sideEffectsCacheReadonly` is `read` without `write`, and
- * `remoteSideEffectsCache` is `remote`. The canonical form wins wherever both
- * are set, and the object form defaults `read` and `write` to what the boolean
- * defaulted to, so declaring only `remote` does not quietly switch the local
- * cache off.
+ * `remoteSideEffectsCache` is `remote`; `sideEffectsCache` as an object wins
+ * over any of them on a field they both set. Its `read` and `write` default to
+ * enabled, so declaring only `remote` does not quietly switch the local cache
+ * off.
  */
 function resolveSideEffectsCache (pnpmConfig: Config): void {
   const declared = pnpmConfig.sideEffectsCache
@@ -1330,7 +1328,12 @@ function resolveSideEffectsCache (pnpmConfig: Config): void {
     : shorthand ?? pnpmConfig.sideEffectsCacheReadonly
   pnpmConfig.sideEffectsCacheWrite = settings != null
     ? settings.write ?? true
-    : shorthand
+    // `sideEffectsCacheReadonly` reads as blocking writes and is documented as
+    // doing so, and pacquet has always enforced that. Deriving writes from the
+    // boolean alone let it through here, since that boolean defaults to on.
+    : pnpmConfig.sideEffectsCacheReadonly === true ? false : shorthand
+  // Combined here rather than as each source is read, so that the canonical
+  // spelling wins on a field both set no matter which order they appeared in.
   if (settings?.remote != null) {
     pnpmConfig.remoteSideEffectsCache = {
       ...pnpmConfig.remoteSideEffectsCache,
@@ -1569,26 +1572,31 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
     if (CONFIG_CONTEXT_KEY_SET.has(key)) continue
     if (skipped?.has(key)) continue
 
-    if (key === 'remoteSideEffectsCache' || (key === 'sideEffectsCache' && typeof value === 'object' && value != null)) {
-      // A workspace declares eligibility while the machine holds the signing
-      // trust root, so the two sources contribute different fields of one
-      // object and the later one must not drop what the earlier one set. Both
-      // spellings feed that same object, so a repository naming the
-      // organization under one and a runner supplying the key under the other
-      // still compose.
-      const remote = key === 'remoteSideEffectsCache'
-        ? value as RemoteSideEffectsCacheSettings
-        : (value as SideEffectsCacheSettings).remote
-      if (remote != null) {
-        pnpmConfig.remoteSideEffectsCache = {
-          ...pnpmConfig.remoteSideEffectsCache,
-          ...remote,
-        }
+    // A workspace declares eligibility while the machine holds the signing
+    // trust root, so the two sources contribute different fields of one object
+    // and the later one must not drop what the earlier one set.
+    //
+    // The two spellings accumulate separately and are combined once, in
+    // `resolveSideEffectsCache`. Merging them here would make precedence a
+    // function of the order the keys happen to appear in, so a file listing
+    // the deprecated spelling second would have it win.
+    if (key === 'remoteSideEffectsCache') {
+      pnpmConfig.remoteSideEffectsCache = {
+        ...pnpmConfig.remoteSideEffectsCache,
+        ...value as RemoteSideEffectsCacheSettings,
       }
-      if (key === 'sideEffectsCache') {
-        const { read, write } = value as SideEffectsCacheSettings
-        pnpmConfig.sideEffectsCache = { read, write }
-      }
+      pnpmConfig.explicitlySetKeys.add(key)
+      continue
+    }
+    if (key === 'sideEffectsCache' && typeof value === 'object' && value != null) {
+      const declared = value as SideEffectsCacheSettings
+      const previous = typeof pnpmConfig.sideEffectsCache === 'object' && pnpmConfig.sideEffectsCache != null
+        ? pnpmConfig.sideEffectsCache
+        : undefined
+      const remote = previous?.remote != null || declared.remote != null
+        ? { ...previous?.remote, ...declared.remote }
+        : undefined
+      pnpmConfig.sideEffectsCache = { ...previous, ...declared, remote }
       pnpmConfig.explicitlySetKeys.add(key)
       continue
     }

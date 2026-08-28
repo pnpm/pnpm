@@ -8,7 +8,7 @@
 "pnpm": minor
 ---
 
-`sideEffectsCache` is now the whole declaration of how a package's build output is reused:
+`sideEffectsCache` now declares the whole of how a package's build output is reused — whether one is restored, whether one is saved, and the remote tier that shares it between machines:
 
 ```yaml
 sideEffectsCache:
@@ -19,8 +19,6 @@ sideEffectsCache:
     packages: ['native-addon']
 ```
 
-The remote tier's `organization` is now `org`, which is what pnpr calls the same namespace in its own configuration and what its endpoints are built from. `organization` still works.
+`sideEffectsCache: true`, `sideEffectsCacheReadonly`, `remoteSideEffectsCache`, and its `organization` field all keep working. Where a field is set under both spellings the one above wins; where it is set under only one, it is kept.
 
-The older spellings still work and mean what they always did: `sideEffectsCache: true` is the shorthand for reading and writing, `sideEffectsCacheReadonly` is reading without writing, and `remoteSideEffectsCache` is the `remote` tier. Where both are set the canonical form wins, and the two spellings of `remote` compose rather than replace — a repository may name the organization under one while the machine supplies the signing key under the other.
-
-The declaration can express one thing the booleans could not: writing without reading, which is what a job that warms a cache it never consumes wants.
+Two behaviours change. `sideEffectsCacheReadonly: true` now blocks writing to the cache, which is what it says and what the Rust CLI already did. And a task can be declared write-only, to populate a cache the run does not read.

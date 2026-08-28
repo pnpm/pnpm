@@ -1001,6 +1001,28 @@ remoteSideEffectsCache:
     assert_eq!(shared.packages, ["native-addon"]);
 }
 
+/// Layers apply in order, so a shorthand in a later one has to beat an object
+/// in an earlier one rather than being masked by what the object left behind.
+#[test]
+fn a_later_shorthand_overrides_an_earlier_object() {
+    let global: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  read: true
+  write: true
+",
+    )
+    .unwrap();
+    let workspace: WorkspaceSettings = serde_saphyr::from_str("sideEffectsCache: false").unwrap();
+
+    let mut config = Config::new();
+    global.apply_to(&mut config, Path::new("/global"));
+    workspace.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.side_effects_cache_read());
+    assert!(!config.side_effects_cache_write());
+}
+
 /// `organization` shipped in pacquet 12.0.0, so a file written for it keeps
 /// working; `org` is what pnpr calls the same namespace.
 #[test]
@@ -1102,22 +1124,31 @@ sideEffectsCache:
     assert_eq!(shared.packages, ["from-the-old-key"]);
 }
 
-/// The trust boundary follows the fields rather than the spelling, and the
-/// message names the key the file actually wrote.
+/// The trust boundary follows the fields rather than the spelling, so the
+/// canonical form must refuse everything the older one does — and the message
+/// has to name the key the file actually wrote.
 #[test]
 fn rejects_workspace_controlled_trust_material_under_the_canonical_spelling() {
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::write(
-        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
-        "sideEffectsCache:\n  remote:\n    organization: acme\n    privateKey: repository-controlled-key\n",
-    )
-    .unwrap();
+    for (trust_material, field) in [
+        ("trustedKeys:\n      acme-2026: repository-controlled-key", "trustedKeys"),
+        ("privateKey: repository-controlled-key", "privateKey"),
+        ("publish: true", "publish"),
+        ("keyId: acme-2026", "keyId"),
+        ("builderId: ci/main/42", "builderId"),
+        ("imageDigest: sha256:abc", "imageDigest"),
+        ("architectureBaseline: x64", "architectureBaseline"),
+        ("buildEnv:\n      CC: clang", "buildEnv"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+            format!("sideEffectsCache:\n  remote:\n    org: acme\n    {trust_material}\n"),
+        )
+        .unwrap();
 
-    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
-    assert!(
-        error.to_string().contains("sideEffectsCache.remote.privateKey"),
-        "expected the canonical spelling in {error}",
-    );
+        let error = WorkspaceSettings::load_at(dir.path()).unwrap_err().to_string();
+        assert!(error.contains(&format!("sideEffectsCache.remote.{field}")), "{error}");
+    }
 }
 
 /// A repository that could set `publish` would turn a key the machine holds for

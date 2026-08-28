@@ -156,9 +156,8 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct RemoteSideEffectsCacheSettings {
-    /// `organization` is the older spelling and is still accepted; `org` is
-    /// what pnpr calls this namespace in its own configuration, and what its
-    /// endpoints are built from.
+    /// `org` is what pnpr calls this namespace in its own configuration and
+    /// what its endpoints are built from. `organization` is also accepted.
     #[serde(alias = "organization")]
     pub org: String,
     pub packages: Vec<String>,
@@ -184,8 +183,8 @@ pub struct RemoteSideEffectsCacheSettings {
     pub private_key: Option<String>,
 }
 
-/// `sideEffectsCache` as written: either the boolean shorthand that predates
-/// the remote tier, or the declaration carrying all three parts.
+/// `sideEffectsCache` as written: either a bare boolean, or the declaration
+/// carrying all three parts.
 #[derive(Debug, PartialEq, serde::Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SideEffectsCacheSetting {
@@ -459,11 +458,10 @@ pub struct WorkspaceSettings {
     ///
     /// [`Config::frozen_store`]: crate::Config::frozen_store
     pub frozen_store: Option<bool>,
-    /// `sideEffectsCache`: the whole declaration of whether a build is
-    /// restored, whether one is saved, and where from. A bare boolean is the
-    /// shorthand this setting was before it grew a `remote` tier.
+    /// `sideEffectsCache`: whether a build is restored, whether one is saved,
+    /// and where from. A bare boolean sets reading and writing together.
     pub side_effects_cache: Option<SideEffectsCacheSetting>,
-    /// The older spelling of `sideEffectsCache: { read: true, write: false }`.
+    /// The boolean spelling of `sideEffectsCache: { read: true, write: false }`.
     pub side_effects_cache_readonly: Option<bool>,
     pub fetch_retries: Option<u32>,
     pub fetch_retry_factor: Option<u32>,
@@ -2058,6 +2056,11 @@ impl WorkspaceSettings {
         match self.side_effects_cache {
             Some(SideEffectsCacheSetting::Enabled(enabled)) => {
                 config.side_effects_cache = enabled;
+                // A later layer saying `sideEffectsCache: false` has to beat an
+                // earlier layer's object, and the helpers prefer these when set,
+                // so the shorthand must clear what the object left behind.
+                config.side_effects_cache_read_setting = None;
+                config.side_effects_cache_write_setting = None;
             }
             Some(SideEffectsCacheSetting::Settings(settings)) => {
                 config.side_effects_cache_read_setting = Some(settings.read.unwrap_or(true));

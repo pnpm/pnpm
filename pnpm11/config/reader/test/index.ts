@@ -5786,3 +5786,43 @@ test('getConfig() accepts the older organization spelling', async () => {
 
   expect(config.remoteSideEffectsCache).toStrictEqual({ org: 'acme' })
 })
+
+test('getConfig() prefers the canonical remote tier whichever spelling comes first', async () => {
+  // Merging the two spellings as each is read would make precedence a function
+  // of the order the keys happen to appear in the file.
+  const canonical = { sideEffectsCache: { remote: { org: 'canonical' } } }
+  const deprecated = { remoteSideEffectsCache: { org: 'deprecated', packages: ['from-deprecated'] } }
+  const resolveFrom = async (manifest: object): Promise<unknown> => {
+    prepareEmpty()
+    writeYamlFileSync('pnpm-workspace.yaml', manifest)
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+    return config.remoteSideEffectsCache
+  }
+  // `org` is set under both, so the canonical spelling decides it; `packages`
+  // is set under only one, so it survives either way.
+  const expected = { org: 'canonical', packages: ['from-deprecated'] }
+
+  expect(await resolveFrom({ ...canonical, ...deprecated })).toStrictEqual(expected)
+  expect(await resolveFrom({ ...deprecated, ...canonical })).toStrictEqual(expected)
+})
+
+test('getConfig() lets sideEffectsCacheReadonly block writes on its own', async () => {
+  // `sideEffectsCache` defaults to true, so deriving writes from it alone left
+  // the readonly setting with no effect on writing at all — which pacquet has
+  // always enforced and this stack did not.
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', { sideEffectsCacheReadonly: true })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.sideEffectsCacheRead).toBe(true)
+  expect(config.sideEffectsCacheWrite).toBe(false)
+})

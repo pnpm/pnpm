@@ -310,15 +310,13 @@ export interface PnpmSettings {
   noProxy?: string | boolean
   pnprServer?: string
   /**
-   * Whether a package's build output is reused, and where from.
-   *
-   * A boolean is the shorthand that sets `read` and `write` together, which is
-   * what this setting meant before it grew a `remote` tier.
+   * Whether a package's build output is reused, and where from. A boolean
+   * sets `read` and `write` together.
    */
   sideEffectsCache?: boolean | SideEffectsCacheSettings
   /**
-   * The older spelling of {@link SideEffectsCacheSettings.remote}. When both
-   * are set, the canonical one wins.
+   * The alternative spelling of {@link SideEffectsCacheSettings.remote}. When
+   * both are set, that one wins.
    */
   remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
   versioning?: VersioningSettings
@@ -366,8 +364,8 @@ export interface RemoteSideEffectsCacheSettings {
    */
   org?: string
   /**
-   * The older spelling of {@link RemoteSideEffectsCacheSettings.org}. When
-   * both are set, the canonical one wins.
+   * The alternative spelling of {@link RemoteSideEffectsCacheSettings.org}.
+   * When both are set, that one wins.
    */
   organization?: string
   packages?: string[]
