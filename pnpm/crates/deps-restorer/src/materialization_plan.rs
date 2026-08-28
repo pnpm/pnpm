@@ -50,8 +50,10 @@ pub enum HostDetection {
     Pending {
         task: tokio::task::JoinHandle<Option<InstallabilityHost>>,
         /// Carried so a joined-task failure can synthesize the same
-        /// fallback host [`detect_installability_host`] would have.
+        /// fallback host [`detect_installability_host`] would have,
+        /// CLI-merged `supportedArchitectures` accept lists included.
         engine_strict: bool,
+        supported_architectures: Option<SupportedArchitectures>,
     },
 }
 
@@ -63,14 +65,18 @@ impl HostDetection {
     pub async fn resolve(self) -> Option<InstallabilityHost> {
         match self {
             HostDetection::Resolved(host) => host,
-            HostDetection::Pending { task, engine_strict } => task.await.unwrap_or_else(|error| {
-                tracing::warn!(
-                    target: "pacquet::install",
-                    ?error,
-                    "host detection task failed; falling back to the synthetic host",
-                );
-                Some(synthetic_installability_host(engine_strict))
-            }),
+            HostDetection::Pending { task, engine_strict, supported_architectures } => {
+                task.await.unwrap_or_else(|error| {
+                    tracing::warn!(
+                        target: "pacquet::install",
+                        ?error,
+                        "host detection task failed; falling back to the synthetic host",
+                    );
+                    let mut host = synthetic_installability_host(engine_strict);
+                    host.supported_architectures = supported_architectures;
+                    Some(host)
+                })
+            }
         }
     }
 }

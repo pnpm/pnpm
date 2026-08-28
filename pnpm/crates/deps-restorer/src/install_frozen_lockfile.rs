@@ -466,10 +466,11 @@ where
         // the probe runs under the store-side warm-cache prefetch
         // instead of serializing before it.
         let host_detection = if needs_installability_check && !config.enable_global_virtual_store {
+            let supported_architectures = supported_architectures.cloned();
             crate::materialization_plan::HostDetection::Pending {
                 task: tokio::spawn({
                     let engine_strict = config.engine_strict;
-                    let supported_architectures = supported_architectures.cloned();
+                    let supported_architectures = supported_architectures.clone();
                     async move {
                         crate::materialization_plan::detect_installability_host(
                             true,
@@ -481,6 +482,7 @@ where
                     }
                 }),
                 engine_strict: config.engine_strict,
+                supported_architectures,
             }
         } else {
             crate::materialization_plan::HostDetection::Resolved(
