@@ -188,6 +188,16 @@ impl Drop for LockfileVerificationGate {
     }
 }
 
+/// The Node version installability checks assume without probing: an
+/// explicit `nodeVersion` config value first, then a
+/// `devEngines.runtime` / `engines.runtime` pin from the root
+/// manifest. The early host detection and the install paths must
+/// derive it identically or the pre-spawned host would disagree with
+/// the one the install would have detected.
+fn effective_node_version(config: &Config, manifest: &PackageManifest) -> Option<String> {
+    config.node_version.clone().or_else(|| node_version_from_engines_runtime(manifest.value()))
+}
+
 fn map_frozen_lockfile_error(error: InstallFrozenLockfileError) -> InstallError {
     match error {
         InstallFrozenLockfileError::LockfileVerification(verify_error) => {

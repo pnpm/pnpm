@@ -166,6 +166,15 @@ where
     /// minimum version declared by the root manifest's runtime engine.
     pub node_version: Option<String>,
 
+    /// A host detection the install entry point spawned before parsing
+    /// the wanted lockfile (see
+    /// [`crate::materialization_plan::HostDetection::spawn`]), so its
+    /// `node --version` overlaps the parse and planning. Must have been
+    /// spawned with this install's `node_version` /
+    /// `supported_architectures` / `engine_strict`. `None` runs the
+    /// detection here.
+    pub early_host_detection: Option<crate::materialization_plan::HostDetection>,
+
     /// `nodeLinker` value to honor for *this* invocation. Threaded
     /// from the package manager's `Install` caller (which has already
     /// applied any `--node-linker` CLI override on top of
@@ -369,6 +378,7 @@ where
             supported_architectures,
             skip_runtimes,
             node_version,
+            early_host_detection,
             node_linker,
             tarball_mem_cache,
             seed_skipped,
@@ -461,39 +471,38 @@ where
         // The host detection is what costs a `node --version` probe
         // (~150 ms of node startup). The global-virtual-store layout
         // needs the engine name — and so the host — synchronously
-        // below, but otherwise the detection is spawned and only
+        // below, but otherwise the detection stays pending and is only
         // resolved once the skip-set computation needs the host, so
         // the probe runs under the store-side warm-cache prefetch
-        // instead of serializing before it.
+        // instead of serializing before it. A detection the install
+        // entry point already spawned (before the lockfile parse) is
+        // adopted so its head start counts; an early detection a
+        // constraint-free lockfile turns out not to need is dropped —
+        // the probe finishes in the background and its result goes
+        // unused.
         let host_detection = if needs_installability_check && !config.enable_global_virtual_store {
-            let supported_architectures = supported_architectures.cloned();
-            crate::materialization_plan::HostDetection::Pending {
-                task: tokio::spawn({
-                    let engine_strict = config.engine_strict;
-                    let supported_architectures = supported_architectures.clone();
-                    async move {
-                        crate::materialization_plan::detect_installability_host(
-                            true,
-                            engine_strict,
-                            node_version,
-                            supported_architectures.as_ref(),
-                        )
-                        .await
-                    }
-                }),
-                engine_strict: config.engine_strict,
-                supported_architectures,
-            }
-        } else {
-            crate::materialization_plan::HostDetection::Resolved(
-                crate::materialization_plan::detect_installability_host(
-                    needs_installability_check,
+            early_host_detection.unwrap_or_else(|| {
+                crate::materialization_plan::HostDetection::spawn(
                     config.engine_strict,
                     node_version,
-                    supported_architectures,
+                    supported_architectures.cloned(),
                 )
-                .await,
-            )
+            })
+        } else if needs_installability_check {
+            crate::materialization_plan::HostDetection::Resolved(match early_host_detection {
+                Some(detection) => detection.resolve().await,
+                None => {
+                    crate::materialization_plan::detect_installability_host(
+                        true,
+                        config.engine_strict,
+                        node_version,
+                        supported_architectures,
+                    )
+                    .await
+                }
+            })
+        } else {
+            crate::materialization_plan::HostDetection::Resolved(None)
         };
 
         // `engine_name` feeds two sites:
@@ -808,6 +817,7 @@ where
         let sidecar_lockfile =
             crate::filter_lockfile_for_current(lockfile, sidecar_included, &skipped);
 
+        let phase_start = std::time::Instant::now();
         let crate::linking::LinkPhaseOutput {
             hoisted_dependencies,
             hoisted_locations,
@@ -848,6 +858,12 @@ where
             &mut skipped,
         )
         .map_err(InstallFrozenLockfileError::LinkPhase)?;
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "link_phase",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
 
         // `importing_done` fires once extraction and symlink linking
         // are complete, before any build phase. Reporters use it to
@@ -897,6 +913,7 @@ where
         // lossy `requester` string so non-UTF-8 filenames survive.
         // `allow_build_policy` was constructed up-front (before
         // `CreateVirtualStore`) so the git fetcher could consult it.
+        let phase_start = std::time::Instant::now();
         let crate::BuildModulesOutput { ignored_builds, deferred_builds } =
             run_build_phase::<Reporter>(&BuildPhaseInputs {
                 config,
@@ -926,6 +943,12 @@ where
                 link_options: &link_options,
             })
             .map_err(InstallFrozenLockfileError::BuildPhase)?;
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "build_phase",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
 
         // Drop the orchestrator's clone of the writer so the channel
         // closes once every per-snapshot clone has also been dropped

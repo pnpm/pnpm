@@ -117,9 +117,12 @@ pub async fn prefetch_cas_paths(
         return PrefetchResult::default();
     }
     let result = tokio::task::spawn_blocking(move || -> PrefetchResult {
+        let read_start = std::time::Instant::now();
         let Some(raw) = read_raw_rows_under_lock(&index, &cache_keys) else {
             return PrefetchResult::default();
         };
+        let read_ms = read_start.elapsed().as_millis() as u64;
+        let decode_start = std::time::Instant::now();
         // Phase 2: decode each row's msgpackr-records bytes into a
         // `PackageFilesIndex`, then run the integrity check. Both
         // steps are per-row CPU work with no shared state, so we
@@ -187,6 +190,13 @@ pub async fn prefetch_cas_paths(
                 ))
             })
             .collect();
+        tracing::debug!(
+            target: "pacquet::download",
+            rows = decoded.len(),
+            read_ms,
+            decode_verify_ms = decode_start.elapsed().as_millis() as u64,
+            "prefetch timings",
+        );
 
         let mut cas_paths = HashMap::with_capacity(decoded.len());
         let mut manifests = HashMap::new();

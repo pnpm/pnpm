@@ -58,6 +58,36 @@ pub enum HostDetection {
 }
 
 impl HostDetection {
+    /// Spawn the detection so it runs under whatever the caller does
+    /// next. The earlier this is called, the more of the probe's `node`
+    /// startup hides — the install entry point spawns one before even
+    /// parsing the wanted lockfile, gated by
+    /// [`lockfile_text_may_have_installability_constraints`] so a
+    /// constraint-free install never pays a speculative `node` spawn.
+    #[must_use]
+    pub fn spawn(
+        engine_strict: bool,
+        node_version: Option<String>,
+        supported_architectures: Option<SupportedArchitectures>,
+    ) -> Self {
+        HostDetection::Pending {
+            task: tokio::spawn({
+                let supported_architectures = supported_architectures.clone();
+                async move {
+                    detect_installability_host(
+                        true,
+                        engine_strict,
+                        node_version,
+                        supported_architectures.as_ref(),
+                    )
+                    .await
+                }
+            }),
+            engine_strict,
+            supported_architectures,
+        }
+    }
+
     /// Wait for the detection. A joined-task failure degrades to the
     /// synthetic fallback host, so the installability checks still run
     /// — the same degradation [`detect_installability_host`] applies
@@ -95,6 +125,18 @@ fn synthetic_installability_host(engine_strict: bool) -> InstallabilityHost {
         supported_architectures: None,
         engine_strict,
     }
+}
+
+/// Whether the raw lockfile text can contain an `os` / `cpu` / `libc`
+/// / `engines` installability constraint. Decides — before the
+/// lockfile is parsed — whether spawning the host detection early can
+/// pay off. The constraint fields always serialize as these verbatim
+/// keys, so a miss proves the parsed lockfile cannot need the host; a
+/// false positive (the substring inside a URL or package name) merely
+/// spawns a probe whose result goes unused.
+#[must_use]
+pub fn lockfile_text_may_have_installability_constraints(text: &str) -> bool {
+    ["engines:", "os:", "cpu:", "libc:"].iter().any(|key| text.contains(key))
 }
 
 /// Detect the host an install's `os` / `cpu` / `libc` / `engines`
