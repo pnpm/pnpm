@@ -422,7 +422,7 @@ fn for_each_directory_entry(
     Ok(())
 }
 
-fn ignore_not_found<T>(result: std::io::Result<T>) -> std::io::Result<Option<T>> {
+fn ignore_not_found<Value>(result: std::io::Result<Value>) -> std::io::Result<Option<Value>> {
     match result {
         Ok(value) => Ok(Some(value)),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
