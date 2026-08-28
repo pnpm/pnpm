@@ -1030,6 +1030,36 @@ sideEffectsCache:
     assert_eq!(shared.packages, ["native-addon"]);
 }
 
+/// Retaining a remote tier across a boolean must not change what the boolean
+/// and `sideEffectsCacheReadonly` mean together: the read-only pair reads,
+/// whether or not a remote tier was declared earlier.
+#[test]
+fn a_retained_remote_tier_does_not_change_the_read_only_pair() {
+    let global: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  remote:
+    org: acme
+",
+    )
+    .unwrap();
+    let workspace: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache: false
+sideEffectsCacheReadonly: true
+",
+    )
+    .unwrap();
+
+    let mut config = Config::new();
+    global.apply_to(&mut config, Path::new("/global"));
+    workspace.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(config.side_effects_cache_read(), "the read-only pair still reads");
+    assert!(!config.side_effects_cache_write());
+    assert_eq!(config.remote_side_effects_cache.expect("shared cache config").org, "acme");
+}
+
 /// A file may carry both spellings of the field; `org` wins, and neither is a
 /// parse error the way a serde alias would have made them.
 #[test]
