@@ -347,3 +347,43 @@ _auth:
         vec![("_auth", Value::Null)],
     );
 }
+
+/// Scheme case, host case and a default port make no difference to the reader
+/// either, so a login must replace such an entry rather than write beside it.
+#[test]
+fn a_login_replaces_an_entry_spelled_with_a_different_case_or_port() {
+    let document = "\
+_auth:
+  HTTPS://Registry.Example:443/:
+    '@acme': { authToken: stale-token }
+";
+
+    assert_eq!(
+        field(&login(Some(document), Some("@acme")), "_auth"),
+        Some(json!({
+            "HTTPS://Registry.Example:443/": { "@acme": { "authToken": "granted-token" } },
+        })),
+    );
+}
+
+/// When several spellings of one registry are present the reader applies them
+/// in order and the last wins, so that is the one a login must replace.
+#[test]
+fn a_login_replaces_the_entry_the_reader_would_have_picked() {
+    let document = "\
+_auth:
+  https://registry.example:
+    '@acme': { authToken: shadowed-token }
+  HTTPS://Registry.Example/:
+    '@acme': { authToken: winning-token }
+";
+
+    // The shadowed spelling goes with it: to the reader it named the same
+    // registry, so leaving it would leave a second credential for one host.
+    assert_eq!(
+        field(&login(Some(document), Some("@acme")), "_auth"),
+        Some(json!({
+            "HTTPS://Registry.Example/": { "@acme": { "authToken": "granted-token" } },
+        })),
+    );
+}
