@@ -166,10 +166,10 @@ where
     /// minimum version declared by the root manifest's runtime engine.
     pub node_version: Option<String>,
 
-    /// A host detection the install entry point spawned before parsing
-    /// the wanted lockfile (see
+    /// A host detection the install entry point spawned right after
+    /// the wanted lockfile parsed (see
     /// [`crate::materialization_plan::HostDetection::spawn`]), so its
-    /// `node --version` overlaps the parse and planning. Must have been
+    /// `node --version` overlaps the planning here. Must have been
     /// spawned with this install's `node_version` /
     /// `supported_architectures` / `engine_strict`. `None` runs the
     /// detection here.

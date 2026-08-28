@@ -37,7 +37,7 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) current_lockfile: Option<&'a Lockfile>,
     pub(super) supported_architectures:
         Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
-    /// A host detection spawned before the wanted lockfile parse —
+    /// A host detection spawned right after the wanted lockfile parse —
     /// see [`pnpm_deps_restorer::materialization_plan::HostDetection::spawn`].
     /// Handed to whichever install path runs.
     pub(super) early_host_detection:

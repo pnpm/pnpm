@@ -141,8 +141,8 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// Effective `nodeVersion`: an explicit config value, otherwise the
     /// minimum version declared by the root manifest's runtime engine.
     pub node_version: Option<String>,
-    /// A host detection the install entry point spawned before parsing
-    /// the wanted lockfile (see
+    /// A host detection the install entry point spawned right after
+    /// the wanted lockfile parsed (see
     /// [`pnpm_deps_restorer::materialization_plan::HostDetection::spawn`]).
     /// By the time resolution finishes its `node --version` has long
     /// completed, so the installability check that runs after
