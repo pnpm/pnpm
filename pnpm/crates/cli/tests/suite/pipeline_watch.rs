@@ -7,7 +7,11 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{command_env::CommandTestExt, git_repo::GitRepoFixture};
-use std::{fs, path::Path, path::PathBuf, process::Command};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 fn agent_tick(root: &Path, repo: &str) -> assert_cmd::assert::Assert {
     Command::cargo_bin("pnpm")
