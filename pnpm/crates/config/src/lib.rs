@@ -20,6 +20,7 @@ mod workspace_yaml;
 pub use crate::{
     api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe},
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
+    npmrc_auth::{is_json_auth_scope, validate_json_auth_registry},
 };
 
 use crate::{matcher::create_matcher, npmrc_auth::NpmrcAuth};

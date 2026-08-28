@@ -78,6 +78,13 @@ pub enum LoginError {
         error: io::Error,
     },
 
+    #[display("Cannot record a login for this registry: {reason}")]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_UNRECORDABLE_LOGIN))]
+    UnrecordableLogin {
+        #[error(not(source))]
+        reason: String,
+    },
+
     #[display("{_0}")]
     #[diagnostic(transparent)]
     ParseConfigYaml(ParseConfigYamlError),

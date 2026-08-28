@@ -134,8 +134,10 @@ registries:
     );
 }
 
+/// A `pnpm logout` revokes the registry's own token and nothing else, so the
+/// grants it did not end must survive it.
 #[test]
-fn a_logout_drops_every_scope_of_its_registry_and_keeps_the_rest() {
+fn a_logout_drops_the_registry_s_own_token_and_keeps_its_scoped_ones() {
     let document = "\
 _auth:
   https://registry.example/:
@@ -149,8 +151,28 @@ _auth:
         logout_fields(Some(document), "https://registry.example/").expect("the document parses"),
         vec![(
             "_auth",
-            json!({ "https://other.example/": { "@": { "authToken": "other-token" } } }),
+            json!({
+                "https://registry.example/": { "@acme": { "authToken": "scoped-token" } },
+                "https://other.example/": { "@": { "authToken": "other-token" } },
+            }),
         )],
+    );
+}
+
+/// Logging out of a registry whose only credential is a scoped one revokes
+/// nothing of its own, so there is nothing to take away.
+#[test]
+fn a_logout_of_a_registry_holding_only_scoped_tokens_writes_nothing() {
+    let document = "\
+_auth:
+  https://registry.example/:
+    '@acme': { authToken: scoped-token }
+";
+
+    assert!(
+        logout_fields(Some(document), "https://registry.example/")
+            .expect("the document parses")
+            .is_empty(),
     );
 }
 
@@ -228,6 +250,64 @@ registries:
         Some(json!({
             "https://old.example/": { "serverType": "pnpr", "scopes": ["@kept"] },
             "https://registry.example/": { "scopes": ["@acme"] },
+        })),
+    );
+}
+
+/// The reader infers a route from every `_auth` entry and lets the last win,
+/// so a scope left recorded at its old registry keeps resolving there — with
+/// that registry's token — however plainly `registries` names the new one.
+#[test]
+fn a_login_takes_its_scope_off_the_registry_that_used_to_hold_it() {
+    let document = "\
+_auth:
+  https://zzz-old.example/:
+    '@acme': { authToken: old-token }
+    '@kept': { authToken: kept-token }
+";
+
+    assert_eq!(
+        field(&login(Some(document), Some("@acme")), "_auth"),
+        Some(json!({
+            "https://zzz-old.example/": { "@kept": { "authToken": "kept-token" } },
+            "https://registry.example/": { "@acme": { "authToken": "granted-token" } },
+        })),
+    );
+}
+
+/// A registry left holding nothing goes with its last credential, rather than
+/// staying as an empty entry the reader would still read a route from.
+#[test]
+fn a_registry_emptied_by_a_login_is_dropped() {
+    let document = "\
+_auth:
+  https://zzz-old.example/:
+    '@acme': { authToken: old-token }
+";
+
+    assert_eq!(
+        field(&login(Some(document), Some("@acme")), "_auth"),
+        Some(json!({
+            "https://registry.example/": { "@acme": { "authToken": "granted-token" } },
+        })),
+    );
+}
+
+/// The bare `@` is each registry's own credential rather than a scope, so an
+/// unscoped login to one registry must not forget another's.
+#[test]
+fn an_unscoped_login_keeps_other_registries_own_tokens() {
+    let document = "\
+_auth:
+  https://other.example/:
+    '@': { authToken: other-token }
+";
+
+    assert_eq!(
+        field(&login(Some(document), None), "_auth"),
+        Some(json!({
+            "https://other.example/": { "@": { "authToken": "other-token" } },
+            "https://registry.example/": { "@": { "authToken": "granted-token" } },
         })),
     );
 }

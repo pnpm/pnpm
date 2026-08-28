@@ -1211,40 +1211,60 @@ struct JsonAuthRegistry {
     nerfed: String,
 }
 
+/// Validate a registry URL as an `_auth` key, returning it normalized.
+///
+/// The single home of the rule, so a writer of the setting — `pnpm login`
+/// recording what it was granted — refuses up front exactly what the reader
+/// would refuse afterwards, rather than leaving a document that no later
+/// command can load.
+///
+/// Error messages never echo the URL: it can embed secrets in userinfo or a
+/// query string, and they reach logs.
+pub fn validate_json_auth_registry(value: &str) -> Result<String, String> {
+    let Ok(url) = url::Url::parse(value) else {
+        return Err("an `_auth` key is not a valid http(s) registry URL".to_string());
+    };
+    if url.scheme() != "http" && url.scheme() != "https" {
+        return Err("an `_auth` registry URL must use http or https".to_string());
+    }
+    let Some(host) = url.host_str() else {
+        return Err("an `_auth` registry URL must have a host".to_string());
+    };
+    // A credential-free label for the remaining messages.
+    let label = match url.port() {
+        Some(port) => format!("{}://{host}:{port}", url.scheme()),
+        None => format!("{}://{host}", url.scheme()),
+    };
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(format!(
+            "registry URL {label} must not include credentials, a query, or a fragment",
+        ));
+    }
+    let normalized = normalize_registry_url(url.as_str());
+    if nerf_dart(&normalized).is_empty() {
+        return Err(format!("registry URL {label} is not a valid registry URL"));
+    }
+    Ok(normalized)
+}
+
+/// Whether `scope` is a key `_auth` accepts: the bare `@` standing for the
+/// registry itself, or a package scope such as `@org`. Shares its home with
+/// [`validate_json_auth_registry`] for the same reason.
+#[must_use]
+pub fn is_json_auth_scope(scope: &str) -> bool {
+    scope == DEFAULT_REGISTRY_SCOPE || is_package_scope(scope)
+}
+
 impl TryFrom<String> for JsonAuthRegistry {
     type Error = String;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        // Error messages never echo the raw key: it can embed secrets in
-        // userinfo or a query string, and these messages reach logs.
-        let Ok(url) = url::Url::parse(&value) else {
-            return Err("an `_auth` key is not a valid http(s) registry URL".to_string());
-        };
-        if url.scheme() != "http" && url.scheme() != "https" {
-            return Err("an `_auth` registry URL must use http or https".to_string());
-        }
-        let Some(host) = url.host_str() else {
-            return Err("an `_auth` registry URL must have a host".to_string());
-        };
-        // A credential-free label for the remaining messages.
-        let label = match url.port() {
-            Some(port) => format!("{}://{host}:{port}", url.scheme()),
-            None => format!("{}://{host}", url.scheme()),
-        };
-        if !url.username().is_empty()
-            || url.password().is_some()
-            || url.query().is_some()
-            || url.fragment().is_some()
-        {
-            return Err(format!(
-                "registry URL {label} must not include credentials, a query, or a fragment",
-            ));
-        }
-        let normalized = normalize_registry_url(url.as_str());
+        let normalized = validate_json_auth_registry(&value)?;
         let nerfed = nerf_dart(&normalized);
-        if nerfed.is_empty() {
-            return Err(format!("registry URL {label} is not a valid registry URL"));
-        }
         Ok(JsonAuthRegistry { normalized, nerfed })
     }
 }

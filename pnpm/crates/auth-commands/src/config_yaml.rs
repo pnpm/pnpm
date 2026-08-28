@@ -64,12 +64,14 @@ pub fn login_fields(
     Ok(fields)
 }
 
-/// The fields dropping every credential `registry` holds, or an empty list
-/// when it holds none.
+/// The fields dropping `registry`'s own credential — the one a `pnpm logout`
+/// revokes — or an empty list when it holds none.
 ///
-/// The route outlives the credential: which registry a scope resolves from is
-/// a resolution preference the user may still want, and `pnpm logout` has
-/// never claimed to unpick it.
+/// Tokens the same registry holds for package scopes are separate grants that
+/// were not revoked, so they stay: taking them away would lose access to them
+/// without ending them. The route outlives the credential too — which registry
+/// a scope resolves from is a preference the user may still want, and
+/// `pnpm logout` has never claimed to unpick it.
 pub fn logout_fields(
     document: Option<&str>,
     registry: &str,
@@ -78,8 +80,16 @@ pub fn logout_fields(
     let Some(mut auth) = object_at(&root, AUTH_KEY) else {
         return Ok(Vec::new());
     };
-    if auth.remove(registry).is_none() {
+    let Some(mut scopes) = auth.get(registry).and_then(as_object) else {
         return Ok(Vec::new());
+    };
+    if scopes.remove(DEFAULT_SCOPE).is_none() {
+        return Ok(Vec::new());
+    }
+    if scopes.is_empty() {
+        auth.remove(registry);
+    } else {
+        auth.insert(registry.to_owned(), Value::Object(scopes));
     }
     let value = if auth.is_empty() { Value::Null } else { Value::Object(auth) };
     Ok(vec![(AUTH_KEY, value)])
@@ -98,8 +108,27 @@ fn parse_document(document: Option<&str>) -> Result<Map<String, Value>, ParseCon
     }
 }
 
+/// Record `token` for `scope` at `registry`, dropping any credential the same
+/// package scope holds elsewhere.
+///
+/// The reader infers a route from every `_auth` entry and lets the last one
+/// win, so a stale entry for the scope would keep resolving it to the registry
+/// it used to reach — with that registry's token — however plainly
+/// `registries` names the new one. The bare `@` is exempt: it is not a scope
+/// but each registry's own credential, and logging in to one is no reason to
+/// forget another.
 fn auth_with_token(root: &Map<String, Value>, registry: &str, scope: &str, token: &str) -> Value {
     let mut auth = object_at(root, AUTH_KEY).unwrap_or_default();
+    if scope != DEFAULT_SCOPE {
+        for (url, scopes) in &mut auth {
+            if url != registry
+                && let Some(scopes) = scopes.as_object_mut()
+            {
+                scopes.remove(scope);
+            }
+        }
+        auth.retain(|_, scopes| scopes.as_object().is_none_or(|scopes| !scopes.is_empty()));
+    }
     let mut scopes = auth.get(registry).and_then(as_object).unwrap_or_default();
     scopes.insert(scope.to_owned(), json!({ "authToken": token }));
     auth.insert(registry.to_owned(), Value::Object(scopes));

@@ -28,6 +28,7 @@
 
 use std::{io, path::Path};
 
+use pnpm_config::{is_json_auth_scope, validate_json_auth_registry};
 use pnpm_network::{ThrottledClient, redact_and_sanitize};
 use pnpm_network_web_auth::{
     Clock, EnterKeyListener, OpenUrl, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch,
@@ -135,6 +136,18 @@ where
     Reporter: self::Reporter,
 {
     let registry = normalize_registry_url(opts.registry.unwrap_or(DEFAULT_REGISTRY));
+    // Before the network, not after: a value the reader would refuse must not
+    // cost the user a round-trip, and must never be written — a `config.yaml`
+    // holding one fails to load for every later command.
+    let registry = validate_json_auth_registry(&registry)
+        .map_err(|reason| LoginError::UnrecordableLogin { reason })?;
+    if let Some(scope) = normalize_scope(opts.scope)
+        && !is_json_auth_scope(&scope)
+    {
+        return Err(LoginError::UnrecordableLogin {
+            reason: format!(r#"the scope {scope:?} is not a package scope like "@org""#),
+        });
+    }
 
     let fetch_options = WebAuthFetchOptions {
         timeout: Some(opts.fetch_timeout),
