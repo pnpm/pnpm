@@ -33,6 +33,7 @@ pub struct RunReport {
     run_id: String,
     pipeline: String,
     base: String,
+    revision: Option<String>,
     selection: Value,
     events: Mutex<Vec<Value>>,
     cache_hits: AtomicUsize,
@@ -40,7 +41,12 @@ pub struct RunReport {
 }
 
 impl RunReport {
-    pub fn new(pipeline: &str, base: &str, selection: &Selection) -> RunReport {
+    pub fn new(
+        pipeline: &str,
+        base: &str,
+        selection: &Selection,
+        revision: Option<String>,
+    ) -> RunReport {
         let mode = match selection.mode {
             SelectionMode::Affected => "affected",
             SelectionMode::Full => "full",
@@ -49,6 +55,7 @@ impl RunReport {
             run_id: format!("{}-{pipeline}", now_millis()),
             pipeline: pipeline.to_string(),
             base: base.to_string(),
+            revision,
             selection: json!({
                 "mode": mode,
                 "mergeBase": selection.merge_base,
@@ -116,6 +123,7 @@ impl RunReport {
             "runId": self.run_id,
             "pipeline": self.pipeline,
             "base": self.base,
+            "revision": self.revision,
             "selection": self.selection,
             "tasks": statuses,
             "taskKeys": keys,
@@ -161,6 +169,7 @@ impl RunReport {
                 "runId": self.run_id,
                 "pipeline": self.pipeline,
                 "base": self.base,
+                "revision": self.revision,
                 "selection": self.selection,
                 "tasks": {},
             })

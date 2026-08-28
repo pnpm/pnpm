@@ -47,10 +47,12 @@ use std::{
     time::Instant,
 };
 
+mod agent;
 mod cache;
 mod capture;
 mod report;
 
+pub use agent::{WatchInvocation, run_watch};
 use cache::{CacheDisposition, TaskCache};
 use report::RunReport;
 pub use report::RunUpload;
@@ -104,6 +106,30 @@ pub struct PipelineArgs {
     /// only stores runs is better named here.
     #[clap(long = "report-to", value_name = "URL")]
     pub report_to: Option<String>,
+
+    /// Watch a git repository and run the pipeline for every new revision
+    /// of a branch, instead of running once against the current
+    /// directory.
+    #[clap(long, requires = "repo")]
+    pub watch: bool,
+
+    /// The repository the watch agent polls and builds — a URL or a local
+    /// path, anything git accepts as a remote.
+    #[clap(long, value_name = "REPO")]
+    pub repo: Option<String>,
+
+    /// The branch the watch agent follows.
+    #[clap(long, default_value = "main", value_name = "NAME")]
+    pub branch: String,
+
+    /// Seconds between polls of the watched repository.
+    #[clap(long, default_value_t = 30, value_name = "SECONDS")]
+    pub interval: u64,
+
+    /// With `--watch`: poll once, build if there is a new revision, and
+    /// exit.
+    #[clap(long, requires = "watch")]
+    pub once: bool,
 }
 
 /// The pipeline-specific inputs of one invocation, split off
@@ -216,7 +242,8 @@ pub fn run_pipeline(
         emit,
     })?;
 
-    let report = RunReport::new(name, &base, &selection);
+    let revision = git_stdout(workspace_root, &["rev-parse", "HEAD"]);
+    let report = RunReport::new(name, &base, &selection, revision);
 
     if selection.requested.is_empty() {
         println!("No projects are affected since {base} — nothing to run.");
