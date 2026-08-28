@@ -35,6 +35,7 @@ pnpr-registry                 = { workspace = true }
 pnpr-storage                  = { workspace = true }
 pnpr-route                    = { workspace = true }
 pnpr-search                   = { workspace = true }
+pnpr-pipeline-runs            = { workspace = true }
 pnpr-shared-artifacts         = { workspace = true }
 pnpr-upstream                 = { workspace = true }
 pnpm-catalogs-types           = { workspace = true }

@@ -106,6 +106,7 @@ pnpr-policy           = { path = "pnpr/crates/policy" }
 pnpr-registry         = { path = "pnpr/crates/registry" }
 pnpr-storage          = { path = "pnpr/crates/storage" }
 pnpr-route            = { path = "pnpr/crates/route" }
+pnpr-pipeline-runs    = { path = "pnpr/crates/pipeline-runs" }
 pnpr-search           = { path = "pnpr/crates/search" }
 pnpr-shared-artifacts = { path = "pnpr/crates/shared-artifacts" }
 pnpr-upstream         = { path = "pnpr/crates/upstream" }

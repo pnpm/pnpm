@@ -20,6 +20,15 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+/// What a `--report` submission carries to the pnpr server: the same
+/// summary document and event stream the local report files hold.
+pub struct RunUpload {
+    pub workspace: String,
+    pub run_id: String,
+    pub summary: Value,
+    pub events: Vec<Value>,
+}
+
 pub struct RunReport {
     run_id: String,
     pipeline: String,
@@ -125,8 +134,29 @@ impl RunReport {
             ndjson.push('\n');
         }
         fs::write(run_dir.join("events.ndjson"), ndjson).into_diagnostic()?;
+        fs::write(
+            run_dir.join("summary.json"),
+            serde_json::to_vec_pretty(&self.summary_value()).into_diagnostic()?,
+        )
+        .into_diagnostic()?;
+        Ok(run_dir)
+    }
+
+    /// The submission a `--report` run sends to the pnpr server.
+    pub fn to_upload(&self, workspace: String) -> RunUpload {
+        RunUpload {
+            workspace,
+            run_id: self.run_id.clone(),
+            summary: self.summary_value(),
+            events: self.events.lock().expect("event lock is not poisoned").clone(),
+        }
+    }
+
+    /// The summary document: what [`Self::finish`] assembled, or the
+    /// header alone for a run that settled before any task existed.
+    fn summary_value(&self) -> Value {
         let summary = self.summary.lock().expect("summary lock is not poisoned");
-        let summary = if summary.is_null() {
+        if summary.is_null() {
             json!({
                 "runId": self.run_id,
                 "pipeline": self.pipeline,
@@ -136,13 +166,7 @@ impl RunReport {
             })
         } else {
             summary.clone()
-        };
-        fs::write(
-            run_dir.join("summary.json"),
-            serde_json::to_vec_pretty(&summary).into_diagnostic()?,
-        )
-        .into_diagnostic()?;
-        Ok(run_dir)
+        }
     }
 
     fn push(&self, event: Value) {

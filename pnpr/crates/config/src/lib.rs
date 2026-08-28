@@ -126,6 +126,8 @@ pub struct Config {
     /// resolver so deployments can scale the compute-bound resolver and the
     /// I/O-bound artifact store independently. See [`ArtifactsFeature`].
     pub artifacts: ArtifactsFeature,
+    /// The pipeline run-record surface. See [`PipelineFeature`].
+    pub pipeline: PipelineFeature,
     /// Which fetch routes the resolution cache treats as public (fetched
     /// anonymously and shared globally) vs. private, driving the
     /// resolver's route classification.
@@ -234,6 +236,14 @@ impl Default for ResolverFeature {
 #[derive(Debug, Default, Clone)]
 pub struct ArtifactsFeature {
     /// Master switch for the artifact publish, lookup, and blob endpoints.
+    pub enabled: bool,
+}
+
+/// Toggle for the pipeline run-record surface (`/-/pnpr/v0/pipeline*`).
+/// Off by default while the surface is a proof of concept.
+#[derive(Debug, Default, Clone)]
+pub struct PipelineFeature {
+    /// Master switch for the run submission, listing, and viewer endpoints.
     pub enabled: bool,
 }
 
@@ -983,6 +993,10 @@ struct ConfigFile {
     /// the resolver because deployments may mount either surface alone.
     #[serde(default)]
     artifacts: Option<ArtifactsFeatureFile>,
+    /// pnpr-only feature toggle for the pipeline run-record surface, a peer
+    /// of the artifact store.
+    #[serde(default)]
+    pipeline: Option<PipelineFeatureFile>,
     /// pnpr registries: hosted, upstream, and router origins, each
     /// exposed at `/~<name>/`. The only routing surface — there is no legacy
     /// `upstreams:`/`packages: proxy:` fallback.
@@ -1149,6 +1163,13 @@ struct ArtifactsFeatureFile {
     enabled: bool,
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PipelineFeatureFile {
+    #[serde(default)]
+    enabled: bool,
+}
+
 fn default_true() -> bool {
     true
 }
@@ -1277,6 +1298,7 @@ impl Config {
             registry: RegistryFeature::default(),
             resolver: ResolverFeature::default(),
             artifacts: ArtifactsFeature::default(),
+            pipeline: PipelineFeature::default(),
             route_policy: RoutePolicy::default(),
             resolution_cache_secret: random_secret(),
             registries,
@@ -1326,6 +1348,7 @@ impl Config {
             registry: RegistryFeature::default(),
             resolver: ResolverFeature::default(),
             artifacts: ArtifactsFeature::default(),
+            pipeline: PipelineFeature::default(),
             route_policy: RoutePolicy::default(),
             resolution_cache_secret: random_secret(),
             registries,
@@ -1568,6 +1591,7 @@ impl Config {
         let artifacts_file = file.artifacts.unwrap_or_default();
         let artifacts =
             ArtifactsFeature { enabled: artifacts_file.enabled && !overrides.disable_artifacts };
+        let pipeline = PipelineFeature { enabled: file.pipeline.unwrap_or_default().enabled };
         // Upstream registries (and the credentials some carry) are resolved by
         // `build_registries` below into this map. Resolving an upstream registry's
         // `auth` is strict — an unresolvable token is a config error — so a
@@ -1600,6 +1624,7 @@ impl Config {
             registry,
             resolver,
             artifacts,
+            pipeline,
             route_policy,
             resolution_cache_secret,
             registries,
@@ -1615,13 +1640,17 @@ impl Config {
     /// endpoints. Checked at config load and again in the serve/router
     /// entry points for programmatically built configs.
     pub fn ensure_a_feature_is_enabled(&self) -> Result<(), RegistryError> {
-        if self.registry.enabled || self.resolver.enabled || self.artifacts.enabled {
+        if self.registry.enabled
+            || self.resolver.enabled
+            || self.artifacts.enabled
+            || self.pipeline.enabled
+        {
             Ok(())
         } else {
             Err(RegistryError::InvalidConfig {
                 reason: "nothing to serve: the npm-registry surface is off (no `registries:` \
                          declared, or `--disable-registry`), the resolver is disabled, and \
-                         artifacts are disabled"
+                         artifacts and the pipeline surface are disabled"
                     .to_string(),
             })
         }

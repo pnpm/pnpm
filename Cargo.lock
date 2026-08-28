@@ -6037,6 +6037,7 @@ dependencies = [
  "pnpr-error",
  "pnpr-osv",
  "pnpr-package-name",
+ "pnpr-pipeline-runs",
  "pnpr-policy",
  "pnpr-registry",
  "pnpr-route",
@@ -6164,6 +6165,18 @@ name = "pnpr-package-name"
 version = "0.0.1"
 dependencies = [
  "pnpr-error",
+]
+
+[[package]]
+name = "pnpr-pipeline-runs"
+version = "0.0.1"
+dependencies = [
+ "pnpr-error",
+ "pnpr-storage",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]

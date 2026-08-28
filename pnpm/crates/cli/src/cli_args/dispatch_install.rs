@@ -335,7 +335,8 @@ pub(super) fn pipeline<'a>(
     ctx: &RunCtx<'a>,
     args: PipelineArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let PipelineArgs { name, mut install_args, json, no_cache, full, base } = args;
+    let PipelineArgs { name, mut install_args, json, no_cache, full, base, report, report_to } =
+        args;
     let invocation = PipelineInvocation {
         name,
         // `--dry-run` prints the task graph and runs nothing, the
@@ -345,6 +346,8 @@ pub(super) fn pipeline<'a>(
         no_cache,
         full,
         base,
+        report: report || report_to.is_some(),
+        report_to,
     };
     install_args.frozen_lockfile = true;
     install_args.dry_run = false;
@@ -362,8 +365,60 @@ pub(super) fn pipeline<'a>(
             install.await?;
         }
         let cfg = config()?;
-        run_pipeline(&invocation, cfg, dir, reporter)
+        let outcome = run_pipeline(&invocation, cfg, dir, reporter)?;
+        // The run is recorded before the failure exit is raised, so a red
+        // run reaches the server too.
+        if invocation.report
+            && let Some(upload) = outcome.upload
+        {
+            report_pipeline_run(cfg, invocation.report_to.as_deref(), upload, reporter).await;
+        }
+        if outcome.failed_tasks > 0 {
+            return Err(super::pipeline::PipelineError::PipelineFail {
+                count: outcome.failed_tasks,
+            }
+            .into());
+        }
+        Ok(())
     }))
+}
+
+/// Publish the run to the configured pnpr server. A run that could not be
+/// reported still ran — the submission failure is a warning, not the
+/// run's exit code.
+async fn report_pipeline_run(
+    cfg: &Config,
+    report_to: Option<&str>,
+    upload: super::pipeline::RunUpload,
+    reporter: ReporterType,
+) {
+    let emit = reporter_emit(reporter);
+    let warn = |message: String| {
+        emit(&pnpm_reporter::LogEvent::Pnpm(pnpm_reporter::PnpmLog {
+            level: pnpm_reporter::LogLevel::Warn,
+            message,
+            prefix: String::new(),
+        }));
+    };
+    let Some(server) = report_to.or(cfg.pnpr_server.as_deref()) else {
+        warn(
+            "--report is set but neither --report-to nor pnprServer names a server; the run was not published"
+                .to_string(),
+        );
+        return;
+    };
+    let client = pnpm_pnpr_client::PnprClient::new(server);
+    let authorization = cfg.auth_headers.for_url(server);
+    let request = pnpm_pnpr_client::PublishPipelineRunRequest {
+        workspace: upload.workspace,
+        run_id: upload.run_id,
+        summary: upload.summary,
+        events: upload.events,
+    };
+    match client.publish_pipeline_run(&request, authorization.as_deref()).await {
+        Ok(()) => println!("Run recorded on {server} as {}/{}", request.workspace, request.run_id),
+        Err(error) => warn(format!("failed to publish the pipeline run to {server}: {error}")),
+    }
 }
 
 pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFuture<'a>> {
