@@ -98,6 +98,65 @@ fn dlx_resolves_caller_catalog_references_in_overrides() {
     drop(root);
 }
 
+#[cfg(unix)]
+#[test]
+fn dlx_resolves_caller_catalog_package_specifiers() {
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    std::fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "catalog:\n  '@foo/touch-file-one-bin': 1.0.0\ncatalogs:\n  named:\n    '@foo/touch-file-one-bin': 1.0.0\n",
+    )
+    .expect("write caller project workspace yaml");
+
+    pacquet.with_args(["dlx", "@foo/touch-file-one-bin@catalog:"]).assert().success();
+
+    assert!(workspace.join("touch.txt").exists(), "dlx should run the catalog package bin");
+
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn dlx_resolves_named_caller_catalog_package_specifiers() {
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    std::fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "catalogs:\n  named:\n    '@foo/touch-file-one-bin': 1.0.0\n",
+    )
+    .expect("write caller project workspace yaml");
+
+    pacquet.with_args(["dlx", "@foo/touch-file-one-bin@catalog:named"]).assert().success();
+
+    assert!(workspace.join("touch.txt").exists(), "dlx should run the catalog package bin");
+
+    drop(root);
+}
+
+#[test]
+fn dlx_reports_missing_caller_catalog_package_specifiers() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+    std::fs::write(workspace.join("pnpm-workspace.yaml"), "catalog: {}\n")
+        .expect("write caller project workspace yaml");
+
+    let output = pacquet
+        .with_args(["dlx", "@foo/touch-file-one-bin@catalog:"])
+        .output()
+        .expect("run pacquet dlx");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "dlx should fail for a missing catalog entry");
+    assert!(
+        stderr.contains("ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC"),
+        "dlx should report the missing catalog error\nstderr:\n{stderr}",
+    );
+
+    drop(root);
+}
+
 /// pnpm's dlx installs the package unpatched, and the caller's patch paths
 /// are relative to a workspace root the cache install does not have.
 #[test]

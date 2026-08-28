@@ -9,6 +9,10 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
+use pnpm_catalogs_resolver::{
+    CatalogResolutionResult, WantedDependency as CatalogWantedDependency, resolve_from_catalog,
+};
+use pnpm_catalogs_types::Catalogs;
 use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::parse_overrides_iter;
@@ -338,23 +342,22 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // The cache install is always fresh, so no lockfile is loaded from
     // the process working directory.
     config.lockfile = false;
-    // The cache install inherits the caller project's `overrides` (pnpm's
-    // dlx likewise runs its install with the invoking project's
-    // already-loaded config), and a `catalog:` value in them resolves
-    // against the caller's catalogs. Those catalogs are only reachable
-    // through `workspace_dir`, which is severed right below — resolve the
-    // references now, or the install would look them up against an empty
-    // catalog set and fail with ERR_PNPM_CATALOG_IN_OVERRIDES.
-    if let (Some(overrides), Some(workspace_dir)) =
-        (config.overrides.as_ref(), config.workspace_dir.as_deref())
-        && overrides.values().any(|spec| spec.starts_with("catalog:"))
-    {
+    // The cache install is not part of the caller workspace. Resolve its
+    // catalog references before anchoring it at the cache directory.
+    let caller_catalogs = if let Some(workspace_dir) = config.workspace_dir.as_deref() {
         let workspace_manifest =
             pnpm_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
-        let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+        get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
             .into_diagnostic()
-            .wrap_err("reading the caller's catalogs for the dlx install")?;
-        let resolved = parse_overrides_iter(overrides.iter(), &catalogs)
+            .wrap_err("reading the caller's catalogs for the dlx install")?
+    } else {
+        Catalogs::default()
+    };
+    let pkgs = dereference_catalog_specs(pkgs, &caller_catalogs)?;
+    if let Some(overrides) = config.overrides.as_ref()
+        && overrides.values().any(|spec| spec.starts_with("catalog:"))
+    {
+        let resolved = parse_overrides_iter(overrides.iter(), &caller_catalogs)
             .map_err(miette::Report::new)?
             .into_iter()
             .map(|entry| (entry.selector, entry.new_bare_specifier))
@@ -387,7 +390,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // unable to distinguish two callers with different policies.
     config.dangerously_allow_all_builds = false;
     config.allow_builds.clear();
-    for spec in pkgs {
+    for spec in &pkgs {
         if let Some(alias) = parse_wanted_dependency(spec).alias {
             config.allow_builds.insert(alias, true);
         }
@@ -402,7 +405,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
             .wrap_err("initialize the dlx install state")?;
         add_package::<Reporter, _>(
             state,
-            pkg,
+            &pkg,
             // dlx records the default caret range; the spec is throwaway.
             RangeSpecStyle::default(),
             // dlx never catalogs.
@@ -415,6 +418,27 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
         .await?;
     }
     Ok(())
+}
+
+fn dereference_catalog_specs(pkgs: &[String], catalogs: &Catalogs) -> miette::Result<Vec<String>> {
+    pkgs.iter()
+        .map(|pkg| {
+            let parsed = parse_wanted_dependency(pkg);
+            let (Some(alias), Some(bare_specifier)) = (parsed.alias, parsed.bare_specifier) else {
+                return Ok(pkg.clone());
+            };
+            let wanted = CatalogWantedDependency { alias: alias.clone(), bare_specifier };
+            match resolve_from_catalog(catalogs, &wanted) {
+                CatalogResolutionResult::Found(found) => {
+                    Ok(format!("{alias}@{}", found.resolution.specifier))
+                }
+                CatalogResolutionResult::Misconfiguration(misconfiguration) => {
+                    Err(miette::Report::new(misconfiguration.error))
+                }
+                CatalogResolutionResult::Unused => Ok(pkg.clone()),
+            }
+        })
+        .collect()
 }
 
 /// How dlx spawns whatever it ends up running: the working directory and
