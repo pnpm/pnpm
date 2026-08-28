@@ -14,10 +14,10 @@ import pLimit from 'p-limit'
 import {
   artifactBlobDigest,
   type ArtifactBlobUpload,
-  type ArtifactCandidate,
   type ArtifactManifest,
   type ArtifactPayload,
   createSignedArtifactEnvelope,
+  type DependencySideEffectsCandidate,
   downloadSharedArtifactBlob,
   linuxGlibcCompatibilityTag,
   type LinuxGlibcPlatform,
@@ -112,7 +112,7 @@ interface RestoredArtifact {
 }
 
 interface QueuedLookup {
-  candidate: ArtifactCandidate
+  candidate: DependencySideEffectsCandidate
   resolve: (artifact: VerifiedArtifact | undefined) => void
 }
 
@@ -217,10 +217,13 @@ export function createRemoteSideEffectsRestorer<T extends string> (
       supportedArchitectures: opts.supportedArchitectures,
       nodeVersion: opts.nodeVersion,
     })
-    const candidate: ArtifactCandidate = {
+    const candidate: DependencySideEffectsCandidate = {
       key: inputKey,
-      package: { name: node.name, version: node.version },
-      sourceIntegrity,
+      subject: {
+        kind: 'dependency-side-effects',
+        package: { name: node.name, version: node.version },
+        sourceIntegrity,
+      },
       owner,
     }
     const localSideEffects = node.files.sideEffectsMaps?.get(localCacheKey)
@@ -319,7 +322,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
     return localCacheKey
   }
 
-  async function enqueue (candidate: ArtifactCandidate): Promise<VerifiedArtifact | undefined> {
+  async function enqueue (candidate: DependencySideEffectsCandidate): Promise<VerifiedArtifact | undefined> {
     let resolve!: (artifact: VerifiedArtifact | undefined) => void
     const promise = new Promise<VerifiedArtifact | undefined>((settle) => {
       resolve = settle
@@ -378,7 +381,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
         policy: {
           ignoreScripts: false,
           eligiblePackages,
-          allowedBuilds: new Set(eligibleBatch.map(({ candidate }) => candidate.package.name)),
+          allowedBuilds: new Set(eligibleBatch.map(({ candidate }) => candidate.subject.package.name)),
         },
         trustedKeys,
         pinnedEnvelopeDigests: batchPinnedEnvelopeDigests,
@@ -408,7 +411,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
 
   async function hydrate (
     artifact: VerifiedArtifact,
-    candidate: ArtifactCandidate
+    candidate: DependencySideEffectsCandidate
   ): Promise<RestoredArtifact | undefined> {
     if (registryUrl == null) return undefined
     try {
@@ -499,13 +502,13 @@ export function createRemoteSideEffectsRestorer<T extends string> (
         quarantine(candidate.key, artifact.envelopeDigest, errorMessage(err))
         return undefined
       }
-      opts.warn?.(`Remote side-effects artifact for ${candidate.package.name}@${candidate.package.version} was rejected: ${errorMessage(err)}`)
+      opts.warn?.(`Remote side-effects artifact for ${candidate.subject.package.name}@${candidate.subject.package.version} was rejected: ${errorMessage(err)}`)
       return undefined
     }
   }
 
   async function storedArtifactEnvelopeDigest (params: {
-    candidate: ArtifactCandidate
+    candidate: DependencySideEffectsCandidate
     diff: SideEffectsDiff
     files: { added?: Map<string, string>, deleted?: string[] }
     pinnedEnvelopeDigest?: string
@@ -634,8 +637,11 @@ export async function publishBuiltSharedSideEffects<T extends string> (
   })
   const payload: ArtifactPayload = {
     kind: 'dependency-side-effects:v1',
-    package: { name: opts.name, version: opts.version },
-    sourceIntegrity,
+    subject: {
+      kind: 'dependency-side-effects',
+      package: { name: opts.name, version: opts.version },
+      sourceIntegrity,
+    },
     inputKey,
     owner: { type: 'organization', name: organization },
     builderId,

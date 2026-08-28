@@ -6,6 +6,7 @@ import {
   type ArtifactPayload,
   compatibilityRank,
   createSignedArtifactEnvelope,
+  type DependencySideEffectsPayload,
   downloadSharedArtifactBlob,
   linuxGlibcCompatibilityTag,
   linuxGlibcSupportedTags,
@@ -27,11 +28,14 @@ function linux (glibcMinor: number, architecture = 'x64') {
   return { architecture, nodeMajor: 22, glibcMajor: 2, glibcMinor }
 }
 
-function payload (): ArtifactPayload {
+function payload (): DependencySideEffectsPayload {
   return {
     kind: 'dependency-side-effects:v1',
-    package: { name: 'native-addon', version: '1.0.0' },
-    sourceIntegrity: 'sha512-source',
+    subject: {
+      kind: 'dependency-side-effects',
+      package: { name: 'native-addon', version: '1.0.0' },
+      sourceIntegrity: 'sha512-source',
+    },
     inputKey: 'dependency-side-effects:v1:deps=abc',
     owner: { type: 'organization', name: 'acme' },
     builderId: 'ci/main/42',
@@ -67,10 +71,10 @@ describe('signed shared artifacts', () => {
     const envelope = {
       algorithm: 'ecdsa-p256-sha256' as const,
       keyId: 'acme-2026',
-      payload: 'eyJraW5kIjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djEiLCJwYWNrYWdlIjp7Im5hbWUiOiJuYXRpdmUtYWRkb24iLCJ2ZXJzaW9uIjoiMS4wLjAifSwic291cmNlSW50ZWdyaXR5Ijoic2hhNTEyLXNvdXJjZSIsImlucHV0S2V5IjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djE6ZGVwcz1hYmMiLCJvd25lciI6eyJ0eXBlIjoib3JnYW5pemF0aW9uIiwibmFtZSI6ImFjbWUifSwiYnVpbGRlcklkIjoiY2kvbWFpbi80MiIsImJ1aWxkZXJQcm9maWxlIjp7ImltYWdlRGlnZXN0Ijoic2hhMjU2OmltYWdlIiwiYXJjaGl0ZWN0dXJlQmFzZWxpbmUiOiJ4ODYtNjQtdjIiLCJlbnZpcm9ubWVudCI6eyJDRkxBR1MiOiItTzIifX0sImNvbXBhdGliaWxpdHkiOnsia2luZCI6InRhZ2dlZCIsInRhZ3MiOlsicG5wbTp2MTpsaW51eC14NjQtbm9kZTIyLWdsaWJjMi4xNyJdfSwibWFuaWZlc3QiOnsiYWRkZWQiOlt7InBhdGgiOiJidWlsZC9hZGRvbi5ub2RlIiwiaW50ZWdyaXR5Ijoic2hhNTEyLUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBPT0iLCJtb2RlIjo0OTMsInNpemUiOjV9XSwiZGVsZXRlZCI6WyJzcmMvaW50ZXJtZWRpYXRlLm8iXX19',
+      payload: 'eyJraW5kIjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djEiLCJzdWJqZWN0Ijp7ImtpbmQiOiJkZXBlbmRlbmN5LXNpZGUtZWZmZWN0cyIsInBhY2thZ2UiOnsibmFtZSI6Im5hdGl2ZS1hZGRvbiIsInZlcnNpb24iOiIxLjAuMCJ9LCJzb3VyY2VJbnRlZ3JpdHkiOiJzaGE1MTItc291cmNlIn0sImlucHV0S2V5IjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djE6ZGVwcz1hYmMiLCJvd25lciI6eyJ0eXBlIjoib3JnYW5pemF0aW9uIiwibmFtZSI6ImFjbWUifSwiYnVpbGRlcklkIjoiY2kvbWFpbi80MiIsImJ1aWxkZXJQcm9maWxlIjp7ImltYWdlRGlnZXN0Ijoic2hhMjU2OmltYWdlIiwiYXJjaGl0ZWN0dXJlQmFzZWxpbmUiOiJ4ODYtNjQtdjIiLCJlbnZpcm9ubWVudCI6eyJDRkxBR1MiOiItTzIifX0sImNvbXBhdGliaWxpdHkiOnsia2luZCI6InRhZ2dlZCIsInRhZ3MiOlsicG5wbTp2MTpsaW51eC14NjQtbm9kZTIyLWdsaWJjMi4xNyJdfSwibWFuaWZlc3QiOnsiYWRkZWQiOlt7InBhdGgiOiJidWlsZC9hZGRvbi5ub2RlIiwiaW50ZWdyaXR5Ijoic2hhNTEyLUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBPT0iLCJtb2RlIjo0OTMsInNpemUiOjV9XSwiZGVsZXRlZCI6WyJzcmMvaW50ZXJtZWRpYXRlLm8iXX19',
       signature: Buffer.from([0x30, 0x06, 0x02, 0x01, 0x01, 0x02, 0x01, 0x01]).toString('base64'),
     }
-    expect(signedArtifactEnvelopeDigest(envelope)).toBe('f4d59d1718847f2188dbf1921eb72474037af978033264fd79e90426e4475f11')
+    expect(signedArtifactEnvelopeDigest(envelope)).toBe('20b3fbc179563fc173c1bd306b8d088eb0eebb6fa40998e55d645c414f1964f5')
     expect(() => signedArtifactEnvelopeDigest({ ...envelope, payload: `${envelope.payload}=` })).toThrow('base64')
   })
 
@@ -263,11 +267,33 @@ describe('signed shared artifacts', () => {
     })).toThrow('does not match')
   })
 
+  test('validates workspace task subjects against their kind, key, and owner', () => {
+    const taskPayload: ArtifactPayload = {
+      ...payload(),
+      kind: 'workspace-task:v1',
+      subject: { kind: 'workspace-task', project: 'packages/app', task: 'build' },
+      inputKey: 'workspace-task:v1:inputs=abc',
+    }
+    const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+    const signingOptions = {
+      keyId: 'acme-2026',
+      privateKey: privateKey.export({ format: 'pem', type: 'pkcs8' }),
+    }
+    expect(() => createSignedArtifactEnvelope(taskPayload, signingOptions)).not.toThrow()
+    expect(() => createSignedArtifactEnvelope({
+      ...taskPayload,
+      kind: 'dependency-side-effects:v1',
+    } as unknown as ArtifactPayload, signingOptions)).toThrow('artifact kind')
+    expect(() => createSignedArtifactEnvelope({
+      ...taskPayload,
+      owner: { type: 'publisher', package: 'app' },
+    }, signingOptions)).toThrow('organization owner')
+  })
+
   test('does not contact the cache when scripts, eligibility, or allowBuild deny reuse', async () => {
     const candidate = {
       key: payload().inputKey,
-      package: payload().package,
-      sourceIntegrity: payload().sourceIntegrity,
+      subject: payload().subject,
       owner: payload().owner,
     }
     const base = {
@@ -280,8 +306,8 @@ describe('signed shared artifacts', () => {
       ...base,
       policy: {
         ignoreScripts: true,
-        eligiblePackages: new Set([candidate.package.name]),
-        allowedBuilds: new Set([candidate.package.name]),
+        eligiblePackages: new Set([candidate.subject.package.name]),
+        allowedBuilds: new Set([candidate.subject.package.name]),
       },
     })).resolves.toEqual(new Map())
     await expect(resolveSharedSideEffects({
@@ -289,14 +315,14 @@ describe('signed shared artifacts', () => {
       policy: {
         ignoreScripts: false,
         eligiblePackages: new Set(),
-        allowedBuilds: new Set([candidate.package.name]),
+        allowedBuilds: new Set([candidate.subject.package.name]),
       },
     })).resolves.toEqual(new Map())
     await expect(resolveSharedSideEffects({
       ...base,
       policy: {
         ignoreScripts: false,
-        eligiblePackages: new Set([candidate.package.name]),
+        eligiblePackages: new Set([candidate.subject.package.name]),
         allowedBuilds: new Set(),
       },
     })).resolves.toEqual(new Map())
@@ -362,15 +388,17 @@ describe('signed shared artifacts', () => {
         authorization: 'Bearer token',
         candidates: [{
           key: payload().inputKey,
-          package: { ...payload().package, version: '2.0.0' },
-          sourceIntegrity: payload().sourceIntegrity,
+          subject: {
+            ...payload().subject,
+            package: { ...payload().subject.package, version: '2.0.0' },
+          },
           owner: payload().owner,
         }],
         supportedTags: linuxGlibcSupportedTags(linux(17)),
         policy: {
           ignoreScripts: false,
-          eligiblePackages: new Set([payload().package.name]),
-          allowedBuilds: new Set([payload().package.name]),
+          eligiblePackages: new Set([payload().subject.package.name]),
+          allowedBuilds: new Set([payload().subject.package.name]),
         },
         trustedKeys: {
           'acme-2026': publicKey.export({ format: 'der', type: 'spki' }).toString('base64'),
@@ -382,15 +410,14 @@ describe('signed shared artifacts', () => {
         authorization: 'Bearer token',
         candidates: [{
           key: payload().inputKey,
-          package: payload().package,
-          sourceIntegrity: payload().sourceIntegrity,
+          subject: payload().subject,
           owner: payload().owner,
         }],
         supportedTags: linuxGlibcSupportedTags(linux(17)),
         policy: {
           ignoreScripts: false,
-          eligiblePackages: new Set([payload().package.name]),
-          allowedBuilds: new Set([payload().package.name]),
+          eligiblePackages: new Set([payload().subject.package.name]),
+          allowedBuilds: new Set([payload().subject.package.name]),
         },
         trustedKeys: {
           'acme-2026': publicKey.export({ format: 'der', type: 'spki' }).toString('base64'),

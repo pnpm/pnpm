@@ -144,8 +144,9 @@ mod restore {
     use pnpm_config::{Config, RemoteSideEffectsCacheSettings};
     use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
     use pnpm_pnpr_client::{
-        ARTIFACT_KIND, ArtifactFile, ArtifactManifest, ArtifactPayload, BuilderProfile,
-        CompatibilityConstraints, OwnerScope, ResolveArtifactsRequest, SignedArtifactEnvelope,
+        ARTIFACT_KIND, ArtifactFile, ArtifactManifest, ArtifactPayload, ArtifactSubject,
+        BuilderProfile, CompatibilityConstraints, OwnerScope, ResolveArtifactsRequest,
+        SignedArtifactEnvelope,
     };
     use pnpm_shared_artifact_protocol::{
         ArtifactVariant, ResolveArtifactsResponse, ResolvedArtifact,
@@ -237,8 +238,7 @@ mod restore {
         let bytes = built_bytes();
         let payload = ArtifactPayload {
             kind: ARTIFACT_KIND.to_string(),
-            package: candidate.package.clone(),
-            source_integrity: candidate.source_integrity.clone(),
+            subject: candidate.subject.clone(),
             input_key: candidate.key.clone(),
             owner: OwnerScope::organization(ORGANIZATION),
             builder_id: "ci/main/1".to_string(),
@@ -284,17 +284,18 @@ mod restore {
         let supported_tags = vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()];
         let candidate = pnpm_pnpr_client::ArtifactCandidate {
             key: "dependency-side-effects:v1:fixture".to_string(),
-            package: pnpm_pnpr_client::PackageIdentity {
-                name: PACKAGE.to_string(),
-                version: "1.0.0".to_string(),
-            },
-            source_integrity: integrity_of(b"the source tarball"),
+            subject: ArtifactSubject::dependency_side_effects(
+                pnpm_pnpr_client::PackageIdentity {
+                    name: PACKAGE.to_string(),
+                    version: "1.0.0".to_string(),
+                },
+                integrity_of(b"the source tarball"),
+            ),
             owner: OwnerScope::organization(ORGANIZATION),
         };
         let payload = ArtifactPayload {
             kind: ARTIFACT_KIND.to_string(),
-            package: candidate.package.clone(),
-            source_integrity: candidate.source_integrity.clone(),
+            subject: candidate.subject.clone(),
             input_key: candidate.key.clone(),
             owner: candidate.owner.clone(),
             builder_id: "ci/main/1".to_string(),

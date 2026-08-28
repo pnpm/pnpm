@@ -9,12 +9,13 @@ use p256::{
 use sha2::{Digest as _, Sha512};
 
 use crate::{
-    ARTIFACT_KIND, ArtifactBlobUpload, ArtifactFile, ArtifactManifest, ArtifactPayload,
-    BuilderProfile, CompatibilityConstraints, LinuxGlibcPlatform, MacOsPlatform, OwnerScope,
-    PackageIdentity, PublishArtifactRequest, SIGNATURE_ALGORITHM, SignedArtifactEnvelope,
-    WindowsPlatform, blob_id, compatibility_rank, linux_glibc_supported_tags, linux_glibc_tag,
-    macos_supported_tags, macos_tag, platform_fingerprint, validate_manifest_path, verify_blob,
-    windows_supported_tags, windows_tag,
+    ARTIFACT_KIND, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
+    ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints, LinuxGlibcPlatform,
+    MacOsPlatform, OwnerScope, PackageIdentity, PublishArtifactRequest, SIGNATURE_ALGORITHM,
+    SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND, WindowsPlatform, blob_id,
+    compatibility_rank, linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags,
+    macos_tag, platform_fingerprint, validate_manifest_path, verify_blob, windows_supported_tags,
+    windows_tag,
 };
 
 fn integrity(bytes: &[u8]) -> String {
@@ -41,8 +42,10 @@ fn windows(
 fn payload(file_integrity: String) -> ArtifactPayload {
     ArtifactPayload {
         kind: ARTIFACT_KIND.to_string(),
-        package: PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
-        source_integrity: "sha512-source".to_string(),
+        subject: ArtifactSubject::dependency_side_effects(
+            PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
+            "sha512-source",
+        ),
         input_key: "dependency-side-effects:v1:deps=abc".to_string(),
         owner: OwnerScope::organization("acme"),
         builder_id: "ci/main/42".to_string(),
@@ -64,6 +67,36 @@ fn payload(file_integrity: String) -> ArtifactPayload {
             deleted: vec!["src/intermediate.o".to_string()],
         },
     }
+}
+
+#[test]
+fn validates_subject_specific_artifact_identity() {
+    let owner = OwnerScope::organization("acme");
+    ArtifactCandidate {
+        key: "workspace-task:v1:inputs=abc".to_string(),
+        subject: ArtifactSubject::workspace_task("packages/app", "build"),
+        owner: owner.clone(),
+    }
+    .validate()
+    .unwrap();
+
+    let publisher = OwnerScope::Publisher { package: "native-addon".to_string() };
+    let workspace_task = ArtifactCandidate {
+        key: "workspace-task:v1:inputs=abc".to_string(),
+        subject: ArtifactSubject::workspace_task("packages/app", "build"),
+        owner: publisher,
+    };
+    assert!(workspace_task.validate().is_err());
+
+    let mut task_payload = payload(integrity(b"addon"));
+    task_payload.kind = WORKSPACE_TASK_ARTIFACT_KIND.to_string();
+    task_payload.input_key = "workspace-task:v1:inputs=abc".to_string();
+    task_payload.subject = ArtifactSubject::workspace_task("packages/app", "build");
+    task_payload.owner = owner;
+    task_payload.validate().unwrap();
+
+    task_payload.kind = ARTIFACT_KIND.to_string();
+    assert!(task_payload.validate().is_err());
 }
 
 #[test]
@@ -175,12 +208,12 @@ fn envelope_digest_matches_the_cross_stack_vector() {
     let envelope = SignedArtifactEnvelope {
         algorithm: SIGNATURE_ALGORITHM.to_string(),
         key_id: "acme-2026".to_string(),
-        payload: "eyJraW5kIjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djEiLCJwYWNrYWdlIjp7Im5hbWUiOiJuYXRpdmUtYWRkb24iLCJ2ZXJzaW9uIjoiMS4wLjAifSwic291cmNlSW50ZWdyaXR5Ijoic2hhNTEyLXNvdXJjZSIsImlucHV0S2V5IjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djE6ZGVwcz1hYmMiLCJvd25lciI6eyJ0eXBlIjoib3JnYW5pemF0aW9uIiwibmFtZSI6ImFjbWUifSwiYnVpbGRlcklkIjoiY2kvbWFpbi80MiIsImJ1aWxkZXJQcm9maWxlIjp7ImltYWdlRGlnZXN0Ijoic2hhMjU2OmltYWdlIiwiYXJjaGl0ZWN0dXJlQmFzZWxpbmUiOiJ4ODYtNjQtdjIiLCJlbnZpcm9ubWVudCI6eyJDRkxBR1MiOiItTzIifX0sImNvbXBhdGliaWxpdHkiOnsia2luZCI6InRhZ2dlZCIsInRhZ3MiOlsicG5wbTp2MTpsaW51eC14NjQtbm9kZTIyLWdsaWJjMi4xNyJdfSwibWFuaWZlc3QiOnsiYWRkZWQiOlt7InBhdGgiOiJidWlsZC9hZGRvbi5ub2RlIiwiaW50ZWdyaXR5Ijoic2hhNTEyLUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBPT0iLCJtb2RlIjo0OTMsInNpemUiOjV9XSwiZGVsZXRlZCI6WyJzcmMvaW50ZXJtZWRpYXRlLm8iXX19".to_string(),
+        payload: "eyJraW5kIjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djEiLCJzdWJqZWN0Ijp7ImtpbmQiOiJkZXBlbmRlbmN5LXNpZGUtZWZmZWN0cyIsInBhY2thZ2UiOnsibmFtZSI6Im5hdGl2ZS1hZGRvbiIsInZlcnNpb24iOiIxLjAuMCJ9LCJzb3VyY2VJbnRlZ3JpdHkiOiJzaGE1MTItc291cmNlIn0sImlucHV0S2V5IjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djE6ZGVwcz1hYmMiLCJvd25lciI6eyJ0eXBlIjoib3JnYW5pemF0aW9uIiwibmFtZSI6ImFjbWUifSwiYnVpbGRlcklkIjoiY2kvbWFpbi80MiIsImJ1aWxkZXJQcm9maWxlIjp7ImltYWdlRGlnZXN0Ijoic2hhMjU2OmltYWdlIiwiYXJjaGl0ZWN0dXJlQmFzZWxpbmUiOiJ4ODYtNjQtdjIiLCJlbnZpcm9ubWVudCI6eyJDRkxBR1MiOiItTzIifX0sImNvbXBhdGliaWxpdHkiOnsia2luZCI6InRhZ2dlZCIsInRhZ3MiOlsicG5wbTp2MTpsaW51eC14NjQtbm9kZTIyLWdsaWJjMi4xNyJdfSwibWFuaWZlc3QiOnsiYWRkZWQiOlt7InBhdGgiOiJidWlsZC9hZGRvbi5ub2RlIiwiaW50ZWdyaXR5Ijoic2hhNTEyLUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBPT0iLCJtb2RlIjo0OTMsInNpemUiOjV9XSwiZGVsZXRlZCI6WyJzcmMvaW50ZXJtZWRpYXRlLm8iXX19".to_string(),
         signature: "MAYCAQECAQE=".to_string(),
     };
     assert_eq!(
         envelope.digest().unwrap(),
-        "f4d59d1718847f2188dbf1921eb72474037af978033264fd79e90426e4475f11",
+        "20b3fbc179563fc173c1bd306b8d088eb0eebb6fa40998e55d645c414f1964f5",
     );
 
     let mut noncanonical = envelope;

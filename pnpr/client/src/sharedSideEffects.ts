@@ -4,8 +4,12 @@ import https from 'node:https'
 import { URL } from 'node:url'
 import util, { TextDecoder } from 'node:util'
 
-export const ARTIFACT_KIND = 'dependency-side-effects:v1'
-export const INPUT_KEY_PREFIX = 'dependency-side-effects:v1:'
+export const DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND = 'dependency-side-effects:v1'
+export const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX = 'dependency-side-effects:v1:'
+export const WORKSPACE_TASK_ARTIFACT_KIND = 'workspace-task:v1'
+export const WORKSPACE_TASK_INPUT_KEY_PREFIX = 'workspace-task:v1:'
+export const ARTIFACT_KIND = DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND
+export const INPUT_KEY_PREFIX = DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX
 export const COMPATIBILITY_TAG_SCHEMA = 'pnpm:v1'
 export const SIGNATURE_ALGORITHM = 'ecdsa-p256-sha256'
 const MAX_CANDIDATES = 2_048
@@ -37,6 +41,20 @@ export interface PackageIdentity {
   name: string
   version: string
 }
+
+export interface DependencySideEffectsSubject {
+  kind: 'dependency-side-effects'
+  package: PackageIdentity
+  sourceIntegrity: string
+}
+
+export interface WorkspaceTaskSubject {
+  kind: 'workspace-task'
+  project: string
+  task: string
+}
+
+export type ArtifactSubject = DependencySideEffectsSubject | WorkspaceTaskSubject
 
 export interface LinuxGlibcPlatform {
   architecture: string
@@ -78,10 +96,7 @@ export interface ArtifactManifest {
   deleted: string[]
 }
 
-export interface ArtifactPayload {
-  kind: typeof ARTIFACT_KIND
-  package: PackageIdentity
-  sourceIntegrity: string
+interface ArtifactPayloadFields {
   inputKey: string
   owner: OwnerScope
   builderId: string
@@ -90,6 +105,18 @@ export interface ArtifactPayload {
   manifest: ArtifactManifest
 }
 
+export type DependencySideEffectsPayload = ArtifactPayloadFields & {
+  kind: typeof DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND
+  subject: DependencySideEffectsSubject
+}
+
+export type WorkspaceTaskPayload = ArtifactPayloadFields & {
+  kind: typeof WORKSPACE_TASK_ARTIFACT_KIND
+  subject: WorkspaceTaskSubject
+}
+
+export type ArtifactPayload = DependencySideEffectsPayload | WorkspaceTaskPayload
+
 export interface SignedArtifactEnvelope {
   algorithm: typeof SIGNATURE_ALGORITHM
   keyId: string
@@ -97,12 +124,13 @@ export interface SignedArtifactEnvelope {
   signature: string
 }
 
-export interface ArtifactCandidate {
+export interface ArtifactCandidate<S extends ArtifactSubject = ArtifactSubject> {
   key: string
-  package: PackageIdentity
-  sourceIntegrity: string
+  subject: S
   owner: OwnerScope
 }
+
+export type DependencySideEffectsCandidate = ArtifactCandidate<DependencySideEffectsSubject>
 
 export interface ArtifactBlobUpload {
   integrity: string
@@ -121,7 +149,7 @@ export interface VerifiedArtifact {
 }
 
 export interface VerifyStoredSharedSideEffectsOptions {
-  candidate: ArtifactCandidate
+  candidate: DependencySideEffectsCandidate
   envelope: SignedArtifactEnvelope
   pinnedEnvelopeDigest?: string
   publicKey: string
@@ -144,7 +172,7 @@ export interface PublishSharedSideEffectsOptions {
 export interface ResolveSharedSideEffectsOptions {
   registryUrl: string
   authorization?: string
-  candidates: ArtifactCandidate[]
+  candidates: DependencySideEffectsCandidate[]
   supportedTags: string[]
   policy: {
     ignoreScripts: boolean
@@ -235,13 +263,13 @@ export async function resolveSharedSideEffects (
   validateSupportedTags(opts.supportedTags)
   if (opts.policy.ignoreScripts) return new Map()
   const permittedCandidates = opts.candidates.filter(candidate =>
-    opts.policy.eligiblePackages.has(candidate.package.name) && opts.policy.allowedBuilds.has(candidate.package.name)
+    opts.policy.eligiblePackages.has(candidate.subject.package.name) && opts.policy.allowedBuilds.has(candidate.subject.package.name)
   )
   if (permittedCandidates.length === 0) return new Map()
   if (permittedCandidates.length > MAX_CANDIDATES) {
     throw new Error(`Shared artifact lookup exceeds the ${MAX_CANDIDATES}-candidate limit`)
   }
-  const candidates = new Map<string, ArtifactCandidate>()
+  const candidates = new Map<string, DependencySideEffectsCandidate>()
   for (const candidate of permittedCandidates) {
     validateCandidate(candidate)
     if (candidates.has(candidate.key)) {
@@ -303,9 +331,7 @@ export async function resolveSharedSideEffects (
       }
       if (
         payload.inputKey !== candidate.key ||
-        payload.package.name !== candidate.package.name ||
-        payload.package.version !== candidate.package.version ||
-        payload.sourceIntegrity !== candidate.sourceIntegrity ||
+        !subjectsEqual(payload.subject, candidate.subject) ||
         !ownersEqual(payload.owner, candidate.owner)
       ) continue
       const rank = rankCompatibility(payload.compatibility, opts.supportedTags)
@@ -344,9 +370,7 @@ export function verifyStoredSharedSideEffects (
   const payload = verifySignedArtifactEnvelope(opts.envelope, opts.publicKey)
   if (
     payload.inputKey !== opts.candidate.key ||
-    payload.package.name !== opts.candidate.package.name ||
-    payload.package.version !== opts.candidate.package.version ||
-    payload.sourceIntegrity !== opts.candidate.sourceIntegrity ||
+    !subjectsEqual(payload.subject, opts.candidate.subject) ||
     !ownersEqual(payload.owner, opts.candidate.owner) ||
     compatibilityRank(payload.compatibility, opts.supportedTags) == null
   ) {
@@ -533,16 +557,15 @@ function errorMessage (err: unknown): string {
 
 function validatePayload (payload: ArtifactPayload): void {
   if (payload == null || typeof payload !== 'object') throw new Error('Shared artifact payload is not an object')
-  if (payload.kind !== ARTIFACT_KIND) throw new Error(`Unsupported shared artifact kind ${JSON.stringify(payload.kind)}`)
-  if (typeof payload.inputKey !== 'string' || !payload.inputKey.startsWith(INPUT_KEY_PREFIX)) {
-    throw new Error(`Shared artifact input key must start with ${JSON.stringify(INPUT_KEY_PREFIX)}`)
+  const { artifactKind, inputKeyPrefix } = subjectArtifactIdentity(payload.subject)
+  if (payload.kind !== artifactKind) throw new Error(`Unsupported shared artifact kind ${JSON.stringify(payload.kind)}`)
+  if (typeof payload.inputKey !== 'string' || !payload.inputKey.startsWith(inputKeyPrefix)) {
+    throw new Error(`Shared artifact input key must start with ${JSON.stringify(inputKeyPrefix)}`)
   }
   validateScalar('input key', payload.inputKey, 4_096)
-  validatePackageIdentity(payload.package)
-  validateScalar('source integrity', payload.sourceIntegrity, 1_024)
   validateScalar('builder id', payload.builderId, 256)
   validateOwner(payload.owner)
-  validatePublisherPackage(payload.owner, payload.package)
+  validateSubject(payload.subject, payload.owner)
   validateBuilderProfile(payload.builderProfile)
   validateCompatibility(payload.compatibility)
   validateManifest(payload.manifest)
@@ -550,14 +573,59 @@ function validatePayload (payload: ArtifactPayload): void {
 
 function validateCandidate (candidate: ArtifactCandidate): void {
   if (candidate == null || typeof candidate !== 'object') throw new Error('Shared artifact candidate is malformed')
-  if (typeof candidate.key !== 'string' || !candidate.key.startsWith(INPUT_KEY_PREFIX)) {
-    throw new Error(`Shared artifact input key must start with ${JSON.stringify(INPUT_KEY_PREFIX)}`)
+  const { inputKeyPrefix } = subjectArtifactIdentity(candidate.subject)
+  if (typeof candidate.key !== 'string' || !candidate.key.startsWith(inputKeyPrefix)) {
+    throw new Error(`Shared artifact input key must start with ${JSON.stringify(inputKeyPrefix)}`)
   }
   validateScalar('input key', candidate.key, 4_096)
-  validatePackageIdentity(candidate.package)
-  validateScalar('source integrity', candidate.sourceIntegrity, 1_024)
   validateOwner(candidate.owner)
-  validatePublisherPackage(candidate.owner, candidate.package)
+  validateSubject(candidate.subject, candidate.owner)
+}
+
+function subjectArtifactIdentity (subject: ArtifactSubject): {
+  artifactKind: typeof DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND | typeof WORKSPACE_TASK_ARTIFACT_KIND
+  inputKeyPrefix: typeof DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX | typeof WORKSPACE_TASK_INPUT_KEY_PREFIX
+} {
+  if (subject == null || typeof subject !== 'object') throw new Error('Shared artifact subject is malformed')
+  if (subject.kind === 'dependency-side-effects') {
+    return {
+      artifactKind: DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND,
+      inputKeyPrefix: DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX,
+    }
+  }
+  if (subject.kind === 'workspace-task') {
+    return {
+      artifactKind: WORKSPACE_TASK_ARTIFACT_KIND,
+      inputKeyPrefix: WORKSPACE_TASK_INPUT_KEY_PREFIX,
+    }
+  }
+  throw new Error(`Unsupported shared artifact subject ${JSON.stringify((subject as { kind?: unknown }).kind)}`)
+}
+
+function validateSubject (subject: ArtifactSubject, owner: OwnerScope): void {
+  subjectArtifactIdentity(subject)
+  if (subject.kind === 'dependency-side-effects') {
+    validatePackageIdentity(subject.package)
+    validateScalar('source integrity', subject.sourceIntegrity, 1_024)
+    validatePublisherPackage(owner, subject.package)
+    return
+  }
+  validateScalar('workspace project', subject.project, 4_096)
+  validateScalar('workspace task', subject.task, 256)
+  if (owner.type === 'publisher') {
+    throw new Error('Workspace task artifacts require an organization owner')
+  }
+}
+
+function subjectsEqual (left: ArtifactSubject, right: ArtifactSubject): boolean {
+  if (left.kind !== right.kind) return false
+  if (left.kind === 'dependency-side-effects' && right.kind === 'dependency-side-effects') {
+    return left.package.name === right.package.name &&
+      left.package.version === right.package.version &&
+      left.sourceIntegrity === right.sourceIntegrity
+  }
+  return left.kind === 'workspace-task' && right.kind === 'workspace-task' &&
+    left.project === right.project && left.task === right.task
 }
 
 function validatePackageIdentity (packageIdentity: PackageIdentity): void {

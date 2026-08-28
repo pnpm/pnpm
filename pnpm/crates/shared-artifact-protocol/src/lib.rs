@@ -18,8 +18,12 @@ use p256::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256, Sha512};
 
-pub const ARTIFACT_KIND: &str = "dependency-side-effects:v1";
-pub const INPUT_KEY_PREFIX: &str = "dependency-side-effects:v1:";
+pub const DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND: &str = "dependency-side-effects:v1";
+pub const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX: &str = "dependency-side-effects:v1:";
+pub const WORKSPACE_TASK_ARTIFACT_KIND: &str = "workspace-task:v1";
+pub const WORKSPACE_TASK_INPUT_KEY_PREFIX: &str = "workspace-task:v1:";
+pub const ARTIFACT_KIND: &str = DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND;
+pub const INPUT_KEY_PREFIX: &str = DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX;
 pub const COMPATIBILITY_TAG_SCHEMA: &str = "pnpm:v1";
 pub const SIGNATURE_ALGORITHM: &str = "ecdsa-p256-sha256";
 pub const MAX_CANDIDATES: usize = 2_048;
@@ -62,6 +66,19 @@ pub enum OwnerScope {
 pub struct PackageIdentity {
     pub name: String,
     pub version: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum ArtifactSubject {
+    #[serde(rename = "dependency-side-effects")]
+    DependencySideEffects {
+        package: PackageIdentity,
+        #[serde(rename = "sourceIntegrity")]
+        source_integrity: String,
+    },
+    #[serde(rename = "workspace-task")]
+    WorkspaceTask { project: String, task: String },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -139,8 +156,7 @@ pub struct ArtifactManifest {
 #[serde(rename_all = "camelCase")]
 pub struct ArtifactPayload {
     pub kind: String,
-    pub package: PackageIdentity,
-    pub source_integrity: String,
+    pub subject: ArtifactSubject,
     pub input_key: String,
     pub owner: OwnerScope,
     pub builder_id: String,
@@ -162,8 +178,7 @@ pub struct SignedArtifactEnvelope {
 #[serde(rename_all = "camelCase")]
 pub struct ArtifactCandidate {
     pub key: String,
-    pub package: PackageIdentity,
-    pub source_integrity: String,
+    pub subject: ArtifactSubject,
     pub owner: OwnerScope,
 }
 
@@ -440,23 +455,22 @@ impl PublishArtifactRequest {
 
 impl ArtifactPayload {
     pub fn validate(&self) -> Result<(), ArtifactProtocolError> {
-        if self.kind != ARTIFACT_KIND {
+        let (artifact_kind, input_key_prefix) = self.subject.artifact_kind_and_input_key_prefix();
+        if self.kind != artifact_kind {
             return Err(ArtifactProtocolError::InvalidEnvelope(format!(
                 "unsupported artifact kind {:?}",
                 self.kind,
             )));
         }
-        if !self.input_key.starts_with(INPUT_KEY_PREFIX) {
+        if !self.input_key.starts_with(input_key_prefix) {
             return Err(ArtifactProtocolError::InvalidEnvelope(format!(
-                "input key must start with {INPUT_KEY_PREFIX:?}",
+                "input key must start with {input_key_prefix:?}",
             )));
         }
         validate_scalar("input key", &self.input_key, 4_096)?;
-        self.package.validate()?;
-        validate_scalar("source integrity", &self.source_integrity, 1_024)?;
         validate_scalar("builder id", &self.builder_id, 256)?;
         validate_owner(&self.owner)?;
-        validate_publisher_package(&self.owner, &self.package)?;
+        self.subject.validate(&self.owner)?;
         validate_builder_profile(&self.builder_profile)?;
         validate_compatibility(&self.compatibility)?;
         self.manifest.validate()
@@ -465,16 +479,61 @@ impl ArtifactPayload {
 
 impl ArtifactCandidate {
     pub fn validate(&self) -> Result<(), ArtifactProtocolError> {
-        if !self.key.starts_with(INPUT_KEY_PREFIX) {
+        let (_, input_key_prefix) = self.subject.artifact_kind_and_input_key_prefix();
+        if !self.key.starts_with(input_key_prefix) {
             return Err(ArtifactProtocolError::InvalidEnvelope(format!(
-                "input key must start with {INPUT_KEY_PREFIX:?}",
+                "input key must start with {input_key_prefix:?}",
             )));
         }
         validate_scalar("input key", &self.key, 4_096)?;
-        self.package.validate()?;
-        validate_scalar("source integrity", &self.source_integrity, 1_024)?;
         validate_owner(&self.owner)?;
-        validate_publisher_package(&self.owner, &self.package)
+        self.subject.validate(&self.owner)
+    }
+}
+
+impl ArtifactSubject {
+    #[must_use]
+    pub fn dependency_side_effects(
+        package: PackageIdentity,
+        source_integrity: impl Into<String>,
+    ) -> Self {
+        Self::DependencySideEffects { package, source_integrity: source_integrity.into() }
+    }
+
+    #[must_use]
+    pub fn workspace_task(project: impl Into<String>, task: impl Into<String>) -> Self {
+        Self::WorkspaceTask { project: project.into(), task: task.into() }
+    }
+
+    fn artifact_kind_and_input_key_prefix(&self) -> (&'static str, &'static str) {
+        match self {
+            Self::DependencySideEffects { .. } => {
+                (DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND, DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX)
+            }
+            Self::WorkspaceTask { .. } => {
+                (WORKSPACE_TASK_ARTIFACT_KIND, WORKSPACE_TASK_INPUT_KEY_PREFIX)
+            }
+        }
+    }
+
+    fn validate(&self, owner: &OwnerScope) -> Result<(), ArtifactProtocolError> {
+        match self {
+            Self::DependencySideEffects { package, source_integrity } => {
+                package.validate()?;
+                validate_scalar("source integrity", source_integrity, 1_024)?;
+                validate_publisher_package(owner, package)
+            }
+            Self::WorkspaceTask { project, task } => {
+                validate_scalar("workspace project", project, 4_096)?;
+                validate_scalar("workspace task", task, 256)?;
+                if matches!(owner, OwnerScope::Publisher { .. }) {
+                    return Err(ArtifactProtocolError::InvalidEnvelope(
+                        "workspace task artifacts require an organization owner".to_string(),
+                    ));
+                }
+                Ok(())
+            }
+        }
     }
 }
 
