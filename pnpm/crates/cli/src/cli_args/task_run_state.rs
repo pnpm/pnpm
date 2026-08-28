@@ -281,7 +281,7 @@ impl TaskRunStateContext {
     ) -> Result<Option<File>, StateStorageError> {
         self.validate_state_directory(true)?;
         let lock_path = self.state_dir.join(START_LOCK_DIR);
-        let Some(_lock) =
+        let Some(lock) =
             pnpm_fs::DirLock::acquire(lock_path.clone(), LOCK_WAIT, LOCK_ABANDONED_AFTER)
                 .map_err(|error| StateStorageError::io(error, "locking", &lock_path))?
         else {
@@ -296,6 +296,19 @@ impl TaskRunStateContext {
                 return Err(StateStorageError::io(error, "opening", file_path));
             }
         };
+        match lock.is_owner() {
+            Ok(true) => {}
+            Ok(false) => {
+                drop(file);
+                let _ = fs::remove_file(file_path);
+                return Ok(None);
+            }
+            Err(error) => {
+                drop(file);
+                let _ = fs::remove_file(file_path);
+                return Err(StateStorageError::io(error, "checking", &lock_path));
+            }
+        }
         let latest_write = pnpm_fs::write_atomic(
             &self.latest_state_path,
             serde_json::to_string(header).expect("latest task state serializes").as_bytes(),

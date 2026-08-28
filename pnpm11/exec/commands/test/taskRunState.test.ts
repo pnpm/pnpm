@@ -337,7 +337,7 @@ test('finishing an older invocation preserves the newer invocation journal', asy
   await expect(context.readCompletedTasks()).resolves.toBeUndefined()
 })
 
-test('overlapping starts publish the newer invocation last', async () => {
+test('a stale start does not overwrite a newer invocation', async () => {
   const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-task-state-'))
   temporaryDirectories.push(workspaceDir)
   const project = path.join(workspaceDir, 'project') as ProjectRootDir
@@ -357,15 +357,10 @@ test('overlapping starts publish the newer invocation last', async () => {
     scriptCommands: () => ['build-command'],
   })
   const originalOpen = fs.open.bind(fs)
-  const originalMkdir = fs.mkdir.bind(fs)
   let markOlderBlocked!: () => void
-  let markNewerWaiting!: () => void
   let unblockOlder!: () => void
   const olderBlocked = new Promise<void>(resolve => {
     markOlderBlocked = resolve
-  })
-  const newerWaiting = new Promise<void>(resolve => {
-    markNewerWaiting = resolve
   })
   const olderGate = new Promise<void>(resolve => {
     unblockOlder = resolve
@@ -379,26 +374,22 @@ test('overlapping starts publish the newer invocation last', async () => {
     }
     return originalOpen(...args)
   })
-  let lockAttempts = 0
-  const mkdir = jest.spyOn(fs, 'mkdir').mockImplementation(async (...args) => {
-    if (String(args[0]).endsWith('start.lock') && ++lockAttempts === 2) markNewerWaiting()
-    return originalMkdir(...args)
-  })
 
   try {
     const olderPromise = context.start(new Set())
     await olderBlocked
-    const newerPromise = context.start(new Set([key]))
-    await newerWaiting
+    const lockPath = path.join(workspaceDir, 'node_modules', '.pnpm-task-run-state-v1', 'start.lock')
+    const staleTime = new Date(Date.now() - 60_000)
+    await fs.utimes(lockPath, staleTime, staleTime)
+    const newer = await context.start(new Set([key]))
     unblockOlder()
-    const [older, newer] = await Promise.all([olderPromise, newerPromise])
+    const older = await olderPromise
 
     await expect(context.readCompletedTasks()).resolves.toStrictEqual(new Set([key]))
     await older.close()
     await newer.close()
   } finally {
     unblockOlder()
-    mkdir.mockRestore()
     open.mockRestore()
   }
 })

@@ -184,6 +184,13 @@ export class TaskRunStateContext {
       await writeFileAtomic(filePath, contents, { mode: 0o600 })
       journalCreated = true
       file = await fs.open(filePath, 'a')
+      if (!await lock.isOwner()) {
+        await file.close()
+        file = undefined
+        await unlinkIfExists(filePath)
+        journalCreated = false
+        return new TaskRunState(filePath, undefined, this.opts.workspaceDir, run, completedTasks)
+      }
       await writeFileAtomic(this.latestStatePath, JSON.stringify(header), { mode: 0o600 })
     } catch (err: unknown) {
       await file?.close().catch(() => {})
@@ -322,9 +329,17 @@ class StateStartLock {
     return StateStartLock.acquireUntil(lockPath, deadline)
   }
 
+  async isOwner (): Promise<boolean> {
+    try {
+      return await fs.readFile(path.join(this.lockPath, LOCK_OWNER_FILE), 'utf8') === this.token
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+      throw err
+    }
+  }
+
   async release (): Promise<void> {
-    const owner = await fs.readFile(path.join(this.lockPath, LOCK_OWNER_FILE), 'utf8').catch(() => undefined)
-    if (owner !== this.token) return
+    if (!await this.isOwner().catch(() => false)) return
     await fs.rm(this.lockPath, { force: true, recursive: true }).catch(() => {})
   }
 }
