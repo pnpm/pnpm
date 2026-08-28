@@ -300,11 +300,8 @@ fn fresh_target_creates_nested_directories() {
     assert_eq!(fs::read(target.join("lib/deep/nested/file.js")).unwrap(), b"deeper");
 }
 
-/// Upstream's `moveOrMergeModulesDirs` would merge; pacquet's slice-1
-/// consumer (the hoisted-linker) never produces this state, so erroring
-/// loudly is the right call until a real caller demands the merge.
 #[test]
-fn node_modules_collision_in_file_map_errors() {
+fn node_modules_collision_in_file_map_merges() {
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");
     fs::create_dir_all(&src_root).unwrap();
@@ -315,21 +312,21 @@ fn node_modules_collision_in_file_map_errors() {
     let target = tmp.path().join("pkg");
     fs::create_dir_all(target.join("node_modules/existing")).unwrap();
     fs::write(target.join("node_modules/existing/keep.js"), b"survivor").unwrap();
+    fs::create_dir_all(target.join("node_modules/foo")).unwrap();
+    fs::write(target.join("node_modules/foo/stale.js"), b"replaced").unwrap();
 
-    let err = import_indexed_dir::<SilentReporter>(
+    import_indexed_dir::<SilentReporter>(
         &AtomicU8::new(0),
         PackageImportMethod::Copy,
         &target,
         &cas,
         FORCE_KEEP,
     )
-    .expect_err("collision should surface");
-    assert!(matches!(err, ImportIndexedDirError::NodeModulesCollision { .. }), "got: {err:?}");
+    .expect("bundled and preserved node_modules should merge");
 
-    // After the error, the existing nested dep must still be on disk —
-    // the function's cleanup must not have rimrafed it as a side
-    // effect of the failed stage.
     assert_eq!(fs::read(target.join("node_modules/existing/keep.js")).unwrap(), b"survivor");
+    assert_eq!(fs::read(target.join("node_modules/foo/index.js")).unwrap(), b"shipped-nm");
+    assert!(!target.join("node_modules/foo/stale.js").exists());
 }
 
 /// On Unix, when `Hardlink` is available we want force re-imports to
@@ -386,7 +383,8 @@ fn remove_dir_all_failure_restores_preserved_node_modules() {
     let src_root = tmp.path().join("cas");
     fs::create_dir_all(&src_root).unwrap();
     let pkg_json = write_source(&src_root, "package.json", b"new");
-    let cas = cas_map(&[("package.json", pkg_json)]);
+    let bundled = write_source(&src_root, "bundled.js", b"bundled");
+    let cas = cas_map(&[("package.json", pkg_json), ("node_modules/inner/bundled.js", bundled)]);
 
     let target = tmp.path().join("pkg");
     fs::create_dir_all(&target).unwrap();
@@ -427,6 +425,10 @@ fn remove_dir_all_failure_restores_preserved_node_modules() {
         fs::read(target.join("node_modules/inner/sentinel")).unwrap(),
         b"survivor",
         "preserved node_modules/ contents must be intact",
+    );
+    assert!(
+        !target.join("node_modules/inner/bundled.js").exists(),
+        "a failed swap must restore the conflicting dependency tree",
     );
     // No staging directory left behind anywhere under the outer
     // tempdir.
