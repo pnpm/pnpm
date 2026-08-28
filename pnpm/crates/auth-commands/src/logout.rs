@@ -176,15 +176,13 @@ where
         }
     };
 
-    let removed_from_config = forget_in_config_yaml::<Sys>(opts.config_dir, &registry)?;
-
-    let auth_ini_path = opts.config_dir.join("auth.ini");
-    let mut settings = safe_read_ini::<Sys>(&auth_ini_path)?;
-    let removed_from_ini = settings.remove(&token_key);
-    if removed_from_ini {
-        Sys::write(&auth_ini_path, settings.serialize().as_bytes())
-            .map_err(|error| LogoutError::WriteAuthIni { path: auth_ini_path, error })?;
-    }
+    // The two files hold independent copies of the same credential, so
+    // failing to clean one must not leave the other behind: a token pnpm
+    // would still send is worse than a logout that reports trouble.
+    let config_removal = forget_in_config_yaml::<Sys>(opts.config_dir, &registry);
+    let ini_removal = forget_in_auth_ini::<Sys>(opts.config_dir, &token_key);
+    let removed_from_config = config_removal?;
+    let removed_from_ini = ini_removal?;
 
     if !removed_from_config && !removed_from_ini {
         if revoked {
@@ -243,6 +241,22 @@ fn forget_in_config_yaml<Sys: FsReadToString + FsWrite>(
         removed = true;
     }
     Ok(removed)
+}
+
+/// Drop `token_key` from the `auth.ini` earlier versions wrote, reporting
+/// whether there was one to drop.
+fn forget_in_auth_ini<Sys: FsReadToString + FsWrite>(
+    config_dir: &std::path::Path,
+    token_key: &str,
+) -> Result<bool, LogoutError> {
+    let path = config_dir.join("auth.ini");
+    let mut settings = safe_read_ini::<Sys>(&path)?;
+    if !settings.remove(token_key) {
+        return Ok(false);
+    }
+    Sys::write(&path, settings.serialize().as_bytes())
+        .map_err(|error| LogoutError::WriteAuthIni { path, error })?;
+    Ok(true)
 }
 
 /// Read `auth.ini`, treating a missing file as empty. Any other read
