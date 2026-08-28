@@ -4,7 +4,6 @@ use std::{
 };
 
 use pnpm_config::Config;
-use pnpm_network::nerf_dart;
 use pnpm_network_web_auth_testing::{ok_token, web_auth_fake};
 use pnpm_reporter::SilentReporter;
 
@@ -13,11 +12,12 @@ use super::LoginArgs;
 /// Add the login-specific capability impls to the `web_auth_fake!`-generated
 /// `FakeHost` so it satisfies `LoginHost`. The web-login path these tests drive
 /// never prompts for credentials, so the two prompt impls are unreachable;
-/// `auth.ini` reads return empty and writes are recorded in fn-local state.
+/// `config.yaml` reads return empty and writes are recorded in fn-local state.
 macro_rules! login_host_fake {
     ($fake:ident $(, $helper:ident)* $(,)?) => {
         thread_local! {
-            static INI_WRITES: RefCell<Vec<(PathBuf, String)>> = const { RefCell::new(Vec::new()) };
+            static CONFIG_WRITES: RefCell<Vec<(PathBuf, String)>> =
+                const { RefCell::new(Vec::new()) };
         }
 
         impl pnpm_auth_commands::login::PromptInput for $fake {
@@ -37,8 +37,8 @@ macro_rules! login_host_fake {
         }
         impl pnpm_auth_commands::logout::FsWrite for $fake {
             fn write(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-                let text = String::from_utf8(bytes.to_vec()).expect("auth.ini is UTF-8");
-                INI_WRITES.with(|writes| writes.borrow_mut().push((path.to_path_buf(), text)));
+                let text = String::from_utf8(bytes.to_vec()).expect("config.yaml is UTF-8");
+                CONFIG_WRITES.with(|writes| writes.borrow_mut().push((path.to_path_buf(), text)));
                 Ok(())
             }
         }
@@ -46,9 +46,9 @@ macro_rules! login_host_fake {
         $( login_host_fake!(@helper $helper); )*
     };
 
-    (@helper auth_ini_writes) => {
-        fn auth_ini_writes() -> Vec<(PathBuf, String)> {
-            INI_WRITES.with(|writes| writes.borrow().clone())
+    (@helper config_writes) => {
+        fn config_writes() -> Vec<(PathBuf, String)> {
+            CONFIG_WRITES.with(|writes| writes.borrow().clone())
         }
     };
 
@@ -56,13 +56,13 @@ macro_rules! login_host_fake {
         compile_error!(concat!(
             "unknown `login_host_fake!` helper `",
             stringify!($unknown),
-            "`; expected one of: auth_ini_writes",
+            "`; expected one of: config_writes",
         ));
     };
 }
 
 /// `Config::default()` leaves `config_dir` as `None`; `run` must reject that
-/// before touching the network, since it cannot locate `auth.ini`. Mirrors the
+/// before touching the network, since it cannot locate `config.yaml`. Mirrors the
 /// `logout` adapter's guard.
 #[tokio::test]
 async fn errors_when_config_dir_is_unavailable() {
@@ -154,18 +154,20 @@ async fn web_login_server(server: &mut mockito::Server) -> String {
     server.url()
 }
 
-fn last_auth_ini(writes: &[(PathBuf, String)]) -> (&Path, &str) {
-    let (path, text) = writes.last().expect("login must write auth.ini");
-    (path.as_path(), text.as_str())
+/// The `config.yaml` the login left behind, parsed back into JSON. A login
+/// writes one field at a time, so the last write is the finished document.
+fn last_config_yaml(writes: &[(PathBuf, String)]) -> (&Path, serde_json::Value) {
+    let (path, text) = writes.last().expect("login must write config.yaml");
+    (path.as_path(), serde_saphyr::from_str(text).expect("login writes valid YAML"))
 }
 
 /// Pins the composition the option-level tests above and the write-path tests
 /// in `pnpm-auth-commands` each cover only half of: [`Config::scope`] —
-/// wherever it came from — reaching `auth.ini` through the adapter.
+/// wherever it came from — reaching `config.yaml` through the adapter.
 #[tokio::test]
 async fn a_config_scope_persists_the_scoped_token_and_registry_mapping() {
     web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
-    login_host_fake!(FakeHost, auth_ini_writes);
+    login_host_fake!(FakeHost, config_writes);
     reset();
     set_fetch(Box::new(|| Ok(ok_token("config-scope-token"))));
 
@@ -181,28 +183,21 @@ async fn a_config_scope_persists_the_scoped_token_and_registry_mapping() {
 
     args.execute::<FakeHost, RecordingReporter>(&config).await.expect("web login succeeds");
 
-    let writes = auth_ini_writes();
-    let (path, text) = last_auth_ini(&writes);
-    assert_eq!(path, Path::new("/mock/config").join("auth.ini"));
-    let registry_key = nerf_dart(&format!("{registry}/"));
-    assert!(
-        text.contains(&format!("{registry_key}:@my-org:_authToken=config-scope-token")),
-        "auth.ini is missing the scoped token: {text}",
+    let writes = config_writes();
+    let (path, document) = last_config_yaml(&writes);
+    assert_eq!(path, Path::new("/mock/config").join("config.yaml"));
+    let normalized = format!("{registry}/");
+    assert_eq!(
+        document["_auth"][&normalized],
+        serde_json::json!({ "@my-org": { "authToken": "config-scope-token" } }),
     );
-    assert!(
-        text.contains(&format!("@my-org:registry={registry}/")),
-        "auth.ini is missing the scope-to-registry mapping: {text}",
-    );
-    assert!(
-        !text.contains(&format!("{registry_key}:_authToken=")),
-        "the token must not also be written unscoped: {text}",
-    );
+    assert_eq!(document["registries"][&normalized], serde_json::json!({ "scopes": ["@my-org"] }));
 }
 
 #[tokio::test]
-async fn the_scope_flag_beats_a_config_scope_in_the_persisted_auth_ini() {
+async fn the_scope_flag_beats_a_config_scope_in_the_persisted_config_yaml() {
     web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
-    login_host_fake!(FakeHost, auth_ini_writes);
+    login_host_fake!(FakeHost, config_writes);
     reset();
     set_fetch(Box::new(|| Ok(ok_token("flag-scope-token"))));
 
@@ -218,18 +213,19 @@ async fn the_scope_flag_beats_a_config_scope_in_the_persisted_auth_ini() {
 
     args.execute::<FakeHost, RecordingReporter>(&config).await.expect("web login succeeds");
 
-    let writes = auth_ini_writes();
-    let (_, text) = last_auth_ini(&writes);
-    let registry_key = nerf_dart(&format!("{registry}/"));
-    assert!(
-        text.contains(&format!("{registry_key}:@from-flag:_authToken=flag-scope-token")),
-        "auth.ini is missing the flag's scoped token: {text}",
+    let writes = config_writes();
+    let (_, document) = last_config_yaml(&writes);
+    let normalized = format!("{registry}/");
+    assert_eq!(
+        document["_auth"][&normalized],
+        serde_json::json!({ "@from-flag": { "authToken": "flag-scope-token" } }),
     );
-    assert!(
-        text.contains(&format!("@from-flag:registry={registry}/")),
-        "auth.ini is missing the flag's scope-to-registry mapping: {text}",
+    assert_eq!(
+        document["registries"][&normalized],
+        serde_json::json!({ "scopes": ["@from-flag"] }),
     );
-    assert!(!text.contains("@from-config"), "the config scope must not reach auth.ini: {text}");
+    let written = writes.iter().map(|(_, text)| text.as_str()).collect::<String>();
+    assert!(!written.contains("@from-config"), "the config scope must not be written: {written}");
 }
 
 /// `execute` performs the web-login flow end-to-end against a mock registry and
