@@ -2943,6 +2943,28 @@ test('a registry pinned to the default value still beats the global _auth file',
   expect(config.registry).toBe('https://registry.npmjs.org/')
 })
 
+test('a legacy registries default key beats the global _auth file', async () => {
+  prepareEmpty()
+
+  // The older `<scope>: <url>` shape spells the default as `default:`.
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: { default: 'https://legacy-declared.example/' },
+  })
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://private.example': {
+          '@': { authToken: 'stored-token' },
+        },
+      },
+    },
+    { workspaceDir: process.cwd() }
+  )
+
+  expect(config.registry).toBe('https://legacy-declared.example/')
+})
+
 test('a scope declared in pnpm-workspace.yaml beats the global _auth file', async () => {
   prepareEmpty()
 

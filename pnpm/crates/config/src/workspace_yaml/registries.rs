@@ -127,12 +127,17 @@ pub struct RegistryLookups {
 ///
 /// Read without consuming the map, unlike [`into_lookups`], so that a later
 /// layer can tell a route a config file declared from one inferred from a
-/// credential.
+/// credential. Both spellings of the default reach it: the `scopes` list of a
+/// declaration, and the older `default:` key that [`into_lookups`] reads as
+/// the same thing.
 #[must_use]
 pub fn routed_scopes(entries: &BTreeMap<String, RegistryEntry>) -> BTreeSet<String> {
     entries
         .iter()
         .flat_map(|(key, entry)| match entry {
+            RegistryEntry::ScopeRoute(_) if key == "default" => {
+                vec![DEFAULT_REGISTRY_SCOPE.to_owned()]
+            }
             RegistryEntry::ScopeRoute(_) => vec![key.clone()],
             RegistryEntry::Declaration(declaration) => {
                 declaration.scopes.clone().unwrap_or_default()

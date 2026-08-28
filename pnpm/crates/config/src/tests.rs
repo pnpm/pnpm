@@ -4401,3 +4401,16 @@ pub fn the_global_auth_file_outranks_an_npmrc_scope_route() {
         Some("https://private.example/"),
     );
 }
+
+/// The older `registries: { default: … }` spelling names the default
+/// registry as much as a declaration routing the bare `@` does, and the
+/// reader treats it that way, so the declaration must be seen through it too.
+#[test]
+pub fn a_legacy_default_registries_key_beats_the_global_auth_file() {
+    let config = load_with_auth_file(
+        STORED_LOGIN,
+        Some("registries:\n  default: https://legacy-declared.example/\n"),
+    );
+
+    assert_eq!(config.registry, "https://legacy-declared.example/");
+}
