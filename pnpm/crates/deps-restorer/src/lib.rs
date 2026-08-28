@@ -99,6 +99,27 @@ pub fn snapshot_has_patch(snapshot_key: &pnpm_lockfile::PackageKey) -> bool {
     pnpm_deps_path::index_of_dep_path_suffix(&snapshot_key.to_string()).patch_hash_index.is_some()
 }
 
+/// Returns the package identity used to match a lockfile snapshot against
+/// `patchedDependencies`.
+///
+/// Non-registry package keys carry their resolution in the version slot, so
+/// the manifest version recorded in `packages:` takes precedence when present.
+#[must_use]
+pub fn name_version_from_package_key(
+    key: &pnpm_lockfile::PackageKey,
+    packages: Option<
+        &std::collections::HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata>,
+    >,
+) -> (String, String) {
+    let metadata_key = key.without_peer();
+    let name = metadata_key.name.to_string();
+    let version = packages
+        .and_then(|packages| packages.get(&metadata_key))
+        .and_then(|metadata| metadata.version.clone())
+        .unwrap_or_else(|| metadata_key.suffix.version().to_string());
+    (name, version)
+}
+
 const MAX_SCRIPT_THREADS: usize = 256;
 
 #[must_use]

@@ -78,16 +78,11 @@ pub fn resolve_snapshot_patches(
             let mut map = HashMap::new();
             for key in snaps.keys() {
                 let metadata_key = key.without_peer();
-                let name = metadata_key.name.to_string();
-                let version_from_key = metadata_key.suffix.version().to_string();
-                let version = packages
-                    .and_then(|packages| packages.get(&metadata_key))
-                    .and_then(|metadata| metadata.version.as_deref())
-                    .unwrap_or(&version_from_key);
+                let (name, version) = crate::name_version_from_package_key(&metadata_key, packages);
                 // Propagate `ERR_PNPM_PATCH_KEY_CONFLICT` rather than
                 // silently skipping the snapshot. Failing here makes the
                 // user add an exact-version entry to disambiguate.
-                if let Some(info) = get_patch_info(Some(groups), &name, version)
+                if let Some(info) = get_patch_info(Some(groups), &name, &version)
                     .map_err(BuildPhaseError::PatchKeyConflict)?
                 {
                     map.insert(metadata_key, info.clone());
