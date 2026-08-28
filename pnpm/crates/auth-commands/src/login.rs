@@ -179,30 +179,40 @@ fn normalize_scope(scope: Option<&str>) -> Option<String> {
 /// Record the granted `token` in the global `config.yaml`: the credential
 /// under `_auth`, and the route to it under `registries`.
 ///
-/// Each field is a separate format-preserving edit of the document as it
-/// stands after the previous one, so the second write cannot drop the first.
+/// The fields are folded into the document one after another and written
+/// once. A credential and the route that reaches it are one fact, so a
+/// failure part-way through has to leave the file as it was rather than a
+/// token the command is about to report it failed to record.
 fn record_login<Sys: FsReadToString + FsWrite>(
     opts: &LoginOptions<'_>,
     registry: &str,
     token: &str,
 ) -> Result<(), LoginError> {
     let config_path = opts.config_dir.join(GLOBAL_CONFIG_YAML_FILENAME);
-    let mut document = read_config_yaml::<Sys>(&config_path)?;
+    let original = read_config_yaml::<Sys>(&config_path)?;
     let scope = normalize_scope(opts.scope);
-    let fields = config_yaml::login_fields(document.as_deref(), registry, scope.as_deref(), token)
+    let fields = config_yaml::login_fields(original.as_deref(), registry, scope.as_deref(), token)
         .map_err(LoginError::ParseConfigYaml)?;
 
+    let mut document = original.clone();
     for (key, value) in fields {
-        let edit = edit_manifest_field(document.as_deref(), key, &value)
-            .map_err(LoginError::EditConfigYaml)?;
-        let ManifestEdit::Write(text) = edit else {
-            continue;
-        };
-        Sys::write(&config_path, text.as_bytes())
-            .map_err(|error| LoginError::WriteConfigYaml { path: config_path.clone(), error })?;
-        document = Some(text);
+        match edit_manifest_field(document.as_deref(), key, &value)
+            .map_err(LoginError::EditConfigYaml)?
+        {
+            ManifestEdit::Write(text) => document = Some(text),
+            ManifestEdit::Unchanged => {}
+            // Only a deletion empties a document, and a login sets.
+            ManifestEdit::Remove => {
+                unreachable!("recording a login cannot empty {}", config_path.display())
+            }
+        }
     }
-    Ok(())
+
+    let Some(text) = document.filter(|text| Some(text) != original.as_ref()) else {
+        return Ok(());
+    };
+    Sys::write(&config_path, text.as_bytes())
+        .map_err(|error| LoginError::WriteConfigYaml { path: config_path, error })
 }
 
 /// Read the global `config.yaml`, treating a missing file as absent. Any

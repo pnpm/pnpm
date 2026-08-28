@@ -42,7 +42,12 @@ async fn should_persist_a_scoped_auth_token_and_scope_registry_mapping() {
         login::<FakeHost, RecordingReporter>(&client(), options).await.expect("scoped login");
 
     assert_eq!(result, format!("Logged in on {registry}/"));
-    let document = written_document(&login_writes());
+    let writes = login_writes();
+    // The credential and the route that reaches it are one fact: a failure
+    // between two writes would persist a token the command reports it failed
+    // to record.
+    assert_eq!(writes.len(), 1, "the token and its route must land in one write: {writes:?}");
+    let document = written_document(&writes);
     let normalized = format!("{registry}/");
     assert_eq!(
         document["_auth"][&normalized],
