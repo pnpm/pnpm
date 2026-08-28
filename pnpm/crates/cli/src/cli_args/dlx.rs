@@ -13,6 +13,7 @@ use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{
     CatalogResolutionResult, WantedDependency as CatalogWantedDependency, resolve_from_catalog,
 };
+use pnpm_catalogs_types::Catalogs;
 use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::parse_overrides_iter;
@@ -240,12 +241,10 @@ impl DlxArgs {
         // names the bin to run; otherwise the command is also the package.
         let pkgs: Vec<String> =
             if package.is_empty() { vec![bin_command.clone()] } else { package.clone() };
-        // A `catalog:` spec dereferences against the caller's catalogs,
-        // reachable only through `workspace_dir`, which the install below
-        // re-anchors at the throwaway cache project. Resolve here rather
-        // than there so the catalog's version also feeds the cache key:
-        // two callers whose catalogs pin different versions of the same
-        // package must not share a cache entry.
+        // Resolved here rather than in the install below so the catalog's
+        // version also feeds the cache key: two callers whose catalogs pin
+        // different versions of the same package must not share a cache
+        // entry.
         let pkgs = resolve_catalog_specs(&pkgs, config.workspace_dir.as_deref())?;
 
         // Read the config values needed before (and after) the install,
@@ -360,11 +359,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
         (config.overrides.as_ref(), config.workspace_dir.as_deref())
         && overrides.values().any(|spec| spec.starts_with("catalog:"))
     {
-        let workspace_manifest =
-            pnpm_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
-        let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
-            .into_diagnostic()
-            .wrap_err("reading the caller's catalogs for the dlx install")?;
+        let catalogs = read_caller_catalogs(workspace_dir)?;
         let resolved = parse_overrides_iter(overrides.iter(), &catalogs)
             .map_err(miette::Report::new)?
             .into_iter()
@@ -609,6 +604,17 @@ async fn run_package_manager<Reporter: self::Reporter + 'static>(
     )
 }
 
+/// The catalogs of the workspace the dlx invocation was made from. The
+/// throwaway cache project has none of its own, so both the `overrides`
+/// and the package specs it inherits are dereferenced against these.
+fn read_caller_catalogs(workspace_dir: &Path) -> miette::Result<Catalogs> {
+    let workspace_manifest =
+        pnpm_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
+    get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+        .into_diagnostic()
+        .wrap_err("reading the caller's catalogs for the dlx install")
+}
+
 /// Replace the `catalog:` specifier of each dlx package spec with the
 /// specifier the caller workspace's catalogs hold. Any other spec passes
 /// through untouched, and the catalogs are only read when at least one
@@ -626,11 +632,7 @@ fn resolve_catalog_specs(
     let Some(workspace_dir) = workspace_dir.filter(|_| pkgs.iter().any(uses_catalog)) else {
         return Ok(pkgs.to_vec());
     };
-    let workspace_manifest =
-        pnpm_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
-    let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
-        .into_diagnostic()
-        .wrap_err("reading the caller's catalogs for the dlx install")?;
+    let catalogs = read_caller_catalogs(workspace_dir)?;
     pkgs.iter()
         .map(|pkg| {
             let parsed = parse_wanted_dependency(pkg);

@@ -1,10 +1,7 @@
-#[cfg(unix)]
-use crate::_utils::flatten_report;
+use crate::_utils::{append_workspace_yaml_key, flatten_report};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-#[cfg(unix)]
-use std::path::Path;
 
 /// `pacquet dlx` with no command is an error, mirroring pnpm's dlx, which
 /// prints help and exits non-zero when given neither a command nor a
@@ -106,13 +103,13 @@ fn dlx_resolves_caller_catalog_references_in_overrides() {
 /// the throwaway cache project the install is anchored at does not have.
 /// Regression test for `ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC` on every
 /// `pnpm dlx <pkg>@catalog:` (pnpm/pnpm#14294).
-#[cfg(unix)]
 #[test]
+#[cfg_attr(not(unix), ignore = "dlx bin execution is only exercised on Unix")]
 fn dlx_resolves_a_package_spec_against_the_callers_default_catalog() {
     let CommandTempCwd { pacquet, root, workspace, .. } =
         CommandTempCwd::init().add_mocked_registry();
 
-    add_catalogs_to_workspace_yaml(&workspace, "catalog:\n  '@foo/touch-file-one-bin': 1.0.0\n");
+    append_workspace_yaml_key(&workspace, "catalog", "{ '@foo/touch-file-one-bin': 1.0.0 }");
 
     pacquet.with_arg("dlx").with_arg("@foo/touch-file-one-bin@catalog:").assert().success();
 
@@ -124,19 +121,29 @@ fn dlx_resolves_a_package_spec_against_the_callers_default_catalog() {
     drop(root);
 }
 
-/// Same as the default catalog, for the `catalog:<name>` form.
-#[cfg(unix)]
+/// The `catalog:<name>` form, passed through `--package` so the other
+/// source of the dlx package list is covered too.
 #[test]
+#[cfg_attr(not(unix), ignore = "dlx bin execution is only exercised on Unix")]
 fn dlx_resolves_a_package_spec_against_a_named_caller_catalog() {
     let CommandTempCwd { pacquet, root, workspace, .. } =
         CommandTempCwd::init().add_mocked_registry();
 
-    add_catalogs_to_workspace_yaml(
+    append_workspace_yaml_key(
         &workspace,
-        "catalogs:\n  tools:\n    '@foo/touch-file-one-bin': 1.0.0\n",
+        "catalogs",
+        "{ tools: { '@foo/touch-file-one-bin': 1.0.0 } }",
     );
 
-    pacquet.with_arg("dlx").with_arg("@foo/touch-file-one-bin@catalog:tools").assert().success();
+    pacquet
+        .with_args([
+            "dlx",
+            "--package",
+            "@foo/touch-file-one-bin@catalog:tools",
+            "touch-file-one-bin",
+        ])
+        .assert()
+        .success();
 
     assert!(
         workspace.join("touch.txt").exists(),
@@ -148,13 +155,13 @@ fn dlx_resolves_a_package_spec_against_a_named_caller_catalog() {
 
 /// A spec naming a catalog that holds no entry for it is a user error, and
 /// must stay one once the caller's catalogs are consulted.
-#[cfg(unix)]
 #[test]
+#[cfg_attr(not(unix), ignore = "dlx bin execution is only exercised on Unix")]
 fn dlx_fails_when_a_package_spec_is_missing_from_the_catalog() {
     let CommandTempCwd { pacquet, root, workspace, .. } =
         CommandTempCwd::init().add_mocked_registry();
 
-    add_catalogs_to_workspace_yaml(&workspace, "catalog:\n  is-positive: 3.1.0\n");
+    append_workspace_yaml_key(&workspace, "catalog", "{ is-positive: 3.1.0 }");
 
     let output = pacquet
         .with_args(["dlx", "@foo/touch-file-one-bin@catalog:"])
@@ -174,18 +181,6 @@ fn dlx_fails_when_a_package_spec_is_missing_from_the_catalog() {
     );
 
     drop(root);
-}
-
-/// Append to the `pnpm-workspace.yaml` that
-/// [`pnpm_testing_utils::bin::CommandTempCwd::add_mocked_registry`] wrote,
-/// rather than replacing it, so the store and cache stay redirected at the
-/// test's own temp dirs.
-#[cfg(unix)]
-fn add_catalogs_to_workspace_yaml(workspace: &Path, catalogs: &str) {
-    let yaml_path = workspace.join("pnpm-workspace.yaml");
-    let mut yaml = std::fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    yaml.push_str(catalogs);
-    std::fs::write(&yaml_path, yaml).expect("write the caller's catalogs");
 }
 
 /// pnpm's dlx installs the package unpatched, and the caller's patch paths
