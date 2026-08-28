@@ -5586,6 +5586,9 @@ importers:
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
+      realpath-missing:
+        specifier: 'catalog:'
+        version: 2.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'

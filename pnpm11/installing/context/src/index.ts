@@ -23,6 +23,7 @@ import type {
 } from '@pnpm/types'
 import { pathAbsolute } from 'path-absolute'
 import { clone } from 'ramda'
+import { realpathMissing } from 'realpath-missing'
 
 import { readLockfiles } from './readLockfiles.js'
 
@@ -121,7 +122,9 @@ export async function getContext (
 ): Promise<PnpmContext> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
   const importersContext = await readProjectsContext(opts.allProjects, { lockfileDir: opts.lockfileDir, modulesDir })
-  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'), opts.lockfileDir)
+  const virtualStoreDir = opts.virtualStoreDir == null
+    ? path.join(importersContext.rootModulesDir, '.pnpm')
+    : await realpathMissing(pathAbsolute(opts.virtualStoreDir, opts.lockfileDir))
 
   if (!opts.frozenStore) {
     await fs.mkdir(opts.storeDir, { recursive: true })
@@ -295,7 +298,9 @@ export async function getContextForSingleImporter (
   const importer = projects[0]
   const modulesDir = importer.modulesDir
   const importerId = importer.id
-  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDir)
+  const virtualStoreDir = opts.virtualStoreDir == null
+    ? path.join(rootModulesDir, '.pnpm')
+    : await realpathMissing(pathAbsolute(opts.virtualStoreDir, opts.lockfileDir))
 
   if (!opts.frozenStore) {
     await fs.mkdir(storeDir, { recursive: true })
