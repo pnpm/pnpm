@@ -179,20 +179,17 @@ impl ConfigOverrides {
                 remaining.push(arg);
                 continue;
             }
-            // The token after a `--<setting> <value>` pair's flag, unless
-            // the flag ends argv or that token is already the child's.
-            //
-            // A token that opens with `-` is never a value: it is the
-            // `--` separator, another flag, or a short option. Claiming
-            // one would drop the separator and point a path setting at a
-            // directory literally named `--`; leaving it in place makes
-            // the valueless flag clap's to report.
-            let mut following = |accept: fn(&str) -> bool| {
+            // The token after a `--<setting> <value>` pair's flag, when the
+            // setting claims it — see [`claims_as_value`]. `None` when the
+            // flag ends argv, the token is already the child's, or it is
+            // not a value the setting takes, all of which leave the
+            // valueless flag for clap to report.
+            let mut following = |key: &str| {
                 let value = argv
                     .peek()
                     .filter(|&&(index, _)| !is_forwarded(index))
                     .and_then(|(_, token)| token.to_str())
-                    .filter(|token| !token.starts_with('-') && accept(token))
+                    .filter(|token| claims_as_value(key, token))
                     .map(str::to_owned)?;
                 argv.next();
                 Some(value)
@@ -205,19 +202,14 @@ impl ConfigOverrides {
                 }
                 ConfigToken::WellFormed { key, value } => overrides.set(key, value),
                 ConfigToken::BooleanFollows(key) => {
-                    let value = following(is_boolean_value);
-                    overrides.set(key, value.as_deref().unwrap_or("true"));
+                    overrides.set(key, following(key).as_deref().unwrap_or("true"));
                 }
-                ConfigToken::ValueFollows(key) => match following(|_| true) {
-                    Some(value) if setting_takes(key, &value) => overrides.set(key, &value),
-                    // The flag goes back in place, with the value it did
-                    // not take, for clap to report — see [`classify`]. A
-                    // flag that ends argv has no value at all, which is
-                    // just as much an invocation clap has to report.
-                    Some(value) => {
-                        remaining.push(arg);
-                        remaining.push(OsString::from(value));
-                    }
+                // A flag whose value is missing — because it ends argv, or
+                // because the token after it is one the setting does not
+                // take — goes back in place for clap to report; see
+                // [`classify`].
+                ConfigToken::ValueFollows(key) => match following(key) {
+                    Some(value) => overrides.set(key, &value),
                     None => remaining.push(arg),
                 },
                 ConfigToken::Malformed => {}
@@ -731,7 +723,7 @@ fn classify<'a>(arg: &'a OsStr, claimed_by_command: &HashSet<&str>) -> ConfigTok
     let Some((key, value)) = flag.split_once('=') else {
         return match setting(flag) {
             Some((key, SettingArity::Boolean)) => ConfigToken::BooleanFollows(key),
-            Some((key, SettingArity::Value(_))) => ConfigToken::ValueFollows(key),
+            Some((key, _)) => ConfigToken::ValueFollows(key),
             None => ConfigToken::NotOurs,
         };
     };
@@ -743,16 +735,19 @@ fn classify<'a>(arg: &'a OsStr, claimed_by_command: &HashSet<&str>) -> ConfigTok
 }
 
 /// How much of argv a bare `--<setting>` flag claims, and which values it
-/// accepts there.
+/// takes there. A setting whose value is a list repeats the flag, one
+/// value per occurrence.
 #[derive(Debug, Clone, Copy)]
 enum SettingArity {
     /// `--<setting>`, `--no-<setting>`, `--<setting>=<bool>`, and
     /// `--<setting> <bool>`.
     Boolean,
-    /// `--<setting>=<value>` and `--<setting> <value>`, where the value is
-    /// one the carried predicate accepts. A setting whose value is a list
-    /// repeats the flag, one value per occurrence.
-    Value(fn(&str) -> bool),
+    /// A path, a glob pattern, or another free-form value: every spelling
+    /// is one the setting takes, so the token after the flag is claimed
+    /// only when it cannot be anything else — see [`claims_as_value`].
+    Text,
+    /// A value the carried predicate accepts, and only such a value.
+    Parsed(fn(&str) -> bool),
 }
 
 /// Settings pnpm accepts as a bare `--<setting>` command-line flag, with
@@ -767,32 +762,26 @@ enum SettingArity {
 /// clap; a setting that collides with a *global* option would be claimed
 /// on every command line and so must not appear here at all.
 const BARE_SETTING_FLAGS: [(&str, SettingArity); 19] = [
-    ("child-concurrency", SettingArity::Value(is_i32)),
-    ("global-dir", SettingArity::Value(is_text)),
+    ("child-concurrency", SettingArity::Parsed(is_i32)),
+    ("global-dir", SettingArity::Text),
     ("hoist", SettingArity::Boolean),
-    ("hoist-pattern", SettingArity::Value(is_text)),
+    ("hoist-pattern", SettingArity::Text),
     ("lockfile", SettingArity::Boolean),
-    ("modules-dir", SettingArity::Value(is_text)),
+    ("modules-dir", SettingArity::Text),
     ("optimistic-repeat-install", SettingArity::Boolean),
-    ("package-import-method", SettingArity::Value(is_enum::<PackageImportMethod>)),
-    ("pm-on-fail", SettingArity::Value(is_enum::<PmOnFail>)),
-    ("public-hoist-pattern", SettingArity::Value(is_text)),
-    ("runtime-on-fail", SettingArity::Value(is_enum::<RuntimeOnFail>)),
+    ("package-import-method", SettingArity::Parsed(is_enum::<PackageImportMethod>)),
+    ("pm-on-fail", SettingArity::Parsed(is_enum::<PmOnFail>)),
+    ("public-hoist-pattern", SettingArity::Text),
+    ("runtime-on-fail", SettingArity::Parsed(is_enum::<RuntimeOnFail>)),
     ("shamefully-hoist", SettingArity::Boolean),
     ("side-effects-cache", SettingArity::Boolean),
     ("side-effects-cache-readonly", SettingArity::Boolean),
     ("strict-peer-dependencies", SettingArity::Boolean),
-    ("trust-policy", SettingArity::Value(is_enum::<TrustPolicy>)),
-    ("trust-policy-exclude", SettingArity::Value(is_text)),
-    ("trust-policy-ignore-after", SettingArity::Value(is_u64)),
-    ("virtual-store-dir", SettingArity::Value(is_text)),
+    ("trust-policy", SettingArity::Parsed(is_enum::<TrustPolicy>)),
+    ("trust-policy-exclude", SettingArity::Text),
+    ("trust-policy-ignore-after", SettingArity::Parsed(is_u64)),
+    ("virtual-store-dir", SettingArity::Text),
 ];
-
-/// A path, a glob pattern, or any other free-form value: every spelling
-/// is one the setting takes.
-fn is_text(_: &str) -> bool {
-    true
-}
 
 fn is_i32(value: &str) -> bool {
     value.parse::<i32>().is_ok()
@@ -816,8 +805,26 @@ fn named_bare_setting_flag(key: &str) -> Option<(&'static str, SettingArity)> {
 fn setting_takes(key: &str, value: &str) -> bool {
     match named_bare_setting_flag(key) {
         Some((_, SettingArity::Boolean)) => parse_bool(value).is_some(),
-        Some((_, SettingArity::Value(takes))) => takes(value),
+        Some((_, SettingArity::Text)) => true,
+        Some((_, SettingArity::Parsed(takes))) => takes(value),
         None => true,
+    }
+}
+
+/// Whether the `key` setting claims `token` — the argv token after its
+/// flag — as its value.
+///
+/// A free-form setting refuses one that opens with `-`: that token is the
+/// `--` separator, another flag, or a short option, and claiming it would
+/// drop the separator or point a path setting at a directory named `--`.
+/// A parsed setting decides on its own terms instead, which is what lets
+/// `--child-concurrency -1` mean "every core but one".
+fn claims_as_value(key: &str, token: &str) -> bool {
+    match named_bare_setting_flag(key) {
+        Some((_, SettingArity::Boolean)) => is_boolean_value(token),
+        Some((_, SettingArity::Text)) => !token.starts_with('-'),
+        Some((_, SettingArity::Parsed(takes))) => takes(token),
+        None => false,
     }
 }
 
@@ -849,12 +856,7 @@ pub(crate) fn bare_boolean_setting_claims(flag: &str, next: Option<&str>) -> boo
 /// [`BARE_SETTING_FLAGS`], or one whose value is missing, which
 /// [`ConfigOverrides::extract`] hands to clap intact.
 pub(crate) fn bare_setting_flag_width(flag: &str, next: Option<&str>) -> usize {
-    let claims_next = match named_bare_setting_flag(flag) {
-        Some((_, SettingArity::Boolean)) => next.is_some_and(is_boolean_value),
-        Some((_, SettingArity::Value(_))) => next.is_some_and(|next| !next.starts_with('-')),
-        None => false,
-    };
-    1 + usize::from(claims_next)
+    1 + usize::from(next.is_some_and(|next| claims_as_value(flag, next)))
 }
 
 fn scoped_registry_key(key: &str) -> Option<&str> {
