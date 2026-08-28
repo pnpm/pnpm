@@ -33,7 +33,8 @@ const RUNS_DIR: &str = "pipeline-runs/v0";
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PublishPipelineRun {
     /// The workspace the run belongs to. An identifier the client
-    /// chooses, not a path: see [`validate_name`].
+    /// chooses, not a path: the closed alphabet is enforced before any
+    /// path join.
     pub workspace: String,
     pub run_id: String,
     pub summary: Value,

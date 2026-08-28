@@ -70,7 +70,7 @@ async fn path_shaped_identifiers_are_refused() {
         let rendered = error.to_string();
         assert!(
             rendered.contains("ASCII"),
-            "unexpected error for {workspace}/{run_id}: {rendered}"
+            "unexpected error for {workspace}/{run_id}: {rendered}",
         );
         assert!(store.get(workspace, run_id).is_err(), "get must refuse {workspace}/{run_id}");
     }
