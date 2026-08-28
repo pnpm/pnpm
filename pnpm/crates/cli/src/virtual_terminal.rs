@@ -11,8 +11,8 @@
 pub fn enable() {
     use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
     use windows_sys::Win32::System::Console::{
-        ENABLE_VIRTUAL_TERMINAL_PROCESSING, GetConsoleMode, GetStdHandle, STD_ERROR_HANDLE,
-        STD_OUTPUT_HANDLE, SetConsoleMode,
+        ENABLE_PROCESSED_OUTPUT, ENABLE_VIRTUAL_TERMINAL_PROCESSING, GetConsoleMode, GetStdHandle,
+        STD_ERROR_HANDLE, STD_OUTPUT_HANDLE, SetConsoleMode,
     };
 
     // SAFETY: these are standard Win32 console calls. `GetStdHandle` returns
@@ -30,7 +30,14 @@ pub fn enable() {
             if GetConsoleMode(handle, &mut mode) == 0 {
                 continue;
             }
-            SetConsoleMode(handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+            // `ENABLE_VIRTUAL_TERMINAL_PROCESSING` is documented as requiring
+            // `ENABLE_PROCESSED_OUTPUT`, so both are set. A console that
+            // refuses the new mode keeps the old one and prints the escape
+            // sequences it did before, which is why the result is ignored.
+            SetConsoleMode(
+                handle,
+                mode | ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING,
+            );
         }
     }
 }
