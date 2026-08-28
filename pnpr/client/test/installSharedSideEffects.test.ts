@@ -13,6 +13,7 @@ import {
   type ArtifactPayload,
   createRemoteSideEffectsRestorer,
   createSignedArtifactEnvelope,
+  type DependencySideEffectsCandidate,
   linuxGlibcCompatibilityTag,
   macOSCompatibilityTag,
   publishBuiltSharedSideEffects,
@@ -55,13 +56,12 @@ describe('install remote side-effects', () => {
         }
         if (request.url === '/-/pnpr/v0/artifacts/resolve') {
           const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
-            candidates: Array<Pick<ArtifactPayload, 'inputKey' | 'package' | 'sourceIntegrity' | 'owner'> & { key: string }>
+            candidates: DependencySideEffectsCandidate[]
           }
           const envelopes = body.candidates.map((candidate) => {
             const payload: ArtifactPayload = {
               kind: 'dependency-side-effects:v1',
-              package: candidate.package,
-              sourceIntegrity: candidate.sourceIntegrity,
+              subject: candidate.subject,
               inputKey: candidate.key,
               owner: candidate.owner,
               builderId: 'ci/main/42',
@@ -889,8 +889,11 @@ describe('install remote side-effects', () => {
         publicKey.export({ format: 'der', type: 'spki' }).toString('base64')
       )
       expect(payload.inputKey).toBe(published.key)
-      expect(payload.package).toEqual({ name: packageName, version: packageVersion })
-      expect(payload.sourceIntegrity).toBe(sourceIntegrity)
+      expect(payload.subject).toEqual({
+        kind: 'dependency-side-effects',
+        package: { name: packageName, version: packageVersion },
+        sourceIntegrity,
+      })
       expect(payload.manifest).toEqual({
         added: [{
           path: 'build/addon.node',

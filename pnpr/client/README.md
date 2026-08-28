@@ -267,12 +267,17 @@ decoded payload\0
 decoded DER signature
 ```
 
-Input keys begin with `dependency-side-effects:v1:` and do not contain host
-platform identity; compatibility tags live in the signed payload. The signed
-package name and version, source tarball integrity, and owner must all match the
-current candidate. A publisher owner must additionally equal the signed package
-name. Organization eligibility is supplied independently by the caller and is
-checked before lookup.
+Every candidate and signed payload carries a discriminated subject. Dependency
+side effects use `{ kind: 'dependency-side-effects', package,
+sourceIntegrity }` with a `dependency-side-effects:v1:` input key; workspace
+tasks use `{ kind: 'workspace-task', project, task }` with a
+`workspace-task:v1:` input key. The signed payload's artifact kind and input-key
+prefix must match its subject. Its input key, subject, and owner must match the
+candidate. A publisher owner is valid only for a dependency subject and must
+equal its package name; workspace tasks require an organization owner. Input
+keys do not contain host platform identity;
+compatibility tags live in the signed payload. Dependency eligibility is
+supplied independently by the caller and is checked before lookup.
 
 Blob reads use the same authorization as lookup and send one owner-scoped
 `POST /-/pnpr/v0/artifacts/blob` request per unique SHA-512 integrity. Callers

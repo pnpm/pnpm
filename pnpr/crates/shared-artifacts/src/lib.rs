@@ -14,10 +14,9 @@ use object_store::{
 };
 use pnpm_shared_artifact_protocol::{
     ArtifactBlobRequest, ArtifactCandidate, ArtifactPayload, ArtifactProtocolError,
-    ArtifactVariant, MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE,
-    MAX_VARIANTS_PER_CANDIDATE, OwnerScope, PackageIdentity, PublishArtifactRequest,
-    ResolveArtifactsRequest, ResolveArtifactsResponse, ResolvedArtifact, SignedArtifactEnvelope,
-    blob_id, verify_blob,
+    ArtifactSubject, ArtifactVariant, MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE,
+    MAX_VARIANTS_PER_CANDIDATE, OwnerScope, PublishArtifactRequest, ResolveArtifactsRequest,
+    ResolveArtifactsResponse, ResolvedArtifact, SignedArtifactEnvelope, blob_id, verify_blob,
 };
 use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
 use pnpr_error::{RegistryError, Result};
@@ -291,7 +290,7 @@ impl SharedArtifactStore {
             Err(RegistryError::Forbidden { .. }) => return Ok(None),
             Err(err) => return Err(err),
         };
-        let entry = entry_digest(&candidate.key, &candidate.package, &candidate.source_integrity);
+        let entry = entry_digest(&candidate.key, &candidate.subject);
         let prefix = format!("{owner}/entries/{entry}/");
         let prefix = self.object_path(&prefix);
         let mut listing = self.store.list(Some(&prefix));
@@ -770,7 +769,7 @@ fn prepare_publication(
     let validated = request.validate().map_err(|err| protocol_error(&err))?;
     let payload = validated.payload;
     let owner = owner_key(username, &payload.owner)?;
-    let entry = entry_digest(&request.key, &payload.package, &payload.source_integrity);
+    let entry = entry_digest(&request.key, &payload.subject);
     let envelope = request.envelope.digest().map_err(|err| protocol_error(&err))?;
     let envelope_bytes = serde_json::to_vec(&request.envelope)?;
     let variant_path = format!("{owner}/entries/{entry}/{envelope}.json");
@@ -914,25 +913,18 @@ fn hex(bytes: &[u8]) -> String {
     })
 }
 
-fn entry_digest(key: &str, package: &PackageIdentity, source_integrity: &str) -> String {
+fn entry_digest(key: &str, subject: &ArtifactSubject) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(b"pnpm-shared-artifact-entry-v0\0");
+    hasher.update(b"pnpm-shared-artifact-entry-v1\0");
     hasher.update(key.as_bytes());
     hasher.update([0]);
-    hasher.update(package.name.as_bytes());
-    hasher.update([0]);
-    hasher.update(package.version.as_bytes());
-    hasher.update([0]);
-    hasher.update(source_integrity.as_bytes());
+    hasher.update(serde_json::to_vec(subject).expect("artifact subjects serialize"));
     hex(&hasher.finalize())
 }
 
 fn artifact_matches_candidate(payload: &ArtifactPayload, candidate: &ArtifactCandidate) -> bool {
-    let ArtifactCandidate { key: input_key, package, source_integrity, owner } = candidate;
-    payload.input_key == *input_key
-        && payload.package == *package
-        && payload.source_integrity == *source_integrity
-        && payload.owner == *owner
+    let ArtifactCandidate { key: input_key, subject, owner } = candidate;
+    payload.input_key == *input_key && payload.subject == *subject && payload.owner == *owner
 }
 
 struct ResolveBudget {

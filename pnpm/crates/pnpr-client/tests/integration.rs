@@ -28,9 +28,10 @@ use p256::{
 use pnpm_config::RegistryDeclaration;
 use pnpm_pnpr_client::{
     ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
-    ArtifactPayload, BuilderProfile, CompatibilityConstraints, OwnerScope, PackageIdentity,
-    PnprClient, PnprClientError, PublishArtifactRequest, ResolveArtifactsOptions, ResolveOptions,
-    ResolveProject, ResolveProjectsOptions, SignedArtifactEnvelope, VerifyLockfileOptions,
+    ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints, OwnerScope,
+    PackageIdentity, PnprClient, PnprClientError, PublishArtifactRequest, ResolveArtifactsOptions,
+    ResolveOptions, ResolveProject, ResolveProjectsOptions, SignedArtifactEnvelope,
+    VerifyLockfileOptions,
 };
 use pnpm_testing_utils::registry::TestRegistry;
 use sha2::{Digest as _, Sha512};
@@ -260,8 +261,10 @@ fn signed_artifact_fixture_with_builder_id(
     let integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(&blob)));
     let payload = ArtifactPayload {
         kind: "dependency-side-effects:v1".to_string(),
-        package: PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
-        source_integrity: "sha512-source".to_string(),
+        subject: ArtifactSubject::dependency_side_effects(
+            PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
+            "sha512-source",
+        ),
         input_key: "dependency-side-effects:v1:deps=abc".to_string(),
         owner: OwnerScope::organization("pnpr-client"),
         builder_id: builder_id.to_string(),
@@ -878,10 +881,13 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
 
     let candidate = ArtifactCandidate {
         key: publish.key.clone(),
-        package: PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
-        source_integrity: "sha512-source".to_string(),
+        subject: ArtifactSubject::dependency_side_effects(
+            PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
+            "sha512-source",
+        ),
         owner: OwnerScope::organization("pnpr-client"),
     };
+    let package_name = "native-addon".to_string();
     let untrusted_key = SigningKey::from_slice(&[8; 32]).expect("alternate fixture private key");
     let untrusted_public_key = p256::PublicKey::from(untrusted_key.verifying_key())
         .to_public_key_der()
@@ -892,8 +898,8 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: vec![candidate.clone()],
             supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
-            eligible_packages: HashSet::from([candidate.package.name.clone()]),
-            allowed_builds: HashSet::from([candidate.package.name.clone()]),
+            eligible_packages: HashSet::from([package_name.clone()]),
+            allowed_builds: HashSet::from([package_name.clone()]),
             ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), untrusted_public_key)]),
             pinned_envelope_digests: BTreeMap::new(),
@@ -906,13 +912,17 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
     assert!(untrusted.is_empty());
 
     let mut mismatched_candidate = candidate.clone();
-    mismatched_candidate.package.version = "2.0.0".to_string();
+    let ArtifactSubject::DependencySideEffects { package, .. } = &mut mismatched_candidate.subject
+    else {
+        unreachable!()
+    };
+    package.version = "2.0.0".to_string();
     let mismatched = client
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: vec![mismatched_candidate],
             supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
-            eligible_packages: HashSet::from([candidate.package.name.clone()]),
-            allowed_builds: HashSet::from([candidate.package.name.clone()]),
+            eligible_packages: HashSet::from([package_name.clone()]),
+            allowed_builds: HashSet::from([package_name.clone()]),
             ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key.clone())]),
             pinned_envelope_digests: BTreeMap::new(),
@@ -928,8 +938,8 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: vec![candidate.clone()],
             supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
-            eligible_packages: HashSet::from([candidate.package.name.clone()]),
-            allowed_builds: HashSet::from([candidate.package.name.clone()]),
+            eligible_packages: HashSet::from([package_name.clone()]),
+            allowed_builds: HashSet::from([package_name.clone()]),
             ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key.clone())]),
             pinned_envelope_digests: BTreeMap::new(),
@@ -947,8 +957,8 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: vec![candidate.clone()],
             supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
-            eligible_packages: HashSet::from([candidate.package.name.clone()]),
-            allowed_builds: HashSet::from([candidate.package.name.clone()]),
+            eligible_packages: HashSet::from([package_name.clone()]),
+            allowed_builds: HashSet::from([package_name.clone()]),
             ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key.clone())]),
             pinned_envelope_digests: BTreeMap::new(),
@@ -966,8 +976,8 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: vec![candidate.clone()],
             supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
-            eligible_packages: HashSet::from([candidate.package.name.clone()]),
-            allowed_builds: HashSet::from([candidate.package.name.clone()]),
+            eligible_packages: HashSet::from([package_name.clone()]),
+            allowed_builds: HashSet::from([package_name.clone()]),
             ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key.clone())]),
             pinned_envelope_digests: BTreeMap::from([(
@@ -988,8 +998,8 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: vec![candidate.clone()],
             supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
-            eligible_packages: HashSet::from([candidate.package.name.clone()]),
-            allowed_builds: HashSet::from([candidate.package.name.clone()]),
+            eligible_packages: HashSet::from([package_name.clone()]),
+            allowed_builds: HashSet::from([package_name]),
             ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key)]),
             pinned_envelope_digests: BTreeMap::from([(candidate.key.clone(), "0".repeat(64))]),
@@ -1019,22 +1029,21 @@ async fn artifact_lookup_preserves_script_eligibility_and_allow_build_policy() {
     let (publish, public_key, _) = signed_artifact_fixture();
     let candidate = ArtifactCandidate {
         key: publish.key,
-        package: PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
-        source_integrity: "sha512-source".to_string(),
+        subject: ArtifactSubject::dependency_side_effects(
+            PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
+            "sha512-source",
+        ),
         owner: OwnerScope::organization("pnpr-client"),
     };
+    let package_name = "native-addon".to_string();
     let supported_tags = vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()];
     let trusted_keys = BTreeMap::from([("acme-2026".to_string(), public_key)]);
     let client = PnprClient::new("http://127.0.0.1:9/");
 
     for (ignore_scripts, eligible_packages, allowed_builds) in [
-        (
-            true,
-            HashSet::from([candidate.package.name.clone()]),
-            HashSet::from([candidate.package.name.clone()]),
-        ),
-        (false, HashSet::new(), HashSet::from([candidate.package.name.clone()])),
-        (false, HashSet::from([candidate.package.name.clone()]), HashSet::new()),
+        (true, HashSet::from([package_name.clone()]), HashSet::from([package_name.clone()])),
+        (false, HashSet::new(), HashSet::from([package_name.clone()])),
+        (false, HashSet::from([package_name]), HashSet::new()),
     ] {
         let selected = client
             .resolve_artifacts(ResolveArtifactsOptions {
@@ -1062,12 +1071,8 @@ async fn concurrent_artifact_publications_apply_the_variant_limit_at_read_time()
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
     let (fixture, _, _) = signed_artifact_fixture_with_builder_id("ci/concurrent/0");
     let (payload, _) = fixture.envelope.decode_payload().expect("decode fixture payload");
-    let candidate = ArtifactCandidate {
-        key: fixture.key,
-        package: payload.package,
-        source_integrity: payload.source_integrity,
-        owner: payload.owner,
-    };
+    let candidate =
+        ArtifactCandidate { key: fixture.key, subject: payload.subject, owner: payload.owner };
     let barrier = Arc::new(Barrier::new(PUBLICATIONS + 1));
     let mut publications = Vec::with_capacity(PUBLICATIONS);
     for index in 0..PUBLICATIONS {
@@ -1149,11 +1154,13 @@ async fn organization_artifact_existence_is_not_exposed_to_another_owner() {
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: vec![ArtifactCandidate {
                 key: publish.key,
-                package: PackageIdentity {
-                    name: "native-addon".to_string(),
-                    version: "1.0.0".to_string(),
-                },
-                source_integrity: "sha512-source".to_string(),
+                subject: ArtifactSubject::dependency_side_effects(
+                    PackageIdentity {
+                        name: "native-addon".to_string(),
+                        version: "1.0.0".to_string(),
+                    },
+                    "sha512-source",
+                ),
                 owner: OwnerScope::organization("another-owner"),
             }],
             supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
