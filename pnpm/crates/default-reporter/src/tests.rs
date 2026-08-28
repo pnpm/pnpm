@@ -114,8 +114,7 @@ fn never_redraws_above_the_top_of_the_terminal() {
     const COLUMNS: usize = 120;
 
     let mut sink = Sink::new();
-    sink.rows = Some(ROWS);
-    sink.columns = COLUMNS;
+    sink.terminal_size = || Some((COLUMNS, Some(ROWS)));
     sink.diff = crate::diff::Diff::new(COLUMNS);
     let mut writes = Vec::new();
 
@@ -152,8 +151,7 @@ fn never_redraws_above_the_top_of_the_terminal() {
 #[test]
 fn a_frame_shorter_than_the_committed_prefix_is_rendered_whole() {
     let mut sink = Sink::new();
-    sink.rows = Some(3);
-    sink.columns = 120;
+    sink.terminal_size = || Some((120, Some(3)));
     sink.diff = crate::diff::Diff::new(120);
     let mut writes = Vec::new();
 

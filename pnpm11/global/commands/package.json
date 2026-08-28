@@ -46,6 +46,7 @@
     "@pnpm/installing.deps-installer": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
+    "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",

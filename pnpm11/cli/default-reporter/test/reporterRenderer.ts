@@ -23,6 +23,17 @@ async function yieldTick (): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, 0))
 }
 
+/** The cursor-up distances (`\x1b[<n>A`) in `output`. */
+function cursorUps (output: string): number[] {
+  const distances: number[] = []
+  for (const part of output.split('\x1b[').slice(1)) {
+    let end = 0
+    while (part[end] >= '0' && part[end] <= '9') end++
+    if (end > 0 && part[end] === 'A') distances.push(Number(part.slice(0, end)))
+  }
+  return distances
+}
+
 async function waitFor (
   writes: string[],
   predicate: (writes: readonly string[]) => boolean,
@@ -270,11 +281,9 @@ test('never redraws above the top of the terminal', async () => {
     reportResolved(0, 'bar')
     await waitFor(writes, w => w.length > writesBeforeRedraw)
 
-    const cursorUps = writes.flatMap((write) =>
-      [...write.matchAll(/\x1b\[(\d+)A/g)].map(([, count]) => Number(count)) // eslint-disable-line no-control-regex
-    )
-    expect(cursorUps.length).toBeGreaterThan(0)
-    expect(Math.max(...cursorUps)).toBeLessThan(rows)
+    const ups = writes.flatMap(cursorUps)
+    expect(ups.length).toBeGreaterThan(0)
+    expect(Math.max(...ups)).toBeLessThan(rows)
   } finally {
     stop()
   }

@@ -1032,34 +1032,41 @@ fn global_interactive_update_without_a_matching_group() {
     drop(root);
 }
 
-/// `pacquet add -g pnpm` is rejected — pnpm is managed via `self-update`.
+/// `pacquet add -g pnpm` is rejected — pnpm is managed via `self-update`. An
+/// `npm:` alias installs pnpm under another name, but the package still carries
+/// pnpm's own `pnpm` bin, so it is rejected the same way.
 #[test]
 fn global_add_pnpm_is_rejected() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let pnpm_home = root.path().join("pnpm-home");
     fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
 
-    let output = Command::cargo_bin("pnpm")
-        .expect("find the pnpm binary")
-        .with_current_dir(&workspace)
-        .with_env("PNPM_HOME", &pnpm_home)
-        .with_arg("add")
-        .with_arg("-g")
-        .with_arg("pnpm")
-        .output()
-        .expect("run add -g pnpm");
+    for selector in ["pnpm", "@pnpm/exe", "pnpm@12", "my-pnpm@npm:pnpm@12"] {
+        let output = Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .with_env("PNPM_HOME", &pnpm_home)
+            .with_arg("add")
+            .with_arg("-g")
+            .with_arg(selector)
+            .output()
+            .expect("run add -g");
 
-    assert!(!output.status.success(), "add -g pnpm must fail");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("self-update"),
-        "the failure should point at self-update, got: {stderr}",
-    );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success(), "add -g {selector} must fail, got: {stderr}");
+        assert!(
+            stderr.contains("ERR_PNPM_GLOBAL_PNPM_INSTALL")
+                && stderr
+                    .contains(r#"Use the "pnpm self-update" command to install or update pnpm"#),
+            "add -g {selector} must report the self-update diagnostic, got: {stderr}",
+        );
+    }
 
     drop(root);
 }
 
-/// `pnpm update -g pnpm` is rejected — pnpm is managed via `self-update`.
+/// `pnpm update -g pnpm` is rejected — pnpm is managed via `self-update`. The
+/// interactive form goes through its own selection path, so it is covered too.
 #[cfg(unix)]
 #[test]
 fn global_update_pnpm_is_rejected() {
@@ -1067,17 +1074,25 @@ fn global_update_pnpm_is_rejected() {
     let pnpm_home = root.path().join("pnpm-home");
     fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
 
-    let output = global_command(&workspace, &pnpm_home)
-        .with_args(["update", "-g", "@pnpm/exe"])
-        .output()
-        .expect("run update -g @pnpm/exe");
+    for selector in ["pnpm", "@pnpm/exe", "pnpm@12", "my-pnpm@npm:pnpm@12"] {
+        for extra_args in [&[][..], &["-i"][..]] {
+            let output = global_command(&workspace, &pnpm_home)
+                .with_args(["update", "-g", selector])
+                .with_args(extra_args)
+                .output()
+                .expect("run update -g");
 
-    assert!(!output.status.success(), "update -g @pnpm/exe must fail");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("self-update"),
-        "the failure should point at self-update, got: {stderr}",
-    );
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(!output.status.success(), "update -g {selector} must fail, got: {stderr}");
+            assert!(
+                stderr.contains("ERR_PNPM_GLOBAL_PNPM_INSTALL")
+                    && stderr.contains(
+                        r#"Use the "pnpm self-update" command to install or update pnpm"#
+                    ),
+                "update -g {selector} must report the self-update diagnostic, got: {stderr}",
+            );
+        }
+    }
 
     drop(root);
 }

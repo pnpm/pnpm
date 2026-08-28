@@ -223,9 +223,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     let groups = split_into_groups(params, cwd);
     // Each selector is read as its package name, so versioned forms like
     // `pnpm@9` or `@pnpm/exe@1` can't bypass the self-install guard.
-    if groups.iter().flatten().any(|token| {
-        parse_wanted_dependency(token).alias.as_deref().is_some_and(is_pnpm_cli_package_alias)
-    }) {
+    if selects_pnpm_cli(groups.iter().flatten()) {
         return Err(GlobalError::GlobalPnpmInstall.into());
     }
     // A tool name becomes the selector that installs the tool itself,
@@ -378,14 +376,6 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     let (global_pkg_dir, global_bin_dir) = global_dirs(base_config)?;
     check_bin_dir(&global_bin_dir)?;
     clean_orphaned_install_dirs(&global_pkg_dir);
-
-    // Each selector is read as its package name, so versioned forms like
-    // `pnpm@9` or `@pnpm/exe@1` can't bypass the self-update guard.
-    if params.iter().any(|param| {
-        parse_wanted_dependency(param).alias.as_deref().is_some_and(is_pnpm_cli_package_alias)
-    }) {
-        return Err(GlobalError::GlobalPnpmInstall.into());
-    }
 
     let scanned =
         scan_global_packages(&global_pkg_dir).into_diagnostic().wrap_err("scan global packages")?;
@@ -1238,7 +1228,7 @@ fn replacement_aliases(aliases: &[String]) -> Vec<String> {
     const PNPM_CLI_PACKAGE_ALIASES: [&str; 2] = ["pnpm", "@pnpm/exe"];
 
     let mut expanded = aliases.to_vec();
-    if aliases.iter().any(|alias| is_pnpm_cli_package_alias(alias)) {
+    if aliases.iter().any(|alias| is_pnpm_cli_package_name(alias)) {
         for alias in PNPM_CLI_PACKAGE_ALIASES {
             if !expanded.iter().any(|existing| existing == alias) {
                 expanded.push(alias.to_string());
@@ -1264,11 +1254,37 @@ fn should_replace_existing_package(
 /// `update -g` leaves an existing one alone.
 pub fn is_pnpm_cli_only_group(pkg: &GlobalPackageInfo) -> bool {
     !pkg.dependencies.is_empty()
-        && pkg.dependencies.iter().all(|(alias, _)| is_pnpm_cli_package_alias(alias))
+        && pkg.dependencies.iter().all(|(alias, spec)| is_pnpm_cli_dependency(alias, Some(spec)))
 }
 
-fn is_pnpm_cli_package_alias(alias: &str) -> bool {
-    matches!(alias, "pnpm" | "@pnpm/exe")
+/// Whether any of `params` names the pnpm CLI itself. Each selector is
+/// normalized to the package it installs first, so neither a versioned form
+/// like `pnpm@9` nor an aliased one like `foo@npm:pnpm@9` bypasses the guard.
+pub fn selects_pnpm_cli<'a>(params: impl IntoIterator<Item = &'a String>) -> bool {
+    params.into_iter().any(|param| {
+        let parsed = parse_wanted_dependency(param);
+        is_pnpm_cli_dependency(
+            parsed.alias.as_deref().unwrap_or_default(),
+            parsed.bare_specifier.as_deref(),
+        )
+    })
+}
+
+/// Whether a dependency declared as `alias` at `spec` is the pnpm CLI. An
+/// `npm:` alias resolves to its target, so `foo` at `npm:pnpm@9` is the pnpm
+/// CLI under another name — the install still carries pnpm's own `pnpm` bin.
+fn is_pnpm_cli_dependency(alias: &str, spec: Option<&str>) -> bool {
+    let name = npm_alias_target(spec);
+    is_pnpm_cli_package_name(name.as_deref().unwrap_or(alias))
+}
+
+fn is_pnpm_cli_package_name(name: &str) -> bool {
+    matches!(name, "pnpm" | "@pnpm/exe")
+}
+
+/// The package an `npm:` alias points at, or `None` for any other spec.
+fn npm_alias_target(spec: Option<&str>) -> Option<String> {
+    parse_wanted_dependency(spec?.strip_prefix("npm:")?).alias
 }
 
 /// The set of bin names provided by global package groups other than those

@@ -218,10 +218,15 @@ struct Sink {
     /// (an atomic update other writers can't interleave into).
     frame_buf: String,
     /// The differ's frame width, and the terminal height the frame has to fit
-    /// into. See [`Sink::commit_overflow`].
+    /// into. Re-read from `terminal_size` on every frame so a window resize
+    /// takes effect. See [`Sink::commit_overflow`].
     columns: usize,
     rows: Option<usize>,
     committed_lines: usize,
+    /// Probe for the output terminal's dimensions. A field so a test can pin
+    /// them instead of measuring the terminal the test runner happens to
+    /// inherit.
+    terminal_size: fn() -> Option<(usize, Option<usize>)>,
     throttle: Duration,
     last_write: Option<Instant>,
     prompt_active: bool,
@@ -268,6 +273,7 @@ impl Sink {
             columns,
             rows,
             committed_lines: 0,
+            terminal_size,
             frame_buf: String::new(),
             throttle,
             last_write: None,
@@ -364,6 +370,7 @@ impl Sink {
                     frame.push('\n');
                 }
                 let lines: Vec<&str> = frame[..frame.len() - 1].split('\n').collect();
+                self.refresh_terminal_size();
                 // `\r` resets the column in case an external process left the
                 // cursor mid-line; `\x1b[K` erases trailing characters on the
                 // current line; `\x1b[0J` erases anything written below the
@@ -379,6 +386,14 @@ impl Sink {
         }
         let _ = out.flush();
         true
+    }
+
+    /// Pick up a window resize, so the frame is fitted to the terminal it is
+    /// about to be drawn on rather than the one the process started in.
+    fn refresh_terminal_size(&mut self) {
+        let Some((columns, rows)) = (self.terminal_size)() else { return };
+        self.columns = columns;
+        self.rows = rows;
     }
 
     /// Hands the lines of the frame that no longer fit on screen over to the
@@ -431,7 +446,7 @@ impl Sink {
         let mut buf = std::mem::take(&mut self.frame_buf);
         self.diff.update_into(&handover, &mut buf);
         self.frame_buf = buf;
-        self.diff.reset();
+        self.diff = diff::Diff::new(self.columns);
         self.committed_lines = first_visible;
     }
 }

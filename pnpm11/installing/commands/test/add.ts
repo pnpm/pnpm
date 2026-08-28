@@ -383,6 +383,29 @@ test('add: fail trying to install pnpm', async () => {
   expect(err.code).toBe('ERR_PNPM_GLOBAL_PNPM_INSTALL')
 })
 
+// An `npm:` alias installs pnpm under another name, but the package still
+// carries pnpm's own `pnpm` bin, so it would take over the global bin slot
+// `pnpm self-update` manages.
+test('add: fail trying to install pnpm through an npm alias', async () => {
+  prepareEmpty()
+
+  let err!: PnpmError
+  try {
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      bin: path.resolve('project/bin'),
+      dir: path.resolve('project'),
+      global: true,
+      linkWorkspacePackages: false,
+      saveWorkspaceProtocol: false,
+      workspace: false,
+    }, ['my-pnpm@npm:pnpm@12'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.code).toBe('ERR_PNPM_GLOBAL_PNPM_INSTALL')
+})
+
 test('add: fail trying to install @pnpm/exe', async () => {
   prepareEmpty()
 

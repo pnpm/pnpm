@@ -1,4 +1,5 @@
 import type { GlobalPackageInfo } from '@pnpm/global.packages'
+import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 
 /**
  * The wrapper packages that ship the pnpm CLI itself: the unscoped `pnpm` and
@@ -11,14 +12,29 @@ import type { GlobalPackageInfo } from '@pnpm/global.packages'
  * would resolve the pnpm CLI from a dist-tag of its own choosing and relink the
  * bins, swapping the running pnpm for another version behind the user's back.
  */
-const PNPM_CLI_PACKAGE_ALIASES: ReadonlySet<string> = new Set(['pnpm', '@pnpm/exe'])
+const PNPM_CLI_PACKAGE_NAMES: ReadonlySet<string> = new Set(['pnpm', '@pnpm/exe'])
 
-export function isPnpmCliPackageAlias (alias: string): boolean {
-  return PNPM_CLI_PACKAGE_ALIASES.has(alias)
+export function isPnpmCliPackageName (name: string): boolean {
+  return PNPM_CLI_PACKAGE_NAMES.has(name)
+}
+
+/**
+ * Whether a dependency declared as `alias` at `spec` is the pnpm CLI. An `npm:`
+ * alias resolves to its target, so `foo` at `npm:pnpm@9` is the pnpm CLI under
+ * another name — the install still carries pnpm's own `pnpm` bin.
+ */
+export function isPnpmCliDependency (alias: string, spec?: string): boolean {
+  return isPnpmCliPackageName(npmAliasTarget(spec) ?? alias)
 }
 
 /** Whether `pkg` is a global group holding nothing but the pnpm CLI. */
 export function isPnpmCliOnlyGroup (pkg: Pick<GlobalPackageInfo, 'dependencies'>): boolean {
-  const aliases = Object.keys(pkg.dependencies)
-  return aliases.length > 0 && aliases.every(isPnpmCliPackageAlias)
+  const deps = Object.entries(pkg.dependencies)
+  return deps.length > 0 && deps.every(([alias, spec]) => isPnpmCliDependency(alias, spec))
+}
+
+/** The package an `npm:` alias points at, or `undefined` for any other spec. */
+function npmAliasTarget (spec?: string): string | undefined {
+  if (spec?.startsWith('npm:') !== true) return undefined
+  return parseWantedDependency(spec.slice('npm:'.length)).alias
 }
