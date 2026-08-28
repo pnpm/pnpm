@@ -100,12 +100,42 @@ test('getOptionsFromPnpmSettings() converts allowBuilds', () => {
 
 test('getOptionsFromPnpmSettings() reads remote side-effects cache settings', () => {
   const remoteSideEffectsCache = {
-    organization: 'acme',
+    org: 'acme',
     packages: ['native-addon'],
   }
   expect(getOptionsFromPnpmSettings(process.cwd(), {
     remoteSideEffectsCache,
   })).toStrictEqual({ remoteSideEffectsCache })
+})
+
+test('getOptionsFromPnpmSettings() reads the canonical side-effects cache declaration', () => {
+  const sideEffectsCache = {
+    read: true,
+    write: false,
+    remote: { org: 'acme', packages: ['native-addon'] },
+  }
+  expect(getOptionsFromPnpmSettings(process.cwd(), { sideEffectsCache }))
+    .toStrictEqual({ sideEffectsCache })
+})
+
+// The trust boundary follows the fields, not the spelling: a repository may no
+// more sign through the canonical declaration than through the older one, and
+// the message has to name the key the file actually wrote.
+test('getOptionsFromPnpmSettings() rejects workspace-controlled trust material under sideEffectsCache.remote', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    sideEffectsCache: {
+      remote: { org: 'acme', privateKey: 'repository-controlled-key' },
+    },
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST',
+    message: expect.stringContaining('sideEffectsCache.remote.privateKey'),
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-boolean sideEffectsCache.read', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    sideEffectsCache: { read: 'yes' },
+  } as unknown as PnpmSettings)).toThrow(/sideEffectsCache\.read/)
 })
 
 // A repository that could set `publish` would turn a key the machine holds for
@@ -123,7 +153,7 @@ test.each([
 ])('getOptionsFromPnpmSettings() rejects a workspace-controlled remote side-effects %s', (field, value) => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     remoteSideEffectsCache: {
-      organization: 'acme',
+      org: 'acme',
       packages: ['native-addon'],
       [field]: value,
     },
@@ -144,7 +174,7 @@ test('getOptionsFromPnpmSettings() accepts remote side-effects trust material on
 
 test('getOptionsFromPnpmSettings() reads the remote side-effects builder settings from a trusted source', () => {
   const remoteSideEffectsCache = {
-    organization: 'acme',
+    org: 'acme',
     packages: ['native-addon'],
     publish: true,
     keyId: 'acme-2026',

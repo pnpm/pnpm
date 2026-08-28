@@ -205,7 +205,7 @@ mod restore {
         config.store_dir = store_dir.clone();
         config.pnpr_server = Some(server.to_string());
         config.remote_side_effects_cache = Some(RemoteSideEffectsCacheSettings {
-            organization: ORGANIZATION.to_string(),
+            org: ORGANIZATION.to_string(),
             packages: vec![PACKAGE.to_string()],
             trusted_keys: Some(BTreeMap::from([(KEY_ID.to_string(), public_key())])),
             ..Default::default()

@@ -309,6 +309,16 @@ export interface PnpmSettings {
   httpsProxy?: string
   noProxy?: string | boolean
   pnprServer?: string
+  /**
+   * Whether a package's build output is reused, and where from. A boolean
+   * sets `read` and `write` together.
+   */
+  sideEffectsCache?: boolean | SideEffectsCacheSettings
+  /**
+   * The alternative spelling of {@link SideEffectsCacheSettings.remote}. A
+   * field set under both takes its value from there; a field set under only
+   * one is kept either way.
+   */
   remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
   versioning?: VersioningSettings
   /**
@@ -327,6 +337,18 @@ export interface PnpmSettings {
 }
 
 /**
+ * Where a dependency's build output may be reused from: this machine, and —
+ * through `remote` — other machines in the same organization.
+ */
+export interface SideEffectsCacheSettings {
+  /** Restore a package's build from the cache when one is present. */
+  read?: boolean
+  /** Save a package's build output to the cache. */
+  write?: boolean
+  remote?: RemoteSideEffectsCacheSettings
+}
+
+/**
  * Organization-owned dependency build artifacts eligible for this workspace.
  *
  * `trustedKeys` and `privateKey` are the signing trust root and must not come
@@ -341,6 +363,8 @@ export interface RemoteSideEffectsCacheSettings {
    * the machine supplies the trust root. The feature applies only once both
    * halves are present.
    */
+  org?: string
+  /** The alternative spelling of {@link RemoteSideEffectsCacheSettings.org}, which wins when both are set. */
   organization?: string
   packages?: string[]
   /** Publish the lifecycle-script diff of every eligible package that is built. */

@@ -1,5 +1,6 @@
 use super::{
-    AllowBuild, LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
+    AllowBuild, LoadWorkspaceYamlError, SideEffectsCacheSetting, WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
     registries::{RegistryDeclaration, RegistryEntry},
 };
 use crate::{
@@ -723,7 +724,7 @@ fn parses_the_workspace_cycle_settings_from_yaml_and_applies() {
 fn parses_side_effects_cache_from_yaml_and_applies() {
     let yaml = "sideEffectsCache: false\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(settings.side_effects_cache, Some(false));
+    assert_eq!(settings.side_effects_cache, Some(SideEffectsCacheSetting::Enabled(false)));
 
     let mut config = Config::new();
     assert!(config.side_effects_cache, "the default is `true` to match pnpm");
@@ -996,8 +997,236 @@ remoteSideEffectsCache:
     settings.apply_to(&mut config, Path::new("/workspace"));
 
     let shared = config.remote_side_effects_cache.expect("shared cache config");
-    assert_eq!(shared.organization, "acme");
+    assert_eq!(shared.org, "acme");
     assert_eq!(shared.packages, ["native-addon"]);
+}
+
+/// A boolean says whether to read and write. It says nothing about the remote
+/// tier, so one an earlier layer declared has to survive it — otherwise
+/// `sideEffectsCache: false` in a project silently discards the org and
+/// eligibility list the machine's global config set.
+#[test]
+fn a_later_shorthand_keeps_the_remote_tier() {
+    let global: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  remote:
+    org: acme
+    packages:
+      - native-addon
+",
+    )
+    .unwrap();
+    let workspace: WorkspaceSettings = serde_saphyr::from_str("sideEffectsCache: false").unwrap();
+
+    let mut config = Config::new();
+    global.apply_to(&mut config, Path::new("/global"));
+    workspace.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.side_effects_cache_read());
+    assert!(!config.side_effects_cache_write());
+    let shared = config.remote_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.org, "acme");
+    assert_eq!(shared.packages, ["native-addon"]);
+}
+
+/// Retaining a remote tier across a boolean must not change what the boolean
+/// and `sideEffectsCacheReadonly` mean together: the read-only pair reads,
+/// whether or not a remote tier was declared earlier.
+#[test]
+fn a_retained_remote_tier_does_not_change_the_read_only_pair() {
+    let global: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  remote:
+    org: acme
+",
+    )
+    .unwrap();
+    let workspace: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache: false
+sideEffectsCacheReadonly: true
+",
+    )
+    .unwrap();
+
+    let mut config = Config::new();
+    global.apply_to(&mut config, Path::new("/global"));
+    workspace.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(config.side_effects_cache_read(), "the read-only pair still reads");
+    assert!(!config.side_effects_cache_write());
+    assert_eq!(config.remote_side_effects_cache.expect("shared cache config").org, "acme");
+}
+
+/// A file may carry both spellings of the field; `org` wins, and neither is a
+/// parse error the way a serde alias would have made them.
+#[test]
+fn the_canonical_org_wins_over_the_alternative_spelling() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  remote:
+    org: canonical
+    organization: alternative
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert_eq!(config.remote_side_effects_cache.expect("shared cache config").org, "canonical");
+}
+
+/// Layers apply in order, so a shorthand in a later one has to beat an object
+/// in an earlier one rather than being masked by what the object left behind.
+#[test]
+fn a_later_shorthand_overrides_an_earlier_object() {
+    let global: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  read: true
+  write: true
+",
+    )
+    .unwrap();
+    let workspace: WorkspaceSettings = serde_saphyr::from_str("sideEffectsCache: false").unwrap();
+
+    let mut config = Config::new();
+    global.apply_to(&mut config, Path::new("/global"));
+    workspace.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.side_effects_cache_read());
+    assert!(!config.side_effects_cache_write());
+}
+
+/// `organization` shipped in pacquet 12.0.0, so a file written for it keeps
+/// working; `org` is what pnpr calls the same namespace.
+#[test]
+fn accepts_the_older_organization_spelling() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  remote:
+    organization: acme
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    let shared = config.remote_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.org, "acme");
+}
+
+#[test]
+fn parses_the_canonical_side_effects_cache_declaration() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  read: true
+  write: false
+  remote:
+    organization: acme
+    packages:
+      - native-addon
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(config.side_effects_cache_read());
+    assert!(!config.side_effects_cache_write());
+    let shared = config.remote_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.org, "acme");
+    assert_eq!(shared.packages, ["native-addon"]);
+}
+
+/// Naming the remote tier says nothing about the local one, which was on by
+/// default before this setting grew an object form.
+#[test]
+fn declaring_only_the_remote_tier_leaves_the_local_one_on() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  remote:
+    organization: acme
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(config.side_effects_cache_read());
+    assert!(config.side_effects_cache_write());
+}
+
+#[test]
+fn the_boolean_shorthand_still_reads_and_writes() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str("sideEffectsCache: false").unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.side_effects_cache_read());
+    assert!(!config.side_effects_cache_write());
+}
+
+/// The two spellings of the remote tier compose rather than replace, so a
+/// repository may name the packages under one and the organization under the
+/// other without either dropping the other's fields.
+#[test]
+fn the_canonical_declaration_wins_over_the_older_spellings() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCacheReadonly: true
+remoteSideEffectsCache:
+  packages:
+    - from-the-old-key
+sideEffectsCache:
+  read: false
+  write: true
+  remote:
+    organization: acme
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.side_effects_cache_read());
+    assert!(config.side_effects_cache_write());
+    let shared = config.remote_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.org, "acme");
+    assert_eq!(shared.packages, ["from-the-old-key"]);
+}
+
+/// The trust boundary follows the fields rather than the spelling, so the
+/// canonical form must refuse everything the older one does — and the message
+/// has to name the key the file actually wrote.
+#[test]
+fn rejects_workspace_controlled_trust_material_under_the_canonical_spelling() {
+    for (trust_material, field) in [
+        ("trustedKeys:\n      acme-2026: repository-controlled-key", "trustedKeys"),
+        ("privateKey: repository-controlled-key", "privateKey"),
+        ("publish: true", "publish"),
+        ("keyId: acme-2026", "keyId"),
+        ("builderId: ci/main/42", "builderId"),
+        ("imageDigest: sha256:abc", "imageDigest"),
+        ("architectureBaseline: x64", "architectureBaseline"),
+        ("buildEnv:\n      CC: clang", "buildEnv"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+            format!("sideEffectsCache:\n  remote:\n    org: acme\n    {trust_material}\n"),
+        )
+        .unwrap();
+
+        let error = WorkspaceSettings::load_at(dir.path()).unwrap_err().to_string();
+        assert!(error.contains(&format!("sideEffectsCache.remote.{field}")), "{error}");
+    }
 }
 
 /// A repository that could set `publish` would turn a key the machine holds for
@@ -1052,7 +1281,7 @@ remoteSideEffectsCache:
     WorkspaceSettings::load_at(dir.path()).unwrap().unwrap().apply_to(&mut config, dir.path());
 
     let shared = config.remote_side_effects_cache.expect("shared cache config");
-    assert_eq!(shared.organization, "acme");
+    assert_eq!(shared.org, "acme");
     assert_eq!(shared.packages, ["native-addon"]);
     assert_eq!(shared.publish, Some(true));
     assert_eq!(shared.key_id.as_deref(), Some("acme-2026"));
@@ -1091,7 +1320,7 @@ remoteSideEffectsCache:
     config.apply_remote_side_effects_cache_env::<Env>();
 
     let shared = config.remote_side_effects_cache.expect("shared cache config");
-    assert_eq!(shared.organization, "acme");
+    assert_eq!(shared.org, "acme");
     assert_eq!(shared.packages, ["native-addon"]);
     assert_eq!(shared.publish, Some(true));
     assert_eq!(shared.key_id.as_deref(), Some("acme-2026"));
@@ -1125,7 +1354,7 @@ remoteSideEffectsCache:
     workspace.apply_to(&mut config, Path::new("/workspace"));
 
     let shared = config.remote_side_effects_cache.expect("shared cache config");
-    assert_eq!(shared.organization, "acme");
+    assert_eq!(shared.org, "acme");
     assert_eq!(shared.packages, ["native-addon"]);
     assert_eq!(shared.trusted_keys.expect("trusted keys").get("acme-2026").unwrap(), "AA==");
     assert_eq!(shared.private_key.as_deref(), Some("BB=="));

@@ -193,7 +193,7 @@ describe('install remote side-effects', () => {
         pnprServer,
         recordArtifactPins: true,
         settings: {
-          organization: 'acme',
+          org: 'acme',
           packages: [packageName],
           trustedKeys,
         },
@@ -266,7 +266,7 @@ describe('install remote side-effects', () => {
         depsStateCache: {},
         ignoreScripts: false,
         pnprServer,
-        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        settings: { org: 'acme', packages: [packageName], trustedKeys },
         sideEffectsCacheRead: false,
         storeController,
       })
@@ -308,7 +308,7 @@ describe('install remote side-effects', () => {
         depsGraph,
         depsStateCache: {},
         ignoreScripts: false,
-        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        settings: { org: 'acme', packages: [packageName], trustedKeys },
         sideEffectsCacheRead: false,
         storeController,
       })
@@ -334,7 +334,7 @@ describe('install remote side-effects', () => {
         depsGraph,
         depsStateCache: {},
         ignoreScripts: false,
-        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        settings: { org: 'acme', packages: [packageName], trustedKeys },
         sideEffectsCacheRead: false,
         storeController: {
           ...storeController,
@@ -371,7 +371,7 @@ describe('install remote side-effects', () => {
         depsStateCache: {},
         ignoreScripts: false,
         pnprServer: `${pnprServer}/other`,
-        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        settings: { org: 'acme', packages: [packageName], trustedKeys },
         sideEffectsCacheRead: true,
         storeController,
       })
@@ -397,7 +397,7 @@ describe('install remote side-effects', () => {
         depsGraph,
         depsStateCache: {},
         ignoreScripts: false,
-        settings: { organization: 'acme', packages: [packageName], trustedKeys: { replacement: trustedKeys['acme-2026'] } },
+        settings: { org: 'acme', packages: [packageName], trustedKeys: { replacement: trustedKeys['acme-2026'] } },
         sideEffectsCacheRead: true,
         storeController,
       })
@@ -435,7 +435,7 @@ describe('install remote side-effects', () => {
         depsStateCache: {},
         ignoreScripts: false,
         pnprServer,
-        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        settings: { org: 'acme', packages: [packageName], trustedKeys },
         sideEffectsCacheRead: false,
         storeController,
       })
@@ -487,7 +487,7 @@ describe('install remote side-effects', () => {
         depsStateCache: {},
         ignoreScripts: false,
         pnprServer,
-        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        settings: { org: 'acme', packages: [packageName], trustedKeys },
         sideEffectsCacheRead: false,
         storeController,
       })!
@@ -566,7 +566,7 @@ describe('install remote side-effects', () => {
         depsStateCache: {},
         ignoreScripts: false,
         pnprServer,
-        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        settings: { org: 'acme', packages: [packageName], trustedKeys },
         sideEffectsCacheRead: false,
         storeController,
       })!
@@ -620,7 +620,7 @@ describe('install remote side-effects', () => {
         ignoreScripts: false,
         pnprServer,
         settings: {
-          organization: 'acme',
+          org: 'acme',
           packages: [packageName, `${packageName}-second`],
           trustedKeys,
         },
@@ -661,7 +661,7 @@ describe('install remote side-effects', () => {
         depsStateCache: {},
         ignoreScripts: false,
         pnprServer,
-        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        settings: { org: 'acme', packages: [packageName], trustedKeys },
         sideEffectsCacheRead: false,
         storeController,
       })!
@@ -712,7 +712,7 @@ describe('install remote side-effects', () => {
         depsStateCache: {},
         ignoreScripts: false,
         pnprServer,
-        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        settings: { org: 'acme', packages: [packageName], trustedKeys },
         sideEffectsCacheRead: false,
         storeController,
       })!
@@ -748,7 +748,7 @@ describe('install remote side-effects', () => {
         depsStateCache: {},
         ignoreScripts: false,
         pnprServer,
-        settings: { organization: 'acme', packages: [packageName], trustedKeys },
+        settings: { org: 'acme', packages: [packageName], trustedKeys },
         sideEffectsCacheRead: false,
         storeController,
       })!
@@ -804,7 +804,7 @@ describe('install remote side-effects', () => {
       ignoreScripts: false,
       pnprServer: 'file:///must-not-be-opened',
       settings: {
-        organization: 'acme',
+        org: 'acme',
         packages: [packageName],
         trustedKeys: { unused: 'AA==' },
       },
@@ -857,7 +857,7 @@ describe('install remote side-effects', () => {
         pnprServer,
         resolution: { integrity: sourceIntegrity } as LockfileResolution,
         settings: {
-          organization: 'acme',
+          org: 'acme',
           packages: [packageName],
           publish: true,
           keyId: 'acme-2026',

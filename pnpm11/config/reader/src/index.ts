@@ -11,7 +11,7 @@ import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
 import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
 import { isCamelCase } from '@pnpm/text.naming-cases'
-import type { DevEngines, EngineDependency, ProjectManifest, RemoteSideEffectsCacheSettings, VirtualStoreType } from '@pnpm/types'
+import type { DevEngines, EngineDependency, ProjectManifest, RemoteSideEffectsCacheSettings, SideEffectsCacheSettings, VirtualStoreType } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { betterPathResolve } from 'better-path-resolve'
@@ -860,8 +860,7 @@ export async function getConfig (opts: {
   if (!pnpmConfig.userConfig) {
     pnpmConfig.userConfig = npmrcResult.userConfig as Record<string, string>
   }
-  pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache ?? pnpmConfig.sideEffectsCacheReadonly
-  pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
+  resolveSideEffectsCache(pnpmConfig)
 
   pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
 
@@ -1334,6 +1333,55 @@ type ProjectManifestSkippedKey =
   | typeof LOGIN_TARGET_KEYS[number]
 
 /**
+ * Resolves the four accepted spellings into the three fields consumers read.
+ *
+ * `sideEffectsCache: true` sets reading and writing together,
+ * `sideEffectsCacheReadonly` is `read` without `write`, and
+ * `remoteSideEffectsCache` is `remote`; `sideEffectsCache` as an object wins
+ * over any of them on a field they both set. Its `read` and `write` default to
+ * enabled, so declaring only `remote` does not quietly switch the local cache
+ * off.
+ */
+function resolveSideEffectsCache (pnpmConfig: Config): void {
+  const declared = pnpmConfig.sideEffectsCache
+  const settings = typeof declared === 'object' && declared != null ? declared : undefined
+  const shorthand = typeof declared === 'boolean' ? declared : undefined
+  const readonly = pnpmConfig.sideEffectsCacheReadonly === true
+  pnpmConfig.sideEffectsCacheRead = settings != null
+    ? settings.read ?? true
+    // `sideEffectsCacheReadonly: true` with `sideEffectsCache: false` is how
+    // pacquet documents a read-only view, so either flag enables reading.
+    : (shorthand ?? false) || readonly
+  pnpmConfig.sideEffectsCacheWrite = settings != null
+    ? settings.write ?? true
+    // `sideEffectsCacheReadonly` reads as blocking writes and is documented as
+    // doing so, and pacquet has always enforced that. Deriving writes from the
+    // boolean alone let it through here, since that boolean defaults to on.
+    : readonly ? false : shorthand
+  // Combined here rather than as each source is read, so that the canonical
+  // spelling wins on a field both set no matter which order they appeared in.
+  if (settings?.remote != null) {
+    pnpmConfig.remoteSideEffectsCache = {
+      ...pnpmConfig.remoteSideEffectsCache,
+      ...settings.remote,
+    }
+  }
+}
+
+/**
+ * Rewrites `organization` to `org` before the two remote spellings are merged.
+ *
+ * Merging first and resolving after would compare a field named `org` on one
+ * side against `organization` on the other, so neither would take precedence
+ * over the other and whichever key happened to be named `org` would win.
+ */
+function withCanonicalOrg (remote: RemoteSideEffectsCacheSettings | undefined): RemoteSideEffectsCacheSettings | undefined {
+  if (remote?.organization == null) return remote
+  const { organization, ...rest } = remote
+  return { ...rest, org: rest.org ?? organization }
+}
+
+/**
  * The environment is the last word on the remote side-effects cache: it is
  * where a CI runner injects the signing material that must not be committed,
  * and where a build job flips publication on for one invocation.
@@ -1556,13 +1604,46 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
     if (CONFIG_CONTEXT_KEY_SET.has(key)) continue
     if (skipped?.has(key)) continue
 
+    // A workspace declares eligibility while the machine holds the signing
+    // trust root, so the two sources contribute different fields of one object
+    // and the later one must not drop what the earlier one set.
+    //
+    // The two spellings accumulate separately and are combined once, in
+    // `resolveSideEffectsCache`. Merging them here would make precedence a
+    // function of the order the keys happen to appear in, so a file listing
+    // the deprecated spelling second would have it win.
     if (key === 'remoteSideEffectsCache') {
-      // A workspace declares eligibility while the machine holds the signing
-      // trust root, so the two sources contribute different fields of one
-      // object and the later one must not drop what the earlier one set.
       pnpmConfig.remoteSideEffectsCache = {
         ...pnpmConfig.remoteSideEffectsCache,
-        ...value as RemoteSideEffectsCacheSettings,
+        ...withCanonicalOrg(value as RemoteSideEffectsCacheSettings),
+      }
+      pnpmConfig.explicitlySetKeys.add(key)
+      continue
+    }
+    if (key === 'sideEffectsCache') {
+      const previous = typeof pnpmConfig.sideEffectsCache === 'object' && pnpmConfig.sideEffectsCache != null
+        ? pnpmConfig.sideEffectsCache
+        : undefined
+      if (typeof value === 'boolean') {
+        // A boolean says whether to read and write. It says nothing about the
+        // remote tier, so one declared by an earlier source survives it — but
+        // it has to survive as a remote tier rather than by turning the
+        // boolean into an object, which would move the whole declaration onto
+        // the object branch of the resolver and take it out of reach of
+        // `sideEffectsCacheReadonly`.
+        if (previous?.remote != null) {
+          pnpmConfig.remoteSideEffectsCache = {
+            ...pnpmConfig.remoteSideEffectsCache,
+            ...withCanonicalOrg(previous.remote),
+          }
+        }
+        pnpmConfig.sideEffectsCache = value
+      } else if (value != null) {
+        const declared = value as SideEffectsCacheSettings
+        const remote = previous?.remote != null || declared.remote != null
+          ? { ...previous?.remote, ...withCanonicalOrg(declared.remote) }
+          : undefined
+        pnpmConfig.sideEffectsCache = { ...previous, ...declared, remote }
       }
       pnpmConfig.explicitlySetKeys.add(key)
       continue

@@ -143,12 +143,12 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 
 /// Organization-owned dependency build artifacts eligible for this workspace.
 ///
-/// `organization` and `packages` default to empty because one section is
+/// `org` and `packages` default to empty because one section is
 /// assembled from several sources: the repository names the eligible
 /// organization and packages while the machine supplies the trust root. The
 /// feature applies only once both halves are present.
 ///
-/// Only `organization` and `packages` may come from a repository. Every other
+/// Only `org` and `packages` may come from a repository. Every other
 /// field describes the act of signing and travels with the machine: loading a
 /// `pnpm-workspace.yaml` that sets one fails with
 /// [`LoadWorkspaceYamlError::WorkspaceRemoteSideEffectsTrust`], leaving the
@@ -156,6 +156,15 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct RemoteSideEffectsCacheSettings {
+    /// `org` is what pnpr calls this namespace in its own configuration and
+    /// what its endpoints are built from.
+    pub org: String,
+    /// The alternative spelling of [`Self::org`]. A non-empty [`Self::org`]
+    /// wins over this field.
+    ///
+    /// A separate field rather than a serde alias: an alias makes a file
+    /// carrying both keys a duplicate-field parse error, where every other
+    /// pair of spellings here resolves to the canonical one.
     pub organization: String,
     pub packages: Vec<String>,
     /// Publish the lifecycle-script diff of every eligible package that is built.
@@ -180,6 +189,30 @@ pub struct RemoteSideEffectsCacheSettings {
     pub private_key: Option<String>,
 }
 
+/// `sideEffectsCache` as written: either a bare boolean, or the declaration
+/// carrying all three parts.
+#[derive(Debug, PartialEq, serde::Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SideEffectsCacheSetting {
+    Enabled(bool),
+    /// Boxed because the shorthand is one byte and this is not, and an
+    /// `Option<SideEffectsCacheSetting>` sits in a struct built for every
+    /// workspace file read.
+    Settings(Box<SideEffectsCacheSettings>),
+}
+
+/// Where a dependency's build output may be reused from: this machine, and —
+/// through [`Self::remote`] — other machines in the same organization.
+#[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SideEffectsCacheSettings {
+    /// Restore a package's build from the cache when one is present.
+    pub read: Option<bool>,
+    /// Save a package's build output to the cache.
+    pub write: Option<bool>,
+    pub remote: Option<RemoteSideEffectsCacheSettings>,
+}
+
 impl RemoteSideEffectsCacheSettings {
     /// Overlay the fields `other` sets onto `self`, leaving the rest alone.
     ///
@@ -188,6 +221,7 @@ impl RemoteSideEffectsCacheSettings {
     /// section and the later one must not drop what the earlier one set.
     pub(crate) fn overlay(&mut self, other: Self) {
         let Self {
+            org,
             organization,
             packages,
             publish,
@@ -199,8 +233,11 @@ impl RemoteSideEffectsCacheSettings {
             trusted_keys,
             private_key,
         } = other;
-        if !organization.is_empty() {
-            self.organization = organization;
+        // Resolved as the section is layered rather than at each read, so
+        // that `.org` is the only spelling anything downstream has to know.
+        let org = if org.is_empty() { organization } else { org };
+        if !org.is_empty() {
+            self.org = org;
         }
         if !packages.is_empty() {
             self.packages = packages;
@@ -431,7 +468,10 @@ pub struct WorkspaceSettings {
     ///
     /// [`Config::frozen_store`]: crate::Config::frozen_store
     pub frozen_store: Option<bool>,
-    pub side_effects_cache: Option<bool>,
+    /// `sideEffectsCache`: whether a build is restored, whether one is saved,
+    /// and where from. A bare boolean sets reading and writing together.
+    pub side_effects_cache: Option<SideEffectsCacheSetting>,
+    /// The boolean spelling of `sideEffectsCache: { read: true, write: false }`.
     pub side_effects_cache_readonly: Option<bool>,
     pub fetch_retries: Option<u32>,
     pub fetch_retry_factor: Option<u32>,
@@ -1268,7 +1308,7 @@ pub enum LoadWorkspaceYamlError {
     /// The signing trust root for remote side-effects artifacts appeared in a
     /// committed file. Only the global config yaml and the environment may
     /// carry it — see [`RemoteSideEffectsCacheSettings`].
-    #[display("remoteSideEffectsCache.{field} cannot be set by a workspace ({})", path.display())]
+    #[display("{prefix}.{field} cannot be set by a workspace ({})", path.display())]
     #[diagnostic(
         code(ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST),
         help(
@@ -1276,7 +1316,7 @@ pub enum LoadWorkspaceYamlError {
             path.display(),
         )
     )]
-    WorkspaceRemoteSideEffectsTrust { path: PathBuf, field: &'static str },
+    WorkspaceRemoteSideEffectsTrust { path: PathBuf, prefix: &'static str, field: &'static str },
 }
 
 impl WorkspaceSettings {
@@ -1599,7 +1639,29 @@ impl WorkspaceSettings {
         &self,
         path: &Path,
     ) -> Result<(), LoadWorkspaceYamlError> {
-        let Some(settings) = self.remote_side_effects_cache.as_ref() else { return Ok(()) };
+        let canonical = match self.side_effects_cache.as_ref() {
+            Some(SideEffectsCacheSetting::Settings(settings)) => settings.remote.as_ref(),
+            _ => None,
+        };
+        // The message names the spelling the file actually used, since telling
+        // someone to move `remoteSideEffectsCache.privateKey` out of a file
+        // that says `sideEffectsCache.remote.privateKey` sends them looking
+        // for a key that is not there.
+        for (setting, prefix) in [
+            (canonical, "sideEffectsCache.remote"),
+            (self.remote_side_effects_cache.as_ref(), "remoteSideEffectsCache"),
+        ] {
+            let Some(settings) = setting else { continue };
+            Self::reject_machine_only_fields(settings, prefix, path)?;
+        }
+        Ok(())
+    }
+
+    fn reject_machine_only_fields(
+        settings: &RemoteSideEffectsCacheSettings,
+        prefix: &'static str,
+        path: &Path,
+    ) -> Result<(), LoadWorkspaceYamlError> {
         let machine_only = [
             ("publish", settings.publish.is_some()),
             ("keyId", settings.key_id.is_some()),
@@ -1615,6 +1677,7 @@ impl WorkspaceSettings {
         };
         Err(LoadWorkspaceYamlError::WorkspaceRemoteSideEffectsTrust {
             path: path.to_path_buf(),
+            prefix,
             field,
         })
     }
@@ -1865,7 +1928,7 @@ impl WorkspaceSettings {
             save_workspace_protocol,
             inject_workspace_packages,
             prefer_workspace_packages,
-            side_effects_cache, side_effects_cache_readonly,
+            side_effects_cache_readonly,
             fetch_retries, fetch_retry_factor,
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
             network_concurrency, fetch_timeout,
@@ -1995,6 +2058,28 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.remote_side_effects_cache {
             config.remote_side_effects_cache.get_or_insert_default().overlay(v);
+        }
+        // The canonical declaration is applied after the alias so that it wins
+        // where both are set, and its `remote` half overlays rather than
+        // replaces: a repository names the organization while the machine
+        // supplies the signing key, and neither may drop the other's fields.
+        match self.side_effects_cache {
+            Some(SideEffectsCacheSetting::Enabled(enabled)) => {
+                config.side_effects_cache = enabled;
+                // A later layer saying `sideEffectsCache: false` has to beat an
+                // earlier layer's object, and the helpers prefer these when set,
+                // so the shorthand must clear what the object left behind.
+                config.side_effects_cache_read_setting = None;
+                config.side_effects_cache_write_setting = None;
+            }
+            Some(SideEffectsCacheSetting::Settings(settings)) => {
+                config.side_effects_cache_read_setting = Some(settings.read.unwrap_or(true));
+                config.side_effects_cache_write_setting = Some(settings.write.unwrap_or(true));
+                if let Some(remote) = settings.remote {
+                    config.remote_side_effects_cache.get_or_insert_default().overlay(remote);
+                }
+            }
+            None => {}
         }
         if let Some(v) = self.named_registries {
             if declared_prefixes {

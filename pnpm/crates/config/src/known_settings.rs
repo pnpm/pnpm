@@ -45,6 +45,7 @@ const TYPED_WORKSPACE_MANIFEST_KEYS: &[&str] = &[
     "registries",
     "remoteSideEffectsCache",
     "requiredScripts",
+    "sideEffectsCache",
     "supportedArchitectures",
     "update",
     "updateConfig",

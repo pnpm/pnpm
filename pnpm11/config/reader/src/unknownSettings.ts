@@ -36,6 +36,7 @@ const TYPED_WORKSPACE_MANIFEST_KEYS = [
   'registries',
   'remoteSideEffectsCache',
   'requiredScripts',
+  'sideEffectsCache',
   'supportedArchitectures',
   'tasks',
   'update',
