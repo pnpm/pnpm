@@ -122,6 +122,25 @@ pub struct RegistryLookups {
     pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
 }
 
+/// The scopes `entries` routes, `@`-prefixed, with the bare `@` among them
+/// when one names the default registry.
+///
+/// Read without consuming the map, unlike [`into_lookups`], so that a later
+/// layer can tell a route a config file declared from one inferred from a
+/// credential.
+#[must_use]
+pub fn routed_scopes(entries: &BTreeMap<String, RegistryEntry>) -> BTreeSet<String> {
+    entries
+        .iter()
+        .flat_map(|(key, entry)| match entry {
+            RegistryEntry::ScopeRoute(_) => vec![key.clone()],
+            RegistryEntry::Declaration(declaration) => {
+                declaration.scopes.clone().unwrap_or_default()
+            }
+        })
+        .collect()
+}
+
 /// Reject a `registries` map pnpm would otherwise read as something other
 /// than what it says.
 pub fn validate(entries: &BTreeMap<String, RegistryEntry>) -> Result<(), LoadWorkspaceYamlError> {

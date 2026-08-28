@@ -6,7 +6,7 @@ use pnpm_network::{
     base64_encode, base64_encode_bytes, nerf_dart,
 };
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -583,21 +583,27 @@ impl NpmrcAuth {
     /// yaml), this is called *after* yaml so the inferred routes win over
     /// repo-controlled registries.
     ///
-    /// The file-sourced routes fill in only what nothing else names:
-    /// `registry_declared` says whether a config file set `registry` at all,
-    /// and a scope already routed keeps the route it has. Provenance rather
-    /// than value, because pinning the registry a lower layer already
-    /// resolved to is still a declaration. The environment-sourced routes
-    /// replace whatever they find.
-    pub fn apply_json_env_registries(&mut self, config: &mut Config, registry_declared: bool) {
+    /// The file-sourced routes fill in only what a config file has not
+    /// declared, which `declared` names: provenance rather than value,
+    /// because pinning the registry a lower layer already resolved to is
+    /// still a declaration. A route the `.npmrc` merely resolved is not one,
+    /// so those give way. The environment-sourced routes replace whatever
+    /// they find.
+    pub fn apply_json_env_registries(
+        &mut self,
+        config: &mut Config,
+        declared: &DeclaredRegistries,
+    ) {
         for (scope, url) in std::mem::take(&mut self.json_file_registries) {
             if scope == "default" {
-                if !registry_declared {
+                if !declared.registry {
                     config.registry.clone_from(&url);
                 }
                 continue;
             }
-            config.registries_by_scope.entry(scope).or_insert(url);
+            if !declared.scopes.contains(&scope) {
+                config.registries_by_scope.insert(scope, url);
+            }
         }
         for (scope, url) in std::mem::take(&mut self.json_env_registries) {
             if scope == "default" {
@@ -1241,6 +1247,18 @@ fn apply_creds_field(creds: &mut RawCreds, field: &str, value: String) {
         "tokenHelper" => creds.token_helper = Some(value),
         _ => {}
     }
+}
+
+/// What the config files declared about registry routing, as opposed to what
+/// the cascade merely resolved to. Collected before each layer is applied,
+/// because applying it is what makes the two indistinguishable by value.
+#[derive(Debug, Default, Clone)]
+pub struct DeclaredRegistries {
+    /// Whether any config file named the registry packages resolve from,
+    /// through `registry` or a `registries` entry routing the bare `@`.
+    pub registry: bool,
+    /// The package scopes any config file routed.
+    pub scopes: BTreeSet<String>,
 }
 
 /// Which of `_auth`'s two trusted sources a value came from. They differ in

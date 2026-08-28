@@ -3517,7 +3517,11 @@ impl Config {
         // resolution must fire only when the user has *not* pinned a
         // path. See [`crate::store_path::resolve_store_dir`].
         let mut store_dir_explicit = false;
+        // Collected as each file is applied, since applying it is what makes
+        // a declared route indistinguishable by value from a resolved one.
+        let mut declared_registries = crate::npmrc_auth::DeclaredRegistries::default();
         if let Some(mut global_settings) = global_settings {
+            note_declared_registries(&mut declared_registries, &global_settings);
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
             global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
             store_dir_explicit |= global_settings.store_dir.is_some();
@@ -3605,6 +3609,7 @@ impl Config {
                     settings.clear_self_update_policy();
                 }
                 self.workspace_key_issues = settings.key_issues.clone();
+                note_declared_registries(&mut declared_registries, &settings);
                 collect_explicit_settings(&mut self.explicit_settings, &settings);
                 settings.apply_to(&mut self, &base_dir);
                 // `overrides` reaches `Config` only from the workspace
@@ -3624,8 +3629,7 @@ impl Config {
         // repo-controlled registries) but before `PNPM_CONFIG_*` (so an
         // explicit `pnpm_config_registry` / `--registry` still wins) —
         // pnpm's "CLI > _auth > yaml" precedence.
-        let registry_declared = self.explicit_settings.contains_key("registry");
-        npmrc_auth.apply_json_env_registries(&mut self, registry_declared);
+        npmrc_auth.apply_json_env_registries(&mut self, &declared_registries);
 
         // Apply `PNPM_CONFIG_*` env vars *after* `pnpm-workspace.yaml`:
         // env vars override yaml. The `WorkspaceSettings::apply_to`
@@ -3827,6 +3831,25 @@ impl Config {
 /// [`WorkspaceSettings::apply_to`] and fills in the spelling the source left
 /// out, or `pnpm config get` would answer one of the two with the value the
 /// install did not use.
+/// Record what `settings` declares about registry routing, before
+/// [`WorkspaceSettings::apply_to`] consumes it.
+fn note_declared_registries(
+    declared: &mut crate::npmrc_auth::DeclaredRegistries,
+    settings: &WorkspaceSettings,
+) {
+    declared.registry |= settings.registry.is_some();
+    let Some(entries) = settings.registries.as_ref() else {
+        return;
+    };
+    for scope in crate::workspace_yaml::registries::routed_scopes(entries) {
+        if scope == crate::workspace_yaml::registries::DEFAULT_REGISTRY_SCOPE {
+            declared.registry = true;
+        } else {
+            declared.scopes.insert(scope);
+        }
+    }
+}
+
 fn collect_explicit_settings(
     target: &mut serde_json::Map<String, serde_json::Value>,
     settings: &WorkspaceSettings,
@@ -3871,7 +3894,9 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
     trusted_auth.warnings.clear();
     let mut config = Config::default();
     trusted_auth.apply_registry_and_warn(&mut config);
-    trusted_auth.apply_json_env_registries(&mut config, false);
+    // No config file reaches the bootstrap cascade, so none declares here.
+    trusted_auth
+        .apply_json_env_registries(&mut config, &crate::npmrc_auth::DeclaredRegistries::default());
     trusted_auth.apply_proxy_cascade::<Sys>(&mut config);
     trusted_auth.apply_tls_and_local_address(&mut config);
     trusted_auth.build_auth_headers(&mut config)?;

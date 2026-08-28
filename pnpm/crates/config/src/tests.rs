@@ -4364,3 +4364,40 @@ pub fn a_registry_pinned_to_the_default_still_beats_the_global_auth_file() {
 
     assert_eq!(config.registry, "https://registry.npmjs.org/");
 }
+
+/// A `registries` map naming the default registry declares it as plainly as
+/// a `registry:` does, and is recorded under a different key, so asking only
+/// about `registry` would miss it.
+#[test]
+pub fn a_registries_map_declaring_the_default_beats_the_global_auth_file() {
+    let config = load_with_auth_file(
+        STORED_LOGIN,
+        Some("registries:\n  https://declared.example/:\n    scopes: ['@']\n"),
+    );
+
+    assert_eq!(config.registry, "https://declared.example/");
+}
+
+/// An `.npmrc` route is what the cascade resolved, not what a config file
+/// declared, so the stored credential's route outranks it — as it does in
+/// pnpm's `config.reader`.
+#[test]
+pub fn the_global_auth_file_outranks_an_npmrc_scope_route() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), STORED_LOGIN).expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join(".npmrc"), "@org:registry=https://from-npmrc.example/\n")
+        .expect("write .npmrc");
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.registries_by_scope.get("@org").map(String::as_str),
+        Some("https://private.example/"),
+    );
+}
