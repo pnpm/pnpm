@@ -79,30 +79,28 @@ impl Config {
     pub(crate) fn apply_remote_side_effects_cache_env<Sys: EnvVar>(&mut self) {
         let mut settings = RemoteSideEffectsCacheSettings::default();
         let mut set_any = false;
-        if let Some(publish) = Sys::var("PNPM_REMOTE_SIDE_EFFECTS_CACHE_PUBLISH") {
+        if let Some((publish, _)) = side_effects_cache_remote_env::<Sys>("PUBLISH") {
             settings.publish = Some(publish == "true");
             set_any = true;
         }
-        for (field, variable) in [
-            (&mut settings.key_id, "PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID"),
-            (&mut settings.builder_id, "PNPM_REMOTE_SIDE_EFFECTS_CACHE_BUILDER_ID"),
-            (&mut settings.image_digest, "PNPM_REMOTE_SIDE_EFFECTS_CACHE_IMAGE_DIGEST"),
-            (
-                &mut settings.architecture_baseline,
-                "PNPM_REMOTE_SIDE_EFFECTS_CACHE_ARCHITECTURE_BASELINE",
-            ),
-            (&mut settings.private_key, "PNPM_REMOTE_SIDE_EFFECTS_CACHE_PRIVATE_KEY"),
+        for (field, suffix) in [
+            (&mut settings.key_id, "KEY_ID"),
+            (&mut settings.builder_id, "BUILDER_ID"),
+            (&mut settings.image_digest, "IMAGE_DIGEST"),
+            (&mut settings.architecture_baseline, "ARCHITECTURE_BASELINE"),
+            (&mut settings.private_key, "PRIVATE_KEY"),
         ] {
-            if let Some(value) = Sys::var(variable) {
+            if let Some((value, _)) = side_effects_cache_remote_env::<Sys>(suffix) {
                 *field = Some(value);
                 set_any = true;
             }
         }
-        for (field, variable) in [
-            (&mut settings.build_env, "PNPM_REMOTE_SIDE_EFFECTS_CACHE_BUILD_ENV"),
-            (&mut settings.trusted_keys, "PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS"),
-        ] {
-            let Some(value) = Sys::var(variable) else { continue };
+        for (field, suffix) in
+            [(&mut settings.build_env, "BUILD_ENV"), (&mut settings.trusted_keys, "TRUSTED_KEYS")]
+        {
+            let Some((value, variable)) = side_effects_cache_remote_env::<Sys>(suffix) else {
+                continue;
+            };
             match serde_json::from_str::<BTreeMap<String, String>>(&value) {
                 Ok(parsed) => {
                     *field = Some(parsed);
@@ -3976,4 +3974,23 @@ fn full_metadata_policy(
     supports_time_field: bool,
 ) -> bool {
     trust_policy == TrustPolicy::NoDowngrade || (time_based && !supports_time_field)
+}
+
+/// Reads one field of the remote tier from the environment, under the name
+/// that matches the setting and under the one that matched its older spelling.
+///
+/// A machine configured for `remoteSideEffectsCache` keeps working; a machine
+/// setting both gets the name that matches the setting it is configuring.
+/// The name comes back with the value because a malformed one is reported by
+/// name, and naming a variable the user did not set sends them looking for it.
+fn side_effects_cache_remote_env<Sys: EnvVar>(suffix: &str) -> Option<(String, String)> {
+    for variable in [
+        format!("PNPM_SIDE_EFFECTS_CACHE_REMOTE_{suffix}"),
+        format!("PNPM_REMOTE_SIDE_EFFECTS_CACHE_{suffix}"),
+    ] {
+        if let Some(value) = Sys::var(&variable) {
+            return Some((value, variable));
+        }
+    }
+    None
 }

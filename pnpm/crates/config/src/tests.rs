@@ -10,6 +10,7 @@ use pretty_assertions::assert_eq;
 use std::{
     env,
     ffi::OsString,
+    fmt::Write as _,
     io,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -18,8 +19,10 @@ use tempfile::tempdir;
 use tracing::Level;
 use tracing_subscriber::{Layer, layer::SubscriberExt};
 
-/// Capture all tracing WARN messages emitted during a closure.
-fn capture_warnings<Func: FnOnce()>(f: Func) -> Vec<String> {
+/// Capture all tracing WARN messages emitted during a closure, each followed
+/// by its structured fields, since some warnings say which setting or variable
+/// they are about in a field rather than in the message.
+pub(crate) fn capture_warnings<Func: FnOnce()>(f: Func) -> Vec<String> {
     let messages: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let messages_clone = Arc::clone(&messages);
 
@@ -31,26 +34,35 @@ fn capture_warnings<Func: FnOnce()>(f: Func) -> Vec<String> {
             _ctx: tracing_subscriber::layer::Context<'_, Sub>,
         ) {
             if *event.metadata().level() == Level::WARN {
-                struct Visitor(String);
+                #[derive(Default)]
+                struct Visitor {
+                    message: String,
+                    fields: String,
+                }
+                impl Visitor {
+                    fn record(&mut self, name: &str, value: String) {
+                        if name == "message" {
+                            self.message = value;
+                        } else {
+                            let _ = write!(self.fields, " {name}={value}");
+                        }
+                    }
+                }
                 impl tracing::field::Visit for Visitor {
                     fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
-                        if field.name() == "message" {
-                            self.0 = value.to_string();
-                        }
+                        self.record(field.name(), value.to_string());
                     }
                     fn record_debug(
                         &mut self,
                         field: &tracing::field::Field,
                         value: &dyn std::fmt::Debug,
                     ) {
-                        if field.name() == "message" {
-                            self.0 = format!("{value:?}");
-                        }
+                        self.record(field.name(), format!("{value:?}"));
                     }
                 }
-                let mut visitor = Visitor(String::new());
+                let mut visitor = Visitor::default();
                 event.record(&mut visitor);
-                self.0.lock().unwrap().push(visitor.0);
+                self.0.lock().unwrap().push(format!("{}{}", visitor.message, visitor.fields));
             }
         }
     }

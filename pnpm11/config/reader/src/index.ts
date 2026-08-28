@@ -1394,17 +1394,18 @@ function applyRemoteSideEffectsCacheEnv (
   env: NodeJS.ProcessEnv
 ): void {
   const settings: Partial<RemoteSideEffectsCacheSettings> = {}
-  if (env.PNPM_REMOTE_SIDE_EFFECTS_CACHE_PUBLISH != null) {
-    settings.publish = env.PNPM_REMOTE_SIDE_EFFECTS_CACHE_PUBLISH === 'true'
+  const publish = readSideEffectsCacheEnv(env, 'PUBLISH')
+  if (publish != null) {
+    settings.publish = publish.value === 'true'
   }
-  for (const [field, variable] of REMOTE_SIDE_EFFECTS_CACHE_ENV_STRINGS) {
-    const value = env[variable]
-    if (value != null) settings[field] = value
+  for (const [field, suffix] of SIDE_EFFECTS_CACHE_REMOTE_ENV_STRINGS) {
+    const read = readSideEffectsCacheEnv(env, suffix)
+    if (read != null) settings[field] = read.value
   }
-  for (const [field, variable] of REMOTE_SIDE_EFFECTS_CACHE_ENV_JSON) {
-    const value = env[variable]
-    if (value == null) continue
-    settings[field] = parseStringValuedJsonObject(value, variable)
+  for (const [field, suffix] of SIDE_EFFECTS_CACHE_REMOTE_ENV_JSON) {
+    const read = readSideEffectsCacheEnv(env, suffix)
+    if (read == null) continue
+    settings[field] = parseStringValuedJsonObject(read.value, read.variable)
   }
   if (Object.keys(settings).length === 0) return
   pnpmConfig.remoteSideEffectsCache = {
@@ -1414,18 +1415,35 @@ function applyRemoteSideEffectsCacheEnv (
   pnpmConfig.explicitlySetKeys.add('remoteSideEffectsCache')
 }
 
-const REMOTE_SIDE_EFFECTS_CACHE_ENV_STRINGS = [
-  ['keyId', 'PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID'],
-  ['builderId', 'PNPM_REMOTE_SIDE_EFFECTS_CACHE_BUILDER_ID'],
-  ['imageDigest', 'PNPM_REMOTE_SIDE_EFFECTS_CACHE_IMAGE_DIGEST'],
-  ['architectureBaseline', 'PNPM_REMOTE_SIDE_EFFECTS_CACHE_ARCHITECTURE_BASELINE'],
-  ['privateKey', 'PNPM_REMOTE_SIDE_EFFECTS_CACHE_PRIVATE_KEY'],
+const SIDE_EFFECTS_CACHE_REMOTE_ENV_STRINGS = [
+  ['keyId', 'KEY_ID'],
+  ['builderId', 'BUILDER_ID'],
+  ['imageDigest', 'IMAGE_DIGEST'],
+  ['architectureBaseline', 'ARCHITECTURE_BASELINE'],
+  ['privateKey', 'PRIVATE_KEY'],
 ] as const satisfies ReadonlyArray<[keyof RemoteSideEffectsCacheSettings, string]>
 
-const REMOTE_SIDE_EFFECTS_CACHE_ENV_JSON = [
-  ['buildEnv', 'PNPM_REMOTE_SIDE_EFFECTS_CACHE_BUILD_ENV'],
-  ['trustedKeys', 'PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS'],
+const SIDE_EFFECTS_CACHE_REMOTE_ENV_JSON = [
+  ['buildEnv', 'BUILD_ENV'],
+  ['trustedKeys', 'TRUSTED_KEYS'],
 ] as const satisfies ReadonlyArray<[keyof RemoteSideEffectsCacheSettings, string]>
+
+/**
+ * Reads one field of the remote tier from the environment, under the name that
+ * matches the setting and under the one that matched its older spelling.
+ *
+ * A machine configured for `remoteSideEffectsCache` keeps working; a machine
+ * setting both gets the name that matches the setting it is configuring.
+ */
+function readSideEffectsCacheEnv (env: NodeJS.ProcessEnv, suffix: string): { value: string, variable: string } | undefined {
+  // The name comes back with the value because a malformed one is reported by
+  // name, and naming a variable the user did not set sends them looking for it.
+  for (const variable of [`PNPM_SIDE_EFFECTS_CACHE_REMOTE_${suffix}`, `PNPM_REMOTE_SIDE_EFFECTS_CACHE_${suffix}`]) {
+    const value = env[variable]
+    if (value != null) return { value, variable }
+  }
+  return undefined
+}
 
 function parseStringValuedJsonObject (value: string, variable: string): Record<string, string> {
   let parsed: unknown

@@ -1287,6 +1287,172 @@ remoteSideEffectsCache:
     assert_eq!(shared.key_id.as_deref(), Some("acme-2026"));
 }
 
+/// The variables are named for the setting they configure, and the names that
+/// matched the older spelling keep working — a machine set up before the rename
+/// is not something a `pnpm install` should start ignoring.
+///
+/// Every suffix is covered because they do not share a parsing path: `PUBLISH`
+/// is a boolean, `BUILD_ENV` and `TRUSTED_KEYS` are JSON, the rest are strings.
+#[test]
+fn the_remote_tier_reads_both_environment_spellings() {
+    const CANONICAL: &str = "PNPM_SIDE_EFFECTS_CACHE_REMOTE_";
+    const OLDER: &str = "PNPM_REMOTE_SIDE_EFFECTS_CACHE_";
+
+    fn read(prefixes: &[&'static str], suffix: &'static str, value: &'static str) -> Config {
+        // A thread-local rather than a generic per case: `EnvVar` is a trait
+        // with an associated function, so the case has to reach it somehow.
+        CASE.with(|case| *case.borrow_mut() = Some((prefixes.to_vec(), suffix, value)));
+        struct Env;
+        impl crate::EnvVar for Env {
+            fn var(key: &str) -> Option<String> {
+                CASE.with(|case| {
+                    let borrowed = case.borrow();
+                    let (prefixes, suffix, value) = borrowed.as_ref()?;
+                    prefixes
+                        .iter()
+                        .any(|prefix| key == format!("{prefix}{suffix}"))
+                        .then(|| (*value).to_string())
+                })
+            }
+        }
+        let mut config = Config::new();
+        config.apply_remote_side_effects_cache_env::<Env>();
+        config
+    }
+
+    for suffix in ["KEY_ID", "BUILDER_ID", "IMAGE_DIGEST", "ARCHITECTURE_BASELINE", "PRIVATE_KEY"] {
+        for prefixes in [vec![CANONICAL], vec![OLDER], vec![CANONICAL, OLDER]] {
+            let config = read(&prefixes, suffix, "value");
+            let shared = config.remote_side_effects_cache.expect("shared cache config");
+            let read_back = match suffix {
+                "KEY_ID" => shared.key_id,
+                "BUILDER_ID" => shared.builder_id,
+                "IMAGE_DIGEST" => shared.image_digest,
+                "ARCHITECTURE_BASELINE" => shared.architecture_baseline,
+                _ => shared.private_key,
+            };
+            assert_eq!(read_back.as_deref(), Some("value"), "{suffix} under {prefixes:?}");
+        }
+    }
+
+    for prefixes in [vec![CANONICAL], vec![OLDER], vec![CANONICAL, OLDER]] {
+        let config = read(&prefixes, "PUBLISH", "true");
+        assert_eq!(
+            config.remote_side_effects_cache.expect("shared cache config").publish,
+            Some(true),
+            "PUBLISH under {prefixes:?}",
+        );
+
+        let config = read(&prefixes, "BUILD_ENV", r#"{"CC":"clang"}"#);
+        let shared = config.remote_side_effects_cache.expect("shared cache config");
+        assert_eq!(
+            shared.build_env.expect("build env").get("CC").map(String::as_str),
+            Some("clang"),
+            "BUILD_ENV under {prefixes:?}",
+        );
+
+        let config = read(&prefixes, "TRUSTED_KEYS", r#"{"acme-2026":"AA=="}"#);
+        let shared = config.remote_side_effects_cache.expect("shared cache config");
+        assert_eq!(
+            shared.trusted_keys.expect("trusted keys").get("acme-2026").map(String::as_str),
+            Some("AA=="),
+            "TRUSTED_KEYS under {prefixes:?}",
+        );
+    }
+}
+
+/// A malformed JSON variable is reported by name, so it has to be the name the
+/// reader actually set — pointing at the spelling they did not use sends them
+/// looking for a variable that is not in their environment.
+#[test]
+fn malformed_json_names_the_environment_variable_that_was_set() {
+    struct Older;
+    impl crate::EnvVar for Older {
+        fn var(key: &str) -> Option<String> {
+            (key == "PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS").then(|| "not json".to_string())
+        }
+    }
+
+    let warnings = crate::tests::capture_warnings(|| {
+        let mut config = Config::new();
+        config.apply_remote_side_effects_cache_env::<Older>();
+    });
+
+    let warning = warnings
+        .iter()
+        .find(|warning| warning.contains("not a string-valued JSON object"))
+        .expect("a warning about the malformed variable");
+    assert!(
+        warning.contains("PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS"),
+        "expected the variable that was set, got {warning}",
+    );
+}
+
+/// Precedence is by presence, not by validity: a malformed value under the name
+/// matching the setting is not quietly replaced by a valid one under the older
+/// name, because that would use a variable the reader did not reach for and
+/// leave the broken one unreported.
+#[test]
+fn a_malformed_canonical_value_is_not_replaced_by_a_valid_older_one() {
+    struct Both;
+    impl crate::EnvVar for Both {
+        fn var(key: &str) -> Option<String> {
+            match key {
+                "PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS" => Some("not json".to_string()),
+                "PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS" => {
+                    Some(r#"{"acme-2026":"AA=="}"#.to_string())
+                }
+                _ => None,
+            }
+        }
+    }
+
+    let mut config = Config::new();
+    let warnings = crate::tests::capture_warnings(|| {
+        config.apply_remote_side_effects_cache_env::<Both>();
+    });
+
+    let warning = warnings
+        .iter()
+        .find(|warning| warning.contains("not a string-valued JSON object"))
+        .expect("a warning about the malformed variable");
+    assert!(
+        warning.contains("PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS"),
+        "expected the variable that was selected, got {warning}",
+    );
+    assert!(
+        config.remote_side_effects_cache.is_none_or(|shared| shared.trusted_keys.is_none()),
+        "the older variable's value must not stand in for the malformed one",
+    );
+}
+
+/// When both spellings are set, the one matching the setting decides.
+#[test]
+fn the_canonical_environment_spelling_wins() {
+    struct Env;
+    impl crate::EnvVar for Env {
+        fn var(key: &str) -> Option<String> {
+            match key {
+                "PNPM_SIDE_EFFECTS_CACHE_REMOTE_KEY_ID" => Some("canonical".to_string()),
+                "PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID" => Some("older".to_string()),
+                _ => None,
+            }
+        }
+    }
+
+    let mut config = Config::new();
+    config.apply_remote_side_effects_cache_env::<Env>();
+    assert_eq!(
+        config.remote_side_effects_cache.expect("shared cache config").key_id.as_deref(),
+        Some("canonical"),
+    );
+}
+
+thread_local! {
+    static CASE: std::cell::RefCell<Option<(Vec<&'static str>, &'static str, &'static str)>> =
+        const { std::cell::RefCell::new(None) };
+}
+
 /// The environment holds the signing material a CI runner must not commit, so
 /// it is the last word on the section.
 #[test]

@@ -10,8 +10,8 @@
 "@pnpm/releasing.commands": patch
 "@pnpm/workspace.projects-sorter": major
 "@pnpm/workspace.task-scheduler": major
-"pacquet": patch
-"pnpm": patch
+"pacquet": minor
+"pnpm": minor
 ---
 
 Workspace install, rebuild, pack, publish, stage, and lifecycle work now starts as soon as its dependencies finish instead of waiting for an unrelated topological group.
