@@ -199,18 +199,20 @@ impl ConfigOverrides {
                 }
                 ConfigToken::WellFormed { key, value } => overrides.set(key, value),
                 ConfigToken::BooleanFollows(key) => {
-                    let value = following(spells_a_boolean);
+                    let value = following(is_boolean_value);
                     overrides.set(key, value.as_deref().unwrap_or("true"));
                 }
                 ConfigToken::ValueFollows(key) => match following(|_| true) {
                     Some(value) if setting_takes(key, &value) => overrides.set(key, &value),
-                    // Both tokens go back in their original order, for
-                    // clap to report — see [`classify`].
+                    // The flag goes back in place, with the value it did
+                    // not take, for clap to report — see [`classify`]. A
+                    // flag that ends argv has no value at all, which is
+                    // just as much an invocation clap has to report.
                     Some(value) => {
                         remaining.push(arg);
                         remaining.push(OsString::from(value));
                     }
-                    None => {}
+                    None => remaining.push(arg),
                 },
                 ConfigToken::Malformed => {}
                 ConfigToken::NotOurs => remaining.push(arg),
@@ -814,10 +816,11 @@ fn setting_takes(key: &str, value: &str) -> bool {
 }
 
 /// Whether a token spells a boolean a bare `--<setting>` flag claims as
-/// its value. nopt claims only the two literals, so
-/// `pnpm --shamefully-hoist install` still finds its command.
-pub(crate) fn spells_a_boolean(token: &str) -> bool {
-    matches!(token, "true" | "false")
+/// its value — the same spellings the `--<setting>=<bool>` form takes,
+/// so the two agree. Only a boolean is claimed, which is what leaves
+/// `pnpm --shamefully-hoist install` its command.
+pub(crate) fn is_boolean_value(token: &str) -> bool {
+    parse_bool(token).is_some()
 }
 
 /// How many argv slots a bare `--<setting>` flag occupies, given the
@@ -826,7 +829,7 @@ pub(crate) fn spells_a_boolean(token: &str) -> bool {
 /// [`BARE_SETTING_FLAGS`], leaving the arity to clap's own tables.
 pub(crate) fn bare_setting_flag_width(flag: &str, next: Option<&str>) -> Option<usize> {
     match named_bare_setting_flag(flag)? {
-        (_, SettingArity::Boolean) => Some(1 + usize::from(next.is_some_and(spells_a_boolean))),
+        (_, SettingArity::Boolean) => Some(1 + usize::from(next.is_some_and(is_boolean_value))),
         (_, SettingArity::Value(_)) => Some(2),
     }
 }
