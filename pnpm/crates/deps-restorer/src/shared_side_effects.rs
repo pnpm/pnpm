@@ -131,7 +131,7 @@ pub(crate) async fn apply_shared_side_effects(
         }
     };
     let Some(trusted_keys) = decoded_trusted_keys(settings) else { return Vec::new() };
-    let Some(organization) = non_empty(&settings.organization) else { return Vec::new() };
+    let Some(organization) = non_empty(&settings.org) else { return Vec::new() };
     let owner = OwnerScope::organization(organization.to_string());
     let owner_namespace = owner.namespace();
     let fingerprint = match platform_fingerprint(&supported_tags) {
@@ -791,7 +791,7 @@ pub(crate) fn shared_side_effects_publisher(
     let private_key = BASE64.decode(settings.private_key.as_ref()?).ok()?;
     let key_id = settings.key_id.clone()?;
     let builder_id = settings.builder_id.clone()?;
-    let organization = non_empty(&settings.organization)?.to_string();
+    let organization = non_empty(&settings.org)?.to_string();
     let environment = settings.build_env.clone().unwrap_or_default();
     Some(SharedSideEffectsPublisher {
         authorization: config.auth_headers.for_url(server),

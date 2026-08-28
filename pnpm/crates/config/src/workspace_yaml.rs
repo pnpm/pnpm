@@ -143,12 +143,12 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 
 /// Organization-owned dependency build artifacts eligible for this workspace.
 ///
-/// `organization` and `packages` default to empty because one section is
+/// `org` and `packages` default to empty because one section is
 /// assembled from several sources: the repository names the eligible
 /// organization and packages while the machine supplies the trust root. The
 /// feature applies only once both halves are present.
 ///
-/// Only `organization` and `packages` may come from a repository. Every other
+/// Only `org` and `packages` may come from a repository. Every other
 /// field describes the act of signing and travels with the machine: loading a
 /// `pnpm-workspace.yaml` that sets one fails with
 /// [`LoadWorkspaceYamlError::WorkspaceRemoteSideEffectsTrust`], leaving the
@@ -156,7 +156,11 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct RemoteSideEffectsCacheSettings {
-    pub organization: String,
+    /// `organization` is the older spelling and is still accepted; `org` is
+    /// what pnpr calls this namespace in its own configuration, and what its
+    /// endpoints are built from.
+    #[serde(alias = "organization")]
+    pub org: String,
     pub packages: Vec<String>,
     /// Publish the lifecycle-script diff of every eligible package that is built.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -212,7 +216,7 @@ impl RemoteSideEffectsCacheSettings {
     /// section and the later one must not drop what the earlier one set.
     pub(crate) fn overlay(&mut self, other: Self) {
         let Self {
-            organization,
+            org,
             packages,
             publish,
             key_id,
@@ -223,8 +227,8 @@ impl RemoteSideEffectsCacheSettings {
             trusted_keys,
             private_key,
         } = other;
-        if !organization.is_empty() {
-            self.organization = organization;
+        if !org.is_empty() {
+            self.org = org;
         }
         if !packages.is_empty() {
             self.packages = packages;

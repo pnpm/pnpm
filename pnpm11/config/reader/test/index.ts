@@ -5707,7 +5707,7 @@ test('getConfig() resolves the canonical sideEffectsCache declaration', async ()
     sideEffectsCache: {
       read: true,
       write: false,
-      remote: { organization: 'acme', packages: ['native-addon'] },
+      remote: { org: 'acme', packages: ['native-addon'] },
     },
   })
 
@@ -5719,7 +5719,7 @@ test('getConfig() resolves the canonical sideEffectsCache declaration', async ()
 
   expect(config.sideEffectsCacheRead).toBe(true)
   expect(config.sideEffectsCacheWrite).toBe(false)
-  expect(config.remoteSideEffectsCache).toStrictEqual({ organization: 'acme', packages: ['native-addon'] })
+  expect(config.remoteSideEffectsCache).toStrictEqual({ org: 'acme', packages: ['native-addon'] })
 })
 
 test('getConfig() defaults read and write when only the remote tier is declared', async () => {
@@ -5728,7 +5728,7 @@ test('getConfig() defaults read and write when only the remote tier is declared'
   // as "and switch the rest off" would silently stop reusing local builds.
   prepareEmpty()
   writeYamlFileSync('pnpm-workspace.yaml', {
-    sideEffectsCache: { remote: { organization: 'acme' } },
+    sideEffectsCache: { remote: { org: 'acme' } },
   })
 
   const { config } = await getConfig({
@@ -5749,7 +5749,7 @@ test('getConfig() lets the canonical sideEffectsCache win over the older spellin
     sideEffectsCache: {
       read: false,
       write: true,
-      remote: { organization: 'acme' },
+      remote: { org: 'acme' },
     },
   })
 
@@ -5765,7 +5765,24 @@ test('getConfig() lets the canonical sideEffectsCache win over the older spellin
   // repository may name the packages under one and the organization under the
   // other, and neither may drop the other's fields.
   expect(config.remoteSideEffectsCache).toStrictEqual({
-    organization: 'acme',
+    org: 'acme',
     packages: ['from-the-old-key'],
   })
+})
+
+test('getConfig() accepts the older organization spelling', async () => {
+  // It shipped in pacquet 12.0.0, so a file written for that keeps working;
+  // `org` is what pnpr calls the same namespace, and what consumers see.
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    sideEffectsCache: { remote: { organization: 'acme' } },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.remoteSideEffectsCache).toStrictEqual({ org: 'acme' })
 })

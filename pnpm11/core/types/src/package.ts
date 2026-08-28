@@ -364,6 +364,11 @@ export interface RemoteSideEffectsCacheSettings {
    * the machine supplies the trust root. The feature applies only once both
    * halves are present.
    */
+  org?: string
+  /**
+   * The older spelling of {@link RemoteSideEffectsCacheSettings.org}. When
+   * both are set, the canonical one wins.
+   */
   organization?: string
   packages?: string[]
   /** Publish the lifecycle-script diff of every eligible package that is built. */

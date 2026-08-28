@@ -182,6 +182,9 @@ function assertValidSharedSideEffectsCache (
       )
     }
   }
+  if (settings.org != null) {
+    assertString(settings.org, `${path}.org`)
+  }
   if (settings.organization != null) {
     assertString(settings.organization, `${path}.organization`)
   }
@@ -210,7 +213,7 @@ function assertValidSharedSideEffectsCache (
  * rather than what it may not, keeps a field added later machine-only until
  * someone decides otherwise.
  */
-const WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS: ReadonlySet<string> = new Set(['organization', 'packages'])
+const WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS: ReadonlySet<string> = new Set(['org', 'organization', 'packages'])
 
 const REGISTRY_SERVER_TYPES = new Set(['npm', 'artifactory'])
 

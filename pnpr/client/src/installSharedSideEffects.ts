@@ -118,7 +118,7 @@ interface QueuedLookup {
 
 export function canRestoreRemoteSideEffects (opts: RemoteSideEffectsPrerequisites): boolean {
   return opts.settings != null &&
-    opts.settings.organization != null &&
+    opts.settings.org != null &&
     (opts.settings.packages?.length ?? 0) > 0 &&
     Object.keys(opts.settings.trustedKeys ?? {}).length > 0 &&
     !opts.ignoreScripts &&
@@ -131,7 +131,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
   if (!canRestoreRemoteSideEffects(opts)) return undefined
   const artifactPlatform = currentArtifactPlatform(opts.nodeVersion)
   const { pnprServer, settings } = opts
-  const organization = settings?.organization
+  const organization = settings?.org
   if (artifactPlatform == null || settings == null || organization == null) return undefined
   const registryUrl = pnprServer
   const ownerName = organization
@@ -622,7 +622,7 @@ export async function publishBuiltSharedSideEffects<T extends string> (
     opts.pnprServer == null ||
     opts.settings.packages?.includes(opts.name) !== true
   ) return
-  const { builderId, keyId, organization, privateKey } = opts.settings
+  const { builderId, keyId, org: organization, privateKey } = opts.settings
   if (organization == null) return
   const artifactPlatform = currentArtifactPlatform(opts.nodeVersion)
   const sourceIntegrity = verifiedIntegrity(opts.resolution)

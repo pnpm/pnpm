@@ -1337,6 +1337,13 @@ function resolveSideEffectsCache (pnpmConfig: Config): void {
       ...settings.remote,
     }
   }
+  const remote = pnpmConfig.remoteSideEffectsCache
+  if (remote?.organization != null) {
+    // `org` is the spelling pnpr itself uses for this namespace, and the one
+    // its endpoints are built from. Consumers only ever see that one.
+    remote.org ??= remote.organization
+    delete remote.organization
+  }
 }
 
 /**

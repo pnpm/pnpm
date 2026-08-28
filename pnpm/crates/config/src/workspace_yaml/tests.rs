@@ -997,8 +997,27 @@ remoteSideEffectsCache:
     settings.apply_to(&mut config, Path::new("/workspace"));
 
     let shared = config.remote_side_effects_cache.expect("shared cache config");
-    assert_eq!(shared.organization, "acme");
+    assert_eq!(shared.org, "acme");
     assert_eq!(shared.packages, ["native-addon"]);
+}
+
+/// `organization` shipped in pacquet 12.0.0, so a file written for it keeps
+/// working; `org` is what pnpr calls the same namespace.
+#[test]
+fn accepts_the_older_organization_spelling() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  remote:
+    organization: acme
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    let shared = config.remote_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.org, "acme");
 }
 
 #[test]
@@ -1021,7 +1040,7 @@ sideEffectsCache:
     assert!(config.side_effects_cache_read());
     assert!(!config.side_effects_cache_write());
     let shared = config.remote_side_effects_cache.expect("shared cache config");
-    assert_eq!(shared.organization, "acme");
+    assert_eq!(shared.org, "acme");
     assert_eq!(shared.packages, ["native-addon"]);
 }
 
@@ -1079,7 +1098,7 @@ sideEffectsCache:
     assert!(!config.side_effects_cache_read());
     assert!(config.side_effects_cache_write());
     let shared = config.remote_side_effects_cache.expect("shared cache config");
-    assert_eq!(shared.organization, "acme");
+    assert_eq!(shared.org, "acme");
     assert_eq!(shared.packages, ["from-the-old-key"]);
 }
 
@@ -1153,7 +1172,7 @@ remoteSideEffectsCache:
     WorkspaceSettings::load_at(dir.path()).unwrap().unwrap().apply_to(&mut config, dir.path());
 
     let shared = config.remote_side_effects_cache.expect("shared cache config");
-    assert_eq!(shared.organization, "acme");
+    assert_eq!(shared.org, "acme");
     assert_eq!(shared.packages, ["native-addon"]);
     assert_eq!(shared.publish, Some(true));
     assert_eq!(shared.key_id.as_deref(), Some("acme-2026"));
@@ -1192,7 +1211,7 @@ remoteSideEffectsCache:
     config.apply_remote_side_effects_cache_env::<Env>();
 
     let shared = config.remote_side_effects_cache.expect("shared cache config");
-    assert_eq!(shared.organization, "acme");
+    assert_eq!(shared.org, "acme");
     assert_eq!(shared.packages, ["native-addon"]);
     assert_eq!(shared.publish, Some(true));
     assert_eq!(shared.key_id.as_deref(), Some("acme-2026"));
@@ -1226,7 +1245,7 @@ remoteSideEffectsCache:
     workspace.apply_to(&mut config, Path::new("/workspace"));
 
     let shared = config.remote_side_effects_cache.expect("shared cache config");
-    assert_eq!(shared.organization, "acme");
+    assert_eq!(shared.org, "acme");
     assert_eq!(shared.packages, ["native-addon"]);
     assert_eq!(shared.trusted_keys.expect("trusted keys").get("acme-2026").unwrap(), "AA==");
     assert_eq!(shared.private_key.as_deref(), Some("BB=="));

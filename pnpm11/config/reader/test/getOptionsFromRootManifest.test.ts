@@ -100,7 +100,7 @@ test('getOptionsFromPnpmSettings() converts allowBuilds', () => {
 
 test('getOptionsFromPnpmSettings() reads remote side-effects cache settings', () => {
   const remoteSideEffectsCache = {
-    organization: 'acme',
+    org: 'acme',
     packages: ['native-addon'],
   }
   expect(getOptionsFromPnpmSettings(process.cwd(), {
@@ -112,7 +112,7 @@ test('getOptionsFromPnpmSettings() reads the canonical side-effects cache declar
   const sideEffectsCache = {
     read: true,
     write: false,
-    remote: { organization: 'acme', packages: ['native-addon'] },
+    remote: { org: 'acme', packages: ['native-addon'] },
   }
   expect(getOptionsFromPnpmSettings(process.cwd(), { sideEffectsCache }))
     .toStrictEqual({ sideEffectsCache })
@@ -124,7 +124,7 @@ test('getOptionsFromPnpmSettings() reads the canonical side-effects cache declar
 test('getOptionsFromPnpmSettings() rejects workspace-controlled trust material under sideEffectsCache.remote', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     sideEffectsCache: {
-      remote: { organization: 'acme', privateKey: 'repository-controlled-key' },
+      remote: { org: 'acme', privateKey: 'repository-controlled-key' },
     },
   } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
     code: 'ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST',
@@ -153,7 +153,7 @@ test.each([
 ])('getOptionsFromPnpmSettings() rejects a workspace-controlled remote side-effects %s', (field, value) => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     remoteSideEffectsCache: {
-      organization: 'acme',
+      org: 'acme',
       packages: ['native-addon'],
       [field]: value,
     },
@@ -174,7 +174,7 @@ test('getOptionsFromPnpmSettings() accepts remote side-effects trust material on
 
 test('getOptionsFromPnpmSettings() reads the remote side-effects builder settings from a trusted source', () => {
   const remoteSideEffectsCache = {
-    organization: 'acme',
+    org: 'acme',
     packages: ['native-addon'],
     publish: true,
     keyId: 'acme-2026',
