@@ -1692,7 +1692,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // is the real lockfile dir (sets each script's `INIT_CWD`); the
         // post-build bin link anchors on `symlink_root` to match where
         // this path placed `node_modules`.
-        let crate::BuildModulesOutput { ignored_builds, deferred_builds } =
+        let crate::BuildModulesOutput { ignored_builds, deferred_builds, mutated_slots: _ } =
             crate::install_frozen_lockfile::run_build_phase::<Reporter>(
                 &crate::install_frozen_lockfile::BuildPhaseInputs {
                     config,

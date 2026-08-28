@@ -914,7 +914,7 @@ where
         // `allow_build_policy` was constructed up-front (before
         // `CreateVirtualStore`) so the git fetcher could consult it.
         let phase_start = std::time::Instant::now();
-        let crate::BuildModulesOutput { ignored_builds, deferred_builds } =
+        let crate::BuildModulesOutput { ignored_builds, deferred_builds, mutated_slots: _ } =
             run_build_phase::<Reporter>(&BuildPhaseInputs {
                 config,
                 workspace_root,

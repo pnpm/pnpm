@@ -216,6 +216,7 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         crate::BuildModulesOutput {
             ignored_builds: Vec::new(),
             deferred_builds: crate::build_modules::deferred_builds(newly_deferred, true),
+            mutated_slots: false,
         }
     } else {
         BuildModules {
@@ -286,6 +287,24 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     let modules_dir_basename: &OsStr =
         config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
     for (importer_id, importer_snapshot) in importers {
+        // Public-hoist promotes transitives into the workspace root's
+        // `<root>/node_modules/<alias>`, so only the root importer's
+        // `.bin` sees `BinOrigin::Hoisted` candidates.
+        let hoisted_names: &[String] = if importer_id == Lockfile::ROOT_IMPORTER_KEY {
+            publicly_hoisted_for_post_build
+        } else {
+            &[]
+        };
+        // When nothing this phase can change actually changed — no
+        // script, patch, or side-effects overlay touched a linked slot
+        // — the isolated link phase's own bin pass already shimmed
+        // exactly this candidate set, so re-resolving it would only
+        // re-read every direct dep's manifest per importer. Hoisted
+        // installs always relink: this pass is their only importer
+        // bin pass.
+        if !is_hoisted && !build_output.mutated_slots && hoisted_names.is_empty() {
+            continue;
+        }
         let project_dir = importer_root_dir(top_level_bin_root, importer_id);
         let modules_dir = project_dir.join(modules_dir_basename);
         // Same filter the symlink phase used so the post-build pass sees
@@ -297,14 +316,6 @@ pub fn run_build_phase<Reporter: self::Reporter>(
             skipped,
             false,
         );
-        // Public-hoist promotes transitives into the workspace root's
-        // `<root>/node_modules/<alias>`, so only the root importer's
-        // `.bin` sees `BinOrigin::Hoisted` candidates.
-        let hoisted_names: &[String] = if importer_id == Lockfile::ROOT_IMPORTER_KEY {
-            publicly_hoisted_for_post_build
-        } else {
-            &[]
-        };
         link_top_level_bins(&modules_dir, &direct_names, hoisted_names, link_options)
             .map_err(BuildPhaseError::TopLevelBinLink)?;
     }

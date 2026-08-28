@@ -346,6 +346,15 @@ pub struct BuildModulesOutput {
     /// Peers are kept here — unlike `ignored_builds`, whose keys are an
     /// `allowBuilds` lookup, these address a materialized slot.
     pub deferred_builds: Vec<String>,
+
+    /// Whether any linked slot's contents may have changed during the
+    /// build phase — a side-effects overlay was applied, a patch ran,
+    /// or a lifecycle script was attempted. `false` on the common warm
+    /// install where every candidate was ignored, deferred, or already
+    /// built, which lets the post-build importer bin relink skip
+    /// importers whose manifests provably match what the link phase
+    /// already shimmed.
+    pub mutated_slots: bool,
 }
 
 impl BuildModules<'_> {
@@ -491,6 +500,7 @@ impl BuildModules<'_> {
 
         let first_error: Mutex<Option<BuildModulesError>> = Mutex::new(None);
         let on_node_skipped: fn(&PackageKey) = |_| {};
+        let slot_mutations = std::sync::atomic::AtomicBool::new(false);
         let run_node = |snapshot_key: PackageKey| match build_one_snapshot::<Reporter>(
             &snapshot_key,
             snapshots,
@@ -523,6 +533,7 @@ impl BuildModules<'_> {
             ignore_scripts,
             import_method,
             logged_methods,
+            &slot_mutations,
             rebuild,
         ) {
             Ok(()) => TaskCompletion::Passed,
@@ -563,6 +574,7 @@ impl BuildModules<'_> {
         Ok(BuildModulesOutput {
             ignored_builds: ignored_builds.into_iter().collect(),
             deferred_builds: deferred_builds(requires_build_map.iter(), ignore_scripts),
+            mutated_slots: slot_mutations.into_inner(),
         })
     }
 }
