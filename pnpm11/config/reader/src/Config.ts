@@ -143,6 +143,7 @@ export interface Config extends OptionsFromRootManifest {
   optional?: boolean
   unsafePerm?: boolean
   loglevel?: 'silent' | 'error' | 'warn' | 'info' | 'debug'
+  progress?: boolean
   frozenLockfile?: boolean
   preferFrozenLockfile?: boolean
   only?: 'prod' | 'production' | 'dev' | 'development'

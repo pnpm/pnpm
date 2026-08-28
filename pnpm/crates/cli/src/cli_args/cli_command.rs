@@ -196,6 +196,14 @@ pub struct CliArgs {
     #[clap(long, value_enum, global = true)]
     pub loglevel: Option<LogLevelSetting>,
 
+    /// Enable dependency and download progress output.
+    #[clap(long, global = true, overrides_with = "no_progress", hide = true)]
+    pub progress: bool,
+
+    /// Disable dependency and download progress output.
+    #[clap(long = "no-progress", global = true, overrides_with = "progress")]
+    pub no_progress: bool,
+
     /// Select which workspace projects to run on. Repeat to add more.
     /// Each selector can be a name pattern (`@scope/*`), a path (`./pkg`),
     /// a dependency query (`foo...`), an exclusion (`!bar`), a directory

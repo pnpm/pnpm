@@ -138,6 +138,7 @@ impl WorkspaceSettings {
 
         json_field!(bail, "BAIL");
         json_field!(ci, "CI");
+        json_field!(progress, "PROGRESS");
         json_field!(update_notifier, "UPDATE_NOTIFIER");
         enum_field!(color, "COLOR", ColorMode);
         json_field!(embed_readme, "EMBED_README");

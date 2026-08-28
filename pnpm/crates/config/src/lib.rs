@@ -935,6 +935,10 @@ pub struct Config {
     #[default(_code = "default_ci::<Host>(is_ci::cached)")]
     pub ci: bool,
 
+    /// Whether the default reporter renders dependency and download progress.
+    #[default = true]
+    pub progress: bool,
+
     /// `updateNotifier` — whether `pnpm install` / `pnpm add` may check
     /// the registry once a day for a newer pnpm and print a notice when
     /// one exists. Setting it to `false` silences the check entirely.

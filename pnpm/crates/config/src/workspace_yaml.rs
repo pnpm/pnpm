@@ -260,6 +260,7 @@ impl RemoteSideEffectsCacheSettings {
 pub struct WorkspaceSettings {
     pub bail: Option<bool>,
     pub ci: Option<bool>,
+    pub progress: Option<bool>,
     pub update_notifier: Option<bool>,
     pub color: Option<crate::ColorMode>,
     pub embed_readme: Option<bool>,
@@ -1830,7 +1831,7 @@ impl WorkspaceSettings {
         }
 
         apply! {
-            bail, ci, update_notifier, color, embed_readme, ignore_workspace_root_check,
+            bail, ci, progress, update_notifier, color, embed_readme, ignore_workspace_root_check,
             optional, package_lock, pending, recursive_install, reverse,
             stream, aggregate_output, use_stderr, ignore_workspace, shell_emulator,
             skip_manifest_obfuscation, sort, use_beta_cli,
