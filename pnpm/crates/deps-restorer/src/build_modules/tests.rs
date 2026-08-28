@@ -499,6 +499,125 @@ fn build_modules_collects_ignored_builds() {
     );
 }
 
+/// The post-build importer bin relink keys off
+/// [`BuildModulesOutput::mutated_slots`], so the signal must stay
+/// `false` when every candidate is blocked by the allow policy —
+/// nothing wrote into a linked slot, and the relink may skip.
+#[test]
+fn mutated_slots_is_false_when_every_build_is_ignored() {
+    let snapshots = HashMap::from([(key("zzz", "1.0.0"), SnapshotEntry::default())]);
+    let importers = root_importers(&[("zzz", "1.0.0")]);
+    let policy = AllowBuildPolicy::default(); // empty → default-deny
+
+    let virtual_store_dir = tempdir().expect("create temp dir");
+    let modules_dir = tempdir().expect("create temp dir");
+    let lockfile_dir = tempdir().expect("create temp dir");
+    create_buildable_pkg(virtual_store_dir.path(), &key("zzz", "1.0.0"));
+
+    let output = BuildModules {
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
+        ),
+        modules_dir: modules_dir.path(),
+        lockfile_dir: lockfile_dir.path(),
+        snapshots: Some(&snapshots),
+        importers: &importers,
+        packages: None,
+        allow_build_policy: &policy,
+        side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
+        engine_name: None,
+        side_effects_cache: true,
+        side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
+        store_dir: None,
+        store_index_writer: None,
+        patches: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
+        shell_emulator: false,
+        extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
+        unsafe_perm: true,
+        child_concurrency: 1,
+        skipped: &SkippedSnapshots::default(),
+        pkg_roots_by_key: None,
+        gather_ancestor_bin_paths: false,
+        frozen_store: false,
+        ignore_scripts: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
+    }
+    .run::<SilentReporter>()
+    .expect("run BuildModules");
+    assert!(!output.mutated_slots, "an ignored build must not report a slot mutation");
+}
+
+/// The converse of [`mutated_slots_is_false_when_every_build_is_ignored`]:
+/// an allowed candidate actually runs its script, so the signal must be
+/// `true` and the post-build importer bin relink must not skip.
+#[test]
+fn mutated_slots_is_true_when_a_script_runs() {
+    let snapshots = HashMap::from([(key("zzz", "1.0.0"), SnapshotEntry::default())]);
+    let importers = root_importers(&[("zzz", "1.0.0")]);
+    let policy = policy_from_specs([("zzz", true)], false);
+
+    let virtual_store_dir = tempdir().expect("create temp dir");
+    let modules_dir = tempdir().expect("create temp dir");
+    let lockfile_dir = tempdir().expect("create temp dir");
+    // `create_buildable_pkg` writes a `postinstall: true` script the
+    // policy above allows to run; swap the body for a portable no-op
+    // (`true` is not a command on Windows shells).
+    let pkg_dir = create_buildable_pkg(virtual_store_dir.path(), &key("zzz", "1.0.0"));
+    fs::write(
+        pkg_dir.join("package.json"),
+        serde_json::json!({ "scripts": { "postinstall": "node -e 0" } }).to_string(),
+    )
+    .expect("write manifest");
+
+    let output = BuildModules {
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
+        ),
+        modules_dir: modules_dir.path(),
+        lockfile_dir: lockfile_dir.path(),
+        snapshots: Some(&snapshots),
+        importers: &importers,
+        packages: None,
+        allow_build_policy: &policy,
+        side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
+        engine_name: None,
+        side_effects_cache: true,
+        side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
+        store_dir: None,
+        store_index_writer: None,
+        patches: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
+        shell_emulator: false,
+        extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
+        unsafe_perm: true,
+        child_concurrency: 1,
+        skipped: &SkippedSnapshots::default(),
+        pkg_roots_by_key: None,
+        gather_ancestor_bin_paths: false,
+        frozen_store: false,
+        ignore_scripts: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
+    }
+    .run::<SilentReporter>()
+    .expect("run BuildModules");
+    assert!(output.mutated_slots, "an executed script must report a slot mutation");
+}
+
 /// Under `ignore_scripts`, the same default-deny build candidates that
 /// [`build_modules_collects_ignored_builds`] reports as ignored are
 /// instead silently skipped: no script runs and the returned set is
