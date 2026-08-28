@@ -12,6 +12,7 @@
 //! through its own capability seam, so the merge rules are testable without
 //! a filesystem.
 
+use crate::registry_url::normalize_registry_url;
 use serde_json::{Map, Value, json};
 
 /// Base name of pnpm's global config file, inside `configDir`.
@@ -80,6 +81,7 @@ pub fn logout_fields(
     let Some(mut auth) = object_at(&root, AUTH_KEY) else {
         return Ok(Vec::new());
     };
+    let registry = &key_for_registry(&auth, registry);
     let Some(mut scopes) = auth.get(registry).and_then(as_object) else {
         return Ok(Vec::new());
     };
@@ -119,6 +121,7 @@ fn parse_document(document: Option<&str>) -> Result<Map<String, Value>, ParseCon
 /// forget another.
 fn auth_with_token(root: &Map<String, Value>, registry: &str, scope: &str, token: &str) -> Value {
     let mut auth = object_at(root, AUTH_KEY).unwrap_or_default();
+    let registry = &key_for_registry(&auth, registry);
     if scope != DEFAULT_SCOPE {
         for (url, scopes) in &mut auth {
             if url != registry
@@ -183,6 +186,19 @@ fn unroute_scope(entry: &mut Value, scope: &str) {
     if scopes.is_empty() {
         declaration.remove("scopes");
     }
+}
+
+/// The `_auth` key naming `registry`, whatever spelling it is written in.
+///
+/// The reader normalizes every key before matching a credential to a host, so
+/// two spellings of one registry are one entry to it and the later wins. They
+/// must be one entry here too, or a login would leave the credential it
+/// replaced beside its replacement, and a logout would leave it behind.
+fn key_for_registry(auth: &Map<String, Value>, registry: &str) -> String {
+    auth.keys()
+        .find(|key| normalize_registry_url(key) == registry)
+        .cloned()
+        .unwrap_or_else(|| registry.to_owned())
 }
 
 fn object_at(root: &Map<String, Value>, key: &str) -> Option<Map<String, Value>> {

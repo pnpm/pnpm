@@ -96,3 +96,38 @@ fn logout_removes_the_token_from_config_yaml() {
         "the settings around the credential must survive: {remaining:?}",
     );
 }
+
+/// A registry spelled with an uppercase scheme and its default port is the
+/// same registry to `pnpm login`, which canonicalizes before recording. Logout
+/// has to reach the same conclusion, or the token it just revoked stays in the
+/// file under a name it never looks up.
+#[test]
+fn logout_matches_the_registry_however_the_url_is_spelled() {
+    const TOKEN: &str = "spelling-token";
+    let mut server = mockito::Server::new();
+    let mock = server.mock("DELETE", &*format!("/-/user/token/{TOKEN}")).with_status(200).create();
+    let registry = server.url();
+    let host = registry.strip_prefix("http://").expect("mockito serves http");
+
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let config_home = root.path().join("config");
+    let pnpm_dir = config_home.join("pnpm");
+    fs::create_dir_all(&pnpm_dir).expect("create config/pnpm");
+    fs::write(
+        pnpm_dir.join("config.yaml"),
+        format!("_auth:\n  {registry}/:\n    '@': {{ authToken: {TOKEN} }}\n"),
+    )
+    .expect("seed config.yaml");
+
+    let output = pacquet
+        .with_env("XDG_CONFIG_HOME", &config_home)
+        .with_env("HOME", root.path())
+        .with_args(["logout", "--registry", &format!("HTTP://{}/", host.to_uppercase())])
+        .output()
+        .expect("run pacquet logout");
+
+    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    mock.assert();
+    let remaining = fs::read_to_string(pnpm_dir.join("config.yaml")).expect("read config.yaml");
+    assert!(!remaining.contains(TOKEN), "the token should be removed: {remaining:?}");
+}

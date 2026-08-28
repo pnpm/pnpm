@@ -311,3 +311,39 @@ _auth:
         })),
     );
 }
+
+/// The reader matches a credential to a host by the normalized URL, so two
+/// spellings of one registry are one entry to it and the later wins. A login
+/// must therefore replace the entry it found rather than write a second one
+/// beside it.
+#[test]
+fn a_login_replaces_a_differently_spelled_entry_for_its_registry() {
+    let document = "\
+_auth:
+  https://registry.example:
+    '@acme': { authToken: stale-token }
+";
+
+    assert_eq!(
+        field(&login(Some(document), Some("@acme")), "_auth"),
+        Some(json!({
+            "https://registry.example": { "@acme": { "authToken": "granted-token" } },
+        })),
+    );
+}
+
+/// And a logout must find it, or it would revoke a token on the registry and
+/// leave a usable copy of it in the file.
+#[test]
+fn a_logout_finds_a_differently_spelled_entry_for_its_registry() {
+    let document = "\
+_auth:
+  https://registry.example:
+    '@': { authToken: only-token }
+";
+
+    assert_eq!(
+        logout_fields(Some(document), "https://registry.example/").expect("the document parses"),
+        vec![("_auth", Value::Null)],
+    );
+}
