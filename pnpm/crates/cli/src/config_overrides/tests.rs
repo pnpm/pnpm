@@ -885,3 +885,58 @@ fn a_command_option_wins_over_the_setting_of_the_same_name() {
     overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.lockfile, Config::default().lockfile);
 }
+
+/// A value the setting does not take must reach clap, which reports it:
+/// dropping `--trust-policy=typo` would run the install under the default
+/// `off` policy the user meant to replace.
+#[test]
+fn extract_leaves_invalid_setting_values_for_clap() {
+    for tokens in [
+        ["--trust-policy=typo"].as_slice(),
+        &["--trust-policy", "typo"],
+        &["--config.trust-policy=typo"],
+        &["--package-import-method=symlink"],
+        &["--child-concurrency=lots"],
+        &["--child-concurrency", "lots"],
+        &["--trust-policy-ignore-after=soon"],
+    ] {
+        let command_line = ["pacquet", "install"]
+            .into_iter()
+            .chain(tokens.iter().copied())
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        let (overrides, remaining) = ConfigOverrides::extract(command_line.clone());
+        assert_eq!(remaining, command_line, "{tokens:?}");
+
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        let defaults = Config::default();
+        assert_eq!(config.trust_policy, defaults.trust_policy, "{tokens:?}");
+        assert_eq!(config.package_import_method, defaults.package_import_method, "{tokens:?}");
+        assert_eq!(config.child_concurrency, defaults.child_concurrency, "{tokens:?}");
+        assert_eq!(
+            config.trust_policy_ignore_after, defaults.trust_policy_ignore_after,
+            "{tokens:?}",
+        );
+    }
+}
+
+/// The boundary scan and the extraction have to agree on how much a bare
+/// boolean setting claims, or the settings after an explicit `true` /
+/// `false` are mistaken for a script's arguments and forwarded to clap.
+#[test]
+fn a_boolean_settings_explicit_value_does_not_move_the_command_boundary() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--strict-peer-dependencies",
+        "false",
+        "--config.registry=https://example.test/",
+        "install",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let mut config = Config { strict_peer_dependencies: true, ..Config::default() };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(!config.strict_peer_dependencies);
+    assert_eq!(config.registry, "https://example.test/");
+}

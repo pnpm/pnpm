@@ -199,17 +199,19 @@ impl ConfigOverrides {
                 }
                 ConfigToken::WellFormed { key, value } => overrides.set(key, value),
                 ConfigToken::BooleanFollows(key) => {
-                    // nopt claims the next token only when it spells a
-                    // boolean, so `pnpm --shamefully-hoist install` still
-                    // finds its command.
-                    let value = following(|token| matches!(token, "true" | "false"));
+                    let value = following(spells_a_boolean);
                     overrides.set(key, value.as_deref().unwrap_or("true"));
                 }
-                ConfigToken::ValueFollows(key) => {
-                    if let Some(value) = following(|_| true) {
-                        overrides.set(key, &value);
+                ConfigToken::ValueFollows(key) => match following(|_| true) {
+                    Some(value) if setting_takes(key, &value) => overrides.set(key, &value),
+                    // Both tokens go back in their original order, for
+                    // clap to report — see [`classify`].
+                    Some(value) => {
+                        remaining.push(arg);
+                        remaining.push(OsString::from(value));
                     }
-                }
+                    None => {}
+                },
                 ConfigToken::Malformed => {}
                 ConfigToken::NotOurs => remaining.push(arg),
             }
@@ -682,10 +684,12 @@ enum ConfigToken<'a> {
 /// itself, which win over the setting of the same name — see
 /// [`subcommand_option_names`].
 ///
-/// A boolean setting given a value that is not one is left for clap,
-/// which reports it as an unexpected argument — silently dropping it
-/// would leave the install running under a setting the user believes
-/// they changed.
+/// A setting given a value it does not take — a misspelled boolean, an
+/// unknown `--trust-policy`, a non-numeric `--child-concurrency` — is
+/// left for clap, which reports it as an unexpected argument. Dropping
+/// it instead would leave the install running under a setting the user
+/// believes they changed, which for a supply-chain setting like
+/// `trustPolicy` means failing open.
 ///
 /// [`subcommand_option_names`]: crate::parse_boundary::subcommand_option_names
 fn classify<'a>(arg: &'a OsStr, claimed_by_command: &HashSet<&str>) -> ConfigToken<'a> {
@@ -703,9 +707,7 @@ fn classify<'a>(arg: &'a OsStr, claimed_by_command: &HashSet<&str>) -> ConfigTok
         }
         // The dotted spelling names a setting outright, so a command
         // option of the same name never shadows it.
-        if named_bare_setting_flag(key).is_some_and(|(_, arity)| arity == SettingArity::Boolean)
-            && parse_bool(value).is_none()
-        {
+        if !setting_takes(key, value) {
             return ConfigToken::NotOurs;
         }
         return ConfigToken::WellFormed { key, value };
@@ -721,29 +723,32 @@ fn classify<'a>(arg: &'a OsStr, claimed_by_command: &HashSet<&str>) -> ConfigTok
     let Some((key, value)) = flag.split_once('=') else {
         return match setting(flag) {
             Some((key, SettingArity::Boolean)) => ConfigToken::BooleanFollows(key),
-            Some((key, SettingArity::Value)) => ConfigToken::ValueFollows(key),
+            Some((key, SettingArity::Value(_))) => ConfigToken::ValueFollows(key),
             None => ConfigToken::NotOurs,
         };
     };
     match setting(key) {
-        Some((_, SettingArity::Boolean)) if parse_bool(value).is_none() => ConfigToken::NotOurs,
+        Some(_) if !setting_takes(key, value) => ConfigToken::NotOurs,
         Some((key, _)) => ConfigToken::WellFormed { key, value },
         None => ConfigToken::NotOurs,
     }
 }
 
-/// How much of argv a bare `--<setting>` flag claims.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// How much of argv a bare `--<setting>` flag claims, and which values it
+/// accepts there.
+#[derive(Debug, Clone, Copy)]
 enum SettingArity {
     /// `--<setting>`, `--no-<setting>`, `--<setting>=<bool>`, and
     /// `--<setting> <bool>`.
     Boolean,
-    /// `--<setting>=<value>` and `--<setting> <value>`. A setting whose
-    /// value is a list repeats the flag, one value per occurrence.
-    Value,
+    /// `--<setting>=<value>` and `--<setting> <value>`, where the value is
+    /// one the carried predicate accepts. A setting whose value is a list
+    /// repeats the flag, one value per occurrence.
+    Value(fn(&str) -> bool),
 }
 
-/// Settings pnpm accepts as a bare `--<setting>` command-line flag.
+/// Settings pnpm accepts as a bare `--<setting>` command-line flag, with
+/// the values each takes.
 ///
 /// pnpm declares a `nopt` type for every setting, which makes all of them
 /// spellable on the command line; pacquet declares a clap flag for only a
@@ -754,37 +759,76 @@ enum SettingArity {
 /// clap; a setting that collides with a *global* option would be claimed
 /// on every command line and so must not appear here at all.
 const BARE_SETTING_FLAGS: [(&str, SettingArity); 19] = [
-    ("child-concurrency", SettingArity::Value),
-    ("global-dir", SettingArity::Value),
+    ("child-concurrency", SettingArity::Value(is_i32)),
+    ("global-dir", SettingArity::Value(is_text)),
     ("hoist", SettingArity::Boolean),
-    ("hoist-pattern", SettingArity::Value),
+    ("hoist-pattern", SettingArity::Value(is_text)),
     ("lockfile", SettingArity::Boolean),
-    ("modules-dir", SettingArity::Value),
+    ("modules-dir", SettingArity::Value(is_text)),
     ("optimistic-repeat-install", SettingArity::Boolean),
-    ("package-import-method", SettingArity::Value),
-    ("pm-on-fail", SettingArity::Value),
-    ("public-hoist-pattern", SettingArity::Value),
-    ("runtime-on-fail", SettingArity::Value),
+    ("package-import-method", SettingArity::Value(is_enum::<PackageImportMethod>)),
+    ("pm-on-fail", SettingArity::Value(is_enum::<PmOnFail>)),
+    ("public-hoist-pattern", SettingArity::Value(is_text)),
+    ("runtime-on-fail", SettingArity::Value(is_enum::<RuntimeOnFail>)),
     ("shamefully-hoist", SettingArity::Boolean),
     ("side-effects-cache", SettingArity::Boolean),
     ("side-effects-cache-readonly", SettingArity::Boolean),
     ("strict-peer-dependencies", SettingArity::Boolean),
-    ("trust-policy", SettingArity::Value),
-    ("trust-policy-exclude", SettingArity::Value),
-    ("trust-policy-ignore-after", SettingArity::Value),
-    ("virtual-store-dir", SettingArity::Value),
+    ("trust-policy", SettingArity::Value(is_enum::<TrustPolicy>)),
+    ("trust-policy-exclude", SettingArity::Value(is_text)),
+    ("trust-policy-ignore-after", SettingArity::Value(is_u64)),
+    ("virtual-store-dir", SettingArity::Value(is_text)),
 ];
+
+/// A path, a glob pattern, or any other free-form value: every spelling
+/// is one the setting takes.
+fn is_text(_: &str) -> bool {
+    true
+}
+
+fn is_i32(value: &str) -> bool {
+    value.parse::<i32>().is_ok()
+}
+
+fn is_u64(value: &str) -> bool {
+    value.parse::<u64>().is_ok()
+}
+
+fn is_enum<Value: serde::de::DeserializeOwned>(value: &str) -> bool {
+    parse_enum::<Value>(value).is_some()
+}
 
 fn named_bare_setting_flag(key: &str) -> Option<(&'static str, SettingArity)> {
     BARE_SETTING_FLAGS.into_iter().find(|&(name, _)| name == key)
 }
 
-/// Whether a bare `--<setting>` flag claims the token after it, for the
-/// argv scan that has to find the subcommand before the settings are
-/// stripped. `None` for a token that is not one of the
+/// Whether `value` is a spelling the `key` setting takes. `true` for a
+/// key outside [`BARE_SETTING_FLAGS`], which keeps the `--config.<key>`
+/// tolerance for the settings pacquet has not ported.
+fn setting_takes(key: &str, value: &str) -> bool {
+    match named_bare_setting_flag(key) {
+        Some((_, SettingArity::Boolean)) => parse_bool(value).is_some(),
+        Some((_, SettingArity::Value(takes))) => takes(value),
+        None => true,
+    }
+}
+
+/// Whether a token spells a boolean a bare `--<setting>` flag claims as
+/// its value. nopt claims only the two literals, so
+/// `pnpm --shamefully-hoist install` still finds its command.
+pub(crate) fn spells_a_boolean(token: &str) -> bool {
+    matches!(token, "true" | "false")
+}
+
+/// How many argv slots a bare `--<setting>` flag occupies, given the
+/// token after it — for the scan that has to find the subcommand before
+/// the settings are stripped. `None` for a token that is not one of the
 /// [`BARE_SETTING_FLAGS`], leaving the arity to clap's own tables.
-pub(crate) fn bare_setting_flag_consumes_value(key: &str) -> Option<bool> {
-    named_bare_setting_flag(key).map(|(_, arity)| arity == SettingArity::Value)
+pub(crate) fn bare_setting_flag_width(flag: &str, next: Option<&str>) -> Option<usize> {
+    match named_bare_setting_flag(flag)? {
+        (_, SettingArity::Boolean) => Some(1 + usize::from(next.is_some_and(spells_a_boolean))),
+        (_, SettingArity::Value(_)) => Some(2),
+    }
 }
 
 fn scoped_registry_key(key: &str) -> Option<&str> {

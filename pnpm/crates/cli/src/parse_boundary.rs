@@ -77,7 +77,7 @@ pub(crate) fn command_boundary(argv: &[OsString]) -> Option<CommandBoundary> {
             // The separator governs from here; see `passthrough_from`.
             return None;
         }
-        if let Some(width) = option_width(arg, arity) {
+        if let Some(width) = option_width(arg, next_token(argv, index), arity) {
             index += width;
             continue;
         }
@@ -182,7 +182,7 @@ fn next_positional(argv: &[OsString], from: usize, arity: &ArgTable) -> Option<u
             // script name to anchor on.
             return Some(index);
         }
-        match option_width(arg, arity) {
+        match option_width(arg, next_token(argv, index), arity) {
             Some(width) => index += width,
             None => return Some(index),
         }
@@ -190,8 +190,14 @@ fn next_positional(argv: &[OsString], from: usize, arity: &ArgTable) -> Option<u
     None
 }
 
+/// The token after the one at `index`, as far as it can be classified.
+fn next_token(argv: &[OsString], index: usize) -> Option<&str> {
+    argv.get(index + 1).and_then(|token| token.to_str())
+}
+
 /// The number of argv slots `arg` occupies when it is an option, or `None`
-/// when it is a positional.
+/// when it is a positional. `next` is the token after it, which decides
+/// the width of a bare boolean setting flag.
 ///
 /// Arity comes from clap rather than a hand-listed set of option names: a
 /// value-taking option missing from such a list makes its *value* look like
@@ -199,25 +205,27 @@ fn next_positional(argv: &[OsString], from: usize, arity: &ArgTable) -> Option<u
 /// (`pnpm dlx --package cowsay --silent cowsay` would forward pnpm's own
 /// `--silent`). The union across subcommands is what the pre-clap passes
 /// have to work with, since the command is not yet known.
-fn option_width(arg: &str, arity: &ArgTable) -> Option<usize> {
+fn option_width(arg: &str, next: Option<&str>, arity: &ArgTable) -> Option<usize> {
     let rest = arg.strip_prefix('-').filter(|rest| !rest.is_empty())?;
     if let Some(long) = rest.strip_prefix('-') {
         // `--config.<key>=<value>` is always self-contained.
         if long.starts_with("config.") {
             return Some(1);
         }
-        let (name, has_inline_value) =
-            long.split_once('=').map_or((long, false), |(name, _)| (name, true));
+        // An inline value is self-contained whatever the option's arity.
+        let Some(name) = long.split_once('=').map_or(Some(long), |_| None) else {
+            return Some(1);
+        };
         // A setting spelled as a bare flag is stripped by
         // [`ConfigOverrides::extract`], which computes this boundary — so
         // clap declares no arity for it and the setting table answers
-        // instead. Clap goes first: a command that declares the same
-        // option owns it, there and here.
-        let consumes_value = arity
-            .long_consumes_value(name)
-            .or_else(|| crate::config_overrides::bare_setting_flag_consumes_value(name))
-            .unwrap_or(false);
-        return Some(if consumes_value && !has_inline_value { 2 } else { 1 });
+        // instead, with the same next-token rule extraction applies. Clap
+        // goes first: a command that declares the same option owns it,
+        // there and here.
+        return match arity.long_consumes_value(name) {
+            Some(consumes_value) => Some(1 + usize::from(consumes_value)),
+            None => Some(crate::config_overrides::bare_setting_flag_width(name, next).unwrap_or(1)),
+        };
     }
     let short = rest.chars().next().expect("checked non-empty");
     let is_bare_short = rest.chars().count() == 1;
