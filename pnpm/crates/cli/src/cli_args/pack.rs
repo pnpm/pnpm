@@ -25,12 +25,13 @@ use pnpm_pack::{
     Host, PackError, PackOptions, PackOutputLocks, PackResultJson, api, format_pack_output,
     pack_output_path, to_pack_result_json,
 };
-use pnpm_reporter::Reporter;
+use pnpm_reporter::{LifecycleMessage, LifecycleStdio, LogEvent, Reporter};
 use pnpm_workspace_task_scheduler::{
     ScheduleGraphAsyncOptions, TaskCompletion, graph_sequencer, schedule_graph_async,
 };
 use std::{
     collections::HashMap,
+    io::{self, Write},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -40,6 +41,31 @@ use std::{
 /// underlying pack diagnostic instead of this wrapper, so the two sites must
 /// share one definition.
 pub(crate) const PACK_ERROR_CONTEXT: &str = "pack the package";
+
+/// Keep lifecycle output on its original stream before the final pack JSON.
+pub(super) struct PackJsonReporter;
+
+impl Reporter for PackJsonReporter {
+    fn emit(event: &LogEvent) {
+        let LogEvent::Lifecycle(log) = event else {
+            return;
+        };
+        match &log.message {
+            LifecycleMessage::Script { script, .. } => {
+                let _ = writeln!(io::stderr().lock(), "$ {script}");
+            }
+            LifecycleMessage::Stdio { line, stdio, .. } => match stdio {
+                LifecycleStdio::Stdout => {
+                    let _ = writeln!(io::stdout().lock(), "{line}");
+                }
+                LifecycleStdio::Stderr => {
+                    let _ = writeln!(io::stderr().lock(), "{line}");
+                }
+            },
+            LifecycleMessage::Exit { .. } => {}
+        }
+    }
+}
 
 /// Create a tarball from a package.
 #[derive(Debug, Args)]
@@ -250,7 +276,13 @@ impl PackArgs {
                     api::<Reporter, Host>(&options)
                         .await
                         .map_err(miette::Report::new)
-                        .wrap_err_with(|| format!("pack {}", project.root_dir.display()))
+                        .wrap_err_with(|| {
+                            if self.json {
+                                PACK_ERROR_CONTEXT.to_string()
+                            } else {
+                                format!("pack {}", project.root_dir.display())
+                            }
+                        })
                 }
                 .await;
                 match result {

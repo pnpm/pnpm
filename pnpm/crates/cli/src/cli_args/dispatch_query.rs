@@ -24,7 +24,7 @@ use super::{
     not_implemented::NotImplementedError,
     outdated::{OutdatedArgs, OutdatedOutcome},
     owner::OwnerArgs,
-    pack::PackArgs,
+    pack::{PackArgs, PackJsonReporter},
     pack_app::PackAppArgs,
     peers::{PeersArgs, PeersOutcome},
     ping::PingArgs,
@@ -437,19 +437,25 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<Comma
     let dir = ctx.dir;
     let recursive = ctx.recursive;
     let reporter = ctx.reporter;
+    async fn run<Reporter: pnpm_reporter::Reporter>(
+        args: PackArgs,
+        dir: &std::path::Path,
+        config: &mut Config,
+        recursive: bool,
+    ) -> miette::Result<String> {
+        let hooks = prepare_config::<Reporter>(config, dir).await?;
+        args.run::<Reporter>(dir, config, recursive, hooks).await
+    }
     Ok(Box::pin(async move {
-        let output = match reporter {
-            ReporterType::Default | ReporterType::AppendOnly => {
-                let hooks = prepare_config::<DefaultReporter>(config, dir).await?;
-                args.run::<DefaultReporter>(dir, config, recursive, hooks).await?
-            }
-            ReporterType::Ndjson => {
-                let hooks = prepare_config::<NdjsonReporter>(config, dir).await?;
-                args.run::<NdjsonReporter>(dir, config, recursive, hooks).await?
-            }
-            ReporterType::Silent => {
-                let hooks = prepare_config::<SilentReporter>(config, dir).await?;
-                args.run::<SilentReporter>(dir, config, recursive, hooks).await?
+        let output = if args.json {
+            run::<PackJsonReporter>(args, dir, config, recursive).await?
+        } else {
+            match reporter {
+                ReporterType::Default | ReporterType::AppendOnly => {
+                    run::<DefaultReporter>(args, dir, config, recursive).await?
+                }
+                ReporterType::Ndjson => run::<NdjsonReporter>(args, dir, config, recursive).await?,
+                ReporterType::Silent => run::<SilentReporter>(args, dir, config, recursive).await?,
             }
         };
         if !output.is_empty() {
