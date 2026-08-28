@@ -7,6 +7,7 @@ use crate::defaults::{default_state_dir, default_store_dir};
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::env_guard::EnvGuard;
 use pretty_assertions::assert_eq;
+use std::fmt::Write as _;
 use std::{
     env,
     ffi::OsString,
@@ -43,7 +44,7 @@ pub(crate) fn capture_warnings<Func: FnOnce()>(f: Func) -> Vec<String> {
                         if name == "message" {
                             self.message = value;
                         } else {
-                            self.fields.push_str(&format!(" {name}={value}"));
+                            let _ = write!(self.fields, " {name}={value}");
                         }
                     }
                 }
