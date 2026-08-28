@@ -4331,6 +4331,7 @@ dependencies = [
  "miette 7.6.0",
  "mockito",
  "pipe-trait",
+ "pnpm-config",
  "pnpm-fs",
  "pnpm-network",
  "pnpm-network-web-auth",
