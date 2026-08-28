@@ -1220,6 +1220,25 @@ pub enum LoadWorkspaceYamlError {
         )
     )]
     TokenHelperInProjectConfig { key: String },
+    /// An `_auth` credential did not decode as base64. Its whole point is
+    /// to carry `<username>:<password>` base64-encoded, so a value that
+    /// cannot be decoded would otherwise reach the registry as a header
+    /// no server can read — a silent 401 instead of a fixable error.
+    #[display("Failed to decode {key} as base64")]
+    #[diagnostic(
+        code(ERR_PNPM_AUTH_INVALID_BASE64),
+        help("{key} must hold the base64 encoding of <username>:<password>.")
+    )]
+    AuthInvalidBase64 { key: &'static str },
+    /// A decoded `_auth` credential held no `:`, so it names no password.
+    #[display("No separator found in the decoded form of _auth")]
+    #[diagnostic(
+        code(ERR_PNPM_AUTH_MISSING_SEPARATOR),
+        help(
+            "_auth is a base64 encoded form of <username>:<password> where the colon (:) serves as the separator"
+        )
+    )]
+    AuthMissingSeparator,
     /// A honored `tokenHelper` value contained a character pnpm reserves
     /// for future quoting / interpolation support.
     #[display("Unexpected character {character:?} in tokenHelper")]
