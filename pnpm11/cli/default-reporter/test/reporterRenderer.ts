@@ -288,3 +288,50 @@ test('never redraws above the top of the terminal', async () => {
     stop()
   }
 })
+
+// A resize reflows the frame already on screen, so nothing `ansi-diff` tracked
+// against the old width still describes where anything is. The frame has to be
+// drawn afresh below rather than diffed against a layout that no longer holds.
+test('a resize starts a fresh frame', async () => {
+  const writes: string[] = []
+  const stdout = {
+    columns: 120,
+    rows: 24,
+    write: (chunk: string) => {
+      writes.push(chunk)
+      return true
+    },
+  }
+  const mockProcess = { stdout, stderr: { write: () => true } }
+
+  const cwd = '/home/jane/project'
+  const streamParser = createStreamParser()
+  const stop = initDefaultReporter({
+    streamParser: streamParser as StreamParser<logs.Log>,
+    reportingOptions: { throttleProgress: 0 },
+    context: {
+      argv: ['install'],
+      config: { dir: cwd } as ReporterPnpmConfig,
+      process: mockProcess as unknown as NodeJS.Process,
+    },
+  })
+
+  try {
+    await yieldTick()
+
+    stageLogger.debug({ prefix: cwd, stage: 'resolution_started' })
+    progressLogger.debug({ packageId: 'registry.npmjs.org/foo/1.0.0', requester: cwd, status: 'resolved' })
+    await waitFor(writes, w => w.some(s => stripAnsi(s).includes('resolved 1')))
+
+    stdout.columns = 40
+    const writesBeforeResize = writes.length
+    progressLogger.debug({ packageId: 'registry.npmjs.org/bar/1.0.0', requester: cwd, status: 'resolved' })
+    await waitFor(writes, w => w.length > writesBeforeResize)
+
+    const afterResize = writes.slice(writesBeforeResize).join('')
+    expect(stripAnsi(afterResize)).toContain('resolved 2')
+    expect(cursorUps(afterResize)).toEqual([])
+  } finally {
+    stop()
+  }
+})

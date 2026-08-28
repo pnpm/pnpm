@@ -73,10 +73,12 @@ export function initDefaultReporter (
   }
   const stream = opts.useStderr ? proc.stderr : proc.stdout
   const write = stream.write.bind(stream)
-  const newDiffer = (): ReturnType<typeof createDiffer> => createDiffer({
-    height: stream.rows,
-    width: stream.columns ?? outputMaxWidth,
-  })
+  // The width the live differ wraps its frame at, so a resize can be noticed.
+  let differWidth = 0
+  const newDiffer = (): ReturnType<typeof createDiffer> => {
+    differWidth = stream.columns ?? outputMaxWidth
+    return createDiffer({ height: stream.rows, width: differWidth })
+  }
   let diff = newDiffer()
   // How many leading lines of the view have scrolled out of the differ's frame
   // and been committed to the scrollback. See `commitOverflow`.
@@ -136,6 +138,12 @@ export function initDefaultReporter (
    * terminal, at the cost of no longer being able to revise what was committed.
    */
   function commitOverflow (lines: string[]): string {
+    if ((stream.columns ?? outputMaxWidth) !== differWidth) {
+      // The terminal was resized. The frame on screen has reflowed at the new
+      // width, so every position the differ tracked against the old one is
+      // wrong: start over below what is already there.
+      diff = newDiffer()
+    }
     if (lines.length <= committedLines) {
       // The view no longer reaches past what was committed — an error frame
       // replaces it rather than extending it. Render it whole, below.
@@ -192,7 +200,11 @@ function viewOffsetOfLine (lines: string[], index: number): number {
   return offset
 }
 
-/** How many terminal rows `line` occupies once wrapped at `width`. */
+/**
+ * How many terminal rows `line` occupies once wrapped at `width`, counting the
+ * escape sequences in it as zero-width. Never zero: an empty line still takes a
+ * row. `width` is the terminal's own column count, so it is at least one.
+ */
 function renderedRows (line: string, width: number): number {
   return Math.max(1, Math.ceil(stringLength(line) / width))
 }

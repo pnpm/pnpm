@@ -25,6 +25,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use console::Term;
 use pnpm_config::ColorMode;
 use pnpm_reporter::{FetchingProgressMessage, LogEvent, PromptAction, Reporter};
 
@@ -392,8 +393,15 @@ impl Sink {
     /// about to be drawn on rather than the one the process started in.
     fn refresh_terminal_size(&mut self) {
         let Some((columns, rows)) = (self.terminal_size)() else { return };
-        self.columns = columns;
         self.rows = rows;
+        if columns == self.columns {
+            return;
+        }
+        // The terminal was resized. The frame on screen has reflowed at the new
+        // width, so every position the differ tracked against the old one is
+        // wrong: start over below what is already there.
+        self.columns = columns;
+        self.diff = diff::Diff::new(columns);
     }
 
     /// Hands the lines of the frame that no longer fit on screen over to the
@@ -455,22 +463,13 @@ impl Sink {
     }
 }
 
-/// The output terminal's `(columns, rows)`, when it has them.
-#[cfg(unix)]
+/// The output terminal's `(columns, rows)`, when it has them. Measured on the
+/// stream the reporter writes to, and on Windows as well as Unix — a frame is
+/// fitted to the terminal it is drawn on wherever pnpm runs.
 fn terminal_size() -> Option<(usize, Option<usize>)> {
-    let fd = if is_stderr_output() { libc::STDERR_FILENO } else { libc::STDOUT_FILENO };
-    // SAFETY: `winsize` is plain-old-data; `ioctl` only writes into it and we
-    // check the return code before reading.
-    unsafe {
-        let mut ws: libc::winsize = std::mem::zeroed();
-        (libc::ioctl(fd, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0)
-            .then(|| (ws.ws_col as usize, (ws.ws_row > 0).then_some(ws.ws_row as usize)))
-    }
-}
-
-#[cfg(not(unix))]
-fn terminal_size() -> Option<(usize, Option<usize>)> {
-    None
+    let term = if is_stderr_output() { Term::stderr() } else { Term::stdout() };
+    let (rows, columns) = term.size_checked()?;
+    (columns > 0).then(|| (columns as usize, (rows > 0).then_some(rows as usize)))
 }
 
 /// Where the `index`-th of `lines` starts in the `frame` they were split from.
@@ -481,7 +480,10 @@ fn frame_offset_of_line(frame: &str, lines: &[&str], index: usize) -> usize {
     frame.len() - trailing
 }
 
-/// How many terminal rows `line` occupies once wrapped at `width`.
+/// How many terminal rows `line` occupies once wrapped at `width`, counting the
+/// escape sequences in it as zero-width. Never zero: an empty line still takes
+/// a row. `width` is the terminal's own column count, and a zero one is read as
+/// "no wrapping" rather than dividing by it.
 fn rendered_rows(line: &str, width: usize) -> usize {
     if width == 0 {
         return 1;

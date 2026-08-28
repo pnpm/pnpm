@@ -197,3 +197,32 @@ fn a_line_taller_than_the_terminal_is_reprinted_rather_than_revised() {
         cursor_ups(&output),
     );
 }
+
+/// A resize reflows the frame already on screen, so nothing the differ tracked
+/// against the old width still describes where anything is. The frame has to be
+/// drawn afresh below rather than diffed against a layout that no longer holds.
+#[test]
+fn a_resize_starts_a_fresh_frame() {
+    let frame = || Output::Frame("resolving\nProgress: resolved 1".to_string());
+
+    let mut sink = Sink::new();
+    sink.terminal_size = || Some((80, Some(24)));
+    sink.diff = crate::diff::Diff::new(80);
+    let mut writes = Vec::new();
+    sink.write_to(frame(), false, &mut writes);
+
+    sink.terminal_size = || Some((40, Some(24)));
+    writes.clear();
+    sink.write_to(frame(), false, &mut writes);
+
+    let output = String::from_utf8(writes).expect("utf8 output");
+    assert!(
+        output.contains("resolving") && output.contains("Progress: resolved 1"),
+        "the reflowed frame must be drawn afresh, got: {output:?}",
+    );
+    assert!(
+        cursor_ups(&output).is_empty(),
+        "a stale layout must not be moved against, got: {:?}",
+        cursor_ups(&output),
+    );
+}

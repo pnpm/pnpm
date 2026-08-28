@@ -4600,8 +4600,8 @@ name = "pnpm-default-reporter"
 version = "0.0.1"
 dependencies = [
  "chrono",
+ "console",
  "insta",
- "libc",
  "node-semver",
  "owo-colors",
  "pnpm-config",
