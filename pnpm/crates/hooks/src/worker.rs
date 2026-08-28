@@ -429,12 +429,13 @@ fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &st
 /// normalization that [`crate::node_runtime`] documents.
 fn build_runner(is_mjs: bool, file_escaped: &str) -> String {
     let load = if is_mjs {
-        format!("mod = await import({file_escaped});")
+        format!("mod = await import(pathToFileURL({file_escaped}).href);")
     } else {
         format!("mod = require({file_escaped});")
     };
     format!(
         r#"const readline = require('node:readline');
+const {{ pathToFileURL }} = require('node:url');
 let mod = null;
 let loadErr = null;
 let nextCallbackId = 0;
