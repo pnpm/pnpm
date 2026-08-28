@@ -4721,6 +4721,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "ssri",
+ "sysinfo",
  "tar",
  "tempfile",
  "text-block-macros",

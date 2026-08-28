@@ -25,9 +25,7 @@ use std::{
     sync::Arc,
 };
 #[cfg(windows)]
-use windows_sys::{
-    Wdk::System::SystemServices::RtlGetVersion, Win32::System::SystemInformation::OSVERSIONINFOW,
-};
+use sysinfo::System;
 
 pub(crate) type BaseCasPaths = HashMap<PackageKey, HashMap<String, PathBuf>>;
 
@@ -957,19 +955,9 @@ fn parse_macos_product_version(value: &str) -> Option<(u32, u32)> {
 
 #[cfg(windows)]
 fn windows_kernel_version() -> Option<(u32, u32, u32)> {
-    let mut version = OSVERSIONINFOW {
-        dwOSVersionInfoSize: u32::try_from(std::mem::size_of::<OSVERSIONINFOW>()).ok()?,
-        ..Default::default()
-    };
-    // SAFETY: `version` is a writable OSVERSIONINFOW with its required size field initialized.
-    if unsafe { RtlGetVersion(&raw mut version) } != 0 {
-        return None;
-    }
-    validate_windows_kernel_version(
-        version.dwMajorVersion,
-        version.dwMinorVersion,
-        version.dwBuildNumber,
-    )
+    let build = System::kernel_version()?.parse().ok()?;
+    // Windows 10 and 11 both use NT kernel version 10.0; sysinfo provides the build number.
+    validate_windows_kernel_version(10, 0, build)
 }
 
 #[cfg(not(windows))]

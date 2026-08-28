@@ -215,20 +215,20 @@ describe('signed shared artifacts', () => {
       tags: [macOSCompatibilityTag(macOS(15, 4))],
     }, multipleMacOSSupported)).toBe(65)
 
-    const windowsSupported = windowsSupportedTags(windows(10, 0, 26_100))
+    const windowsSupported = windowsSupportedTags(windows({ major: 10, minor: 0, build: 26_100 }))
     expect(windowsSupported).toEqual(['pnpm:v1:win32-x64-node22-windows10.0.26100'])
     expect(platformFingerprint(windowsSupported)).toBe('f5590f12a6d651acdcb3b60d7d25a5d2e1ad2f5af3e53d841391dec9e871c46e')
     expect(compatibilityRank({
       kind: 'tagged',
-      tags: [windowsCompatibilityTag(windows(10, 0, 22_621))],
+      tags: [windowsCompatibilityTag(windows({ major: 10, minor: 0, build: 22_621 }))],
     }, windowsSupported)).toBe(3_543)
     expect(compatibilityRank({
       kind: 'tagged',
-      tags: [windowsCompatibilityTag(windows(6, 3, 9_600))],
+      tags: [windowsCompatibilityTag(windows({ major: 6, minor: 3, build: 9_600 }))],
     }, windowsSupported)).toBe(3_997_016_564)
     expect(compatibilityRank({
       kind: 'tagged',
-      tags: [windowsCompatibilityTag(windows(10, 0, 26_101))],
+      tags: [windowsCompatibilityTag(windows({ major: 10, minor: 0, build: 26_101 }))],
     }, windowsSupported)).toBeUndefined()
     expect(compatibilityRank({ kind: 'universal' }, windowsSupported)).toBe(Number.MAX_SAFE_INTEGER)
 
@@ -499,8 +499,19 @@ function macOS (macOSMajor: number, macOSMinor: number, architecture = 'arm64') 
   return { architecture, nodeMajor: 22, macOSMajor, macOSMinor }
 }
 
-function windows (windowsMajor: number, windowsMinor: number, windowsBuild: number, architecture = 'x64') {
-  return { architecture, nodeMajor: 22, windowsMajor, windowsMinor, windowsBuild }
+function windows ({ major, minor, build, architecture = 'x64' }: {
+  major: number
+  minor: number
+  build: number
+  architecture?: string
+}) {
+  return {
+    architecture,
+    nodeMajor: 22,
+    windowsMajor: major,
+    windowsMinor: minor,
+    windowsBuild: build,
+  }
 }
 
 async function listen (server: ReturnType<typeof createServer>): Promise<string> {
