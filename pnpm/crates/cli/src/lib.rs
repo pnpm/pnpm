@@ -16,6 +16,7 @@ mod renamed_options;
 mod shim_dispatch;
 mod shorthands;
 mod state;
+mod virtual_terminal;
 mod with_current;
 
 use boolean_negations::with_boolean_negations;
@@ -29,6 +30,9 @@ use state::State;
 use std::{ffi::OsString, future::Future, path::Path, process::ExitCode};
 
 pub fn main() -> ExitCode {
+    // Runs before anything can print, so the first styled byte already
+    // reaches a console that understands it; see `virtual_terminal`.
+    virtual_terminal::enable();
     enable_tracing_by_env();
     install_report_handler();
     set_panic_hook();
