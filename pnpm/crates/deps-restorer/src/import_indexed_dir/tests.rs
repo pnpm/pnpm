@@ -383,7 +383,8 @@ fn remove_dir_all_failure_restores_preserved_node_modules() {
     let src_root = tmp.path().join("cas");
     fs::create_dir_all(&src_root).unwrap();
     let pkg_json = write_source(&src_root, "package.json", b"new");
-    let cas = cas_map(&[("package.json", pkg_json)]);
+    let bundled = write_source(&src_root, "bundled.js", b"bundled");
+    let cas = cas_map(&[("package.json", pkg_json), ("node_modules/inner/bundled.js", bundled)]);
 
     let target = tmp.path().join("pkg");
     fs::create_dir_all(&target).unwrap();
@@ -424,6 +425,10 @@ fn remove_dir_all_failure_restores_preserved_node_modules() {
         fs::read(target.join("node_modules/inner/sentinel")).unwrap(),
         b"survivor",
         "preserved node_modules/ contents must be intact",
+    );
+    assert!(
+        !target.join("node_modules/inner/bundled.js").exists(),
+        "a failed swap must restore the conflicting dependency tree",
     );
     // No staging directory left behind anywhere under the outer
     // tempdir.
