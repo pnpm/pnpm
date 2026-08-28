@@ -5013,6 +5013,9 @@ importers:
       '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/utils
+      '@pnpm/resolving.parse-wanted-dependency':
+        specifier: workspace:*
+        version: link:../../resolving/parse-wanted-dependency
       '@pnpm/store.connection-manager':
         specifier: workspace:*
         version: link:../../store/connection-manager
@@ -5025,6 +5028,9 @@ importers:
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.5
       symlink-dir:
         specifier: 'catalog:'
         version: 10.0.1
@@ -5038,6 +5044,9 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.8.0
 
   pnpm11/global/packages:
     dependencies:

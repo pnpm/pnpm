@@ -4,3 +4,9 @@ export { handleGlobalRemove } from './globalRemove.js'
 export { type GlobalUpdateOptions, handleGlobalUpdate } from './globalUpdate.js'
 export { installGlobalPackages, type InstallGlobalPackagesOptions } from './installGlobalPackages.js'
 export { findGlobalInstallDirs, listGlobalPackages } from './listGlobalPackages.js'
+export {
+  hasPnpmCliDependency,
+  isPnpmCliDependency,
+  isPnpmCliOnlyGroup,
+  selectsPnpmCli,
+} from './pnpmCliPackages.js'

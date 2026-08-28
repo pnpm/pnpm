@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { describe, expect, test } from '@jest/globals'
+import { describe, expect, it, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { add, remove } from '@pnpm/installing.commands'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
@@ -381,6 +381,33 @@ test('add: fail trying to install pnpm', async () => {
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_GLOBAL_PNPM_INSTALL')
+})
+
+// An `npm:` alias installs pnpm under another name, but the package still
+// carries pnpm's own `pnpm` bin, so it would take over the global bin slot
+// `pnpm self-update` manages. A comma-separated group is a request to install
+// each of its tokens, so pnpm hiding inside one is caught as well.
+describe.each(['my-pnpm@npm:pnpm@12', 'pnpm,lodash', 'lodash,my-pnpm@npm:pnpm@12'])('add -g %s', (param) => {
+  it('is refused as a request to install pnpm', async () => {
+    prepareEmpty()
+
+    let err!: PnpmError
+    try {
+      await add.handler({
+        ...DEFAULT_OPTIONS,
+        bin: path.resolve('project/bin'),
+        dir: path.resolve('project'),
+        global: true,
+        globalPkgDir: path.resolve('global'),
+        linkWorkspacePackages: false,
+        saveWorkspaceProtocol: false,
+        workspace: false,
+      }, [param])
+    } catch (_err: any) { // eslint-disable-line
+      err = _err
+    }
+    expect(err.code).toBe('ERR_PNPM_GLOBAL_PNPM_INSTALL')
+  })
 })
 
 test('add: fail trying to install @pnpm/exe', async () => {
