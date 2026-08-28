@@ -1442,6 +1442,9 @@ pub struct Config {
     /// The default package scope for `pnpm login` and `pnpm adduser`: the
     /// granted token is associated with this scope and the scope-to-registry
     /// mapping is recorded. Overridden by `--scope`.
+    ///
+    /// No repo-committed config file can set it — see
+    /// [`crate::refused_keys`].
     pub scope: Option<String>,
 
     /// Scoped registry routes keyed by `@scope`, populated from
@@ -3589,6 +3592,7 @@ impl Config {
                 // config and PNPM_CONFIG_CI are applied in their own layers.
                 settings.ci = None;
                 settings.state_dir = None;
+                settings.scope = None;
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
                 // counts as "explicitly set" when the workspace yaml

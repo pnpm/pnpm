@@ -1288,6 +1288,17 @@ const CREDENTIAL_KEYS = [
 ] as const satisfies ReadonlyArray<keyof (Config & ConfigContext)>
 
 /**
+ * Which scope a `pnpm login` claims for the machine.
+ *
+ * The granted token is recorded as a route in the global `auth.ini`, which
+ * outranks the user's own `~/.npmrc` in every project on the machine — so the
+ * choice is the user's, not a repository's.
+ */
+const LOGIN_TARGET_KEYS = [
+  'scope',
+] as const satisfies ReadonlyArray<keyof Config>
+
+/**
  * Keys a project's `pnpm-workspace.yaml` does not contribute.
  *
  * `cacheDir` and `storeDir` are deliberately absent: those name caches a
@@ -1297,6 +1308,7 @@ type ProjectManifestSkippedKey =
   | typeof MACHINE_LOCATION_KEYS[number]
   | typeof CURRENT_RUN_LOCATION_KEYS[number]
   | typeof CREDENTIAL_KEYS[number]
+  | typeof LOGIN_TARGET_KEYS[number]
 
 /**
  * The environment is the last word on the remote side-effects cache: it is
@@ -1368,6 +1380,7 @@ const PROJECT_MANIFEST_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKey> = ne
   ...MACHINE_LOCATION_KEYS,
   ...CURRENT_RUN_LOCATION_KEYS,
   ...CREDENTIAL_KEYS,
+  ...LOGIN_TARGET_KEYS,
 ])
 
 /**
