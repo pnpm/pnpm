@@ -11,7 +11,6 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{
     CatalogResolutionResult, WantedDependency as CatalogWantedDependency, resolve_from_catalog,
@@ -353,19 +352,15 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // The cache install inherits the caller project's `overrides` (pnpm's
     // dlx likewise runs its install with the invoking project's
     // already-loaded config), and a `catalog:` value in them resolves
-    // against the caller's catalogs. Those catalogs are only reachable
-    // through `workspace_dir`, which is severed right below — resolve the
-    // references now, or the install would look them up against an empty
-    // catalog set and fail with ERR_PNPM_CATALOG_IN_OVERRIDES.
-    if let (Some(overrides), Some(workspace_dir)) =
-        (config.overrides.as_ref(), config.workspace_dir.as_deref())
+    // against the caller's catalogs. Those catalogs go with `workspace_dir`,
+    // which is severed right below — resolve the references now, or the
+    // install would look them up against an empty catalog set and fail with
+    // ERR_PNPM_CATALOG_IN_OVERRIDES.
+    if let Some(overrides) = config.overrides.as_ref()
+        && config.workspace_dir.is_some()
         && overrides.values().any(|spec| spec.starts_with("catalog:"))
     {
-        let workspace_manifest =
-            pnpm_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
-        let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
-            .into_diagnostic()
-            .wrap_err("reading the caller's catalogs for the dlx install")?;
+        let catalogs = configured_catalogs(config)?;
         let resolved = parse_overrides_iter(overrides.iter(), &catalogs)
             .map_err(miette::Report::new)?
             .into_iter()
