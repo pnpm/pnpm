@@ -819,8 +819,22 @@ fn setting_takes(key: &str, value: &str) -> bool {
 /// its value — the same spellings the `--<setting>=<bool>` form takes,
 /// so the two agree. Only a boolean is claimed, which is what leaves
 /// `pnpm --shamefully-hoist install` its command.
-pub(crate) fn is_boolean_value(token: &str) -> bool {
+fn is_boolean_value(token: &str) -> bool {
     parse_bool(token).is_some()
+}
+
+/// Whether a bare boolean setting flag claims `next` as its value.
+///
+/// The scan that has to find the subcommand applies this ahead of clap's
+/// own arity: nothing else on a command line is spelled `true` /
+/// `false`, so stepping over that token is right whichever reading of
+/// the flag ends up applying — a command's option of the same name, or
+/// the setting. Without it the two readings disagree on width for a name
+/// that is both, and `pnpm --lockfile true --config.registry=… install`
+/// loses everything past the boolean to the script fallback.
+pub(crate) fn bare_boolean_setting_claims(flag: &str, next: Option<&str>) -> bool {
+    matches!(named_bare_setting_flag(flag), Some((_, SettingArity::Boolean)))
+        && next.is_some_and(is_boolean_value)
 }
 
 /// How many argv slots a bare `--<setting>` flag occupies, given the

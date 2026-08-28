@@ -940,3 +940,23 @@ fn a_boolean_settings_explicit_value_does_not_move_the_command_boundary() {
     assert!(!config.strict_peer_dependencies);
     assert_eq!(config.registry, "https://example.test/");
 }
+
+/// `lockfile` is both a setting and `clean`'s own option, so the boundary
+/// scan and the extraction have to agree on how much `--lockfile true`
+/// claims even when the command is not `clean`.
+#[test]
+fn a_boolean_settings_value_is_claimed_even_when_a_command_declares_the_name() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--lockfile",
+        "true",
+        "--config.registry=https://example.test/",
+        "install",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let mut config = Config { lockfile: false, ..Config::default() };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(config.lockfile);
+    assert_eq!(config.registry, "https://example.test/");
+}

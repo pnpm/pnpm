@@ -219,9 +219,12 @@ fn option_width(arg: &str, next: Option<&str>, arity: &ArgTable) -> Option<usize
         // A setting spelled as a bare flag is stripped by
         // [`ConfigOverrides::extract`], which computes this boundary — so
         // clap declares no arity for it and the setting table answers
-        // instead, with the same next-token rule extraction applies. Clap
-        // goes first: a command that declares the same option owns it,
-        // there and here.
+        // instead, with the same next-token rule extraction applies.
+        if crate::config_overrides::bare_boolean_setting_claims(name, next) {
+            return Some(2);
+        }
+        // Clap goes first for every other shape: a command that declares
+        // the same option owns it, there and here.
         return match arity.long_consumes_value(name) {
             Some(consumes_value) => Some(1 + usize::from(consumes_value)),
             None => Some(crate::config_overrides::bare_setting_flag_width(name, next).unwrap_or(1)),
