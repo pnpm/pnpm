@@ -230,10 +230,6 @@ function filterLog(log) {
     );
 }
 
-#[cfg_attr(
-    target_os = "windows",
-    ignore = "Node.js ESM import() on Windows resolves absolute paths differently"
-)]
 #[tokio::test]
 async fn test_node_js_hooks_read_package_mjs() {
     let tmp = TempDir::new().expect("temp dir");
@@ -333,6 +329,7 @@ function preResolution(ctx, logger) {
   if (ctx.storeDir !== '/test/store') throw new Error('wrong storeDir');
   if (typeof logger.info !== 'function') throw new Error('missing logger.info');
   if (typeof logger.warn !== 'function') throw new Error('missing logger.warn');
+  logger.info('mjs loaded');
 }
 ",
     )
@@ -350,12 +347,19 @@ function preResolution(ctx, logger) {
         registries: serde_json::json!({ "default": "http://localhost:1234/" }),
     };
 
+    let logs = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let sink = Arc::clone(&logs);
     hooks
         .pre_resolution(
             ctx,
-            pnpm_hooks::PreResolutionHookLogger { info: Arc::new(|_| {}), warn: Arc::new(|_| {}) },
+            pnpm_hooks::PreResolutionHookLogger {
+                info: Arc::new(move |message| sink.lock().unwrap().push(message)),
+                warn: Arc::new(|_| {}),
+            },
         )
         .await;
+
+    assert_eq!(logs.lock().unwrap().as_slice(), &["mjs loaded".to_string()]);
 }
 
 /// Helper: write `source` to a `.pnpmfile.cjs` in a fresh temp dir and return
@@ -859,10 +863,6 @@ module.exports = {
     assert!(err.to_string().contains("fetch crashed"), "got: {err}");
 }
 
-#[cfg_attr(
-    target_os = "windows",
-    ignore = "Node.js ESM import() on Windows resolves absolute paths differently"
-)]
 #[tokio::test]
 async fn custom_fetcher_works_with_mjs_pnpmfile() {
     let tmp = TempDir::new().expect("temp dir");
