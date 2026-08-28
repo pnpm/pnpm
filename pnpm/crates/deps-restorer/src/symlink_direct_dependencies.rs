@@ -251,21 +251,7 @@ where
         // a serial walk would insert a fork-join barrier per importer
         // between the filesystem batches.
         //
-        // Keys that case-fold to one string may still alias one
-        // directory on a case-insensitive filesystem (macOS, Windows).
-        // A real pnpm lockfile can't produce them — project discovery
-        // would have collapsed the directories — but a hostile lockfile
-        // can, and two tasks mutating one `node_modules` would race.
-        // Case-folded collisions therefore share a task and run in
-        // sorted order, keeping the serial pass's deterministic
-        // last-writer outcome; on a case-sensitive filesystem the
-        // group members are genuinely distinct directories and merely
-        // share a task.
-        let mut task_groups: BTreeMap<String, Vec<&str>> = BTreeMap::new();
-        for importer_id in keys {
-            task_groups.entry(importer_id.to_lowercase()).or_default().push(importer_id);
-        }
-        let task_groups: Vec<Vec<&str>> = task_groups.into_values().collect();
+        let task_groups = importer_task_groups(workspace_root, keys);
         task_groups.par_iter().try_for_each(|group| {
             group.iter().try_for_each(|importer_id| {
                 // Safe: the groups were built from `importers.keys()`.
@@ -298,6 +284,34 @@ where
             })
         })
     }
+}
+
+/// Partition validated importer keys into the concurrency-safe task
+/// groups the parallel link pass runs.
+///
+/// Distinct keys may alias one directory through the filesystem's own
+/// name folding — case-insensitivity, Unicode normalization (APFS),
+/// Windows short names and trailing dots — and a real pnpm lockfile
+/// can't produce them (project discovery would have collapsed the
+/// directories), but a hostile lockfile can, and two tasks mutating
+/// one `node_modules` would race. Rather than enumerate the folding
+/// rules, ask the filesystem: importers whose project dirs
+/// canonicalize to one path share a group, in the caller's (sorted)
+/// order, keeping the serial pass's deterministic last-writer outcome,
+/// while distinct projects pay one read-only `canonicalize` each. A
+/// project dir that doesn't exist yet has nothing on disk to
+/// canonicalize against, so it groups under its case-folded lexical
+/// key — relative, so it can't collide with the canonical absolute
+/// keys — which still folds the case-aliased flavor of that corner.
+fn importer_task_groups<'a>(workspace_root: &Path, keys: Vec<&'a str>) -> Vec<Vec<&'a str>> {
+    let mut task_groups: BTreeMap<PathBuf, Vec<&'a str>> = BTreeMap::new();
+    for importer_id in keys {
+        let project_dir = importer_root_dir(workspace_root, importer_id);
+        let group_key = std::fs::canonicalize(&project_dir)
+            .unwrap_or_else(|_| PathBuf::from(importer_id.to_lowercase()));
+        task_groups.entry(group_key).or_default().push(importer_id);
+    }
+    task_groups.into_values().collect()
 }
 
 /// Reject importer keys that would resolve outside the workspace root.

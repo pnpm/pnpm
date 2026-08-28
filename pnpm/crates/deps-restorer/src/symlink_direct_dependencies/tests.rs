@@ -31,6 +31,46 @@ fn validate_importer_id_rejects_escaping_keys() {
 }
 
 #[test]
+fn importer_task_groups_fold_filesystem_name_aliases() {
+    let dir = tempdir().expect("tempdir");
+    fs::create_dir_all(dir.path().join("packages/app")).expect("create project dir");
+    let groups = super::importer_task_groups(dir.path(), vec![".", "packages/App", "packages/app"]);
+    // Self-conditioning on the host filesystem: where names fold (the
+    // alias resolves), the aliased keys must share one group; where
+    // they don't, the keys are genuinely distinct directories.
+    if fs::canonicalize(dir.path().join("packages/App")).is_ok() {
+        assert!(
+            groups.contains(&vec!["packages/App", "packages/app"]),
+            "case-aliased keys must share a task on a folding filesystem: {groups:?}",
+        );
+    } else {
+        assert_eq!(groups.len(), 3, "distinct directories keep their own tasks: {groups:?}");
+    }
+}
+
+#[test]
+fn importer_task_groups_fold_case_aliases_of_missing_dirs() {
+    // Neither directory exists, so there is no filesystem answer to
+    // ask for — the lexical case-fold groups them on every platform.
+    let dir = tempdir().expect("tempdir");
+    let groups = super::importer_task_groups(dir.path(), vec!["packages/Ghost", "packages/ghost"]);
+    assert_eq!(groups, vec![vec!["packages/Ghost", "packages/ghost"]]);
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn importer_task_groups_fold_unicode_normalization_aliases() {
+    // APFS resolves composed and decomposed forms to one directory;
+    // no string transform groups these — only the filesystem's answer.
+    let dir = tempdir().expect("tempdir");
+    let nfc = "packages/caf\u{e9}";
+    let nfd = "packages/cafe\u{301}";
+    fs::create_dir_all(dir.path().join(nfc)).expect("create project dir");
+    let groups = super::importer_task_groups(dir.path(), vec![nfc, nfd]);
+    assert_eq!(groups, vec![vec![nfc, nfd]], "normalization aliases must share a task");
+}
+
+#[test]
 fn validate_importer_id_rejects_non_canonical_aliases() {
     // Two distinct keys that resolve to the same directory would link
     // the same `node_modules` from two concurrent importer tasks; pnpm
