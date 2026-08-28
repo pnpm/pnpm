@@ -9,6 +9,10 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_catalogs_resolver::{
+    CatalogResolutionResult, WantedDependency as CatalogWantedDependency, resolve_from_catalog,
+};
 use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::parse_overrides_iter;
@@ -236,6 +240,13 @@ impl DlxArgs {
         // names the bin to run; otherwise the command is also the package.
         let pkgs: Vec<String> =
             if package.is_empty() { vec![bin_command.clone()] } else { package.clone() };
+        // A `catalog:` spec dereferences against the caller's catalogs,
+        // reachable only through `workspace_dir`, which the install below
+        // re-anchors at the throwaway cache project. Resolve here rather
+        // than there so the catalog's version also feeds the cache key:
+        // two callers whose catalogs pin different versions of the same
+        // package must not share a cache entry.
+        let pkgs = resolve_catalog_specs(&pkgs, config.workspace_dir.as_deref())?;
 
         // Read the config values needed before (and after) the install,
         // because the install path consumes `config` to anchor it at the
@@ -596,6 +607,48 @@ async fn run_package_manager<Reporter: self::Reporter + 'static>(
         engine.bin_dirs,
         spawn,
     )
+}
+
+/// Replace the `catalog:` specifier of each dlx package spec with the
+/// specifier the caller workspace's catalogs hold. Any other spec passes
+/// through untouched, and the catalogs are only read when at least one
+/// spec needs them. A misconfigured entry is reported as the pnpm error
+/// the caller would get from `pnpm add`.
+fn resolve_catalog_specs(
+    pkgs: &[String],
+    workspace_dir: Option<&Path>,
+) -> miette::Result<Vec<String>> {
+    let uses_catalog = |pkg: &String| {
+        parse_wanted_dependency(pkg)
+            .bare_specifier
+            .is_some_and(|bare_specifier| parse_catalog_protocol(&bare_specifier).is_some())
+    };
+    let Some(workspace_dir) = workspace_dir.filter(|_| pkgs.iter().any(uses_catalog)) else {
+        return Ok(pkgs.to_vec());
+    };
+    let workspace_manifest =
+        pnpm_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
+    let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+        .into_diagnostic()
+        .wrap_err("reading the caller's catalogs for the dlx install")?;
+    pkgs.iter()
+        .map(|pkg| {
+            let parsed = parse_wanted_dependency(pkg);
+            let (Some(alias), Some(bare_specifier)) = (parsed.alias, parsed.bare_specifier) else {
+                return Ok(pkg.clone());
+            };
+            let wanted = CatalogWantedDependency { alias: alias.clone(), bare_specifier };
+            match resolve_from_catalog(&catalogs, &wanted) {
+                CatalogResolutionResult::Found(found) => {
+                    Ok(format!("{alias}@{}", found.resolution.specifier))
+                }
+                CatalogResolutionResult::Unused => Ok(pkg.clone()),
+                CatalogResolutionResult::Misconfiguration(misconfiguration) => {
+                    Err(miette::Report::new(misconfiguration.error))
+                }
+            }
+        })
+        .collect()
 }
 
 /// Build the `{ "default": registry, <alias>: url, … }` map fed into the
