@@ -239,6 +239,7 @@ export class TaskRunState {
     this.completedTasks.add(key)
     const record: TaskRecord = { run: this.run, ...taskId(node, this.workspaceDir) }
     const line = `${JSON.stringify(record)}\n`
+    let unavailable = false
     const write = this.pendingWrite.then(async () => {
       if (this.disabled) return
       try {
@@ -246,6 +247,7 @@ export class TaskRunState {
       } catch (err: unknown) {
         if (!isStateUnavailableError(err)) throw err
         this.disabled = true
+        unavailable = true
       }
     })
     this.pendingWrite = write.catch(() => {})
@@ -255,10 +257,14 @@ export class TaskRunState {
       this.completedTasks.delete(key)
       throw err
     }
+    if (unavailable) {
+      await this.close().catch(() => {})
+      await unlinkIfExists(this.filePath).catch(() => {})
+    }
   }
 
   async finish (): Promise<void> {
-    if (this.file == null) return
+    if (this.file == null || this.disabled) return
     await this.close()
     try {
       await unlinkIfExists(this.filePath)
@@ -308,8 +314,8 @@ class StateStartLock {
     const stats = await fs.lstat(lockPath).catch(() => undefined)
     if (stats == null || stats.isSymbolicLink() || !stats.isDirectory()) return undefined
     if (Date.now() - stats.mtimeMs > LOCK_ABANDONED_MS) {
-      await fs.rm(lockPath, { force: true, recursive: true }).catch(() => {})
-      return StateStartLock.acquireUntil(lockPath, deadline)
+      const removed = await fs.rm(lockPath, { force: true, recursive: true }).then(() => true, () => false)
+      if (removed) return StateStartLock.acquireUntil(lockPath, deadline)
     }
     if (Date.now() >= deadline) return undefined
     await new Promise(resolve => setTimeout(resolve, LOCK_POLL_INTERVAL_MS))

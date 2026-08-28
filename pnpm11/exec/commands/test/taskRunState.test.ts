@@ -199,8 +199,52 @@ test('task run state is disabled after an append permission error', async () => 
   await state.recordPassed(secondKey, graph.get(secondKey)!)
 
   expect(appendFile).toHaveBeenCalledTimes(1)
+  await expect(fs.access(state.filePath)).rejects.toMatchObject({ code: 'ENOENT' })
+  await expect(context.readCompletedTasks()).resolves.toBeUndefined()
   appendFile.mockRestore()
   await state.finish()
+})
+
+test('task run state stops waiting when an abandoned lock cannot be removed', async () => {
+  const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-task-state-'))
+  temporaryDirectories.push(workspaceDir)
+  const project = path.join(workspaceDir, 'project') as ProjectRootDir
+  const key = taskKey(project, 'build')
+  const graph: TaskGraph = new Map([[key, {
+    project,
+    taskName: 'build',
+    scripts: ['build'],
+    requested: true,
+    dependencies: [],
+  }]])
+  const context = new TaskRunStateContext({
+    command: 'run',
+    params: ['build'],
+    graph,
+    workspaceDir,
+    scriptCommands: () => ['build-command'],
+  })
+  const lockPath = path.join(workspaceDir, 'node_modules', '.pnpm-task-run-state-v1', 'start.lock')
+  await fs.mkdir(lockPath, { recursive: true })
+  const now = Date.now()
+  const staleTime = new Date(now - 60_000)
+  await fs.utimes(lockPath, staleTime, staleTime)
+  const rm = jest.spyOn(fs, 'rm').mockRejectedValue(Object.assign(new Error('permission denied'), { code: 'EACCES' }))
+  const dateNow = jest.spyOn(Date, 'now')
+    .mockReturnValueOnce(now)
+    .mockReturnValueOnce(now)
+    .mockReturnValue(now + 2_000)
+
+  try {
+    const state = await context.start(new Set())
+
+    expect(rm).toHaveBeenCalledTimes(1)
+    await expect(fs.access(context.latestStatePath)).rejects.toMatchObject({ code: 'ENOENT' })
+    await state.finish()
+  } finally {
+    dateNow.mockRestore()
+    rm.mockRestore()
+  }
 })
 
 test('task run state rejects a symlinked state directory', async () => {
