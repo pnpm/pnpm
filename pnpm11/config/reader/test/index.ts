@@ -5826,3 +5826,22 @@ test('getConfig() lets sideEffectsCacheReadonly block writes on its own', async 
   expect(config.sideEffectsCacheRead).toBe(true)
   expect(config.sideEffectsCacheWrite).toBe(false)
 })
+
+test('getConfig() reads through sideEffectsCacheReadonly with the cache off', async () => {
+  // pacquet documents this pair as the read-only view; deriving reads from the
+  // boolean alone made it mean nothing at all.
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    sideEffectsCache: false,
+    sideEffectsCacheReadonly: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.sideEffectsCacheRead).toBe(true)
+  expect(config.sideEffectsCacheWrite).toBe(false)
+})

@@ -1001,6 +1001,35 @@ remoteSideEffectsCache:
     assert_eq!(shared.packages, ["native-addon"]);
 }
 
+/// A boolean says whether to read and write. It says nothing about the remote
+/// tier, so one an earlier layer declared has to survive it — otherwise
+/// `sideEffectsCache: false` in a project silently discards the org and
+/// eligibility list the machine's global config set.
+#[test]
+fn a_later_shorthand_keeps_the_remote_tier() {
+    let global: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  remote:
+    org: acme
+    packages:
+      - native-addon
+",
+    )
+    .unwrap();
+    let workspace: WorkspaceSettings = serde_saphyr::from_str("sideEffectsCache: false").unwrap();
+
+    let mut config = Config::new();
+    global.apply_to(&mut config, Path::new("/global"));
+    workspace.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.side_effects_cache_read());
+    assert!(!config.side_effects_cache_write());
+    let shared = config.remote_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.org, "acme");
+    assert_eq!(shared.packages, ["native-addon"]);
+}
+
 /// Layers apply in order, so a shorthand in a later one has to beat an object
 /// in an earlier one rather than being masked by what the object left behind.
 #[test]

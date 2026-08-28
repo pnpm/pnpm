@@ -21,4 +21,4 @@ sideEffectsCache:
 
 `sideEffectsCache: true`, `sideEffectsCacheReadonly`, `remoteSideEffectsCache`, and its `organization` field all keep working. Where a field is set under both spellings the one above wins; where it is set under only one, it is kept.
 
-Two behaviors change. `sideEffectsCacheReadonly: true` now blocks writing to the cache, which is what it says and what the Rust CLI already did. And a task can be declared write-only, to populate a cache the run does not read.
+Two behaviors change, both bringing this CLI in line with what the Rust one already did: `sideEffectsCacheReadonly: true` now blocks writing to the cache, and setting it alongside `sideEffectsCache: false` gives a read-only view rather than switching the cache off entirely. A cache can also be declared write-only now, to populate one the run does not read.

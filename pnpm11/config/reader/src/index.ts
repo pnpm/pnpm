@@ -1323,15 +1323,18 @@ function resolveSideEffectsCache (pnpmConfig: Config): void {
   const declared = pnpmConfig.sideEffectsCache
   const settings = typeof declared === 'object' && declared != null ? declared : undefined
   const shorthand = typeof declared === 'boolean' ? declared : undefined
+  const readonly = pnpmConfig.sideEffectsCacheReadonly === true
   pnpmConfig.sideEffectsCacheRead = settings != null
     ? settings.read ?? true
-    : shorthand ?? pnpmConfig.sideEffectsCacheReadonly
+    // `sideEffectsCacheReadonly: true` with `sideEffectsCache: false` is how
+    // pacquet documents a read-only view, so either flag enables reading.
+    : (shorthand ?? false) || readonly
   pnpmConfig.sideEffectsCacheWrite = settings != null
     ? settings.write ?? true
     // `sideEffectsCacheReadonly` reads as blocking writes and is documented as
     // doing so, and pacquet has always enforced that. Deriving writes from the
     // boolean alone let it through here, since that boolean defaults to on.
-    : pnpmConfig.sideEffectsCacheReadonly === true ? false : shorthand
+    : readonly ? false : shorthand
   // Combined here rather than as each source is read, so that the canonical
   // spelling wins on a field both set no matter which order they appeared in.
   if (settings?.remote != null) {
@@ -1588,15 +1591,23 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
       pnpmConfig.explicitlySetKeys.add(key)
       continue
     }
-    if (key === 'sideEffectsCache' && typeof value === 'object' && value != null) {
-      const declared = value as SideEffectsCacheSettings
+    if (key === 'sideEffectsCache') {
       const previous = typeof pnpmConfig.sideEffectsCache === 'object' && pnpmConfig.sideEffectsCache != null
         ? pnpmConfig.sideEffectsCache
         : undefined
-      const remote = previous?.remote != null || declared.remote != null
-        ? { ...previous?.remote, ...declared.remote }
-        : undefined
-      pnpmConfig.sideEffectsCache = { ...previous, ...declared, remote }
+      if (typeof value === 'boolean') {
+        // A boolean says whether to read and write. It says nothing about the
+        // remote tier, so one declared by an earlier source survives it.
+        pnpmConfig.sideEffectsCache = previous?.remote != null
+          ? { read: value, write: value, remote: previous.remote }
+          : value
+      } else if (value != null) {
+        const declared = value as SideEffectsCacheSettings
+        const remote = previous?.remote != null || declared.remote != null
+          ? { ...previous?.remote, ...declared.remote }
+          : undefined
+        pnpmConfig.sideEffectsCache = { ...previous, ...declared, remote }
+      }
       pnpmConfig.explicitlySetKeys.add(key)
       continue
     }
