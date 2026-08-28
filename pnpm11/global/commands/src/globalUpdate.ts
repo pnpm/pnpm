@@ -90,8 +90,8 @@ async function updateGlobalPackageGroup (
   pkg: GlobalPackageInfo,
   commands: CommandHandlerMap
 ): Promise<void> {
-  const pins = await pinsForDowngrades(opts, globalDir, pkg)
   const installDir = createInstallDir(globalDir)
+  const pins = await pinsForDowngrades(opts, installDir, pkg)
   const { ignoredBuilds, resolutionPolicyViolations } =
     await installGroup(opts, installDir, depSpecsForUpdate(pkg.dependencies, opts.latest, pins))
 
@@ -198,8 +198,10 @@ function depSpecsForUpdate (
  * points at an older release than the one installed whenever that came from
  * another tag, or from a major that has not been promoted to `latest` yet.
  *
- * The versions are resolved without installing anything, so a release that is
- * about to be rejected never gets the chance to run its lifecycle scripts.
+ * The versions are resolved into `installDir` without installing anything, so a
+ * release that is about to be rejected never gets the chance to run its
+ * lifecycle scripts. The install that follows reuses the lockfile written here
+ * and only re-resolves what a pin changes.
  *
  * Only plain version dependencies are considered: every other spec form says
  * where the package comes from, so holding one at a bare version would resolve
@@ -207,7 +209,7 @@ function depSpecsForUpdate (
  */
 async function pinsForDowngrades (
   opts: GlobalUpdateOptions,
-  globalDir: string,
+  installDir: string,
   pkg: GlobalPackageInfo
 ): Promise<Map<string, string>> {
   const pins = new Map<string, string>()
@@ -224,22 +226,17 @@ async function pinsForDowngrades (
   // Nothing to compare a resolution against, so nothing to resolve.
   if (versionsBefore.size === 0) return pins
 
-  const probeDir = createInstallDir(globalDir)
-  try {
-    const { resolvedVersions } = await installGroup(
-      { ...opts, lockfileOnly: true },
-      probeDir,
-      depSpecsForUpdate(pkg.dependencies, opts.latest)
-    )
-    for (const [alias, before] of versionsBefore) {
-      const resolved = resolvedVersions[alias]
-      if (semver.valid(before) == null || semver.valid(resolved) == null) continue
-      if (semver.lt(resolved, before)) {
-        pins.set(alias, before)
-      }
+  const { resolvedVersions } = await installGroup(
+    { ...opts, lockfileOnly: true },
+    installDir,
+    depSpecsForUpdate(pkg.dependencies, opts.latest)
+  )
+  for (const [alias, before] of versionsBefore) {
+    const resolved = resolvedVersions[alias]
+    if (semver.valid(before) == null || semver.valid(resolved) == null) continue
+    if (semver.lt(resolved, before)) {
+      pins.set(alias, before)
     }
-  } finally {
-    await fs.promises.rm(probeDir, { recursive: true, force: true })
   }
   return pins
 }

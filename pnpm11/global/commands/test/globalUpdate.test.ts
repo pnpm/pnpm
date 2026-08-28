@@ -292,9 +292,7 @@ test('global update reports nothing to do when only the pnpm CLI is installed gl
 // backwards, so the group is reinstalled holding it where it is
 // (pnpm/pnpm#14270).
 test('global update --latest holds a package that latest would downgrade', async () => {
-  createInstallDir
-    .mockReturnValueOnce('/global/v11/probe')
-    .mockReturnValueOnce('/global/v11/install-1')
+  createInstallDir.mockReturnValueOnce('/global/v11/install-1')
   getHashLink.mockReturnValue('/global/v11/hash-mixed')
   scanGlobalPackages.mockReturnValue([
     {
@@ -320,10 +318,11 @@ test('global update --latest holds a package that latest would downgrade', async
   } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
 
   // The probe resolves without installing, so a rejected release never gets to
-  // run its lifecycle scripts.
+  // run its lifecycle scripts. It resolves into the group's own directory, so
+  // the install that follows reuses the lockfile it wrote.
   expect(installGlobalPackages).toHaveBeenNthCalledWith(
     1,
-    expect.objectContaining({ dir: '/global/v11/probe', lockfileOnly: true }),
+    expect.objectContaining({ dir: '/global/v11/install-1', lockfileOnly: true }),
     ['prerelease', 'stable']
   )
   // Only the one that went backwards is held; the other keeps its update.

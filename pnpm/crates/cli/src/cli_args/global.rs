@@ -246,9 +246,13 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     clean_orphaned_install_dirs(&global_pkg_dir);
 
     for group in groups {
-        let (install_dir, config) = Box::pin(run_group_install::<Reporter>(GroupInstall {
+        let install_dir = create_install_dir(&global_pkg_dir)
+            .into_diagnostic()
+            .wrap_err("create global install dir")?;
+        let config = Box::pin(run_group_install::<Reporter>(GroupInstall {
             base_config,
             global_pkg_dir: &global_pkg_dir,
+            install_dir: &install_dir,
             selectors: &group,
             range_spec_style,
             supported_architectures: supported_architectures.clone(),
@@ -412,18 +416,23 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     }
 
     for pkg in &to_update {
+        let install_dir = create_install_dir(&global_pkg_dir)
+            .into_diagnostic()
+            .wrap_err("create global install dir")?;
         let pins = Box::pin(pins_for_downgrades::<Reporter>(
             base_config,
             &global_pkg_dir,
+            &install_dir,
             pkg,
             latest,
             range_spec_style,
             supported_architectures.clone(),
         ))
         .await?;
-        let install_dir = Box::pin(run_group_install::<Reporter>(GroupInstall {
+        Box::pin(run_group_install::<Reporter>(GroupInstall {
             base_config,
             global_pkg_dir: &global_pkg_dir,
+            install_dir: &install_dir,
             selectors: &update_selectors(&pkg.dependencies, latest, &pins),
             range_spec_style,
             supported_architectures: supported_architectures.clone(),
@@ -432,8 +441,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             allow_build: &[],
             lockfile_only: false,
         }))
-        .await?
-        .0;
+        .await?;
 
         let pkgs = read_installed_packages(&install_dir);
         let dependencies = read_direct_dependencies(&install_dir);
@@ -566,8 +574,10 @@ fn update_selectors(
 /// points at an older release than the one installed whenever that came from
 /// another tag, or from a major that has not been promoted to `latest` yet.
 ///
-/// The versions are resolved without installing anything, so a release that is
-/// about to be rejected never gets the chance to run its lifecycle scripts.
+/// The versions are resolved into `install_dir` without installing anything, so
+/// a release that is about to be rejected never gets the chance to run its
+/// lifecycle scripts. The install that follows reuses the lockfile written here
+/// and only re-resolves what a pin changes.
 ///
 /// Only plain version dependencies are considered: every other spec form says
 /// where the package comes from, so holding one at a bare version would resolve
@@ -575,6 +585,7 @@ fn update_selectors(
 async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
     base_config: &'static Config,
     global_pkg_dir: &Path,
+    install_dir: &Path,
     pkg: &GlobalPackageInfo,
     latest: bool,
     range_spec_style: RangeSpecStyle,
@@ -595,19 +606,18 @@ async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
     {
         return Ok(HashMap::new());
     }
-    let probe_dir = run_group_install::<Reporter>(GroupInstall {
+    run_group_install::<Reporter>(GroupInstall {
         base_config,
         global_pkg_dir,
+        install_dir,
         selectors: &update_selectors(&pkg.dependencies, latest, &HashMap::new()),
         range_spec_style,
         supported_architectures,
         allow_build: &[],
         lockfile_only: true,
     })
-    .await?
-    .0;
-    let resolved = resolved_direct_versions(&probe_dir);
-    let _ = fs::remove_dir_all(&probe_dir);
+    .await?;
+    let resolved = resolved_direct_versions(install_dir);
 
     Ok(pkg
         .dependencies
@@ -848,6 +858,8 @@ fn restore_virtual_shims(
 struct GroupInstall<'a> {
     base_config: &'a Config,
     global_pkg_dir: &'a Path,
+    /// The group's own directory, created by the caller.
+    install_dir: &'a Path,
     selectors: &'a [String],
     range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
@@ -858,28 +870,24 @@ struct GroupInstall<'a> {
     lockfile_only: bool,
 }
 
-/// Install `install.selectors` into a fresh group directory under
-/// `install.global_pkg_dir`, returning that directory and the leaked per-group
-/// [`Config`] (anchored there, saving to `dependencies`). Then run the global
-/// build-approval flow. Shared by add and update.
+/// Install `install.selectors` into `install.install_dir`, returning the leaked
+/// per-group [`Config`] (anchored there, saving to `dependencies`). Then run the
+/// global build-approval flow. Shared by add and update.
 async fn run_group_install<Reporter: self::Reporter + 'static>(
     install: GroupInstall<'_>,
-) -> miette::Result<(PathBuf, &'static Config)> {
+) -> miette::Result<&'static Config> {
     let GroupInstall {
         base_config,
         global_pkg_dir,
+        install_dir,
         selectors,
         range_spec_style,
         supported_architectures,
         allow_build,
         lockfile_only,
     } = install;
-    let install_dir = create_install_dir(global_pkg_dir)
-        .into_diagnostic()
-        .wrap_err("create global install dir")?;
-
     let mut cfg =
-        global_group_config(base_config, &install_dir, global_pkg_dir, supported_architectures)?;
+        global_group_config(base_config, install_dir, global_pkg_dir, supported_architectures)?;
     apply_allow_build(&mut cfg, allow_build, global_pkg_dir)?;
 
     let config: &'static Config = Config::leak(cfg);
@@ -903,9 +911,9 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
     .await?;
 
     if !lockfile_only {
-        prompt_approve_global_builds::<Reporter>(config, &install_dir, global_pkg_dir).await?;
+        prompt_approve_global_builds::<Reporter>(config, install_dir, global_pkg_dir).await?;
     }
-    Ok((install_dir, config))
+    Ok(config)
 }
 
 fn global_group_config(
