@@ -61,6 +61,7 @@ pub fn resolve_snapshot_patches(
     config: &Config,
     pre_resolved: Option<&pnpm_patching::PatchGroupRecord>,
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
 ) -> Result<Option<HashMap<PackageKey, ExtendedPatchInfo>>, BuildPhaseError> {
     // Reuse the caller's grouped record when it already resolved it (the
     // fresh-lockfile path builds it to feed the resolver), so the patch
@@ -77,13 +78,16 @@ pub fn resolve_snapshot_patches(
             let mut map = HashMap::new();
             for key in snaps.keys() {
                 let metadata_key = key.without_peer();
-                let metadata_key_str = metadata_key.to_string();
-                let (name, version) =
-                    crate::build_modules::parse_name_version_from_key(&metadata_key_str);
+                let name = metadata_key.name.to_string();
+                let version_from_key = metadata_key.suffix.version().to_string();
+                let version = packages
+                    .and_then(|packages| packages.get(&metadata_key))
+                    .and_then(|metadata| metadata.version.as_deref())
+                    .unwrap_or(&version_from_key);
                 // Propagate `ERR_PNPM_PATCH_KEY_CONFLICT` rather than
                 // silently skipping the snapshot. Failing here makes the
                 // user add an exact-version entry to disambiguate.
-                if let Some(info) = get_patch_info(Some(groups), &name, &version)
+                if let Some(info) = get_patch_info(Some(groups), &name, version)
                     .map_err(BuildPhaseError::PatchKeyConflict)?
                 {
                     map.insert(metadata_key, info.clone());
@@ -187,7 +191,7 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         link_options,
     } = inputs;
 
-    let patches = resolve_snapshot_patches(config, patch_groups, snapshots)?;
+    let patches = resolve_snapshot_patches(config, patch_groups, snapshots, packages)?;
     let shared_side_effects_publisher =
         crate::shared_side_effects::shared_side_effects_publisher(config, snapshots);
 
