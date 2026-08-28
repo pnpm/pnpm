@@ -2999,7 +2999,7 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
     // Append-only: the same run identity is refused, not overwritten.
     let replay = publish(run.clone()).await;
     assert_eq!(replay.status(), StatusCode::BAD_REQUEST);
-    assert!(String::from_utf8_lossy(&body_bytes(replay.into_body()).await).contains("append-only"),);
+    assert!(String::from_utf8_lossy(&body_bytes(replay.into_body()).await).contains("append-only"));
 
     // A path-shaped workspace never reaches a path join.
     let hostile = publish(json!({
