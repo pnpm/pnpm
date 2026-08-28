@@ -583,10 +583,18 @@ async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
     // Only `--latest` can pick a version outside the recorded range, and only a
     // plain version spec is dropped for it. Everything else resolves within a
     // range the installed version already satisfies.
-    if !latest || !pkg.dependencies.iter().any(|(_, spec)| is_plain_version_spec(spec)) {
+    if !latest {
         return Ok(HashMap::new());
     }
     let versions_before = installed_versions(&pkg.install_dir);
+    // Nothing to compare a resolution against, so nothing to resolve.
+    if !pkg
+        .dependencies
+        .iter()
+        .any(|(alias, spec)| is_plain_version_spec(spec) && versions_before.contains_key(alias))
+    {
+        return Ok(HashMap::new());
+    }
     let probe_dir = run_group_install::<Reporter>(GroupInstall {
         base_config,
         global_pkg_dir,

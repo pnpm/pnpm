@@ -138,7 +138,11 @@ async function updateGlobalPackageGroup (
   await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
 }
 
-/** Installs `depSpecs` into `installDir` under the global packages dir. */
+/**
+ * Installs `depSpecs` into `installDir`, which the caller has already created
+ * under the global packages dir. The manifest and lockfile are written there;
+ * with `lockfileOnly` nothing else is, so `node_modules` stays absent.
+ */
 async function installGroup (
   opts: GlobalUpdateOptions & { lockfileOnly?: boolean },
   installDir: string,
@@ -207,15 +211,18 @@ async function pinsForDowngrades (
   pkg: GlobalPackageInfo
 ): Promise<Map<string, string>> {
   const pins = new Map<string, string>()
+  // Only `--latest` can pick a version outside the recorded range, and only a
+  // plain version spec is dropped for it. Everything else resolves within a
+  // range the installed version already satisfies, so nothing below — not even
+  // reading the group's installed versions — is worth doing.
+  if (opts.latest !== true) return pins
   const versionsBefore = new Map(
     (await getGlobalPackageDetails(pkg))
       .filter(({ alias }) => isPlainVersionSpec(pkg.dependencies[alias] ?? ''))
       .map(({ alias, version }) => [alias, version])
   )
-  // Only `--latest` can pick a version outside the recorded range, and only a
-  // plain version spec is dropped for it. Everything else resolves within a
-  // range the installed version already satisfies.
-  if (opts.latest !== true || versionsBefore.size === 0) return pins
+  // Nothing to compare a resolution against, so nothing to resolve.
+  if (versionsBefore.size === 0) return pins
 
   const probeDir = createInstallDir(globalDir)
   try {

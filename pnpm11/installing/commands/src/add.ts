@@ -4,7 +4,7 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { types as allTypes } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
-import { handleGlobalAdd } from '@pnpm/global.commands'
+import { handleGlobalAdd, selectsPnpmCli } from '@pnpm/global.commands'
 import { resolveConfigDeps } from '@pnpm/installing.env-installer'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import { pick } from 'ramda'
@@ -13,7 +13,6 @@ import { renderHelp } from 'render-help'
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
 import { createGlobalPolicyCallbacks } from './resolutionPolicyManifest.js'
-import { selectsPnpmCli } from './selectsPnpmCli.js'
 
 export const shorthands: Record<string, string> = {
   'save-catalog': '--save-catalog-name=default',

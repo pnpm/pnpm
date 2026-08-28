@@ -1034,14 +1034,23 @@ fn global_interactive_update_without_a_matching_group() {
 
 /// `pacquet add -g pnpm` is rejected — pnpm is managed via `self-update`. An
 /// `npm:` alias installs pnpm under another name, but the package still carries
-/// pnpm's own `pnpm` bin, so it is rejected the same way.
+/// pnpm's own `pnpm` bin, so it is rejected the same way. A comma-separated
+/// group is a request to install each of its tokens, so pnpm hiding inside one
+/// is caught as well.
 #[test]
 fn global_add_pnpm_is_rejected() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let pnpm_home = root.path().join("pnpm-home");
     fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
 
-    for selector in ["pnpm", "@pnpm/exe", "pnpm@12", "my-pnpm@npm:pnpm@12"] {
+    for selector in [
+        "pnpm",
+        "@pnpm/exe",
+        "pnpm@12",
+        "my-pnpm@npm:pnpm@12",
+        "pnpm,lodash",
+        "lodash,my-pnpm@npm:pnpm@12",
+    ] {
         let output = Command::cargo_bin("pnpm")
             .expect("find the pnpm binary")
             .with_current_dir(&workspace)

@@ -47,7 +47,10 @@ export function initDefaultReporter (
   }
 ): () => void {
   const proc = opts.context.process ?? process
-  const outputMaxWidth = opts.reportingOptions?.outputMaxWidth ?? (proc.stdout.columns && proc.stdout.columns - 2) ?? 80
+  // At least one column: `columns - 2` is zero on a two-column terminal, and a
+  // caller may pass zero outright. A zero width would make every wrap
+  // calculation — the differ's and `renderedRows`' — meaningless.
+  const outputMaxWidth = Math.max(1, opts.reportingOptions?.outputMaxWidth ?? (proc.stdout.columns && proc.stdout.columns - 2) ?? 80)
   const output$ = toOutput$({
     ...opts,
     reportingOptions: {
@@ -76,7 +79,7 @@ export function initDefaultReporter (
   // The width the live differ wraps its frame at, so a resize can be noticed.
   let differWidth = 0
   const newDiffer = (): ReturnType<typeof createDiffer> => {
-    differWidth = stream.columns ?? outputMaxWidth
+    differWidth = Math.max(1, stream.columns ?? outputMaxWidth)
     return createDiffer({ height: stream.rows, width: differWidth })
   }
   let diff = newDiffer()
@@ -142,7 +145,7 @@ export function initDefaultReporter (
    * terminal, at the cost of no longer being able to revise what was committed.
    */
   function commitOverflow (lines: string[]): string {
-    if ((stream.columns ?? outputMaxWidth) !== differWidth) {
+    if (Math.max(1, stream.columns ?? outputMaxWidth) !== differWidth) {
       // The terminal was resized. The frame on screen has reflowed at the new
       // width, so every position the differ tracked against the old one is
       // wrong: start over below what is already there.
@@ -157,7 +160,7 @@ export function initDefaultReporter (
     }
     const rows = stream.rows
     if (!rows) return ''
-    const width = stream.columns ?? outputMaxWidth
+    const width = differWidth
     // One row is left over for the cursor line that the trailing EOL puts
     // below the frame.
     const maxRows = Math.max(rows - 1, 1)
@@ -219,7 +222,7 @@ function viewOffsetOfLine (view: string, lines: string[], index: number): number
 /**
  * How many terminal rows `line` occupies once wrapped at `width`, counting the
  * escape sequences in it as zero-width. Never zero: an empty line still takes a
- * row. `width` is the terminal's own column count, so it is at least one.
+ * row. `width` is the terminal's own column count, clamped to at least one.
  */
 function renderedRows (line: string, width: number): number {
   return Math.max(1, Math.ceil(stringLength(line) / width))

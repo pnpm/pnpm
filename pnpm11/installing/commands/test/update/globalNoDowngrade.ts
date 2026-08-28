@@ -8,6 +8,26 @@ import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
+// `--latest` resolves the `latest` dist-tag, which can point at an older
+// release than the one installed — that is what rolled a self-updated pnpm back
+// in pnpm/pnpm#14270. An update must never move a global package backwards.
+test('global update --latest keeps a package that latest would downgrade', async () => {
+  prepare()
+  const options = globalOptions()
+
+  await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '2.1.0', distTag: 'latest' })
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@2.1.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '1.0.0', distTag: 'latest' })
+
+  await update.handler({ ...options, latest: true } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  const groups = scanGlobalPackages(path.resolve('global'))
+  const installed = (await Promise.all(groups.map(getGlobalPackageDetails))).flat()
+  expect(installed).toContainEqual(
+    expect.objectContaining({ alias: '@pnpm.e2e/multi-version-a', version: '2.1.0' })
+  )
+})
+
 function globalOptions (): Record<string, unknown> {
   return {
     allowBuilds: {},
@@ -37,23 +57,3 @@ function globalOptions (): Record<string, unknown> {
     workspaceConcurrency: 1,
   }
 }
-
-// `--latest` resolves the `latest` dist-tag, which can point at an older
-// release than the one installed — that is what rolled a self-updated pnpm back
-// in pnpm/pnpm#14270. An update must never move a global package backwards.
-test('global update --latest keeps a package that latest would downgrade', async () => {
-  prepare()
-  const options = globalOptions()
-
-  await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '2.1.0', distTag: 'latest' })
-  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@2.1.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
-  await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '1.0.0', distTag: 'latest' })
-
-  await update.handler({ ...options, latest: true } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-
-  const groups = scanGlobalPackages(path.resolve('global'))
-  const installed = (await Promise.all(groups.map(getGlobalPackageDetails))).flat()
-  expect(installed).toContainEqual(
-    expect.objectContaining({ alias: '@pnpm.e2e/multi-version-a', version: '2.1.0' })
-  )
-})

@@ -30,6 +30,18 @@ export function isPnpmCliOnlyGroup (pkg: Pick<GlobalPackageInfo, 'dependencies'>
 }
 
 /**
+ * Whether any of `selectors` names the pnpm CLI. Each is normalized to the
+ * package it installs first, so neither a versioned form like `pnpm@9` nor an
+ * aliased one like `foo@npm:pnpm@9` bypasses the guard.
+ */
+export function selectsPnpmCli (selectors: readonly string[]): boolean {
+  return selectors.some((selector) => {
+    const { alias, bareSpecifier } = parseWantedDependency(selector)
+    return isPnpmCliDependency(alias ?? '', bareSpecifier)
+  })
+}
+
+/**
  * Whether a dependency declared as `alias` at `spec` is the pnpm CLI. An `npm:`
  * alias resolves to its target, so `foo` at `npm:pnpm@9` is the pnpm CLI under
  * another name — the install still carries pnpm's own `pnpm` bin.
