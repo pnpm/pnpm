@@ -45,6 +45,21 @@ export interface LinuxGlibcPlatform {
   glibcMinor: number
 }
 
+export interface MacOSPlatform {
+  architecture: string
+  nodeMajor: number
+  macOSMajor: number
+  macOSMinor: number
+}
+
+export interface WindowsPlatform {
+  architecture: string
+  nodeMajor: number
+  windowsMajor: number
+  windowsMinor: number
+  windowsBuild: number
+}
+
 export interface BuilderProfile {
   imageDigest?: string
   architectureBaseline: string
@@ -293,7 +308,7 @@ export async function resolveSharedSideEffects (
         payload.sourceIntegrity !== candidate.sourceIntegrity ||
         !ownersEqual(payload.owner, candidate.owner)
       ) continue
-      const rank = compatibilityRank(payload.compatibility, opts.supportedTags)
+      const rank = rankCompatibility(payload.compatibility, opts.supportedTags)
       if (rank == null) continue
       const pinnedDigest = opts.pinnedEnvelopeDigests?.get(candidate.key)
       if (pinnedDigest != null && digest !== pinnedDigest) continue
@@ -676,12 +691,48 @@ function insertUniquePath (path: string, exact: Set<string>, folded: Set<string>
   folded.add(caseFolded)
 }
 
-function compatibilityRank (constraints: CompatibilityConstraints, supportedTags: string[]): number | undefined {
-  if (constraints.kind === 'universal') return supportedTags.length
-  for (let index = 0; index < supportedTags.length; index++) {
-    if (constraints.tags.includes(supportedTags[index])) return index
+export function compatibilityRank (constraints: CompatibilityConstraints, supportedTags: string[]): number | undefined {
+  try {
+    validateSupportedTags(supportedTags)
+  } catch {
+    return undefined
   }
-  return undefined
+  return rankCompatibility(constraints, supportedTags)
+}
+
+function rankCompatibility (constraints: CompatibilityConstraints, supportedTags: string[]): number | undefined {
+  if (constraints.kind === 'universal') return Number.MAX_SAFE_INTEGER
+  let bestRank: number | undefined
+  for (let index = 0; index < supportedTags.length; index++) {
+    const supportedTag = supportedTags[index]
+    for (const artifactTag of constraints.tags) {
+      if (artifactTag === supportedTag) {
+        bestRank = Math.min(bestRank ?? index, index)
+        continue
+      }
+      let consumer: VersionedPlatform | undefined
+      let artifact: VersionedPlatform | undefined
+      try {
+        consumer = parseVersionedCompatibilityTag(supportedTag)
+        artifact = parseVersionedCompatibilityTag(artifactTag)
+      } catch {
+        return undefined
+      }
+      if (
+        consumer == null ||
+        artifact == null ||
+        consumer.kind !== artifact.kind ||
+        consumer.platform.architecture !== artifact.platform.architecture ||
+        consumer.platform.nodeMajor !== artifact.platform.nodeMajor
+      ) continue
+      const consumerVersion = versionedPlatformRank(consumer)
+      const artifactVersion = versionedPlatformRank(artifact)
+      if (consumerVersion < artifactVersion) continue
+      const rank = 64 + index * 1_000_000_000_000 + consumerVersion - artifactVersion
+      bestRank = Math.min(bestRank ?? rank, rank)
+    }
+  }
+  return bestRank
 }
 
 export function linuxGlibcCompatibilityTag (
@@ -711,6 +762,32 @@ export function linuxGlibcSupportedTags (
   )
 }
 
+export function macOSSupportedTags (platform: MacOSPlatform): string[] {
+  return [macOSCompatibilityTag(platform)]
+}
+
+export function macOSCompatibilityTag (
+  platform: MacOSPlatform
+): string {
+  const { architecture, nodeMajor, macOSMajor, macOSMinor } = platform
+  const tag = `${COMPATIBILITY_TAG_SCHEMA}:darwin-${architecture}-node${nodeMajor}-macos${macOSMajor}.${macOSMinor}`
+  validateCompatibilityTag(tag)
+  return tag
+}
+
+export function windowsSupportedTags (platform: WindowsPlatform): string[] {
+  return [windowsCompatibilityTag(platform)]
+}
+
+export function windowsCompatibilityTag (
+  platform: WindowsPlatform
+): string {
+  const { architecture, nodeMajor, windowsMajor, windowsMinor, windowsBuild } = platform
+  const tag = `${COMPATIBILITY_TAG_SCHEMA}:win32-${architecture}-node${nodeMajor}-windows${windowsMajor}.${windowsMinor}.${windowsBuild}`
+  validateCompatibilityTag(tag)
+  return tag
+}
+
 export function platformFingerprint (supportedTags: string[]): string {
   validateSupportedTags(supportedTags)
   const hash = createHash('sha256').update('pnpm-platform-fingerprint-v1\0')
@@ -737,16 +814,75 @@ function validateCompatibilityTag (tag: string): void {
   }
   const parts = tag.slice(COMPATIBILITY_TAG_SCHEMA.length + 1).split('-')
   if (parts.length !== 4) throw new Error('Shared artifact compatibility tag has the wrong number of dimensions')
-  const [os, architecture, node, libc] = parts
-  if (os !== 'linux' || !['x64', 'arm64'].includes(architecture)) {
-    throw new Error('Shared artifact compatibility tag only supports Linux x64 and arm64 in v1')
+  const [os, architecture, node, runtime] = parts
+  if (!['x64', 'arm64'].includes(architecture)) {
+    throw new Error('Shared artifact compatibility tag only supports x64 and arm64 in v1')
   }
   parseCanonicalNumber(node.startsWith('node') ? node.slice(4) : '', 'Node major version', false)
-  const glibc = libc.startsWith('glibc') ? libc.slice(5) : ''
-  const version = glibc.split('.')
-  if (version.length !== 2) throw new Error('Shared artifact glibc floor must be major.minor')
-  parseCanonicalNumber(version[0], 'glibc major version', false)
-  parseCanonicalNumber(version[1], 'glibc minor version', true)
+  if (os === 'linux') {
+    const glibc = runtime.startsWith('glibc') ? runtime.slice(5) : ''
+    const version = glibc.split('.')
+    if (version.length !== 2) throw new Error('Shared artifact glibc floor must be major.minor')
+    parseCanonicalNumber(version[0], 'glibc major version', false)
+    parseCanonicalNumber(version[1], 'glibc minor version', true)
+  } else if (os === 'darwin') {
+    const macOS = runtime.startsWith('macos') ? runtime.slice(5) : ''
+    const version = macOS.split('.')
+    if (version.length !== 2) throw new Error('Shared artifact macOS floor must be major.minor')
+    const major = parseCanonicalNumber(version[0], 'macOS major version', false)
+    const minor = parseCanonicalNumber(version[1], 'macOS minor version', true)
+    if (major >= 1_000_000 || minor >= 1_000_000) {
+      throw new Error('Shared artifact macOS version component is too large')
+    }
+  } else if (os === 'win32') {
+    const windows = runtime.startsWith('windows') ? runtime.slice(7) : ''
+    const version = windows.split('.')
+    if (version.length !== 3) throw new Error('Shared artifact Windows floor must be major.minor.build')
+    const major = parseCanonicalNumber(version[0], 'Windows major version', false)
+    const minor = parseCanonicalNumber(version[1], 'Windows minor version', true)
+    const build = parseCanonicalNumber(version[2], 'Windows build number', false)
+    if (major >= 1_000 || minor >= 1_000 || build >= 1_000_000) {
+      throw new Error('Shared artifact Windows version component is too large')
+    }
+  } else {
+    throw new Error('Shared artifact compatibility tag only supports Linux, macOS, and Windows in v1')
+  }
+}
+
+type VersionedPlatform =
+  | { kind: 'macOS', platform: MacOSPlatform }
+  | { kind: 'windows', platform: WindowsPlatform }
+
+function parseVersionedCompatibilityTag (tag: string): VersionedPlatform | undefined {
+  validateCompatibilityTag(tag)
+  const [os, architecture, node, runtime] = tag.slice(COMPATIBILITY_TAG_SCHEMA.length + 1).split('-')
+  const nodeMajor = Number(node.slice(4))
+  if (os === 'darwin') {
+    const [macOSMajor, macOSMinor] = runtime.slice(5).split('.').map(Number)
+    return {
+      kind: 'macOS',
+      platform: { architecture, nodeMajor, macOSMajor, macOSMinor },
+    }
+  }
+  if (os === 'win32') {
+    const [windowsMajor, windowsMinor, windowsBuild] = runtime.slice(7).split('.').map(Number)
+    return {
+      kind: 'windows',
+      platform: { architecture, nodeMajor, windowsMajor, windowsMinor, windowsBuild },
+    }
+  }
+  return undefined
+}
+
+function versionedPlatformRank (versionedPlatform: VersionedPlatform): number {
+  if (versionedPlatform.kind === 'macOS') {
+    return versionedPlatform.platform.macOSMajor * 1_000_000 + versionedPlatform.platform.macOSMinor
+  }
+  return (
+    versionedPlatform.platform.windowsMajor * 1_000_000_000 +
+    versionedPlatform.platform.windowsMinor * 1_000_000 +
+    versionedPlatform.platform.windowsBuild
+  )
 }
 
 function parseCanonicalNumber (value: string, label: string, allowZero: boolean): number {
