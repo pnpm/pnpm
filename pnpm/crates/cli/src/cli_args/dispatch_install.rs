@@ -17,7 +17,7 @@ use super::{
     patch::PatchArgs,
     patch_commit::PatchCommitArgs,
     patch_remove::PatchRemoveArgs,
-    pipeline::{PipelineArgs, PipelineInvocation, run_pipeline},
+    pipeline::{PipelineArgs, PipelineInvocation, WatchInvocation, run_pipeline, run_watch},
     pipelines::{
         AddPipeline, DedupePipeline, DeployPipeline, InstallPipeline, PrunePipeline,
         RemovePipeline, UpdatePipeline, apply_install_cli_config,
@@ -335,8 +335,30 @@ pub(super) fn pipeline<'a>(
     ctx: &RunCtx<'a>,
     args: PipelineArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let PipelineArgs { name, mut install_args, json, no_cache, full, base, report, report_to } =
-        args;
+    if args.watch {
+        let PipelineArgs {
+            name, repo, branch, interval, once, no_cache, report, report_to, ..
+        } = args;
+        let config = ctx.config;
+        return Ok(Box::pin(async move {
+            let cfg = config()?;
+            let invocation = WatchInvocation {
+                pipeline_name: name,
+                repo: repo.expect("clap requires --repo with --watch"),
+                branch,
+                interval: std::time::Duration::from_secs(interval),
+                once,
+                no_cache,
+                report: report || report_to.is_some(),
+                report_to,
+                npmrc_auth_file: cfg.npmrc_auth_file.clone(),
+            };
+            run_watch(&invocation, &cfg.cache_dir)
+        }));
+    }
+    let PipelineArgs {
+        name, mut install_args, json, no_cache, full, base, report, report_to, ..
+    } = args;
     let invocation = PipelineInvocation {
         name,
         // `--dry-run` prints the task graph and runs nothing, the

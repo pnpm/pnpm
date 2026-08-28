@@ -88,8 +88,14 @@ impl TaskCache {
             .map_err(|error| miette::miette!("creating the pipeline cache directories: {error}"))?;
         let lockfile_hash = create_hex_hash_from_file(&workspace_root.join("pnpm-lock.yaml"))
             .unwrap_or_else(|_| "no-lockfile".to_string());
+        // Resolved from the workspace, not the invoking process: with
+        // context-aware toolchains (pnpm's own shims included) the
+        // runtime is a function of the directory, and a `--dir`
+        // invocation must fingerprint the runtime the workspace's
+        // scripts will actually get.
         let runtime_fingerprint = Command::new("node")
             .arg("--version")
+            .current_dir(workspace_root)
             .output()
             .ok()
             .filter(|output| output.status.success())
