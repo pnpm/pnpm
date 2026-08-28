@@ -777,3 +777,56 @@ fn recursive_exec_resume_from_skips_only_the_anchors_dependencies() {
 
     drop(root);
 }
+
+#[test]
+fn recursive_exec_resumes_from_exactly_the_projects_that_passed_before_a_failure() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_manifests(
+        &workspace,
+        &[
+            ("dependency", json!({ "name": "dependency", "version": "1.0.0" })),
+            (
+                "anchor",
+                json!({
+                    "name": "anchor",
+                    "version": "1.0.0",
+                    "dependencies": { "dependency": "workspace:*" },
+                }),
+            ),
+            ("completed", json!({ "name": "completed", "version": "1.0.0" })),
+        ],
+    );
+    fs::write(workspace.join("fail"), "").expect("write failure marker");
+    let command = r#"name=$(basename "$PWD"); echo "$name" >> ../order.log; [ "$name" != dependency ] || [ ! -e ../fail ]"#;
+
+    pacquet
+        .with_args(["--no-bail", "--workspace-concurrency=1", "-r", "exec", "sh", "-c", command])
+        .assert()
+        .failure();
+    let first_run = fs::read_to_string(workspace.join("order.log")).expect("read first run");
+    let mut first_projects: Vec<&str> = first_run.lines().collect();
+    first_projects.sort_unstable();
+    assert_eq!(first_projects, ["completed", "dependency"]);
+
+    fs::remove_file(workspace.join("fail")).expect("remove failure marker");
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args([
+            "--workspace-concurrency=1",
+            "--resume-from=anchor",
+            "-r",
+            "exec",
+            "sh",
+            "-c",
+            command,
+        ])
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read resumed run");
+    assert!(order.ends_with("dependency\nanchor\n"), "unfinished dependency must rerun: {order}");
+    assert_eq!(order.lines().filter(|project| *project == "completed").count(), 1);
+
+    drop(root);
+}

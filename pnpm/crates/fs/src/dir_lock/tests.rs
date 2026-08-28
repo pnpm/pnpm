@@ -81,6 +81,8 @@ fn a_stale_holder_does_not_release_its_successors_lock() {
         .expect("acquire")
         .expect("an abandoned lock is taken over");
 
+    assert!(!stale.is_owner().expect("inspect stale owner"));
+    assert!(successor.is_owner().expect("inspect successor owner"));
     drop(stale);
     assert!(path.is_dir(), "the successor still holds the lock");
 

@@ -35,14 +35,19 @@ use reqwest::Client;
 
 pub use pnpm_shared_artifact_protocol::{
     ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
-    ArtifactManifest, ArtifactPayload, BuilderProfile, COMPATIBILITY_TAG_SCHEMA,
-    CompatibilityConstraints, INPUT_KEY_PREFIX, LinuxGlibcPlatform, OwnerScope, PackageIdentity,
-    PublishArtifactRequest, ResolveArtifactsRequest, SIGNATURE_ALGORITHM, SignedArtifactEnvelope,
-    blob_id, linux_glibc_supported_tags, linux_glibc_tag, platform_fingerprint,
+    ArtifactManifest, ArtifactPayload, ArtifactSubject, BuilderProfile, COMPATIBILITY_TAG_SCHEMA,
+    CompatibilityConstraints, DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND,
+    DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX, INPUT_KEY_PREFIX, LinuxGlibcPlatform, MacOsPlatform,
+    OwnerScope, PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest,
+    SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
+    WORKSPACE_TASK_INPUT_KEY_PREFIX, WindowsPlatform, blob_id, linux_glibc_supported_tags,
+    linux_glibc_tag, macos_supported_tags, macos_tag, platform_fingerprint, windows_supported_tags,
+    windows_tag,
 };
 use pnpm_shared_artifact_protocol::{
     MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
-    ResolveArtifactsResponse, compatibility_rank, validate_supported_tags, verify_blob,
+    ResolveArtifactsResponse, compatibility_rank_prevalidated, validate_supported_tags,
+    verify_blob,
 };
 
 /// The `registries` a request declares, keyed by registry URL.
@@ -521,8 +526,11 @@ impl PnprClient {
             return Ok(BTreeMap::new());
         }
         opts.candidates.retain(|candidate| {
-            opts.eligible_packages.contains(&candidate.package.name)
-                && opts.allowed_builds.contains(&candidate.package.name)
+            let ArtifactSubject::DependencySideEffects { package, .. } = &candidate.subject else {
+                return false;
+            };
+            opts.eligible_packages.contains(&package.name)
+                && opts.allowed_builds.contains(&package.name)
         });
         if opts.candidates.is_empty() {
             return Ok(BTreeMap::new());
@@ -590,7 +598,7 @@ impl PnprClient {
                     artifact.key,
                 )));
             }
-            let mut best: Option<(usize, String, VerifiedArtifact)> = None;
+            let mut best: Option<(u64, String, VerifiedArtifact)> = None;
             for variant in artifact.variants {
                 let Some(public_key) = opts.trusted_keys.get(&variant.envelope.key_id) else {
                     continue;
@@ -635,7 +643,8 @@ impl PnprClient {
                 if !artifact_matches_candidate(&payload, candidate) {
                     continue;
                 }
-                let Some(rank) = compatibility_rank(&payload.compatibility, &opts.supported_tags)
+                let Some(rank) =
+                    compatibility_rank_prevalidated(&payload.compatibility, &opts.supported_tags)
                 else {
                     continue;
                 };
@@ -983,11 +992,8 @@ fn parse_frame(line: &[u8]) -> Result<Frame, PnprClientError> {
 }
 
 fn artifact_matches_candidate(payload: &ArtifactPayload, candidate: &ArtifactCandidate) -> bool {
-    let ArtifactCandidate { key: input_key, package, source_integrity, owner } = candidate;
-    payload.input_key == *input_key
-        && payload.package == *package
-        && payload.source_integrity == *source_integrity
-        && payload.owner == *owner
+    let ArtifactCandidate { key: input_key, subject, owner } = candidate;
+    payload.input_key == *input_key && payload.subject == *subject && payload.owner == *owner
 }
 
 fn parse_verify_frame(line: &[u8]) -> Result<VerifyFrame, PnprClientError> {

@@ -13,8 +13,9 @@ use std::{collections::HashSet, sync::OnceLock};
 
 /// The camelCase keys a project's `pnpm-workspace.yaml` does not contribute,
 /// named as in pnpm's `config.reader`: where the machine keeps what it holds
-/// across runs, the directories the current command reads and writes in, and
-/// which credentials pnpm sends to whom.
+/// across runs, the directories the current command reads and writes in,
+/// which credentials pnpm sends to whom, and which scope a `pnpm login`
+/// claims for the machine.
 const PROJECT_MANIFEST_SKIPPED_KEYS: &[&str] = &[
     "configDir",
     "globalBinDir",
@@ -33,6 +34,7 @@ const PROJECT_MANIFEST_SKIPPED_KEYS: &[&str] = &[
     "configByUri",
     "packageManagerNetworkConfig",
     "packageManagerRegistries",
+    "scope",
 ];
 
 /// The reader's own bookkeeping, named as in pnpm's `config.reader`, which

@@ -336,15 +336,28 @@ ignoredBuiltDependencies: [core-js]
     assert_eq!(settings, WorkspaceSettings::default());
 }
 
+/// An empty `scope` is a value like any other — it would clear a scope the
+/// global `config.yaml` set — so it is refused like a non-empty one, while a
+/// file that names no scope reports nothing.
+#[test]
+fn an_empty_scope_is_refused_and_a_missing_one_is_not_reported() {
+    let mut empty = WorkspaceSettings::default();
+    empty.collect_key_issues("scope: ''\n");
+    assert_eq!(empty.key_issues.refused, vec!["scope".to_owned()]);
+
+    let mut absent = WorkspaceSettings::default();
+    absent.collect_key_issues("registry: https://reg.example/\n");
+    assert!(absent.key_issues.is_empty());
+}
+
 #[test]
 fn apply_scope_overrides_an_earlier_layer() {
-    // The workspace yaml is applied over the global `config.yaml`, so the
-    // project's scope wins — mirroring `registry`.
-    let settings: WorkspaceSettings = serde_saphyr::from_str("scope: '@from-yaml'\n").unwrap();
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("scope: '@from-later-layer'\n").unwrap();
     let mut config = Config::new();
     config.scope = Some("@from-global-config".to_owned());
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert_eq!(config.scope.as_deref(), Some("@from-yaml"));
+    assert_eq!(config.scope.as_deref(), Some("@from-later-layer"));
 }
 
 #[test]

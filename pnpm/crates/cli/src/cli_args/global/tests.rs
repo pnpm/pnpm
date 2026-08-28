@@ -11,7 +11,7 @@ use pnpm_fs::{force_symlink_dir, remove_symlink_dir};
 use pnpm_global::GlobalPackageInfo;
 use serde_json::json;
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs, io,
     path::{Path, PathBuf},
     sync::Arc,
@@ -197,7 +197,7 @@ fn latest_update_drops_the_spec_only_of_plain_version_dependencies() {
         ("bar".to_string(), "next".to_string()),
     ];
     assert_eq!(
-        update_selectors(&dependencies, true),
+        update_selectors(&dependencies, true, &HashMap::new()),
         vec![
             "private-linked-pkg@link:/home/user/private-linked-pkg",
             "local-tarball-pkg@file:/home/user/local-tarball-pkg.tgz",
@@ -210,9 +210,22 @@ fn latest_update_drops_the_spec_only_of_plain_version_dependencies() {
         ],
     );
     assert_eq!(
-        update_selectors(&dependencies, false),
+        update_selectors(&dependencies, false, &HashMap::new()),
         dependencies.iter().map(|(alias, spec)| format!("{alias}@{spec}")).collect::<Vec<String>>(),
     );
+}
+
+/// An update must never move a package backwards, so a pinned alias is held at
+/// the version it is already on while the rest of the group still updates.
+#[test]
+fn a_pinned_dependency_is_held_at_its_installed_version() {
+    let dependencies = vec![
+        ("prerelease".to_string(), "^2.0.0".to_string()),
+        ("stable".to_string(), "^1.0.0".to_string()),
+    ];
+    let pins = HashMap::from([("prerelease".to_string(), "2.0.0".to_string())]);
+
+    assert_eq!(update_selectors(&dependencies, true, &pins), vec!["prerelease@2.0.0", "stable"]);
 }
 
 #[test]

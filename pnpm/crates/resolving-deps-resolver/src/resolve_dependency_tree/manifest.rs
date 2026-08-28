@@ -29,11 +29,11 @@ use super::{
 ///    `ERR_PNPM_UNUSED_PATCH` check sees the hit.
 ///
 /// Packages whose resolver didn't supply [`pnpm_resolving_resolver_base::ResolveResult::name_ver`]
-/// (git / tarball / local — they learn the name from the manifest at
-/// fetch time) skip the patch lookup. That matches the surface
-/// `patchedDependencies` covers today: keys are `name[@version]`, so a
-/// package without a resolve-time name can't match a configured entry
-/// anyway. The lookup is also skipped when no patches are configured.
+/// use the manifest's `name` and, for non-directory resolutions, its
+/// `version`. Local directories remain linked rather than patched, matching
+/// the TypeScript CLI and the lockfile format, which omits their manifest
+/// version. The lookup is skipped when either field is unavailable or no
+/// patches are configured.
 pub(super) async fn build_pkg_id_with_patch_hash(
     ctx: &TreeCtx,
     result: &pnpm_resolving_resolver_base::ResolveResult,
@@ -64,9 +64,19 @@ pub(super) async fn build_pkg_id_with_patch_hash(
         .as_ref()
         .and_then(|manifest| manifest.get("name"))
         .and_then(serde_json::Value::as_str);
+    let manifest_version =
+        (!matches!(result.resolution, pnpm_lockfile::LockfileResolution::Directory(_)))
+            .then(|| {
+                result
+                    .manifest
+                    .as_ref()
+                    .and_then(|manifest| manifest.get("version"))
+                    .and_then(serde_json::Value::as_str)
+            })
+            .flatten();
     let (name, version) = match (result.name_ver.as_ref(), manifest_name) {
         (Some(name_ver), _) => (name_ver.name.to_string(), name_ver.suffix.to_string()),
-        (None, Some(name)) => (name.to_string(), String::new()),
+        (None, Some(name)) => (name.to_string(), manifest_version.unwrap_or_default().to_string()),
         (None, None) => return Ok(raw_id.to_string()),
     };
     let prefixed = if raw_id.starts_with(&format!("{name}@")) {
@@ -74,12 +84,9 @@ pub(super) async fn build_pkg_id_with_patch_hash(
     } else {
         format!("{name}@{raw_id}")
     };
-    // `patched_dependencies` keys carry a `name@version` shape, so
-    // entries that came in without a `name_ver` (file: / git: /
-    // tarball: resolutions whose name we just learned from the
-    // manifest above) can't match unless the manifest also surfaced
-    // a version. Bail out when version is empty so the patch lookup
-    // doesn't run a `name@""` query.
+    // `patched_dependencies` keys carry a `name@version` shape. Bail
+    // out when the resolver and manifest both omitted the version so
+    // the patch lookup doesn't run a `name@""` query.
     if version.is_empty() {
         return Ok(prefixed);
     }

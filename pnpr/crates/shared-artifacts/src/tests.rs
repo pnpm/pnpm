@@ -17,10 +17,10 @@ use object_store::{
 };
 use pnpm_shared_artifact_protocol::{
     ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
-    ArtifactManifest, ArtifactPayload, ArtifactVariant, BuilderProfile, CompatibilityConstraints,
-    MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE, OwnerScope, PackageIdentity,
-    PublishArtifactRequest, ResolveArtifactsRequest, ResolveArtifactsResponse, ResolvedArtifact,
-    SIGNATURE_ALGORITHM, SignedArtifactEnvelope,
+    ArtifactManifest, ArtifactPayload, ArtifactSubject, ArtifactVariant, BuilderProfile,
+    CompatibilityConstraints, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE, OwnerScope,
+    PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest, ResolveArtifactsResponse,
+    ResolvedArtifact, SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
 };
 use pnpr_config::{HostedStoreConfig, normalize_key_prefix};
 use sha2::{Digest as _, Sha512};
@@ -120,6 +120,32 @@ async fn local_store_uses_the_cache_layout_and_round_trips_artifacts() {
     }
     assert_eq!(bytes, b"shared addon");
     assert!(storage.path().join("shared-artifacts/v0/.locks/usage.json").is_file());
+}
+
+#[tokio::test]
+async fn workspace_task_subjects_round_trip_through_the_store() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let request = workspace_task_publication();
+
+    assert!(store.publish("acme", request).await.unwrap());
+    let response = store
+        .resolve(
+            "acme",
+            &serde_json::to_vec(&ResolveArtifactsRequest {
+                candidates: vec![ArtifactCandidate {
+                    key: "workspace-task:v1:inputs=abc".to_string(),
+                    subject: ArtifactSubject::workspace_task("packages/app", "build"),
+                    owner: OwnerScope::organization("acme"),
+                }],
+            })
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.artifacts.len(), 1);
+    assert_eq!(response.artifacts[0].variants.len(), 1);
 }
 
 #[tokio::test]
@@ -476,11 +502,10 @@ fn lookup(owner: &str) -> ResolveArtifactsRequest {
     ResolveArtifactsRequest {
         candidates: vec![ArtifactCandidate {
             key: "dependency-side-effects:v1:deps=abc".to_string(),
-            package: PackageIdentity {
-                name: "native-addon".to_string(),
-                version: "1.0.0".to_string(),
-            },
-            source_integrity: "sha512-source".to_string(),
+            subject: ArtifactSubject::dependency_side_effects(
+                PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
+                "sha512-source",
+            ),
             owner: OwnerScope::organization(owner),
         }],
     }
@@ -516,8 +541,10 @@ fn publication_request(
     };
     let payload = ArtifactPayload {
         kind: ARTIFACT_KIND.to_string(),
-        package: PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
-        source_integrity: "sha512-source".to_string(),
+        subject: ArtifactSubject::dependency_side_effects(
+            PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
+            "sha512-source",
+        ),
         input_key: input_key.to_string(),
         owner: OwnerScope::organization("acme"),
         builder_id: builder_id.to_string(),
@@ -539,6 +566,33 @@ fn publication_request(
             signature: "MAYCAQECAQE=".to_string(),
         },
         blobs,
+    }
+}
+
+fn workspace_task_publication() -> PublishArtifactRequest {
+    let payload = ArtifactPayload {
+        kind: WORKSPACE_TASK_ARTIFACT_KIND.to_string(),
+        subject: ArtifactSubject::workspace_task("packages/app", "build"),
+        input_key: "workspace-task:v1:inputs=abc".to_string(),
+        owner: OwnerScope::organization("acme"),
+        builder_id: "ci/linux".to_string(),
+        builder_profile: BuilderProfile {
+            image_digest: Some("sha256:image".to_string()),
+            architecture_baseline: "x86-64-v2".to_string(),
+            environment: BTreeMap::new(),
+        },
+        compatibility: CompatibilityConstraints::Universal,
+        manifest: ArtifactManifest { added: Vec::new(), deleted: Vec::new() },
+    };
+    PublishArtifactRequest {
+        key: payload.input_key.clone(),
+        envelope: SignedArtifactEnvelope {
+            algorithm: SIGNATURE_ALGORITHM.to_string(),
+            key_id: "acme-2026".to_string(),
+            payload: BASE64.encode(serde_json::to_vec(&payload).unwrap()),
+            signature: "MAYCAQECAQE=".to_string(),
+        },
+        blobs: Vec::new(),
     }
 }
 

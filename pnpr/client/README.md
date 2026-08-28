@@ -72,7 +72,7 @@ remoteSideEffectsCache:
 `requiresBuild: true`, pass `allowBuilds`, and have a verified source integrity.
 `--ignore-scripts` disables remote reuse. An unavailable server, invalid
 signature, incompatible platform, or bad blob falls back to the ordinary local
-build. The PoC supports Linux glibc on x64 and arm64.
+build. The PoC supports Linux glibc, macOS, and Windows on x64 and arm64.
 
 ### Trust material
 
@@ -211,12 +211,14 @@ artifacts.
 
 ### v0 compatibility tags
 
-The PoC intentionally defines one narrow tagged platform vocabulary rather
+The PoC intentionally defines an explicit tagged platform vocabulary rather
 than interpreting unknown producer claims. `universal` is the positive claim
-for platform-independent output. The only `tagged` form is:
+for platform-independent output. The `tagged` forms are:
 
 ```text
 pnpm:v1:linux-<architecture>-node<major>-glibc<major>.<minor>
+pnpm:v1:darwin-<architecture>-node<major>-macos<major>.<minor>
+pnpm:v1:win32-<architecture>-node<major>-windows<major>.<minor>.<build>
 ```
 
 `architecture` is `x64` or `arm64`; all numeric components are canonical
@@ -224,15 +226,25 @@ unsigned decimals without leading zeroes. A consumer generates tags for its
 glibc version down to minor zero, most recent floor first. For example, glibc
 2.3 advertises `glibc2.3`, `glibc2.2`, `glibc2.1`, and `glibc2.0`. Matching is
 exact against that ordered set, so an artifact tagged with a 2.1 floor serves a
-2.3 consumer. Tagged matches beat `universal`; equal-rank variants are ordered
-by ascending signed-envelope digest. Unknown schemas, platforms, dimensions,
-or malformed tags are misses. Other platforms and libc families remain out of
-the PoC instead of being treated as compatible guesses.
+2.3 consumer.
+
+A macOS consumer advertises one tag containing its product-version major and
+minor. A Windows consumer likewise advertises one tag containing its NT kernel
+major, minor, and build number. These versions are parsed minimum-runtime
+floors: the operating system, architecture, and Node major must match exactly,
+and the consumer version must be at least the artifact version. Exact matches
+precede derived floor matches, and the greatest compatible floor wins. Tagged
+matches beat `universal`; equal-rank variants are ordered by ascending
+signed-envelope digest. Unknown schemas, platforms, dimensions, or malformed
+tags are misses. Other operating systems and libc families remain out of the
+PoC instead of being treated as compatible guesses.
 
 `platformFingerprint` is SHA-256 over the ASCII bytes
 `pnpm-platform-fingerprint-v1\0`, followed by every canonical supported tag in
 preference order and a NUL byte after each tag. Duplicate tags and lists longer
-than 64 entries are rejected.
+than 64 entries are rejected. macOS and Windows therefore fingerprint their
+one exact consumer tag, so a macOS minor or Windows kernel-build change creates
+a distinct platform fingerprint.
 
 ### Signed envelope and blobs
 
@@ -255,12 +267,17 @@ decoded payload\0
 decoded DER signature
 ```
 
-Input keys begin with `dependency-side-effects:v1:` and do not contain host
-platform identity; compatibility tags live in the signed payload. The signed
-package name and version, source tarball integrity, and owner must all match the
-current candidate. A publisher owner must additionally equal the signed package
-name. Organization eligibility is supplied independently by the caller and is
-checked before lookup.
+Every candidate and signed payload carries a discriminated subject. Dependency
+side effects use `{ kind: 'dependency-side-effects', package,
+sourceIntegrity }` with a `dependency-side-effects:v1:` input key; workspace
+tasks use `{ kind: 'workspace-task', project, task }` with a
+`workspace-task:v1:` input key. The signed payload's artifact kind and input-key
+prefix must match its subject. Its input key, subject, and owner must match the
+candidate. A publisher owner is valid only for a dependency subject and must
+equal its package name; workspace tasks require an organization owner. Input
+keys do not contain host platform identity;
+compatibility tags live in the signed payload. Dependency eligibility is
+supplied independently by the caller and is checked before lookup.
 
 Blob reads use the same authorization as lookup and send one owner-scoped
 `POST /-/pnpr/v0/artifacts/blob` request per unique SHA-512 integrity. Callers

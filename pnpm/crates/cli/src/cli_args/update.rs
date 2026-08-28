@@ -487,6 +487,9 @@ impl UpdateArgs {
         self.check_patches_options()?;
         self.check_build_artifacts_options()?;
         self.check_workspace_option(None)?;
+        if crate::cli_args::global::selects_pnpm_cli(&self.packages) {
+            return Err(crate::cli_args::global::GlobalError::GlobalPnpmInstall.into());
+        }
         let selected_hashes: Option<HashSet<String>> = if self.interactive {
             match crate::cli_args::update_interactive::select_global_package_groups(
                 config,

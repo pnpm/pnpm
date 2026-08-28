@@ -4,8 +4,12 @@ import https from 'node:https'
 import { URL } from 'node:url'
 import util, { TextDecoder } from 'node:util'
 
-export const ARTIFACT_KIND = 'dependency-side-effects:v1'
-export const INPUT_KEY_PREFIX = 'dependency-side-effects:v1:'
+export const DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND = 'dependency-side-effects:v1'
+export const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX = 'dependency-side-effects:v1:'
+export const WORKSPACE_TASK_ARTIFACT_KIND = 'workspace-task:v1'
+export const WORKSPACE_TASK_INPUT_KEY_PREFIX = 'workspace-task:v1:'
+export const ARTIFACT_KIND = DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND
+export const INPUT_KEY_PREFIX = DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX
 export const COMPATIBILITY_TAG_SCHEMA = 'pnpm:v1'
 export const SIGNATURE_ALGORITHM = 'ecdsa-p256-sha256'
 const MAX_CANDIDATES = 2_048
@@ -38,11 +42,40 @@ export interface PackageIdentity {
   version: string
 }
 
+export interface DependencySideEffectsSubject {
+  kind: 'dependency-side-effects'
+  package: PackageIdentity
+  sourceIntegrity: string
+}
+
+export interface WorkspaceTaskSubject {
+  kind: 'workspace-task'
+  project: string
+  task: string
+}
+
+export type ArtifactSubject = DependencySideEffectsSubject | WorkspaceTaskSubject
+
 export interface LinuxGlibcPlatform {
   architecture: string
   nodeMajor: number
   glibcMajor: number
   glibcMinor: number
+}
+
+export interface MacOSPlatform {
+  architecture: string
+  nodeMajor: number
+  macOSMajor: number
+  macOSMinor: number
+}
+
+export interface WindowsPlatform {
+  architecture: string
+  nodeMajor: number
+  windowsMajor: number
+  windowsMinor: number
+  windowsBuild: number
 }
 
 export interface BuilderProfile {
@@ -63,10 +96,7 @@ export interface ArtifactManifest {
   deleted: string[]
 }
 
-export interface ArtifactPayload {
-  kind: typeof ARTIFACT_KIND
-  package: PackageIdentity
-  sourceIntegrity: string
+interface ArtifactPayloadFields {
   inputKey: string
   owner: OwnerScope
   builderId: string
@@ -75,6 +105,18 @@ export interface ArtifactPayload {
   manifest: ArtifactManifest
 }
 
+export type DependencySideEffectsPayload = ArtifactPayloadFields & {
+  kind: typeof DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND
+  subject: DependencySideEffectsSubject
+}
+
+export type WorkspaceTaskPayload = ArtifactPayloadFields & {
+  kind: typeof WORKSPACE_TASK_ARTIFACT_KIND
+  subject: WorkspaceTaskSubject
+}
+
+export type ArtifactPayload = DependencySideEffectsPayload | WorkspaceTaskPayload
+
 export interface SignedArtifactEnvelope {
   algorithm: typeof SIGNATURE_ALGORITHM
   keyId: string
@@ -82,12 +124,13 @@ export interface SignedArtifactEnvelope {
   signature: string
 }
 
-export interface ArtifactCandidate {
+export interface ArtifactCandidate<S extends ArtifactSubject = ArtifactSubject> {
   key: string
-  package: PackageIdentity
-  sourceIntegrity: string
+  subject: S
   owner: OwnerScope
 }
+
+export type DependencySideEffectsCandidate = ArtifactCandidate<DependencySideEffectsSubject>
 
 export interface ArtifactBlobUpload {
   integrity: string
@@ -106,7 +149,7 @@ export interface VerifiedArtifact {
 }
 
 export interface VerifyStoredSharedSideEffectsOptions {
-  candidate: ArtifactCandidate
+  candidate: DependencySideEffectsCandidate
   envelope: SignedArtifactEnvelope
   pinnedEnvelopeDigest?: string
   publicKey: string
@@ -129,7 +172,7 @@ export interface PublishSharedSideEffectsOptions {
 export interface ResolveSharedSideEffectsOptions {
   registryUrl: string
   authorization?: string
-  candidates: ArtifactCandidate[]
+  candidates: DependencySideEffectsCandidate[]
   supportedTags: string[]
   policy: {
     ignoreScripts: boolean
@@ -220,13 +263,13 @@ export async function resolveSharedSideEffects (
   validateSupportedTags(opts.supportedTags)
   if (opts.policy.ignoreScripts) return new Map()
   const permittedCandidates = opts.candidates.filter(candidate =>
-    opts.policy.eligiblePackages.has(candidate.package.name) && opts.policy.allowedBuilds.has(candidate.package.name)
+    opts.policy.eligiblePackages.has(candidate.subject.package.name) && opts.policy.allowedBuilds.has(candidate.subject.package.name)
   )
   if (permittedCandidates.length === 0) return new Map()
   if (permittedCandidates.length > MAX_CANDIDATES) {
     throw new Error(`Shared artifact lookup exceeds the ${MAX_CANDIDATES}-candidate limit`)
   }
-  const candidates = new Map<string, ArtifactCandidate>()
+  const candidates = new Map<string, DependencySideEffectsCandidate>()
   for (const candidate of permittedCandidates) {
     validateCandidate(candidate)
     if (candidates.has(candidate.key)) {
@@ -288,12 +331,10 @@ export async function resolveSharedSideEffects (
       }
       if (
         payload.inputKey !== candidate.key ||
-        payload.package.name !== candidate.package.name ||
-        payload.package.version !== candidate.package.version ||
-        payload.sourceIntegrity !== candidate.sourceIntegrity ||
+        !subjectsEqual(payload.subject, candidate.subject) ||
         !ownersEqual(payload.owner, candidate.owner)
       ) continue
-      const rank = compatibilityRank(payload.compatibility, opts.supportedTags)
+      const rank = rankCompatibility(payload.compatibility, opts.supportedTags)
       if (rank == null) continue
       const pinnedDigest = opts.pinnedEnvelopeDigests?.get(candidate.key)
       if (pinnedDigest != null && digest !== pinnedDigest) continue
@@ -329,9 +370,7 @@ export function verifyStoredSharedSideEffects (
   const payload = verifySignedArtifactEnvelope(opts.envelope, opts.publicKey)
   if (
     payload.inputKey !== opts.candidate.key ||
-    payload.package.name !== opts.candidate.package.name ||
-    payload.package.version !== opts.candidate.package.version ||
-    payload.sourceIntegrity !== opts.candidate.sourceIntegrity ||
+    !subjectsEqual(payload.subject, opts.candidate.subject) ||
     !ownersEqual(payload.owner, opts.candidate.owner) ||
     compatibilityRank(payload.compatibility, opts.supportedTags) == null
   ) {
@@ -403,11 +442,12 @@ export class SharedArtifactBlobIntegrityError extends Error {
 }
 
 function serializePublishRequest (opts: PublishSharedSideEffectsOptions): Buffer {
-  if (typeof opts.key !== 'string' || !opts.key.startsWith(INPUT_KEY_PREFIX)) {
-    throw new Error(`Shared artifact input key must start with ${JSON.stringify(INPUT_KEY_PREFIX)}`)
+  const { payload } = decodeEnvelope(opts.envelope)
+  const { inputKeyPrefix } = subjectArtifactIdentity(payload.subject)
+  if (typeof opts.key !== 'string' || !opts.key.startsWith(inputKeyPrefix)) {
+    throw new Error(`Shared artifact input key must start with ${JSON.stringify(inputKeyPrefix)}`)
   }
   validateScalar('input key', opts.key, 4_096)
-  const { payload } = decodeEnvelope(opts.envelope)
   if (payload.inputKey !== opts.key) {
     throw new Error('Signed shared artifact input key does not match the publication key')
   }
@@ -518,16 +558,15 @@ function errorMessage (err: unknown): string {
 
 function validatePayload (payload: ArtifactPayload): void {
   if (payload == null || typeof payload !== 'object') throw new Error('Shared artifact payload is not an object')
-  if (payload.kind !== ARTIFACT_KIND) throw new Error(`Unsupported shared artifact kind ${JSON.stringify(payload.kind)}`)
-  if (typeof payload.inputKey !== 'string' || !payload.inputKey.startsWith(INPUT_KEY_PREFIX)) {
-    throw new Error(`Shared artifact input key must start with ${JSON.stringify(INPUT_KEY_PREFIX)}`)
+  const { artifactKind, inputKeyPrefix } = subjectArtifactIdentity(payload.subject)
+  if (payload.kind !== artifactKind) throw new Error(`Unsupported shared artifact kind ${JSON.stringify(payload.kind)}`)
+  if (typeof payload.inputKey !== 'string' || !payload.inputKey.startsWith(inputKeyPrefix)) {
+    throw new Error(`Shared artifact input key must start with ${JSON.stringify(inputKeyPrefix)}`)
   }
   validateScalar('input key', payload.inputKey, 4_096)
-  validatePackageIdentity(payload.package)
-  validateScalar('source integrity', payload.sourceIntegrity, 1_024)
   validateScalar('builder id', payload.builderId, 256)
   validateOwner(payload.owner)
-  validatePublisherPackage(payload.owner, payload.package)
+  validateSubject(payload.subject, payload.owner)
   validateBuilderProfile(payload.builderProfile)
   validateCompatibility(payload.compatibility)
   validateManifest(payload.manifest)
@@ -535,14 +574,59 @@ function validatePayload (payload: ArtifactPayload): void {
 
 function validateCandidate (candidate: ArtifactCandidate): void {
   if (candidate == null || typeof candidate !== 'object') throw new Error('Shared artifact candidate is malformed')
-  if (typeof candidate.key !== 'string' || !candidate.key.startsWith(INPUT_KEY_PREFIX)) {
-    throw new Error(`Shared artifact input key must start with ${JSON.stringify(INPUT_KEY_PREFIX)}`)
+  const { inputKeyPrefix } = subjectArtifactIdentity(candidate.subject)
+  if (typeof candidate.key !== 'string' || !candidate.key.startsWith(inputKeyPrefix)) {
+    throw new Error(`Shared artifact input key must start with ${JSON.stringify(inputKeyPrefix)}`)
   }
   validateScalar('input key', candidate.key, 4_096)
-  validatePackageIdentity(candidate.package)
-  validateScalar('source integrity', candidate.sourceIntegrity, 1_024)
   validateOwner(candidate.owner)
-  validatePublisherPackage(candidate.owner, candidate.package)
+  validateSubject(candidate.subject, candidate.owner)
+}
+
+function subjectArtifactIdentity (subject: ArtifactSubject): {
+  artifactKind: typeof DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND | typeof WORKSPACE_TASK_ARTIFACT_KIND
+  inputKeyPrefix: typeof DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX | typeof WORKSPACE_TASK_INPUT_KEY_PREFIX
+} {
+  if (subject == null || typeof subject !== 'object') throw new Error('Shared artifact subject is malformed')
+  if (subject.kind === 'dependency-side-effects') {
+    return {
+      artifactKind: DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND,
+      inputKeyPrefix: DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX,
+    }
+  }
+  if (subject.kind === 'workspace-task') {
+    return {
+      artifactKind: WORKSPACE_TASK_ARTIFACT_KIND,
+      inputKeyPrefix: WORKSPACE_TASK_INPUT_KEY_PREFIX,
+    }
+  }
+  throw new Error(`Unsupported shared artifact subject ${JSON.stringify((subject as { kind?: unknown }).kind)}`)
+}
+
+function validateSubject (subject: ArtifactSubject, owner: OwnerScope): void {
+  subjectArtifactIdentity(subject)
+  if (subject.kind === 'dependency-side-effects') {
+    validatePackageIdentity(subject.package)
+    validateScalar('source integrity', subject.sourceIntegrity, 1_024)
+    validatePublisherPackage(owner, subject.package)
+    return
+  }
+  validateScalar('workspace project', subject.project, 4_096)
+  validateScalar('workspace task', subject.task, 256)
+  if (owner.type === 'publisher') {
+    throw new Error('Workspace task artifacts require an organization owner')
+  }
+}
+
+function subjectsEqual (left: ArtifactSubject, right: ArtifactSubject): boolean {
+  if (left.kind !== right.kind) return false
+  if (left.kind === 'dependency-side-effects' && right.kind === 'dependency-side-effects') {
+    return left.package.name === right.package.name &&
+      left.package.version === right.package.version &&
+      left.sourceIntegrity === right.sourceIntegrity
+  }
+  return left.kind === 'workspace-task' && right.kind === 'workspace-task' &&
+    left.project === right.project && left.task === right.task
 }
 
 function validatePackageIdentity (packageIdentity: PackageIdentity): void {
@@ -676,12 +760,48 @@ function insertUniquePath (path: string, exact: Set<string>, folded: Set<string>
   folded.add(caseFolded)
 }
 
-function compatibilityRank (constraints: CompatibilityConstraints, supportedTags: string[]): number | undefined {
-  if (constraints.kind === 'universal') return supportedTags.length
-  for (let index = 0; index < supportedTags.length; index++) {
-    if (constraints.tags.includes(supportedTags[index])) return index
+export function compatibilityRank (constraints: CompatibilityConstraints, supportedTags: string[]): number | undefined {
+  try {
+    validateSupportedTags(supportedTags)
+  } catch {
+    return undefined
   }
-  return undefined
+  return rankCompatibility(constraints, supportedTags)
+}
+
+function rankCompatibility (constraints: CompatibilityConstraints, supportedTags: string[]): number | undefined {
+  if (constraints.kind === 'universal') return Number.MAX_SAFE_INTEGER
+  let bestRank: number | undefined
+  for (let index = 0; index < supportedTags.length; index++) {
+    const supportedTag = supportedTags[index]
+    for (const artifactTag of constraints.tags) {
+      if (artifactTag === supportedTag) {
+        bestRank = Math.min(bestRank ?? index, index)
+        continue
+      }
+      let consumer: VersionedPlatform | undefined
+      let artifact: VersionedPlatform | undefined
+      try {
+        consumer = parseVersionedCompatibilityTag(supportedTag)
+        artifact = parseVersionedCompatibilityTag(artifactTag)
+      } catch {
+        return undefined
+      }
+      if (
+        consumer == null ||
+        artifact == null ||
+        consumer.kind !== artifact.kind ||
+        consumer.platform.architecture !== artifact.platform.architecture ||
+        consumer.platform.nodeMajor !== artifact.platform.nodeMajor
+      ) continue
+      const consumerVersion = versionedPlatformRank(consumer)
+      const artifactVersion = versionedPlatformRank(artifact)
+      if (consumerVersion < artifactVersion) continue
+      const rank = 64 + index * 1_000_000_000_000 + consumerVersion - artifactVersion
+      bestRank = Math.min(bestRank ?? rank, rank)
+    }
+  }
+  return bestRank
 }
 
 export function linuxGlibcCompatibilityTag (
@@ -711,6 +831,32 @@ export function linuxGlibcSupportedTags (
   )
 }
 
+export function macOSSupportedTags (platform: MacOSPlatform): string[] {
+  return [macOSCompatibilityTag(platform)]
+}
+
+export function macOSCompatibilityTag (
+  platform: MacOSPlatform
+): string {
+  const { architecture, nodeMajor, macOSMajor, macOSMinor } = platform
+  const tag = `${COMPATIBILITY_TAG_SCHEMA}:darwin-${architecture}-node${nodeMajor}-macos${macOSMajor}.${macOSMinor}`
+  validateCompatibilityTag(tag)
+  return tag
+}
+
+export function windowsSupportedTags (platform: WindowsPlatform): string[] {
+  return [windowsCompatibilityTag(platform)]
+}
+
+export function windowsCompatibilityTag (
+  platform: WindowsPlatform
+): string {
+  const { architecture, nodeMajor, windowsMajor, windowsMinor, windowsBuild } = platform
+  const tag = `${COMPATIBILITY_TAG_SCHEMA}:win32-${architecture}-node${nodeMajor}-windows${windowsMajor}.${windowsMinor}.${windowsBuild}`
+  validateCompatibilityTag(tag)
+  return tag
+}
+
 export function platformFingerprint (supportedTags: string[]): string {
   validateSupportedTags(supportedTags)
   const hash = createHash('sha256').update('pnpm-platform-fingerprint-v1\0')
@@ -737,16 +883,75 @@ function validateCompatibilityTag (tag: string): void {
   }
   const parts = tag.slice(COMPATIBILITY_TAG_SCHEMA.length + 1).split('-')
   if (parts.length !== 4) throw new Error('Shared artifact compatibility tag has the wrong number of dimensions')
-  const [os, architecture, node, libc] = parts
-  if (os !== 'linux' || !['x64', 'arm64'].includes(architecture)) {
-    throw new Error('Shared artifact compatibility tag only supports Linux x64 and arm64 in v1')
+  const [os, architecture, node, runtime] = parts
+  if (!['x64', 'arm64'].includes(architecture)) {
+    throw new Error('Shared artifact compatibility tag only supports x64 and arm64 in v1')
   }
   parseCanonicalNumber(node.startsWith('node') ? node.slice(4) : '', 'Node major version', false)
-  const glibc = libc.startsWith('glibc') ? libc.slice(5) : ''
-  const version = glibc.split('.')
-  if (version.length !== 2) throw new Error('Shared artifact glibc floor must be major.minor')
-  parseCanonicalNumber(version[0], 'glibc major version', false)
-  parseCanonicalNumber(version[1], 'glibc minor version', true)
+  if (os === 'linux') {
+    const glibc = runtime.startsWith('glibc') ? runtime.slice(5) : ''
+    const version = glibc.split('.')
+    if (version.length !== 2) throw new Error('Shared artifact glibc floor must be major.minor')
+    parseCanonicalNumber(version[0], 'glibc major version', false)
+    parseCanonicalNumber(version[1], 'glibc minor version', true)
+  } else if (os === 'darwin') {
+    const macOS = runtime.startsWith('macos') ? runtime.slice(5) : ''
+    const version = macOS.split('.')
+    if (version.length !== 2) throw new Error('Shared artifact macOS floor must be major.minor')
+    const major = parseCanonicalNumber(version[0], 'macOS major version', false)
+    const minor = parseCanonicalNumber(version[1], 'macOS minor version', true)
+    if (major >= 1_000_000 || minor >= 1_000_000) {
+      throw new Error('Shared artifact macOS version component is too large')
+    }
+  } else if (os === 'win32') {
+    const windows = runtime.startsWith('windows') ? runtime.slice(7) : ''
+    const version = windows.split('.')
+    if (version.length !== 3) throw new Error('Shared artifact Windows floor must be major.minor.build')
+    const major = parseCanonicalNumber(version[0], 'Windows major version', false)
+    const minor = parseCanonicalNumber(version[1], 'Windows minor version', true)
+    const build = parseCanonicalNumber(version[2], 'Windows build number', false)
+    if (major >= 1_000 || minor >= 1_000 || build >= 1_000_000) {
+      throw new Error('Shared artifact Windows version component is too large')
+    }
+  } else {
+    throw new Error('Shared artifact compatibility tag only supports Linux, macOS, and Windows in v1')
+  }
+}
+
+type VersionedPlatform =
+  | { kind: 'macOS', platform: MacOSPlatform }
+  | { kind: 'windows', platform: WindowsPlatform }
+
+function parseVersionedCompatibilityTag (tag: string): VersionedPlatform | undefined {
+  validateCompatibilityTag(tag)
+  const [os, architecture, node, runtime] = tag.slice(COMPATIBILITY_TAG_SCHEMA.length + 1).split('-')
+  const nodeMajor = Number(node.slice(4))
+  if (os === 'darwin') {
+    const [macOSMajor, macOSMinor] = runtime.slice(5).split('.').map(Number)
+    return {
+      kind: 'macOS',
+      platform: { architecture, nodeMajor, macOSMajor, macOSMinor },
+    }
+  }
+  if (os === 'win32') {
+    const [windowsMajor, windowsMinor, windowsBuild] = runtime.slice(7).split('.').map(Number)
+    return {
+      kind: 'windows',
+      platform: { architecture, nodeMajor, windowsMajor, windowsMinor, windowsBuild },
+    }
+  }
+  return undefined
+}
+
+function versionedPlatformRank (versionedPlatform: VersionedPlatform): number {
+  if (versionedPlatform.kind === 'macOS') {
+    return versionedPlatform.platform.macOSMajor * 1_000_000 + versionedPlatform.platform.macOSMinor
+  }
+  return (
+    versionedPlatform.platform.windowsMajor * 1_000_000_000 +
+    versionedPlatform.platform.windowsMinor * 1_000_000 +
+    versionedPlatform.platform.windowsBuild
+  )
 }
 
 function parseCanonicalNumber (value: string, label: string, allowZero: boolean): number {

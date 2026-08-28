@@ -4,15 +4,22 @@ import { createServer } from 'node:http'
 import { describe, expect, test } from '@jest/globals'
 import {
   type ArtifactPayload,
+  compatibilityRank,
   createSignedArtifactEnvelope,
+  type DependencySideEffectsPayload,
   downloadSharedArtifactBlob,
   linuxGlibcCompatibilityTag,
   linuxGlibcSupportedTags,
+  macOSCompatibilityTag,
+  macOSSupportedTags,
   platformFingerprint,
   publishSharedSideEffects,
   resolveSharedSideEffects,
   signedArtifactEnvelopeDigest,
   verifySignedArtifactEnvelope,
+  windowsCompatibilityTag,
+  windowsSupportedTags,
+  type WorkspaceTaskPayload,
 } from '@pnpm/pnpr.client'
 
 const contents = Buffer.from('native-addon')
@@ -22,11 +29,14 @@ function linux (glibcMinor: number, architecture = 'x64') {
   return { architecture, nodeMajor: 22, glibcMajor: 2, glibcMinor }
 }
 
-function payload (): ArtifactPayload {
+function payload (): DependencySideEffectsPayload {
   return {
     kind: 'dependency-side-effects:v1',
-    package: { name: 'native-addon', version: '1.0.0' },
-    sourceIntegrity: 'sha512-source',
+    subject: {
+      kind: 'dependency-side-effects',
+      package: { name: 'native-addon', version: '1.0.0' },
+      sourceIntegrity: 'sha512-source',
+    },
     inputKey: 'dependency-side-effects:v1:deps=abc',
     owner: { type: 'organization', name: 'acme' },
     builderId: 'ci/main/42',
@@ -62,10 +72,10 @@ describe('signed shared artifacts', () => {
     const envelope = {
       algorithm: 'ecdsa-p256-sha256' as const,
       keyId: 'acme-2026',
-      payload: 'eyJraW5kIjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djEiLCJwYWNrYWdlIjp7Im5hbWUiOiJuYXRpdmUtYWRkb24iLCJ2ZXJzaW9uIjoiMS4wLjAifSwic291cmNlSW50ZWdyaXR5Ijoic2hhNTEyLXNvdXJjZSIsImlucHV0S2V5IjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djE6ZGVwcz1hYmMiLCJvd25lciI6eyJ0eXBlIjoib3JnYW5pemF0aW9uIiwibmFtZSI6ImFjbWUifSwiYnVpbGRlcklkIjoiY2kvbWFpbi80MiIsImJ1aWxkZXJQcm9maWxlIjp7ImltYWdlRGlnZXN0Ijoic2hhMjU2OmltYWdlIiwiYXJjaGl0ZWN0dXJlQmFzZWxpbmUiOiJ4ODYtNjQtdjIiLCJlbnZpcm9ubWVudCI6eyJDRkxBR1MiOiItTzIifX0sImNvbXBhdGliaWxpdHkiOnsia2luZCI6InRhZ2dlZCIsInRhZ3MiOlsicG5wbTp2MTpsaW51eC14NjQtbm9kZTIyLWdsaWJjMi4xNyJdfSwibWFuaWZlc3QiOnsiYWRkZWQiOlt7InBhdGgiOiJidWlsZC9hZGRvbi5ub2RlIiwiaW50ZWdyaXR5Ijoic2hhNTEyLUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBPT0iLCJtb2RlIjo0OTMsInNpemUiOjV9XSwiZGVsZXRlZCI6WyJzcmMvaW50ZXJtZWRpYXRlLm8iXX19',
+      payload: 'eyJraW5kIjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djEiLCJzdWJqZWN0Ijp7ImtpbmQiOiJkZXBlbmRlbmN5LXNpZGUtZWZmZWN0cyIsInBhY2thZ2UiOnsibmFtZSI6Im5hdGl2ZS1hZGRvbiIsInZlcnNpb24iOiIxLjAuMCJ9LCJzb3VyY2VJbnRlZ3JpdHkiOiJzaGE1MTItc291cmNlIn0sImlucHV0S2V5IjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djE6ZGVwcz1hYmMiLCJvd25lciI6eyJ0eXBlIjoib3JnYW5pemF0aW9uIiwibmFtZSI6ImFjbWUifSwiYnVpbGRlcklkIjoiY2kvbWFpbi80MiIsImJ1aWxkZXJQcm9maWxlIjp7ImltYWdlRGlnZXN0Ijoic2hhMjU2OmltYWdlIiwiYXJjaGl0ZWN0dXJlQmFzZWxpbmUiOiJ4ODYtNjQtdjIiLCJlbnZpcm9ubWVudCI6eyJDRkxBR1MiOiItTzIifX0sImNvbXBhdGliaWxpdHkiOnsia2luZCI6InRhZ2dlZCIsInRhZ3MiOlsicG5wbTp2MTpsaW51eC14NjQtbm9kZTIyLWdsaWJjMi4xNyJdfSwibWFuaWZlc3QiOnsiYWRkZWQiOlt7InBhdGgiOiJidWlsZC9hZGRvbi5ub2RlIiwiaW50ZWdyaXR5Ijoic2hhNTEyLUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBPT0iLCJtb2RlIjo0OTMsInNpemUiOjV9XSwiZGVsZXRlZCI6WyJzcmMvaW50ZXJtZWRpYXRlLm8iXX19',
       signature: Buffer.from([0x30, 0x06, 0x02, 0x01, 0x01, 0x02, 0x01, 0x01]).toString('base64'),
     }
-    expect(signedArtifactEnvelopeDigest(envelope)).toBe('f4d59d1718847f2188dbf1921eb72474037af978033264fd79e90426e4475f11')
+    expect(signedArtifactEnvelopeDigest(envelope)).toBe('20b3fbc179563fc173c1bd306b8d088eb0eebb6fa40998e55d645c414f1964f5')
     expect(() => signedArtifactEnvelopeDigest({ ...envelope, payload: `${envelope.payload}=` })).toThrow('base64')
   })
 
@@ -170,6 +180,46 @@ describe('signed shared artifacts', () => {
     })).rejects.toThrow('not referenced')
   })
 
+  test('publishes workspace task artifacts with their subject-specific key prefix', async () => {
+    const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+    const taskPayload: WorkspaceTaskPayload = {
+      ...payload(),
+      kind: 'workspace-task:v1',
+      subject: { kind: 'workspace-task', project: 'packages/app', task: 'build' },
+      inputKey: 'workspace-task:v1:inputs=abc',
+      compatibility: { kind: 'universal' },
+      manifest: { added: [], deleted: [] },
+    }
+    const envelope = createSignedArtifactEnvelope(taskPayload, {
+      keyId: 'acme-2026',
+      privateKey: privateKey.export({ format: 'pem', type: 'pkcs8' }),
+    })
+    let publishedBody: Buffer | undefined
+    const server = createServer((request, response) => {
+      const chunks: Buffer[] = []
+      request.on('data', chunk => chunks.push(Buffer.from(chunk)))
+      request.on('end', () => {
+        publishedBody = Buffer.concat(chunks)
+        response.writeHead(201).end()
+      })
+    })
+    const registryUrl = await listen(server)
+    try {
+      await publishSharedSideEffects({
+        registryUrl,
+        key: taskPayload.inputKey,
+        envelope,
+        blobs: [],
+      })
+      expect(JSON.parse(publishedBody!.toString('utf8'))).toMatchObject({
+        key: taskPayload.inputKey,
+        envelope,
+      })
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close(error => error == null ? resolve() : reject(error)))
+    }
+  })
+
   test('uses canonical compatibility tags and platform fingerprints', () => {
     const supportedTags = linuxGlibcSupportedTags(linux(3))
     expect(supportedTags).toEqual([
@@ -180,9 +230,60 @@ describe('signed shared artifacts', () => {
     ])
     expect(platformFingerprint(supportedTags)).toBe('fdfaaed730a56031779ee5e572e1e82aad454501ec5fbcfad6648e8a1e465f0c')
 
+    const macOSSupported = macOSSupportedTags(macOS(15, 5))
+    expect(macOSSupported).toEqual(['pnpm:v1:darwin-arm64-node22-macos15.5'])
+    expect(platformFingerprint(macOSSupported)).toBe('b56fa5629b56d18308bbf7978d61b9afaf862e133ad18aef31588e0888eef3f8')
+    expect(compatibilityRank({
+      kind: 'tagged',
+      tags: [macOSCompatibilityTag(macOS(15, 4))],
+    }, macOSSupported)).toBe(65)
+    expect(compatibilityRank({
+      kind: 'tagged',
+      tags: [macOSCompatibilityTag(macOS(14, 6))],
+    }, macOSSupported)).toBe(1_000_063)
+    expect(compatibilityRank({
+      kind: 'tagged',
+      tags: [macOSCompatibilityTag(macOS(16, 0))],
+    }, macOSSupported)).toBeUndefined()
+    expect(compatibilityRank({ kind: 'universal' }, macOSSupported)).toBe(Number.MAX_SAFE_INTEGER)
+
+    const multipleMacOSSupported = [
+      macOSCompatibilityTag(macOS(15, 5)),
+      macOSCompatibilityTag(macOS(14, 6)),
+    ]
+    expect(compatibilityRank({
+      kind: 'tagged',
+      tags: [macOSCompatibilityTag(macOS(14, 6))],
+    }, multipleMacOSSupported)).toBe(1)
+    expect(compatibilityRank({
+      kind: 'tagged',
+      tags: [macOSCompatibilityTag(macOS(15, 4))],
+    }, multipleMacOSSupported)).toBe(65)
+
+    const windowsSupported = windowsSupportedTags(windows({ major: 10, minor: 0, build: 26_100 }))
+    expect(windowsSupported).toEqual(['pnpm:v1:win32-x64-node22-windows10.0.26100'])
+    expect(platformFingerprint(windowsSupported)).toBe('f5590f12a6d651acdcb3b60d7d25a5d2e1ad2f5af3e53d841391dec9e871c46e')
+    expect(compatibilityRank({
+      kind: 'tagged',
+      tags: [windowsCompatibilityTag(windows({ major: 10, minor: 0, build: 22_621 }))],
+    }, windowsSupported)).toBe(3_543)
+    expect(compatibilityRank({
+      kind: 'tagged',
+      tags: [windowsCompatibilityTag(windows({ major: 6, minor: 3, build: 9_600 }))],
+    }, windowsSupported)).toBe(3_997_016_564)
+    expect(compatibilityRank({
+      kind: 'tagged',
+      tags: [windowsCompatibilityTag(windows({ major: 10, minor: 0, build: 26_101 }))],
+    }, windowsSupported)).toBeUndefined()
+    expect(compatibilityRank({ kind: 'universal' }, windowsSupported)).toBe(Number.MAX_SAFE_INTEGER)
+
     for (const invalid of [
       'pnpm:v2:linux-x64-node22-glibc2.17',
       'pnpm:v1:darwin-x64-node22-glibc2.17',
+      'pnpm:v1:darwin-x64-node22-macos15',
+      'pnpm:v1:darwin-x64-node22-macos015.5',
+      'pnpm:v1:win32-x64-node22-windows10.0',
+      'pnpm:v1:win32-x64-node22-windows10.0.026100',
       'pnpm:v1:linux-x64-node022-glibc2.17',
       'pnpm:v1:linux-x64-node22-glibc02.17',
       'pnpm:v1:linux-x64-node22-glibc2',
@@ -207,11 +308,33 @@ describe('signed shared artifacts', () => {
     })).toThrow('does not match')
   })
 
+  test('validates workspace task subjects against their kind, key, and owner', () => {
+    const taskPayload: ArtifactPayload = {
+      ...payload(),
+      kind: 'workspace-task:v1',
+      subject: { kind: 'workspace-task', project: 'packages/app', task: 'build' },
+      inputKey: 'workspace-task:v1:inputs=abc',
+    }
+    const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+    const signingOptions = {
+      keyId: 'acme-2026',
+      privateKey: privateKey.export({ format: 'pem', type: 'pkcs8' }),
+    }
+    expect(() => createSignedArtifactEnvelope(taskPayload, signingOptions)).not.toThrow()
+    expect(() => createSignedArtifactEnvelope({
+      ...taskPayload,
+      kind: 'dependency-side-effects:v1',
+    } as unknown as ArtifactPayload, signingOptions)).toThrow('artifact kind')
+    expect(() => createSignedArtifactEnvelope({
+      ...taskPayload,
+      owner: { type: 'publisher', package: 'app' },
+    }, signingOptions)).toThrow('organization owner')
+  })
+
   test('does not contact the cache when scripts, eligibility, or allowBuild deny reuse', async () => {
     const candidate = {
       key: payload().inputKey,
-      package: payload().package,
-      sourceIntegrity: payload().sourceIntegrity,
+      subject: payload().subject,
       owner: payload().owner,
     }
     const base = {
@@ -224,8 +347,8 @@ describe('signed shared artifacts', () => {
       ...base,
       policy: {
         ignoreScripts: true,
-        eligiblePackages: new Set([candidate.package.name]),
-        allowedBuilds: new Set([candidate.package.name]),
+        eligiblePackages: new Set([candidate.subject.package.name]),
+        allowedBuilds: new Set([candidate.subject.package.name]),
       },
     })).resolves.toEqual(new Map())
     await expect(resolveSharedSideEffects({
@@ -233,14 +356,14 @@ describe('signed shared artifacts', () => {
       policy: {
         ignoreScripts: false,
         eligiblePackages: new Set(),
-        allowedBuilds: new Set([candidate.package.name]),
+        allowedBuilds: new Set([candidate.subject.package.name]),
       },
     })).resolves.toEqual(new Map())
     await expect(resolveSharedSideEffects({
       ...base,
       policy: {
         ignoreScripts: false,
-        eligiblePackages: new Set([candidate.package.name]),
+        eligiblePackages: new Set([candidate.subject.package.name]),
         allowedBuilds: new Set(),
       },
     })).resolves.toEqual(new Map())
@@ -306,15 +429,17 @@ describe('signed shared artifacts', () => {
         authorization: 'Bearer token',
         candidates: [{
           key: payload().inputKey,
-          package: { ...payload().package, version: '2.0.0' },
-          sourceIntegrity: payload().sourceIntegrity,
+          subject: {
+            ...payload().subject,
+            package: { ...payload().subject.package, version: '2.0.0' },
+          },
           owner: payload().owner,
         }],
         supportedTags: linuxGlibcSupportedTags(linux(17)),
         policy: {
           ignoreScripts: false,
-          eligiblePackages: new Set([payload().package.name]),
-          allowedBuilds: new Set([payload().package.name]),
+          eligiblePackages: new Set([payload().subject.package.name]),
+          allowedBuilds: new Set([payload().subject.package.name]),
         },
         trustedKeys: {
           'acme-2026': publicKey.export({ format: 'der', type: 'spki' }).toString('base64'),
@@ -326,15 +451,14 @@ describe('signed shared artifacts', () => {
         authorization: 'Bearer token',
         candidates: [{
           key: payload().inputKey,
-          package: payload().package,
-          sourceIntegrity: payload().sourceIntegrity,
+          subject: payload().subject,
           owner: payload().owner,
         }],
         supportedTags: linuxGlibcSupportedTags(linux(17)),
         policy: {
           ignoreScripts: false,
-          eligiblePackages: new Set([payload().package.name]),
-          allowedBuilds: new Set([payload().package.name]),
+          eligiblePackages: new Set([payload().subject.package.name]),
+          allowedBuilds: new Set([payload().subject.package.name]),
         },
         trustedKeys: {
           'acme-2026': publicKey.export({ format: 'der', type: 'spki' }).toString('base64'),
@@ -438,6 +562,25 @@ describe('signed shared artifacts', () => {
     }, 'unused')).toThrow(/canonical P-256 DER/)
   })
 })
+
+function macOS (macOSMajor: number, macOSMinor: number, architecture = 'arm64') {
+  return { architecture, nodeMajor: 22, macOSMajor, macOSMinor }
+}
+
+function windows ({ major, minor, build, architecture = 'x64' }: {
+  major: number
+  minor: number
+  build: number
+  architecture?: string
+}) {
+  return {
+    architecture,
+    nodeMajor: 22,
+    windowsMajor: major,
+    windowsMinor: minor,
+    windowsBuild: build,
+  }
+}
 
 async function listen (server: ReturnType<typeof createServer>): Promise<string> {
   await new Promise<void>((resolve, reject) => {

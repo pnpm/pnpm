@@ -126,6 +126,19 @@ fn legacy_basic_auth_authenticates_install() {
     );
 }
 
+/// An `_auth` written without its `=` padding authenticates the same as
+/// the canonical spelling: the header carries the credential the value
+/// decodes to, not the value as written (pnpm/pnpm#14257).
+#[test]
+fn unpadded_legacy_basic_auth_authenticates_install() {
+    assert_authenticated_install(
+        "private-pkg",
+        |authority| format!("//{authority}/:_auth=Zm9vOmJhcg\n"),
+        "Basic Zm9vOmJhcg==",
+        false,
+    );
+}
+
 #[test]
 fn package_scope_bearer_auth_wins_for_scoped_install() {
     assert_authenticated_install(

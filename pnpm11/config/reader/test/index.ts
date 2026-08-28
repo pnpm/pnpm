@@ -1761,6 +1761,141 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
   expect(JSON.stringify(config)).not.toContain('secret')
 })
 
+// `pnpm login` turns `scope` into a `@scope:registry` route in the global
+// auth.ini, which outranks ~/.npmrc in every project on the machine — so a
+// repo-committed file must not be able to choose it.
+// https://github.com/pnpm/pnpm/issues/13557
+describe('the scope setting is honored from trusted sources only', () => {
+  const anIgnoredScopeWarning = expect.stringContaining('"scope"')
+
+  test('a pnpm-workspace.yaml scope is ignored and warned about', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme' })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBeUndefined()
+    expect(warnings).toContainEqual(anIgnoredScopeWarning)
+    // The warning has to name the route that does set it, or the user is left
+    // with a setting that vanished and nowhere to put it.
+    expect(warnings).toContainEqual(expect.stringContaining('pnpm config set --global scope'))
+  })
+
+  test('a project .npmrc scope reaches no config at all', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('.npmrc', 'scope=@acme\n', 'utf8')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBeUndefined()
+  })
+
+  test('--scope overrides a pnpm-workspace.yaml scope', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme' })
+
+    const { config } = await getConfig({
+      cliOptions: { scope: '@from-cli' },
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBe('@from-cli')
+  })
+
+  test('a global config.yaml scope survives a pnpm-workspace.yaml scope', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme' })
+
+    const { config } = await getConfigWithGlobalYaml(
+      { scope: '@from-global-config' },
+      { workspaceDir: process.cwd() }
+    )
+
+    expect(config.scope).toBe('@from-global-config')
+  })
+
+  test('PNPM_CONFIG_SCOPE overrides a pnpm-workspace.yaml scope', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme' })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: { ...env, PNPM_CONFIG_SCOPE: '@from-env' },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBe('@from-env')
+  })
+
+  // An empty scope is a value like any other — it would clear a scope the
+  // global config file set — so the repo must not be able to supply it either.
+  test('an empty pnpm-workspace.yaml scope is ignored too', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '' })
+
+    const { config, warnings } = await getConfigWithGlobalYaml(
+      { scope: '@from-global-config' },
+      { workspaceDir: process.cwd() }
+    )
+
+    expect(config.scope).toBe('@from-global-config')
+    expect(warnings).toContainEqual(anIgnoredScopeWarning)
+  })
+
+  test('self-update skips the scope alongside its own settings', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme', minimumReleaseAge: 4320 })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      env,
+      forSelfUpdate: true,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBeUndefined()
+    expect(config.minimumReleaseAge).not.toBe(4320)
+    expect(warnings).toContainEqual(anIgnoredScopeWarning)
+  })
+
+  test('a pnpm-workspace.yaml without a scope emits no warning', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { packages: ['.'] })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: { scope: '@from-cli' },
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBe('@from-cli')
+    expect(warnings).not.toContainEqual(anIgnoredScopeWarning)
+  })
+})
+
 test('package manager bootstrap registries ignore project workspace registries', async () => {
   prepareEmpty()
 
@@ -2762,6 +2897,178 @@ test('a malformed global yaml _auth value aborts the load', async () => {
       'https://json-test.example': 123,
     },
   })).rejects.toThrow('object keyed by scope')
+})
+
+test('a registry declared in pnpm-workspace.yaml beats the global _auth file', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', { registry: 'https://project-choice.example/' })
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://private.example': {
+          '@': { authToken: 'stored-token' },
+        },
+      },
+    },
+    { workspaceDir: process.cwd() }
+  )
+
+  // The credential still reaches the registry it was written for.
+  expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
+  // But a stored login is not a statement about where packages come from.
+  expect(config.registry).toBe('https://project-choice.example/')
+  expect(config.registriesByScope.default).toBe('https://project-choice.example/')
+})
+
+test('a registry pinned to the default value still beats the global _auth file', async () => {
+  prepareEmpty()
+
+  // Whether a registry was declared is a question about the key, not its
+  // value: pinning the one a lower layer already resolved to is a declaration.
+  writeYamlFileSync('pnpm-workspace.yaml', { registry: 'https://registry.npmjs.org/' })
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://private.example': {
+          '@': { authToken: 'stored-token' },
+        },
+      },
+    },
+    { workspaceDir: process.cwd() }
+  )
+
+  expect(config.registry).toBe('https://registry.npmjs.org/')
+})
+
+test('a legacy registries default key beats the global _auth file', async () => {
+  prepareEmpty()
+
+  // The older `<scope>: <url>` shape spells the default as `default:`.
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: { default: 'https://legacy-declared.example/' },
+  })
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://private.example': {
+          '@': { authToken: 'stored-token' },
+        },
+      },
+    },
+    { workspaceDir: process.cwd() }
+  )
+
+  expect(config.registry).toBe('https://legacy-declared.example/')
+})
+
+test('a scope declared in pnpm-workspace.yaml beats the global _auth file', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: { 'https://project-choice.example/': { scopes: ['@org'] } },
+  })
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://private.example': {
+          '@org': { authToken: 'stored-token' },
+        },
+      },
+    },
+    { workspaceDir: process.cwd() }
+  )
+
+  expect(config.registriesByScope['@org']).toBe('https://project-choice.example/')
+})
+
+test('a registry declared in the global config beats its own _auth file', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    registry: 'https://global-choice.example/',
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+      },
+    },
+  })
+
+  expect(config.registry).toBe('https://global-choice.example/')
+  // The credential stays keyed to the host it was written for.
+  expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
+})
+
+test('a scope declared in the global config beats its own _auth file', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    registries: { 'https://global-org.example/': { scopes: ['@org'] } },
+    _auth: {
+      'https://private.example': {
+        '@org': { authToken: 'stored-org-token' },
+      },
+    },
+  })
+
+  expect(config.registriesByScope['@org']).toBe('https://global-org.example/')
+  expect(config.authConfig['//private.example/:@org:_authToken']).toBe('stored-org-token')
+})
+
+test('an uncontested _auth file route reaches the package-manager registries too', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+        '@org': { authToken: 'stored-org-token' },
+      },
+    },
+  })
+
+  // Bootstrap resolves the same way an install does.
+  expect(config.packageManagerRegistries?.default).toBe('https://private.example/')
+  expect(config.packageManagerRegistries?.['@org']).toBe('https://private.example/')
+})
+
+test('the global _auth file still routes a scope nothing else declares', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@org': { authToken: 'stored-token' },
+      },
+    },
+  })
+
+  expect(config.registriesByScope['@org']).toBe('https://private.example/')
+})
+
+test('the _auth env var still overrides a registry declared in pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', { registry: 'https://project-choice.example/' })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://my-npm-proxy.example': { '@': { authToken: 'proxy-token' } },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  // The environment is the operator's channel: a mandated CI proxy still wins.
+  expect(config.registry).toBe('https://my-npm-proxy.example/')
 })
 
 test('_auth in a project pnpm-workspace.yaml is ignored (not honored as registry auth)', async () => {

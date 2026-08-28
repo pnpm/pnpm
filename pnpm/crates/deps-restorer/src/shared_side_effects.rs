@@ -9,10 +9,11 @@ use pnpm_config::Config;
 use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_pnpr_client::{
     ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
-    ArtifactManifest, ArtifactPayload, BuilderProfile, CompatibilityConstraints,
-    LinuxGlibcPlatform, OwnerScope, PackageIdentity, PnprClient, PnprClientError,
+    ArtifactManifest, ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints,
+    LinuxGlibcPlatform, MacOsPlatform, OwnerScope, PackageIdentity, PnprClient, PnprClientError,
     PublishArtifactRequest, RejectedArtifact, ResolveArtifactsOptions, SignedArtifactEnvelope,
-    blob_id, linux_glibc_supported_tags, linux_glibc_tag, platform_fingerprint,
+    WindowsPlatform, blob_id, linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags,
+    macos_tag, platform_fingerprint, windows_supported_tags, windows_tag,
 };
 use pnpm_shared_artifact_protocol::compatibility_rank;
 use pnpm_store_dir::{CafsFileInfo, RemoteSideEffectsOrigin, SideEffectsDiff, StoreIndexWriter};
@@ -20,8 +21,11 @@ use sha2::{Digest as _, Sha512};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
+    process::Command,
     sync::Arc,
 };
+#[cfg(windows)]
+use sysinfo::System;
 
 pub(crate) type BaseCasPaths = HashMap<PackageKey, HashMap<String, PathBuf>>;
 
@@ -33,9 +37,44 @@ pub struct SharedSideEffectsPublisher {
     key_id: String,
     organization: String,
     packages: HashSet<String>,
-    platform: LinuxGlibcPlatform<'static>,
+    platform: ArtifactPlatform<'static>,
     private_key: Vec<u8>,
     runtime: tokio::runtime::Handle,
+}
+
+#[derive(Clone, Copy)]
+enum ArtifactPlatform<'a> {
+    LinuxGlibc(LinuxGlibcPlatform<'a>),
+    MacOs(MacOsPlatform<'a>),
+    Windows(WindowsPlatform<'a>),
+}
+
+impl ArtifactPlatform<'_> {
+    fn node_major(self) -> u32 {
+        match self {
+            Self::LinuxGlibc(platform) => platform.node_major,
+            Self::MacOs(platform) => platform.node_major,
+            Self::Windows(platform) => platform.node_major,
+        }
+    }
+
+    fn supported_tags(
+        self,
+    ) -> Result<Vec<String>, pnpm_shared_artifact_protocol::ArtifactProtocolError> {
+        match self {
+            Self::LinuxGlibc(platform) => linux_glibc_supported_tags(platform),
+            Self::MacOs(platform) => macos_supported_tags(platform),
+            Self::Windows(platform) => windows_supported_tags(platform),
+        }
+    }
+
+    fn tag(self) -> Result<String, pnpm_shared_artifact_protocol::ArtifactProtocolError> {
+        match self {
+            Self::LinuxGlibc(platform) => linux_glibc_tag(platform),
+            Self::MacOs(platform) => macos_tag(platform),
+            Self::Windows(platform) => windows_tag(platform),
+        }
+    }
 }
 
 struct CandidateGroup {
@@ -83,8 +122,8 @@ pub(crate) async fn apply_shared_side_effects(
         return Vec::new();
     }
     let Some(settings) = config.remote_side_effects_cache.as_ref() else { return Vec::new() };
-    let Some(platform) = linux_glibc_platform(snapshots) else { return Vec::new() };
-    let supported_tags = match linux_glibc_supported_tags(platform) {
+    let Some(platform) = artifact_platform(snapshots) else { return Vec::new() };
+    let supported_tags = match platform.supported_tags() {
         Ok(tags) => tags,
         Err(error) => {
             tracing::warn!(target: "pacquet::install", %error, "remote side-effects platform is unsupported");
@@ -129,7 +168,7 @@ pub(crate) async fn apply_shared_side_effects(
         &mut deps_state_cache,
         in_lockfile_order(&graph).into_iter().map(|(key, _)| key),
     );
-    let engine_name = pnpm_graph_hasher::engine_name(platform.node_major, None, None);
+    let engine_name = pnpm_graph_hasher::engine_name(platform.node_major(), None, None);
     let mut groups = BTreeMap::<String, CandidateGroup>::new();
     let mut collisions = HashSet::new();
     let mut artifact_pin_records = Vec::new();
@@ -162,11 +201,13 @@ pub(crate) async fn apply_shared_side_effects(
         );
         let candidate = ArtifactCandidate {
             key: input_key.clone(),
-            package: PackageIdentity {
-                name: metadata_key.name.to_string(),
-                version: package_version(&metadata_key, metadata.version.as_deref()),
-            },
-            source_integrity,
+            subject: ArtifactSubject::dependency_side_effects(
+                PackageIdentity {
+                    name: metadata_key.name.to_string(),
+                    version: package_version(&metadata_key, metadata.version.as_deref()),
+                },
+                source_integrity,
+            ),
             owner: owner.clone(),
         };
         let pinned_envelope_digest = snapshots
@@ -211,7 +252,7 @@ pub(crate) async fn apply_shared_side_effects(
                 Err(error) => {
                     tracing::warn!(
                         target: "pacquet::install",
-                        package = %candidate.package.name,
+                        package = %dependency_package(&candidate).name,
                         %error,
                         "persisted remote side-effects artifact could not be checked",
                     );
@@ -230,9 +271,7 @@ pub(crate) async fn apply_shared_side_effects(
             continue;
         };
         if let Some(group) = groups.get_mut(&input_key) {
-            if group.candidate.package != candidate.package
-                || group.candidate.source_integrity != candidate.source_integrity
-            {
+            if group.candidate.subject != candidate.subject {
                 groups.remove(&input_key);
                 collisions.insert(input_key);
                 continue;
@@ -276,7 +315,7 @@ pub(crate) async fn apply_shared_side_effects(
     }
     let authorization = config.auth_headers.for_url(server);
     let allowed_builds =
-        groups.values().map(|group| group.candidate.package.name.clone()).collect();
+        groups.values().map(|group| dependency_package(&group.candidate).name.clone()).collect();
     let pinned_envelope_digests = groups
         .iter()
         .filter_map(|(input_key, group)| {
@@ -334,7 +373,7 @@ pub(crate) async fn apply_shared_side_effects(
         if group.pinned_envelope_digest.is_some() && !resolved.contains_key(input_key) {
             tracing::warn!(
                 target: "pacquet::install",
-                package = %group.candidate.package.name,
+                package = %dependency_package(&group.candidate).name,
                 "pinned remote side-effects artifact is unavailable; building locally",
             );
         }
@@ -470,7 +509,7 @@ pub(crate) async fn apply_shared_side_effects(
             }
             tracing::warn!(
                 target: "pacquet::install",
-                package = %group.candidate.package.name,
+                package = %dependency_package(&group.candidate).name,
                 %error,
                 "remote side-effects artifact was rejected",
             );
@@ -578,8 +617,7 @@ fn stored_remote_side_effects_envelope_digest(
     if payload.input_key != candidate.key {
         return None;
     }
-    (payload.package == candidate.package
-        && payload.source_integrity == candidate.source_integrity
+    (payload.subject == candidate.subject
         && payload.owner == candidate.owner
         && payload.owner == origin.owner
         && payload.builder_profile == origin.builder_profile
@@ -749,7 +787,7 @@ pub(crate) fn shared_side_effects_publisher(
         return None;
     }
     let snapshots = snapshots?;
-    let platform = linux_glibc_platform(snapshots)?;
+    let platform = artifact_platform(snapshots)?;
     let private_key = BASE64.decode(settings.private_key.as_ref()?).ok()?;
     let key_id = settings.key_id.clone()?;
     let builder_id = settings.builder_id.clone()?;
@@ -829,17 +867,19 @@ impl SharedSideEffectsPublisher {
         files.sort_unstable_by(|left, right| left.path.cmp(&right.path));
         let payload = ArtifactPayload {
             kind: ARTIFACT_KIND.to_string(),
-            package: PackageIdentity {
-                name: package_name,
-                version: package_version(&metadata_key, metadata.version.as_deref()),
-            },
-            source_integrity,
+            subject: ArtifactSubject::dependency_side_effects(
+                PackageIdentity {
+                    name: package_name,
+                    version: package_version(&metadata_key, metadata.version.as_deref()),
+                },
+                source_integrity,
+            ),
             input_key: input_key.clone(),
             owner: OwnerScope::organization(self.organization.clone()),
             builder_id: self.builder_id.clone(),
             builder_profile: self.builder_profile.clone(),
             compatibility: CompatibilityConstraints::Tagged {
-                tags: vec![linux_glibc_tag(self.platform).map_err(|error| error.to_string())?],
+                tags: vec![self.platform.tag().map_err(|error| error.to_string())?],
             },
             manifest: ArtifactManifest { added: files, deleted: diff.deleted.unwrap_or_default() },
         };
@@ -859,23 +899,84 @@ impl SharedSideEffectsPublisher {
     }
 }
 
-fn linux_glibc_platform(
+fn dependency_package(candidate: &ArtifactCandidate) -> &PackageIdentity {
+    let ArtifactSubject::DependencySideEffects { package, .. } = &candidate.subject else {
+        unreachable!("dependency side-effects candidates have dependency subjects")
+    };
+    package
+}
+
+fn artifact_platform(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
-) -> Option<LinuxGlibcPlatform<'static>> {
-    if pnpm_graph_hasher::host_platform() != "linux"
-        || !matches!(pnpm_graph_hasher::host_arch(), "x64" | "arm64")
-    {
+) -> Option<ArtifactPlatform<'static>> {
+    let architecture = pnpm_graph_hasher::host_arch();
+    if !matches!(architecture, "x64" | "arm64") {
         return None;
     }
     let node_major =
         find_runtime_node_major(Some(snapshots)).or_else(pnpm_graph_hasher::detect_node_major)?;
-    let (glibc_major, glibc_minor) = pnpm_detect_libc::glibc_version()?;
-    Some(LinuxGlibcPlatform {
-        architecture: pnpm_graph_hasher::host_arch(),
-        node_major,
-        glibc_major,
-        glibc_minor,
-    })
+    match pnpm_graph_hasher::host_platform() {
+        "linux" => {
+            let (glibc_major, glibc_minor) = pnpm_detect_libc::glibc_version()?;
+            Some(ArtifactPlatform::LinuxGlibc(LinuxGlibcPlatform {
+                architecture,
+                node_major,
+                glibc_major,
+                glibc_minor,
+            }))
+        }
+        "darwin" => {
+            let (macos_major, macos_minor) = macos_product_version()?;
+            Some(ArtifactPlatform::MacOs(MacOsPlatform {
+                architecture,
+                node_major,
+                macos_major,
+                macos_minor,
+            }))
+        }
+        "win32" => {
+            let (windows_major, windows_minor, windows_build) = windows_kernel_version()?;
+            Some(ArtifactPlatform::Windows(WindowsPlatform {
+                architecture,
+                node_major,
+                windows_major,
+                windows_minor,
+                windows_build,
+            }))
+        }
+        _ => None,
+    }
+}
+
+fn macos_product_version() -> Option<(u32, u32)> {
+    let output = Command::new("/usr/bin/sw_vers").arg("-productVersion").output().ok()?;
+    output.status.success().then_some(())?;
+    parse_macos_product_version(std::str::from_utf8(&output.stdout).ok()?)
+}
+
+fn parse_macos_product_version(value: &str) -> Option<(u32, u32)> {
+    let mut components = value.trim().split('.');
+    let major = components.next()?.parse().ok()?;
+    let minor = components.next()?.parse().ok()?;
+    (major > 0 && major < 1_000_000 && minor < 1_000_000).then_some((major, minor))
+}
+
+#[cfg(windows)]
+fn windows_kernel_version() -> Option<(u32, u32, u32)> {
+    let build = System::kernel_version()?.parse().ok()?;
+    // Windows 10 and 11 both use NT kernel version 10.0; sysinfo provides the build number.
+    validate_windows_kernel_version(10, 0, build)
+}
+
+#[cfg(not(windows))]
+fn windows_kernel_version() -> Option<(u32, u32, u32)> {
+    None
+}
+
+#[cfg(any(windows, test))]
+fn validate_windows_kernel_version(major: u32, minor: u32, build: u32) -> Option<(u32, u32, u32)> {
+    (major > 0 && major < 1_000 && minor < 1_000 && build > 0 && build < 1_000_000)
+        .then_some((major, minor, build))
 }
 
 fn patch_hash(snapshot_key: &PackageKey) -> Option<String> {

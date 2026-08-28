@@ -9,11 +9,13 @@ use p256::{
 use sha2::{Digest as _, Sha512};
 
 use crate::{
-    ARTIFACT_KIND, ArtifactBlobUpload, ArtifactFile, ArtifactManifest, ArtifactPayload,
-    BuilderProfile, CompatibilityConstraints, LinuxGlibcPlatform, OwnerScope, PackageIdentity,
-    PublishArtifactRequest, SIGNATURE_ALGORITHM, SignedArtifactEnvelope, blob_id,
-    compatibility_rank, linux_glibc_supported_tags, linux_glibc_tag, platform_fingerprint,
-    validate_manifest_path, verify_blob,
+    ARTIFACT_KIND, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
+    ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints, LinuxGlibcPlatform,
+    MacOsPlatform, OwnerScope, PackageIdentity, PublishArtifactRequest, SIGNATURE_ALGORITHM,
+    SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND, WindowsPlatform, blob_id,
+    compatibility_rank, linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags,
+    macos_tag, platform_fingerprint, validate_manifest_path, verify_blob, windows_supported_tags,
+    windows_tag,
 };
 
 fn integrity(bytes: &[u8]) -> String {
@@ -24,11 +26,26 @@ fn linux(architecture: &str, glibc_minor: u32) -> LinuxGlibcPlatform<'_> {
     LinuxGlibcPlatform { architecture, node_major: 22, glibc_major: 2, glibc_minor }
 }
 
+fn macos(architecture: &str, macos_major: u32, macos_minor: u32) -> MacOsPlatform<'_> {
+    MacOsPlatform { architecture, node_major: 22, macos_major, macos_minor }
+}
+
+fn windows(
+    architecture: &str,
+    windows_major: u32,
+    windows_minor: u32,
+    windows_build: u32,
+) -> WindowsPlatform<'_> {
+    WindowsPlatform { architecture, node_major: 22, windows_major, windows_minor, windows_build }
+}
+
 fn payload(file_integrity: String) -> ArtifactPayload {
     ArtifactPayload {
         kind: ARTIFACT_KIND.to_string(),
-        package: PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
-        source_integrity: "sha512-source".to_string(),
+        subject: ArtifactSubject::dependency_side_effects(
+            PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
+            "sha512-source",
+        ),
         input_key: "dependency-side-effects:v1:deps=abc".to_string(),
         owner: OwnerScope::organization("acme"),
         builder_id: "ci/main/42".to_string(),
@@ -50,6 +67,36 @@ fn payload(file_integrity: String) -> ArtifactPayload {
             deleted: vec!["src/intermediate.o".to_string()],
         },
     }
+}
+
+#[test]
+fn validates_subject_specific_artifact_identity() {
+    let owner = OwnerScope::organization("acme");
+    ArtifactCandidate {
+        key: "workspace-task:v1:inputs=abc".to_string(),
+        subject: ArtifactSubject::workspace_task("packages/app", "build"),
+        owner: owner.clone(),
+    }
+    .validate()
+    .unwrap();
+
+    let publisher = OwnerScope::Publisher { package: "native-addon".to_string() };
+    let workspace_task = ArtifactCandidate {
+        key: "workspace-task:v1:inputs=abc".to_string(),
+        subject: ArtifactSubject::workspace_task("packages/app", "build"),
+        owner: publisher,
+    };
+    assert!(workspace_task.validate().is_err());
+
+    let mut task_payload = payload(integrity(b"addon"));
+    task_payload.kind = WORKSPACE_TASK_ARTIFACT_KIND.to_string();
+    task_payload.input_key = "workspace-task:v1:inputs=abc".to_string();
+    task_payload.subject = ArtifactSubject::workspace_task("packages/app", "build");
+    task_payload.owner = owner;
+    task_payload.validate().unwrap();
+
+    task_payload.kind = ARTIFACT_KIND.to_string();
+    assert!(task_payload.validate().is_err());
 }
 
 #[test]
@@ -161,12 +208,12 @@ fn envelope_digest_matches_the_cross_stack_vector() {
     let envelope = SignedArtifactEnvelope {
         algorithm: SIGNATURE_ALGORITHM.to_string(),
         key_id: "acme-2026".to_string(),
-        payload: "eyJraW5kIjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djEiLCJwYWNrYWdlIjp7Im5hbWUiOiJuYXRpdmUtYWRkb24iLCJ2ZXJzaW9uIjoiMS4wLjAifSwic291cmNlSW50ZWdyaXR5Ijoic2hhNTEyLXNvdXJjZSIsImlucHV0S2V5IjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djE6ZGVwcz1hYmMiLCJvd25lciI6eyJ0eXBlIjoib3JnYW5pemF0aW9uIiwibmFtZSI6ImFjbWUifSwiYnVpbGRlcklkIjoiY2kvbWFpbi80MiIsImJ1aWxkZXJQcm9maWxlIjp7ImltYWdlRGlnZXN0Ijoic2hhMjU2OmltYWdlIiwiYXJjaGl0ZWN0dXJlQmFzZWxpbmUiOiJ4ODYtNjQtdjIiLCJlbnZpcm9ubWVudCI6eyJDRkxBR1MiOiItTzIifX0sImNvbXBhdGliaWxpdHkiOnsia2luZCI6InRhZ2dlZCIsInRhZ3MiOlsicG5wbTp2MTpsaW51eC14NjQtbm9kZTIyLWdsaWJjMi4xNyJdfSwibWFuaWZlc3QiOnsiYWRkZWQiOlt7InBhdGgiOiJidWlsZC9hZGRvbi5ub2RlIiwiaW50ZWdyaXR5Ijoic2hhNTEyLUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBPT0iLCJtb2RlIjo0OTMsInNpemUiOjV9XSwiZGVsZXRlZCI6WyJzcmMvaW50ZXJtZWRpYXRlLm8iXX19".to_string(),
+        payload: "eyJraW5kIjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djEiLCJzdWJqZWN0Ijp7ImtpbmQiOiJkZXBlbmRlbmN5LXNpZGUtZWZmZWN0cyIsInBhY2thZ2UiOnsibmFtZSI6Im5hdGl2ZS1hZGRvbiIsInZlcnNpb24iOiIxLjAuMCJ9LCJzb3VyY2VJbnRlZ3JpdHkiOiJzaGE1MTItc291cmNlIn0sImlucHV0S2V5IjoiZGVwZW5kZW5jeS1zaWRlLWVmZmVjdHM6djE6ZGVwcz1hYmMiLCJvd25lciI6eyJ0eXBlIjoib3JnYW5pemF0aW9uIiwibmFtZSI6ImFjbWUifSwiYnVpbGRlcklkIjoiY2kvbWFpbi80MiIsImJ1aWxkZXJQcm9maWxlIjp7ImltYWdlRGlnZXN0Ijoic2hhMjU2OmltYWdlIiwiYXJjaGl0ZWN0dXJlQmFzZWxpbmUiOiJ4ODYtNjQtdjIiLCJlbnZpcm9ubWVudCI6eyJDRkxBR1MiOiItTzIifX0sImNvbXBhdGliaWxpdHkiOnsia2luZCI6InRhZ2dlZCIsInRhZ3MiOlsicG5wbTp2MTpsaW51eC14NjQtbm9kZTIyLWdsaWJjMi4xNyJdfSwibWFuaWZlc3QiOnsiYWRkZWQiOlt7InBhdGgiOiJidWlsZC9hZGRvbi5ub2RlIiwiaW50ZWdyaXR5Ijoic2hhNTEyLUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBPT0iLCJtb2RlIjo0OTMsInNpemUiOjV9XSwiZGVsZXRlZCI6WyJzcmMvaW50ZXJtZWRpYXRlLm8iXX19".to_string(),
         signature: "MAYCAQECAQE=".to_string(),
     };
     assert_eq!(
         envelope.digest().unwrap(),
-        "f4d59d1718847f2188dbf1921eb72474037af978033264fd79e90426e4475f11",
+        "20b3fbc179563fc173c1bd306b8d088eb0eebb6fa40998e55d645c414f1964f5",
     );
 
     let mut noncanonical = envelope;
@@ -273,7 +320,7 @@ fn compatibility_uses_the_consumers_preference_order() {
     assert_eq!(compatibility_rank(&fallback, &supported), Some(22));
     assert_eq!(
         compatibility_rank(&CompatibilityConstraints::Universal, &supported),
-        Some(supported.len()),
+        Some(u64::MAX),
     );
     assert_eq!(
         compatibility_rank(
@@ -283,6 +330,109 @@ fn compatibility_uses_the_consumers_preference_order() {
             &supported
         ),
         None,
+    );
+}
+
+#[test]
+fn macos_compatibility_uses_product_version_floors() {
+    let supported = macos_supported_tags(macos("arm64", 15, 5)).unwrap();
+    assert_eq!(supported, ["pnpm:v1:darwin-arm64-node22-macos15.5"]);
+    assert_eq!(
+        platform_fingerprint(&supported).unwrap(),
+        "b56fa5629b56d18308bbf7978d61b9afaf862e133ad18aef31588e0888eef3f8",
+    );
+    assert_eq!(
+        compatibility_rank(
+            &CompatibilityConstraints::Tagged {
+                tags: vec![macos_tag(macos("arm64", 15, 4)).unwrap()],
+            },
+            &supported,
+        ),
+        Some(65),
+    );
+    assert_eq!(
+        compatibility_rank(
+            &CompatibilityConstraints::Tagged {
+                tags: vec![macos_tag(macos("arm64", 14, 6)).unwrap()],
+            },
+            &supported,
+        ),
+        Some(1_000_063),
+    );
+    assert_eq!(
+        compatibility_rank(
+            &CompatibilityConstraints::Tagged {
+                tags: vec![macos_tag(macos("arm64", 16, 0)).unwrap()],
+            },
+            &supported,
+        ),
+        None,
+    );
+    assert_eq!(
+        compatibility_rank(&CompatibilityConstraints::Universal, &supported),
+        Some(u64::MAX),
+    );
+
+    let multiple_supported =
+        vec![macos_tag(macos("arm64", 15, 5)).unwrap(), macos_tag(macos("arm64", 14, 6)).unwrap()];
+    assert_eq!(
+        compatibility_rank(
+            &CompatibilityConstraints::Tagged {
+                tags: vec![macos_tag(macos("arm64", 14, 6)).unwrap()],
+            },
+            &multiple_supported,
+        ),
+        Some(1),
+    );
+    assert_eq!(
+        compatibility_rank(
+            &CompatibilityConstraints::Tagged {
+                tags: vec![macos_tag(macos("arm64", 15, 4)).unwrap()],
+            },
+            &multiple_supported,
+        ),
+        Some(65),
+    );
+}
+
+#[test]
+fn windows_compatibility_uses_kernel_version_floors() {
+    let supported = windows_supported_tags(windows("x64", 10, 0, 26_100)).unwrap();
+    assert_eq!(supported, ["pnpm:v1:win32-x64-node22-windows10.0.26100"]);
+    assert_eq!(
+        platform_fingerprint(&supported).unwrap(),
+        "f5590f12a6d651acdcb3b60d7d25a5d2e1ad2f5af3e53d841391dec9e871c46e",
+    );
+    assert_eq!(
+        compatibility_rank(
+            &CompatibilityConstraints::Tagged {
+                tags: vec![windows_tag(windows("x64", 10, 0, 22_621)).unwrap()],
+            },
+            &supported,
+        ),
+        Some(3_543),
+    );
+    assert_eq!(
+        compatibility_rank(
+            &CompatibilityConstraints::Tagged {
+                tags: vec![windows_tag(windows("x64", 6, 3, 9_600)).unwrap()],
+            },
+            &supported,
+        ),
+        Some(3_997_016_564),
+    );
+    assert_eq!(
+        compatibility_rank(
+            &CompatibilityConstraints::Tagged {
+                tags: vec![windows_tag(windows("x64", 10, 0, 26_101)).unwrap()],
+            },
+            &supported,
+        ),
+        None,
+    );
+    assert_eq!(
+        compatibility_rank(&CompatibilityConstraints::Universal, &supported),
+        Some(u64::MAX),
     );
 }
 
@@ -306,6 +456,10 @@ fn compatibility_tags_and_platform_fingerprints_are_canonical() {
     for invalid in [
         "pnpm:v2:linux-x64-node22-glibc2.17",
         "pnpm:v1:darwin-x64-node22-glibc2.17",
+        "pnpm:v1:darwin-x64-node22-macos15",
+        "pnpm:v1:darwin-x64-node22-macos015.5",
+        "pnpm:v1:win32-x64-node22-windows10.0",
+        "pnpm:v1:win32-x64-node22-windows10.0.026100",
         "pnpm:v1:linux-x64-node022-glibc2.17",
         "pnpm:v1:linux-x64-node22-glibc02.17",
         "pnpm:v1:linux-x64-node22-glibc2",

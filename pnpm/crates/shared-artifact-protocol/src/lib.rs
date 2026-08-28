@@ -18,8 +18,12 @@ use p256::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256, Sha512};
 
-pub const ARTIFACT_KIND: &str = "dependency-side-effects:v1";
-pub const INPUT_KEY_PREFIX: &str = "dependency-side-effects:v1:";
+pub const DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND: &str = "dependency-side-effects:v1";
+pub const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX: &str = "dependency-side-effects:v1:";
+pub const WORKSPACE_TASK_ARTIFACT_KIND: &str = "workspace-task:v1";
+pub const WORKSPACE_TASK_INPUT_KEY_PREFIX: &str = "workspace-task:v1:";
+pub const ARTIFACT_KIND: &str = DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND;
+pub const INPUT_KEY_PREFIX: &str = DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX;
 pub const COMPATIBILITY_TAG_SCHEMA: &str = "pnpm:v1";
 pub const SIGNATURE_ALGORITHM: &str = "ecdsa-p256-sha256";
 pub const MAX_CANDIDATES: usize = 2_048;
@@ -35,6 +39,8 @@ pub const MAX_SIGNATURE_SIZE: usize = 72;
 pub const MAX_ENCODED_SIGNED_PAYLOAD_SIZE: usize = MAX_SIGNED_PAYLOAD_SIZE.div_ceil(3) * 4;
 pub const MAX_ENCODED_SIGNATURE_SIZE: usize = MAX_SIGNATURE_SIZE.div_ceil(3) * 4;
 pub const MAX_RESOLVE_RESPONSE_SIZE: usize = 16 * 1024 * 1024;
+const COMPATIBILITY_FLOOR_RANK_OFFSET: u64 = 64;
+const COMPATIBILITY_FLOOR_RANK_STRIDE: u64 = 1_000_000_000_000;
 
 #[derive(Debug, Display, Error)]
 pub enum ArtifactProtocolError {
@@ -62,12 +68,42 @@ pub struct PackageIdentity {
     pub version: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum ArtifactSubject {
+    #[serde(rename = "dependency-side-effects")]
+    DependencySideEffects {
+        package: PackageIdentity,
+        #[serde(rename = "sourceIntegrity")]
+        source_integrity: String,
+    },
+    #[serde(rename = "workspace-task")]
+    WorkspaceTask { project: String, task: String },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LinuxGlibcPlatform<'a> {
     pub architecture: &'a str,
     pub node_major: u32,
     pub glibc_major: u32,
     pub glibc_minor: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MacOsPlatform<'a> {
+    pub architecture: &'a str,
+    pub node_major: u32,
+    pub macos_major: u32,
+    pub macos_minor: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WindowsPlatform<'a> {
+    pub architecture: &'a str,
+    pub node_major: u32,
+    pub windows_major: u32,
+    pub windows_minor: u32,
+    pub windows_build: u32,
 }
 
 impl OwnerScope {
@@ -120,8 +156,7 @@ pub struct ArtifactManifest {
 #[serde(rename_all = "camelCase")]
 pub struct ArtifactPayload {
     pub kind: String,
-    pub package: PackageIdentity,
-    pub source_integrity: String,
+    pub subject: ArtifactSubject,
     pub input_key: String,
     pub owner: OwnerScope,
     pub builder_id: String,
@@ -143,8 +178,7 @@ pub struct SignedArtifactEnvelope {
 #[serde(rename_all = "camelCase")]
 pub struct ArtifactCandidate {
     pub key: String,
-    pub package: PackageIdentity,
-    pub source_integrity: String,
+    pub subject: ArtifactSubject,
     pub owner: OwnerScope,
 }
 
@@ -421,23 +455,22 @@ impl PublishArtifactRequest {
 
 impl ArtifactPayload {
     pub fn validate(&self) -> Result<(), ArtifactProtocolError> {
-        if self.kind != ARTIFACT_KIND {
+        let (artifact_kind, input_key_prefix) = self.subject.artifact_kind_and_input_key_prefix();
+        if self.kind != artifact_kind {
             return Err(ArtifactProtocolError::InvalidEnvelope(format!(
                 "unsupported artifact kind {:?}",
                 self.kind,
             )));
         }
-        if !self.input_key.starts_with(INPUT_KEY_PREFIX) {
+        if !self.input_key.starts_with(input_key_prefix) {
             return Err(ArtifactProtocolError::InvalidEnvelope(format!(
-                "input key must start with {INPUT_KEY_PREFIX:?}",
+                "input key must start with {input_key_prefix:?}",
             )));
         }
         validate_scalar("input key", &self.input_key, 4_096)?;
-        self.package.validate()?;
-        validate_scalar("source integrity", &self.source_integrity, 1_024)?;
         validate_scalar("builder id", &self.builder_id, 256)?;
         validate_owner(&self.owner)?;
-        validate_publisher_package(&self.owner, &self.package)?;
+        self.subject.validate(&self.owner)?;
         validate_builder_profile(&self.builder_profile)?;
         validate_compatibility(&self.compatibility)?;
         self.manifest.validate()
@@ -446,16 +479,61 @@ impl ArtifactPayload {
 
 impl ArtifactCandidate {
     pub fn validate(&self) -> Result<(), ArtifactProtocolError> {
-        if !self.key.starts_with(INPUT_KEY_PREFIX) {
+        let (_, input_key_prefix) = self.subject.artifact_kind_and_input_key_prefix();
+        if !self.key.starts_with(input_key_prefix) {
             return Err(ArtifactProtocolError::InvalidEnvelope(format!(
-                "input key must start with {INPUT_KEY_PREFIX:?}",
+                "input key must start with {input_key_prefix:?}",
             )));
         }
         validate_scalar("input key", &self.key, 4_096)?;
-        self.package.validate()?;
-        validate_scalar("source integrity", &self.source_integrity, 1_024)?;
         validate_owner(&self.owner)?;
-        validate_publisher_package(&self.owner, &self.package)
+        self.subject.validate(&self.owner)
+    }
+}
+
+impl ArtifactSubject {
+    #[must_use]
+    pub fn dependency_side_effects(
+        package: PackageIdentity,
+        source_integrity: impl Into<String>,
+    ) -> Self {
+        Self::DependencySideEffects { package, source_integrity: source_integrity.into() }
+    }
+
+    #[must_use]
+    pub fn workspace_task(project: impl Into<String>, task: impl Into<String>) -> Self {
+        Self::WorkspaceTask { project: project.into(), task: task.into() }
+    }
+
+    fn artifact_kind_and_input_key_prefix(&self) -> (&'static str, &'static str) {
+        match self {
+            Self::DependencySideEffects { .. } => {
+                (DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND, DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX)
+            }
+            Self::WorkspaceTask { .. } => {
+                (WORKSPACE_TASK_ARTIFACT_KIND, WORKSPACE_TASK_INPUT_KEY_PREFIX)
+            }
+        }
+    }
+
+    fn validate(&self, owner: &OwnerScope) -> Result<(), ArtifactProtocolError> {
+        match self {
+            Self::DependencySideEffects { package, source_integrity } => {
+                package.validate()?;
+                validate_scalar("source integrity", source_integrity, 1_024)?;
+                validate_publisher_package(owner, package)
+            }
+            Self::WorkspaceTask { project, task } => {
+                validate_scalar("workspace project", project, 4_096)?;
+                validate_scalar("workspace task", task, 256)?;
+                if matches!(owner, OwnerScope::Publisher { .. }) {
+                    return Err(ArtifactProtocolError::InvalidEnvelope(
+                        "workspace task artifacts require an organization owner".to_string(),
+                    ));
+                }
+                Ok(())
+            }
+        }
     }
 }
 
@@ -611,13 +689,38 @@ pub fn verify_blob(integrity: &str, bytes: &[u8]) -> Result<(), ArtifactProtocol
 pub fn compatibility_rank(
     constraints: &CompatibilityConstraints,
     supported_tags: &[String],
-) -> Option<usize> {
+) -> Option<u64> {
     validate_supported_tags(supported_tags).ok()?;
+    compatibility_rank_prevalidated(constraints, supported_tags)
+}
+
+#[must_use]
+pub fn compatibility_rank_prevalidated(
+    constraints: &CompatibilityConstraints,
+    supported_tags: &[String],
+) -> Option<u64> {
     match constraints {
-        CompatibilityConstraints::Universal => Some(supported_tags.len()),
-        CompatibilityConstraints::Tagged { tags } => {
-            supported_tags.iter().position(|supported| tags.iter().any(|tag| tag == supported))
-        }
+        CompatibilityConstraints::Universal => Some(u64::MAX),
+        CompatibilityConstraints::Tagged { tags } => supported_tags
+            .iter()
+            .enumerate()
+            .flat_map(|(index, supported)| {
+                tags.iter().filter_map(move |artifact| {
+                    if artifact == supported {
+                        return u64::try_from(index).ok();
+                    }
+                    let distance = version_floor_rank(
+                        parse_compatibility_tag(supported).ok()?,
+                        parse_compatibility_tag(artifact).ok()?,
+                    )?;
+                    u64::try_from(index)
+                        .ok()?
+                        .checked_mul(COMPATIBILITY_FLOOR_RANK_STRIDE)?
+                        .checked_add(COMPATIBILITY_FLOOR_RANK_OFFSET)?
+                        .checked_add(distance)
+                })
+            })
+            .min(),
     }
 }
 
@@ -652,6 +755,37 @@ pub fn linux_glibc_supported_tags(
             })
         })
         .collect()
+}
+
+pub fn macos_tag(platform: MacOsPlatform<'_>) -> Result<String, ArtifactProtocolError> {
+    let MacOsPlatform { architecture, node_major, macos_major, macos_minor } = platform;
+    let tag = format!(
+        "{COMPATIBILITY_TAG_SCHEMA}:darwin-{architecture}-node{node_major}-macos{macos_major}.{macos_minor}",
+    );
+    validate_compatibility_tag(&tag)?;
+    Ok(tag)
+}
+
+pub fn macos_supported_tags(
+    platform: MacOsPlatform<'_>,
+) -> Result<Vec<String>, ArtifactProtocolError> {
+    Ok(vec![macos_tag(platform)?])
+}
+
+pub fn windows_tag(platform: WindowsPlatform<'_>) -> Result<String, ArtifactProtocolError> {
+    let WindowsPlatform { architecture, node_major, windows_major, windows_minor, windows_build } =
+        platform;
+    let tag = format!(
+        "{COMPATIBILITY_TAG_SCHEMA}:win32-{architecture}-node{node_major}-windows{windows_major}.{windows_minor}.{windows_build}",
+    );
+    validate_compatibility_tag(&tag)?;
+    Ok(tag)
+}
+
+pub fn windows_supported_tags(
+    platform: WindowsPlatform<'_>,
+) -> Result<Vec<String>, ArtifactProtocolError> {
+    Ok(vec![windows_tag(platform)?])
 }
 
 pub fn platform_fingerprint(supported_tags: &[String]) -> Result<String, ArtifactProtocolError> {
@@ -739,30 +873,142 @@ fn validate_compatibility(
 }
 
 fn validate_compatibility_tag(tag: &str) -> Result<(), ArtifactProtocolError> {
+    parse_compatibility_tag(tag).map(|_| ())
+}
+
+enum ParsedCompatibilityTag<'a> {
+    Linux,
+    MacOs(MacOsPlatform<'a>),
+    Windows(WindowsPlatform<'a>),
+}
+
+fn parse_compatibility_tag(tag: &str) -> Result<ParsedCompatibilityTag<'_>, ArtifactProtocolError> {
     validate_scalar("compatibility tag", tag, 512)?;
     let Some(platform) = tag.strip_prefix("pnpm:v1:") else {
         return Err(invalid_tag("unknown compatibility tag schema"));
     };
     let mut parts = platform.split('-');
-    let (Some(os), Some(architecture), Some(node), Some(libc), None) =
+    let (Some(os), Some(architecture), Some(node), Some(runtime), None) =
         (parts.next(), parts.next(), parts.next(), parts.next(), parts.next())
     else {
         return Err(invalid_tag("compatibility tag has the wrong number of dimensions"));
     };
-    if os != "linux" || !matches!(architecture, "x64" | "arm64") {
-        return Err(invalid_tag("v1 only defines Linux x64 and arm64 tags"));
+    if !matches!(architecture, "x64" | "arm64") {
+        return Err(invalid_tag("v1 only defines x64 and arm64 tags"));
     }
-    parse_canonical_number(
+    let node_major = parse_canonical_number(
         node.strip_prefix("node").ok_or_else(|| invalid_tag("missing Node dimension"))?,
         "Node major version",
         false,
     )?;
-    let libc = libc.strip_prefix("glibc").ok_or_else(|| invalid_tag("missing glibc floor"))?;
-    let (major, minor) =
-        libc.split_once('.').ok_or_else(|| invalid_tag("glibc floor must be major.minor"))?;
-    parse_canonical_number(major, "glibc major version", false)?;
-    parse_canonical_number(minor, "glibc minor version", true)?;
-    Ok(())
+    match os {
+        "linux" => {
+            let libc =
+                runtime.strip_prefix("glibc").ok_or_else(|| invalid_tag("missing glibc floor"))?;
+            let (major, minor) = libc
+                .split_once('.')
+                .ok_or_else(|| invalid_tag("glibc floor must be major.minor"))?;
+            parse_canonical_number(major, "glibc major version", false)?;
+            parse_canonical_number(minor, "glibc minor version", true)?;
+            Ok(ParsedCompatibilityTag::Linux)
+        }
+        "darwin" => {
+            let macos =
+                runtime.strip_prefix("macos").ok_or_else(|| invalid_tag("missing macOS floor"))?;
+            let (major, minor) = macos
+                .split_once('.')
+                .ok_or_else(|| invalid_tag("macOS floor must be major.minor"))?;
+            let macos_major = parse_macos_version_component(major, "macOS major version", false)?;
+            let macos_minor = parse_macos_version_component(minor, "macOS minor version", true)?;
+            Ok(ParsedCompatibilityTag::MacOs(MacOsPlatform {
+                architecture,
+                node_major,
+                macos_major,
+                macos_minor,
+            }))
+        }
+        "win32" => {
+            let windows = runtime
+                .strip_prefix("windows")
+                .ok_or_else(|| invalid_tag("missing Windows floor"))?;
+            let mut components = windows.split('.');
+            let (Some(major), Some(minor), Some(build), None) =
+                (components.next(), components.next(), components.next(), components.next())
+            else {
+                return Err(invalid_tag("Windows floor must be major.minor.build"));
+            };
+            let windows_major =
+                parse_windows_version_component(major, "Windows major version", false, 1_000)?;
+            let windows_minor =
+                parse_windows_version_component(minor, "Windows minor version", true, 1_000)?;
+            let windows_build =
+                parse_windows_version_component(build, "Windows build number", false, 1_000_000)?;
+            Ok(ParsedCompatibilityTag::Windows(WindowsPlatform {
+                architecture,
+                node_major,
+                windows_major,
+                windows_minor,
+                windows_build,
+            }))
+        }
+        _ => Err(invalid_tag("v1 only defines Linux, macOS, and Windows tags")),
+    }
+}
+
+fn parse_macos_version_component(
+    value: &str,
+    label: &str,
+    allow_zero: bool,
+) -> Result<u32, ArtifactProtocolError> {
+    let number = parse_canonical_number(value, label, allow_zero)?;
+    if number >= 1_000_000 {
+        return Err(invalid_tag(&format!("{label} is too large")));
+    }
+    Ok(number)
+}
+
+fn macos_version_rank(platform: MacOsPlatform<'_>) -> u64 {
+    u64::from(platform.macos_major) * 1_000_000 + u64::from(platform.macos_minor)
+}
+
+fn parse_windows_version_component(
+    value: &str,
+    label: &str,
+    allow_zero: bool,
+    exclusive_maximum: u32,
+) -> Result<u32, ArtifactProtocolError> {
+    let number = parse_canonical_number(value, label, allow_zero)?;
+    if number >= exclusive_maximum {
+        return Err(invalid_tag(&format!("{label} is too large")));
+    }
+    Ok(number)
+}
+
+fn windows_version_rank(platform: WindowsPlatform<'_>) -> u64 {
+    u64::from(platform.windows_major) * 1_000_000_000
+        + u64::from(platform.windows_minor) * 1_000_000
+        + u64::from(platform.windows_build)
+}
+
+fn version_floor_rank(
+    consumer: ParsedCompatibilityTag<'_>,
+    artifact: ParsedCompatibilityTag<'_>,
+) -> Option<u64> {
+    match (consumer, artifact) {
+        (ParsedCompatibilityTag::MacOs(consumer), ParsedCompatibilityTag::MacOs(artifact))
+            if consumer.architecture == artifact.architecture
+                && consumer.node_major == artifact.node_major =>
+        {
+            macos_version_rank(consumer).checked_sub(macos_version_rank(artifact))
+        }
+        (ParsedCompatibilityTag::Windows(consumer), ParsedCompatibilityTag::Windows(artifact))
+            if consumer.architecture == artifact.architecture
+                && consumer.node_major == artifact.node_major =>
+        {
+            windows_version_rank(consumer).checked_sub(windows_version_rank(artifact))
+        }
+        _ => None,
+    }
 }
 
 fn parse_canonical_number(

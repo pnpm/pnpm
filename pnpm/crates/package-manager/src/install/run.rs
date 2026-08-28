@@ -507,6 +507,33 @@ where
             "phase complete",
         );
 
+        // Spawn the installability host detection (`node --version`,
+        // ~150 ms of node startup) as soon as the wanted lockfile is
+        // parsed, so the probe overlaps planning on the frozen path and
+        // the whole resolution on the fresh path. A constraint-free
+        // lockfile spawns nothing — the probe's result would go unused
+        // (see `detect_installability_host` for why that matters) —
+        // and neither does `--force` (skips the checks) or a
+        // resolve-only pass (returns before them). The scan is of the
+        // *wanted* lockfile: a fresh resolve whose new graph gains
+        // constraints the old lockfile lacked just detects the host at
+        // its own site, as before.
+        let early_host_detection = (!config.force
+            && !resolve_only
+            && lockfile.is_some_and(|lockfile| match (&lockfile.snapshots, &lockfile.packages) {
+                (Some(snapshots), Some(packages)) if !snapshots.is_empty() => {
+                    pnpm_deps_restorer::any_installability_constraint(snapshots, packages)
+                }
+                _ => false,
+            }))
+        .then(|| {
+            pnpm_deps_restorer::materialization_plan::HostDetection::spawn(
+                config.engine_strict,
+                super::effective_node_version(config, manifest),
+                supported_architectures.clone(),
+            )
+        });
+
         // Register the project against the shared store for prune
         // tracking, once per install at the workspace root. Register
         // the workspace root once, not per importer — store prune walks
@@ -1113,6 +1140,7 @@ where
             mutation,
             current_lockfile: current_lockfile.as_ref(),
             supported_architectures: supported_architectures.as_ref(),
+            early_host_detection,
             skip_runtimes,
             modules_manifest,
             prior_hoisted_dependencies,
@@ -1141,6 +1169,7 @@ where
         })
         .await?;
 
+        let phase_start = std::time::Instant::now();
         apply_materialization_result::<Reporter>(ApplyMaterializationInputs {
             resolve_only,
             dry_run,
@@ -1181,6 +1210,12 @@ where
             verified_file_integrity_baseline,
         })
         .await?;
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "apply_materialization_result",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
 
         // Only now wait out the store-index writer's teardown — its
         // final flush and the WAL checkpoint `SQLite` runs when the

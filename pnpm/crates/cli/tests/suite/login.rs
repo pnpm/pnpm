@@ -236,3 +236,66 @@ fn a_login_writes_a_config_the_reader_reads_back() {
     assert!(!stdout.contains(TOKEN), "the token must not be listed; got:\n{stdout}");
     drop(root);
 }
+
+/// A project `pnpm-workspace.yaml` cannot choose the scope `pnpm login`
+/// persists, and the user is told the setting was dropped rather than left to
+/// wonder why their token came back unscoped. Spawns the real binary because
+/// the warning's whole point is that it reaches stderr.
+/// See <https://github.com/pnpm/pnpm/issues/13557>.
+#[test]
+fn a_workspace_yaml_scope_is_ignored_and_reported_on_stderr() {
+    let mut server = mockito::Server::new();
+    let registry = server.url();
+    let done = server
+        .mock("GET", "/-/v1/done")
+        .with_status(200)
+        .with_body(serde_json::json!({ "token": "cli-headless-token" }).to_string())
+        .create();
+    let login = server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(
+            serde_json::json!({
+                "loginUrl": format!("{registry}/auth/login"),
+                "doneUrl": format!("{registry}/-/v1/done"),
+            })
+            .to_string(),
+        )
+        .create();
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "scope: '@acme'\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let output = pacquet
+        .with_env("XDG_CONFIG_HOME", root.path())
+        .with_arg("login")
+        .with_arg("--registry")
+        .with_arg(format!("{registry}/"))
+        .output()
+        .expect("spawn pacquet login");
+
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(output.status.success(), "`pacquet login` must still succeed; stderr:\n{stderr}");
+    assert_eq!(
+        stderr
+            .matches(
+                r#"were ignored: "scope" (Set it for the machine instead: pnpm config set --global scope)."#
+            )
+            .count(),
+        1,
+        "stderr must name the dropped scope and where it belongs, exactly once; got:\n{stderr}",
+    );
+    let document = root
+        .path()
+        .join("pnpm")
+        .join("config.yaml")
+        .pipe(fs::read_to_string)
+        .expect("login writes config.yaml");
+    assert!(
+        !document.contains("@acme"),
+        "the repo scope must not reach the recorded login; got:\n{document}",
+    );
+    login.assert();
+    done.assert();
+    drop(root);
+}

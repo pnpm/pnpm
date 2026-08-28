@@ -52,17 +52,44 @@ use std::{
     collections::HashMap,
     fs, io,
     path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, AtomicU8, Ordering},
+    sync::{
+        Arc, OnceLock,
+        atomic::{AtomicBool, AtomicU8, Ordering},
+    },
 };
+
+/// The engine name that keys the cache's canonical slots — the same
+/// value a GVS-enabled install computes (see
+/// [`crate::materialization_plan::resolve_engine_name`]), so the slot
+/// hashes agree between the two modes.
+pub enum EngineNameSource {
+    /// Known when the cache is built: a lockfile `node@runtime:` pin or
+    /// an already-detected host.
+    Ready(Option<String>),
+    /// A `node --version` probe still in flight (see
+    /// [`crate::materialization_plan::DeferredEngineName::shared`]).
+    /// Keeping the probe unresolved here is what lets it overlap the
+    /// virtual-store partition and warm-batch I/O instead of
+    /// serializing before them.
+    Pending(Arc<OnceLock<Option<String>>>),
+}
 
 /// See the [module documentation](self) for what the cache is and when
 /// it applies.
-pub struct DirCloneCache {
+pub struct DirCloneCache<'install> {
     /// GVS-shaped layout rooted at `Config::global_virtual_store_dir`
     /// (`<store_dir>/links` unless pinned), built via
     /// [`VirtualStoreLayout::global`] so canonical slots coincide with
-    /// the slots a GVS-enabled install materializes.
-    layout: VirtualStoreLayout,
+    /// the slots a GVS-enabled install materializes. Built on first
+    /// use — see [`Self::layout`].
+    layout: OnceLock<VirtualStoreLayout>,
+    global_virtual_store_dir: PathBuf,
+    virtual_store_dir_max_length: usize,
+    engine: EngineNameSource,
+    snapshots: Option<&'install HashMap<PackageKey, SnapshotEntry>>,
+    packages: Option<&'install HashMap<PackageKey, PackageMetadata>>,
+    allow_build_policy: Option<&'install AllowBuildPolicy>,
+    lockfile_dir: Option<&'install Path>,
     /// Under `frozenStore` the store is read-only: the cache may serve
     /// canonical slots that already exist but must not populate new
     /// ones.
@@ -70,11 +97,10 @@ pub struct DirCloneCache {
     disabled: AtomicBool,
 }
 
-impl DirCloneCache {
+impl<'install> DirCloneCache<'install> {
     /// Whether this install's configuration can use the cache at all.
-    /// Split from [`Self::build`] so the install entry points can know
-    /// up front that the layout below will need the engine name
-    /// synchronously.
+    /// Checked by [`Self::build`]; public so tests can pin the gate on
+    /// its own.
     #[must_use]
     pub fn eligible(config: &Config, node_linker: NodeLinker) -> bool {
         cfg!(target_os = "macos")
@@ -90,19 +116,15 @@ impl DirCloneCache {
 
     /// Build the cache for one install, or `None` when
     /// [`Self::eligible`] says the configuration can't use it.
-    ///
-    /// `engine` must be the same value a GVS-enabled install would
-    /// compute (see `resolve_engine_name`), so the canonical slot
-    /// hashes agree between the two modes.
     #[must_use]
     pub fn build(
         config: &Config,
         node_linker: NodeLinker,
-        engine: Option<&str>,
-        snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
-        packages: Option<&HashMap<PackageKey, PackageMetadata>>,
-        allow_build_policy: Option<&AllowBuildPolicy>,
-        lockfile_dir: Option<&Path>,
+        engine: EngineNameSource,
+        snapshots: Option<&'install HashMap<PackageKey, SnapshotEntry>>,
+        packages: Option<&'install HashMap<PackageKey, PackageMetadata>>,
+        allow_build_policy: Option<&'install AllowBuildPolicy>,
+        lockfile_dir: Option<&'install Path>,
     ) -> Option<Self> {
         if !Self::eligible(config, node_linker) {
             return None;
@@ -122,17 +144,40 @@ impl DirCloneCache {
             return None;
         }
         Some(DirCloneCache {
-            layout: VirtualStoreLayout::global(
-                config.global_virtual_store_dir.clone(),
-                config.virtual_store_dir_max_length as usize,
-                engine,
-                snapshots,
-                packages,
-                allow_build_policy,
-                lockfile_dir,
-            ),
+            layout: OnceLock::new(),
+            global_virtual_store_dir: config.global_virtual_store_dir.clone(),
+            virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
+            engine,
+            snapshots,
+            packages,
+            allow_build_policy,
+            lockfile_dir,
             frozen_store: config.frozen_store,
             disabled: AtomicBool::new(false),
+        })
+    }
+
+    /// The canonical-slot layout, built on the first call. Deferred to
+    /// here so a still-running `node --version` probe overlaps the
+    /// virtual-store partition and warm-batch I/O that run between
+    /// [`Self::build`] and the first [`Self::try_import`]. May block on
+    /// that probe, so it must only run on a worker thread — which
+    /// [`Self::try_import`]'s calling convention already guarantees.
+    fn layout(&self) -> &VirtualStoreLayout {
+        self.layout.get_or_init(|| {
+            let engine = match &self.engine {
+                EngineNameSource::Ready(name) => name.clone(),
+                EngineNameSource::Pending(slot) => slot.wait().clone(),
+            };
+            VirtualStoreLayout::global(
+                self.global_virtual_store_dir.clone(),
+                self.virtual_store_dir_max_length,
+                engine.as_deref(),
+                self.snapshots,
+                self.packages,
+                self.allow_build_policy,
+                self.lockfile_dir,
+            )
         })
     }
 
@@ -143,6 +188,11 @@ impl DirCloneCache {
     /// import instead. Never fails the install: the per-file path can
     /// succeed where the cache cannot (and reports its own errors when
     /// it can't).
+    ///
+    /// Must be called from a worker thread (the link pass runs on
+    /// rayon, under `block_in_place` on the multi-thread runtime): the
+    /// first call may block on the deferred engine probe while it
+    /// builds the layout — see `Self::layout`.
     pub fn try_import<Reporter: self::Reporter>(
         &self,
         logged_methods: &AtomicU8,
@@ -165,7 +215,7 @@ impl DirCloneCache {
         // Only a hash-suffixed canonical slot is content-addressed;
         // a snapshot the layout has no precomputed suffix for goes
         // through the per-file import.
-        let Some(slot_dir) = self.layout.hashed_slot_dir(package_key) else {
+        let Some(slot_dir) = self.layout().hashed_slot_dir(package_key) else {
             return false;
         };
         let canonical_node_modules = slot_dir.join("node_modules");

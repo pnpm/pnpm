@@ -80,6 +80,7 @@ libc = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 same-file   = { workspace = true }
+sysinfo     = { workspace = true }
 windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
 
 [lints]

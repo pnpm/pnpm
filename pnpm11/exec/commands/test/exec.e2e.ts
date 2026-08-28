@@ -651,6 +651,56 @@ test('pnpm recursive exec --resume-from should work', async () => {
   expect(server.getLines().sort()).toEqual(['project-2', 'project-3', 'project-4'])
 })
 
+test('recursive exec resumes from exactly the projects that passed before a failure', async () => {
+  preparePackages([
+    {
+      name: 'dependency',
+      version: '1.0.0',
+    },
+    {
+      name: 'anchor',
+      version: '1.0.0',
+      dependencies: {
+        dependency: '1',
+      },
+    },
+    {
+      name: 'completed',
+      version: '1.0.0',
+    },
+  ])
+  await fs.promises.writeFile('fail', '')
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const command = [
+    'node',
+    '-e',
+    "const fs = require('fs'); const name = require('path').basename(process.cwd()); fs.appendFileSync('../order.log', `${name}\\n`); if (name === 'dependency' && fs.existsSync('../fail')) process.exit(1)",
+  ]
+  const opts = {
+    ...DEFAULT_OPTS,
+    bail: false,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    sort: true,
+    workspaceConcurrency: 1,
+    workspaceDir: process.cwd(),
+  }
+
+  await expect(exec.handler(opts, command)).rejects.toMatchObject({ code: 'ERR_PNPM_RECURSIVE_FAIL' })
+  const firstRun = (await fs.promises.readFile('order.log', 'utf8')).trim().split('\n')
+  expect([...firstRun].sort()).toStrictEqual(['completed', 'dependency'])
+
+  await fs.promises.rm('fail')
+  await exec.handler({ ...opts, bail: true, resumeFrom: 'anchor' }, command)
+
+  expect((await fs.promises.readFile('order.log', 'utf8')).trim().split('\n')).toStrictEqual([
+    ...firstRun,
+    'dependency',
+    'anchor',
+  ])
+})
+
 test('should throw error when the package specified by resume-from does not exist', async () => {
   preparePackages([
     {

@@ -5,8 +5,7 @@ use super::{
     LogEvent, LogLevel, MemCache, NodeLinker, PackageManifest, Path, PathBuf, PeerIssuesSink,
     PnpmLog, ProjectMutation, RebuildOptions, Reporter, ResolutionVerifier, ResolvedPackages,
     ThrottledClient, UpdateSeedPolicy, build_workspace_packages_map, map_fresh_lockfile_error,
-    map_frozen_lockfile_error, node_version_from_engines_runtime, record_lockfile_verified,
-    verify_lockfile_eagerly,
+    map_frozen_lockfile_error, record_lockfile_verified, verify_lockfile_eagerly,
 };
 
 pub(super) struct MaterializationInputs<'a, 'install> {
@@ -38,6 +37,11 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) current_lockfile: Option<&'a Lockfile>,
     pub(super) supported_architectures:
         Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
+    /// A host detection spawned right after the wanted lockfile parse —
+    /// see [`pnpm_deps_restorer::materialization_plan::HostDetection::spawn`].
+    /// Handed to whichever install path runs.
+    pub(super) early_host_detection:
+        Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
     pub(super) skip_runtimes: bool,
     pub(super) modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,
     pub(super) prior_hoisted_dependencies: Option<&'a HoistedDependencies>,
@@ -117,6 +121,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         mutation,
         current_lockfile,
         supported_architectures,
+        early_host_detection,
         skip_runtimes,
         modules_manifest,
         prior_hoisted_dependencies,
@@ -146,8 +151,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
     let ignored_builds: Vec<String>;
     let deferred_builds: Vec<String>;
     let injected_deps: BTreeMap<String, Vec<String>>;
-    let effective_node_version =
-        config.node_version.clone().or_else(|| node_version_from_engines_runtime(manifest.value()));
+    let effective_node_version = super::effective_node_version(config, manifest);
     let (
         hoisted_dependencies,
         hoisted_locations,
@@ -285,6 +289,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             supported_architectures,
             skip_runtimes,
             node_version: effective_node_version.clone(),
+            early_host_detection,
             node_linker,
             tarball_mem_cache: Some(&tarball_mem_cache),
             seed_skipped: modules_manifest.map(|manifest| manifest.skipped.clone()),
@@ -409,6 +414,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             wanted_lockfile: lockfile,
             merge_wanted_lockfile,
             node_version: effective_node_version,
+            early_host_detection,
             node_linker,
             supported_architectures,
             lockfile_only: resolve_only,

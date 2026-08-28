@@ -419,6 +419,38 @@ pub fn npmrc_auth_file_override_supplies_auth() {
     );
 }
 
+/// The `.npmrc` an `npmrcAuthFile` points at is trusted, so its `_auth`
+/// authenticates the package-manager bootstrap too — the path a
+/// `devEngines` pin resolves `@pnpm/exe` through (pnpm/pnpm#14257).
+#[test]
+pub fn npmrc_auth_file_override_supplies_basic_auth_to_bootstrap() {
+    let project = tempdir().expect("project tempdir");
+    let auth = tempdir().expect("auth tempdir");
+    let auth_file = auth.path().join("custom-npmrc");
+    let pair = pnpm_network::base64_encode("alice:p@ss");
+    fs::write(
+        &auth_file,
+        format!(
+            "registry=https://registry.example.com/\n\
+             //registry.example.com/:_auth={pair}\n",
+        ),
+    )
+    .expect("write auth file");
+
+    let config = Config { npmrc_auth_file: Some(auth_file), ..Config::default() }
+        .current::<HostNoHome>(project.path())
+        .expect("load config");
+
+    assert_eq!(
+        config
+            .package_manager_bootstrap
+            .auth_headers
+            .for_url_with_package("https://registry.example.com/@pnpm%2Fexe", Some("@pnpm/exe"))
+            .as_deref(),
+        Some(format!("Basic {pair}").as_str()),
+    );
+}
+
 /// Write a `.npmrc` that declares its own registry plus an unscoped
 /// `_authToken`, so the token pins to that registry — the shape the
 /// precedence assertions check the winning file by.
@@ -2091,13 +2123,48 @@ pub fn pnpm_workspace_yaml_registry_overrides_npmrc_registry() {
     assert_eq!(config.registry, "https://from-yaml.test/");
 }
 
+/// See [`crate::refused_keys`] for why a repository-committed file must not be
+/// able to choose the login scope.
 #[test]
-pub fn pnpm_workspace_yaml_supplies_the_login_scope() {
+pub fn pnpm_workspace_yaml_cannot_supply_the_login_scope() {
     let tmp = tempdir().unwrap();
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "scope: '@from-yaml'\n")
         .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
-    assert_eq!(config.scope.as_deref(), Some("@from-yaml"));
+    assert_eq!(config.scope, None);
+    assert_eq!(config.workspace_key_issues.refused, vec!["scope".to_owned()]);
+}
+
+#[test]
+pub fn global_config_yaml_supplies_the_login_scope_over_workspace_yaml() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), "scope: '@from-global-config'\n")
+        .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "scope: '@from-yaml'\n")
+        .expect("write pnpm-workspace.yaml");
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.scope.as_deref(), Some("@from-global-config"));
+}
+
+#[test]
+pub fn pnpm_config_scope_env_var_overrides_the_login_scope_in_workspace_yaml() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "scope: '@from-yaml'\n")
+        .expect("write pnpm-workspace.yaml");
+    set_fake_env(&[("PNPM_CONFIG_SCOPE", "@from-env")]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.scope.as_deref(), Some("@from-env"));
 }
 
 #[test]
@@ -4217,4 +4284,133 @@ pub fn a_detached_head_leaves_the_install_on_the_shared_lockfile() {
     assert!(config.use_git_branch_lockfile);
     assert_eq!(config.git_branch_lockfile_name, None);
     assert_eq!(config.wanted_lockfile_name(), "pnpm-lock.yaml");
+}
+
+/// Writing a global `config.yaml` whose `_auth` credits `registry` and the
+/// project manifest `project_yaml`, then loading config from that project.
+fn load_with_auth_file(auth_yaml: &str, project_yaml: Option<&str>) -> Config {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), auth_yaml).expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    if let Some(project_yaml) = project_yaml {
+        fs::write(project.path().join("pnpm-workspace.yaml"), project_yaml)
+            .expect("write pnpm-workspace.yaml");
+    }
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+
+    load_with_fake_env(project.path())
+}
+
+const STORED_LOGIN: &str = "\
+_auth:
+  https://private.example/:
+    '@': { authToken: stored-token }
+    '@org': { authToken: stored-org-token }
+";
+
+/// The global config file's `_auth` is where a `pnpm login` stores what it
+/// was granted. Holding a credential for a registry is not a statement that
+/// packages come from it, so a project that declares its own registry keeps
+/// it.
+#[test]
+pub fn a_declared_registry_beats_the_global_auth_file() {
+    let config =
+        load_with_auth_file(STORED_LOGIN, Some("registry: https://project-choice.example/\n"));
+
+    assert_eq!(config.registry, "https://project-choice.example/");
+    // The credential still reaches the registry it was written for.
+    assert_eq!(
+        config.auth_tokens_by_uri.get("//private.example/").map(String::as_str),
+        Some("stored-token"),
+    );
+}
+
+#[test]
+pub fn a_declared_scope_route_beats_the_global_auth_file() {
+    let config = load_with_auth_file(
+        STORED_LOGIN,
+        Some("registries:\n  https://project-org.example/:\n    scopes: ['@org']\n"),
+    );
+
+    assert_eq!(
+        config.registries_by_scope.get("@org").map(String::as_str),
+        Some("https://project-org.example/"),
+    );
+}
+
+/// Only what something else declares is kept back; the stored credential
+/// still supplies a route nothing competes for.
+#[test]
+pub fn the_global_auth_file_routes_what_nothing_else_declares() {
+    let config = load_with_auth_file(STORED_LOGIN, None);
+
+    assert_eq!(config.registry, "https://private.example/");
+    assert_eq!(
+        config.registries_by_scope.get("@org").map(String::as_str),
+        Some("https://private.example/"),
+    );
+}
+
+/// Whether a registry was declared is a question about the key, not its
+/// value: pinning the one a lower layer already resolved to is still a
+/// declaration, and a stored credential must not quietly replace it.
+#[test]
+pub fn a_registry_pinned_to_the_default_still_beats_the_global_auth_file() {
+    let config = load_with_auth_file(STORED_LOGIN, Some("registry: https://registry.npmjs.org/\n"));
+
+    assert_eq!(config.registry, "https://registry.npmjs.org/");
+}
+
+/// A `registries` map naming the default registry declares it as plainly as
+/// a `registry:` does, and is recorded under a different key, so asking only
+/// about `registry` would miss it.
+#[test]
+pub fn a_registries_map_declaring_the_default_beats_the_global_auth_file() {
+    let config = load_with_auth_file(
+        STORED_LOGIN,
+        Some("registries:\n  https://declared.example/:\n    scopes: ['@']\n"),
+    );
+
+    assert_eq!(config.registry, "https://declared.example/");
+}
+
+/// An `.npmrc` route is what the cascade resolved, not what a config file
+/// declared, so the stored credential's route outranks it — as it does in
+/// pnpm's `config.reader`.
+#[test]
+pub fn the_global_auth_file_outranks_an_npmrc_scope_route() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), STORED_LOGIN).expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join(".npmrc"), "@org:registry=https://from-npmrc.example/\n")
+        .expect("write .npmrc");
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.registries_by_scope.get("@org").map(String::as_str),
+        Some("https://private.example/"),
+    );
+}
+
+/// The older `registries: { default: … }` spelling names the default
+/// registry as much as a declaration routing the bare `@` does, and the
+/// reader treats it that way, so the declaration must be seen through it too.
+#[test]
+pub fn a_legacy_default_registries_key_beats_the_global_auth_file() {
+    let config = load_with_auth_file(
+        STORED_LOGIN,
+        Some("registries:\n  default: https://legacy-declared.example/\n"),
+    );
+
+    assert_eq!(config.registry, "https://legacy-declared.example/");
 }

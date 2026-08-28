@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { createHash, generateKeyPairSync } from 'node:crypto'
 import fs from 'node:fs/promises'
 import { createServer } from 'node:http'
@@ -12,11 +13,13 @@ import {
   type ArtifactPayload,
   createRemoteSideEffectsRestorer,
   createSignedArtifactEnvelope,
+  type DependencySideEffectsCandidate,
   linuxGlibcCompatibilityTag,
-  type LinuxGlibcPlatform,
+  macOSCompatibilityTag,
   publishBuiltSharedSideEffects,
   type SignedArtifactEnvelope,
   verifySignedArtifactEnvelope,
+  windowsCompatibilityTag,
 } from '@pnpm/pnpr.client'
 import type { PackageFilesResponse, SideEffectsDiff, StoreController } from '@pnpm/store.controller-types'
 import type { DepPath } from '@pnpm/types'
@@ -30,8 +33,8 @@ const builtFile = Buffer.from('compiled native addon')
 const builtFileIntegrity = `sha512-${createHash('sha512').update(builtFile).digest('base64')}`
 describe('install remote side-effects', () => {
   test('hydrates the store and selects a verified remote build', async () => {
-    const platform = currentLinuxGlibcPlatform()
-    if (platform == null) return
+    const compatibilityTag = currentArtifactCompatibilityTag()
+    if (compatibilityTag == null) return
 
     const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
     const trustedKeys = {
@@ -53,13 +56,12 @@ describe('install remote side-effects', () => {
         }
         if (request.url === '/-/pnpr/v0/artifacts/resolve') {
           const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
-            candidates: Array<Pick<ArtifactPayload, 'inputKey' | 'package' | 'sourceIntegrity' | 'owner'> & { key: string }>
+            candidates: DependencySideEffectsCandidate[]
           }
           const envelopes = body.candidates.map((candidate) => {
             const payload: ArtifactPayload = {
               kind: 'dependency-side-effects:v1',
-              package: candidate.package,
-              sourceIntegrity: candidate.sourceIntegrity,
+              subject: candidate.subject,
               inputKey: candidate.key,
               owner: candidate.owner,
               builderId: 'ci/main/42',
@@ -69,7 +71,7 @@ describe('install remote side-effects', () => {
               },
               compatibility: {
                 kind: 'tagged',
-                tags: [linuxGlibcCompatibilityTag(platform)],
+                tags: [compatibilityTag],
               },
               manifest: {
                 added: [
@@ -824,7 +826,7 @@ describe('install remote side-effects', () => {
   })
 
   test('publishes a signed build diff produced by install', async () => {
-    if (currentLinuxGlibcPlatform() == null) return
+    if (currentArtifactCompatibilityTag() == null) return
 
     const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
     let publishedBody: Buffer | undefined
@@ -887,8 +889,11 @@ describe('install remote side-effects', () => {
         publicKey.export({ format: 'der', type: 'spki' }).toString('base64')
       )
       expect(payload.inputKey).toBe(published.key)
-      expect(payload.package).toEqual({ name: packageName, version: packageVersion })
-      expect(payload.sourceIntegrity).toBe(sourceIntegrity)
+      expect(payload.subject).toEqual({
+        kind: 'dependency-side-effects',
+        package: { name: packageName, version: packageVersion },
+        sourceIntegrity,
+      })
       expect(payload.manifest).toEqual({
         added: [{
           path: 'build/addon.node',
@@ -909,13 +914,27 @@ describe('install remote side-effects', () => {
   })
 })
 
-function currentLinuxGlibcPlatform (): LinuxGlibcPlatform | undefined {
-  if (process.platform !== 'linux' || !['x64', 'arm64'].includes(process.arch)) return undefined
-  const report = process.report?.getReport() as { header?: { glibcVersionRuntime?: string } }
-  const [glibcMajor, glibcMinor] = report.header?.glibcVersionRuntime?.split('.').map(Number) ?? []
+function currentArtifactCompatibilityTag (): string | undefined {
+  if (!['x64', 'arm64'].includes(process.arch)) return undefined
   const nodeMajor = Number(process.versions.node.split('.')[0])
-  if (![nodeMajor, glibcMajor, glibcMinor].every(Number.isSafeInteger)) return undefined
-  return { architecture: process.arch, nodeMajor, glibcMajor, glibcMinor }
+  if (!Number.isSafeInteger(nodeMajor)) return undefined
+  if (process.platform === 'linux') {
+    const report = process.report?.getReport() as { header?: { glibcVersionRuntime?: string } }
+    const [glibcMajor, glibcMinor] = report.header?.glibcVersionRuntime?.split('.').map(Number) ?? []
+    if (![glibcMajor, glibcMinor].every(Number.isSafeInteger)) return undefined
+    return linuxGlibcCompatibilityTag({ architecture: process.arch, nodeMajor, glibcMajor, glibcMinor })
+  }
+  if (process.platform === 'darwin') {
+    const [macOSMajor, macOSMinor] = execFileSync('/usr/bin/sw_vers', ['-productVersion'], {
+      encoding: 'utf8',
+    }).trim().split('.').map(Number)
+    return macOSCompatibilityTag({ architecture: process.arch, nodeMajor, macOSMajor, macOSMinor })
+  }
+  if (process.platform === 'win32') {
+    const [windowsMajor, windowsMinor, windowsBuild] = os.release().split('.').map(Number)
+    return windowsCompatibilityTag({ architecture: process.arch, nodeMajor, windowsMajor, windowsMinor, windowsBuild })
+  }
+  return undefined
 }
 
 async function listen (server: ReturnType<typeof createServer>): Promise<string> {
