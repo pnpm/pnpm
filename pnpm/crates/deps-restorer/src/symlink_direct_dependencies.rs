@@ -328,11 +328,15 @@ pub fn validate_importer_id(importer_id: &str) -> Result<(), SymlinkDirectDepend
     if importer_id.contains('\\') {
         return Err(unsafe_path());
     }
-    // Any `..` segment. Mirrors `path::Component::ParentDir` rejection
-    // without paying for full component iteration since importer keys
-    // are tiny.
+    // Any `..` segment (mirrors `path::Component::ParentDir` rejection),
+    // plus the non-canonical forms `.` and the empty segment (`a//b`,
+    // a trailing `/`). Pnpm only ever writes canonical relative keys,
+    // and a non-canonical key is not just malformed: two distinct keys
+    // like `packages/a` and `packages/./a` resolve to one directory,
+    // and the importers now link concurrently — aliased keys would
+    // race their symlink and `.bin` writes against each other.
     for segment in importer_id.split('/') {
-        if segment == ".." {
+        if segment == ".." || segment == "." || segment.is_empty() {
             return Err(unsafe_path());
         }
     }

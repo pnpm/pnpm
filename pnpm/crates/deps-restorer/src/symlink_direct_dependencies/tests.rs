@@ -30,6 +30,17 @@ fn validate_importer_id_rejects_escaping_keys() {
     }
 }
 
+#[test]
+fn validate_importer_id_rejects_non_canonical_aliases() {
+    // Two distinct keys that resolve to the same directory would link
+    // the same `node_modules` from two concurrent importer tasks; pnpm
+    // only writes canonical relative keys, so every non-canonical form
+    // is rejected outright.
+    for id in ["./", "./foo", "packages/./app", "packages//app", "packages/app/", "foo/."] {
+        assert!(validate_importer_id(id).is_err(), "expected {id:?} to be rejected");
+    }
+}
+
 /// `pnpm:root added` fires once per direct dependency, after the
 /// symlink under `node_modules/` has been created. The captured
 /// payload must match the wire shape: `name` and `realName`
