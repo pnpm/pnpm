@@ -109,8 +109,8 @@ export type InstallDepsOptions = Pick<Config,
 | 'lockfileIncludeTarballUrl'
 | 'scriptsPrependNodePath'
 | 'scriptShell'
-| 'sideEffectsCache'
-| 'sideEffectsCacheReadonly'
+| 'sideEffectsCacheRead'
+| 'sideEffectsCacheWrite'
 | 'sort'
 | 'sharedWorkspaceLockfile'
 | 'shellEmulator'
@@ -348,8 +348,8 @@ export async function installDeps (
     // so ignoring scripts for now
     ignoreScripts: !!workspacePackages || opts.ignoreScripts,
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
-    sideEffectsCacheRead: opts.sideEffectsCache ?? opts.sideEffectsCacheReadonly,
-    sideEffectsCacheWrite: opts.sideEffectsCache,
+    sideEffectsCacheRead: opts.sideEffectsCacheRead,
+    sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
     skipRuntimes: opts.runtime === false,
     storeController: store.ctrl,
     storeDir: store.dir,

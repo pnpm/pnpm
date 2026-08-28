@@ -135,6 +135,8 @@ fn create_config(
         force: false,
         side_effects_cache: true,
         side_effects_cache_readonly: false,
+        side_effects_cache_read_setting: None,
+        side_effects_cache_write_setting: None,
         fetch_retries: 2,
         fetch_retry_factor: 10,
         fetch_retry_mintimeout: 10_000,

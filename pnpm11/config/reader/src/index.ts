@@ -11,7 +11,7 @@ import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
 import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
 import { isCamelCase } from '@pnpm/text.naming-cases'
-import type { DevEngines, EngineDependency, ProjectManifest, RemoteSideEffectsCacheSettings, VirtualStoreType } from '@pnpm/types'
+import type { DevEngines, EngineDependency, ProjectManifest, RemoteSideEffectsCacheSettings, SideEffectsCacheSettings, VirtualStoreType } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { betterPathResolve } from 'better-path-resolve'
@@ -837,8 +837,7 @@ export async function getConfig (opts: {
   if (!pnpmConfig.userConfig) {
     pnpmConfig.userConfig = npmrcResult.userConfig as Record<string, string>
   }
-  pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache ?? pnpmConfig.sideEffectsCacheReadonly
-  pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
+  resolveSideEffectsCache(pnpmConfig)
 
   pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
 
@@ -1311,6 +1310,36 @@ type ProjectManifestSkippedKey =
   | typeof LOGIN_TARGET_KEYS[number]
 
 /**
+ * `sideEffectsCache` is the whole declaration: whether a build is restored,
+ * whether one is saved, and the remote tier that shares it between machines.
+ *
+ * The spellings it replaced still work, because they were a released surface:
+ * `sideEffectsCache: true` is the shorthand for reading and writing,
+ * `sideEffectsCacheReadonly` is `read` without `write`, and
+ * `remoteSideEffectsCache` is `remote`. The canonical form wins wherever both
+ * are set, and the object form defaults `read` and `write` to what the boolean
+ * defaulted to, so declaring only `remote` does not quietly switch the local
+ * cache off.
+ */
+function resolveSideEffectsCache (pnpmConfig: Config): void {
+  const declared = pnpmConfig.sideEffectsCache
+  const settings = typeof declared === 'object' && declared != null ? declared : undefined
+  const shorthand = typeof declared === 'boolean' ? declared : undefined
+  pnpmConfig.sideEffectsCacheRead = settings != null
+    ? settings.read ?? true
+    : shorthand ?? pnpmConfig.sideEffectsCacheReadonly
+  pnpmConfig.sideEffectsCacheWrite = settings != null
+    ? settings.write ?? true
+    : shorthand
+  if (settings?.remote != null) {
+    pnpmConfig.remoteSideEffectsCache = {
+      ...pnpmConfig.remoteSideEffectsCache,
+      ...settings.remote,
+    }
+  }
+}
+
+/**
  * The environment is the last word on the remote side-effects cache: it is
  * where a CI runner injects the signing material that must not be committed,
  * and where a build job flips publication on for one invocation.
@@ -1533,13 +1562,25 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
     if (CONFIG_CONTEXT_KEY_SET.has(key)) continue
     if (skipped?.has(key)) continue
 
-    if (key === 'remoteSideEffectsCache') {
+    if (key === 'remoteSideEffectsCache' || (key === 'sideEffectsCache' && typeof value === 'object' && value != null)) {
       // A workspace declares eligibility while the machine holds the signing
       // trust root, so the two sources contribute different fields of one
-      // object and the later one must not drop what the earlier one set.
-      pnpmConfig.remoteSideEffectsCache = {
-        ...pnpmConfig.remoteSideEffectsCache,
-        ...value as RemoteSideEffectsCacheSettings,
+      // object and the later one must not drop what the earlier one set. Both
+      // spellings feed that same object, so a repository naming the
+      // organization under one and a runner supplying the key under the other
+      // still compose.
+      const remote = key === 'remoteSideEffectsCache'
+        ? value as RemoteSideEffectsCacheSettings
+        : (value as SideEffectsCacheSettings).remote
+      if (remote != null) {
+        pnpmConfig.remoteSideEffectsCache = {
+          ...pnpmConfig.remoteSideEffectsCache,
+          ...remote,
+        }
+      }
+      if (key === 'sideEffectsCache') {
+        const { read, write } = value as SideEffectsCacheSettings
+        pnpmConfig.sideEffectsCache = { read, write }
       }
       pnpmConfig.explicitlySetKeys.add(key)
       continue

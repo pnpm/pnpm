@@ -309,6 +309,17 @@ export interface PnpmSettings {
   httpsProxy?: string
   noProxy?: string | boolean
   pnprServer?: string
+  /**
+   * Whether a package's build output is reused, and where from.
+   *
+   * A boolean is the shorthand that sets `read` and `write` together, which is
+   * what this setting meant before it grew a `remote` tier.
+   */
+  sideEffectsCache?: boolean | SideEffectsCacheSettings
+  /**
+   * The older spelling of {@link SideEffectsCacheSettings.remote}. When both
+   * are set, the canonical one wins.
+   */
   remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
   versioning?: VersioningSettings
   /**
@@ -324,6 +335,18 @@ export interface PnpmSettings {
    */
   enableGlobalVirtualStore?: boolean
   tasks?: WorkspaceTasks
+}
+
+/**
+ * Where a dependency's build output may be reused from: this machine, and —
+ * through `remote` — other machines in the same organization.
+ */
+export interface SideEffectsCacheSettings {
+  /** Restore a package's build from the cache when one is present. */
+  read?: boolean
+  /** Save a package's build output to the cache. */
+  write?: boolean
+  remote?: RemoteSideEffectsCacheSettings
 }
 
 /**

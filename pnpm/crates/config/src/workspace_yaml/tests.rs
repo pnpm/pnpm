@@ -1,5 +1,6 @@
 use super::{
-    AllowBuild, LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
+    AllowBuild, LoadWorkspaceYamlError, SideEffectsCacheSetting, WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
     registries::{RegistryDeclaration, RegistryEntry},
 };
 use crate::{
@@ -723,7 +724,7 @@ fn parses_the_workspace_cycle_settings_from_yaml_and_applies() {
 fn parses_side_effects_cache_from_yaml_and_applies() {
     let yaml = "sideEffectsCache: false\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(settings.side_effects_cache, Some(false));
+    assert_eq!(settings.side_effects_cache, Some(SideEffectsCacheSetting::Enabled(false)));
 
     let mut config = Config::new();
     assert!(config.side_effects_cache, "the default is `true` to match pnpm");
@@ -998,6 +999,107 @@ remoteSideEffectsCache:
     let shared = config.remote_side_effects_cache.expect("shared cache config");
     assert_eq!(shared.organization, "acme");
     assert_eq!(shared.packages, ["native-addon"]);
+}
+
+#[test]
+fn parses_the_canonical_side_effects_cache_declaration() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  read: true
+  write: false
+  remote:
+    organization: acme
+    packages:
+      - native-addon
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(config.side_effects_cache_read());
+    assert!(!config.side_effects_cache_write());
+    let shared = config.remote_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.organization, "acme");
+    assert_eq!(shared.packages, ["native-addon"]);
+}
+
+/// Naming the remote tier says nothing about the local one, which was on by
+/// default before this setting grew an object form.
+#[test]
+fn declaring_only_the_remote_tier_leaves_the_local_one_on() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  remote:
+    organization: acme
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(config.side_effects_cache_read());
+    assert!(config.side_effects_cache_write());
+}
+
+#[test]
+fn the_boolean_shorthand_still_reads_and_writes() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("sideEffectsCache: false").unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.side_effects_cache_read());
+    assert!(!config.side_effects_cache_write());
+}
+
+/// The two spellings of the remote tier compose rather than replace, so a
+/// repository may name the packages under one and the organization under the
+/// other without either dropping the other's fields.
+#[test]
+fn the_canonical_declaration_wins_over_the_older_spellings() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCacheReadonly: true
+remoteSideEffectsCache:
+  packages:
+    - from-the-old-key
+sideEffectsCache:
+  read: false
+  write: true
+  remote:
+    organization: acme
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.side_effects_cache_read());
+    assert!(config.side_effects_cache_write());
+    let shared = config.remote_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.organization, "acme");
+    assert_eq!(shared.packages, ["from-the-old-key"]);
+}
+
+/// The trust boundary follows the fields rather than the spelling, and the
+/// message names the key the file actually wrote.
+#[test]
+fn rejects_workspace_controlled_trust_material_under_the_canonical_spelling() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "sideEffectsCache:\n  remote:\n    organization: acme\n    privateKey: repository-controlled-key\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+    assert!(
+        error.to_string().contains("sideEffectsCache.remote.privateKey"),
+        "expected the canonical spelling in {error}",
+    );
 }
 
 /// A repository that could set `publish` would turn a key the machine holds for

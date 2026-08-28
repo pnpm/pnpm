@@ -32,8 +32,8 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'symlink'
 | 'frozenLockfile'
 | 'preferFrozenLockfile'
-| 'sideEffectsCache'
-| 'sideEffectsCacheReadonly'
+| 'sideEffectsCacheRead'
+| 'sideEffectsCacheWrite'
 | 'supportedArchitectures'
 >> & Partial<Pick<ConfigContext,
 | 'cliOptions'

@@ -1822,6 +1822,17 @@ pub struct Config {
 
     pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
 
+    /// `sideEffectsCache.read` and `.write` as declared, which
+    /// [`Config::side_effects_cache_read`] and
+    /// [`Config::side_effects_cache_write`] prefer over the boolean pair.
+    ///
+    /// The pair cannot express every combination the declaration can: reading
+    /// without writing is `sideEffectsCacheReadonly`, but writing without
+    /// reading — populate a cache this run never consumes, which is what a
+    /// warming CI job wants — has no spelling in it at all.
+    pub side_effects_cache_read_setting: Option<bool>,
+    pub side_effects_cache_write_setting: Option<bool>,
+
     /// Path to the user-level `.npmrc` to read auth from, overriding the
     /// default `~/.npmrc`. The `npmrcAuthFile` setting (and the
     /// `--userconfig` alias). Resolved in [`Config::current`] from this
@@ -2771,7 +2782,8 @@ impl Config {
     /// `sideEffectsCacheReadonly: true` with `sideEffectsCache: false`
     /// and get a read-only view.
     pub fn side_effects_cache_read(&self) -> bool {
-        self.side_effects_cache || self.side_effects_cache_readonly
+        self.side_effects_cache_read_setting
+            .unwrap_or(self.side_effects_cache || self.side_effects_cache_readonly)
     }
 
     /// Whether the install is allowed to populate the side-effects
@@ -2782,7 +2794,8 @@ impl Config {
     /// flags are explicitly set, but `readonly` as a flag name only makes
     /// sense if it really does block writes.
     pub fn side_effects_cache_write(&self) -> bool {
-        self.side_effects_cache && !self.side_effects_cache_readonly
+        self.side_effects_cache_write_setting
+            .unwrap_or(self.side_effects_cache && !self.side_effects_cache_readonly)
     }
 
     /// Resolve relative patch file paths in

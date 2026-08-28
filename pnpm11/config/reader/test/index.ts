@@ -5700,3 +5700,72 @@ test('getConfig() never expands an env placeholder in a registries key from a wo
     delete process.env.PNPM_TEST_REGISTRY_TOKEN
   }
 })
+
+test('getConfig() resolves the canonical sideEffectsCache declaration', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    sideEffectsCache: {
+      read: true,
+      write: false,
+      remote: { organization: 'acme', packages: ['native-addon'] },
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.sideEffectsCacheRead).toBe(true)
+  expect(config.sideEffectsCacheWrite).toBe(false)
+  expect(config.remoteSideEffectsCache).toStrictEqual({ organization: 'acme', packages: ['native-addon'] })
+})
+
+test('getConfig() defaults read and write when only the remote tier is declared', async () => {
+  // Naming the remote tier says nothing about the local one, and the local one
+  // was on by default before this setting grew an object form. Reading `remote`
+  // as "and switch the rest off" would silently stop reusing local builds.
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    sideEffectsCache: { remote: { organization: 'acme' } },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.sideEffectsCacheRead).toBe(true)
+  expect(config.sideEffectsCacheWrite).toBe(true)
+})
+
+test('getConfig() lets the canonical sideEffectsCache win over the older spellings', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    sideEffectsCacheReadonly: true,
+    remoteSideEffectsCache: { packages: ['from-the-old-key'] },
+    sideEffectsCache: {
+      read: false,
+      write: true,
+      remote: { organization: 'acme' },
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.sideEffectsCacheRead).toBe(false)
+  expect(config.sideEffectsCacheWrite).toBe(true)
+  // The two spellings of the remote tier compose rather than replace: a
+  // repository may name the packages under one and the organization under the
+  // other, and neither may drop the other's fields.
+  expect(config.remoteSideEffectsCache).toStrictEqual({
+    organization: 'acme',
+    packages: ['from-the-old-key'],
+  })
+})

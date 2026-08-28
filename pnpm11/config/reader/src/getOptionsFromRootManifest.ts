@@ -40,7 +40,7 @@ export type OptionsFromRootManifest = {
   registriesByPrefix?: Record<string, string>
   registryOptionsByUrl?: Record<string, RegistryOptions>
   auditIgnorePrune?: boolean
-} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'remoteSideEffectsCache' | 'tasks' | 'updateConfig'>
+} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'remoteSideEffectsCache' | 'sideEffectsCache' | 'tasks' | 'updateConfig'>
 
 interface GetOptionsFromPnpmSettingsOptions {
   /**
@@ -69,7 +69,10 @@ export function getOptionsFromPnpmSettings (
     ? manifestOrOpts
     : manifestOrOpts == null ? {} : { manifest: manifestOrOpts }
   if (pnpmSettings.remoteSideEffectsCache != null) {
-    assertValidSharedSideEffectsCache(pnpmSettings.remoteSideEffectsCache, opts.trustedSource ?? false)
+    assertValidSharedSideEffectsCache(pnpmSettings.remoteSideEffectsCache, opts.trustedSource ?? false, 'remoteSideEffectsCache')
+  }
+  if (pnpmSettings.sideEffectsCache != null && typeof pnpmSettings.sideEffectsCache !== 'boolean') {
+    assertValidSideEffectsCache(pnpmSettings.sideEffectsCache, opts.trustedSource ?? false)
   }
   const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings, {
     expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? false,
@@ -150,37 +153,50 @@ function assertValidTasks (tasks: unknown): asserts tasks is NonNullable<PnpmSet
  * install-time lookup, so a malformed shape has to be rejected here rather than
  * surface as a type error deep inside the hydration path.
  */
-function assertValidSharedSideEffectsCache (
-  settings: NonNullable<PnpmSettings['remoteSideEffectsCache']>,
+function assertValidSideEffectsCache (
+  settings: Exclude<NonNullable<PnpmSettings['sideEffectsCache']>, boolean>,
   trustedSource: boolean
 ): void {
-  assertObjectSetting(settings, 'remoteSideEffectsCache')
+  assertObjectSetting(settings, 'sideEffectsCache')
+  assertOptionalBoolean(settings.read, 'sideEffectsCache.read')
+  assertOptionalBoolean(settings.write, 'sideEffectsCache.write')
+  if (settings.remote != null) {
+    assertValidSharedSideEffectsCache(settings.remote, trustedSource, 'sideEffectsCache.remote')
+  }
+}
+
+function assertValidSharedSideEffectsCache (
+  settings: NonNullable<PnpmSettings['remoteSideEffectsCache']>,
+  trustedSource: boolean,
+  path: string
+): void {
+  assertObjectSetting(settings, path)
   if (!trustedSource) {
     const machineField = Object.keys(settings)
       .find((field) => !WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS.has(field))
     if (machineField != null) {
       throw new PnpmError(
         'WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST',
-        `remoteSideEffectsCache.${machineField} cannot be set by a workspace`,
-        { hint: `Set it in the global config file (pnpm config set --location=global remoteSideEffectsCache.${machineField} ...) or in the environment instead.` }
+        `${path}.${machineField} cannot be set by a workspace`,
+        { hint: `Set it in the global config file (pnpm config set --location=global ${path}.${machineField} ...) or in the environment instead.` }
       )
     }
   }
   if (settings.organization != null) {
-    assertString(settings.organization, 'remoteSideEffectsCache.organization')
+    assertString(settings.organization, `${path}.organization`)
   }
   if (settings.packages != null) {
-    assertStringArray(settings.packages, 'remoteSideEffectsCache.packages')
+    assertStringArray(settings.packages, `${path}.packages`)
   }
-  assertOptionalBoolean(settings.publish, 'remoteSideEffectsCache.publish')
+  assertOptionalBoolean(settings.publish, `${path}.publish`)
   for (const field of ['keyId', 'builderId', 'imageDigest', 'architectureBaseline', 'privateKey'] as const) {
     if (settings[field] == null) continue
-    assertString(settings[field], `remoteSideEffectsCache.${field}`)
+    assertString(settings[field], `${path}.${field}`)
   }
   if (settings.buildEnv != null) {
-    assertObjectSetting(settings.buildEnv, 'remoteSideEffectsCache.buildEnv')
+    assertObjectSetting(settings.buildEnv, `${path}.buildEnv`)
     for (const [name, value] of Object.entries(settings.buildEnv)) {
-      assertString(value, `remoteSideEffectsCache.buildEnv.${name}`)
+      assertString(value, `${path}.buildEnv.${name}`)
     }
   }
 }

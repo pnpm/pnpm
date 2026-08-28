@@ -11,6 +11,7 @@ import type {
   RegistryConfig,
   RegistryOptions,
   RemoteSideEffectsCacheSettings,
+  SideEffectsCacheSettings,
   TrustPolicy,
   VersioningSettings,
   VirtualStoreType,
@@ -147,8 +148,14 @@ export interface Config extends OptionsFromRootManifest {
   preferFrozenLockfile?: boolean
   only?: 'prod' | 'production' | 'dev' | 'development'
   preferOffline?: boolean
-  sideEffectsCache?: boolean // for backward compatibility
-  sideEffectsCacheReadonly?: boolean // for backward compatibility
+  /**
+   * As declared. Resolved into {@link Config.sideEffectsCacheRead},
+   * {@link Config.sideEffectsCacheWrite} and
+   * {@link Config.remoteSideEffectsCache} before any consumer sees it.
+   */
+  sideEffectsCache?: boolean | SideEffectsCacheSettings
+  /** The older spelling of `sideEffectsCache: { read: true, write: false }`. */
+  sideEffectsCacheReadonly?: boolean
   sideEffectsCacheRead?: boolean
   sideEffectsCacheWrite?: boolean
   shamefullyHoist?: boolean

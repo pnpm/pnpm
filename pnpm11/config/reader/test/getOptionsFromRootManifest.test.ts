@@ -108,6 +108,36 @@ test('getOptionsFromPnpmSettings() reads remote side-effects cache settings', ()
   })).toStrictEqual({ remoteSideEffectsCache })
 })
 
+test('getOptionsFromPnpmSettings() reads the canonical side-effects cache declaration', () => {
+  const sideEffectsCache = {
+    read: true,
+    write: false,
+    remote: { organization: 'acme', packages: ['native-addon'] },
+  }
+  expect(getOptionsFromPnpmSettings(process.cwd(), { sideEffectsCache }))
+    .toStrictEqual({ sideEffectsCache })
+})
+
+// The trust boundary follows the fields, not the spelling: a repository may no
+// more sign through the canonical declaration than through the older one, and
+// the message has to name the key the file actually wrote.
+test('getOptionsFromPnpmSettings() rejects workspace-controlled trust material under sideEffectsCache.remote', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    sideEffectsCache: {
+      remote: { organization: 'acme', privateKey: 'repository-controlled-key' },
+    },
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST',
+    message: expect.stringContaining('sideEffectsCache.remote.privateKey'),
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-boolean sideEffectsCache.read', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    sideEffectsCache: { read: 'yes' },
+  } as unknown as PnpmSettings)).toThrow(/sideEffectsCache\.read/)
+})
+
 // A repository that could set `publish` would turn a key the machine holds for
 // its own builds into a signing oracle, so every field but the two that declare
 // eligibility is refused.
