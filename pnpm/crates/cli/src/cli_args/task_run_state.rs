@@ -68,6 +68,19 @@ struct TaskRecord {
     task: String,
 }
 
+#[derive(Serialize, Deserialize)]
+struct FinishRecord {
+    run: String,
+    finished: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum JournalRecord {
+    Task(TaskRecord),
+    Finish(FinishRecord),
+}
+
 pub struct TaskRunExecutionSettings<'a> {
     pub extra_bin_paths: &'a [PathBuf],
     pub extra_env: &'a HashMap<String, String>,
@@ -236,13 +249,18 @@ impl TaskRunStateContext {
         }
         let mut completed = HashSet::new();
         for line in lines {
-            let Ok(record) = serde_json::from_str::<TaskRecord>(line) else { return Ok(None) };
-            if record.run != header.run {
-                continue;
+            let Ok(record) = serde_json::from_str::<JournalRecord>(line) else { return Ok(None) };
+            match record {
+                JournalRecord::Task(record) if record.run == header.run => {
+                    let id = TaskId { project: record.project, task: record.task };
+                    let Some(key) = self.keys_by_id.get(&id) else { return Ok(None) };
+                    completed.insert(key.clone());
+                }
+                JournalRecord::Finish(record) if record.run == header.run && record.finished => {
+                    return Ok(None);
+                }
+                _ => {}
             }
-            let id = TaskId { project: record.project, task: record.task };
-            let Some(key) = self.keys_by_id.get(&id) else { return Ok(None) };
-            completed.insert(key.clone());
         }
         Ok(Some(completed))
     }
@@ -458,26 +476,36 @@ impl TaskRunState {
     }
 
     pub fn finish(&self) -> miette::Result<()> {
-        let file = self.writer.lock().expect("task state lock is not poisoned").file.take();
-        if file.is_none() {
+        let mut writer = self.writer.lock().expect("task state lock is not poisoned");
+        let Some(mut file) = writer.file.take() else {
             return Ok(());
+        };
+        let finish_record = FinishRecord { run: writer.run.clone(), finished: true };
+        let line = serde_json::to_string(&finish_record).expect("finish record serializes");
+        if let Err(error) = writeln!(file, "{line}")
+            && !is_state_unavailable_error(&error)
+        {
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("writing {}", self.file_path.display()));
         }
         drop(file);
-        match fs::remove_file(&self.file_path) {
+        drop(writer);
+        match fs::remove_file(&self.published_path) {
             Ok(()) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) if is_state_unavailable_error(&error) => return Ok(()),
             Err(error) => Err(error)
                 .into_diagnostic()
-                .wrap_err_with(|| format!("removing {}", self.file_path.display()))?,
+                .wrap_err_with(|| format!("removing {}", self.published_path.display()))?,
         }
-        match fs::remove_file(&self.published_path) {
+        match fs::remove_file(&self.file_path) {
             Ok(()) => Ok(()),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
             Err(error) if is_state_unavailable_error(&error) => Ok(()),
             Err(error) => Err(error)
                 .into_diagnostic()
-                .wrap_err_with(|| format!("removing {}", self.published_path.display())),
+                .wrap_err_with(|| format!("removing {}", self.file_path.display())),
         }
     }
 }

@@ -48,6 +48,11 @@ interface TaskRecord extends TaskId {
   run: string
 }
 
+interface FinishRecord {
+  run: string
+  finished: true
+}
+
 export interface TaskRunStateContextOptions {
   command: InvocationIdentity['command']
   params: string[]
@@ -159,13 +164,14 @@ export class TaskRunStateContext {
     if (header.version !== STATE_VERSION || header.invocation !== this.invocation || header.run !== run) return undefined
     const completed = new Set<TaskKey>()
     for (const line of lines.slice(1)) {
-      let record: TaskRecord
+      let record: TaskRecord | FinishRecord
       try {
-        record = JSON.parse(line) as TaskRecord
+        record = JSON.parse(line) as TaskRecord | FinishRecord
       } catch {
         return undefined
       }
       if (record.run !== header.run) continue
+      if (isFinishRecord(record)) return undefined
       const key = this.keysById.get(taskIdKey(record))
       if (key == null) return undefined
       completed.add(key)
@@ -275,6 +281,10 @@ function maxString (left: string, right: string): string {
   return left > right ? left : right
 }
 
+function isFinishRecord (record: TaskRecord | FinishRecord): record is FinishRecord {
+  return 'finished' in record && record.finished
+}
+
 export class TaskRunState {
   readonly filePath: string
   private readonly publishedPath: string
@@ -336,10 +346,20 @@ export class TaskRunState {
 
   async finish (): Promise<void> {
     if (this.file == null || this.disabled) return
+    if (this.closePromise == null) {
+      const finishRecord: FinishRecord = { run: this.run, finished: true }
+      const write = this.pendingWrite.then(async () => this.file!.appendFile(`${JSON.stringify(finishRecord)}\n`))
+      this.pendingWrite = write.catch(() => {})
+      try {
+        await write
+      } catch (err: unknown) {
+        if (!isStateUnavailableError(err)) throw err
+      }
+    }
     await this.close()
     try {
-      await unlinkIfExists(this.filePath)
       await unlinkIfExists(this.publishedPath)
+      await unlinkIfExists(this.filePath)
     } catch (err: unknown) {
       if (!isStateUnavailableError(err)) throw err
     }

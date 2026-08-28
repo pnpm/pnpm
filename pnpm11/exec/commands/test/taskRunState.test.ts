@@ -337,6 +337,37 @@ test('finishing an older invocation preserves the newer invocation journal', asy
   await expect(context.readCompletedTasks()).resolves.toBeUndefined()
 })
 
+test('a finished journal is not resumable when cleanup is unavailable', async () => {
+  const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-task-state-'))
+  temporaryDirectories.push(workspaceDir)
+  const project = path.join(workspaceDir, 'project') as ProjectRootDir
+  const key = taskKey(project, 'build')
+  const graph: TaskGraph = new Map([[key, {
+    project,
+    taskName: 'build',
+    scripts: ['build'],
+    requested: true,
+    dependencies: [],
+  }]])
+  const context = new TaskRunStateContext({
+    command: 'run',
+    params: ['build'],
+    graph,
+    workspaceDir,
+    scriptCommands: () => ['build-command'],
+  })
+  const state = await context.start(new Set([key]))
+  const unlink = jest.spyOn(fs, 'unlink').mockRejectedValue(Object.assign(new Error('permission denied'), { code: 'EACCES' }))
+
+  try {
+    await state.finish()
+  } finally {
+    unlink.mockRestore()
+  }
+
+  await expect(context.readCompletedTasks()).resolves.toBeUndefined()
+})
+
 test('a stale pointer does not hide a newer published invocation journal', async () => {
   const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-task-state-'))
   temporaryDirectories.push(workspaceDir)

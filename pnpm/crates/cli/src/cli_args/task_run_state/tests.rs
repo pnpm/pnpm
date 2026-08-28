@@ -308,6 +308,45 @@ fn finishing_an_older_invocation_preserves_the_newer_invocation_journal() {
     assert!(context.read_completed_tasks().expect("read finished state").is_none());
 }
 
+#[cfg(unix)]
+#[test]
+fn a_finished_journal_is_not_resumable_when_cleanup_is_unavailable() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let workspace = tempfile::tempdir().expect("create workspace");
+    let project = workspace.path().join("project");
+    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
+    let graph: TaskGraph = IndexMap::from([(
+        key.clone(),
+        TaskNode {
+            project,
+            task_name: "build".to_string(),
+            concurrency: None,
+            scripts: vec!["build".to_string()],
+            requested: true,
+            dependencies: Vec::new(),
+        },
+    )]);
+    let context = TaskRunStateContext::new(
+        "run",
+        &["build".to_string()],
+        &[],
+        &graph,
+        workspace.path(),
+        |_, _| vec!["build-command".to_string()],
+    );
+    let state = context.start(&HashSet::from([key])).expect("start state");
+    fs::set_permissions(&context.state_dir, fs::Permissions::from_mode(0o555))
+        .expect("make state directory read-only");
+
+    let result = state.finish();
+    fs::set_permissions(&context.state_dir, fs::Permissions::from_mode(0o755))
+        .expect("restore state directory permissions");
+
+    result.expect("unavailable cleanup is optional");
+    assert!(context.read_completed_tasks().expect("read finished state").is_none());
+}
+
 #[test]
 fn a_stale_pointer_does_not_hide_a_newer_published_invocation_journal() {
     let workspace = tempfile::tempdir().expect("create workspace");
