@@ -442,11 +442,12 @@ export class SharedArtifactBlobIntegrityError extends Error {
 }
 
 function serializePublishRequest (opts: PublishSharedSideEffectsOptions): Buffer {
-  if (typeof opts.key !== 'string' || !opts.key.startsWith(INPUT_KEY_PREFIX)) {
-    throw new Error(`Shared artifact input key must start with ${JSON.stringify(INPUT_KEY_PREFIX)}`)
+  const { payload } = decodeEnvelope(opts.envelope)
+  const { inputKeyPrefix } = subjectArtifactIdentity(payload.subject)
+  if (typeof opts.key !== 'string' || !opts.key.startsWith(inputKeyPrefix)) {
+    throw new Error(`Shared artifact input key must start with ${JSON.stringify(inputKeyPrefix)}`)
   }
   validateScalar('input key', opts.key, 4_096)
-  const { payload } = decodeEnvelope(opts.envelope)
   if (payload.inputKey !== opts.key) {
     throw new Error('Signed shared artifact input key does not match the publication key')
   }

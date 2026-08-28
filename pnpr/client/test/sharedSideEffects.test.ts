@@ -19,6 +19,7 @@ import {
   verifySignedArtifactEnvelope,
   windowsCompatibilityTag,
   windowsSupportedTags,
+  type WorkspaceTaskPayload,
 } from '@pnpm/pnpr.client'
 
 const contents = Buffer.from('native-addon')
@@ -177,6 +178,46 @@ describe('signed shared artifacts', () => {
       ...base,
       blobs: [{ integrity: `sha512-${unrelated}`, data: Buffer.from('unrelated').toString('base64') }],
     })).rejects.toThrow('not referenced')
+  })
+
+  test('publishes workspace task artifacts with their subject-specific key prefix', async () => {
+    const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+    const taskPayload: WorkspaceTaskPayload = {
+      ...payload(),
+      kind: 'workspace-task:v1',
+      subject: { kind: 'workspace-task', project: 'packages/app', task: 'build' },
+      inputKey: 'workspace-task:v1:inputs=abc',
+      compatibility: { kind: 'universal' },
+      manifest: { added: [], deleted: [] },
+    }
+    const envelope = createSignedArtifactEnvelope(taskPayload, {
+      keyId: 'acme-2026',
+      privateKey: privateKey.export({ format: 'pem', type: 'pkcs8' }),
+    })
+    let publishedBody: Buffer | undefined
+    const server = createServer((request, response) => {
+      const chunks: Buffer[] = []
+      request.on('data', chunk => chunks.push(Buffer.from(chunk)))
+      request.on('end', () => {
+        publishedBody = Buffer.concat(chunks)
+        response.writeHead(201).end()
+      })
+    })
+    const registryUrl = await listen(server)
+    try {
+      await publishSharedSideEffects({
+        registryUrl,
+        key: taskPayload.inputKey,
+        envelope,
+        blobs: [],
+      })
+      expect(JSON.parse(publishedBody!.toString('utf8'))).toMatchObject({
+        key: taskPayload.inputKey,
+        envelope,
+      })
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close(error => error == null ? resolve() : reject(error)))
+    }
   })
 
   test('uses canonical compatibility tags and platform fingerprints', () => {
