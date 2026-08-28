@@ -16,6 +16,7 @@ import { getBinNamesOfOtherGroups } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { activateGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
 import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
+import { isPnpmCliOnlyGroup } from './pnpmCliPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
 import { readInstalledPackages } from './readInstalledPackages.js'
 
@@ -40,10 +41,14 @@ export async function handleGlobalUpdate (
   const globalDir = opts.globalPkgDir!
   const globalBinDir = opts.bin!
   cleanOrphanedInstallDirs(globalDir)
-  const allPackages = scanGlobalPackages(globalDir)
+  const scannedPackages = scanGlobalPackages(globalDir)
 
-  if (allPackages.length === 0) {
+  if (scannedPackages.length === 0) {
     return 'No global packages found'
+  }
+  const allPackages = scannedPackages.filter((pkg) => !isPnpmCliOnlyGroup(pkg))
+  if (allPackages.length === 0) {
+    return 'No global packages to update. Run "pnpm self-update" to update pnpm itself.'
   }
 
   // If specific packages are requested, filter to only groups containing them

@@ -220,3 +220,59 @@ test('global update --latest drops the spec only of plain version dependencies',
     ]
   )
 })
+
+// `pnpm self-update` owns the pnpm CLI's global install: it is what points the
+// pnpm home's bins at a release. Updating that group here would resolve pnpm
+// from the `latest` dist-tag and relink the bins, silently rolling the running
+// pnpm back to whatever `latest` points at (pnpm/pnpm#14270).
+test('global update leaves the pnpm CLI to self-update', async () => {
+  createInstallDir.mockReturnValueOnce('/global/v11/install-1')
+  getHashLink.mockReturnValueOnce('/global/v11/hash-foo')
+  scanGlobalPackages.mockReturnValue([
+    {
+      dependencies: { pnpm: '12.0.0' },
+      hash: 'hash-pnpm',
+      installDir: '/global/v11/old-pnpm',
+    },
+    {
+      dependencies: { '@pnpm/exe': '11.24.0' },
+      hash: 'hash-exe',
+      installDir: '/global/v11/old-exe',
+    },
+    {
+      dependencies: { foo: '^1.0.0' },
+      hash: 'hash-foo',
+      installDir: '/global/v11/old-foo',
+    },
+  ])
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    latest: true,
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(installGlobalPackages).toHaveBeenCalledTimes(1)
+  expect(installGlobalPackages).toHaveBeenCalledWith(
+    expect.objectContaining({ dir: '/global/v11/install-1' }),
+    ['foo']
+  )
+})
+
+test('global update reports nothing to do when only the pnpm CLI is installed globally', async () => {
+  scanGlobalPackages.mockReturnValue([
+    {
+      dependencies: { '@pnpm/exe': '11.24.0' },
+      hash: 'hash-exe',
+      installDir: '/global/v11/old-exe',
+    },
+  ])
+
+  const output = await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(output).toBe('No global packages to update. Run "pnpm self-update" to update pnpm itself.')
+  expect(installGlobalPackages).not.toHaveBeenCalled()
+})

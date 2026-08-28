@@ -224,7 +224,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     // Each selector is read as its package name, so versioned forms like
     // `pnpm@9` or `@pnpm/exe@1` can't bypass the self-install guard.
     if groups.iter().flatten().any(|token| {
-        matches!(parse_wanted_dependency(token).alias.as_deref(), Some("pnpm" | "@pnpm/exe"))
+        parse_wanted_dependency(token).alias.as_deref().is_some_and(is_pnpm_cli_package_alias)
     }) {
         return Err(GlobalError::GlobalPnpmInstall.into());
     }
@@ -379,10 +379,28 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     check_bin_dir(&global_bin_dir)?;
     clean_orphaned_install_dirs(&global_pkg_dir);
 
-    let all =
+    // Each selector is read as its package name, so versioned forms like
+    // `pnpm@9` or `@pnpm/exe@1` can't bypass the self-update guard.
+    if params.iter().any(|param| {
+        parse_wanted_dependency(param).alias.as_deref().is_some_and(is_pnpm_cli_package_alias)
+    }) {
+        return Err(GlobalError::GlobalPnpmInstall.into());
+    }
+
+    let scanned =
         scan_global_packages(&global_pkg_dir).into_diagnostic().wrap_err("scan global packages")?;
-    if all.is_empty() {
+    if scanned.is_empty() {
         println!("No global packages found");
+        return Ok(());
+    }
+    // `pnpm self-update` owns the pnpm CLI's global install: it is what points
+    // the pnpm home's bins at a release. Reinstalling that group here would
+    // resolve pnpm from the `latest` dist-tag and relink the bins, silently
+    // rolling the running pnpm back to whatever `latest` points at.
+    let all: Vec<GlobalPackageInfo> =
+        scanned.into_iter().filter(|pkg| !is_pnpm_cli_only_group(pkg)).collect();
+    if all.is_empty() {
+        println!(r#"No global packages to update. Run "pnpm self-update" to update pnpm itself."#);
         return Ok(());
     }
     let mut to_update: Vec<GlobalPackageInfo> = if params.is_empty() {
@@ -1241,7 +1259,10 @@ fn should_replace_existing_package(
     is_pnpm_cli_only_group(pkg) && aliases_to_replace.iter().any(|alias| pkg.has_alias(alias))
 }
 
-fn is_pnpm_cli_only_group(pkg: &GlobalPackageInfo) -> bool {
+/// Whether `pkg` is a global group holding nothing but the pnpm CLI — the
+/// install that `pnpm self-update` owns. `add -g` refuses to create one and
+/// `update -g` leaves an existing one alone.
+pub fn is_pnpm_cli_only_group(pkg: &GlobalPackageInfo) -> bool {
     !pkg.dependencies.is_empty()
         && pkg.dependencies.iter().all(|(alias, _)| is_pnpm_cli_package_alias(alias))
 }

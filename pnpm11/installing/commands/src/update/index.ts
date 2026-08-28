@@ -14,7 +14,7 @@ import { types as allTypes } from '@pnpm/config.reader'
 import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector, shouldCheckGitHubActions, updateGitHubActions } from '@pnpm/deps.github-actions'
 import { outdatedDepsOfProjects } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
-import { handleGlobalUpdate } from '@pnpm/global.commands'
+import { handleGlobalUpdate, isPnpmCliOnlyGroup } from '@pnpm/global.commands'
 import { scanGlobalPackages } from '@pnpm/global.packages'
 import type { UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
 import { globalInfo } from '@pnpm/logger'
@@ -28,6 +28,7 @@ import type { InstallCommandOptions } from '../install.js'
 import { createVulnerabilityUpdateMatching, installDeps } from '../installDeps.js'
 import { createUpdateMatching, expandUpdateSelectorsForMatching, parseUpdateParam } from '../recursive.js'
 import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
+import { selectsPnpmCli } from '../selectsPnpmCli.js'
 import { captureUpdateChangesetContext, generateUpdateChangeset } from './generateUpdateChangeset.js'
 import { getUpdateChoices } from './getUpdateChoices.js'
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -218,6 +219,9 @@ export async function handler (
         hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
       })
     }
+    if (selectsPnpmCli(params)) {
+      throw new PnpmError('GLOBAL_PNPM_INSTALL', 'Use the "pnpm self-update" command to install or update pnpm')
+    }
     const selection = opts.interactive
       ? await selectGlobalPackageGroups(params, opts)
       : undefined
@@ -240,8 +244,14 @@ async function selectGlobalPackageGroups (
   input: string[],
   opts: UpdateCommandOptions
 ): Promise<Set<string> | string> {
-  const globalPackages = scanGlobalPackages(opts.globalPkgDir!)
-  if (globalPackages.length === 0) return 'No global packages found'
+  const scannedPackages = scanGlobalPackages(opts.globalPkgDir!)
+  if (scannedPackages.length === 0) return 'No global packages found'
+  // The pnpm CLI's own global install belongs to `pnpm self-update`, so it is
+  // never offered as a choice. See `isPnpmCliOnlyGroup`.
+  const globalPackages = scannedPackages.filter((pkg) => !isPnpmCliOnlyGroup(pkg))
+  if (globalPackages.length === 0) {
+    return 'No global packages to update. Run "pnpm self-update" to update pnpm itself.'
+  }
   // A global group is always updated as a whole, so the params select groups
   // rather than dependencies, the same way `handleGlobalUpdate()` reads them.
   const matchedPackages = input.length === 0

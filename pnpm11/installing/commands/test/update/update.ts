@@ -743,3 +743,21 @@ test('update --latest resolves an npm: alias to the latest version of the aliase
   const lockfile = project.readLockfile()
   expect(lockfile.packages['@pnpm.e2e/foo@100.1.0']).toBeTruthy()
 })
+
+// `pnpm self-update` owns the pnpm CLI's global install; routing the request
+// through the global updater would relink the pnpm home's bins to whatever the
+// `latest` dist-tag points at (pnpm/pnpm#14270).
+describe.each(['pnpm', '@pnpm/exe', 'pnpm@12'])('update -g %s', (param) => {
+  it('points at self-update instead of updating pnpm', async () => {
+    prepare({})
+    await expect(update.handler({
+      ...DEFAULT_OPTS,
+      bin: path.resolve('bin'),
+      dir: process.cwd(),
+      global: true,
+      globalPkgDir: path.resolve('global'),
+    }, [param])).rejects.toThrow(
+      expect.objectContaining({ code: 'ERR_PNPM_GLOBAL_PNPM_INSTALL' })
+    )
+  })
+})

@@ -1058,3 +1058,72 @@ fn global_add_pnpm_is_rejected() {
 
     drop(root);
 }
+
+/// `pnpm update -g pnpm` is rejected — pnpm is managed via `self-update`.
+#[cfg(unix)]
+#[test]
+fn global_update_pnpm_is_rejected() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "@pnpm/exe"])
+        .output()
+        .expect("run update -g @pnpm/exe");
+
+    assert!(!output.status.success(), "update -g @pnpm/exe must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("self-update"),
+        "the failure should point at self-update, got: {stderr}",
+    );
+
+    drop(root);
+}
+
+/// `pnpm self-update` owns the pnpm CLI's global install: it is what points
+/// the pnpm home's bins at a release. Reinstalling that group from `update -g`
+/// would resolve pnpm from the `latest` dist-tag and relink the bins, rolling
+/// the running pnpm back to whatever `latest` points at (pnpm/pnpm#14270).
+#[cfg(unix)]
+#[test]
+fn global_update_leaves_the_pnpm_cli_group_to_self_update() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    // The group `self-update` leaves behind: a hash symlink to an install dir
+    // whose only dependency is the pnpm CLI wrapper.
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    let install_dir = global_pkg_dir.join("pnpm-cli-install");
+    fs::create_dir_all(&install_dir).expect("create the pnpm CLI install dir");
+    fs::write(install_dir.join("package.json"), r#"{"dependencies":{"@pnpm/exe":"11.24.0"}}"#)
+        .expect("write the pnpm CLI group manifest");
+    std::os::unix::fs::symlink(&install_dir, global_pkg_dir.join("hash-pnpm-cli"))
+        .expect("link the pnpm CLI group");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--latest"])
+        .output()
+        .expect("run update -g --latest");
+
+    assert!(
+        output.status.success(),
+        "update -g should succeed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("No global packages to update"),
+        "the pnpm CLI group must be left to self-update, got: {stdout}",
+    );
+    assert_eq!(
+        fs::read_to_string(install_dir.join("package.json")).expect("read the group manifest"),
+        r#"{"dependencies":{"@pnpm/exe":"11.24.0"}}"#,
+        "the pnpm CLI group must be left untouched",
+    );
+
+    drop((root, npmrc_info));
+}

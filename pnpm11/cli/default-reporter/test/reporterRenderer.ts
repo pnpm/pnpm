@@ -210,3 +210,72 @@ test('holds frame redraws while an interactive prompt owns the terminal', async 
     stop()
   }
 })
+
+// Regression test for pnpm/pnpm#14270: `pnpm update -g` installs each global
+// package group in turn, so the frame keeps growing by one progress line per
+// group. `ansi-diff` redraws a line by moving the cursor up from the end of the
+// frame; once the frame is taller than the terminal, the lines it has to reach
+// have scrolled away and the move stops at the top of the screen — landing on,
+// and overwriting, whatever is displayed there instead.
+test('never redraws above the top of the terminal', async () => {
+  const rows = 6
+  const writes: string[] = []
+  const mockProcess = {
+    stdout: {
+      columns: 120,
+      rows,
+      write: (chunk: string) => {
+        writes.push(chunk)
+        return true
+      },
+    },
+    stderr: { write: () => true },
+  }
+
+  const cwd = '/home/jane/project'
+  const streamParser = createStreamParser()
+  const stop = initDefaultReporter({
+    streamParser: streamParser as StreamParser<logs.Log>,
+    reportingOptions: { throttleProgress: 0 },
+    context: {
+      argv: ['update'],
+      config: { dir: cwd } as ReporterPnpmConfig,
+      process: mockProcess as unknown as NodeJS.Process,
+    },
+  })
+
+  const groupDir = (group: number): string => `${cwd}/global/install-${group}`
+  const reportResolved = (group: number, id: string): void => {
+    progressLogger.debug({
+      packageId: `registry.npmjs.org/${id}/1.0.0`,
+      requester: groupDir(group),
+      status: 'resolved',
+    })
+  }
+
+  try {
+    await yieldTick()
+
+    // One progress line per group, until the frame is taller than the terminal.
+    const groupCount = rows * 3
+    for (let group = 0; group < groupCount; group++) {
+      stageLogger.debug({ prefix: groupDir(group), stage: 'resolution_started' })
+      reportResolved(group, 'foo')
+    }
+    await waitFor(writes, w => w.some(s => stripAnsi(s).includes(`install-${groupCount - 1}`)))
+
+    // The first group's line sits at the top of the frame, which by now has
+    // scrolled off the screen. Redrawing it is what walked the cursor too far.
+    const writesBeforeRedraw = writes.length
+    reportResolved(0, 'bar')
+    await waitFor(writes, w => w.length > writesBeforeRedraw)
+
+    const cursorUps = writes.flatMap((write) =>
+      [...write.matchAll(/\x1b\[(\d+)A/g)].map(([, count]) => Number(count)) // eslint-disable-line no-control-regex
+    )
+    expect(cursorUps.length).toBeGreaterThan(0)
+    expect(Math.max(...cursorUps)).toBeLessThan(rows)
+  } finally {
+    stop()
+  }
+})

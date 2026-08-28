@@ -87,3 +87,83 @@ fn prompt_renders_only_the_latest_buffered_frame() {
     assert!(output.contains("latest"));
     assert!(!output.contains("stale"));
 }
+
+/// The cursor-up distances (`\x1b[<n>A`) in `output`.
+fn cursor_ups(output: &str) -> Vec<usize> {
+    let mut result = Vec::new();
+    let mut rest = output;
+    while let Some(start) = rest.find("\x1b[") {
+        rest = &rest[start + 2..];
+        let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+        if !digits.is_empty() && rest[digits.len()..].starts_with('A') {
+            result.push(digits.parse().expect("parse the cursor-up distance"));
+        }
+    }
+    result
+}
+
+/// Regression test for pnpm/pnpm#14270: `pnpm update -g` installs each global
+/// package group in turn, so the frame keeps growing by one progress line per
+/// group. The differ redraws a line by moving the cursor up from the end of the
+/// frame; once the frame is taller than the terminal, the lines it has to reach
+/// have scrolled away and the move stops at the top of the screen — landing on,
+/// and overwriting, whatever is displayed there instead.
+#[test]
+fn never_redraws_above_the_top_of_the_terminal() {
+    const ROWS: usize = 6;
+    const COLUMNS: usize = 120;
+
+    let mut sink = Sink::new();
+    sink.rows = Some(ROWS);
+    sink.columns = COLUMNS;
+    sink.diff = crate::diff::Diff::new(COLUMNS);
+    let mut writes = Vec::new();
+
+    // One progress line per group; the first group's line keeps ticking, so
+    // redrawing the frame means reaching back to its top.
+    let frame = |groups: usize, first_group_resolved: usize| -> String {
+        (0..groups)
+            .map(|group| {
+                let resolved = if group == 0 { first_group_resolved } else { 1 };
+                format!("global/install-{group}: Progress: resolved {resolved}")
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+
+    for groups in 1..=ROWS * 3 {
+        sink.write_to(Output::Frame(frame(groups, 1)), false, &mut writes);
+    }
+    sink.write_to(Output::Frame(frame(ROWS * 3, 2)), false, &mut writes);
+
+    let output = String::from_utf8(writes).expect("utf8 output");
+    let ups = cursor_ups(&output);
+    assert!(!ups.is_empty(), "the frame must have been redrawn at least once");
+    assert!(
+        ups.iter().all(|up| *up < ROWS),
+        "no redraw may reach above the terminal's top row, got: {ups:?}",
+    );
+}
+
+/// An error frame stands in for the progress output rather than extending it,
+/// so it can be shorter than the prefix already committed to the scrollback.
+/// That prefix no longer describes what is on screen, so the replacement is
+/// rendered whole instead of being sliced against it.
+#[test]
+fn a_frame_shorter_than_the_committed_prefix_is_rendered_whole() {
+    let mut sink = Sink::new();
+    sink.rows = Some(3);
+    sink.columns = 120;
+    sink.diff = crate::diff::Diff::new(120);
+    let mut writes = Vec::new();
+
+    let tall = (0..12).map(|line| format!("line {line}")).collect::<Vec<_>>().join("\n");
+    sink.write_to(Output::Frame(tall), false, &mut writes);
+    assert!(sink.committed_lines > 0, "the tall frame must have overflowed the terminal");
+
+    writes.clear();
+    sink.write_to(Output::Frame("Error: boom".to_string()), false, &mut writes);
+
+    let output = String::from_utf8(writes).expect("utf8 output");
+    assert!(output.contains("Error: boom"), "the error frame must be rendered, got: {output:?}");
+}
