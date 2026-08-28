@@ -1142,3 +1142,42 @@ fn global_update_leaves_the_pnpm_cli_group_to_self_update() {
 
     drop((root, npmrc_info));
 }
+
+/// `--latest` resolves the `latest` dist-tag, which can point at an older
+/// release than the one installed — that is what rolled a self-updated pnpm
+/// back in pnpm/pnpm#14270. An update must never move a global package
+/// backwards.
+#[cfg(unix)]
+#[test]
+fn global_update_latest_keeps_a_package_that_latest_would_downgrade() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "2.1.0", "latest");
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/multi-version-a@2.1.0"])
+        .assert()
+        .success();
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "1.0.0", "latest");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--latest"])
+        .assert()
+        .success();
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["list", "-g"])
+        .output()
+        .expect("run list -g");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("@pnpm.e2e/multi-version-a@2.1.0"),
+        "the installed version must be kept, got: {stdout}",
+    );
+
+    drop((root, npmrc_info));
+}

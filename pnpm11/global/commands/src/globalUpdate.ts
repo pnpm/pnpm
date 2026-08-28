@@ -17,10 +17,14 @@ import semver from 'semver'
 import { getBinNamesOfOtherGroups } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { activateGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
-import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
+import {
+  installGlobalPackages,
+  type InstallGlobalPackagesResult,
+  type ResolutionPolicyViolation,
+} from './installGlobalPackages.js'
 import { hasPnpmCliDependency } from './pnpmCliPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
-import { type InstalledGroupPackage, readInstalledPackages } from './readInstalledPackages.js'
+import { readInstalledPackages } from './readInstalledPackages.js'
 
 export type GlobalUpdateOptions = CreateStoreControllerOptions & {
   bin?: string
@@ -86,21 +90,10 @@ async function updateGlobalPackageGroup (
   pkg: GlobalPackageInfo,
   commands: CommandHandlerMap
 ): Promise<void> {
-  const versionsBefore = new Map(
-    (await getGlobalPackageDetails(pkg)).map(({ alias, version }) => [alias, version])
-  )
-  let install = await installGroup(opts, globalDir, depSpecsForUpdate(pkg.dependencies, opts.latest))
-  // An update must never move a package backwards, and `--latest` can: the
-  // `latest` dist-tag points at an older release than the one installed
-  // whenever that came from another tag, or from a major that has not been
-  // promoted to `latest` yet. Reinstall those held at the version that is
-  // already there, so the rest of the group still gets its update.
-  const pins = downgradedVersions(pkg.dependencies, versionsBefore, install.pkgs)
-  if (pins.size > 0) {
-    await fs.promises.rm(install.installDir, { recursive: true, force: true })
-    install = await installGroup(opts, globalDir, depSpecsForUpdate(pkg.dependencies, opts.latest, pins))
-  }
-  const { installDir, pkgs, ignoredBuilds, resolutionPolicyViolations } = install
+  const pins = await pinsForDowngrades(opts, globalDir, pkg)
+  const installDir = createInstallDir(globalDir)
+  const { ignoredBuilds, resolutionPolicyViolations } =
+    await installGroup(opts, installDir, depSpecsForUpdate(pkg.dependencies, opts.latest, pins))
 
   await promptApproveGlobalBuilds({
     globalPkgDir: globalDir,
@@ -111,6 +104,7 @@ async function updateGlobalPackageGroup (
   }, commands)
 
   // Check for bin name conflicts with other global packages
+  const pkgs = await readInstalledPackages(installDir)
   let binsToSkip: Set<string>
   try {
     binsToSkip = await checkGlobalBinConflicts({
@@ -144,26 +138,18 @@ async function updateGlobalPackageGroup (
   await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
 }
 
-interface GroupInstall {
-  installDir: string
-  pkgs: InstalledGroupPackage[]
-  ignoredBuilds: Awaited<ReturnType<typeof installGlobalPackages>>['ignoredBuilds']
-  resolutionPolicyViolations: ResolutionPolicyViolation[]
-}
-
-/** Installs `depSpecs` into a fresh directory under the global packages dir. */
+/** Installs `depSpecs` into `installDir` under the global packages dir. */
 async function installGroup (
-  opts: GlobalUpdateOptions,
-  globalDir: string,
+  opts: GlobalUpdateOptions & { lockfileOnly?: boolean },
+  installDir: string,
   depSpecs: string[]
-): Promise<GroupInstall> {
-  const installDir = createInstallDir(globalDir)
+): Promise<InstallGlobalPackagesResult> {
   const include = {
     dependencies: true,
     devDependencies: false,
     optionalDependencies: true,
   }
-  const { ignoredBuilds, resolutionPolicyViolations } = await installGlobalPackages({
+  return installGlobalPackages({
     ...opts,
     global: false,
     bin: path.join(installDir, 'node_modules/.bin'),
@@ -177,18 +163,12 @@ async function installGroup (
     savePeer: false,
     workspaceDir: undefined,
     sharedWorkspaceLockfile: false,
-    lockfileOnly: false,
+    lockfileOnly: opts.lockfileOnly ?? false,
     include,
     includeDirect: include,
     allowBuilds: opts.allowBuilds ?? {},
     omitSummaryLog: true,
   }, depSpecs)
-  return {
-    installDir,
-    pkgs: await readInstalledPackages(installDir),
-    ignoredBuilds,
-    resolutionPolicyViolations,
-  }
 }
 
 /**
@@ -209,25 +189,50 @@ function depSpecsForUpdate (
 }
 
 /**
- * The versions `installed` moved backwards from, by alias. Only plain version
- * dependencies are considered: every other spec form says where the package
- * comes from, so holding it at a bare version would resolve a different package
- * from the default registry.
+ * The version to hold each dependency of `pkg` at, for the ones an update would
+ * otherwise move backwards. `--latest` resolves the `latest` dist-tag, which
+ * points at an older release than the one installed whenever that came from
+ * another tag, or from a major that has not been promoted to `latest` yet.
+ *
+ * The versions are resolved without installing anything, so a release that is
+ * about to be rejected never gets the chance to run its lifecycle scripts.
+ *
+ * Only plain version dependencies are considered: every other spec form says
+ * where the package comes from, so holding one at a bare version would resolve
+ * a different package from the default registry.
  */
-function downgradedVersions (
-  dependencies: Record<string, string>,
-  versionsBefore: ReadonlyMap<string, string>,
-  installed: readonly InstalledGroupPackage[]
-): Map<string, string> {
+async function pinsForDowngrades (
+  opts: GlobalUpdateOptions,
+  globalDir: string,
+  pkg: GlobalPackageInfo
+): Promise<Map<string, string>> {
   const pins = new Map<string, string>()
-  for (const { alias, manifest } of installed) {
-    const before = versionsBefore.get(alias)
-    const spec = dependencies[alias]
-    if (before == null || spec == null || !isPlainVersionSpec(spec)) continue
-    if (semver.valid(before) == null || semver.valid(manifest.version) == null) continue
-    if (semver.lt(manifest.version, before)) {
-      pins.set(alias, before)
+  const versionsBefore = new Map(
+    (await getGlobalPackageDetails(pkg))
+      .filter(({ alias }) => isPlainVersionSpec(pkg.dependencies[alias] ?? ''))
+      .map(({ alias, version }) => [alias, version])
+  )
+  // Only `--latest` can pick a version outside the recorded range, and only a
+  // plain version spec is dropped for it. Everything else resolves within a
+  // range the installed version already satisfies.
+  if (opts.latest !== true || versionsBefore.size === 0) return pins
+
+  const probeDir = createInstallDir(globalDir)
+  try {
+    const { resolvedVersions } = await installGroup(
+      { ...opts, lockfileOnly: true },
+      probeDir,
+      depSpecsForUpdate(pkg.dependencies, opts.latest)
+    )
+    for (const [alias, before] of versionsBefore) {
+      const resolved = resolvedVersions[alias]
+      if (semver.valid(before) == null || semver.valid(resolved) == null) continue
+      if (semver.lt(resolved, before)) {
+        pins.set(alias, before)
+      }
     }
+  } finally {
+    await fs.promises.rm(probeDir, { recursive: true, force: true })
   }
   return pins
 }

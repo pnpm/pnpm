@@ -47,6 +47,7 @@ use pnpm_global::{
     get_installed_bin_names, installed_versions, read_direct_dependencies, read_installed_packages,
     scan_global_packages,
 };
+use pnpm_lockfile::{ImporterDepVersion, Lockfile};
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_package_manifest::{DependencyGroup, safe_read_package_json_from_dir};
 use pnpm_registry::RangeSpecStyle;
@@ -245,14 +246,15 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     clean_orphaned_install_dirs(&global_pkg_dir);
 
     for group in groups {
-        let (install_dir, config) = Box::pin(run_group_install::<Reporter>(
+        let (install_dir, config) = Box::pin(run_group_install::<Reporter>(GroupInstall {
             base_config,
-            &global_pkg_dir,
-            &group,
+            global_pkg_dir: &global_pkg_dir,
+            selectors: &group,
             range_spec_style,
-            supported_architectures.clone(),
+            supported_architectures: supported_architectures.clone(),
             allow_build,
-        ))
+            lockfile_only: false,
+        }))
         .await?;
 
         let pkgs = read_installed_packages(&install_dir);
@@ -410,42 +412,28 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     }
 
     for pkg in &to_update {
-        let versions_before = installed_versions(&pkg.install_dir);
-        let mut selectors = update_selectors(&pkg.dependencies, latest, &HashMap::new());
-        let mut install_dir = Box::pin(run_group_install::<Reporter>(
+        let pins = Box::pin(pins_for_downgrades::<Reporter>(
             base_config,
             &global_pkg_dir,
-            &selectors,
+            pkg,
+            latest,
             range_spec_style,
             supported_architectures.clone(),
+        ))
+        .await?;
+        let install_dir = Box::pin(run_group_install::<Reporter>(GroupInstall {
+            base_config,
+            global_pkg_dir: &global_pkg_dir,
+            selectors: &update_selectors(&pkg.dependencies, latest, &pins),
+            range_spec_style,
+            supported_architectures: supported_architectures.clone(),
             // `update -g` takes no `--allow-build`; the build policy comes
             // from the global `allowBuilds` loaded in `run_group_install`.
-            &[],
-        ))
+            allow_build: &[],
+            lockfile_only: false,
+        }))
         .await?
         .0;
-
-        // An update must never move a package backwards, and `--latest` can:
-        // the `latest` dist-tag points at an older release than the one
-        // installed whenever that came from another tag, or from a major that
-        // has not been promoted to `latest` yet. Reinstall those held at the
-        // version that is already there, so the rest of the group still gets
-        // its update.
-        let pins = downgraded_versions(&pkg.dependencies, &versions_before, &install_dir);
-        if !pins.is_empty() {
-            let _ = fs::remove_dir_all(&install_dir);
-            selectors = update_selectors(&pkg.dependencies, latest, &pins);
-            install_dir = Box::pin(run_group_install::<Reporter>(
-                base_config,
-                &global_pkg_dir,
-                &selectors,
-                range_spec_style,
-                supported_architectures.clone(),
-                &[],
-            ))
-            .await?
-            .0;
-        }
 
         let pkgs = read_installed_packages(&install_dir);
         let dependencies = read_direct_dependencies(&install_dir);
@@ -573,23 +561,78 @@ fn update_selectors(
         .collect()
 }
 
-/// The versions the group at `install_dir` moved backwards from, by alias. Only
-/// plain version dependencies are considered: every other spec form says where
-/// the package comes from, so holding it at a bare version would resolve a
-/// different package from the default registry.
-fn downgraded_versions(
-    dependencies: &[(String, String)],
-    versions_before: &HashMap<String, String>,
-    install_dir: &Path,
-) -> HashMap<String, String> {
-    let installed = installed_versions(install_dir);
-    dependencies
+/// The version to hold each dependency of `pkg` at, for the ones an update would
+/// otherwise move backwards. `--latest` resolves the `latest` dist-tag, which
+/// points at an older release than the one installed whenever that came from
+/// another tag, or from a major that has not been promoted to `latest` yet.
+///
+/// The versions are resolved without installing anything, so a release that is
+/// about to be rejected never gets the chance to run its lifecycle scripts.
+///
+/// Only plain version dependencies are considered: every other spec form says
+/// where the package comes from, so holding one at a bare version would resolve
+/// a different package from the default registry.
+async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
+    base_config: &'static Config,
+    global_pkg_dir: &Path,
+    pkg: &GlobalPackageInfo,
+    latest: bool,
+    range_spec_style: RangeSpecStyle,
+    supported_architectures: Option<SupportedArchitectures>,
+) -> miette::Result<HashMap<String, String>> {
+    // Only `--latest` can pick a version outside the recorded range, and only a
+    // plain version spec is dropped for it. Everything else resolves within a
+    // range the installed version already satisfies.
+    if !latest || !pkg.dependencies.iter().any(|(_, spec)| is_plain_version_spec(spec)) {
+        return Ok(HashMap::new());
+    }
+    let versions_before = installed_versions(&pkg.install_dir);
+    let probe_dir = run_group_install::<Reporter>(GroupInstall {
+        base_config,
+        global_pkg_dir,
+        selectors: &update_selectors(&pkg.dependencies, latest, &HashMap::new()),
+        range_spec_style,
+        supported_architectures,
+        allow_build: &[],
+        lockfile_only: true,
+    })
+    .await?
+    .0;
+    let resolved = resolved_direct_versions(&probe_dir);
+    let _ = fs::remove_dir_all(&probe_dir);
+
+    Ok(pkg
+        .dependencies
         .iter()
         .filter(|(_, spec)| is_plain_version_spec(spec))
         .filter_map(|(alias, _)| {
             let before = Version::parse(versions_before.get(alias)?).ok()?;
-            let now = Version::parse(installed.get(alias)?).ok()?;
-            (now < before).then(|| (alias.clone(), before.to_string()))
+            let now = resolved.get(alias)?;
+            (*now < before).then(|| (alias.clone(), before.to_string()))
+        })
+        .collect())
+}
+
+/// The version each direct dependency resolved to, read from the lockfile the
+/// resolve pass wrote. Only the plain-semver shape is reported: it is the only
+/// one a plain version spec resolves to, and the only one a pin can hold.
+fn resolved_direct_versions(install_dir: &Path) -> HashMap<String, Version> {
+    let Ok(Some(lockfile)) = Lockfile::load_from_path(&install_dir.join(Lockfile::FILE_NAME))
+    else {
+        return HashMap::new();
+    };
+    let Some(importer) = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY) else {
+        return HashMap::new();
+    };
+    importer
+        .dependencies
+        .iter()
+        .flatten()
+        .filter_map(|(alias, resolved)| match &resolved.version {
+            ImporterDepVersion::Regular(version) => {
+                Some((alias.to_string(), version.version_semver()?.clone()))
+            }
+            _ => None,
         })
         .collect()
 }
@@ -792,18 +835,37 @@ fn restore_virtual_shims(
     Ok(())
 }
 
-/// Install `selectors` into a fresh group directory under `global_pkg_dir`,
-/// returning that directory and the leaked per-group [`Config`] (anchored
-/// there, saving to `dependencies`). Then run the global build-approval
-/// flow. Shared by add and update.
-async fn run_group_install<Reporter: self::Reporter + 'static>(
-    base_config: &Config,
-    global_pkg_dir: &Path,
-    selectors: &[String],
+/// What to install into a fresh global group directory. See
+/// [`run_group_install`].
+struct GroupInstall<'a> {
+    base_config: &'a Config,
+    global_pkg_dir: &'a Path,
+    selectors: &'a [String],
     range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
-    allow_build: &[String],
+    allow_build: &'a [String],
+    /// Resolve and write the lockfile without linking anything or running a
+    /// build. Nothing a resolution is only being inspected for gets the chance
+    /// to run its lifecycle scripts.
+    lockfile_only: bool,
+}
+
+/// Install `install.selectors` into a fresh group directory under
+/// `install.global_pkg_dir`, returning that directory and the leaked per-group
+/// [`Config`] (anchored there, saving to `dependencies`). Then run the global
+/// build-approval flow. Shared by add and update.
+async fn run_group_install<Reporter: self::Reporter + 'static>(
+    install: GroupInstall<'_>,
 ) -> miette::Result<(PathBuf, &'static Config)> {
+    let GroupInstall {
+        base_config,
+        global_pkg_dir,
+        selectors,
+        range_spec_style,
+        supported_architectures,
+        allow_build,
+        lockfile_only,
+    } = install;
     let install_dir = create_install_dir(global_pkg_dir)
         .into_diagnostic()
         .wrap_err("create global install dir")?;
@@ -826,13 +888,15 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
         &selectors,
         range_spec_style,
         None,
-        false,
+        lockfile_only,
         config.supported_architectures.clone(),
         Some([DependencyGroup::Prod]),
     )
     .await?;
 
-    prompt_approve_global_builds::<Reporter>(config, &install_dir, global_pkg_dir).await?;
+    if !lockfile_only {
+        prompt_approve_global_builds::<Reporter>(config, &install_dir, global_pkg_dir).await?;
+    }
     Ok((install_dir, config))
 }
 
