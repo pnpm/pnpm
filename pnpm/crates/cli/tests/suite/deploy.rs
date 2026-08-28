@@ -694,6 +694,10 @@ fn legacy_deploy_excludes_fetched_dependencies_of_unselected_projects() {
         .success();
 
     let virtual_store_entries = virtual_store_entries(&workspace.join("legacy-deploy"));
+    assert!(
+        virtual_store_entries.iter().any(|entry| entry.starts_with("@pnpm.e2e+pkg-with-1-dep@")),
+        "the deploy virtual store should include the selected dependency closure: {virtual_store_entries:#?}",
+    );
     for excluded in ["@pnpm.e2e+bar@", "@pnpm.e2e+qar@"] {
         assert!(
             !virtual_store_entries.iter().any(|entry| entry.starts_with(excluded)),
