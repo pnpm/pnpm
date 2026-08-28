@@ -189,9 +189,11 @@ where
         let modules_dir_name: &OsStr =
             config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
 
-        // Sorted iteration so `pnpm:root` event order stays
-        // deterministic. The wire shape doesn't require this, but a
-        // deterministic order makes assertions in tests tractable.
+        // Sorted so the fallible upfront validation below rejects a
+        // hostile lockfile on a deterministic importer. `pnpm:root`
+        // event order is not pinned — the per-importer work runs on
+        // rayon, matching pnpm's `Promise.all` over importers — so
+        // consumers key events off their `prefix`, never their order.
         let mut keys: Vec<&str> = importers.keys().map(String::as_str).collect();
         keys.sort_unstable();
 
@@ -226,28 +228,38 @@ where
             targets
         });
 
-        for importer_id in keys {
-            // Reject importer keys that would escape the workspace
-            // root. A malformed (or hostile) lockfile could otherwise
-            // make `Path::join` create `node_modules` outside the
-            // workspace — `Path::join` discards the base when the
-            // RHS is absolute, and `..` components are otherwise
-            // permitted. Importer ids the caller declared as projects
-            // (see [`Self::trusted_importer_ids`]) skip the check —
-            // an explicitly-configured project may live outside the
-            // lockfile dir.
-            if !trusted_importer_ids.is_some_and(|trusted| trusted.contains(importer_id)) {
+        // Reject importer keys that would escape the workspace
+        // root. A malformed (or hostile) lockfile could otherwise
+        // make `Path::join` create `node_modules` outside the
+        // workspace — `Path::join` discards the base when the
+        // RHS is absolute, and `..` components are otherwise
+        // permitted. Importer ids the caller declared as projects
+        // (see [`Self::trusted_importer_ids`]) skip the check —
+        // an explicitly-configured project may live outside the
+        // lockfile dir. Validated before any importer links, so a
+        // rejected lockfile writes nothing.
+        for importer_id in &keys {
+            if !trusted_importer_ids.is_some_and(|trusted| trusted.contains(*importer_id)) {
                 validate_importer_id(importer_id)?;
             }
-            // Safe: we just iterated `importers.keys()`.
-            let project_snapshot = &importers[importer_id];
+        }
+
+        // One rayon task per importer, mirroring pnpm's `Promise.all`
+        // over `linkDirectDeps`' projects: each importer's symlink and
+        // bin work is independent (dedupe compares against the *plan*
+        // in `root_targets`, not the root importer's on-disk state), and
+        // a serial walk would insert a fork-join barrier per importer
+        // between the filesystem batches.
+        keys.par_iter().try_for_each(|importer_id| {
+            // Safe: `keys` came from `importers.keys()`.
+            let project_snapshot = &importers[*importer_id];
             let project_dir = importer_root_dir(workspace_root, importer_id);
             let modules_dir = project_dir.join(modules_dir_name);
 
             // Only non-root importers get deduped against root: the
             // root project is linked unfiltered, then each sibling's
-            // list is trimmed against what root just linked.
-            let dedupe_against = match (&root_targets, importer_id) {
+            // list is trimmed against what root links.
+            let dedupe_against = match (&root_targets, *importer_id) {
                 (Some(targets), id) if id != "." => Some(targets),
                 _ => None,
             };
@@ -265,10 +277,8 @@ where
                 dedupe_against,
                 config.symlink,
                 link_options,
-            )?;
-        }
-
-        Ok(())
+            )
+        })
     }
 }
 
