@@ -2602,6 +2602,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
             })
           }
         }
+        if (opts.lockfileOnly) return await _installInContext(newProjects, ctx, opts)
         const result = await installInContext(newProjects, ctx, {
           ...opts,
           lockfileOnly: true,

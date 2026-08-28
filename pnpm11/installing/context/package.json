@@ -43,7 +43,8 @@
     "@pnpm/store.controller": "workspace:*",
     "@pnpm/types": "workspace:*",
     "path-absolute": "catalog:",
-    "ramda": "catalog:"
+    "ramda": "catalog:",
+    "realpath-missing": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
