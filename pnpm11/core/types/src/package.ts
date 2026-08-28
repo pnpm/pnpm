@@ -315,8 +315,9 @@ export interface PnpmSettings {
    */
   sideEffectsCache?: boolean | SideEffectsCacheSettings
   /**
-   * The alternative spelling of {@link SideEffectsCacheSettings.remote}. When
-   * both are set, that one wins.
+   * The alternative spelling of {@link SideEffectsCacheSettings.remote}. A
+   * field set under both takes its value from there; a field set under only
+   * one is kept either way.
    */
   remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
   versioning?: VersioningSettings
@@ -363,10 +364,7 @@ export interface RemoteSideEffectsCacheSettings {
    * halves are present.
    */
   org?: string
-  /**
-   * The alternative spelling of {@link RemoteSideEffectsCacheSettings.org}.
-   * When both are set, that one wins.
-   */
+  /** The alternative spelling of {@link RemoteSideEffectsCacheSettings.org}, which wins when both are set. */
   organization?: string
   packages?: string[]
   /** Publish the lifecycle-script diff of every eligible package that is built. */

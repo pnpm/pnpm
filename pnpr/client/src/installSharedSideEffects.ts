@@ -118,7 +118,7 @@ interface QueuedLookup {
 
 export function canRestoreRemoteSideEffects (opts: RemoteSideEffectsPrerequisites): boolean {
   return opts.settings != null &&
-    opts.settings.org != null &&
+    isNonEmpty(opts.settings.org) &&
     (opts.settings.packages?.length ?? 0) > 0 &&
     Object.keys(opts.settings.trustedKeys ?? {}).length > 0 &&
     !opts.ignoreScripts &&
@@ -132,7 +132,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
   const artifactPlatform = currentArtifactPlatform(opts.nodeVersion)
   const { pnprServer, settings } = opts
   const organization = settings?.org
-  if (artifactPlatform == null || settings == null || organization == null) return undefined
+  if (artifactPlatform == null || settings == null || !isNonEmpty(organization)) return undefined
   const registryUrl = pnprServer
   const ownerName = organization
   const owner = { type: 'organization', name: ownerName } as const
@@ -623,7 +623,7 @@ export async function publishBuiltSharedSideEffects<T extends string> (
     opts.settings.packages?.includes(opts.name) !== true
   ) return
   const { builderId, keyId, org: organization, privateKey } = opts.settings
-  if (organization == null) return
+  if (!isNonEmpty(organization)) return
   const artifactPlatform = currentArtifactPlatform(opts.nodeVersion)
   const sourceIntegrity = verifiedIntegrity(opts.resolution)
   if (keyId == null || privateKey == null || builderId == null || artifactPlatform == null || sourceIntegrity == null) return
@@ -852,4 +852,12 @@ function manifestMatchesDiff (manifest: ArtifactManifest, diff: SideEffectsDiff)
   return deleted.length === manifest.deleted.length &&
     new Set(deleted).size === deleted.length &&
     deleted.every(path => manifest.deleted.includes(path))
+}
+
+/**
+ * An owner scope needs a name, and `org: ''` is not one. The Rust client
+ * refuses it through `non_empty`; this is the same gate.
+ */
+function isNonEmpty (value: string | undefined): value is string {
+  return value != null && value.length > 0
 }

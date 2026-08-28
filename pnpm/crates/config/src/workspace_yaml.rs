@@ -157,9 +157,14 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct RemoteSideEffectsCacheSettings {
     /// `org` is what pnpr calls this namespace in its own configuration and
-    /// what its endpoints are built from. `organization` is also accepted.
-    #[serde(alias = "organization")]
+    /// what its endpoints are built from.
     pub org: String,
+    /// The alternative spelling of [`Self::org`], which wins over this one.
+    ///
+    /// A separate field rather than a serde alias: an alias makes a file
+    /// carrying both keys a duplicate-field parse error, where every other
+    /// pair of spellings here resolves to the canonical one.
+    pub organization: String,
     pub packages: Vec<String>,
     /// Publish the lifecycle-script diff of every eligible package that is built.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -216,6 +221,7 @@ impl RemoteSideEffectsCacheSettings {
     pub(crate) fn overlay(&mut self, other: Self) {
         let Self {
             org,
+            organization,
             packages,
             publish,
             key_id,
@@ -226,6 +232,9 @@ impl RemoteSideEffectsCacheSettings {
             trusted_keys,
             private_key,
         } = other;
+        // Resolved as the section is layered rather than at each read, so
+        // that `.org` is the only spelling anything downstream has to know.
+        let org = if org.is_empty() { organization } else { org };
         if !org.is_empty() {
             self.org = org;
         }

@@ -1343,13 +1343,19 @@ function resolveSideEffectsCache (pnpmConfig: Config): void {
       ...settings.remote,
     }
   }
-  const remote = pnpmConfig.remoteSideEffectsCache
-  if (remote?.organization != null) {
-    // `org` is the spelling pnpr itself uses for this namespace, and the one
-    // its endpoints are built from. Consumers only ever see that one.
-    remote.org ??= remote.organization
-    delete remote.organization
-  }
+}
+
+/**
+ * Rewrites `organization` to `org` before the two remote spellings are merged.
+ *
+ * Merging first and resolving after would compare a field named `org` on one
+ * side against `organization` on the other, so neither would take precedence
+ * over the other and whichever key happened to be named `org` would win.
+ */
+function withCanonicalOrg (remote: RemoteSideEffectsCacheSettings | undefined): RemoteSideEffectsCacheSettings | undefined {
+  if (remote?.organization == null) return remote
+  const { organization, ...rest } = remote
+  return { ...rest, org: rest.org ?? organization }
 }
 
 /**
@@ -1586,7 +1592,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
     if (key === 'remoteSideEffectsCache') {
       pnpmConfig.remoteSideEffectsCache = {
         ...pnpmConfig.remoteSideEffectsCache,
-        ...value as RemoteSideEffectsCacheSettings,
+        ...withCanonicalOrg(value as RemoteSideEffectsCacheSettings),
       }
       pnpmConfig.explicitlySetKeys.add(key)
       continue
@@ -1604,7 +1610,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
       } else if (value != null) {
         const declared = value as SideEffectsCacheSettings
         const remote = previous?.remote != null || declared.remote != null
-          ? { ...previous?.remote, ...declared.remote }
+          ? { ...previous?.remote, ...withCanonicalOrg(declared.remote) }
           : undefined
         pnpmConfig.sideEffectsCache = { ...previous, ...declared, remote }
       }

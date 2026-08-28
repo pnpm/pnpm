@@ -5845,3 +5845,23 @@ test('getConfig() reads through sideEffectsCacheReadonly with the cache off', as
   expect(config.sideEffectsCacheRead).toBe(true)
   expect(config.sideEffectsCacheWrite).toBe(false)
 })
+
+test('getConfig() prefers the canonical org across the two remote spellings', async () => {
+  // The two spellings of the section and the two of the field are independent,
+  // so the deprecated section may carry `org` while the canonical one carries
+  // `organization`. Resolving the field only after merging would let whichever
+  // key happened to be named `org` win.
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    remoteSideEffectsCache: { org: 'deprecated' },
+    sideEffectsCache: { remote: { organization: 'canonical' } },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.remoteSideEffectsCache).toStrictEqual({ org: 'canonical' })
+})

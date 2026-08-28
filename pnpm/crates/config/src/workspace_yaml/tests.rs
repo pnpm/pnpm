@@ -1030,6 +1030,25 @@ sideEffectsCache:
     assert_eq!(shared.packages, ["native-addon"]);
 }
 
+/// A file may carry both spellings of the field; `org` wins, and neither is a
+/// parse error the way a serde alias would have made them.
+#[test]
+fn the_canonical_org_wins_over_the_alternative_spelling() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  remote:
+    org: canonical
+    organization: alternative
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert_eq!(config.remote_side_effects_cache.expect("shared cache config").org, "canonical");
+}
+
 /// Layers apply in order, so a shorthand in a later one has to beat an object
 /// in an earlier one rather than being masked by what the object left behind.
 #[test]
