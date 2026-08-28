@@ -55,7 +55,8 @@ impl NodeJsHooks {
                 "module",
                 format!(
                     r#"import {{ readFileSync }} from 'node:fs';
-const hooks = await import({file_path_escaped});
+import {{ pathToFileURL }} from 'node:url';
+const hooks = await import(pathToFileURL({file_path_escaped}).href);
 const ctx = JSON.parse(readFileSync(0, 'utf8'));
 const logger = {{
   info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":String(m)}})); }},
