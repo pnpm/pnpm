@@ -233,6 +233,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     // dep that public-hoist lands at root has to be in
     // `SymlinkDirectDependencies`'s dedupe map, and `write_hoist_links`
     // reuses the plan rather than walking a second time.
+    let phase_start = std::time::Instant::now();
     let pre_hoist = compute_hoist_plan(
         config,
         snapshots,
@@ -246,6 +247,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     let public_hoist_targets: Option<BTreeMap<String, PathBuf>> = pre_hoist
         .as_ref()
         .map(|plan| collect_public_hoist_targets(&plan.result, &plan.graph, layout, &plan.skipped));
+    tracing::info!(target: "pacquet::install::phase", phase = "link.hoist_plan", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
     // `nodeLinker: hoisted` writes no virtual store — `CreateVirtualStore`
     // skipped the slots — so there is nothing to link into or out of.
@@ -277,6 +279,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
             message: StatsMessage::Removed { prefix: requester.to_owned(), removed: removed_count },
         }));
 
+        let phase_start = std::time::Instant::now();
         SymlinkDirectDependencies {
             config,
             layout,
@@ -292,6 +295,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         }
         .run::<Reporter>()
         .map_err(LinkPhaseError::SymlinkDirectDependencies)?;
+        tracing::info!(target: "pacquet::install::phase", phase = "link.symlink_direct_deps", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
         // Bit "root components" — a no-op unless an importer declared
         // `installConfig.hoistingLimits: "workspaces"`.
@@ -311,6 +315,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         // `virtual_store_only`: the links it writes live inside the
         // virtual store, and the build phase — which `pnpm fetch` still
         // runs — resolves a dependency's sibling bin through them.
+        let phase_start = std::time::Instant::now();
         LinkVirtualStoreBins {
             layout,
             snapshots,
@@ -322,6 +327,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         }
         .run()
         .map_err(LinkPhaseError::LinkVirtualStoreBins)?;
+        tracing::info!(target: "pacquet::install::phase", phase = "link.virtual_store_bins", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
     }
 
     // Everything below writes into the project that `virtual_store_only`
@@ -356,10 +362,32 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         HoistedLinkerOutput::default()
     };
 
+    // Publicly hoisted *workspace* packages are the one source of root
+    // bins nothing else shims: every importer's direct-dep bins were
+    // written by `SymlinkDirectDependencies`, and publicly hoisted
+    // regular packages go through the post-build top-level pass
+    // (`publicly_hoisted_for_post_build`) — but that pass resolves bins
+    // out of virtual-store slots, which a workspace project doesn't
+    // have. Collected before `write_hoist_links` consumes the plan;
+    // shimmed after the hoist symlinks land.
+    let public_workspace_bin_deps: Vec<(String, PathBuf)> = pre_hoist
+        .as_ref()
+        .map(|plan| {
+            plan.result
+                .hoisted_workspace_aliases
+                .iter()
+                .filter(|(_, kind, _)| matches!(kind, pnpm_modules_yaml::HoistKind::Public))
+                .map(|(alias, _, project_dir)| (alias.clone(), project_dir.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let phase_start = std::time::Instant::now();
     let HoistLinks { hoisted_dependencies, publicly_hoisted_with_bins } = match pre_hoist {
         Some(plan) => write_hoist_links(plan, config, layout, link_options)?,
         None => HoistLinks::none(),
     };
+    tracing::info!(target: "pacquet::install::phase", phase = "link.write_hoist_links", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
     if crate::should_write_package_map(config, node_linker) {
         crate::package_map::write_package_map(
@@ -378,12 +406,14 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         crate::write_pnp_file(sidecar_lockfile, workspace_root, config, layout, project_manifests)
             .map_err(LinkPhaseError::WritePnpFile)?;
     }
-    relink_importer_bins_after_hoisting(
-        &config.modules_dir,
-        symlink_root,
-        trusted_importer_ids,
-        link_options,
-    )?;
+    if !public_workspace_bin_deps.is_empty() {
+        link_direct_dep_bins_resolved(
+            &config.modules_dir,
+            &public_workspace_bin_deps,
+            link_options,
+        )
+        .map_err(LinkPhaseError::LinkBins)?;
+    }
 
     Ok(LinkPhaseOutput {
         hoisted_dependencies,
@@ -432,36 +462,4 @@ fn write_hoist_links(
         hoisted_dependencies: result.hoisted_dependencies,
         publicly_hoisted_with_bins: result.publicly_hoisted_aliases_with_bins,
     })
-}
-
-/// Re-walk each trusted importer's `node_modules` and shim what it now
-/// holds.
-///
-/// [`SymlinkDirectDependencies`] already linked the direct-dep bins, but
-/// hoisting runs after it, so this pass is what shims a publicly-hoisted
-/// *workspace package*'s bin — those live in the hoist result's
-/// `hoisted_workspace_aliases`, which the post-build top-level bin link
-/// never sees.
-fn relink_importer_bins_after_hoisting(
-    modules_dir: &Path,
-    symlink_root: &Path,
-    trusted_importer_ids: &std::collections::HashSet<String>,
-    link_options: &LinkBinsOptions,
-) -> Result<(), LinkPhaseError> {
-    let modules_basename = modules_dir
-        .file_name()
-        .map_or_else(|| std::ffi::OsString::from("node_modules"), std::ffi::OsStr::to_os_string);
-    for importer_id in trusted_importer_ids {
-        let importer_modules_dir =
-            crate::symlink_direct_dependencies::importer_root_dir(symlink_root, importer_id)
-                .join(&modules_basename);
-        let bins_dir = importer_modules_dir.join(".bin");
-        pnpm_cmd_shim::link_bins::<pnpm_cmd_shim::Host>(
-            &importer_modules_dir,
-            &bins_dir,
-            link_options,
-        )
-        .map_err(LinkPhaseError::LinkBins)?;
-    }
-    Ok(())
 }
