@@ -159,7 +159,8 @@ pub struct RemoteSideEffectsCacheSettings {
     /// `org` is what pnpr calls this namespace in its own configuration and
     /// what its endpoints are built from.
     pub org: String,
-    /// The alternative spelling of [`Self::org`], which wins over this one.
+    /// The alternative spelling of [`Self::org`]. A non-empty [`Self::org`]
+    /// wins over this field.
     ///
     /// A separate field rather than a serde alias: an alias makes a file
     /// carrying both keys a duplicate-field parse error, where every other
