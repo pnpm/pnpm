@@ -483,6 +483,60 @@ fn public_hoist_bin_is_linked_via_root_bin_dir() {
     drop((root, mock_instance));
 }
 
+/// A publicly hoisted *workspace* package's bin must land in
+/// `<root>/node_modules/.bin/`. Neither of the other two bin passes
+/// can produce it — `SymlinkDirectDependencies` runs before hoisting,
+/// and the post-build top-level pass resolves bins out of
+/// virtual-store slots, which a workspace project doesn't have — so
+/// the link phase shims the hoist plan's public workspace aliases
+/// directly.
+#[test]
+fn publicly_hoisted_workspace_package_bin_lands_in_root_bin_dir() {
+    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    write_workspace_yaml(
+        &workspace,
+        "packages:\n  - 'packages/*'\npublicHoistPattern:\n  - '@local/*'\n",
+    );
+
+    let pkg_dir = workspace.join("packages/foo");
+    fs::create_dir_all(&pkg_dir).expect("mkdir packages/foo");
+    fs::write(
+        pkg_dir.join("package.json"),
+        serde_json::json!({
+            "name": "@local/foo",
+            "version": "1.0.0",
+            "private": true,
+            "bin": { "local-foo": "./cli.js" },
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/foo/package.json");
+    fs::write(pkg_dir.join("cli.js"), "#!/usr/bin/env node\nconsole.log('local-foo')\n")
+        .expect("write packages/foo/cli.js");
+
+    generate_lockfile(pnpm);
+    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    let alias_link = workspace.join("node_modules/@local/foo");
+    assert!(
+        is_symlink_or_junction(&alias_link).unwrap(),
+        "the workspace package must be publicly hoisted to {alias_link:?}",
+    );
+    let shim = workspace.join("node_modules/.bin/local-foo");
+    assert!(shim.exists(), "the hoisted workspace package's bin must be shimmed at {shim:?}");
+
+    drop((root, mock_instance));
+}
+
 /// Workspace install (pnpm/pacquet#431) lands per-importer
 /// `node_modules` layouts; hoist must walk every importer's direct
 /// deps, not just the root, so transitives unique to a workspace
