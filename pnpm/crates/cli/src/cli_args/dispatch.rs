@@ -593,7 +593,11 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
 }
 
 fn prints_json_errors(command: &CliCommand) -> bool {
-    matches!(command, CliCommand::Publish(args) if args.flags.json)
+    match command {
+        CliCommand::Publish(args) => args.flags.json,
+        CliCommand::View(args) => args.json,
+        _ => false,
+    }
 }
 
 fn print_json_error(error: &miette::Report) {
