@@ -1046,8 +1046,7 @@ sideEffectsCache:
 
 #[test]
 fn the_boolean_shorthand_still_reads_and_writes() {
-    let settings: WorkspaceSettings =
-        serde_saphyr::from_str("sideEffectsCache: false").unwrap();
+    let settings: WorkspaceSettings = serde_saphyr::from_str("sideEffectsCache: false").unwrap();
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/workspace"));
 

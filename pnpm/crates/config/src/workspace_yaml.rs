@@ -180,6 +180,30 @@ pub struct RemoteSideEffectsCacheSettings {
     pub private_key: Option<String>,
 }
 
+/// `sideEffectsCache` as written: either the boolean shorthand that predates
+/// the remote tier, or the declaration carrying all three parts.
+#[derive(Debug, PartialEq, serde::Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SideEffectsCacheSetting {
+    Enabled(bool),
+    /// Boxed because the shorthand is one byte and this is not, and an
+    /// `Option<SideEffectsCacheSetting>` sits in a struct built for every
+    /// workspace file read.
+    Settings(Box<SideEffectsCacheSettings>),
+}
+
+/// Where a dependency's build output may be reused from: this machine, and —
+/// through [`Self::remote`] — other machines in the same organization.
+#[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SideEffectsCacheSettings {
+    /// Restore a package's build from the cache when one is present.
+    pub read: Option<bool>,
+    /// Save a package's build output to the cache.
+    pub write: Option<bool>,
+    pub remote: Option<RemoteSideEffectsCacheSettings>,
+}
+
 impl RemoteSideEffectsCacheSettings {
     /// Overlay the fields `other` sets onto `self`, leaving the rest alone.
     ///
@@ -255,27 +279,6 @@ impl RemoteSideEffectsCacheSettings {
 /// settings such as `allowBuilds`) from this file rather than from
 /// `package.json`'s `pnpm` field, resolving those settings against the
 /// workspace dir.
-/// `sideEffectsCache` as written: either the boolean shorthand that predates
-/// the remote tier, or the declaration carrying all three parts.
-#[derive(Debug, PartialEq, serde::Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum SideEffectsCacheSetting {
-    Enabled(bool),
-    Settings(SideEffectsCacheSettings),
-}
-
-/// Where a dependency's build output may be reused from: this machine, and —
-/// through [`Self::remote`] — other machines in the same organization.
-#[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-pub struct SideEffectsCacheSettings {
-    /// Restore a package's build from the cache when one is present.
-    pub read: Option<bool>,
-    /// Save a package's build output to the cache.
-    pub write: Option<bool>,
-    pub remote: Option<RemoteSideEffectsCacheSettings>,
-}
-
 #[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorkspaceSettings {
