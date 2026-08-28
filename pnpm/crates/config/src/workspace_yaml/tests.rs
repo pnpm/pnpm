@@ -1361,6 +1361,33 @@ fn the_remote_tier_reads_both_environment_spellings() {
     }
 }
 
+/// A malformed JSON variable is reported by name, so it has to be the name the
+/// reader actually set — pointing at the spelling they did not use sends them
+/// looking for a variable that is not in their environment.
+#[test]
+fn malformed_json_names_the_environment_variable_that_was_set() {
+    struct Older;
+    impl crate::EnvVar for Older {
+        fn var(key: &str) -> Option<String> {
+            (key == "PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS").then(|| "not json".to_string())
+        }
+    }
+
+    let warnings = crate::tests::capture_warnings(|| {
+        let mut config = Config::new();
+        config.apply_remote_side_effects_cache_env::<Older>();
+    });
+
+    let warning = warnings
+        .iter()
+        .find(|warning| warning.contains("not a string-valued JSON object"))
+        .expect("a warning about the malformed variable");
+    assert!(
+        warning.contains("PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS"),
+        "expected the variable that was set, got {warning}",
+    );
+}
+
 /// When both spellings are set, the one matching the setting decides.
 #[test]
 fn the_canonical_environment_spelling_wins() {

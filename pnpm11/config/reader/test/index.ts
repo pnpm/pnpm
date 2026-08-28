@@ -6038,6 +6038,34 @@ test('getConfig() prefers the canonical org across the two remote spellings', as
   expect(config.remoteSideEffectsCache).toStrictEqual({ org: 'canonical' })
 })
 
+/**
+ * Sets environment variables for one test and puts back exactly what was there,
+ * including "not set at all". Deleting instead would strip a value the suite
+ * inherited, and the tests after it would silently run against a different
+ * environment than the ones before.
+ */
+async function withEnv (values: Record<string, string | undefined>, run: () => Promise<void>): Promise<void> {
+  const previous = Object.keys(values).map((name): [string, string | undefined] => [name, process.env[name]])
+  for (const [name, value] of Object.entries(values)) {
+    if (value === undefined) {
+      delete process.env[name]
+    } else {
+      process.env[name] = value
+    }
+  }
+  try {
+    await run()
+  } finally {
+    for (const [name, value] of previous) {
+      if (value === undefined) {
+        delete process.env[name]
+      } else {
+        process.env[name] = value
+      }
+    }
+  }
+}
+
 test.each([
   ['KEY_ID', 'keyId', 'value', 'value'],
   ['BUILDER_ID', 'builderId', 'value', 'value'],
@@ -6063,46 +6091,39 @@ test.each([
     return (config.remoteSideEffectsCache as Record<string, unknown> | undefined)?.[field]
   }
 
-  try {
-    process.env[canonical] = raw
+  await withEnv({ [canonical]: raw, [older]: undefined }, async () => {
     expect(await read()).toStrictEqual(expected)
-    delete process.env[canonical]
-
-    process.env[older] = raw
+  })
+  await withEnv({ [older]: raw, [canonical]: undefined }, async () => {
     expect(await read()).toStrictEqual(expected)
-  } finally {
-    delete process.env[canonical]
-    delete process.env[older]
-  }
+  })
 })
 
 test('getConfig() prefers the environment name that matches the setting', async () => {
   prepareEmpty()
-  process.env.PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID = 'older'
-  process.env.PNPM_SIDE_EFFECTS_CACHE_REMOTE_KEY_ID = 'canonical'
-  try {
+  await withEnv({
+    PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID: 'older',
+    PNPM_SIDE_EFFECTS_CACHE_REMOTE_KEY_ID: 'canonical',
+  }, async () => {
     const { config } = await getConfig({
       cliOptions: {},
       packageManager: { name: 'pnpm', version: '1.0.0' },
       workspaceDir: process.cwd(),
     })
     expect(config.remoteSideEffectsCache?.keyId).toBe('canonical')
-  } finally {
-    delete process.env.PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID
-    delete process.env.PNPM_SIDE_EFFECTS_CACHE_REMOTE_KEY_ID
-  }
+  })
 })
 
 test('getConfig() names the environment variable the user actually set when its JSON is malformed', async () => {
   prepareEmpty()
-  process.env.PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS = 'not json'
-  try {
+  await withEnv({
+    PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS: 'not json',
+    PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS: undefined,
+  }, async () => {
     await expect(getConfig({
       cliOptions: {},
       packageManager: { name: 'pnpm', version: '1.0.0' },
       workspaceDir: process.cwd(),
     })).rejects.toThrow(/PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS/)
-  } finally {
-    delete process.env.PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS
-  }
+  })
 })
