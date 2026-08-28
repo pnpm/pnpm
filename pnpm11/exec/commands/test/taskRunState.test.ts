@@ -357,10 +357,15 @@ test('overlapping starts publish the newer invocation last', async () => {
     scriptCommands: () => ['build-command'],
   })
   const originalOpen = fs.open.bind(fs)
+  const originalMkdir = fs.mkdir.bind(fs)
   let markOlderBlocked!: () => void
+  let markNewerWaiting!: () => void
   let unblockOlder!: () => void
   const olderBlocked = new Promise<void>(resolve => {
     markOlderBlocked = resolve
+  })
+  const newerWaiting = new Promise<void>(resolve => {
+    markNewerWaiting = resolve
   })
   const olderGate = new Promise<void>(resolve => {
     unblockOlder = resolve
@@ -374,12 +379,17 @@ test('overlapping starts publish the newer invocation last', async () => {
     }
     return originalOpen(...args)
   })
+  let lockAttempts = 0
+  const mkdir = jest.spyOn(fs, 'mkdir').mockImplementation(async (...args) => {
+    if (String(args[0]).endsWith('start.lock') && ++lockAttempts === 2) markNewerWaiting()
+    return originalMkdir(...args)
+  })
 
   try {
     const olderPromise = context.start(new Set())
     await olderBlocked
     const newerPromise = context.start(new Set([key]))
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await newerWaiting
     unblockOlder()
     const [older, newer] = await Promise.all([olderPromise, newerPromise])
 
@@ -388,6 +398,7 @@ test('overlapping starts publish the newer invocation last', async () => {
     await newer.close()
   } finally {
     unblockOlder()
+    mkdir.mockRestore()
     open.mockRestore()
   }
 })
