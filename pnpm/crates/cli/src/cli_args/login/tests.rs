@@ -222,7 +222,7 @@ async fn the_scope_flag_beats_a_config_scope_in_the_persisted_config_yaml() {
     );
     assert_eq!(
         document["registries"][&normalized],
-        serde_json::json!({ "scopes": ["@from-flag"] })
+        serde_json::json!({ "scopes": ["@from-flag"] }),
     );
     let written = writes.iter().map(|(_, text)| text.as_str()).collect::<String>();
     assert!(!written.contains("@from-config"), "the config scope must not be written: {written}");

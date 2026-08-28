@@ -49,7 +49,7 @@ async fn should_use_web_login_when_registry_supports_it() {
     assert_eq!(path, &config_dir.join("config.yaml"));
     assert_eq!(
         written_registry_token(&writes, &format!("{registry}/")),
-        Some("web-auth-token-123".to_owned())
+        Some("web-auth-token-123".to_owned()),
     );
 
     let messages = infos();
@@ -88,7 +88,7 @@ async fn should_complete_web_login_without_an_interactive_terminal() {
     let writes = login_writes();
     assert_eq!(
         written_registry_token(&writes, &format!("{registry}/")),
-        Some("headless-token".to_owned())
+        Some("headless-token".to_owned()),
     );
 
     // No QR code (stdout is not a terminal) and no "Press ENTER" prompt.
@@ -123,7 +123,7 @@ async fn should_log_in_to_a_registry_under_a_subpath_without_a_trailing_slash() 
     let writes = login_writes();
     assert_eq!(
         written_registry_token(&writes, &format!("{registry}/")),
-        Some("subpath-token".to_owned())
+        Some("subpath-token".to_owned()),
     );
 }
 
@@ -154,7 +154,7 @@ async fn should_succeed_when_config_file_does_not_exist() {
     let writes = login_writes();
     assert_eq!(
         written_registry_token(&writes, &format!("{registry}/")),
-        Some("new-token".to_owned())
+        Some("new-token".to_owned()),
     );
     assert!(
         infos().iter().any(|message| message.contains("https://example.org/auth/login")),

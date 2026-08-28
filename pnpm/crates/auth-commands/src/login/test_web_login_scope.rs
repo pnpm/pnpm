@@ -134,7 +134,7 @@ async fn should_not_write_a_scope_mapping_when_scope_is_omitted() {
         .expect("login");
 
     let document = written_document(&login_writes());
-    assert_eq!(document["_auth"][format!("{registry}/")], json!({ "@": { "authToken": "tok" } }),);
+    assert_eq!(document["_auth"][format!("{registry}/")], json!({ "@": { "authToken": "tok" } }));
     assert_eq!(document.get("registries"), None);
 }
 
@@ -164,6 +164,6 @@ async fn should_treat_a_bare_at_scope_as_no_scope() {
     login::<FakeHost, RecordingReporter>(&client(), options).await.expect("login");
 
     let document = written_document(&login_writes());
-    assert_eq!(document["_auth"][format!("{registry}/")], json!({ "@": { "authToken": "tok" } }),);
+    assert_eq!(document["_auth"][format!("{registry}/")], json!({ "@": { "authToken": "tok" } }));
     assert_eq!(document.get("registries"), None);
 }

@@ -1,4 +1,4 @@
-use super::*;
+use super::{ConfigYamlFields, Value, json, login_fields, logout_fields};
 use pretty_assertions::assert_eq;
 
 /// The value `login_fields` assigns to `key`, or `None` when the login does

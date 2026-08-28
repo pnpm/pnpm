@@ -59,7 +59,7 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_404() {
     assert_eq!(path, &config_dir.join("config.yaml"));
     assert_eq!(
         written_registry_token(&writes, &format!("{registry}/")),
-        Some("classic-token-456".to_owned())
+        Some("classic-token-456".to_owned()),
     );
     assert_eq!(infos(), ["Logged in as john"]);
 }
@@ -100,7 +100,7 @@ async fn should_fall_back_to_classic_login_on_a_subpath_registry_without_a_trail
     let writes = login_writes();
     assert_eq!(
         written_registry_token(&writes, &format!("{registry}/")),
-        Some("subpath-classic-token".to_owned())
+        Some("subpath-classic-token".to_owned()),
     );
     assert_eq!(infos(), ["Logged in as john"]);
 }
@@ -138,7 +138,7 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_405() {
     let writes = login_writes();
     assert_eq!(
         written_registry_token(&writes, &format!("{registry}/")),
-        Some("token-405".to_owned())
+        Some("token-405".to_owned()),
     );
     assert_eq!(infos(), ["Logged in as jane"]);
 }
