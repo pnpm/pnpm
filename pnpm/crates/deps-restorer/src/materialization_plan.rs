@@ -47,18 +47,47 @@ impl From<&InstallabilityHost> for HostNode {
 /// instead of serializing before it.
 pub enum HostDetection {
     Resolved(Option<InstallabilityHost>),
-    Pending(tokio::task::JoinHandle<Option<InstallabilityHost>>),
+    Pending {
+        task: tokio::task::JoinHandle<Option<InstallabilityHost>>,
+        /// Carried so a joined-task failure can synthesize the same
+        /// fallback host [`detect_installability_host`] would have.
+        engine_strict: bool,
+    },
 }
 
 impl HostDetection {
-    /// Wait for the detection. A joined-task failure degrades to `None`
-    /// — the same "no installability checks this run" shape as a
-    /// lockfile that needs none.
+    /// Wait for the detection. A joined-task failure degrades to the
+    /// synthetic fallback host, so the installability checks still run
+    /// — the same degradation [`detect_installability_host`] applies
+    /// when its own probe task fails.
     pub async fn resolve(self) -> Option<InstallabilityHost> {
         match self {
             HostDetection::Resolved(host) => host,
-            HostDetection::Pending(task) => task.await.ok().flatten(),
+            HostDetection::Pending { task, engine_strict } => task.await.unwrap_or_else(|error| {
+                tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    "host detection task failed; falling back to the synthetic host",
+                );
+                Some(synthetic_installability_host(engine_strict))
+            }),
         }
+    }
+}
+
+/// The stand-in host used when `node --version` cannot be probed. Its
+/// `node_detected: false` keeps the bogus version out of the store keys
+/// (see [`engine_name_from_host`]) while the `os` / `cpu` / `libc`
+/// platform checks still run against the real host triple.
+fn synthetic_installability_host(engine_strict: bool) -> InstallabilityHost {
+    InstallabilityHost {
+        node_version: "99999.0.0".to_string(),
+        node_detected: false,
+        os: pnpm_graph_hasher::host_platform(),
+        cpu: pnpm_graph_hasher::host_arch(),
+        libc: pnpm_graph_hasher::host_libc(),
+        supported_architectures: None,
+        engine_strict,
     }
 }
 
@@ -89,15 +118,7 @@ pub async fn detect_installability_host(
             InstallabilityHost::detect_with(engine_strict, None)
         })
         .await
-        .unwrap_or_else(|_| InstallabilityHost {
-            node_version: "99999.0.0".to_string(),
-            node_detected: false,
-            os: pnpm_graph_hasher::host_platform(),
-            cpu: pnpm_graph_hasher::host_arch(),
-            libc: pnpm_graph_hasher::host_libc(),
-            supported_architectures: None,
-            engine_strict,
-        }),
+        .unwrap_or_else(|_| synthetic_installability_host(engine_strict)),
     };
     // Plant the CLI-merged `supportedArchitectures` (yaml +
     // `--cpu`/`--os`/`--libc`) onto the host so `check_platform`'s
@@ -229,9 +250,13 @@ pub struct DeferredEngineName {
 
 impl DeferredEngineName {
     fn spawn() -> Self {
-        /// Fills the slot with `None` on unwind: a synchronous consumer
-        /// blocked in [`OnceLock::wait`] would otherwise sleep forever
-        /// if the probe panicked.
+        /// Fills the slot with `None` when dropped: a synchronous
+        /// consumer blocked in [`OnceLock::wait`] would otherwise sleep
+        /// forever if the probe panicked — or never ran at all, which
+        /// is why the guard is captured by the closure rather than
+        /// created inside it: a shutting-down runtime that discards the
+        /// still-queued closure drops its environment, and the guard
+        /// with it.
         struct FillOnDrop(Arc<OnceLock<Option<String>>>);
         impl Drop for FillOnDrop {
             fn drop(&mut self) {
@@ -241,9 +266,9 @@ impl DeferredEngineName {
 
         let shared = Arc::new(OnceLock::new());
         let handle = tokio::task::spawn_blocking({
+            let guard = FillOnDrop(Arc::clone(&shared));
             let shared = Arc::clone(&shared);
             move || {
-                let guard = FillOnDrop(Arc::clone(&shared));
                 let name = probe_engine_name();
                 let _ = shared.set(name.clone());
                 drop(guard);
@@ -278,6 +303,18 @@ pub fn engine_name_from_host(host_node: &HostNode) -> Option<String> {
         .map(|major| pnpm_graph_hasher::engine_name(major, None, None))
 }
 
+/// The engine name a lockfile `node@runtime:` pin implies, when one is
+/// present. Both engine-resolution paths — [`resolve_engine_name`] and
+/// the frozen path's deferred-host branch — apply this one rule, so
+/// they can't drift apart on how a pin keys the store.
+#[must_use]
+pub fn engine_name_from_runtime_pin(
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+) -> Option<String> {
+    find_runtime_node_major(snapshots)
+        .map(|major| pnpm_graph_hasher::engine_name(major, None, None))
+}
+
 /// Resolve the engine name that keys the install's store slots and the
 /// side-effects-cache prefix.
 ///
@@ -294,8 +331,8 @@ pub async fn resolve_engine_name(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     host_node: Option<&HostNode>,
 ) -> (Option<String>, Option<DeferredEngineName>) {
-    if let Some(major) = find_runtime_node_major(snapshots) {
-        return (Some(pnpm_graph_hasher::engine_name(major, None, None)), None);
+    if let Some(name) = engine_name_from_runtime_pin(snapshots) {
+        return (Some(name), None);
     }
     match host_node {
         Some(host_node @ HostNode { detected: true, .. }) => {

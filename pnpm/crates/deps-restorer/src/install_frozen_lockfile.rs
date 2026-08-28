@@ -466,19 +466,22 @@ where
         // the probe runs under the store-side warm-cache prefetch
         // instead of serializing before it.
         let host_detection = if needs_installability_check && !config.enable_global_virtual_store {
-            crate::materialization_plan::HostDetection::Pending(tokio::spawn({
-                let engine_strict = config.engine_strict;
-                let supported_architectures = supported_architectures.cloned();
-                async move {
-                    crate::materialization_plan::detect_installability_host(
-                        true,
-                        engine_strict,
-                        node_version,
-                        supported_architectures.as_ref(),
-                    )
-                    .await
-                }
-            }))
+            crate::materialization_plan::HostDetection::Pending {
+                task: tokio::spawn({
+                    let engine_strict = config.engine_strict;
+                    let supported_architectures = supported_architectures.cloned();
+                    async move {
+                        crate::materialization_plan::detect_installability_host(
+                            true,
+                            engine_strict,
+                            node_version,
+                            supported_architectures.as_ref(),
+                        )
+                        .await
+                    }
+                }),
+                engine_strict: config.engine_strict,
+            }
         } else {
             crate::materialization_plan::HostDetection::Resolved(
                 crate::materialization_plan::detect_installability_host(
@@ -529,9 +532,11 @@ where
         //   before `BuildModules`.
         let mut pending_host_engine_slot = None;
         let (engine_name, deferred_engine_name) = match &host_detection {
-            crate::materialization_plan::HostDetection::Pending(_) => {
-                if let Some(major) = find_runtime_node_major(snapshots) {
-                    (Some(pnpm_graph_hasher::engine_name(major, None, None)), None)
+            crate::materialization_plan::HostDetection::Pending { .. } => {
+                if let Some(name) =
+                    crate::materialization_plan::engine_name_from_runtime_pin(snapshots)
+                {
+                    (Some(name), None)
                 } else {
                     pending_host_engine_slot =
                         Some(std::sync::Arc::new(std::sync::OnceLock::new()));

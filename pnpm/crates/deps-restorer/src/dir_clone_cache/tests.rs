@@ -137,6 +137,21 @@ mod macos {
             .filter(|path| path.ends_with("node_modules/foo/package.json"))
             .count();
         assert_eq!(canonical_manifests, 1, "one canonical slot for the one snapshot");
+        let expected_slot = crate::VirtualStoreLayout::global(
+            links_root.clone(),
+            Config::default().virtual_store_dir_max_length as usize,
+            Some("node-22"),
+            Some(&snapshots),
+            None,
+            None,
+            None,
+        )
+        .hashed_slot_dir(&key)
+        .expect("hashed slot for the one snapshot");
+        assert!(
+            expected_slot.join("node_modules/foo/package.json").is_file(),
+            "the canonical slot must be the one the delivered engine name selects: {expected_slot:?}",
+        );
 
         fs::remove_file(&lib_blob).expect("remove CAS blob");
         let second_target = dir.path().join("second/node_modules/foo");

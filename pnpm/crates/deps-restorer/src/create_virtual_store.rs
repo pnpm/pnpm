@@ -125,10 +125,19 @@ impl CasPrefetch {
         store_context: Option<&CreateVirtualStoreStoreContext<'_>>,
     ) -> Self {
         let store_dir: &'static _ = &config.store_dir;
-        // See the comment on [`CreateVirtualStore::run`]'s former open
-        // site (now here): one read-only SQLite handle for the whole
-        // run, opened on the blocking pool, `None` for a store with no
-        // `index.db` yet.
+        // Open the read-only SQLite index once for the whole run instead
+        // of per snapshot. Every `InstallPackageBySnapshot` performs a
+        // cache lookup against this index before falling through to the
+        // network; on a 1352-package lockfile the per-snapshot reopen
+        // accounted for ~1.3 s of wall time even with a fully populated
+        // store (see <https://github.com/pnpm/pacquet/issues/260>). A
+        // `None` here means the store has no `index.db` yet (first
+        // install against an empty store), in which case every lookup
+        // would miss — so the handle stays `Option`al and lookups
+        // short-circuit. The open itself is synchronous SQLite I/O
+        // parked on the blocking pool; `open_shared` degrades a
+        // blocking-task failure to `None` so the install still makes
+        // progress with cache misses.
         let store_index = match store_context.and_then(|context| context.index) {
             Some(index) => Some(Arc::clone(index)),
             None => StoreIndex::open_shared(store_dir, config.frozen_store).await,
@@ -425,27 +434,11 @@ impl CreateVirtualStore<'_> {
         };
         let packages = packages.ok_or(CreateVirtualStoreError::MissingPackagesSection)?;
 
-        // Open the read-only SQLite index once for the whole run instead of
-        // per snapshot. Every `InstallPackageBySnapshot` performs a cache
-        // lookup against this index before falling through to the network;
-        // on a 1352-package lockfile the per-snapshot reopen accounted for
-        // ~1.3 s of wall time even with a fully populated store (see <https://github.com/pnpm/pacquet/issues/260>).
-        // A `None` here means the store has no `index.db` yet (first install
-        // against an empty store), in which case every lookup would miss —
-        // so we keep the handle `Option`al and short-circuit.
-        //
-        // The open itself is synchronous SQLite I/O (`Connection::open_with_flags`
-        // + a `PRAGMA busy_timeout`), so park it on the blocking pool instead
-        // of stalling the reactor thread, even for the sub-millisecond it
-        // usually takes.
-        //
-        // A `JoinError` here (blocking-task panic, or cancellation during
-        // runtime shutdown) is degraded into `None` so the install still
-        // makes progress — cache lookups just miss. `shared_readonly_in`
-        // already yields `None` for a first-time install against an empty
-        // store, and downstream callers handle that shape correctly. We
-        // surface the error at `warn!` so a silent task panic or
-        // cancellation is still diagnosable in the log.
+        // The prefetch carries the run's store handles — the shared
+        // read-only index and the install-scoped `verifiedFilesCache`
+        // (one `Arc<DashSet>` per install, so a CAFS path verified for
+        // one snapshot is not re-stat'd for another) — plus the derived
+        // cache keys and the in-flight lookup task.
         let CasPrefetch {
             store_index,
             verified_files_cache,
