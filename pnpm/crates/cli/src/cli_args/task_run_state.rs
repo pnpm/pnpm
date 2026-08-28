@@ -19,6 +19,7 @@ const STATE_VERSION: u8 = 1;
 const STATE_DIR: &str = ".pnpm-task-run-state-v1";
 const LATEST_STATE_FILE: &str = "latest.json";
 const PUBLISHED_SUFFIX: &str = ".published";
+const FINISHED_SUFFIX: &str = ".finished";
 const START_LOCK_DIR: &str = "start.lock";
 const LOCK_WAIT: Duration = Duration::from_secs(2);
 const LOCK_ABANDONED_AFTER: Duration = Duration::from_secs(30);
@@ -210,11 +211,14 @@ impl TaskRunStateContext {
         {
             return Ok(None);
         }
-        let run = match self.newest_journal_run(&latest.run) {
-            Ok(run) => run,
+        let (run, finished) = match self.newest_state(&latest.run) {
+            Ok(state) => state,
             Err(error) if error.is_unavailable() => return Ok(None),
             Err(error) => return Err(error.into_report()),
         };
+        if finished {
+            return Ok(None);
+        }
         let file_path = self.journal_path(&run);
         let contents = match fs::read(&file_path) {
             Ok(contents) => contents,
@@ -280,6 +284,7 @@ impl TaskRunStateContext {
         Ok(TaskRunState {
             file_path,
             published_path: self.published_path(&run),
+            finished_path: self.finished_path(&run),
             writer: Mutex::new(TaskRunStateWriter {
                 file,
                 run,
@@ -354,6 +359,7 @@ impl TaskRunStateContext {
             let _ = fs::remove_file(&published_path);
             return Err(StateStorageError::io(error, "writing", &published_path));
         }
+        self.cleanup_older_finished_state(&run);
         Ok((file_path, run, Some(file)))
     }
 
@@ -365,7 +371,11 @@ impl TaskRunStateContext {
         self.state_dir.join(format!("{}.{run}{PUBLISHED_SUFFIX}", self.invocation))
     }
 
-    fn newest_journal_run(&self, latest_run: &str) -> Result<String, StateStorageError> {
+    fn finished_path(&self, run: &str) -> PathBuf {
+        self.state_dir.join(format!("{}.{run}{FINISHED_SUFFIX}", self.invocation))
+    }
+
+    fn newest_state(&self, latest_run: &str) -> Result<(String, bool), StateStorageError> {
         let mut newest_run = latest_run.to_string();
         let prefix = format!("{}.", self.invocation);
         let entries = fs::read_dir(&self.state_dir)
@@ -376,21 +386,33 @@ impl TaskRunStateContext {
                 entry.map_err(|error| StateStorageError::io(error, "reading", &self.state_dir))?;
             names.insert(entry.file_name());
         }
+        let mut finished =
+            names.contains(OsStr::new(&format!("{prefix}{latest_run}{FINISHED_SUFFIX}")));
         for name in &names {
             let Some(name) = name.to_str() else { continue };
-            let Some(run) = name.strip_prefix(&prefix).and_then(|name| name.strip_suffix(".jsonl"))
-            else {
+            let Some(name) = name.strip_prefix(&prefix) else { continue };
+            let (run, candidate_finished) = if let Some(run) = name.strip_suffix(FINISHED_SUFFIX) {
+                (run, true)
+            } else if let Some(run) = name.strip_suffix(".jsonl") {
+                let published_name = format!("{prefix}{run}{PUBLISHED_SUFFIX}");
+                if !names.contains(OsStr::new(&published_name)) {
+                    continue;
+                }
+                (run, false)
+            } else {
                 continue;
             };
-            let published_name = format!("{prefix}{run}{PUBLISHED_SUFFIX}");
-            if is_run_id(run)
-                && names.contains(OsStr::new(&published_name))
-                && run_generation(run) > run_generation(&newest_run)
-            {
+            if !is_run_id(run) {
+                continue;
+            }
+            if run_generation(run) > run_generation(&newest_run) {
                 newest_run = run.to_string();
+                finished = candidate_finished;
+            } else if run == newest_run && candidate_finished {
+                finished = true;
             }
         }
-        Ok(newest_run)
+        Ok((newest_run, finished))
     }
 
     fn next_run_id(&self) -> Result<String, StateStorageError> {
@@ -410,11 +432,27 @@ impl TaskRunStateContext {
                 return Err(StateStorageError::io(error, "reading", &self.latest_state_path));
             }
         }
-        newest_run = self.newest_journal_run(&newest_run)?;
+        newest_run = self.newest_state(&newest_run)?.0;
         let generation = u64::from_str_radix(run_generation(&newest_run), 16)
             .expect("validated run generation")
             .saturating_add(1);
         Ok(run_id(generation))
+    }
+
+    fn cleanup_older_finished_state(&self, run: &str) {
+        let Ok(entries) = fs::read_dir(&self.state_dir) else { return };
+        let prefix = format!("{}.", self.invocation);
+        let generation = run_generation(run);
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let Some(name) = name.to_str() else { continue };
+            let Some(name) = name.strip_prefix(&prefix) else { continue };
+            let Some(older_run) = name.strip_suffix(FINISHED_SUFFIX) else { continue };
+            if !is_run_id(older_run) || run_generation(older_run) >= generation {
+                continue;
+            }
+            let _ = fs::remove_file(entry.path());
+        }
     }
 
     fn validate_state_directory(&self, create: bool) -> Result<bool, StateStorageError> {
@@ -429,6 +467,7 @@ impl TaskRunStateContext {
 pub struct TaskRunState {
     file_path: PathBuf,
     published_path: PathBuf,
+    finished_path: PathBuf,
     writer: Mutex<TaskRunStateWriter>,
 }
 
@@ -491,6 +530,14 @@ impl TaskRunState {
         }
         drop(file);
         drop(writer);
+        if let Err(error) = pnpm_fs::write_atomic(&self.finished_path, &[]) {
+            if is_state_unavailable_error(&error) {
+                return Ok(());
+            }
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("writing {}", self.finished_path.display()));
+        }
         match fs::remove_file(&self.published_path) {
             Ok(()) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}

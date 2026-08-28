@@ -12,6 +12,7 @@ const STATE_VERSION = 1
 const STATE_DIR = '.pnpm-task-run-state-v1'
 const LATEST_STATE_FILE = 'latest.json'
 const PUBLISHED_SUFFIX = '.published'
+const FINISHED_SUFFIX = '.finished'
 const START_LOCK_DIR = 'start.lock'
 const LOCK_OWNER_FILE = 'owner'
 const LOCK_POLL_INTERVAL_MS = 50
@@ -135,14 +136,15 @@ export class TaskRunStateContext {
       return undefined
     }
     if (latest.version !== STATE_VERSION || latest.invocation !== this.invocation || !RUN_ID.test(latest.run)) return undefined
-    let run: string
+    let state: { run: string, finished: boolean }
     try {
-      run = await this.newestJournalRun(latest.run)
+      state = await this.newestState(latest.run)
     } catch (err: unknown) {
       if (isStateUnavailableError(err)) return undefined
       throw err
     }
-    const filePath = this.journalPath(run)
+    if (state.finished) return undefined
+    const filePath = this.journalPath(state.run)
     let contents: string
     try {
       contents = await fs.readFile(filePath, 'utf8')
@@ -161,7 +163,7 @@ export class TaskRunStateContext {
     } catch {
       return undefined
     }
-    if (header.version !== STATE_VERSION || header.invocation !== this.invocation || header.run !== run) return undefined
+    if (header.version !== STATE_VERSION || header.invocation !== this.invocation || header.run !== state.run) return undefined
     const completed = new Set<TaskKey>()
     for (const line of lines.slice(1)) {
       let record: TaskRecord | FinishRecord
@@ -189,7 +191,7 @@ export class TaskRunStateContext {
       await this.validateStateDirectory(true)
       lock = await StateStartLock.acquire(path.join(this.stateDir, START_LOCK_DIR))
       if (lock == null) {
-        return new TaskRunState(filePath, this.publishedPath(run), undefined, this.opts.workspaceDir, run, completedTasks)
+        return new TaskRunState(filePath, this.publishedPath(run), this.finishedPath(run), undefined, this.opts.workspaceDir, run, completedTasks)
       }
       run = await this.nextRunId()
       filePath = this.journalPath(run)
@@ -206,22 +208,23 @@ export class TaskRunStateContext {
         file = undefined
         await unlinkIfExists(filePath)
         journalCreated = false
-        return new TaskRunState(filePath, this.publishedPath(run), undefined, this.opts.workspaceDir, run, completedTasks)
+        return new TaskRunState(filePath, this.publishedPath(run), this.finishedPath(run), undefined, this.opts.workspaceDir, run, completedTasks)
       }
       await writeFileAtomic(this.latestStatePath, JSON.stringify(header), { mode: 0o600 })
       await writeFileAtomic(this.publishedPath(run), '', { mode: 0o600 })
+      await this.cleanupOlderFinishedState(run).catch(() => {})
     } catch (err: unknown) {
       await file?.close().catch(() => {})
       if (journalCreated) await unlinkIfExists(filePath).catch(() => {})
       await unlinkIfExists(this.publishedPath(run)).catch(() => {})
       if (isStateUnavailableError(err)) {
-        return new TaskRunState(filePath, this.publishedPath(run), undefined, this.opts.workspaceDir, run, completedTasks)
+        return new TaskRunState(filePath, this.publishedPath(run), this.finishedPath(run), undefined, this.opts.workspaceDir, run, completedTasks)
       }
       throw err
     } finally {
       await lock?.release()
     }
-    return new TaskRunState(filePath, this.publishedPath(run), file, this.opts.workspaceDir, run, completedTasks)
+    return new TaskRunState(filePath, this.publishedPath(run), this.finishedPath(run), file, this.opts.workspaceDir, run, completedTasks)
   }
 
   private journalPath (run: string): string {
@@ -232,16 +235,38 @@ export class TaskRunStateContext {
     return path.join(this.stateDir, `${this.invocation}.${run}${PUBLISHED_SUFFIX}`)
   }
 
-  private async newestJournalRun (latestRun: string): Promise<string> {
+  private finishedPath (run: string): string {
+    return path.join(this.stateDir, `${this.invocation}.${run}${FINISHED_SUFFIX}`)
+  }
+
+  private async newestState (latestRun: string): Promise<{ run: string, finished: boolean }> {
     let newestRun = latestRun
     const prefix = `${this.invocation}.`
     const names = new Set(await fs.readdir(this.stateDir))
+    let finished = names.has(`${prefix}${latestRun}${FINISHED_SUFFIX}`)
     for (const name of names) {
-      if (!name.startsWith(prefix) || !name.endsWith('.jsonl')) continue
-      const run = name.slice(prefix.length, -'.jsonl'.length)
-      if (RUN_ID.test(run) && names.has(`${prefix}${run}${PUBLISHED_SUFFIX}`) && runGeneration(run) > runGeneration(newestRun)) newestRun = run
+      if (!name.startsWith(prefix)) continue
+      let run: string
+      let candidateFinished: boolean
+      if (name.endsWith(FINISHED_SUFFIX)) {
+        run = name.slice(prefix.length, -FINISHED_SUFFIX.length)
+        candidateFinished = true
+      } else if (name.endsWith('.jsonl')) {
+        run = name.slice(prefix.length, -'.jsonl'.length)
+        if (!names.has(`${prefix}${run}${PUBLISHED_SUFFIX}`)) continue
+        candidateFinished = false
+      } else {
+        continue
+      }
+      if (!RUN_ID.test(run)) continue
+      if (runGeneration(run) > runGeneration(newestRun)) {
+        newestRun = run
+        finished = candidateFinished
+      } else if (run === newestRun && candidateFinished) {
+        finished = true
+      }
     }
-    return newestRun
+    return { run: newestRun, finished }
   }
 
   private async nextRunId (): Promise<string> {
@@ -256,11 +281,27 @@ export class TaskRunStateContext {
     }
     const prefix = `${this.invocation}.`
     for (const name of await fs.readdir(this.stateDir)) {
-      if (!name.startsWith(prefix) || !name.endsWith('.jsonl')) continue
-      const run = name.slice(prefix.length, -'.jsonl'.length)
+      if (!name.startsWith(prefix)) continue
+      const suffix = name.endsWith('.jsonl') ? '.jsonl' : name.endsWith(FINISHED_SUFFIX) ? FINISHED_SUFFIX : undefined
+      if (suffix == null) continue
+      const run = name.slice(prefix.length, -suffix.length)
       if (RUN_ID.test(run)) newestGeneration = maxString(newestGeneration, runGeneration(run))
     }
     return createRunId(Number.parseInt(newestGeneration, 16) + 1)
+  }
+
+  private async cleanupOlderFinishedState (run: string): Promise<void> {
+    const prefix = `${this.invocation}.`
+    const generation = runGeneration(run)
+    const removals: Array<Promise<void>> = []
+    for (const name of await fs.readdir(this.stateDir)) {
+      if (!name.startsWith(prefix)) continue
+      if (!name.endsWith(FINISHED_SUFFIX)) continue
+      const olderRun = name.slice(prefix.length, -FINISHED_SUFFIX.length)
+      if (!RUN_ID.test(olderRun) || runGeneration(olderRun) >= generation) continue
+      removals.push(unlinkIfExists(path.join(this.stateDir, name)).catch(() => {}))
+    }
+    await Promise.all(removals)
   }
 
   private async validateStateDirectory (create: boolean): Promise<boolean> {
@@ -288,6 +329,7 @@ function isFinishRecord (record: TaskRecord | FinishRecord): record is FinishRec
 export class TaskRunState {
   readonly filePath: string
   private readonly publishedPath: string
+  private readonly finishedPath: string
   private readonly file: FileHandle | undefined
   private readonly workspaceDir: string
   private readonly run: string
@@ -299,6 +341,7 @@ export class TaskRunState {
   constructor (
     filePath: string,
     publishedPath: string,
+    finishedPath: string,
     file: FileHandle | undefined,
     workspaceDir: string,
     run: string,
@@ -306,6 +349,7 @@ export class TaskRunState {
   ) {
     this.filePath = filePath
     this.publishedPath = publishedPath
+    this.finishedPath = finishedPath
     this.file = file
     this.workspaceDir = workspaceDir
     this.run = run
@@ -357,6 +401,12 @@ export class TaskRunState {
       }
     }
     await this.close()
+    try {
+      await writeFileAtomic(this.finishedPath, '', { mode: 0o600 })
+    } catch (err: unknown) {
+      if (isStateUnavailableError(err)) return
+      throw err
+    }
     try {
       await unlinkIfExists(this.publishedPath)
       await unlinkIfExists(this.filePath)

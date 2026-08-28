@@ -398,3 +398,44 @@ fn a_stale_pointer_does_not_hide_a_newer_published_invocation_journal() {
     assert_eq!(completed, HashSet::from([key]));
     newer.finish().expect("finish newer state");
 }
+
+#[test]
+fn a_stale_start_cannot_revive_state_after_a_newer_invocation_finishes() {
+    let workspace = tempfile::tempdir().expect("create workspace");
+    let project = workspace.path().join("project");
+    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
+    let graph: TaskGraph = IndexMap::from([(
+        key.clone(),
+        TaskNode {
+            project,
+            task_name: "build".to_string(),
+            concurrency: None,
+            scripts: vec!["build".to_string()],
+            requested: true,
+            dependencies: Vec::new(),
+        },
+    )]);
+    let context = TaskRunStateContext::new(
+        "run",
+        &["build".to_string()],
+        &[],
+        &graph,
+        workspace.path(),
+        |_, _| vec!["build-command".to_string()],
+    );
+    let older = context.start(&HashSet::new()).expect("start older state");
+    let older_contents = fs::read(&older.file_path).expect("read older state");
+    let older_header = older_contents
+        .split(|byte| *byte == b'\n')
+        .next()
+        .expect("older state has a header")
+        .to_vec();
+    let newer = context.start(&HashSet::from([key])).expect("start newer state");
+
+    newer.finish().expect("finish newer state");
+    fs::write(&older.file_path, older_contents).expect("republish older journal");
+    fs::write(&older.published_path, []).expect("republish older marker");
+    fs::write(&context.latest_state_path, older_header).expect("write stale pointer");
+
+    assert!(context.read_completed_tasks().expect("read finished state").is_none());
+}

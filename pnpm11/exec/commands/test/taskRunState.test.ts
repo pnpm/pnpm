@@ -459,3 +459,36 @@ test('a stale start does not overwrite a newer invocation', async () => {
     open.mockRestore()
   }
 })
+
+test('a stale start cannot revive state after a newer invocation finishes', async () => {
+  const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-task-state-'))
+  temporaryDirectories.push(workspaceDir)
+  const project = path.join(workspaceDir, 'project') as ProjectRootDir
+  const key = taskKey(project, 'build')
+  const graph: TaskGraph = new Map([[key, {
+    project,
+    taskName: 'build',
+    scripts: ['build'],
+    requested: true,
+    dependencies: [],
+  }]])
+  const context = new TaskRunStateContext({
+    command: 'run',
+    params: ['build'],
+    graph,
+    workspaceDir,
+    scriptCommands: () => ['build-command'],
+  })
+  const older = await context.start(new Set())
+  const olderContents = await fs.readFile(older.filePath, 'utf8')
+  const olderPublishedPath = older.filePath.replace(/\.jsonl$/, '.published')
+  const newer = await context.start(new Set([key]))
+
+  await newer.finish()
+  await fs.writeFile(older.filePath, olderContents)
+  await fs.writeFile(olderPublishedPath, '')
+  await fs.writeFile(context.latestStatePath, olderContents.split('\n')[0])
+
+  await expect(context.readCompletedTasks()).resolves.toBeUndefined()
+  await older.close()
+})
