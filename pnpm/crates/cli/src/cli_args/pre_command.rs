@@ -219,7 +219,7 @@ fn pre_command_plan_from_input(
             .current::<Host>(&dir)
             .map_err(miette::Report::new)
             .wrap_err("load configuration")?;
-    config_overrides.apply(&mut config);
+    config_overrides.apply(&mut config, &dir);
     if let Some(color) = switch.color {
         config.color = color;
     }

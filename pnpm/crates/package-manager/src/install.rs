@@ -867,6 +867,26 @@ pub enum InstallError {
     ConfigConflictVirtualStoreOnlyWithNoModulesDir,
 }
 
+/// Hold back an [`InstallError::IgnoredBuilds`] verdict so the calling
+/// command can finish writing `package.json` and `pnpm-workspace.yaml`
+/// before it aborts: the install materialized the tree, and pnpm reports
+/// the blocked builds only after both writes (`handleIgnoredBuilds` in
+/// `installDeps`). The returned error is the caller's to raise once those
+/// writes are done.
+///
+/// Every other error propagates straight away and leaves the manifests
+/// untouched, matching pnpm — which throws those from inside the install
+/// itself, before it reaches the writes.
+pub fn defer_ignored_builds(
+    outcome: Result<(), InstallError>,
+) -> Result<Option<InstallError>, InstallError> {
+    match outcome {
+        Ok(()) => Ok(None),
+        Err(error @ InstallError::IgnoredBuilds { .. }) => Ok(Some(error)),
+        Err(error) => Err(error),
+    }
+}
+
 struct InstallRunOptions<'install, 'selection> {
     lockfile_verification_override: Option<LockfileVerificationOverride<'install>>,
     rebuild: Option<RebuildOptions>,

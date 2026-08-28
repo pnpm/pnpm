@@ -140,7 +140,7 @@ impl CliArgs {
         let Ok(mut config) = loaded else {
             return false;
         };
-        config_overrides.apply(&mut config);
+        config_overrides.apply(&mut config, &dir);
         config.apply_proxy_cli_overrides(
             self.https_proxy.as_deref(),
             self.http_proxy.as_deref(),
@@ -296,7 +296,7 @@ impl CliArgs {
         // including `self-update`'s.
         let finalize_config =
             |mut cfg: Config, anchor: &Path| -> miette::Result<&'static mut Config> {
-                config_overrides.apply(&mut cfg);
+                config_overrides.apply(&mut cfg, anchor);
                 cfg.color = if let Some(color) = color {
                     color
                 } else if no_color {

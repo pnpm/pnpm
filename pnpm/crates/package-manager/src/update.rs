@@ -6,7 +6,7 @@ use crate::{
         WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
-    decide_catalog, emit_initial_package_manifest, included_direct_groups,
+    decide_catalog, defer_ignored_builds, emit_initial_package_manifest, included_direct_groups,
     manifest_spec_bumps::ManifestSpecBumps,
     package_manifest_prefix,
     resolution_policy::{PickPolicy, create_configured_npm_resolver},
@@ -16,6 +16,7 @@ use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
+use pipe_trait::Pipe;
 use pnpm_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
@@ -436,7 +437,7 @@ impl Update<'_> {
             pnpmfile_hook_override: read_package_hook.as_ref().map(|(hook, _)| Arc::clone(hook)),
             workspace_projects_override: None,
         };
-        match lockfile_specifier_project_manifests {
+        let ignored_builds = match lockfile_specifier_project_manifests {
             Some(manifests) => {
                 install
                     .run_with_lockfile_specifier_project_manifests::<Reporter>(
@@ -450,6 +451,7 @@ impl Update<'_> {
                 None => install.run::<Reporter>().await,
             },
         }
+        .pipe(defer_ignored_builds)
         .map_err(UpdateError::Install)?;
 
         let applied = bumps.map(|bumps| bumps.applied.into_inner().expect("never poisoned"));
@@ -479,6 +481,9 @@ impl Update<'_> {
                 .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
 
+        if let Some(ignored_builds) = ignored_builds {
+            return Err(UpdateError::Install(ignored_builds));
+        }
         Ok(())
     }
 
@@ -638,7 +643,7 @@ impl Update<'_> {
             install_dirs,
             active_manifest_is_standin,
         };
-        match lockfile_specifier_project_manifests {
+        let ignored_builds = match lockfile_specifier_project_manifests {
             Some(manifests) => {
                 install
                     .run_selected_with_lockfile_specifier_project_manifests::<Reporter>(
@@ -657,6 +662,7 @@ impl Update<'_> {
                 None => install.run_selected::<Reporter>(selection).await,
             },
         }
+        .pipe(defer_ignored_builds)
         .map_err(UpdateError::Install)?;
 
         let applied = bumps.map(|bumps| bumps.applied.into_inner().expect("never poisoned"));
@@ -692,6 +698,9 @@ impl Update<'_> {
                 prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(&workspace_root);
             post_install_prune(config, Some(workspace_dir), manifest)
                 .map_err(UpdateError::WriteWorkspaceManifest)?;
+        }
+        if let Some(ignored_builds) = ignored_builds {
+            return Err(UpdateError::Install(ignored_builds));
         }
         Ok(())
     }
