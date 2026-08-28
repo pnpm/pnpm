@@ -1396,16 +1396,16 @@ function applyRemoteSideEffectsCacheEnv (
   const settings: Partial<RemoteSideEffectsCacheSettings> = {}
   const publish = readSideEffectsCacheEnv(env, 'PUBLISH')
   if (publish != null) {
-    settings.publish = publish === 'true'
+    settings.publish = publish.value === 'true'
   }
   for (const [field, suffix] of SIDE_EFFECTS_CACHE_REMOTE_ENV_STRINGS) {
-    const value = readSideEffectsCacheEnv(env, suffix)
-    if (value != null) settings[field] = value
+    const read = readSideEffectsCacheEnv(env, suffix)
+    if (read != null) settings[field] = read.value
   }
   for (const [field, suffix] of SIDE_EFFECTS_CACHE_REMOTE_ENV_JSON) {
-    const value = readSideEffectsCacheEnv(env, suffix)
-    if (value == null) continue
-    settings[field] = parseStringValuedJsonObject(value, `PNPM_SIDE_EFFECTS_CACHE_REMOTE_${suffix}`)
+    const read = readSideEffectsCacheEnv(env, suffix)
+    if (read == null) continue
+    settings[field] = parseStringValuedJsonObject(read.value, read.variable)
   }
   if (Object.keys(settings).length === 0) return
   pnpmConfig.remoteSideEffectsCache = {
@@ -1435,8 +1435,14 @@ const SIDE_EFFECTS_CACHE_REMOTE_ENV_JSON = [
  * A machine configured for `remoteSideEffectsCache` keeps working; a machine
  * setting both gets the name that matches the setting it is configuring.
  */
-function readSideEffectsCacheEnv (env: NodeJS.ProcessEnv, suffix: string): string | undefined {
-  return env[`PNPM_SIDE_EFFECTS_CACHE_REMOTE_${suffix}`] ?? env[`PNPM_REMOTE_SIDE_EFFECTS_CACHE_${suffix}`]
+function readSideEffectsCacheEnv (env: NodeJS.ProcessEnv, suffix: string): { value: string, variable: string } | undefined {
+  // The name comes back with the value because a malformed one is reported by
+  // name, and naming a variable the user did not set sends them looking for it.
+  for (const variable of [`PNPM_SIDE_EFFECTS_CACHE_REMOTE_${suffix}`, `PNPM_REMOTE_SIDE_EFFECTS_CACHE_${suffix}`]) {
+    const value = env[variable]
+    if (value != null) return { value, variable }
+  }
+  return undefined
 }
 
 function parseStringValuedJsonObject (value: string, variable: string): Record<string, string> {

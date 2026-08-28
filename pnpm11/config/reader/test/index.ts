@@ -6038,29 +6038,71 @@ test('getConfig() prefers the canonical org across the two remote spellings', as
   expect(config.remoteSideEffectsCache).toStrictEqual({ org: 'canonical' })
 })
 
-test('getConfig() reads the remote tier from either environment spelling', async () => {
-  // The variables are named for the setting they configure, and the names that
-  // matched the older spelling keep working — a machine set up before the
-  // rename is not something an install should start ignoring.
+test.each([
+  ['KEY_ID', 'keyId', 'value', 'value'],
+  ['BUILDER_ID', 'builderId', 'value', 'value'],
+  ['IMAGE_DIGEST', 'imageDigest', 'value', 'value'],
+  ['ARCHITECTURE_BASELINE', 'architectureBaseline', 'value', 'value'],
+  ['PRIVATE_KEY', 'privateKey', 'value', 'value'],
+  ['PUBLISH', 'publish', 'true', true],
+  ['BUILD_ENV', 'buildEnv', '{"CC":"clang"}', { CC: 'clang' }],
+  ['TRUSTED_KEYS', 'trustedKeys', '{"acme-2026":"AA=="}', { 'acme-2026': 'AA==' }],
+])('getConfig() reads %s of the remote tier under either environment spelling', async (suffix, field, raw, expected) => {
+  // The suffixes do not share a parsing path — PUBLISH is a boolean, BUILD_ENV
+  // and TRUSTED_KEYS are JSON, the rest are strings — so each is covered under
+  // the name matching the setting and the name that matched its older spelling.
+  prepareEmpty()
+  const canonical = `PNPM_SIDE_EFFECTS_CACHE_REMOTE_${suffix}`
+  const older = `PNPM_REMOTE_SIDE_EFFECTS_CACHE_${suffix}`
+  const read = async (): Promise<unknown> => {
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+    return (config.remoteSideEffectsCache as Record<string, unknown> | undefined)?.[field]
+  }
+
+  try {
+    process.env[canonical] = raw
+    expect(await read()).toStrictEqual(expected)
+    delete process.env[canonical]
+
+    process.env[older] = raw
+    expect(await read()).toStrictEqual(expected)
+  } finally {
+    delete process.env[canonical]
+    delete process.env[older]
+  }
+})
+
+test('getConfig() prefers the environment name that matches the setting', async () => {
   prepareEmpty()
   process.env.PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID = 'older'
+  process.env.PNPM_SIDE_EFFECTS_CACHE_REMOTE_KEY_ID = 'canonical'
   try {
-    const older = await getConfig({
+    const { config } = await getConfig({
       cliOptions: {},
       packageManager: { name: 'pnpm', version: '1.0.0' },
       workspaceDir: process.cwd(),
     })
-    expect(older.config.remoteSideEffectsCache?.keyId).toBe('older')
-
-    process.env.PNPM_SIDE_EFFECTS_CACHE_REMOTE_KEY_ID = 'canonical'
-    const both = await getConfig({
-      cliOptions: {},
-      packageManager: { name: 'pnpm', version: '1.0.0' },
-      workspaceDir: process.cwd(),
-    })
-    expect(both.config.remoteSideEffectsCache?.keyId).toBe('canonical')
+    expect(config.remoteSideEffectsCache?.keyId).toBe('canonical')
   } finally {
     delete process.env.PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID
     delete process.env.PNPM_SIDE_EFFECTS_CACHE_REMOTE_KEY_ID
+  }
+})
+
+test('getConfig() names the environment variable the user actually set when its JSON is malformed', async () => {
+  prepareEmpty()
+  process.env.PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS = 'not json'
+  try {
+    await expect(getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })).rejects.toThrow(/PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS/)
+  } finally {
+    delete process.env.PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS
   }
 })
