@@ -313,7 +313,7 @@ where
                 .map_err(WithOtpError::Timeout)
         }
         None => {
-            match Sys::input("This operation requires a one-time password.\nEnter OTP:").await {
+            match Sys::input("This operation requires a one-time password.\nEnter OTP").await {
                 Ok(value) => Ok(value.filter(|otp| !otp.is_empty())),
                 // The user aborted the prompt: leave the challenge unsatisfied.
                 Err(PromptError::Cancelled) => Ok(None),
