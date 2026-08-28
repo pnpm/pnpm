@@ -49,12 +49,19 @@ fn importer_task_groups_fold_filesystem_name_aliases() {
 }
 
 #[test]
-fn importer_task_groups_fold_case_aliases_of_missing_dirs() {
-    // Neither directory exists, so there is no filesystem answer to
-    // ask for — the lexical case-fold groups them on every platform.
+fn importer_task_groups_serialize_all_missing_dirs_together() {
+    // None of these directories exist, so there is no filesystem
+    // answer to ask for — and no string transform can predict which
+    // not-yet-created names (case variants, NFC/NFD normalization
+    // pairs) the filesystem will later fold together. Every
+    // canonicalization failure shares one serial group, on every
+    // platform.
     let dir = tempdir().expect("tempdir");
-    let groups = super::importer_task_groups(dir.path(), vec!["packages/Ghost", "packages/ghost"]);
-    assert_eq!(groups, vec![vec!["packages/Ghost", "packages/ghost"]]);
+    let nfc = "packages/caf\u{e9}";
+    let nfd = "packages/cafe\u{301}";
+    let groups =
+        super::importer_task_groups(dir.path(), vec!["packages/Ghost", nfc, nfd, "packages/ghost"]);
+    assert_eq!(groups, vec![vec!["packages/Ghost", nfc, nfd, "packages/ghost"]]);
 }
 
 #[cfg(target_os = "macos")]

@@ -300,18 +300,28 @@ where
 /// order, keeping the serial pass's deterministic last-writer outcome,
 /// while distinct projects pay one read-only `canonicalize` each. A
 /// project dir that doesn't exist yet has nothing on disk to
-/// canonicalize against, so it groups under its case-folded lexical
-/// key — relative, so it can't collide with the canonical absolute
-/// keys — which still folds the case-aliased flavor of that corner.
+/// canonicalize against — and no string transform can decide which
+/// not-yet-created names the filesystem will later fold together — so
+/// every canonicalization failure lands in one shared serial group.
+/// That costs nothing real: a genuine project's directory always
+/// exists by this point (its manifest was read during project
+/// discovery), so the shared group only ever collects the phantom
+/// importers of a malformed lockfile.
 fn importer_task_groups<'a>(workspace_root: &Path, keys: Vec<&'a str>) -> Vec<Vec<&'a str>> {
     let mut task_groups: BTreeMap<PathBuf, Vec<&'a str>> = BTreeMap::new();
+    let mut unresolved: Vec<&'a str> = Vec::new();
     for importer_id in keys {
         let project_dir = importer_root_dir(workspace_root, importer_id);
-        let group_key = std::fs::canonicalize(&project_dir)
-            .unwrap_or_else(|_| PathBuf::from(importer_id.to_lowercase()));
-        task_groups.entry(group_key).or_default().push(importer_id);
+        match std::fs::canonicalize(&project_dir) {
+            Ok(canonical) => task_groups.entry(canonical).or_default().push(importer_id),
+            Err(_) => unresolved.push(importer_id),
+        }
     }
-    task_groups.into_values().collect()
+    let mut task_groups: Vec<Vec<&'a str>> = task_groups.into_values().collect();
+    if !unresolved.is_empty() {
+        task_groups.push(unresolved);
+    }
+    task_groups
 }
 
 /// Reject importer keys that would resolve outside the workspace root.
