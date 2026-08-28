@@ -116,7 +116,7 @@ export function initDefaultReporter (
     const committed = commitOverflow(lines)
     // The lines from `committedLines` on are already laid out contiguously in
     // the view, so the visible frame is a slice of it rather than a second copy.
-    const frame = view.slice(viewOffsetOfLine(lines, committedLines))
+    const frame = view.slice(viewOffsetOfLine(view, lines, committedLines))
     // `\r` resets the column to 0 in case an external process (e.g. an SSH
     // passphrase prompt) left the cursor mid-line. `ansi-diff` then writes
     // only the differential — the characters that actually changed between
@@ -194,13 +194,16 @@ export function initDefaultReporter (
   }
 }
 
-/** Where the `index`-th of `lines` starts in the view they were split from. */
-function viewOffsetOfLine (lines: string[], index: number): number {
-  let offset = 0
-  for (let i = 0; i < index; i++) {
-    offset += lines[i].length + EOL.length
+/**
+ * Where the `index`-th of `lines` starts in the `view` they were split from.
+ * Measured from the end, so a long committed prefix costs nothing.
+ */
+function viewOffsetOfLine (view: string, lines: string[], index: number): number {
+  let trailing = 0
+  for (let i = lines.length - 1; i >= index; i--) {
+    trailing += lines[i].length + EOL.length
   }
-  return offset
+  return view.length - trailing
 }
 
 /**
