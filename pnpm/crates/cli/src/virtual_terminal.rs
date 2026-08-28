@@ -3,9 +3,9 @@
 //! `supports-color`, the backend behind `owo-colors`, treats every Windows
 //! 10 console as ANSI-capable and leaves it to the application to switch
 //! the console into virtual-terminal mode. Until that happens `cmd.exe`
-//! prints each escape sequence literally — `←[32m` in place of green text.
-//! Unix terminals interpret the sequences without any setup, so [`enable`]
-//! is a no-op there.
+//! prints each escape sequence literally, so `←[32m` shows up where green
+//! text belongs. Unix terminals interpret the sequences without any setup,
+//! so [`enable`] is a no-op there.
 
 #[cfg(windows)]
 pub fn enable() {
