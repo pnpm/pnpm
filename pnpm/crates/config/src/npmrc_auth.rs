@@ -583,25 +583,21 @@ impl NpmrcAuth {
     /// yaml), this is called *after* yaml so the inferred routes win over
     /// repo-controlled registries.
     ///
-    /// `before_files` is the routing as it stood before any config file
-    /// spoke, which is what lets the file-sourced routes tell a declaration
-    /// from a default: they replace only what no config file has since
-    /// changed. The environment-sourced ones replace whatever they find.
-    pub fn apply_json_env_registries(
-        &mut self,
-        config: &mut Config,
-        before_files: &RegistryRoutes,
-    ) {
+    /// The file-sourced routes fill in only what nothing else names:
+    /// `registry_declared` says whether a config file set `registry` at all,
+    /// and a scope already routed keeps the route it has. Provenance rather
+    /// than value, because pinning the registry a lower layer already
+    /// resolved to is still a declaration. The environment-sourced routes
+    /// replace whatever they find.
+    pub fn apply_json_env_registries(&mut self, config: &mut Config, registry_declared: bool) {
         for (scope, url) in std::mem::take(&mut self.json_file_registries) {
             if scope == "default" {
-                if config.registry == before_files.registry {
+                if !registry_declared {
                     config.registry.clone_from(&url);
                 }
                 continue;
             }
-            if config.registries_by_scope.get(&scope) == before_files.by_scope.get(&scope) {
-                config.registries_by_scope.insert(scope, url);
-            }
+            config.registries_by_scope.entry(scope).or_insert(url);
         }
         for (scope, url) in std::mem::take(&mut self.json_env_registries) {
             if scope == "default" {
@@ -1245,16 +1241,6 @@ fn apply_creds_field(creds: &mut RawCreds, field: &str, value: String) {
         "tokenHelper" => creds.token_helper = Some(value),
         _ => {}
     }
-}
-
-/// The registry and its scope routes at a point in the cascade, so a later
-/// layer can tell what a config file has since declared from what it left
-/// alone. Taken before the files are applied; see
-/// [`NpmrcAuth::apply_json_env_registries`].
-#[derive(Debug, Default, Clone)]
-pub struct RegistryRoutes {
-    pub registry: String,
-    pub by_scope: BTreeMap<String, String>,
 }
 
 /// Which of `_auth`'s two trusted sources a value came from. They differ in

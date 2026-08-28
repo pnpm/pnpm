@@ -2922,6 +2922,27 @@ test('a registry declared in pnpm-workspace.yaml beats the global _auth file', a
   expect(config.registriesByScope.default).toBe('https://project-choice.example/')
 })
 
+test('a registry pinned to the default value still beats the global _auth file', async () => {
+  prepareEmpty()
+
+  // Whether a registry was declared is a question about the key, not its
+  // value: pinning the one a lower layer already resolved to is a declaration.
+  writeYamlFileSync('pnpm-workspace.yaml', { registry: 'https://registry.npmjs.org/' })
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://private.example': {
+          '@': { authToken: 'stored-token' },
+        },
+      },
+    },
+    { workspaceDir: process.cwd() }
+  )
+
+  expect(config.registry).toBe('https://registry.npmjs.org/')
+})
+
 test('a scope declared in pnpm-workspace.yaml beats the global _auth file', async () => {
   prepareEmpty()
 
@@ -2941,6 +2962,56 @@ test('a scope declared in pnpm-workspace.yaml beats the global _auth file', asyn
   )
 
   expect(config.registriesByScope['@org']).toBe('https://project-choice.example/')
+})
+
+test('a registry declared in the global config beats its own _auth file', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    registry: 'https://global-choice.example/',
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+      },
+    },
+  })
+
+  expect(config.registry).toBe('https://global-choice.example/')
+  // The credential stays keyed to the host it was written for.
+  expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
+})
+
+test('a scope declared in the global config beats its own _auth file', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    registries: { 'https://global-org.example/': { scopes: ['@org'] } },
+    _auth: {
+      'https://private.example': {
+        '@org': { authToken: 'stored-org-token' },
+      },
+    },
+  })
+
+  expect(config.registriesByScope['@org']).toBe('https://global-org.example/')
+  expect(config.authConfig['//private.example/:@org:_authToken']).toBe('stored-org-token')
+})
+
+test('an uncontested _auth file route reaches the package-manager registries too', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+        '@org': { authToken: 'stored-org-token' },
+      },
+    },
+  })
+
+  // Bootstrap resolves the same way an install does.
+  expect(config.packageManagerRegistries?.default).toBe('https://private.example/')
+  expect(config.packageManagerRegistries?.['@org']).toBe('https://private.example/')
 })
 
 test('the global _auth file still routes a scope nothing else declares', async () => {

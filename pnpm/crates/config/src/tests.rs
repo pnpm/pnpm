@@ -4354,3 +4354,13 @@ pub fn the_global_auth_file_routes_what_nothing_else_declares() {
         Some("https://private.example/"),
     );
 }
+
+/// Whether a registry was declared is a question about the key, not its
+/// value: pinning the one a lower layer already resolved to is still a
+/// declaration, and a stored credential must not quietly replace it.
+#[test]
+pub fn a_registry_pinned_to_the_default_still_beats_the_global_auth_file() {
+    let config = load_with_auth_file(STORED_LOGIN, Some("registry: https://registry.npmjs.org/\n"));
+
+    assert_eq!(config.registry, "https://registry.npmjs.org/");
+}

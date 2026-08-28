@@ -395,6 +395,10 @@ export async function getConfig (opts: {
   }
   pnpmConfig.packageManagerRegistries = {
     default: normalizeRegistryUrl(trustedAuthConfig.registry as string),
+    // The file fallback applies to the bootstrap cascade too, so a registry
+    // reached only through a stored credential is reached the same way when
+    // pnpm downloads itself as when it installs.
+    ...npmrcResult.jsonAuth.fallbackRegistries,
     ...trustedNetworkConfigs.registries,
     // `_auth` routes apply here too so bootstrap (self-download / version
     // switching) resolves the same way as regular installs.
@@ -576,9 +580,10 @@ export async function getConfig (opts: {
   // A `registry:` in either yaml declares the default as plainly as a
   // `registries` entry does, but reaches `pnpmConfig.registry` instead of the
   // map, so it has to be restated here to outrank the `_auth` file fallback.
-  const yamlDeclaredDefault =
-    typeof pnpmConfig.registry === 'string' &&
-    normalizeRegistryUrl(pnpmConfig.registry) !== registriesFromNpmrc.default
+  // Asked of the key rather than of its value: pinning the registry a lower
+  // layer already resolved to is still a declaration.
+  const declaredDefault =
+    explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string'
       ? { default: normalizeRegistryUrl(pnpmConfig.registry) }
       : undefined
   pnpmConfig.registriesByScope = {
@@ -589,7 +594,7 @@ export async function getConfig (opts: {
     ...npmrcResult.jsonAuth.fallbackRegistries,
     ...globalYamlRegistries,
     ...workspaceManifestRegistries,
-    ...yamlDeclaredDefault,
+    ...declaredDefault,
     // The `_auth` env var is the operator's channel — a CI runner pointed at
     // a mandated proxy — so its routes win over what any file declares.
     ...npmrcResult.jsonAuth.registries,
