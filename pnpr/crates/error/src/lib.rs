@@ -134,6 +134,24 @@ pub enum RegistryError {
         version: String,
     },
 
+    /// A publish targeted an artifact slot that already holds different bytes.
+    ///
+    /// One input key and one set of compatibility constraints admit one
+    /// artifact, for the same reason a `name@version` admits one tarball: a
+    /// consumer that resolved it once must not be handed different bytes
+    /// later. Replacing a claimed slot is an operator action against the
+    /// store, not something a publishing credential can do — a stolen one
+    /// would otherwise be able to swap an artifact for a dependency nobody
+    /// has looked at in a year.
+    #[display("Cannot publish over the artifact already published for this input key and platform")]
+    #[from(skip)]
+    ArtifactAlreadyPublished {
+        #[error(not(source))]
+        owner: String,
+        #[error(not(source))]
+        entry: String,
+    },
+
     #[display("Hosted packument for package {package:?} changed while writing")]
     #[from(skip)]
     PackumentWriteConflict {
@@ -280,6 +298,7 @@ impl RegistryError {
             RegistryError::InvalidAttachment { .. } => "invalid_attachment",
             RegistryError::BadRequest { .. } => "bad_request",
             RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
+            RegistryError::ArtifactAlreadyPublished { .. } => "artifact_already_published",
             RegistryError::PackumentWriteConflict { .. } => "packument_write_conflict",
             RegistryError::RevisionReferenceLimit { .. } => "revision_reference_limit",
             RegistryError::RevisionReferenceWriteConflict { .. } => {
@@ -359,6 +378,7 @@ impl RegistryError {
             | RegistryError::InvalidAttachment { .. }
             | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,
             RegistryError::VersionAlreadyPublished { .. }
+            | RegistryError::ArtifactAlreadyPublished { .. }
             | RegistryError::PackumentWriteConflict { .. }
             | RegistryError::RevisionReferenceLimit { .. }
             | RegistryError::RevisionReferenceWriteConflict { .. } => StatusCode::CONFLICT,

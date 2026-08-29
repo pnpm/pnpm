@@ -14,9 +14,10 @@ use object_store::{
 };
 use pnpm_shared_artifact_protocol::{
     ArtifactBlobRequest, ArtifactCandidate, ArtifactPayload, ArtifactProtocolError,
-    ArtifactSubject, ArtifactVariant, MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE,
-    MAX_VARIANTS_PER_CANDIDATE, OwnerScope, PublishArtifactRequest, ResolveArtifactsRequest,
-    ResolveArtifactsResponse, ResolvedArtifact, SignedArtifactEnvelope, blob_id, verify_blob,
+    ArtifactSubject, ArtifactVariant, CompatibilityConstraints, MAX_CANDIDATES, MAX_FILE_SIZE,
+    MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE, OwnerScope, PublishArtifactRequest,
+    ResolveArtifactsRequest, ResolveArtifactsResponse, ResolvedArtifact, SignedArtifactEnvelope,
+    blob_id, verify_blob,
 };
 use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
 use pnpr_error::{RegistryError, Result};
@@ -65,6 +66,7 @@ pub struct ArtifactBlob {
 }
 
 struct PreparedPublication {
+    entry: String,
     payload: ArtifactPayload,
     uploads: BTreeMap<String, Vec<u8>>,
     owner: String,
@@ -145,12 +147,29 @@ impl SharedArtifactStore {
         prepared: PreparedPublication,
         reclamation_needed: &mut bool,
     ) -> Result<bool> {
-        let PreparedPublication { payload, mut uploads, owner, envelope_bytes, variant_path } =
-            prepared;
+        let PreparedPublication {
+            payload,
+            mut uploads,
+            owner,
+            entry,
+            envelope_bytes,
+            variant_path,
+        } = prepared;
         let envelope_size = envelope_bytes.len() as u64;
 
-        if self.object_exists(&variant_path).await? {
-            return Ok(false);
+        // Idempotent for the identical envelope — a retried publication is not
+        // an attempt to replace anything — and a conflict for any other, which
+        // is the whole point of the slot. Releasing a claimed slot is an
+        // operator action against the store: the publishing credential must
+        // not be able to do it, or a stolen one could swap the artifact for a
+        // dependency nobody has looked at in a year.
+        if let Some(existing) =
+            self.read_object_bounded(&variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await?
+        {
+            if existing == envelope_bytes {
+                return Ok(false);
+            }
+            return Err(RegistryError::ArtifactAlreadyPublished { owner, entry });
         }
 
         let required: BTreeMap<&str, u64> = payload
@@ -679,14 +698,6 @@ impl SharedArtifactStore {
         Ok(())
     }
 
-    async fn object_exists(&self, relative: &str) -> Result<bool> {
-        match self.store.head(&self.object_path(relative)).await {
-            Ok(_) => Ok(true),
-            Err(object_store::Error::NotFound { .. }) => Ok(false),
-            Err(error) => Err(error.into()),
-        }
-    }
-
     async fn create_object(&self, relative: &str, bytes: Vec<u8>) -> Result<bool> {
         match self
             .store
@@ -770,13 +781,19 @@ fn prepare_publication(
     let payload = validated.payload;
     let owner = owner_key(username, &payload.owner)?;
     let entry = entry_digest(&request.key, &payload.subject);
-    let envelope = request.envelope.digest().map_err(|err| protocol_error(&err))?;
     let envelope_bytes = serde_json::to_vec(&request.envelope)?;
-    let variant_path = format!("{owner}/entries/{entry}/{envelope}.json");
+    // Named for what the artifact is *for* rather than what it is, so that one
+    // input key and one set of compatibility constraints admit one artifact.
+    // Naming it by the envelope digest let a second, differently signed build
+    // for the same input sit alongside the first as another variant, which is
+    // the swap a consumer has no way to notice.
+    let slot = compatibility_slot(&payload.compatibility);
+    let variant_path = format!("{owner}/entries/{entry}/{slot}.json");
     Ok(PreparedPublication {
         payload,
         uploads: validated.blobs,
         owner,
+        entry,
         envelope_bytes,
         variant_path,
     })
@@ -911,6 +928,20 @@ fn hex(bytes: &[u8]) -> String {
         write!(output, "{byte:02x}").expect("writing to a String cannot fail");
         output
     })
+}
+
+/// The slot an artifact claims within its entry: one per set of compatibility
+/// constraints, so a `universal` build and a glibc-2.31 build coexist while two
+/// builds advertising the same constraints do not.
+///
+/// Hex-encoded like the envelope digests that named these files before, so the
+/// listing in [`SharedArtifactStore::resolve_candidate`] does not have to tell
+/// the two apart.
+fn compatibility_slot(compatibility: &CompatibilityConstraints) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"pnpm-shared-artifact-slot-v1\0");
+    hasher.update(serde_json::to_vec(compatibility).expect("compatibility constraints serialize"));
+    hex(&hasher.finalize())
 }
 
 fn entry_digest(key: &str, subject: &ArtifactSubject) -> String {

@@ -23,6 +23,7 @@ use pnpm_shared_artifact_protocol::{
     ResolvedArtifact, SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
 };
 use pnpr_config::{HostedStoreConfig, normalize_key_prefix};
+use pnpr_error::RegistryError;
 use sha2::{Digest as _, Sha512};
 use tempfile::TempDir;
 
@@ -162,7 +163,10 @@ async fn object_store_replicas_share_blobs_envelopes_and_quota() {
         first
             .publish(
                 "acme",
-                publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/first"),
+                for_platform(
+                    publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/first"),
+                    1,
+                ),
             )
             .await
             .unwrap(),
@@ -171,7 +175,10 @@ async fn object_store_replicas_share_blobs_envelopes_and_quota() {
         second
             .publish(
                 "acme",
-                publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/second"),
+                for_platform(
+                    publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/second"),
+                    2,
+                ),
             )
             .await
             .unwrap(),
@@ -203,7 +210,7 @@ async fn concurrent_replicas_update_quota_without_lost_writes() {
         publications.push(tokio::spawn(async move {
             let scratch = TempDir::new().unwrap();
             let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
-            store.publish("acme", publication(&format!("ci/{index}"))).await
+            store.publish("acme", publication_for_platform(index)).await
         }));
     }
     for publication in publications {
@@ -215,9 +222,7 @@ async fn concurrent_replicas_update_quota_without_lost_writes() {
         serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
             .unwrap();
     let expected = (0..PUBLICATIONS)
-        .map(|index| {
-            serde_json::to_vec(&publication(&format!("ci/{index}")).envelope).unwrap().len()
-        })
+        .map(|index| serde_json::to_vec(&publication_for_platform(index).envelope).unwrap().len())
         .sum::<usize>() as u64;
     assert_eq!(usage.global_bytes, expected);
 }
@@ -472,12 +477,44 @@ async fn failed_reclamation_releases_its_gate_for_later_retries() {
     assert!(backend.head(&orphan).await.is_ok());
 }
 
+/// One input key and one set of compatibility constraints admit one artifact,
+/// for the same reason a `name@version` admits one tarball: a consumer that
+/// resolved it once must not be handed different bytes later. A second build
+/// for the same slot is refused rather than joining it as another variant.
+#[tokio::test]
+async fn a_second_artifact_cannot_claim_a_taken_slot() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    assert!(store.publish("acme", publication("ci/first")).await.unwrap());
+
+    let error = store.publish("acme", publication("ci/second")).await.unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "expected a conflict, got {error:?}",
+    );
+    let response =
+        store.resolve("acme", &serde_json::to_vec(&lookup("acme")).unwrap()).await.unwrap();
+    assert_eq!(response.artifacts[0].variants.len(), 1, "the first artifact still stands");
+}
+
+/// A retried publication of the identical envelope is not an attempt to replace
+/// anything, so it stays idempotent rather than becoming a conflict.
+#[tokio::test]
+async fn republishing_the_same_artifact_stays_idempotent() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    assert!(store.publish("acme", publication("ci/first")).await.unwrap());
+
+    assert!(!store.publish("acme", publication("ci/first")).await.unwrap());
+}
+
 #[tokio::test]
 async fn the_variant_limit_is_applied_at_read_time() {
     let storage = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
     for index in 0..MAX_VARIANTS_PER_CANDIDATE + 2 {
-        assert!(store.publish("acme", publication(&format!("ci/{index}"))).await.unwrap());
+        assert!(store.publish("acme", publication_for_platform(index)).await.unwrap());
     }
 
     let response =
@@ -513,6 +550,23 @@ fn lookup(owner: &str) -> ResolveArtifactsRequest {
 
 fn publication(builder_id: &str) -> PublishArtifactRequest {
     publication_request("dependency-side-effects:v1:deps=abc", builder_id, None)
+}
+
+/// One input key admits one artifact per set of compatibility constraints, so a
+/// test wanting several of them for one dependency has to vary the platform —
+/// which is the only reason a second artifact for one input is legitimate.
+fn for_platform(mut request: PublishArtifactRequest, index: usize) -> PublishArtifactRequest {
+    let mut payload: ArtifactPayload =
+        serde_json::from_slice(&BASE64.decode(&request.envelope.payload).unwrap()).unwrap();
+    payload.compatibility = CompatibilityConstraints::Tagged {
+        tags: vec![format!("pnpm:v1:linux-x64-node22-glibc2.{index}")],
+    };
+    request.envelope.payload = BASE64.encode(serde_json::to_vec(&payload).unwrap());
+    request
+}
+
+fn publication_for_platform(index: usize) -> PublishArtifactRequest {
+    for_platform(publication(&format!("ci/{index}")), index)
 }
 
 fn publication_with_blob(input_key: &str, builder_id: &str) -> PublishArtifactRequest {
