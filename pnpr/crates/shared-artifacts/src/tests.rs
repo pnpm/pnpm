@@ -1019,7 +1019,6 @@ async fn a_retry_of_a_stored_artifact_needs_no_quota() {
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
     assert!(store.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap());
 
-    // Room for nothing further.
     let full =
         SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap().with_limits(1, 1);
 
