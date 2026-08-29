@@ -273,7 +273,6 @@ struct CommitModulesStateInputs<'a> {
     lockfile_was_fast_updated: bool,
     save_lockfile: bool,
     loaded_wanted_lockfile: Option<&'a Lockfile>,
-    fresh_wanted_lockfile: Option<&'a Lockfile>,
 }
 
 fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), InstallError> {
@@ -301,7 +300,6 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
         lockfile_was_fast_updated,
         save_lockfile,
         loaded_wanted_lockfile,
-        fresh_wanted_lockfile,
     } = inputs;
     let now = SystemTime::now();
     let effective_virtual_store_dir = config.effective_virtual_store_dir();
@@ -466,20 +464,19 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
             .map_err(InstallError::SaveCurrentLockfile)?;
     }
 
-    // Persist wanted-lockfile changes discovered during frozen
-    // materialization. These can be verified artifact pins, or a wanted
-    // lockfile reconstructed or fast-updated before materialization.
-    let frozen_wanted_lockfile_to_save = fresh_wanted_lockfile.or_else(|| {
-        (lockfile_synthesized_from_current
+    // Regenerate `pnpm-lock.yaml` from the synthesized snapshot when
+    // the wanted lockfile was reconstructed from
+    // `<virtual_store_dir>/lock.yaml`. The no-op short-circuit above
+    // handles the common case; this branch covers the rare path where
+    // `.modules.yaml` was wiped or inconsistent and the frozen install
+    // had to relink.
+    if take_frozen_path
+        && (lockfile_synthesized_from_current
             || lockfile_was_fast_updated
             || config.merge_git_branch_lockfiles)
-            .then_some(loaded_wanted_lockfile)
-            .flatten()
-    });
-    if take_frozen_path
         && config.lockfile
         && save_lockfile
-        && let Some(updated) = frozen_wanted_lockfile_to_save
+        && let Some(updated) = loaded_wanted_lockfile
     {
         updated
             .save_to_path(&workspace_root.join(config.wanted_lockfile_name()))
@@ -870,7 +867,6 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         lockfile_was_fast_updated,
         save_lockfile,
         loaded_wanted_lockfile: lockfile,
-        fresh_wanted_lockfile: fresh_lockfile.as_ref(),
     })?;
 
     run_materialized_project_scripts::<Reporter>(MaterializedProjectScriptsInputs {

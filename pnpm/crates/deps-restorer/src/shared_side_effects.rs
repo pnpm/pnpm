@@ -1,7 +1,7 @@
 use crate::{
-    AllowBuildPolicy, ArtifactPinRecord, RemoteSideEffectsQuarantineBySnapshot,
-    RequiresBuildBySnapshot, SideEffectsBySnapshot, SideEffectsMapsBySnapshot,
-    StoreIndexKeysBySnapshot, build_deps_subgraph, deps_graph::in_lockfile_order,
+    AllowBuildPolicy, RemoteSideEffectsQuarantineBySnapshot, RequiresBuildBySnapshot,
+    SideEffectsBySnapshot, SideEffectsMapsBySnapshot, StoreIndexKeysBySnapshot,
+    build_deps_subgraph, deps_graph::in_lockfile_order,
     install_frozen_lockfile::find_runtime_node_major,
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
@@ -13,7 +13,7 @@ use pnpm_pnpr_client::{
     LinuxGlibcPlatform, MacOsPlatform, OwnerScope, PackageIdentity, PnprClient, PnprClientError,
     PublishArtifactRequest, RejectedArtifact, ResolveArtifactsOptions, SignedArtifactEnvelope,
     WindowsPlatform, blob_id, linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags,
-    macos_tag, platform_fingerprint, windows_supported_tags, windows_tag,
+    macos_tag, windows_supported_tags, windows_tag,
 };
 use pnpm_shared_artifact_protocol::compatibility_rank;
 use pnpm_store_dir::{CafsFileInfo, RemoteSideEffectsOrigin, SideEffectsDiff, StoreIndexWriter};
@@ -79,7 +79,6 @@ impl ArtifactPlatform<'_> {
 
 struct CandidateGroup {
     candidate: ArtifactCandidate,
-    pinned_envelope_digest: Option<String>,
     snapshots: Vec<(PackageKey, String, String)>,
 }
 
@@ -97,9 +96,7 @@ pub(crate) struct ApplySharedSideEffectsOptions<'a> {
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
 }
 
-pub(crate) async fn apply_shared_side_effects(
-    options: ApplySharedSideEffectsOptions<'_>,
-) -> Vec<ArtifactPinRecord> {
+pub(crate) async fn apply_shared_side_effects(options: ApplySharedSideEffectsOptions<'_>) {
     let ApplySharedSideEffectsOptions {
         config,
         snapshots,
@@ -119,29 +116,20 @@ pub(crate) async fn apply_shared_side_effects(
         side_effects_maps_by_snapshot.clear();
     }
     if config.ignore_scripts {
-        return Vec::new();
+        return;
     }
-    let Some(settings) = config.remote_side_effects_cache.as_ref() else { return Vec::new() };
-    let Some(platform) = artifact_platform(snapshots) else { return Vec::new() };
+    let Some(settings) = config.remote_side_effects_cache.as_ref() else { return };
+    let Some(platform) = artifact_platform(snapshots) else { return };
     let supported_tags = match platform.supported_tags() {
         Ok(tags) => tags,
         Err(error) => {
             tracing::warn!(target: "pacquet::install", %error, "remote side-effects platform is unsupported");
-            return Vec::new();
+            return;
         }
     };
-    let Some(trusted_keys) = decoded_trusted_keys(settings) else { return Vec::new() };
-    let Some(organization) = non_empty(&settings.org) else { return Vec::new() };
+    let Some(trusted_keys) = decoded_trusted_keys(settings) else { return };
+    let Some(organization) = non_empty(&settings.org) else { return };
     let owner = OwnerScope::organization(organization.to_string());
-    let owner_namespace = owner.namespace();
-    let fingerprint = match platform_fingerprint(&supported_tags) {
-        Ok(fingerprint) => fingerprint,
-        Err(error) => {
-            tracing::warn!(target: "pacquet::install", %error, "remote side-effects platform fingerprint is invalid");
-            return Vec::new();
-        }
-    };
-
     let eligible_packages: HashSet<String> = settings.packages.iter().cloned().collect();
     let roots: Vec<PackageKey> = in_lockfile_order(snapshots)
         .into_iter()
@@ -159,7 +147,7 @@ pub(crate) async fn apply_shared_side_effects(
         "planned remote side-effects candidates",
     );
     if roots.is_empty() {
-        return Vec::new();
+        return;
     }
     let graph = build_deps_subgraph(snapshots, packages, roots.clone());
     let mut deps_state_cache = pnpm_graph_hasher::DepsStateCache::new();
@@ -171,7 +159,6 @@ pub(crate) async fn apply_shared_side_effects(
     let engine_name = pnpm_graph_hasher::engine_name(platform.node_major(), None, None);
     let mut groups = BTreeMap::<String, CandidateGroup>::new();
     let mut collisions = HashSet::new();
-    let mut artifact_pin_records = Vec::new();
     for snapshot_key in roots {
         let metadata_key = snapshot_key.without_peer();
         let Some(metadata) = packages.get(&metadata_key) else { continue };
@@ -210,22 +197,14 @@ pub(crate) async fn apply_shared_side_effects(
             ),
             owner: owner.clone(),
         };
-        let pinned_envelope_digest = snapshots
-            .get(&snapshot_key)
-            .and_then(|snapshot| snapshot.artifact_pins.as_ref())
-            .and_then(|pins| pins.get(&input_key))
-            .and_then(|owners| owners.get(&owner_namespace))
-            .and_then(|platforms| platforms.get(&fingerprint))
-            .cloned();
         if let Some(overlay) =
             persisted_remote.remove(&(snapshot_key.clone(), local_cache_key.clone()))
             && let Some(diff) = side_effects_by_snapshot
                 .get(&snapshot_key)
                 .and_then(|diffs| diffs.get(&local_cache_key))
-            && let Some(envelope_digest) = stored_remote_side_effects_envelope_digest(
+            && stored_remote_side_effects_are_verified(
                 diff,
                 &candidate,
-                pinned_envelope_digest.as_deref(),
                 config.pnpr_server.as_deref(),
                 &supported_tags,
                 &trusted_keys,
@@ -239,13 +218,6 @@ pub(crate) async fn apply_shared_side_effects(
                         local_cache_key,
                         overlay,
                     );
-                    artifact_pin_records.push(ArtifactPinRecord {
-                        snapshot_key,
-                        input_key,
-                        owner: owner_namespace.clone(),
-                        platform_fingerprint: fingerprint.clone(),
-                        envelope_digest,
-                    });
                     continue;
                 }
                 Ok(false) => {}
@@ -276,32 +248,21 @@ pub(crate) async fn apply_shared_side_effects(
                 collisions.insert(input_key);
                 continue;
             }
-            if group.pinned_envelope_digest.is_some()
-                && pinned_envelope_digest.is_some()
-                && group.pinned_envelope_digest != pinned_envelope_digest
-            {
-                groups.remove(&input_key);
-                collisions.insert(input_key);
-                continue;
-            }
-            group.pinned_envelope_digest =
-                group.pinned_envelope_digest.take().or(pinned_envelope_digest);
             group.snapshots.push((snapshot_key, local_cache_key, store_index_key));
         } else {
             groups.insert(
                 input_key,
                 CandidateGroup {
                     candidate,
-                    pinned_envelope_digest,
                     snapshots: vec![(snapshot_key, local_cache_key, store_index_key)],
                 },
             );
         }
     }
     if groups.is_empty() || config.frozen_store {
-        return artifact_pin_records;
+        return;
     }
-    let Some(server) = config.pnpr_server.as_deref() else { return artifact_pin_records };
+    let Some(server) = config.pnpr_server.as_deref() else { return };
     tracing::debug!(
         target: "pacquet::install",
         candidates = groups.len(),
@@ -311,17 +272,11 @@ pub(crate) async fn apply_shared_side_effects(
     let client = PnprClient::new(server);
     if let Err(error) = client.handshake_artifacts().await {
         tracing::warn!(target: "pacquet::install", %error, "remote side-effects cache handshake failed");
-        return artifact_pin_records;
+        return;
     }
     let authorization = config.auth_headers.for_url(server);
     let allowed_builds =
         groups.values().map(|group| dependency_package(&group.candidate).name.clone()).collect();
-    let pinned_envelope_digests = groups
-        .iter()
-        .filter_map(|(input_key, group)| {
-            group.pinned_envelope_digest.as_ref().map(|digest| (input_key.clone(), digest.clone()))
-        })
-        .collect();
     let quarantined_envelope_digests = groups
         .iter()
         .map(|(input_key, group)| {
@@ -349,7 +304,6 @@ pub(crate) async fn apply_shared_side_effects(
             allowed_builds,
             ignore_scripts: false,
             trusted_keys: trusted_keys.clone(),
-            pinned_envelope_digests,
             quarantined_envelope_digests,
             on_rejected_artifact: Some(Arc::new(move |rejected| {
                 rejected_artifacts_for_callback.lock().unwrap().push(rejected);
@@ -361,7 +315,7 @@ pub(crate) async fn apply_shared_side_effects(
         Ok(resolved) => resolved,
         Err(error) => {
             tracing::warn!(target: "pacquet::install", %error, "remote side-effects cache lookup failed");
-            return artifact_pin_records;
+            return;
         }
     };
     let rejected_artifacts = std::mem::take(&mut *rejected_artifacts.lock().unwrap());
@@ -369,15 +323,6 @@ pub(crate) async fn apply_shared_side_effects(
         quarantine_remote_side_effects(&rejected, &groups, server, store_index_writer);
     }
 
-    for (input_key, group) in &groups {
-        if group.pinned_envelope_digest.is_some() && !resolved.contains_key(input_key) {
-            tracing::warn!(
-                target: "pacquet::install",
-                package = %dependency_package(&group.candidate).name,
-                "pinned remote side-effects artifact is unavailable; building locally",
-            );
-        }
-    }
     for (input_key, artifact) in resolved {
         let Some(group) = groups.get(&input_key) else { continue };
         let Some((first_snapshot, _, _)) = group.snapshots.first() else { continue };
@@ -539,16 +484,8 @@ pub(crate) async fn apply_shared_side_effects(
                 local_cache_key.clone(),
                 diff.clone(),
             );
-            artifact_pin_records.push(ArtifactPinRecord {
-                snapshot_key: snapshot_key.clone(),
-                input_key: input_key.clone(),
-                owner: owner_namespace.clone(),
-                platform_fingerprint: fingerprint.clone(),
-                envelope_digest: artifact.envelope_digest.clone(),
-            });
         }
     }
-    artifact_pin_records
 }
 
 fn take_persisted_remote_side_effects(
@@ -593,37 +530,31 @@ fn insert_side_effects_map(
     side_effects_maps_by_snapshot.insert(snapshot_key, Arc::new(maps));
 }
 
-fn stored_remote_side_effects_envelope_digest(
+fn stored_remote_side_effects_are_verified(
     diff: &SideEffectsDiff,
     candidate: &ArtifactCandidate,
-    pinned_envelope_digest: Option<&str>,
     configured_channel: Option<&str>,
     supported_tags: &[String],
     trusted_keys: &BTreeMap<String, Vec<u8>>,
-) -> Option<String> {
-    let Some(origin) = &diff.remote_origin else { return None };
+) -> bool {
+    let Some(origin) = &diff.remote_origin else { return false };
     if origin.verification != "verified"
         || origin.signer_key_id != origin.envelope.key_id
         || configured_channel.is_some_and(|channel| origin.channel != channel)
     {
-        return None;
+        return false;
     }
-    let public_key = trusted_keys.get(&origin.signer_key_id)?;
-    let Ok(payload) = origin.envelope.verify(public_key) else { return None };
-    let Ok(envelope_digest) = origin.envelope.digest() else { return None };
-    if pinned_envelope_digest.is_some_and(|pinned| pinned != envelope_digest) {
-        return None;
-    }
+    let Some(public_key) = trusted_keys.get(&origin.signer_key_id) else { return false };
+    let Ok(payload) = origin.envelope.verify(public_key) else { return false };
     if payload.input_key != candidate.key {
-        return None;
+        return false;
     }
-    (payload.subject == candidate.subject
+    payload.subject == candidate.subject
         && payload.owner == candidate.owner
         && payload.owner == origin.owner
         && payload.builder_profile == origin.builder_profile
         && compatibility_rank(&payload.compatibility, supported_tags).is_some()
-        && manifest_matches_diff(&payload.manifest, diff))
-    .then_some(envelope_digest)
+        && manifest_matches_diff(&payload.manifest, diff)
 }
 
 fn manifest_matches_diff(manifest: &ArtifactManifest, diff: &SideEffectsDiff) -> bool {

@@ -911,7 +911,6 @@ struct InstallRunOptions<'install, 'selection> {
     /// whose resolution belongs to a project other than the one that
     /// owns that lockfile, so the run must leave it untouched.
     save_lockfile: bool,
-    record_artifact_pins: bool,
     /// pnpm's `lockfileCheck`: the caller restores the lockfile and diffs
     /// it once the install returns, so the run must leave nothing else on
     /// disk changed either. Only `pacquet dedupe --check` sets it.
@@ -934,7 +933,6 @@ impl Default for InstallRunOptions<'_, '_> {
             lockfile_specifier_project_manifests: None,
             read_package_hooked_manifest_paths: HashSet::new(),
             save_lockfile: true,
-            record_artifact_pins: false,
             lockfile_check: false,
             manifest_spec_bumps: None,
             prompt_eligibility_override: None,
@@ -1068,21 +1066,6 @@ where
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             lockfile_verification_override: Some(lockfile_verification_override),
             selection: Some(selection),
-            ..Default::default()
-        }))
-        .await
-    }
-
-    pub async fn run_with_artifact_pin_recording<Reporter: self::Reporter + 'static>(
-        self,
-        selection: Option<WorkspaceInstallSelection<'_>>,
-        lockfile_verification_override: Option<LockfileVerificationOverride<'a>>,
-        record_artifact_pins: bool,
-    ) -> Result<(), InstallError> {
-        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
-            lockfile_verification_override,
-            selection,
-            record_artifact_pins,
             ..Default::default()
         }))
         .await

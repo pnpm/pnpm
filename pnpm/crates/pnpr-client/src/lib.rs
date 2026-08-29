@@ -344,7 +344,6 @@ pub struct ResolveArtifactsOptions {
     pub ignore_scripts: bool,
     /// P-256 `SubjectPublicKeyInfo` DER bytes keyed by the envelope's key id.
     pub trusted_keys: BTreeMap<String, Vec<u8>>,
-    pub pinned_envelope_digests: BTreeMap<String, String>,
     pub quarantined_envelope_digests: BTreeMap<String, HashSet<String>>,
     pub on_rejected_artifact: Option<std::sync::Arc<dyn Fn(RejectedArtifact) + Send + Sync>>,
     pub authorization: Option<String>,
@@ -648,13 +647,6 @@ impl PnprClient {
                 else {
                     continue;
                 };
-                if opts
-                    .pinned_envelope_digests
-                    .get(candidate.key.as_str())
-                    .is_some_and(|pinned| pinned != &envelope_digest)
-                {
-                    continue;
-                }
                 if best.as_ref().is_none_or(|(best_rank, best_digest, _)| {
                     (rank, &envelope_digest) < (*best_rank, best_digest)
                 }) {

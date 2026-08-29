@@ -2,31 +2,7 @@ import { expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
-import { convertToLockfileFile, convertToLockfileObject } from '../lib/lockfileFormatConverters.js'
-
-test('artifact pins round-trip in package snapshots', () => {
-  const lockfile = {
-    lockfileVersion: LOCKFILE_VERSION,
-    importers: {},
-    packages: {
-      ['native-addon@1.0.0' as DepPath]: {
-        artifactPins: {
-          'dependency-side-effects:v1:deps=abc': {
-            'organization:acme': { platform: 'digest' },
-          },
-        },
-        resolution: { integrity: 'sha512-AAAA' },
-      },
-    },
-  }
-  const serialized = convertToLockfileFile(lockfile)
-  expect(serialized.snapshots?.['native-addon@1.0.0'].artifactPins).toEqual(
-    lockfile.packages['native-addon@1.0.0'].artifactPins
-  )
-  expect(convertToLockfileObject(serialized).packages?.['native-addon@1.0.0' as DepPath].artifactPins).toEqual(
-    lockfile.packages['native-addon@1.0.0'].artifactPins
-  )
-})
+import { convertToLockfileFile } from '../lib/lockfileFormatConverters.js'
 
 test('empty overrides are removed during lockfile normalization', () => {
   expect(convertToLockfileFile({

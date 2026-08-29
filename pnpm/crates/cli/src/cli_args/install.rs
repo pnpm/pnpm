@@ -253,9 +253,6 @@ pub struct InstallArgs {
     #[clap(long = "update-checksums")]
     pub update_checksums: bool,
 
-    #[clap(skip)]
-    pub(crate) refresh_artifact_pins: bool,
-
     /// Maximum number of concurrent network requests during install.
     #[clap(long = "network-concurrency")]
     pub network_concurrency: Option<usize>,
@@ -340,7 +337,6 @@ impl InstallArgs {
             trust_lockfile: false,
             no_trust_lockfile: false,
             update_checksums: false,
-            refresh_artifact_pins: false,
             network_concurrency: None,
             fetch_timeout: None,
             fetch_warn_timeout_ms: None,
@@ -348,16 +344,6 @@ impl InstallArgs {
             user_agent: None,
             pnpr_server: None,
         }
-    }
-
-    pub(crate) fn for_build_artifact_update(
-        supported_architectures: SupportedArchitecturesArgs,
-    ) -> Self {
-        let mut args = Self::for_reresolving_install();
-        args.supported_architectures = supported_architectures;
-        args.force = true;
-        args.refresh_artifact_pins = true;
-        args
     }
 
     /// Run the repeat-install fast path before any of the async install
@@ -391,7 +377,6 @@ impl InstallArgs {
             || self.lockfile_only
             || self.fix_lockfile
             || self.force
-            || self.refresh_artifact_pins
             || self.verify_deps_before_run_install
         {
             return false;
@@ -521,7 +506,7 @@ impl InstallArgs {
     ) -> miette::Result<()> {
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let frozen_lockfile = match self.configured_frozen_lockfile(state.config) {
-            _ if self.fix_lockfile || self.refresh_artifact_pins => false,
+            _ if self.fix_lockfile => false,
             Some(value) => value,
             None if state.config.ci
                 && !self.lockfile_only
@@ -578,7 +563,6 @@ impl InstallArgs {
             trust_lockfile,
             no_trust_lockfile,
             update_checksums,
-            refresh_artifact_pins,
             network_concurrency: _,
             fetch_timeout: _,
             fetch_warn_timeout_ms: _,
@@ -595,7 +579,7 @@ impl InstallArgs {
         // mutual `overrides_with` collapses both spellings to the
         // last-specified, so at most one is set and the precedence here
         // is straightforward.
-        let prefer_frozen_lockfile = if fix_lockfile || refresh_artifact_pins {
+        let prefer_frozen_lockfile = if fix_lockfile {
             Some(false)
         } else if prefer_frozen_lockfile {
             Some(true)
@@ -638,8 +622,7 @@ impl InstallArgs {
         // pnpr fast path: when a `pnprServer` URL is configured, offload
         // resolution + fetching to it, then link `node_modules` from the
         // server-produced lockfile via the normal frozen install.
-        if let Some(pnpr_server) = config.pnpr_server.as_deref().filter(|_| !refresh_artifact_pins)
-        {
+        if let Some(pnpr_server) = config.pnpr_server.as_deref() {
             // The pnpr path resolves and links through the server, so it
             // can't honor `--dry-run`'s no-write contract. Reject up front,
             // mirroring pnpm's CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER.
@@ -672,26 +655,7 @@ impl InstallArgs {
             .await;
         }
 
-        if refresh_artifact_pins && !config.lockfile {
-            return Err(BuildArtifactsWithoutLockfile.into());
-        }
-        let mut refreshed_lockfile = None;
-        if refresh_artifact_pins {
-            refreshed_lockfile = lockfile
-                .get()
-                .map_err(|error| miette::Report::new(error).wrap_err("load the lockfile"))?
-                .cloned();
-            if let Some(snapshots) =
-                refreshed_lockfile.as_mut().and_then(|lockfile| lockfile.snapshots.as_mut())
-            {
-                for snapshot in snapshots.values_mut() {
-                    snapshot.clear_artifact_pins();
-                }
-            }
-        }
-        let install_lockfile = if refresh_artifact_pins {
-            MaybeLazyLockfile::Loaded(refreshed_lockfile.as_ref())
-        } else if fix_lockfile {
+        let install_lockfile = if fix_lockfile {
             MaybeLazyLockfile::Repair(lockfile)
         } else {
             MaybeLazyLockfile::Lazy(lockfile)
@@ -835,11 +799,6 @@ struct FrozenStoreIncompatibleWithPnpr;
     )
 )]
 struct DryRunIncompatibleWithPnpr;
-
-#[derive(Debug, Display, Error, Diagnostic)]
-#[display("Cannot update build artifacts when lockfile is set to false")]
-#[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_BUILD_ARTIFACTS_WITH_NO_LOCKFILE))]
-struct BuildArtifactsWithoutLockfile;
 
 fn resolve_project(
     dir: String,
@@ -1194,13 +1153,25 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             workspace_projects_override: None,
         };
 
-        let result = install
-            .run_with_artifact_pin_recording::<Reporter>(
-                selection.map(workspace_install_selection),
-                lockfile_verification_override,
-                !link.frozen_lockfile,
-            )
-            .await;
+        let result = match (selection, lockfile_verification_override) {
+            (Some(selection), Some(lockfile_verification_override)) => {
+                Box::pin(install.run_selected_with_lockfile_verification::<Reporter>(
+                    workspace_install_selection(selection),
+                    lockfile_verification_override,
+                ))
+                .await
+            }
+            (Some(selection), None) => {
+                Box::pin(install.run_selected::<Reporter>(workspace_install_selection(selection)))
+                    .await
+            }
+            (None, Some(lockfile_verification_override)) => {
+                install
+                    .run_with_lockfile_verification::<Reporter>(lockfile_verification_override)
+                    .await
+            }
+            (None, None) => install.run::<Reporter>().await,
+        };
         // On failure the prefetcher is dropped, not shut down: shutdown
         // waits for every in-flight prefetch download (each task holds a
         // store-index writer handle), which would hold the fail-fast
@@ -1448,14 +1419,13 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         pnpmfile_hook_override: pnpmfile_hook,
         workspace_projects_override: None,
     };
-    install
-        .run_with_artifact_pin_recording::<Reporter>(
-            selection.map(workspace_install_selection),
-            None,
-            !link.frozen_lockfile,
-        )
-        .await
-        .wrap_err("linking dependencies resolved via the pnpr server")?;
+    match selection {
+        Some(selection) => {
+            Box::pin(install.run_selected::<Reporter>(workspace_install_selection(selection))).await
+        }
+        None => install.run::<Reporter>().await,
+    }
+    .wrap_err("linking dependencies resolved via the pnpr server")?;
 
     // The materialization install has awaited every tarball's mem-cache
     // slot, so all prefetch downloads have finished and queued their

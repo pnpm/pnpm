@@ -3,77 +3,12 @@ import path from 'node:path'
 import { beforeAll, describe, expect, it, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { install, update } from '@pnpm/installing.commands'
-import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/testing.registry-mock'
-import type { ProjectId, ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
 import { DEFAULT_OPTS } from '../utils/index.js'
-
-test('update --build-artifacts clears existing pins without updating package versions', async () => {
-  prepare({ dependencies: { 'is-positive': '1.0.0' } })
-  await install.handler({ ...DEFAULT_OPTS, dir: process.cwd() })
-  const lockfile = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
-  const dependencyResolution = lockfile.importers['.' as ProjectId].dependencies?.['is-positive']
-  const snapshot = Object.values(lockfile.packages ?? {})[0]
-  snapshot.artifactPins = {
-    'dependency-side-effects:v1:deps=old': {
-      'organization:acme': { platform: '0'.repeat(64) },
-    },
-  }
-  await writeWantedLockfile('.', lockfile)
-
-  await update.handler({
-    ...DEFAULT_OPTS,
-    buildArtifacts: true,
-    dir: process.cwd(),
-  })
-
-  const refreshed = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
-  expect(Object.values(refreshed.packages ?? {}).every(pkg => pkg.artifactPins == null)).toBe(true)
-  expect(refreshed.importers['.' as ProjectId].dependencies?.['is-positive']).toStrictEqual(dependencyResolution)
-})
-
-test('update --build-artifacts rejects a frozen lockfile', async () => {
-  prepare({})
-  await expect(update.handler({
-    ...DEFAULT_OPTS,
-    buildArtifacts: true,
-    cliOptions: { frozenLockfile: true },
-    dir: process.cwd(),
-    frozenLockfile: true,
-  })).rejects.toMatchObject({ code: 'ERR_PNPM_CONFIG_CONFLICT_BUILD_ARTIFACTS_WITH_FROZEN_LOCKFILE' })
-})
-
-test.each([
-  ['a disabled lockfile', { useLockfile: false }, 'ERR_PNPM_CONFIG_CONFLICT_BUILD_ARTIFACTS_WITH_NO_LOCKFILE'],
-  ['a lockfile-only update', { lockfileOnly: true }, 'ERR_PNPM_CONFIG_CONFLICT_BUILD_ARTIFACTS_WITH_LOCKFILE_ONLY'],
-] as const)('update --build-artifacts rejects %s', async (_description, conflictingOptions, code) => {
-  prepare({})
-  await expect(update.handler({
-    ...DEFAULT_OPTS,
-    ...conflictingOptions,
-    buildArtifacts: true,
-    dir: process.cwd(),
-  })).rejects.toMatchObject({ code })
-})
-
-test.each([
-  { dependencies: ['is-positive'], options: { buildArtifacts: true } },
-  { dependencies: [], options: { buildArtifacts: true, latest: true } },
-  { dependencies: [], options: { buildArtifacts: true, interactive: true } },
-  { dependencies: [], options: { buildArtifacts: true, global: true } },
-  { dependencies: [], options: { buildArtifacts: true, patches: true } },
-])('update --build-artifacts rejects other update modes', async ({ dependencies, options }) => {
-  await expect(update.handler({
-    ...DEFAULT_OPTS,
-    ...options,
-    dir: process.cwd(),
-  }, dependencies)).rejects.toMatchObject({
-    code: 'ERR_PNPM_BUILD_ARTIFACTS_WITH_SELECTOR',
-  })
-})
 
 test.each([
   { dependencies: ['is-positive'], options: { patches: true } },

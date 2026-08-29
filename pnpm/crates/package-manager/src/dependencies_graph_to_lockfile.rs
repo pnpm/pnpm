@@ -975,7 +975,6 @@ fn build_snapshot_entry(
         id: None,
         dependencies: (!dependencies.is_empty()).then_some(dependencies),
         optional_dependencies: (!optional_dependencies.is_empty()).then_some(optional_dependencies),
-        artifact_pins: None,
         transitive_peer_dependencies: (!transitive.is_empty()).then_some(transitive),
         patched: None,
         optional,

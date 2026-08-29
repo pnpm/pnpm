@@ -21,7 +21,6 @@ export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
   const snapshots: Record<string, LockfilePackageSnapshot> = {}
   for (const [depPath, pkg] of Object.entries(lockfile.packages ?? {})) {
     snapshots[depPath] = pick([
-      'artifactPins',
       'dependencies',
       'optionalDependencies',
       'transitivePeerDependencies',

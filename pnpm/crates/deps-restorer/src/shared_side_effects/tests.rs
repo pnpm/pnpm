@@ -343,39 +343,27 @@ mod restore {
         };
         let trusted_keys =
             BTreeMap::from([(KEY_ID.to_string(), BASE64.decode(public_key()).unwrap())]);
-        assert!(
-            super::super::stored_remote_side_effects_envelope_digest(
-                &diff,
-                &candidate,
-                None,
-                Some("https://pnpr.example/"),
-                &supported_tags,
-                &trusted_keys,
-            )
-            .is_some(),
-        );
-        assert!(
-            super::super::stored_remote_side_effects_envelope_digest(
-                &diff,
-                &candidate,
-                None,
-                Some("https://pnpr.example/"),
-                &supported_tags,
-                &BTreeMap::new(),
-            )
-            .is_none(),
-        );
-        assert!(
-            super::super::stored_remote_side_effects_envelope_digest(
-                &diff,
-                &candidate,
-                None,
-                Some("https://other-pnpr.example/"),
-                &supported_tags,
-                &trusted_keys,
-            )
-            .is_none(),
-        );
+        assert!(super::super::stored_remote_side_effects_are_verified(
+            &diff,
+            &candidate,
+            Some("https://pnpr.example/"),
+            &supported_tags,
+            &trusted_keys,
+        ),);
+        assert!(!super::super::stored_remote_side_effects_are_verified(
+            &diff,
+            &candidate,
+            Some("https://pnpr.example/"),
+            &supported_tags,
+            &BTreeMap::new(),
+        ),);
+        assert!(!super::super::stored_remote_side_effects_are_verified(
+            &diff,
+            &candidate,
+            Some("https://other-pnpr.example/"),
+            &supported_tags,
+            &trusted_keys,
+        ),);
     }
 
     /// Restore against a server that offers the artifact, asserting that the

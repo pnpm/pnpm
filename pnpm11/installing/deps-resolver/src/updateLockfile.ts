@@ -109,9 +109,6 @@ function toLockfileDependency (
   const result = {
     resolution: lockfileResolution,
   } as PackageSnapshot
-  if (opts.prevSnapshot?.artifactPins != null) {
-    result.artifactPins = opts.prevSnapshot.artifactPins
-  }
   // A registry-qualified dep path (`<name>@<registryName>:<version>`) already
   // carries a parseable semver, so the explicit version field written for
   // other `:`-containing dep paths would be redundant.

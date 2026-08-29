@@ -237,16 +237,6 @@ pub struct CreateVirtualStoreOutput {
     /// the bridge into the link phase instead). Pacquet decouples
     /// fetch and walk, so the index is built here at fetch time.
     pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,
-    pub artifact_pin_records: Vec<ArtifactPinRecord>,
-}
-
-#[derive(Debug)]
-pub struct ArtifactPinRecord {
-    pub snapshot_key: PackageKey,
-    pub input_key: String,
-    pub owner: String,
-    pub platform_fingerprint: String,
-    pub envelope_digest: String,
 }
 
 /// This subroutine generates filesystem layout for the virtual store at `node_modules/.pacquet`.
@@ -437,7 +427,6 @@ impl CreateVirtualStore<'_> {
                 materialized_snapshots: Vec::new(),
                 fetch_failed: HashSet::new(),
                 cas_paths_by_pkg_id: is_hoisted.then(CasPathsByPkgId::new),
-                artifact_pin_records: Vec::new(),
             });
         };
         let packages = packages.ok_or(CreateVirtualStoreError::MissingPackagesSection)?;
@@ -941,7 +930,7 @@ impl CreateVirtualStore<'_> {
             }
         }
 
-        let artifact_pin_records = crate::shared_side_effects::apply_shared_side_effects(
+        crate::shared_side_effects::apply_shared_side_effects(
             crate::shared_side_effects::ApplySharedSideEffectsOptions {
                 config,
                 snapshots,
@@ -1011,7 +1000,6 @@ impl CreateVirtualStore<'_> {
             materialized_snapshots,
             fetch_failed,
             cas_paths_by_pkg_id,
-            artifact_pin_records,
         })
     }
 }

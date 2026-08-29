@@ -491,16 +491,6 @@ describe('signed shared artifacts', () => {
           .map(signedArtifactEnvelopeDigest)
           .find(digest => digest !== selectedDigest)
       )
-      const pinnedDigest = signedArtifactEnvelopeDigest(alternateEnvelope)
-      const pinned = await resolveSharedSideEffects({
-        ...resolveOptions,
-        pinnedEnvelopeDigests: new Map([[payload().inputKey, pinnedDigest]]),
-      })
-      expect(pinned.get(payload().inputKey)?.envelopeDigest).toBe(pinnedDigest)
-      await expect(resolveSharedSideEffects({
-        ...resolveOptions,
-        pinnedEnvelopeDigests: new Map([[payload().inputKey, '0'.repeat(64)]]),
-      })).resolves.toEqual(new Map())
       await expect(downloadSharedArtifactBlob({
         registryUrl,
         authorization: 'Bearer token',
@@ -508,8 +498,6 @@ describe('signed shared artifacts', () => {
       })).resolves.toEqual(contents)
       expect(requests.map(request => request.url)).toEqual([
         '/-/pnpr/v0/artifacts',
-        '/-/pnpr/v0/artifacts/resolve',
-        '/-/pnpr/v0/artifacts/resolve',
         '/-/pnpr/v0/artifacts/resolve',
         '/-/pnpr/v0/artifacts/resolve',
         '/-/pnpr/v0/artifacts/resolve',

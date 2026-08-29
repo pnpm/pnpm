@@ -151,7 +151,6 @@ export interface VerifiedArtifact {
 export interface VerifyStoredSharedSideEffectsOptions {
   candidate: DependencySideEffectsCandidate
   envelope: SignedArtifactEnvelope
-  pinnedEnvelopeDigest?: string
   publicKey: string
   supportedTags: string[]
 }
@@ -181,7 +180,6 @@ export interface ResolveSharedSideEffectsOptions {
   }
   /** Base64-encoded P-256 SubjectPublicKeyInfo DER, keyed by key id. */
   trustedKeys: Record<string, string>
-  pinnedEnvelopeDigests?: ReadonlyMap<string, string>
   quarantinedEnvelopeDigests?: ReadonlyMap<string, ReadonlySet<string>>
   onRejectedArtifact?: (rejection: {
     inputKey: string
@@ -336,8 +334,6 @@ export async function resolveSharedSideEffects (
       ) continue
       const rank = rankCompatibility(payload.compatibility, opts.supportedTags)
       if (rank == null) continue
-      const pinnedDigest = opts.pinnedEnvelopeDigests?.get(candidate.key)
-      if (pinnedDigest != null && digest !== pinnedDigest) continue
       if (
         best == null ||
         rank < best.rank ||
@@ -377,9 +373,6 @@ export function verifyStoredSharedSideEffects (
     throw new Error('Stored shared artifact no longer matches the package or consumer')
   }
   const envelopeDigest = signedArtifactEnvelopeDigest(opts.envelope)
-  if (opts.pinnedEnvelopeDigest != null && envelopeDigest !== opts.pinnedEnvelopeDigest) {
-    throw new Error('Stored shared artifact does not match the lockfile pin')
-  }
   return { payload, envelope: opts.envelope, envelopeDigest }
 }
 
