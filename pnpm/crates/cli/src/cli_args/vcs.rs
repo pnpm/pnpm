@@ -44,6 +44,9 @@ pub enum VcsCommand {
         root_component: String,
         /// New directory to create for the workspace.
         directory: PathBuf,
+        /// Remote Bit lane to clone, in `<scope>/<lane>` form.
+        #[clap(long)]
+        lane: Option<String>,
     },
     /// Initialize Bit and register every pnpm workspace project.
     Init,
@@ -254,10 +257,12 @@ struct PnpmVcsCatalogBinding {
 impl VcsArgs {
     pub async fn run(self, cwd: &Path, config: &Config) -> miette::Result<()> {
         match self.command {
-            VcsCommand::Clone { root_component, directory } => {
+            VcsCommand::Clone { root_component, directory, lane } => {
                 let destination =
                     if directory.is_absolute() { directory } else { cwd.join(directory) };
-                let cloned = clone_workspace(&self.bit_path, &root_component, &destination).await?;
+                let cloned =
+                    clone_workspace(&self.bit_path, &root_component, lane.as_deref(), &destination)
+                        .await?;
                 if self.json {
                     println!(
                         "{}",
@@ -381,13 +386,27 @@ impl VcsArgs {
 #[serde(rename_all = "camelCase")]
 struct CloneResult {
     root_component: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    lane: Option<String>,
     components: Vec<String>,
     directory: PathBuf,
+}
+
+#[derive(Debug, Deserialize)]
+struct BitLaneResult {
+    #[serde(default)]
+    components: Vec<BitLaneComponent>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BitLaneComponent {
+    id: String,
 }
 
 async fn clone_workspace(
     bit_path: &str,
     root_component: &str,
+    lane: Option<&str>,
     destination: &Path,
 ) -> miette::Result<CloneResult> {
     if destination.exists() {
@@ -422,11 +441,24 @@ async fn clone_workspace(
         clone_dir,
     )
     .await?;
+
+    let lane_heads = match lane {
+        Some(lane) => {
+            validate_remote_lane_id(lane)?;
+            let stdout =
+                execute_bit(bit_path, &["lane", "show", lane, "--remote", "--json"], clone_dir)
+                    .await?;
+            let result: BitLaneResult = parse_bit_json(&stdout, "remote lane")?;
+            index_lane_component_heads(result)?
+        }
+        None => BTreeMap::new(),
+    };
+    let root_import_id = lane_heads.get(root_component).map_or(root_component, String::as_str);
     execute_bit(
         bit_path,
         &[
             "import",
-            root_component,
+            root_import_id,
             "--path",
             ".",
             "--pnpm-vcs-root",
@@ -436,6 +468,21 @@ async fn clone_workspace(
         clone_dir,
     )
     .await?;
+
+    if let Some(lane) = lane {
+        execute_bit(
+            bit_path,
+            &[
+                "switch",
+                lane,
+                "--workspace-only",
+                "--skip-dependency-installation",
+                "--pnpm-vcs-bootstrap",
+            ],
+            clone_dir,
+        )
+        .await?;
+    }
 
     let workspace_manifest = pnpm_workspace::read_workspace_manifest(clone_dir)
         .map_err(|error| clone_error(error.to_string()))?
@@ -493,9 +540,47 @@ async fn clone_workspace(
     })?;
     Ok(CloneResult {
         root_component: root_component.to_string(),
+        lane: lane.map(str::to_string),
         components: imported,
         directory: destination.to_path_buf(),
     })
+}
+
+fn validate_remote_lane_id(lane: &str) -> miette::Result<()> {
+    let Some((scope, name)) = lane.split_once('/') else {
+        return Err(clone_error(format!(
+            "lane must include its remote scope, for example acme.workspace/feature: {lane}",
+        )));
+    };
+    if scope.is_empty() || name.is_empty() || lane.contains('@') {
+        return Err(clone_error(format!("invalid remote Bit lane ID: {lane}")));
+    }
+    Ok(())
+}
+
+fn index_lane_component_heads(lane: BitLaneResult) -> miette::Result<BTreeMap<String, String>> {
+    let mut heads = BTreeMap::new();
+    for component in lane.components {
+        let Some((version_free, version)) = component.id.rsplit_once('@') else {
+            return Err(clone_error(format!(
+                "remote lane returned a component without a head version: {}",
+                component.id,
+            )));
+        };
+        validate_durable_component_id(version_free, "lane component")?;
+        if version.is_empty() {
+            return Err(clone_error(format!(
+                "remote lane returned an empty component head: {}",
+                component.id,
+            )));
+        }
+        if heads.insert(version_free.to_string(), component.id.clone()).is_some() {
+            return Err(clone_error(format!(
+                "remote lane returned component {version_free} more than once",
+            )));
+        }
+    }
+    Ok(heads)
 }
 
 fn validate_durable_component_id<'a>(

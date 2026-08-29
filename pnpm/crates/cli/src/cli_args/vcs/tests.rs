@@ -1,10 +1,11 @@
 use super::{
-    AutoSnappedComponent, BitSnapResult, BitStatusResult, BitSyncResult, BitSyncedComponent,
-    PnpmVcsCatalogBinding, PnpmVcsImportPlan, PnpmVcsImportedComponent, apply_import_plan,
-    assert_snap_protocol, assert_status_protocol, execute_bit,
-    migrate_workspace_dependencies_to_catalogs, persist_workspace_identity,
-    read_component_requirements, render_commit, render_status, sanitize_component_name,
-    validate_clone_root_dir, validate_durable_component_id, workspace_inventory,
+    AutoSnappedComponent, BitLaneComponent, BitLaneResult, BitSnapResult, BitStatusResult,
+    BitSyncResult, BitSyncedComponent, PnpmVcsCatalogBinding, PnpmVcsImportPlan,
+    PnpmVcsImportedComponent, apply_import_plan, assert_snap_protocol, assert_status_protocol,
+    execute_bit, index_lane_component_heads, migrate_workspace_dependencies_to_catalogs,
+    persist_workspace_identity, read_component_requirements, render_commit, render_status,
+    sanitize_component_name, validate_clone_root_dir, validate_durable_component_id,
+    validate_remote_lane_id, workspace_inventory,
 };
 
 use std::{collections::BTreeMap, fs};
@@ -257,6 +258,47 @@ fn clone_requires_version_free_scoped_component_ids() {
     );
     assert!(validate_durable_component_id("app", "component").is_err());
     assert!(validate_durable_component_id("acme.workspace/app@abc123", "component").is_err());
+}
+
+#[test]
+fn clone_requires_a_scoped_remote_lane_id() {
+    assert!(validate_remote_lane_id("acme.workspace/feature").is_ok());
+    assert!(validate_remote_lane_id("feature").is_err());
+    assert!(validate_remote_lane_id("acme.workspace/").is_err());
+    assert!(validate_remote_lane_id("acme.workspace/feature@head").is_err());
+}
+
+#[test]
+fn lane_heads_are_indexed_by_version_free_component_id() {
+    let heads = index_lane_component_heads(BitLaneResult {
+        components: vec![
+            BitLaneComponent { id: "acme.workspace/app@abcdef".to_string() },
+            BitLaneComponent { id: "acme.workspace/root@123456".to_string() },
+        ],
+    })
+    .expect("index lane heads");
+
+    assert_eq!(heads["acme.workspace/app"], "acme.workspace/app@abcdef");
+    assert_eq!(heads["acme.workspace/root"], "acme.workspace/root@123456");
+}
+
+#[test]
+fn lane_heads_reject_unversioned_and_duplicate_components() {
+    assert!(
+        index_lane_component_heads(BitLaneResult {
+            components: vec![BitLaneComponent { id: "acme.workspace/app".to_string() }],
+        })
+        .is_err(),
+    );
+    assert!(
+        index_lane_component_heads(BitLaneResult {
+            components: vec![
+                BitLaneComponent { id: "acme.workspace/app@abcdef".to_string() },
+                BitLaneComponent { id: "acme.workspace/app@123456".to_string() },
+            ],
+        })
+        .is_err(),
+    );
 }
 
 #[test]
