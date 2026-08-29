@@ -954,6 +954,7 @@ async fn a_failure_keeps_the_scopes_of_an_artifact_that_did_get_stored() {
         .release_scopes(
             &owner,
             &entry,
+            &ours.envelope.digest().unwrap(),
             &format!(
                 "{owner}/entries/{entry}/{}.json",
                 super::compatibility_slot(&payload.compatibility),
@@ -1058,6 +1059,43 @@ async fn a_scope_that_vanishes_after_the_create_is_not_taken_as_ours() {
         store.scope_marker(&owner, &entry, "linux-x64-node22", "any-digest").await.unwrap(),
         super::ScopeMarker::Gone,
         "an absent marker is nobody's, not this artifact's",
+    );
+}
+
+/// Reading before deleting cannot order a release against the retry that reuses
+/// its markers: the artifact can be stored in between. Putting them back names
+/// the artifact now stored, which is what they should have said.
+#[tokio::test]
+async fn a_release_that_raced_the_artifact_being_stored_puts_its_scopes_back() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    let ours = publication_tagged("ci/ours", &tags);
+    let (payload, _) = ours.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&ours.key, &payload.subject);
+    let digest = ours.envelope.digest().unwrap();
+    let slot = super::compatibility_slot(&payload.compatibility);
+    let marker = format!("{owner}/entries/{entry}/scopes/linux-x64-node22");
+    assert!(store.publish("acme", publication_tagged("ci/ours", &tags)).await.unwrap());
+    // The marker a failed attempt at the same envelope believes it must release.
+    store.store.delete(&store.object_path(&marker)).await.unwrap();
+
+    store
+        .release_scopes(
+            &owner,
+            &entry,
+            &digest,
+            &format!("{owner}/entries/{entry}/{slot}.json"),
+            &["linux-x64-node22".to_string()],
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        store.read_object_bounded(&marker, 128).await.unwrap().as_deref(),
+        Some(digest.as_bytes()),
+        "the stored artifact gets its scope back",
     );
 }
 

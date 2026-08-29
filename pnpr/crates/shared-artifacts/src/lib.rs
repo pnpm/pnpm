@@ -183,13 +183,14 @@ impl SharedArtifactStore {
         let owner = prepared.owner.clone();
         let entry = prepared.entry.clone();
         let variant_path = prepared.variant_path.clone();
+        let holder = prepared.envelope_digest.clone();
         let (stored, created) = self.publish_claimed(prepared, reclamation_needed).await;
         let Err(error) = stored else { return stored };
         // A publication that did not store its artifact cannot go on holding the
         // scopes it reserved, or nothing could be published for them again. Its
         // own failure is the one worth reporting, unless the release fails too
         // and leaves the entry needing an operator.
-        self.release_scopes(&owner, &entry, &variant_path, &created).await?;
+        self.release_scopes(&owner, &entry, &holder, &variant_path, &created).await?;
         Err(error)
     }
 
@@ -659,24 +660,41 @@ impl SharedArtifactStore {
         &self,
         owner: &str,
         entry: &str,
+        holder: &str,
         variant_path: &str,
         scopes: &[String],
     ) -> Result<()> {
         if scopes.is_empty() {
             return Ok(());
         }
-        if self.read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await?.is_some()
-        {
-            return Ok(());
+        if !self.artifact_is_stored(variant_path).await? {
+            for scope in scopes {
+                let path = self.object_path(&scope_marker_path(owner, entry, scope));
+                match self.store.delete(&path).await {
+                    Ok(()) | Err(object_store::Error::NotFound { .. }) => {}
+                    Err(error) => return Err(error.into()),
+                }
+            }
         }
-        for scope in scopes {
-            let path = self.object_path(&scope_marker_path(owner, entry, scope));
-            match self.store.delete(&path).await {
-                Ok(()) | Err(object_store::Error::NotFound { .. }) => {}
-                Err(error) => return Err(error.into()),
+        // Reading before deleting cannot order this release against the retry
+        // that reuses its markers: the artifact can be stored either before the
+        // read or while the deleting is going on. Only a publication of this
+        // same envelope reuses these markers — a marker is recognised by the
+        // digest it names — so putting them back names the artifact that is now
+        // stored, which is what they should have said all along.
+        if self.artifact_is_stored(variant_path).await? {
+            for scope in scopes {
+                self.create_object(&scope_marker_path(owner, entry, scope), holder.into()).await?;
             }
         }
         Ok(())
+    }
+
+    async fn artifact_is_stored(&self, variant_path: &str) -> Result<bool> {
+        Ok(self
+            .read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64)
+            .await?
+            .is_some())
     }
 
     async fn begin_publication(&self, publication: &str) -> Result<()> {
