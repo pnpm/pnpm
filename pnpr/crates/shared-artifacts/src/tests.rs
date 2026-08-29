@@ -611,42 +611,13 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
 /// a retry, so the whole slot is searched for the incoming envelope before
 /// another one is reported: the second is no less already-published than the
 /// first.
+/// An entry can hold artifacts that apply to one consumer: a store written
+/// before this rule, or one whose withdrawal could not finish. Neither of them
+/// is *the* artifact for those consumers, so republishing either is refused
+/// rather than reported as already published — which would hide the state and
+/// leave nobody to repair it.
 #[tokio::test]
-async fn republishing_any_artifact_already_in_a_crowded_legacy_slot_is_a_retry() {
-    let storage = TempDir::new().unwrap();
-    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
-    let first = publication("ci/first");
-    let second = publication("ci/second");
-    let (payload, _) = first.envelope.decode_payload().unwrap();
-    let owner = super::owner_key("acme", &payload.owner).unwrap();
-    let entry = super::entry_digest(&first.key, &payload.subject);
-    for (name, request) in [("a".repeat(64), &first), ("b".repeat(64), &second)] {
-        store
-            .create_object(
-                &format!("{owner}/entries/{entry}/{name}.json"),
-                serde_json::to_vec(&request.envelope).unwrap(),
-            )
-            .await
-            .unwrap();
-    }
-
-    assert!(!store.publish("acme", publication("ci/second")).await.unwrap());
-    assert!(!store.publish("acme", publication("ci/first")).await.unwrap());
-    let error = store.publish("acme", publication("ci/third")).await.unwrap_err();
-    assert!(
-        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
-        "a genuinely new artifact still conflicts, got {error:?}",
-    );
-}
-
-/// Matching a tag set is order-independent, so two orderings are the same
-/// constraint and must not be two slots — otherwise a publisher reopens the
-/// swap simply by listing the same tags the other way round.
-/// An entry can already hold two artifacts that apply to one consumer. Neither
-/// is rewritten: republishing either stays a retry, and only a genuinely new
-/// artifact is refused.
-#[tokio::test]
-async fn artifacts_that_already_overlap_stay_republishable() {
+async fn an_entry_crowded_with_overlapping_artifacts_refuses_publication() {
     let storage = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
     let universal = publication("ci/universal");
@@ -665,8 +636,13 @@ async fn artifacts_that_already_overlap_stay_republishable() {
             .unwrap();
     }
 
-    assert!(!store.publish("acme", publication("ci/universal")).await.unwrap());
-    assert!(!store.publish("acme", publication_tagged("ci/tagged", &tags)).await.unwrap());
+    for republished in [publication("ci/universal"), publication_tagged("ci/tagged", &tags)] {
+        let error = store.publish("acme", republished).await.unwrap_err();
+        assert!(
+            matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+            "republishing into a crowded entry is refused, got {error:?}",
+        );
+    }
     let error = store.publish("acme", publication("ci/third")).await.unwrap_err();
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
@@ -674,6 +650,9 @@ async fn artifacts_that_already_overlap_stay_republishable() {
     );
 }
 
+/// Matching a tag set is order-independent, so two orderings are the same
+/// constraint and must not be two slots — otherwise a publisher reopens the
+/// swap simply by listing the same tags the other way round.
 #[tokio::test]
 async fn tag_order_does_not_open_a_second_slot() {
     let storage = TempDir::new().unwrap();

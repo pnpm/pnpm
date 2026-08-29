@@ -424,14 +424,16 @@ impl SharedArtifactStore {
     async fn slot_claim(&self, publication: &PreparedPublication) -> Result<SlotClaim> {
         let PreparedPublication { owner, entry, variant_path, payload, envelope_bytes, .. } =
             publication;
+        // Different bytes under this artifact's own name settle it without a
+        // listing. Matching bytes do not: this artifact is only *the* artifact
+        // for its consumers if nothing overlapping is stored beside it, and a
+        // withdrawal that could not finish leaves exactly that state. Reporting
+        // the retry as published would hide it and leave nobody to repair it.
         if let Some(claimed) =
             self.read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await?
+            && &claimed != envelope_bytes
         {
-            return Ok(if &claimed == envelope_bytes {
-                SlotClaim::Held
-            } else {
-                SlotClaim::HeldByAnother
-            });
+            return Ok(SlotClaim::HeldByAnother);
         }
         // Every file, not the read-time variant limit: that limit bounds what a
         // lookup will scan, and a claim that stopped there would call a slot
@@ -439,13 +441,13 @@ impl SharedArtifactStore {
         let prefix = self.object_path(&format!("{owner}/entries/{entry}/"));
         let mut listing = self.store.list(Some(&prefix));
         let mut held_by_another = false;
+        let mut already_stored = false;
         let mut inspected = HashSet::new();
         while let Some(stored) = listing.next().await {
             let stored = stored?;
             if !is_variant_file(object_name(&stored.location)) {
                 continue;
             }
-            inspected.insert(stored.location.clone());
             let Some(bytes) = self.read_object_path(&stored.location).await? else { continue };
             let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
                 continue;
@@ -457,14 +459,25 @@ impl SharedArtifactStore {
             // order is not consulted, so a stored artifact written in another
             // order is recognised as the same constraints.
             if !compatibility_overlaps(&stored_payload.compatibility, &payload.compatibility) {
+                // Only what cannot overlap is worth carrying: the scan after the
+                // create skips these, and the bound keeps an entry an owner has
+                // packed with disjoint variants from sizing this set.
+                if inspected.len() < MAX_VARIANTS_PER_CANDIDATE {
+                    inspected.insert(stored.location);
+                }
                 continue;
             }
             if &bytes == envelope_bytes {
-                return Ok(SlotClaim::Held);
+                already_stored = true;
+            } else {
+                held_by_another = true;
             }
-            held_by_another = true;
         }
-        Ok(if held_by_another { SlotClaim::HeldByAnother } else { SlotClaim::Free { inspected } })
+        Ok(match (held_by_another, already_stored) {
+            (true, _) => SlotClaim::HeldByAnother,
+            (false, true) => SlotClaim::Held,
+            (false, false) => SlotClaim::Free { inspected },
+        })
     }
 
     /// Whether an artifact that can serve one of this publication's consumers is
