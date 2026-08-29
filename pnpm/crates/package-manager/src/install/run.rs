@@ -72,7 +72,6 @@ where
             lockfile_specifier_project_manifests,
             read_package_hooked_manifest_paths,
             save_lockfile,
-            record_artifact_pins,
             lockfile_check: _,
             manifest_spec_bumps,
             prompt_eligibility_override,
@@ -112,8 +111,6 @@ where
             pnpmfile_hook_override,
             workspace_projects_override,
         } = self;
-        let record_artifact_pins =
-            config.lockfile && save_lockfile && (record_artifact_pins || !frozen_lockfile);
         http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let can_prompt = prompt_eligibility_override
@@ -1164,7 +1161,6 @@ where
             pnpmfile_hook,
             deploy_manifest_hook,
             save_lockfile,
-            record_artifact_pins,
             manifest_spec_bumps,
             catalogs: &catalogs,
             prefix: &prefix,

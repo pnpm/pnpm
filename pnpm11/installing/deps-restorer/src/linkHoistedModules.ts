@@ -11,7 +11,6 @@ import type {
   DepHierarchy,
 } from '@pnpm/deps.graph-builder'
 import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
-import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { createRemoteSideEffectsRestorer, type RemoteSideEffectsRestorer } from '@pnpm/pnpr.client'
 import type {
@@ -32,7 +31,6 @@ export async function linkHoistedModules (
   hierarchy: DepHierarchy,
   opts: {
     allowBuild?: AllowBuild
-    artifactPinsLockfile?: LockfileObject
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
     force: boolean
@@ -42,8 +40,6 @@ export async function linkHoistedModules (
     sideEffectsCacheRead: boolean
     remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     pnprServer?: string
-    recordArtifactPins?: boolean
-    onArtifactPinsChanged?: () => void
     configByUri: Record<string, RegistryConfig>
     supportedArchitectures?: SupportedArchitectures
   }
@@ -71,19 +67,16 @@ export async function linkHoistedModules (
   )
   const restorer = createRemoteSideEffectsRestorer({
     allowBuild: opts.allowBuild,
-    artifactPinsLockfile: opts.artifactPinsLockfile,
     configByUri: opts.configByUri,
     depsGraph: graph,
     depsStateCache: opts.depsStateCache,
     ignoreScripts: opts.ignoreScripts,
     nodeVersion,
     pnprServer: opts.pnprServer,
-    recordArtifactPins: opts.recordArtifactPins,
     settings: opts.remoteSideEffectsCache,
     sideEffectsCacheRead: opts.sideEffectsCacheRead,
     storeController,
     supportedArchitectures: opts.supportedArchitectures,
-    onArtifactPinsChanged: opts.onArtifactPinsChanged,
     warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
   })
   await Promise.all(

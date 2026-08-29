@@ -85,7 +85,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
-    'build-artifacts': Boolean,
     changeset: Boolean,
     'include-github-actions': Boolean,
     interactive: Boolean,
@@ -142,10 +141,6 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--patches',
           },
           {
-            description: 'Update remote build artifacts without changing package versions',
-            name: '--build-artifacts',
-          },
-          {
             description: 'Update packages only in "dependencies" and "optionalDependencies"',
             name: '--prod',
             shortAlias: '-P',
@@ -195,7 +190,6 @@ dependencies is not found inside the workspace',
 }
 
 export type UpdateCommandOptions = InstallCommandOptions & {
-  buildArtifacts?: boolean
   changeset?: boolean
   include?: IncludedDependencies
   includeGithubActions?: boolean
@@ -211,7 +205,6 @@ export async function handler (
   commands?: CommandHandlerMap
 ): Promise<string | undefined> {
   assertPatchesOptions(params, opts)
-  assertBuildArtifactsOptions(params, opts)
   if (opts.global) {
     if (!opts.bin) {
       throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
@@ -434,9 +427,8 @@ async function update (
   rebuildHandler?: CommandHandler
 ): Promise<void> {
   assertPatchesOptions(dependencies, opts)
-  assertBuildArtifactsOptions(dependencies, opts)
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
-  const updateActions = !opts.buildArtifacts && shouldUpdateGitHubActions(opts, includeDirect)
+  const updateActions = shouldUpdateGitHubActions(opts, includeDirect)
   if (opts.latest) {
     const dependenciesWithTags = dependencies.filter((name) =>
       (!updateActions || !isGitHubActionSelector(name)) && parseUpdateParam(name).versionSpec != null)
@@ -464,7 +456,7 @@ async function update (
   } else if ((packageDependencies.length > 0) && depth > 0 && !opts.latest) {
     updateMatching = createUpdateMatching(packageDependencies.flatMap(expandUpdateSelectorsForMatching))
   }
-  const generateChangeset = !opts.buildArtifacts && (opts.changeset ?? opts.updateConfig?.changeset ?? false)
+  const generateChangeset = opts.changeset ?? opts.updateConfig?.changeset ?? false
   const changesetContext = generateChangeset ? await captureUpdateChangesetContext(opts) : undefined
   if (dependencies.length === 0 || packageDependencies.length > 0) {
     await installDeps({
@@ -475,12 +467,11 @@ async function update (
       ignoreCurrentSpecifiers: false,
       include,
       includeDirect,
-      refreshArtifactPins: opts.buildArtifacts,
-      update: !opts.buildArtifacts,
-      updatePatches: opts.buildArtifacts ? false : opts.patches,
+      update: true,
+      updatePatches: opts.patches,
       updateToLatest: opts.latest,
       updateMatching,
-      updatePackageManifest: opts.buildArtifacts || opts.patches ? false : opts.save !== false,
+      updatePackageManifest: opts.patches ? false : opts.save !== false,
       resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
       // `--dry-run` is an `install`-only preview; never let a config-level
       // `dry-run` turn `update` into a no-op check.
@@ -504,29 +495,6 @@ function assertPatchesOptions (dependencies: string[], opts: UpdateCommandOption
   if (opts.patches && (dependencies.length > 0 || opts.latest || opts.interactive || opts.global)) {
     throw new PnpmError('PATCHES_WITH_SELECTOR', '--patches cannot be combined with package selectors, --latest, --interactive, or --global')
   }
-}
-
-function assertBuildArtifactsOptions (dependencies: string[], opts: UpdateCommandOptions): void {
-  if (!opts.buildArtifacts) return
-  if (dependencies.length > 0 || opts.latest || opts.interactive || opts.global || opts.patches) {
-    throw new PnpmError('BUILD_ARTIFACTS_WITH_SELECTOR', '--build-artifacts cannot be combined with package selectors, --latest, --interactive, --global, or --patches')
-  }
-  if (opts.useLockfile === false) {
-    throw new PnpmError('CONFIG_CONFLICT_BUILD_ARTIFACTS_WITH_NO_LOCKFILE',
-      'Cannot update build artifacts when lockfile is set to false')
-  }
-  if (opts.lockfileOnly) {
-    throw new PnpmError('CONFIG_CONFLICT_BUILD_ARTIFACTS_WITH_LOCKFILE_ONLY',
-      'Cannot update build artifacts without downloading and verifying them')
-  }
-  if (opts.cliOptions.frozenLockfile === true) {
-    throw new PnpmError('CONFIG_CONFLICT_BUILD_ARTIFACTS_WITH_FROZEN_LOCKFILE',
-      'Cannot update build artifacts with a frozen lockfile')
-  }
-  opts.frozenLockfile = false
-  opts.frozenLockfileIfExists = false
-  opts.preferFrozenLockfile = false
-  opts.optimisticRepeatInstall = false
 }
 
 function shouldUpdateGitHubActions (opts: UpdateCommandOptions, include: IncludedDependencies): boolean {

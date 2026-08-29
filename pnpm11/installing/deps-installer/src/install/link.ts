@@ -72,7 +72,6 @@ export interface LinkPackagesOptions {
   sideEffectsCacheRead: boolean
   remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
   pnprServer?: string
-  recordArtifactPins: boolean
   configByUri: Record<string, RegistryConfig>
   symlink: boolean
   skipped: Set<DepPath>
@@ -172,8 +171,6 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
       remoteSideEffectsCache: opts.remoteSideEffectsCache,
       pnprServer: opts.pnprServer,
-      artifactPinsLockfile: opts.wantedLockfile,
-      recordArtifactPins: opts.recordArtifactPins,
       configByUri: opts.configByUri,
       symlink: opts.symlink,
       skipped: opts.skipped,
@@ -349,8 +346,6 @@ interface LinkNewPackagesOptions {
   sideEffectsCacheRead: boolean
   remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
   pnprServer?: string
-  artifactPinsLockfile: LockfileObject
-  recordArtifactPins: boolean
   configByUri: Record<string, RegistryConfig>
   symlink: boolean
   skipped: Set<DepPath>
@@ -471,8 +466,6 @@ async function linkNewPackages (
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
       remoteSideEffectsCache: opts.remoteSideEffectsCache,
       pnprServer: opts.pnprServer,
-      artifactPinsLockfile: opts.artifactPinsLockfile,
-      recordArtifactPins: opts.recordArtifactPins,
       configByUri: opts.configByUri,
       supportedArchitectures: opts.supportedArchitectures,
     }),
@@ -533,8 +526,6 @@ async function linkAllPkgs (
     sideEffectsCacheRead: boolean
     remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     pnprServer?: string
-    artifactPinsLockfile: LockfileObject
-    recordArtifactPins: boolean
     configByUri: Record<string, RegistryConfig>
     supportedArchitectures?: SupportedArchitectures
   }
@@ -546,14 +537,12 @@ async function linkAllPkgs (
   const nodeVersion = findRuntimeNodeVersion(Object.keys(opts.depGraph))
   const restorer = createRemoteSideEffectsRestorer({
     allowBuild: opts.allowBuild,
-    artifactPinsLockfile: opts.artifactPinsLockfile,
     configByUri: opts.configByUri,
     depsGraph: opts.depGraph,
     depsStateCache: opts.depsStateCache,
     ignoreScripts: opts.ignoreScripts,
     nodeVersion,
     pnprServer: opts.pnprServer,
-    recordArtifactPins: opts.recordArtifactPins,
     settings: opts.remoteSideEffectsCache,
     sideEffectsCacheRead: opts.sideEffectsCacheRead,
     storeController,
