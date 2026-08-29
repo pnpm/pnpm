@@ -1089,7 +1089,7 @@ where
     }
 
     /// Execute the install a legacy `pacquet deploy` runs in its target
-    /// directory: the deployed manifest is the root importer, while
+    /// directory: the deployed manifest is the sole root importer, while
     /// workspace discovery stays anchored at the source workspace so
     /// `workspace:` dependencies still resolve to their projects.
     ///

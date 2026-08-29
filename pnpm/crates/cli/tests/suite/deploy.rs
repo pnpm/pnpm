@@ -676,6 +676,39 @@ fn legacy_deploy_installs_selected_project() {
 }
 
 #[test]
+fn legacy_deploy_excludes_fetched_dependencies_of_unselected_projects() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_reachability_workspace(&workspace);
+
+    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet_cmd(&workspace).with_arg("fetch").assert().success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app...", "install", "--frozen-lockfile", "--offline"])
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy"])
+        .assert()
+        .success();
+
+    let virtual_store_entries = virtual_store_entries(&workspace.join("legacy-deploy"));
+    assert!(
+        virtual_store_entries.iter().any(|entry| entry.starts_with("@pnpm.e2e+pkg-with-1-dep@")),
+        "the deploy virtual store should include the selected dependency closure: {virtual_store_entries:#?}",
+    );
+    for excluded in ["@pnpm.e2e+bar@", "@pnpm.e2e+qar@"] {
+        assert!(
+            !virtual_store_entries.iter().any(|entry| entry.starts_with(excluded)),
+            "the deploy virtual store should exclude packages reachable only from unselected projects: {virtual_store_entries:#?}",
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn legacy_deploy_injects_transitive_workspace_dependencies() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

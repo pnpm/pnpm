@@ -285,23 +285,25 @@ where
         // `NoLockfile` or `OutdatedLockfile` error still fires when
         // the lockfile is missing or stale.
 
-        let manifest_is_root_importer = root_manifest_as_workspace_root
-            || workspace_projects_are_overridden
-            || !config.shares_one_lockfile();
         let project_manifests = match selection.as_ref() {
             Some(selection) => build_selected_project_manifests_list(
                 manifest,
                 selection.all_projects,
                 selection.active_manifest_is_standin,
             ),
-            None if manifest_is_root_importer => build_root_importer_project_manifests_list(
-                &workspace_root,
-                manifest,
-                // Dedicated per-project lockfiles record a single "."
-                // importer per project; sibling projects only feed the
-                // `workspace:` resolver, never the importer list.
-                config.shares_one_lockfile().then_some(workspace_projects).flatten(),
-            ),
+            None if root_manifest_as_workspace_root => {
+                build_root_importer_project_manifests_list(&workspace_root, manifest, None)
+            }
+            None if workspace_projects_are_overridden || !config.shares_one_lockfile() => {
+                build_root_importer_project_manifests_list(
+                    &workspace_root,
+                    manifest,
+                    // Dedicated per-project lockfiles record a single "."
+                    // importer per project; sibling projects only feed the
+                    // `workspace:` resolver, never the importer list.
+                    config.shares_one_lockfile().then_some(workspace_projects).flatten(),
+                )
+            }
             None => build_project_manifests_list(manifest, workspace_projects),
         };
         let install_importer_ids = selection.as_ref().map(|selection| {
