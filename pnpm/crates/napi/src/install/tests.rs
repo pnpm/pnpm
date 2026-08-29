@@ -10,8 +10,9 @@ use pnpm_testing_utils::registry::TestRegistry;
 
 use super::{
     DepsRequiringBuildSink, EngineMode, InstallOptions, NetworkConfigInput, NodeApiProject,
-    ProxyConfigInput, build_overlay, reject_non_object_manifests,
-    reject_unsupported_install_options, run_install_inner, take_deps_requiring_build,
+    PeerIssuesOptions, ProxyConfigInput, build_overlay, peer_issues_install_options,
+    reject_non_object_manifests, reject_unsupported_install_options, run_install_inner,
+    take_deps_requiring_build,
 };
 use crate::{
     config::{ConfigOverlay, resolve_config},
@@ -236,6 +237,95 @@ fn newly_supported_install_options_are_accepted() {
     options.network_config = Some(NetworkConfigInput { max_sockets: Some(20), ..network_config() });
     assert!(reject_unsupported_install_options(&options).is_ok());
     assert_eq!(build_overlay(&options, false).expect("overlay").max_sockets, Some(20));
+}
+
+#[test]
+fn peer_issues_options_preserve_shared_engine_options() {
+    let install_options = peer_issues_install_options(PeerIssuesOptions {
+        dir: "/project".to_string(),
+        projects: vec![NodeApiProject {
+            root_dir: "/project".to_string(),
+            manifest: serde_json::json!({ "name": "project" }),
+            dependency_manifest: None,
+        }],
+        store_dir: Some("/store".to_string()),
+        cache_dir: Some("/cache".to_string()),
+        registries: Some(
+            [("default".to_string(), "https://registry.example.com".to_string())].into(),
+        ),
+        auth_header_by_uri: Some(
+            [("//registry.example.com/".to_string(), "Bearer token".to_string())].into(),
+        ),
+        proxy_config: Some(ProxyConfigInput {
+            http_proxy: Some("http://proxy.example.com".to_string()),
+            https_proxy: Some("https://proxy.example.com".to_string()),
+            no_proxy: Some(serde_json::json!(true)),
+        }),
+        network_config: Some(NetworkConfigInput {
+            ca: Some(serde_json::json!("certificate")),
+            strict_ssl: Some(false),
+            network_concurrency: Some(12),
+            ..network_config()
+        }),
+        overrides: Some([("foo".to_string(), "1.0.0".to_string())].into()),
+        peers_suffix_max_length: Some(1_000.0),
+        virtual_store_dir_max_length: Some(120.0),
+        auto_install_peers: Some(true),
+    })
+    .expect("valid peer issues options");
+
+    assert_eq!(install_options.dir, "/project");
+    assert_eq!(install_options.projects.len(), 1);
+    assert_eq!(install_options.store_dir.as_deref(), Some("/store"));
+    assert_eq!(install_options.cache_dir.as_deref(), Some("/cache"));
+    assert_eq!(
+        install_options.registries.as_ref().unwrap()["default"],
+        "https://registry.example.com",
+    );
+    assert_eq!(
+        install_options.auth_header_by_uri.as_ref().unwrap()["//registry.example.com/"],
+        "Bearer token",
+    );
+    assert_eq!(install_options.overrides.as_ref().unwrap()["foo"], "1.0.0");
+    assert_eq!(install_options.peers_suffix_max_length, Some(1_000));
+    assert_eq!(install_options.virtual_store_dir_max_length, Some(120));
+    assert_eq!(install_options.auto_install_peers, Some(true));
+
+    let overlay = build_overlay(&install_options, false).expect("overlay");
+    assert_eq!(overlay.network_concurrency, Some(12));
+    assert_eq!(overlay.proxy.unwrap().no_proxy, Some(NoProxySetting::Bypass));
+    let tls = overlay.tls.expect("tls");
+    assert_eq!(tls.ca, vec!["certificate".to_string()]);
+    assert_eq!(tls.strict_ssl, Some(false));
+}
+
+#[test]
+fn peer_issues_options_disable_auto_install_peers_by_default() {
+    assert_eq!(
+        peer_issues_install_options(peer_issues_options())
+            .expect("valid peer issues options")
+            .auto_install_peers,
+        Some(false),
+    );
+}
+
+#[test]
+fn peer_issues_options_reject_invalid_u32_values() {
+    for value in [-1.0, 1.5, f64::from(u32::MAX) + 1.0, f64::INFINITY, f64::NAN] {
+        let mut options = peer_issues_options();
+        options.peers_suffix_max_length = Some(value);
+        assert!(
+            peer_issues_install_options(options).is_err(),
+            "peersSuffixMaxLength accepted {value:?}",
+        );
+
+        let mut options = peer_issues_options();
+        options.virtual_store_dir_max_length = Some(value);
+        assert!(
+            peer_issues_install_options(options).is_err(),
+            "virtualStoreDirMaxLength accepted {value:?}",
+        );
+    }
 }
 
 /// `ignorePackageManifest` carries pnpm's `pnpm fetch` shape into the
@@ -884,6 +974,23 @@ fn install_options() -> InstallOptions {
         auth_header_by_uri: None,
         pnpm_home_dir: None,
         reporter: None,
+    }
+}
+
+fn peer_issues_options() -> PeerIssuesOptions {
+    PeerIssuesOptions {
+        dir: String::new(),
+        projects: Vec::new(),
+        store_dir: None,
+        cache_dir: None,
+        registries: None,
+        auth_header_by_uri: None,
+        proxy_config: None,
+        network_config: None,
+        overrides: None,
+        peers_suffix_max_length: None,
+        virtual_store_dir_max_length: None,
+        auto_install_peers: None,
     }
 }
 
