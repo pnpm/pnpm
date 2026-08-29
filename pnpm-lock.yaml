@@ -8641,6 +8641,9 @@ importers:
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/project-manifest-reader
+      '@pnpm/workspace.spec-parser':
+        specifier: workspace:*
+        version: link:../../workspace/spec-parser
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'

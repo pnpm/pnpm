@@ -81,6 +81,62 @@ fn run_ok(workspace: &Path, args: &[&str]) {
     );
 }
 
+#[test]
+fn workspace_catalog_switches_between_local_project_and_registry_package() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        &format!("packages:\n  - 'packages/*'\ncatalog:\n  '{FOO}': workspace:*\n"),
+    );
+    let app = workspace.join("packages/app");
+    let local_dependency = workspace.join("packages/local-foo");
+    fs::create_dir_all(&app).expect("create the app project");
+    fs::create_dir_all(&local_dependency).expect("create the local dependency project");
+    fs::write(
+        app.join("package.json"),
+        serde_json::json!({
+            "name": "catalog-bridge-consumer",
+            "version": "1.0.0",
+            "dependencies": { FOO: "catalog:" },
+        })
+        .to_string(),
+    )
+    .expect("write the app manifest");
+    fs::write(
+        local_dependency.join("package.json"),
+        serde_json::json!({ "name": FOO, "version": "9.0.0" }).to_string(),
+    )
+    .expect("write the local dependency manifest");
+
+    run_ok(&workspace, &["install"]);
+
+    let installed_manifest = app.join("node_modules/@pnpm.e2e/foo/package.json");
+    let installed: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&installed_manifest).expect("read local package"))
+            .expect("parse local package");
+    assert_eq!(installed["version"], "9.0.0");
+    assert_eq!(importer_dep_version(&workspace, "packages/app", FOO), "link:../local-foo");
+
+    fs::remove_dir_all(&local_dependency).expect("remove the local dependency project");
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml")
+        .replace(&format!("'{FOO}': workspace:*"), &format!("'{FOO}': 1.0.0"));
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml)
+        .expect("switch the catalog to the registry package");
+
+    run_ok(&workspace, &["install"]);
+
+    let installed: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(&installed_manifest).expect("read registry package"),
+    )
+    .expect("parse registry package");
+    assert_eq!(installed["version"], "1.0.0");
+    assert_eq!(importer_dep_version(&workspace, "packages/app", FOO), "1.0.0");
+    assert_eq!(dep_spec(&app, FOO).as_deref(), Some("catalog:"));
+
+    drop((root, anchor));
+}
+
 /// `add <pkg>@<version>` under `catalogMode: strict` with no existing
 /// catalog entry writes `catalog:` to the manifest, the specifier to
 /// `pnpm-workspace.yaml`, and the resolved snapshot to `pnpm-lock.yaml`.

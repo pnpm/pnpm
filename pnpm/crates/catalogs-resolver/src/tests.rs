@@ -119,23 +119,16 @@ fn returns_error_for_recursive_catalog() {
 }
 
 #[test]
-fn returns_error_for_workspace_protocol_in_catalog() {
+fn resolves_workspace_protocol_from_catalog() {
     let catalogs = catalogs_from(&[("foo", &[("bar", "workspace:*")])]);
-    let result = resolve_from_catalog(&catalogs, &wanted("bar", "catalog:foo"));
-    let CatalogResolutionResult::Misconfiguration(misconfig) = &result else {
-        panic!("expected misconfiguration, got {result:?}");
-    };
     assert_eq!(
-        misconfig.error,
-        CatalogResolutionError::EntryInvalidWorkspaceSpec {
-            alias: "bar".to_string(),
-            catalog_name: "foo".to_string(),
-        },
-    );
-    assert_eq!(
-        misconfig.error.to_string(),
-        "The workspace protocol cannot be used as a catalog value. \
-         The entry for 'bar' in catalog 'foo' is invalid.",
+        resolve_from_catalog(&catalogs, &wanted("bar", "catalog:foo")),
+        CatalogResolutionResult::Found(CatalogResolutionFound {
+            resolution: CatalogResolution {
+                catalog_name: "foo".to_string(),
+                specifier: "workspace:*".to_string(),
+            },
+        }),
     );
 }
 
