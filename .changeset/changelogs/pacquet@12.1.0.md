@@ -2,12 +2,6 @@
 
 ### Minor Changes
 
-- Added macOS and Windows x64 and arm64 support to remote shared build artifacts [pnpm/pnpm#13771](https://github.com/pnpm/pnpm/issues/13771).
-
-- Generalized the experimental shared-artifact protocol so candidates and signed payloads identify a discriminated subject. Dependency side effects use package and source-integrity subjects, while workspace tasks use project and task subjects.
-
-  This changes shared-artifact request bodies and signed payloads. A pnpr server and its clients have to be on matching versions.
-
 - `pnpm login` and `pnpm adduser` now record the granted token in the global `config.yaml`, under the `_auth` setting, with `--scope`'s scope routed to that registry under `registries`. `pnpm logout` removes it from there, and still from an `auth.ini` an earlier version wrote. Tokens already in `auth.ini` keep working.
 
 - A `scope` set in a project's `pnpm-workspace.yaml` is now ignored, with a warning naming where to set it instead. `pnpm login` records the scope as a `@scope:registry` route in the machine-global `auth.ini`, which outranks `~/.npmrc` in every project — so a repository-committed file could redirect a scope such as `@acme` for all of a user's other projects after one routine login. Use `--scope`, the `PNPM_CONFIG_SCOPE` environment variable, or the global config file instead [#13557](https://github.com/pnpm/pnpm/issues/13557).
@@ -64,6 +58,12 @@
   - With `--bail` (the default), the first failure still ends the run at once and nothing new is dispatched — including scripts already queued behind the concurrency limit.
   - `pnpm -r run --dry-run <script>` prints the task graph that would execute without running anything (including skipping the `verifyDepsBeforeRun` check); `--json` emits the tasks and their resolved dependency edges.
   - Output is inherited rather than piped only when at most one script can ever be in flight (`--workspace-concurrency=1`, or the graph forces the scripts to run one after another).
+
+- Added macOS and Windows x64 and arm64 support to remote shared build artifacts [pnpm/pnpm#13771](https://github.com/pnpm/pnpm/issues/13771).
+
+- Generalized the experimental shared-artifact protocol so candidates and signed payloads identify a discriminated subject. Dependency side effects use package and source-integrity subjects, while workspace tasks use project and task subjects.
+
+  This changes shared-artifact request bodies and signed payloads. A pnpr server and its clients have to be on matching versions.
 
 ### Patch Changes
 
