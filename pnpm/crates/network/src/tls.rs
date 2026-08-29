@@ -124,15 +124,33 @@ pub enum TlsError {
 /// prefix > recursive no-port retry).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct PerRegistryTls {
+    /// Values hold the explicit overrides for a prefix — every field
+    /// is `Option` because pnpm allows partial overrides (e.g. only
+    /// `ca` scoped, with `cert` / `key` falling through to
+    /// top-level).
     by_uri: PerRegistryMap<RegistryTls>,
 }
 
+/// Routing table from nerf-darted registry URI to whatever state a
+/// request to that registry needs: the [`RegistryTls`] overrides
+/// themselves, and the pair of clients [`crate::ThrottledClient`]
+/// derives from them. One implementation of the match chain serves both, so a URL
+/// that resolves to a route for TLS purposes resolves to the same
+/// route when a client is picked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PerRegistryMap<Value> {
+    /// Keys are nerf-darted URIs (`//host[:port]/path/` form).
     by_uri: HashMap<String, Value>,
+    /// Cache of `key.split('/').count()` maxed across `by_uri.keys()`.
+    /// Bounds the path-prefix walk in [`Self::pick_for_url`] so the
+    /// loop stops after the longest user-supplied prefix instead of
+    /// down to `//`.
     max_parts: usize,
 }
 
+/// Written out rather than derived: an empty routing table is valid
+/// for any `Value`, while `#[derive(Default)]` would constrain
+/// `Value: Default`.
 impl<Value> Default for PerRegistryMap<Value> {
     fn default() -> Self {
         Self { by_uri: HashMap::new(), max_parts: 0 }
@@ -191,13 +209,6 @@ impl PerRegistryTls {
         self.by_uri.is_empty()
     }
 
-    /// Iterate `(nerf_dart_uri, &RegistryTls)` pairs. The network
-    /// layer uses this to pre-build a client per unique override
-    /// combo.
-    pub fn iter(&self) -> impl Iterator<Item = (&str, &RegistryTls)> {
-        self.by_uri.iter()
-    }
-
     /// Look up the per-registry override for `url` via the 5-step
     /// fallback chain:
     ///
@@ -207,9 +218,9 @@ impl PerRegistryTls {
     /// 4. Progressively shorter nerf-darted path prefixes.
     /// 5. Retry recursively without port.
     ///
-    /// Returns the **nerf-darted key** that matched (so the network
-    /// layer can index into its pre-built per-registry client map),
-    /// not the [`RegistryTls`] itself.
+    /// Returns the **nerf-darted key** that matched, not the
+    /// [`RegistryTls`] itself; pass it to [`Self::get`] to borrow the
+    /// override.
     #[must_use]
     pub fn pick_for_url(&self, url: &str) -> Option<&str> {
         self.by_uri.pick_for_url(url).map(|(key, _)| key)
@@ -222,6 +233,11 @@ impl PerRegistryTls {
         self.by_uri.get(key)
     }
 
+    /// Derive a routing table that answers [`Self::pick_for_url`]
+    /// identically but carries `map_value`'s output per route. The
+    /// network layer turns each override into its clients this way so
+    /// a matched route always owns the clients built from that same
+    /// override.
     pub(crate) fn try_map<Mapped, MapError>(
         &self,
         map_value: impl FnMut(&RegistryTls) -> Result<Mapped, MapError>,
@@ -240,14 +256,14 @@ impl<Value> PerRegistryMap<Value> {
         self.by_uri.is_empty()
     }
 
-    fn iter(&self) -> impl Iterator<Item = (&str, &Value)> {
-        self.by_uri.iter().map(|(key, value)| (key.as_str(), value))
-    }
-
+    /// The routed value for `url`, or `None` when no route matches.
     pub(crate) fn pick_value_for_url(&self, url: &str) -> Option<&Value> {
         self.pick_for_url(url).map(|(_, value)| value)
     }
 
+    /// The single implementation of the match chain documented on
+    /// [`PerRegistryTls::pick_for_url`]; the step numbers below refer
+    /// to that list.
     fn pick_for_url(&self, url: &str) -> Option<(&str, &Value)> {
         if self.by_uri.is_empty() {
             return None;
@@ -294,6 +310,8 @@ impl<Value> PerRegistryMap<Value> {
         self.by_uri.get(key)
     }
 
+    /// Rebuild over the same keys, so `max_parts` — and therefore
+    /// every lookup result — carries over unchanged.
     fn try_map<Mapped, MapError>(
         &self,
         mut map_value: impl FnMut(&Value) -> Result<Mapped, MapError>,

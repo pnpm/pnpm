@@ -1069,6 +1069,73 @@ async fn acquire_for_url_routes_per_registry_then_falls_back() {
 }
 
 #[tokio::test]
+async fn per_registry_route_selects_the_client_for_the_requested_redirect_mode() {
+    // Pointer identity proves a matched route has clients of its own,
+    // but not that the pair's two members are the right way round.
+    // Drive a real redirect through both accessors of one routed
+    // registry to pin that down.
+    use crate::RegistryTls;
+    use std::collections::HashMap;
+
+    let mut registry = mockito::Server::new_async().await;
+    let start_mock = registry
+        .mock("GET", "/start")
+        .with_status(302)
+        .with_header("location", "/final")
+        .expect(2)
+        .create_async()
+        .await;
+    let final_mock = registry
+        .mock("GET", "/final")
+        .with_status(200)
+        .with_body("followed")
+        .expect(1)
+        .create_async()
+        .await;
+
+    let mut map = HashMap::new();
+    map.insert(
+        format!("//{}/", registry.host_with_port()),
+        RegistryTls { ca: Some(TEST_CA_PEM.to_string()), ..RegistryTls::default() },
+    );
+    let per_registry = PerRegistryTls::from_map(map);
+    let throttled = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &per_registry,
+        &NetworkSettings::default(),
+    )
+    .expect("valid");
+
+    let url = format!("{}/start", registry.url());
+    assert!(
+        per_registry.pick_for_url(&url).is_some(),
+        "the fixture URL must match the per-registry route, or this test proves nothing",
+    );
+
+    let blocked = throttled
+        .acquire_for_url_without_redirects_with_priority(&url, 0)
+        .await
+        .get(&url)
+        .send()
+        .await
+        .expect("the redirect response itself is successful HTTP transport");
+    assert_eq!(blocked.status(), 302, "the routed no-redirect client must not follow");
+
+    let followed = throttled
+        .acquire_for_url(&url)
+        .await
+        .get(&url)
+        .send()
+        .await
+        .expect("the routed redirect-following client reaches the target");
+    assert_eq!(followed.status(), 200, "the routed redirect-following client must follow");
+
+    start_mock.assert_async().await;
+    final_mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn acquire_for_url_falls_back_to_default_when_no_overrides() {
     // The common case — no per-registry overrides at all. The lookup
     // short-circuits and `acquire_for_url` always returns the
