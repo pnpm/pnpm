@@ -71,10 +71,25 @@ pub struct ArtifactBlob {
 
 /// What the slot a publication is claiming already holds.
 enum SlotClaim {
-    Free,
+    /// Nothing stored applies to a consumer this artifact applies to, carrying
+    /// the variants read to establish that. The scan after the create only has
+    /// to look at what appeared since, which is usually nothing.
+    Free {
+        inspected: HashSet<ObjectPath>,
+    },
     /// This exact envelope, so publishing it again is a retry.
     Held,
     HeldByAnother,
+}
+
+/// The variants an entry holds beside one publication's own, as
+/// [`SharedArtifactStore::overlaps_stored_artifact`] needs to name them.
+struct OverlapScan<'a> {
+    owner: &'a str,
+    entry: &'a str,
+    variant_path: &'a str,
+    compatibility: &'a CompatibilityConstraints,
+    inspected: &'a HashSet<ObjectPath>,
 }
 
 struct PreparedPublication {
@@ -159,7 +174,7 @@ impl SharedArtifactStore {
         prepared: PreparedPublication,
         reclamation_needed: &mut bool,
     ) -> Result<bool> {
-        match self.slot_claim(&prepared).await? {
+        let inspected = match self.slot_claim(&prepared).await? {
             SlotClaim::Held => return Ok(false),
             SlotClaim::HeldByAnother => {
                 return Err(RegistryError::ArtifactAlreadyPublished {
@@ -167,8 +182,8 @@ impl SharedArtifactStore {
                     entry: prepared.entry,
                 });
             }
-            SlotClaim::Free => {}
-        }
+            SlotClaim::Free { inspected } => inspected,
+        };
 
         let PreparedPublication {
             payload,
@@ -276,7 +291,13 @@ impl SharedArtifactStore {
         }
         if created {
             match self
-                .overlaps_stored_artifact(&owner, &entry, &variant_path, &payload.compatibility)
+                .overlaps_stored_artifact(OverlapScan {
+                    owner: &owner,
+                    entry: &entry,
+                    variant_path: &variant_path,
+                    compatibility: &payload.compatibility,
+                    inspected: &inspected,
+                })
                 .await
             {
                 Ok(false) => {}
@@ -418,11 +439,13 @@ impl SharedArtifactStore {
         let prefix = self.object_path(&format!("{owner}/entries/{entry}/"));
         let mut listing = self.store.list(Some(&prefix));
         let mut held_by_another = false;
+        let mut inspected = HashSet::new();
         while let Some(stored) = listing.next().await {
             let stored = stored?;
             if !is_variant_file(object_name(&stored.location)) {
                 continue;
             }
+            inspected.insert(stored.location.clone());
             let Some(bytes) = self.read_object_path(&stored.location).await? else { continue };
             let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
                 continue;
@@ -441,7 +464,7 @@ impl SharedArtifactStore {
             }
             held_by_another = true;
         }
-        Ok(if held_by_another { SlotClaim::HeldByAnother } else { SlotClaim::Free })
+        Ok(if held_by_another { SlotClaim::HeldByAnother } else { SlotClaim::Free { inspected } })
     }
 
     /// Whether an artifact that can serve one of this publication's consumers is
@@ -459,19 +482,17 @@ impl SharedArtifactStore {
     /// artifact, so a loser that ranked itself first would keep its own too and
     /// both would survive. Withdrawing on sight costs a doomed pair both
     /// artifacts and a retry, and never leaves two.
-    async fn overlaps_stored_artifact(
-        &self,
-        owner: &str,
-        entry: &str,
-        variant_path: &str,
-        compatibility: &CompatibilityConstraints,
-    ) -> Result<bool> {
+    async fn overlaps_stored_artifact(&self, scan: OverlapScan<'_>) -> Result<bool> {
+        let OverlapScan { owner, entry, variant_path, compatibility, inspected } = scan;
         let prefix = self.object_path(&format!("{owner}/entries/{entry}/"));
         let ours = self.object_path(variant_path);
         let mut listing = self.store.list(Some(&prefix));
         while let Some(stored) = listing.next().await {
             let stored = stored?;
-            if stored.location == ours || !is_variant_file(object_name(&stored.location)) {
+            if stored.location == ours
+                || inspected.contains(&stored.location)
+                || !is_variant_file(object_name(&stored.location))
+            {
                 continue;
             }
             let Some(bytes) = self.read_object_path(&stored.location).await? else { continue };
