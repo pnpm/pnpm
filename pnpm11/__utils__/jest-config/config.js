@@ -33,5 +33,9 @@ export default config
 
 export function getCacheDirectory (projectDir) {
   const workspaceDir = path.join(import.meta.dirname, '../../..')
-  return path.join(import.meta.dirname, '.jest-cache', path.relative(workspaceDir, projectDir))
+  const relativeProjectDir = path.relative(workspaceDir, projectDir)
+  if (relativeProjectDir === '..' || relativeProjectDir.startsWith(`..${path.sep}`) || path.isAbsolute(relativeProjectDir)) {
+    throw new Error(`Jest project directory is outside the workspace: ${projectDir}`)
+  }
+  return path.join(import.meta.dirname, '.jest-cache', relativeProjectDir)
 }
