@@ -1,7 +1,12 @@
 use clap::{Args, Subcommand};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
+use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use pnpm_config::Config;
+use pnpm_workspace_manifest_writer::{
+    UpdateWorkspaceManifestOptions, update_manifest_field, update_workspace_manifest,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashSet},
@@ -43,6 +48,12 @@ pub enum VcsCommand {
         #[clap(short, long)]
         message: Option<String>,
     },
+    /// Import Bit components and reconcile pnpm workspace catalogs.
+    Import {
+        /// Component IDs or patterns to import.
+        #[clap(required = true)]
+        components: Vec<String>,
+    },
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -76,6 +87,10 @@ enum VcsError {
     #[display("Unable to prepare the pnpm workspace inventory: {details}")]
     #[diagnostic(code(ERR_PNPM_VCS_INVENTORY_ERROR))]
     InventoryError { details: String },
+
+    #[display("Unable to update the pnpm workspace: {details}")]
+    #[diagnostic(code(ERR_PNPM_VCS_WORKSPACE_UPDATE_ERROR))]
+    WorkspaceUpdate { details: String },
 }
 
 #[derive(Debug, Serialize)]
@@ -171,12 +186,48 @@ struct AutoSnappedComponent {
     triggered_by: Vec<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BitImportResult {
+    #[serde(flatten)]
+    bit: BTreeMap<String, serde_json::Value>,
+    pnpm_vcs: Option<PnpmVcsImportPlan>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PnpmVcsImportPlan {
+    schema_version: u8,
+    components: Vec<PnpmVcsImportedComponent>,
+    catalogs: Vec<PnpmVcsCatalogBinding>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PnpmVcsImportedComponent {
+    id: String,
+    root_dir: String,
+    package_name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PnpmVcsCatalogBinding {
+    catalog_name: String,
+    package_name: String,
+    specifier: String,
+    component_id: Option<String>,
+}
+
 impl VcsArgs {
     pub async fn run(self, cwd: &Path, config: &Config) -> miette::Result<()> {
-        let sync_result =
-            prepare_workspace(&self.bit_path, self.scope.as_deref(), cwd, config).await?;
         match self.command {
             VcsCommand::Init => {
+                if migrate_workspace_dependencies_to_catalogs(cwd, config)? {
+                    execute_pnpm_install(cwd).await?;
+                }
+                let sync_result =
+                    prepare_workspace(&self.bit_path, self.scope.as_deref(), cwd, config).await?;
                 if self.json {
                     println!(
                         "{}",
@@ -188,6 +239,7 @@ impl VcsArgs {
                 }
             }
             VcsCommand::Status => {
+                prepare_workspace(&self.bit_path, self.scope.as_deref(), cwd, config).await?;
                 let stdout = execute_bit(&self.bit_path, &["status", "--json"], cwd).await?;
                 let result: BitStatusResult = parse_bit_json(&stdout, "status")?;
                 assert_status_protocol(&result)?;
@@ -206,6 +258,7 @@ impl VcsArgs {
                 }
             }
             VcsCommand::Commit { message } => {
+                prepare_workspace(&self.bit_path, self.scope.as_deref(), cwd, config).await?;
                 let mut args = vec![
                     "snap",
                     "--json",
@@ -227,9 +280,238 @@ impl VcsArgs {
                     println!("{}", render_commit(&result));
                 }
             }
+            VcsCommand::Import { components } => {
+                prepare_workspace(&self.bit_path, self.scope.as_deref(), cwd, config).await?;
+                let mut args = vec![
+                    "import".to_string(),
+                    "--json".to_string(),
+                    "--skip-dependency-installation".to_string(),
+                    "--skip-write-config-files".to_string(),
+                ];
+                args.extend(components);
+                let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+                let stdout = execute_bit(&self.bit_path, &arg_refs, cwd).await?;
+                let result: BitImportResult = parse_bit_json(&stdout, "import")?;
+                let plan = result.pnpm_vcs.as_ref().ok_or_else(|| {
+                    protocol_error(
+                        "Bit did not return a pnpm VCS import plan; update Bit or initialize this workspace with pnpm vcs init",
+                    )
+                })?;
+                if plan.schema_version != 1 {
+                    return Err(protocol_error(
+                        "The installed Bit version does not support pnpm VCS import protocol version 1",
+                    ));
+                }
+                let updated_config = apply_import_plan(cwd, config, plan)?;
+                execute_pnpm_install(cwd).await?;
+                let sync_result =
+                    prepare_workspace(&self.bit_path, self.scope.as_deref(), cwd, &updated_config)
+                        .await?;
+                if self.json {
+                    let mut output =
+                        serde_json::to_value(&result).expect("Bit import result serializes");
+                    output["pnpmVcsSync"] =
+                        serde_json::to_value(&sync_result).expect("Bit sync result serializes");
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&output).expect("import result serializes"),
+                    );
+                } else {
+                    println!(
+                        "Imported {} Bit component(s), updated pnpm catalogs, and installed the workspace.",
+                        plan.components.len(),
+                    );
+                }
+            }
         }
         Ok(())
     }
+}
+
+fn migrate_workspace_dependencies_to_catalogs(cwd: &Path, config: &Config) -> miette::Result<bool> {
+    require_workspace(cwd, config)?;
+    let (mut projects, _) = discover_workspace_projects(cwd, config)?;
+    let workspace_names = projects
+        .iter()
+        .filter_map(|project| {
+            project
+                .manifest
+                .value()
+                .get("name")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        })
+        .collect::<HashSet<_>>();
+    let mut bindings = BTreeMap::new();
+    for project in &projects {
+        for field in ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]
+        {
+            let Some(dependencies) =
+                project.manifest.value().get(field).and_then(|value| value.as_object())
+            else {
+                continue;
+            };
+            for (name, value) in dependencies {
+                let Some(specifier) = value.as_str() else { continue };
+                if !workspace_names.contains(name) || !specifier.starts_with("workspace:") {
+                    continue;
+                }
+                if let Some(existing) = bindings.insert(name.clone(), specifier.to_string())
+                    && existing != specifier
+                {
+                    return Err(workspace_update_error(format!(
+                        "workspace package {name} is referenced with both {existing} and {specifier}; a catalog requires one workspace-wide binding",
+                    )));
+                }
+            }
+        }
+    }
+    if bindings.is_empty() {
+        return Ok(false);
+    }
+    for project in &mut projects {
+        let mut changed = false;
+        for field in ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]
+        {
+            let Some(dependencies) = project
+                .manifest
+                .value_mut()
+                .get_mut(field)
+                .and_then(serde_json::Value::as_object_mut)
+            else {
+                continue;
+            };
+            for (name, value) in dependencies {
+                if bindings.contains_key(name)
+                    && value.as_str().is_some_and(|specifier| specifier.starts_with("workspace:"))
+                {
+                    *value = serde_json::Value::String("catalog:".to_string());
+                    changed = true;
+                }
+            }
+        }
+        if changed {
+            project.manifest.save().map_err(|error| workspace_update_error(error.to_string()))?;
+        }
+    }
+    let mut catalogs = Catalogs::new();
+    catalogs.insert(DEFAULT_CATALOG_NAME.to_string(), bindings);
+    update_workspace_manifest(
+        cwd,
+        &UpdateWorkspaceManifestOptions { updated_catalogs: Some(&catalogs), ..Default::default() },
+    )
+    .map_err(|error| workspace_update_error(error.to_string()))?;
+    Ok(true)
+}
+
+fn apply_import_plan(
+    cwd: &Path,
+    config: &Config,
+    plan: &PnpmVcsImportPlan,
+) -> miette::Result<Config> {
+    let manifest = pnpm_workspace::read_workspace_manifest(cwd)
+        .map_err(|error| workspace_update_error(error.to_string()))?
+        .ok_or_else(|| workspace_update_error("pnpm-workspace.yaml is missing".to_string()))?;
+    let mut packages = manifest
+        .packages
+        .unwrap_or_else(|| config.workspace_package_patterns.clone().unwrap_or_default());
+    for component in &plan.components {
+        if !packages.contains(&component.root_dir) {
+            packages.push(component.root_dir.clone());
+        }
+    }
+    packages.sort();
+    packages.dedup();
+    update_manifest_field(
+        &cwd.join("pnpm-workspace.yaml"),
+        "packages",
+        &serde_json::to_value(&packages).expect("package patterns serialize"),
+    )
+    .map_err(|error| workspace_update_error(error.to_string()))?;
+
+    let mut updated_config = config.clone();
+    updated_config.workspace_package_patterns = Some(packages);
+    let (projects, _) = discover_workspace_projects(cwd, &updated_config)?;
+    let local_packages = projects
+        .iter()
+        .filter_map(|project| {
+            project
+                .manifest
+                .value()
+                .get("name")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        })
+        .collect::<HashSet<_>>();
+    let workspace_manifest = pnpm_workspace::read_workspace_manifest(cwd)
+        .map_err(|error| workspace_update_error(error.to_string()))?;
+    let mut catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+        .map_err(|error| workspace_update_error(error.to_string()))?;
+    let imported_packages = plan
+        .components
+        .iter()
+        .map(|component| component.package_name.as_str())
+        .collect::<HashSet<_>>();
+    for catalog in catalogs.values_mut() {
+        for (package_name, specifier) in catalog {
+            if imported_packages.contains(package_name.as_str()) {
+                *specifier = "workspace:*".to_string();
+            }
+        }
+    }
+    let mut planned_bindings = BTreeMap::new();
+    for binding in &plan.catalogs {
+        let specifier = if local_packages.contains(&binding.package_name) {
+            "workspace:*"
+        } else {
+            binding.specifier.as_str()
+        };
+        let key = (binding.catalog_name.as_str(), binding.package_name.as_str());
+        if let Some(existing) = planned_bindings.insert(key, specifier)
+            && existing != specifier
+        {
+            return Err(workspace_update_error(format!(
+                "imported components require conflicting {} catalog bindings for {}: {} and {}",
+                binding.catalog_name, binding.package_name, existing, specifier,
+            )));
+        }
+        catalogs
+            .entry(binding.catalog_name.clone())
+            .or_default()
+            .insert(binding.package_name.clone(), specifier.to_string());
+    }
+    update_workspace_manifest(
+        cwd,
+        &UpdateWorkspaceManifestOptions { updated_catalogs: Some(&catalogs), ..Default::default() },
+    )
+    .map_err(|error| workspace_update_error(error.to_string()))?;
+    Ok(updated_config)
+}
+
+fn require_workspace(cwd: &Path, config: &Config) -> miette::Result<()> {
+    if config.workspace_dir.as_deref() != Some(cwd) {
+        return Err(VcsError::WorkspaceRequired.into());
+    }
+    Ok(())
+}
+
+async fn execute_pnpm_install(cwd: &Path) -> miette::Result<()> {
+    let executable =
+        std::env::current_exe().map_err(|error| workspace_update_error(error.to_string()))?;
+    let output =
+        Command::new(executable).arg("install").current_dir(cwd).output().await.map_err(
+            |error| workspace_update_error(format!("unable to run pnpm install: {error}")),
+        )?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Err(workspace_update_error(if stderr.is_empty() { stdout } else { stderr }))
+}
+
+fn workspace_update_error(details: String) -> miette::Report {
+    VcsError::WorkspaceUpdate { details }.into()
 }
 
 async fn prepare_workspace(
@@ -238,9 +520,7 @@ async fn prepare_workspace(
     cwd: &Path,
     config: &Config,
 ) -> miette::Result<BitSyncResult> {
-    if config.workspace_dir.as_deref() != Some(cwd) {
-        return Err(VcsError::WorkspaceRequired.into());
-    }
+    require_workspace(cwd, config)?;
     // Validate and fully discover the pnpm workspace before `bit init` creates any files.
     // An existing Bit workspace remains authoritative for its default scope.
     let mut inventory = workspace_inventory(cwd, config, "")?;
@@ -256,8 +536,6 @@ async fn prepare_workspace(
                 "--external-package-manager",
                 "--skip-interactive",
                 "--no-package-json",
-                "--no-agent",
-                "--no-mcp",
                 "--default-scope",
                 scope,
             ],

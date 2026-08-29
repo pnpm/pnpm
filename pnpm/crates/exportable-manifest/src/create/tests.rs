@@ -121,6 +121,26 @@ fn catalog_protocol_dependency_is_resolved() {
 }
 
 #[test]
+fn workspace_protocol_from_catalog_is_rewritten_to_installed_version() {
+    let dir = tempdir().unwrap();
+    install_dep(dir.path(), "bar", "2.3.4");
+    let mut catalog = Catalog::new();
+    catalog.insert("bar".to_string(), "workspace:^".to_string());
+    let mut catalogs = empty_catalogs();
+    catalogs.insert("default".to_string(), catalog);
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "dependencies": { "bar": "catalog:" },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert_eq!(out["dependencies"], json!({ "bar": "^2.3.4" }));
+}
+
+#[test]
 fn jsr_protocol_dependency_becomes_npm_alias() {
     let dir = tempdir().unwrap();
     let catalogs = empty_catalogs();

@@ -1,7 +1,8 @@
 use super::{
-    AutoSnappedComponent, BitSnapResult, BitStatusResult, assert_snap_protocol,
-    assert_status_protocol, execute_bit, read_component_requirements, render_commit, render_status,
-    sanitize_component_name, workspace_inventory,
+    AutoSnappedComponent, BitSnapResult, BitStatusResult, PnpmVcsCatalogBinding, PnpmVcsImportPlan,
+    PnpmVcsImportedComponent, apply_import_plan, assert_snap_protocol, assert_status_protocol,
+    execute_bit, migrate_workspace_dependencies_to_catalogs, read_component_requirements,
+    render_commit, render_status, sanitize_component_name, workspace_inventory,
 };
 
 use std::fs;
@@ -239,4 +240,111 @@ fn an_explicit_node_requirement_overrides_engines_node() {
 #[test]
 fn normalizes_npm_names_for_bit_component_ids() {
     assert_eq!(sanitize_component_name("@Acme/a.package"), "acme/a-package");
+}
+
+#[test]
+fn init_migrates_workspace_dependencies_to_the_default_catalog() {
+    let fixture = tempfile::tempdir().expect("create fixture");
+    fs::create_dir_all(fixture.path().join("packages/app")).expect("create app");
+    fs::create_dir_all(fixture.path().join("packages/math")).expect("create math");
+    fs::write(fixture.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    fs::write(fixture.path().join("package.json"), r#"{"name":"root","private":true}"#)
+        .expect("write root manifest");
+    fs::write(
+        fixture.path().join("packages/app/package.json"),
+        r#"{"name":"@acme/app","dependencies":{"@acme/math":"workspace:*"}}"#,
+    )
+    .expect("write app manifest");
+    fs::write(
+        fixture.path().join("packages/math/package.json"),
+        r#"{"name":"@acme/math","version":"1.0.0"}"#,
+    )
+    .expect("write math manifest");
+    let config = pnpm_config::Config {
+        workspace_dir: Some(fixture.path().to_path_buf()),
+        workspace_package_patterns: Some(vec!["packages/*".to_string()]),
+        ..pnpm_config::Config::default()
+    };
+
+    assert!(
+        migrate_workspace_dependencies_to_catalogs(fixture.path(), &config)
+            .expect("migrate workspace dependency"),
+    );
+    let app: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(fixture.path().join("packages/app/package.json"))
+            .expect("read app manifest"),
+    )
+    .expect("parse app manifest");
+    assert_eq!(app["dependencies"]["@acme/math"], "catalog:");
+    let workspace = fs::read_to_string(fixture.path().join("pnpm-workspace.yaml"))
+        .expect("read workspace manifest");
+    assert!(workspace.contains("'@acme/math': workspace:*"));
+    assert!(
+        !migrate_workspace_dependencies_to_catalogs(fixture.path(), &config)
+            .expect("second migration is a no-op"),
+    );
+}
+
+#[test]
+fn import_plan_switches_an_exact_catalog_binding_to_a_local_workspace() {
+    let fixture = tempfile::tempdir().expect("create fixture");
+    fs::create_dir_all(fixture.path().join("components/app")).expect("create app");
+    fs::write(fixture.path().join("pnpm-workspace.yaml"), "packages: []\n")
+        .expect("write workspace manifest");
+    fs::write(fixture.path().join("package.json"), r#"{"name":"root","private":true}"#)
+        .expect("write root manifest");
+    fs::write(
+        fixture.path().join("components/app/package.json"),
+        r#"{"name":"@acme/app","dependencies":{"@acme/math":"catalog:"}}"#,
+    )
+    .expect("write app manifest");
+    let config = pnpm_config::Config {
+        workspace_dir: Some(fixture.path().to_path_buf()),
+        workspace_package_patterns: Some(Vec::new()),
+        ..pnpm_config::Config::default()
+    };
+    let exact = "1.2.3";
+    let app_plan = PnpmVcsImportPlan {
+        schema_version: 1,
+        components: vec![PnpmVcsImportedComponent {
+            id: "acme.scope/app@abcdef".to_string(),
+            root_dir: "components/app".to_string(),
+            package_name: "@acme/app".to_string(),
+        }],
+        catalogs: vec![PnpmVcsCatalogBinding {
+            catalog_name: "default".to_string(),
+            package_name: "@acme/math".to_string(),
+            specifier: exact.to_string(),
+            component_id: Some("acme.scope/math@1234567890abcdef".to_string()),
+        }],
+    };
+
+    let config = apply_import_plan(fixture.path(), &config, &app_plan).expect("apply app plan");
+    let workspace = fs::read_to_string(fixture.path().join("pnpm-workspace.yaml"))
+        .expect("read workspace manifest");
+    assert!(workspace.contains("- components/app"));
+    assert!(workspace.contains(&format!("'@acme/math': {exact}")));
+
+    fs::create_dir_all(fixture.path().join("components/math")).expect("create math");
+    fs::write(
+        fixture.path().join("components/math/package.json"),
+        r#"{"name":"@acme/math","version":"0.0.0"}"#,
+    )
+    .expect("write math manifest");
+    let math_plan = PnpmVcsImportPlan {
+        schema_version: 1,
+        components: vec![PnpmVcsImportedComponent {
+            id: "acme.scope/math@1234567890abcdef".to_string(),
+            root_dir: "components/math".to_string(),
+            package_name: "@acme/math".to_string(),
+        }],
+        catalogs: Vec::new(),
+    };
+
+    apply_import_plan(fixture.path(), &config, &math_plan).expect("apply math plan");
+    let workspace = fs::read_to_string(fixture.path().join("pnpm-workspace.yaml"))
+        .expect("read updated workspace manifest");
+    assert!(workspace.contains("- components/math"));
+    assert!(workspace.contains("'@acme/math': workspace:*"));
 }
