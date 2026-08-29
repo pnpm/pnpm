@@ -281,6 +281,7 @@ struct CommitModulesStateInputs<'a> {
 
 fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), InstallError> {
     let now = SystemTime::now();
+    let phase_start = std::time::Instant::now();
     let did_prune = sweep_virtual_store(
         inputs.config,
         inputs.prior_modules,
@@ -288,6 +289,7 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
         inputs.install_skipped,
         now,
     );
+    tracing::info!(target: "pacquet::install::phase", phase = "apply.prune", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
     let pruned_at = pruned_at(inputs.prior_modules, did_prune, now);
     // The build phase settles a dependency only when it actually
     // rebuilt it, so a `pnpm rebuild --pending` that the policy still
@@ -347,9 +349,14 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
     {
         merge_filtered_modules_metadata(&mut next_modules, previous, current, selected);
     }
+    let phase_start = std::time::Instant::now();
     write_modules_manifest::<Host>(&inputs.config.modules_dir, next_modules)
         .map_err(InstallError::WriteModules)?;
+    tracing::info!(target: "pacquet::install::phase", phase = "apply.modules_yaml", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
+
+    let phase_start = std::time::Instant::now();
     save_current_lockfile(inputs.config, inputs.materialized_current_lockfile)?;
+    tracing::info!(target: "pacquet::install::phase", phase = "apply.current_lockfile", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
     // Regenerate `pnpm-lock.yaml` from the synthesized snapshot when
     // the wanted lockfile was reconstructed from
     // `<virtual_store_dir>/lock.yaml`. The no-op short-circuit above
@@ -831,6 +838,7 @@ async fn apply<Reporter: self::Reporter + 'static>(
         project_manifests: inputs.project_manifests,
     });
 
+    let phase_start = std::time::Instant::now();
     link_materialized_projects::<Reporter>(LinkMaterializedProjectsInputs {
         filtered_install: inputs.filtered_install,
         node_linker: inputs.node_linker,
@@ -842,7 +850,9 @@ async fn apply<Reporter: self::Reporter + 'static>(
         materialized_project_manifests: &state.project_manifests,
     })
     .await?;
+    tracing::info!(target: "pacquet::install::phase", phase = "apply.link_projects", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
+    let phase_start = std::time::Instant::now();
     commit_modules_state(CommitModulesStateInputs {
         prior_modules: inputs.modules_manifest.as_ref(),
         config: inputs.config,
@@ -896,6 +906,8 @@ async fn apply<Reporter: self::Reporter + 'static>(
     // Writing it after both the `.modules.yaml` and the current
     // lockfile succeed keeps the file pointing at a fully committed
     // install.
+    tracing::info!(target: "pacquet::install::phase", phase = "apply.commit_modules_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
+    let phase_start = std::time::Instant::now();
     update_workspace_state(
         &inputs.workspace_root,
         &build_workspace_state::<Host>(
@@ -911,6 +923,7 @@ async fn apply<Reporter: self::Reporter + 'static>(
         ),
     )
     .map_err(InstallError::WriteWorkspaceState)?;
+    tracing::info!(target: "pacquet::install::phase", phase = "apply.workspace_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
     let completion = report_install_completion::<Reporter>(ReportInstallCompletionInputs {
         config: inputs.config,
