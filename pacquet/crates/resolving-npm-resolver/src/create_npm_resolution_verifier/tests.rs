@@ -18,6 +18,7 @@ use super::{
 use crate::{
     mirror::{ABBREVIATED_META_DIR, get_pkg_mirror_path, load_meta},
     persist_meta_to_mirror,
+    pick_package::{InMemoryPackageMetaCache, PackageMetaCache},
 };
 
 const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
@@ -137,6 +138,29 @@ fn trust_downgrade_packument(name: &str) -> serde_json::Value {
                     "shasum": "0000000000000000000000000000000000000000",
                     "tarball": format!("https://registry/{name}-1.1.0.tgz"),
                     "attestations": { "provenance": { "predicateType": "https://slsa.dev/provenance/v1" } }
+                }
+            }
+        }
+    })
+}
+
+fn undecodable_trust_packument(name: &str) -> serde_json::Value {
+    serde_json::json!({
+        "name": name,
+        "dist-tags": { "latest": "1.1.0" },
+        "time": {
+            "1.0.0": "2025-01-01T00:00:00.000Z",
+            "1.1.0": "2025-02-01T00:00:00.000Z"
+        },
+        "versions": {
+            "1.0.0": { "corrupt": "fragment" },
+            "1.1.0": {
+                "name": name,
+                "version": "1.1.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": format!("https://registry/{name}-1.1.0.tgz")
                 }
             }
         }
@@ -693,6 +717,57 @@ async fn trust_downgrade_publisher_to_provenance_fails() {
     };
     assert_eq!(code, "TRUST_DOWNGRADE");
     assert!(reason.contains("trust downgrade"), "got reason: {reason}");
+}
+
+#[tokio::test]
+async fn trust_check_fails_closed_for_undecodable_prior_version() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _full_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(undecodable_trust_packument("acme").to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts);
+
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"))
+        .await;
+
+    let ResolutionVerification::Err { code, reason } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "TRUST_DOWNGRADE");
+    assert!(reason.contains("undecodable version object"), "got reason: {reason}");
+}
+
+#[tokio::test]
+async fn cached_trust_check_fails_closed_for_undecodable_prior_version() {
+    let registry = "https://registry.example/";
+    let cache = Arc::new(InMemoryPackageMetaCache::default());
+    let package: Package =
+        serde_json::from_value(undecodable_trust_packument("acme")).expect("deserialize package");
+    cache.set(format!("{registry}\x00acme:full"), Arc::new(package));
+    let mut opts = default_opts(registry);
+    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    opts.meta_cache = Some(cache);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts);
+
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"))
+        .await;
+
+    let ResolutionVerification::Err { code, reason } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "TRUST_DOWNGRADE");
+    assert!(reason.contains("undecodable version object"), "got reason: {reason}");
 }
 
 #[tokio::test]

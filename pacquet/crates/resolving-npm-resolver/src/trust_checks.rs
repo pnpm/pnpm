@@ -9,6 +9,8 @@
 //! signal — and the verifier rejects the entry with
 //! [`crate::TRUST_DOWNGRADE_VIOLATION_CODE`].
 
+use std::collections::HashMap;
+
 use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -33,6 +35,76 @@ pub enum TrustEvidence {
     /// staged publish requiring a 2FA approval — the strongest signal,
     /// ranked above a trusted publisher.
     StagedPublish,
+}
+
+/// Package history projected to the only fields the trust check reads.
+/// Undecodable version objects remain explicit so a cached projection
+/// cannot turn corrupt registry metadata into an apparently clean history.
+#[derive(Debug)]
+pub(crate) struct TrustHistory {
+    name: String,
+    versions: HashMap<String, TrustHistoryVersion>,
+}
+
+#[derive(Debug)]
+struct TrustHistoryVersion {
+    published_at: Option<String>,
+    evidence: DecodedTrustEvidence,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum DecodedTrustEvidence {
+    Decoded(Option<TrustEvidence>),
+    Undecodable,
+}
+
+#[derive(Clone, Copy)]
+struct TrustVersionRef<'a> {
+    version: &'a str,
+    published_at: Option<&'a str>,
+    evidence: DecodedTrustEvidence,
+}
+
+impl TrustHistory {
+    pub(crate) fn from_package(meta: &Package) -> Self {
+        let versions = meta
+            .versions
+            .keys()
+            .map(|version| {
+                let evidence = meta
+                    .versions
+                    .get(version)
+                    .map_or(DecodedTrustEvidence::Undecodable, |manifest| {
+                        DecodedTrustEvidence::Decoded(get_trust_evidence(&manifest))
+                    });
+                (
+                    version.clone(),
+                    TrustHistoryVersion {
+                        published_at: meta.published_at(version).map(str::to_string),
+                        evidence,
+                    },
+                )
+            })
+            .collect();
+        Self { name: meta.name.clone(), versions }
+    }
+
+    fn get(&self, version: &str) -> Option<TrustVersionRef<'_>> {
+        let (version, entry) = self.versions.get_key_value(version)?;
+        Some(TrustVersionRef {
+            version: version.as_str(),
+            published_at: entry.published_at.as_deref(),
+            evidence: entry.evidence,
+        })
+    }
+
+    fn iter(&self) -> impl Iterator<Item = TrustVersionRef<'_>> {
+        self.versions.iter().map(|(version, entry)| TrustVersionRef {
+            version,
+            published_at: entry.published_at.as_deref(),
+            evidence: entry.evidence,
+        })
+    }
 }
 
 /// Failure surfaced by [`fail_if_trust_downgraded`]. Each variant
@@ -100,29 +172,63 @@ pub fn fail_if_trust_downgraded(
     version: &str,
     opts: &TrustCheckOptions<'_>,
 ) -> Result<(), TrustViolation> {
-    // Exclude policy short-circuit.
-    if let Some(exclude) = opts.trust_policy_exclude {
-        match exclude.matches(&meta.name) {
-            PolicyMatch::AnyVersion => return Ok(()),
-            PolicyMatch::ExactVersions(versions) => {
-                if versions.iter().any(|exact| exact == version) {
-                    return Ok(());
-                }
-            }
-            PolicyMatch::No => {}
-        }
+    if is_excluded(&meta.name, version, opts) {
+        return Ok(());
     }
+    let current = TrustVersionRef {
+        version,
+        published_at: meta.published_at(version),
+        evidence: meta
+            .versions
+            .get(version)
+            .map_or(DecodedTrustEvidence::Undecodable, |manifest| {
+                DecodedTrustEvidence::Decoded(get_trust_evidence(&manifest))
+            }),
+    };
+    let history = meta.versions.keys().map(|version| TrustVersionRef {
+        version,
+        published_at: meta.published_at(version),
+        evidence: meta
+            .versions
+            .get(version)
+            .map_or(DecodedTrustEvidence::Undecodable, |manifest| {
+                DecodedTrustEvidence::Decoded(get_trust_evidence(&manifest))
+            }),
+    });
+    fail_if_trust_downgraded_with_history(&meta.name, current, history, opts)
+}
 
+pub(crate) fn fail_if_trust_downgraded_in_history(
+    history: &TrustHistory,
+    version: &str,
+    opts: &TrustCheckOptions<'_>,
+) -> Result<(), TrustViolation> {
+    if is_excluded(&history.name, version, opts) {
+        return Ok(());
+    }
+    let current = history.get(version).unwrap_or(TrustVersionRef {
+        version,
+        published_at: None,
+        evidence: DecodedTrustEvidence::Undecodable,
+    });
+    fail_if_trust_downgraded_with_history(&history.name, current, history.iter(), opts)
+}
+
+fn fail_if_trust_downgraded_with_history<'a>(
+    name: &str,
+    current: TrustVersionRef<'a>,
+    history: impl Iterator<Item = TrustVersionRef<'a>>,
+    opts: &TrustCheckOptions<'_>,
+) -> Result<(), TrustViolation> {
     // Pull the version's publish time. We treat both "no time map" and
     // "no entry for this version" as the same `TRUST_CHECK_FAIL` shape
     // so the verifier surfaces a single "could not be checked" reason.
-    let published_at =
-        meta.published_at(version).ok_or_else(|| TrustViolation::TrustCheckFailed {
-            reason: format!(
-                "missing time for version {version} of {name} in metadata",
-                name = meta.name,
-            ),
-        })?;
+    let published_at = current.published_at.ok_or_else(|| TrustViolation::TrustCheckFailed {
+        reason: format!(
+            "missing time for version {version} of {name} in metadata",
+            version = current.version,
+        ),
+    })?;
     let version_date = parse_packument_timestamp(published_at).ok_or_else(|| {
         TrustViolation::TrustCheckFailed {
             reason: "publish timestamp is not a valid date".to_string(),
@@ -139,32 +245,48 @@ pub fn fail_if_trust_downgraded(
         }
     }
 
-    let manifest = meta.versions.get(version).ok_or_else(|| TrustViolation::TrustCheckFailed {
-        reason: format!(
-            "missing version object for version {version} of {name} in metadata",
-            name = meta.name,
-        ),
-    })?;
+    let DecodedTrustEvidence::Decoded(current_evidence) = current.evidence else {
+        return Err(TrustViolation::TrustCheckFailed {
+            reason: format!(
+                "missing version object for version {version} of {name} in metadata",
+                version = current.version,
+            ),
+        });
+    };
 
-    let exclude_prerelease = !is_prerelease(version);
+    let exclude_prerelease = !is_prerelease(current.version);
     let Some(strongest_prior) =
-        detect_strongest_trust_evidence_before(meta, version_date, exclude_prerelease)?
+        detect_strongest_trust_evidence_before(name, history, version_date, exclude_prerelease)?
     else {
         return Ok(());
     };
 
-    let current = get_trust_evidence(&manifest);
-    let current_rank = current.map_or(0u8, trust_rank);
+    let current_rank = current_evidence.map_or(0u8, trust_rank);
     let prior_rank = trust_rank(strongest_prior);
     if current_rank < prior_rank {
         return Err(TrustViolation::TrustDowngrade {
-            name: meta.name.clone(),
-            version: version.to_string(),
+            name: name.to_string(),
+            version: current.version.to_string(),
             past_pretty: pretty_print_trust_evidence(Some(strongest_prior)),
-            current_pretty: pretty_print_trust_evidence(current),
+            current_pretty: pretty_print_trust_evidence(current_evidence),
         });
     }
     Ok(())
+}
+
+fn is_excluded(name: &str, version: &str, opts: &TrustCheckOptions<'_>) -> bool {
+    if let Some(exclude) = opts.trust_policy_exclude {
+        match exclude.matches(name) {
+            PolicyMatch::AnyVersion => return true,
+            PolicyMatch::ExactVersions(versions) => {
+                if versions.iter().any(|exact| exact == version) {
+                    return true;
+                }
+            }
+            PolicyMatch::No => {}
+        }
+    }
+    false
 }
 
 /// Map a [`TrustEvidence`] rank to its numeric weight. "No evidence"
@@ -195,14 +317,15 @@ fn pretty_print_trust_evidence(evidence: Option<TrustEvidence>) -> &'static str 
 /// not decode makes the scan error rather than skip — skipping could
 /// hide the strongest prior evidence and let a trust downgrade pass
 /// undetected.
-fn detect_strongest_trust_evidence_before(
-    meta: &Package,
+fn detect_strongest_trust_evidence_before<'a>(
+    name: &str,
+    history: impl Iterator<Item = TrustVersionRef<'a>>,
     before_date: DateTime<Utc>,
     exclude_prerelease: bool,
 ) -> Result<Option<TrustEvidence>, TrustViolation> {
     let mut best: Option<TrustEvidence> = None;
-    for version in meta.versions.keys() {
-        if exclude_prerelease && is_prerelease(version) {
+    for entry in history {
+        if exclude_prerelease && is_prerelease(entry.version) {
             continue;
         }
         // Skip individual versions that lack a publish timestamp
@@ -210,7 +333,7 @@ fn detect_strongest_trust_evidence_before(
         // prior version with no `time` entry would otherwise mask
         // every earlier version's evidence and allow a downgrade
         // to slip through. Each timestamp is checked in isolation.
-        let Some(ts) = meta.published_at(version) else {
+        let Some(ts) = entry.published_at else {
             continue;
         };
         let Some(parsed) = parse_packument_timestamp(ts) else {
@@ -219,15 +342,15 @@ fn detect_strongest_trust_evidence_before(
         if parsed >= before_date {
             continue;
         }
-        let Some(manifest) = meta.versions.get(version) else {
+        let DecodedTrustEvidence::Decoded(evidence) = entry.evidence else {
             return Err(TrustViolation::TrustCheckFailed {
                 reason: format!(
                     "undecodable version object for version {version} of {name} in metadata",
-                    name = meta.name,
+                    version = entry.version,
                 ),
             });
         };
-        let Some(evidence) = get_trust_evidence(&manifest) else {
+        let Some(evidence) = evidence else {
             continue;
         };
         // Keep the highest-ranked evidence seen so far. Don't short-

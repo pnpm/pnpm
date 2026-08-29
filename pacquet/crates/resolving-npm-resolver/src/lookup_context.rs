@@ -15,8 +15,9 @@
 //!
 use std::{collections::HashMap, sync::Arc};
 
-use pacquet_registry::Package;
 use tokio::sync::{Mutex, OnceCell};
+
+use crate::trust_checks::TrustHistory;
 
 /// Per-version time map keyed by version string. The verifier only
 /// reads the publish timestamp for a specific version, so storing
@@ -64,7 +65,7 @@ pub(crate) type SingleflightMap<Value> = Mutex<HashMap<String, Arc<OnceCell<Valu
 pub(crate) struct PublishedAtLookupContext {
     pub published_at: SingleflightMap<Result<Option<String>, String>>,
     pub full_meta: SingleflightMap<Result<Option<Arc<PublishedAtTimeMap>>, String>>,
-    pub full_meta_for_trust: SingleflightMap<Result<Arc<Package>, String>>,
+    pub trust_history: SingleflightMap<Result<Arc<TrustHistory>, String>>,
     /// `Ok(projection)` on a successful fetch, `Err(reason)` on a fetch
     /// failure (auth/network/5xx). The error is carried as a value rather than
     /// discarded so the tarball-URL check can tell a transport failure apart

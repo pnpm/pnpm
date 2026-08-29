@@ -24,7 +24,7 @@ use dashmap::DashMap;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName};
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
-use pacquet_registry::{Approver, NpmUser, Package, PackageDistribution, PackageVersion};
+use pacquet_registry::Package;
 use pacquet_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture, parse_packument_timestamp,
 };
@@ -38,7 +38,7 @@ use crate::{
     lookup_context::{PublishedAtLookupContext, PublishedAtTimeMap, package_key, version_key},
     named_registry::{build_named_registry_prefixes, pick_registry_for_package},
     pick_package::PackageMetaCache,
-    trust_checks::fail_if_trust_downgraded,
+    trust_checks::{TrustHistory, fail_if_trust_downgraded_in_history},
     violation_codes::{
         MINIMUM_RELEASE_AGE_VIOLATION_CODE, TARBALL_URL_MISMATCH_VIOLATION_CODE,
         TRUST_DOWNGRADE_VIOLATION_CODE,
@@ -527,7 +527,7 @@ impl NpmResolutionVerifier {
         name: &PkgName,
         version: &str,
     ) -> Option<ResolutionVerification> {
-        let meta = match self.fetch_full_meta_for_trust(registry, name).await {
+        let meta = match self.fetch_trust_history(registry, name).await {
             Ok(meta) => meta,
             // A transport failure propagates the registry's own fetch error so
             // the install aborts with it rather than folding it into a policy
@@ -539,7 +539,7 @@ impl NpmResolutionVerifier {
             trust_policy_ignore_after_minutes: self.trust_policy_ignore_after,
             now: self.now,
         };
-        match fail_if_trust_downgraded(&meta, version, &trust_opts) {
+        match fail_if_trust_downgraded_in_history(&meta, version, &trust_opts) {
             Ok(()) => None,
             Err(err) => Some(ResolutionVerification::Err {
                 code: TRUST_DOWNGRADE_VIOLATION_CODE,
@@ -800,14 +800,14 @@ impl NpmResolutionVerifier {
         .clone()
     }
 
-    async fn fetch_full_meta_for_trust(
+    async fn fetch_trust_history(
         &self,
         registry: &str,
         name: &PkgName,
-    ) -> Result<Arc<Package>, String> {
+    ) -> Result<Arc<TrustHistory>, String> {
         let key = package_key(registry, &name.to_string());
         let cell = {
-            let mut cache = self.lookup_context.full_meta_for_trust.lock().await;
+            let mut cache = self.lookup_context.trust_history.lock().await;
             Arc::clone(cache.entry(key.clone()).or_insert_with(|| Arc::new(OnceCell::new())))
         };
         cell.get_or_init(|| async {
@@ -817,28 +817,27 @@ impl NpmResolutionVerifier {
             // when `pick_package` upgrades for `minimumReleaseAge`),
             // reuse it. The filtered form is accepted: `clear_meta`
             // keeps `time`, per-version `_npmUser`, and `dist`, which is
-            // everything `fail_if_trust_downgraded` reads. Abbreviated
-            // entries are rejected — they lack per-version `time` and
-            // trust evidence.
+            // everything needed to build the trust history. Abbreviated
+            // entries are rejected because they lack per-version `time`
+            // and trust evidence.
             let shared = self.meta_cache.as_ref().and_then(|cache| {
                 cache
                     .get(&format!("{key}:full"))
                     .or_else(|| cache.get(&format!("{key}:full:filtered")))
             });
             if let Some(cached) = shared {
-                return Ok(Arc::new(project_trust_meta(cached.meta.as_ref())));
+                return Ok(Arc::new(TrustHistory::from_package(cached.meta.as_ref())));
             }
-            // Project the packument to just the fields `fail_if_trust_downgraded`
-            // reads before stashing in the cache. The full document — dependency
-            // graphs, dist-tags, scripts, READMEs for every version — would
-            // otherwise stay resident in this map for the entire install, which
-            // on multi-thousand-entry workspaces OOMs CI runners with a 2GB heap
-            // cap (see [#11860]).
+            // Keep only publish times, trust evidence, and explicit decode
+            // failures in this cache. The full document — dependency graphs,
+            // dist-tags, scripts, and READMEs for every version — would otherwise
+            // stay resident for the entire install. This can exhaust the 2 GB
+            // heap on large workspaces (see [#11860]).
             //
             // [#11860]: <https://github.com/pnpm/pnpm/issues/11860>
             self.fetch_full_meta(registry, name)
                 .await
-                .map(|meta| project_trust_meta(&meta))
+                .map(|meta| TrustHistory::from_package(&meta))
                 .map(Arc::new)
         })
         .await
@@ -963,88 +962,6 @@ fn build_policy_snapshot(
         },
     );
     map
-}
-
-/// Build a [`Package`] that retains only the fields
-/// [`fail_if_trust_downgraded`] reads: the package name, the per-version
-/// `time` map, and per-version trust evidence (`_npmUser.approver`,
-/// `_npmUser.trustedPublisher`, and `dist.attestations.provenance`).
-/// Drops everything else — dependency
-/// graphs, scripts, READMEs — so the per-install trust-meta cache stays
-/// bounded by the trust-evidence footprint, not the full packument size.
-///
-/// [`fail_if_trust_downgraded`]: crate::trust_checks::fail_if_trust_downgraded
-fn project_trust_meta(meta: &Package) -> Package {
-    // Borrowed `meta` so the shared-cache fast path (which only holds
-    // `Arc<Package>`) doesn't pay for a full deep-clone of the
-    // packument it's about to discard. Only the fields downstream
-    // reads are cloned out; the bulk of the document (per-version
-    // dependency maps, scripts, README) drops on the original.
-    let versions = meta
-        .versions
-        .iter()
-        .map(|(version, manifest)| (version.clone(), project_trust_package_version(&manifest)))
-        .collect();
-    Package {
-        name: meta.name.clone(),
-        dist_tags: std::collections::HashMap::new(),
-        versions,
-        time: meta.time.clone(),
-        modified: meta.modified.clone(),
-        etag: meta.etag.clone(),
-        // `homepage` is only read by `outdated --long`, never by trust
-        // verification, so it is dropped here to keep the trust-meta cache
-        // bounded by the trust-evidence footprint (see the fn doc).
-        homepage: None,
-        mutex: std::sync::Arc::new(std::sync::Mutex::new(0)),
-    }
-}
-
-fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
-    let attestations =
-        version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).map(|prov| {
-            pacquet_registry::AttestationsDist { provenance: Some(prov.clone()), url: None }
-        });
-    // `get_trust_evidence` only reads `npm_user.approver` (presence) and
-    // `npm_user.trusted_publisher`; drop the maintainer `name` / `email`
-    // PII — including the approver's — so the projected cache entry
-    // doesn't hold per-version publisher metadata that downstream
-    // doesn't need.
-    let approver = version.npm_user.as_ref().and_then(|user| user.approver.as_ref());
-    let trusted_publisher =
-        version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref());
-    let npm_user = (approver.is_some() || trusted_publisher.is_some()).then(|| NpmUser {
-        name: None,
-        email: None,
-        approver: approver.map(|_| Approver { name: None, email: None }),
-        trusted_publisher: trusted_publisher.cloned(),
-    });
-    PackageVersion {
-        // `fail_if_trust_downgraded` keys off the outer `meta.versions`
-        // map and the version-level npm_user / attestations fields. The
-        // per-version `name`, `version`, and `dist` non-attestation fields
-        // are never read, so empty placeholders are fine — clone of the
-        // parsed semver keeps the typed shape valid without paying for
-        // the registry packument's dependency graph.
-        name: String::new(),
-        version: version.version.clone(),
-        dist: PackageDistribution {
-            integrity: None,
-            shasum: None,
-            tarball: String::new(),
-            file_count: None,
-            unpacked_size: None,
-            attestations,
-        },
-        dependencies: None,
-        dev_dependencies: None,
-        peer_dependencies: None,
-        optional_dependencies: None,
-        peer_dependencies_meta: None,
-        npm_user,
-        deprecated: None,
-        other: HashMap::new(),
-    }
 }
 
 /// Pull the `(modified, versionTarballs)` projection the verifier
