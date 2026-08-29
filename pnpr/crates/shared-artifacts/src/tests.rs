@@ -1233,10 +1233,11 @@ async fn a_stamp_survives_the_pass_that_refused_on_its_account() {
 
     // Refused: the limit is full of registrations that have only just been
     // stamped, so none of them is old enough to write off yet.
-    store
+    let err = store
         .publish("acme", publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]))
         .await
         .unwrap_err();
+    eprintln!("ERR {err:?}");
 
     let usage: ArtifactUsage = serde_json::from_slice(
         &store.read_object_bounded(".locks/usage.json", 1 << 20).await.unwrap().unwrap(),
@@ -1600,6 +1601,60 @@ async fn renewing_a_publication_that_finished_records_nothing() {
     assert!(usage.active_publication_times.is_empty());
 }
 
+/// A marker the backfill cannot write leaves nothing charged for it: only a
+/// pass over what is stored can say whether the bytes are there, and an owner
+/// charged for what may not be is refused publications that fit.
+#[tokio::test]
+async fn a_backfill_that_cannot_write_a_marker_gives_its_charge_back() {
+    let stored = publication_tagged("ci/stored", &["pnpm:v1:linux-arm64-node22-glibc2.17"]);
+    let (payload, _) = stored.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&stored.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+    let marker = format!("{owner}/entries/{entry}/scopes/linux-arm64-node22");
+    let backend: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+        inner: InMemory::new(),
+        commit_before_error: false,
+        fail_deletes: false,
+        fail_next_quota_write: None,
+        claim_slot_first: None,
+        fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
+        fail_reads_of: None,
+        fail_scope_writes: false,
+        fail_only: Some(FailOnly::WriteOf(format!(".pnpr-artifacts/v0/{marker}"))),
+    });
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let scratch = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
+    // Written before markers existed, so the entry needs a backfill.
+    let envelope = serde_json::to_vec(&stored.envelope).unwrap();
+    let stored_bytes = envelope.len() as u64;
+    store.create_object(&format!("{owner}/entries/{entry}/{slot}.json"), envelope).await.unwrap();
+    let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
+    let prepared = super::prepare_publication("acme", &ours).unwrap();
+
+    let error = store.backfill_scopes(&prepared).await.unwrap_err();
+
+    assert!(matches!(error, RegistryError::ObjectStore(_)), "{error:?}");
+    let usage: ArtifactUsage = serde_json::from_slice(
+        &backend
+            .get(&ObjectPath::from(".pnpr-artifacts/v0/quota.json"))
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        usage.owner_bytes.values().copied().sum::<u64>(),
+        stored_bytes,
+        "the artifact that is stored is charged, and the marker that is not is not",
+    );
+}
+
 /// The markers an entry is given for artifacts already stored are objects like
 /// any other, so an owner with no room left cannot write them either.
 #[tokio::test]
@@ -1621,10 +1676,10 @@ async fn an_owner_with_no_room_cannot_have_markers_written_for_them() {
 
     let full =
         SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap().with_limits(1, 1);
-    let error = full
-        .publish("acme", publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]))
-        .await
-        .unwrap_err();
+    let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
+    let prepared = super::prepare_publication("acme", &ours).unwrap();
+
+    let error = full.backfill_scopes(&prepared).await.unwrap_err();
 
     assert!(error.to_string().contains("quota exceeded"), "{error}");
     assert!(
@@ -1842,6 +1897,8 @@ enum FailOnly {
     RegistrationAfter(String),
     /// Deletes of this path.
     DeleteOf(String),
+    /// Writes of this path.
+    WriteOf(String),
 }
 
 impl fmt::Display for FailArtifactWrites {
@@ -1870,13 +1927,18 @@ impl ObjectStore for FailArtifactWrites {
             });
         }
         if let Some(fail) = self.fail_only.as_ref() {
-            if let FailOnly::RegistrationAfter(stored) = fail
-                && location.as_ref().ends_with("/quota.json")
-                && self.inner.head(&ObjectPath::from(stored.as_str())).await.is_ok()
-            {
+            let injected = match fail {
+                FailOnly::RegistrationAfter(stored) => {
+                    location.as_ref().ends_with("/quota.json")
+                        && self.inner.head(&ObjectPath::from(stored.as_str())).await.is_ok()
+                }
+                FailOnly::WriteOf(path) => location.as_ref() == path,
+                FailOnly::DeleteOf(_) => false,
+            };
+            if injected {
                 return Err(object_store::Error::Generic {
                     store: "test",
-                    source: std::io::Error::other("injected registration failure").into(),
+                    source: std::io::Error::other("injected write failure").into(),
                 });
             }
             return self.inner.put_opts(location, payload, options).await;

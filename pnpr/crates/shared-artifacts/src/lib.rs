@@ -946,11 +946,22 @@ impl SharedArtifactStore {
                 // owner over quota must not be able to write one either.
                 let bytes = digest.len() as u64;
                 self.reserve_quota(owner, bytes).await?;
-                if !self
+                match self
                     .create_object(&scope_marker_path(owner, entry, scope), digest.as_str().into())
-                    .await?
+                    .await
                 {
-                    self.release_uncommitted(owner, bytes, 0).await?;
+                    Ok(true) => {}
+                    Ok(false) => self.release_uncommitted(owner, bytes, 0).await?,
+                    Err(error) => {
+                        // A store error says nothing about whether the marker
+                        // was written, so the charge is given back and the
+                        // reclamation this failure asks for reconciles the
+                        // counters against what is stored. Keeping it would
+                        // refuse an owner publications that fit for a marker
+                        // that may not be there.
+                        self.release_uncommitted(owner, bytes, 0).await?;
+                        return Err(error);
+                    }
                 }
             }
         }
