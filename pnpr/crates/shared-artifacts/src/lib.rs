@@ -17,7 +17,7 @@ use pnpm_shared_artifact_protocol::{
     ArtifactSubject, ArtifactVariant, CompatibilityConstraints, MAX_CANDIDATES, MAX_FILE_SIZE,
     MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE, OwnerScope, PublishArtifactRequest,
     ResolveArtifactsRequest, ResolveArtifactsResponse, ResolvedArtifact, SignedArtifactEnvelope,
-    blob_id, verify_blob,
+    blob_id, compatibility_overlaps, verify_blob,
 };
 use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
 use pnpr_error::{RegistryError, Result};
@@ -75,7 +75,6 @@ enum SlotClaim {
 
 struct PreparedPublication {
     entry: String,
-    slot: String,
     payload: ArtifactPayload,
     uploads: BTreeMap<String, Vec<u8>>,
     owner: String,
@@ -156,24 +155,26 @@ impl SharedArtifactStore {
         prepared: PreparedPublication,
         reclamation_needed: &mut bool,
     ) -> Result<bool> {
+        match self.slot_claim(&prepared).await? {
+            SlotClaim::Held => return Ok(false),
+            SlotClaim::HeldByAnother => {
+                return Err(RegistryError::ArtifactAlreadyPublished {
+                    owner: prepared.owner,
+                    entry: prepared.entry,
+                });
+            }
+            SlotClaim::Free => {}
+        }
+
         let PreparedPublication {
             payload,
             mut uploads,
             owner,
             entry,
-            slot,
             envelope_bytes,
             variant_path,
         } = prepared;
         let envelope_size = envelope_bytes.len() as u64;
-
-        match self.slot_claim(&owner, &entry, &variant_path, &slot, &envelope_bytes).await? {
-            SlotClaim::Held => return Ok(false),
-            SlotClaim::HeldByAnother => {
-                return Err(RegistryError::ArtifactAlreadyPublished { owner, entry });
-            }
-            SlotClaim::Free => {}
-        }
 
         let required: BTreeMap<&str, u64> = payload
             .manifest
@@ -374,18 +375,13 @@ impl SharedArtifactStore {
     /// slot, so the entry is read when that object is absent: otherwise those
     /// artifacts would be replaceable, and republishing one of them — a retry
     /// like any other — would be refused as a conflict.
-    async fn slot_claim(
-        &self,
-        owner: &str,
-        entry: &str,
-        variant_path: &str,
-        slot: &str,
-        envelope_bytes: &[u8],
-    ) -> Result<SlotClaim> {
+    async fn slot_claim(&self, publication: &PreparedPublication) -> Result<SlotClaim> {
+        let PreparedPublication { owner, entry, variant_path, payload, envelope_bytes, .. } =
+            publication;
         if let Some(claimed) =
             self.read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await?
         {
-            return Ok(if claimed == envelope_bytes {
+            return Ok(if &claimed == envelope_bytes {
                 SlotClaim::Held
             } else {
                 SlotClaim::HeldByAnother
@@ -406,14 +402,16 @@ impl SharedArtifactStore {
             let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
                 continue;
             };
-            let Ok((payload, _)) = envelope.decode_payload() else { continue };
-            // Compared by slot rather than structurally, so that a stored
-            // artifact whose tags are written in another order is recognised as
-            // holding this one — the reordering the slot itself canonicalizes.
-            if compatibility_slot(&payload.compatibility) != slot {
+            let Ok((stored_payload, _)) = envelope.decode_payload() else { continue };
+            // Overlapping constraints, not identical ones: two artifacts whose
+            // tag sets differ can still both apply to one consumer, and then
+            // ranking rather than the publisher decides which it runs. Tag
+            // order is not consulted, so a stored artifact written in another
+            // order is recognised as the same constraints.
+            if !compatibility_overlaps(&stored_payload.compatibility, &payload.compatibility) {
                 continue;
             }
-            if bytes == envelope_bytes {
+            if &bytes == envelope_bytes {
                 return Ok(SlotClaim::Held);
             }
             held_by_another = true;
@@ -872,7 +870,6 @@ fn prepare_publication(
         uploads: validated.blobs,
         owner,
         entry,
-        slot,
         envelope_bytes,
         variant_path,
     })

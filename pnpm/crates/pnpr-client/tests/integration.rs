@@ -266,9 +266,12 @@ fn signed_artifact_fixture_with_builder_id(
 fn signed_artifact_fixture_for_platform(
     index: usize,
 ) -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
+    // Node major, not the glibc floor: two floors for one architecture and Node
+    // major both apply to a consumer meeting the higher one, so the registry
+    // refuses the second as an overlapping publish.
     signed_artifact_fixture_for(
         &format!("ci/concurrent/{index}"),
-        &format!("pnpm:v1:linux-x64-node22-glibc2.{index}"),
+        &format!("pnpm:v1:linux-x64-node{}-glibc2.17", index + 1),
     )
 }
 

@@ -13,9 +13,9 @@ use crate::{
     ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints, LinuxGlibcPlatform,
     MacOsPlatform, OwnerScope, PackageIdentity, PublishArtifactRequest, SIGNATURE_ALGORITHM,
     SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND, WindowsPlatform, blob_id,
-    compatibility_rank, linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags,
-    macos_tag, platform_fingerprint, validate_manifest_path, verify_blob, windows_supported_tags,
-    windows_tag,
+    compatibility_overlaps, compatibility_rank, linux_glibc_supported_tags, linux_glibc_tag,
+    macos_supported_tags, macos_tag, platform_fingerprint, validate_manifest_path, verify_blob,
+    windows_supported_tags, windows_tag,
 };
 
 fn integrity(bytes: &[u8]) -> String {
@@ -434,6 +434,64 @@ fn windows_compatibility_uses_kernel_version_floors() {
         compatibility_rank(&CompatibilityConstraints::Universal, &supported),
         Some(u64::MAX),
     );
+}
+
+#[test]
+fn constraints_overlap_when_one_consumer_can_match_both() {
+    let tagged = |tags: &[&str]| CompatibilityConstraints::Tagged {
+        tags: tags.iter().map(|tag| (*tag).to_string()).collect(),
+    };
+    let linux_x64_22 = tagged(&["pnpm:v1:linux-x64-node22-glibc2.17"]);
+
+    assert!(compatibility_overlaps(&linux_x64_22, &linux_x64_22));
+    assert!(compatibility_overlaps(&CompatibilityConstraints::Universal, &linux_x64_22));
+    assert!(compatibility_overlaps(&linux_x64_22, &CompatibilityConstraints::Universal));
+    assert!(compatibility_overlaps(
+        &CompatibilityConstraints::Universal,
+        &CompatibilityConstraints::Universal,
+    ));
+
+    // A consumer meeting the higher floor meets the lower one too, on every
+    // vocabulary that has floors.
+    assert!(compatibility_overlaps(
+        &linux_x64_22,
+        &tagged(&["pnpm:v1:linux-x64-node22-glibc2.31"])
+    ));
+    assert!(compatibility_overlaps(
+        &tagged(&["pnpm:v1:darwin-arm64-node22-macos13.0"]),
+        &tagged(&["pnpm:v1:darwin-arm64-node22-macos14.2"]),
+    ));
+    assert!(compatibility_overlaps(
+        &tagged(&["pnpm:v1:win32-x64-node22-windows10.0.17763"]),
+        &tagged(&["pnpm:v1:win32-x64-node22-windows10.0.22000"]),
+    ));
+
+    // Operating system, architecture, and Node major each rule an overlap out.
+    assert!(!compatibility_overlaps(
+        &linux_x64_22,
+        &tagged(&["pnpm:v1:linux-arm64-node22-glibc2.17"])
+    ));
+    assert!(!compatibility_overlaps(
+        &linux_x64_22,
+        &tagged(&["pnpm:v1:linux-x64-node24-glibc2.17"])
+    ));
+    assert!(!compatibility_overlaps(
+        &linux_x64_22,
+        &tagged(&["pnpm:v1:darwin-x64-node22-macos13.0"])
+    ));
+
+    // A set overlaps when any one of its tags does.
+    assert!(compatibility_overlaps(
+        &tagged(&["pnpm:v1:linux-arm64-node22-glibc2.17", "pnpm:v1:linux-x64-node22-glibc2.31"]),
+        &linux_x64_22,
+    ));
+    assert!(!compatibility_overlaps(
+        &tagged(&["pnpm:v1:linux-arm64-node22-glibc2.17", "pnpm:v1:darwin-x64-node22-macos13.0"]),
+        &linux_x64_22,
+    ));
+
+    // An unparsable tag cannot be shown to share a consumer with anything.
+    assert!(!compatibility_overlaps(&tagged(&["not-a-tag"]), &linux_x64_22));
 }
 
 #[test]

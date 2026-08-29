@@ -630,6 +630,38 @@ async fn republishing_any_artifact_already_in_a_crowded_legacy_slot_is_a_retry()
 /// Matching a tag set is order-independent, so two orderings are the same
 /// constraint and must not be two slots — otherwise a publisher reopens the
 /// swap simply by listing the same tags the other way round.
+/// A store populated before the rule refused overlaps can hold two artifacts
+/// that apply to one consumer. Neither is rewritten: republishing either is
+/// still a retry, and only a genuinely new artifact is refused.
+#[tokio::test]
+async fn artifacts_that_already_overlap_stay_republishable() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let universal = publication("ci/universal");
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    let tagged = publication_tagged("ci/tagged", &tags);
+    let (payload, _) = universal.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&universal.key, &payload.subject);
+    for (name, request) in [("a".repeat(64), &universal), ("b".repeat(64), &tagged)] {
+        store
+            .create_object(
+                &format!("{owner}/entries/{entry}/{name}.json"),
+                serde_json::to_vec(&request.envelope).unwrap(),
+            )
+            .await
+            .unwrap();
+    }
+
+    assert!(!store.publish("acme", publication("ci/universal")).await.unwrap());
+    assert!(!store.publish("acme", publication_tagged("ci/tagged", &tags)).await.unwrap());
+    let error = store.publish("acme", publication("ci/third")).await.unwrap_err();
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "a genuinely new artifact still conflicts, got {error:?}",
+    );
+}
+
 #[tokio::test]
 async fn tag_order_does_not_open_a_second_slot() {
     let storage = TempDir::new().unwrap();
@@ -645,6 +677,77 @@ async fn tag_order_does_not_open_a_second_slot() {
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
         "expected a conflict, got {error:?}",
     );
+}
+
+/// A tagged artifact outranks a universal one for every consumer its tag fits,
+/// so publishing one over a universal artifact would decide what those
+/// consumers run without ever refilling a slot.
+#[tokio::test]
+async fn a_tagged_artifact_cannot_supersede_a_universal_one() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    assert!(store.publish("acme", publication("ci/first")).await.unwrap());
+
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    let error = store.publish("acme", publication_tagged("ci/second", &tags)).await.unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "expected a conflict, got {error:?}",
+    );
+}
+
+#[tokio::test]
+async fn a_universal_artifact_cannot_supersede_a_tagged_one() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    assert!(store.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap());
+
+    let error = store.publish("acme", publication("ci/second")).await.unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "expected a conflict, got {error:?}",
+    );
+}
+
+/// A consumer meeting the higher floor meets the lower one as well, so both
+/// artifacts would apply to it and ranking would pick between them.
+#[tokio::test]
+async fn a_second_floor_for_one_platform_cannot_open_a_second_slot() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let floor = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    assert!(store.publish("acme", publication_tagged("ci/first", &floor)).await.unwrap());
+
+    let raised = ["pnpm:v1:linux-x64-node22-glibc2.31"];
+    let error = store.publish("acme", publication_tagged("ci/second", &raised)).await.unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "expected a conflict, got {error:?}",
+    );
+}
+
+/// The rule refuses artifacts that could serve one machine, not artifacts for
+/// one input key: a publisher still fills out its matrix.
+#[tokio::test]
+async fn artifacts_no_consumer_can_share_are_published_side_by_side() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    for tag in [
+        "pnpm:v1:linux-x64-node22-glibc2.17",
+        "pnpm:v1:linux-arm64-node22-glibc2.17",
+        "pnpm:v1:linux-x64-node24-glibc2.17",
+        "pnpm:v1:darwin-arm64-node22-macos13.0",
+        "pnpm:v1:win32-x64-node22-windows10.0.17763",
+    ] {
+        assert!(
+            store.publish("acme", publication_tagged("ci/matrix", &[tag])).await.unwrap(),
+            "{tag} should not conflict with any other platform",
+        );
+    }
 }
 
 /// An artifact stored under its envelope digest claims its slot too, or a store
@@ -768,8 +871,12 @@ fn publication(builder_id: &str) -> PublishArtifactRequest {
 fn for_platform(mut request: PublishArtifactRequest, index: usize) -> PublishArtifactRequest {
     let mut payload: ArtifactPayload =
         serde_json::from_slice(&BASE64.decode(&request.envelope.payload).unwrap()).unwrap();
+    // Node major, not the glibc floor: two floors for one architecture and Node
+    // major both apply to a consumer meeting the higher one, so they overlap and
+    // the second could not be published. Distinct Node majors never share a
+    // consumer, which is what a test needing several artifacts at once wants.
     payload.compatibility = CompatibilityConstraints::Tagged {
-        tags: vec![format!("pnpm:v1:linux-x64-node22-glibc2.{index}")],
+        tags: vec![format!("pnpm:v1:linux-x64-node{}-glibc2.17", index + 1)],
     };
     request.envelope.payload = BASE64.encode(serde_json::to_vec(&payload).unwrap());
     request

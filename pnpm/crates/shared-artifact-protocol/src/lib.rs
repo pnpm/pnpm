@@ -882,7 +882,17 @@ enum ParsedCompatibilityTag<'a> {
     Windows(WindowsPlatform<'a>),
 }
 
-fn parse_compatibility_tag(tag: &str) -> Result<ParsedCompatibilityTag<'_>, ArtifactProtocolError> {
+/// A compatibility tag split into the dimensions that decide *which machines it
+/// can apply to* and the `runtime` component carrying the version floor that
+/// decides *how well* it fits one of them.
+struct CompatibilityTagParts<'a> {
+    os: &'a str,
+    architecture: &'a str,
+    node_major: u32,
+    runtime: &'a str,
+}
+
+fn split_compatibility_tag(tag: &str) -> Result<CompatibilityTagParts<'_>, ArtifactProtocolError> {
     validate_scalar("compatibility tag", tag, 512)?;
     let Some(platform) = tag.strip_prefix("pnpm:v1:") else {
         return Err(invalid_tag("unknown compatibility tag schema"));
@@ -901,6 +911,41 @@ fn parse_compatibility_tag(tag: &str) -> Result<ParsedCompatibilityTag<'_>, Arti
         "Node major version",
         false,
     )?;
+    Ok(CompatibilityTagParts { os, architecture, node_major, runtime })
+}
+
+/// Whether two sets of constraints can both apply to one consumer.
+///
+/// Version floors do not separate two tags: a consumer meeting the higher floor
+/// meets the lower one as well, so any two tags agreeing on operating system,
+/// architecture, and Node major match some consumer in common. Only those three
+/// dimensions can rule an overlap out.
+#[must_use]
+pub fn compatibility_overlaps(
+    left: &CompatibilityConstraints,
+    right: &CompatibilityConstraints,
+) -> bool {
+    match (left, right) {
+        (CompatibilityConstraints::Universal, _) | (_, CompatibilityConstraints::Universal) => true,
+        (
+            CompatibilityConstraints::Tagged { tags: left },
+            CompatibilityConstraints::Tagged { tags: right },
+        ) => left.iter().any(|left| {
+            let Ok(left) = split_compatibility_tag(left) else { return false };
+            right.iter().any(|right| {
+                split_compatibility_tag(right).is_ok_and(|right| {
+                    left.os == right.os
+                        && left.architecture == right.architecture
+                        && left.node_major == right.node_major
+                })
+            })
+        }),
+    }
+}
+
+fn parse_compatibility_tag(tag: &str) -> Result<ParsedCompatibilityTag<'_>, ArtifactProtocolError> {
+    let CompatibilityTagParts { os, architecture, node_major, runtime } =
+        split_compatibility_tag(tag)?;
     match os {
         "linux" => {
             let libc =
