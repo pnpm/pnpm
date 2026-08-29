@@ -1149,7 +1149,6 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Change(_) => "change",
         CliCommand::Version(_) => "version",
         CliCommand::Lane(_) => "lane",
-        CliCommand::Vcs(_) => "vcs",
         CliCommand::Bugs(_) => "bugs",
         CliCommand::List(_) => "list",
         CliCommand::Ll(_) => "ll",

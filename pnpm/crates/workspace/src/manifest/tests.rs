@@ -101,24 +101,6 @@ fn parses_named_catalogs_field() {
 }
 
 #[test]
-fn parses_durable_vcs_component_identities() {
-    let tmp = TempDir::new().unwrap();
-    fs::write(
-        tmp.path().join(WORKSPACE_MANIFEST_FILENAME),
-        "vcs:\n  provider: bit\n  schemaVersion: 1\n  rootComponent: acme.workspace/root\n  components:\n    packages/app:\n      componentId: acme.workspace/app\n      manifestFile: package.json\n",
-    )
-    .unwrap();
-
-    let manifest = read_workspace_manifest(tmp.path()).unwrap().unwrap();
-    let vcs = manifest.vcs.expect("vcs manifest");
-    assert_eq!(vcs.provider, "bit");
-    assert_eq!(vcs.schema_version, 1);
-    assert_eq!(vcs.root_component, "acme.workspace/root");
-    assert_eq!(vcs.components["packages/app"].component_id, "acme.workspace/app");
-    assert_eq!(vcs.components["packages/app"].manifest_file, "package.json");
-}
-
-#[test]
 fn empty_package_entry_rejected() {
     let tmp = TempDir::new().unwrap();
     fs::write(tmp.path().join(WORKSPACE_MANIFEST_FILENAME), "packages:\n  - ''\n  - apps/*\n")

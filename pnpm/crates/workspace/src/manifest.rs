@@ -14,7 +14,6 @@ use miette::Diagnostic;
 use pnpm_catalogs_types::{Catalog, Catalogs};
 use serde::Deserialize;
 use std::{
-    collections::BTreeMap,
     fs,
     io::{self, ErrorKind},
     path::{Path, PathBuf},
@@ -57,33 +56,6 @@ pub struct WorkspaceManifest {
     /// the explicit form over the top-level [`Self::catalog`] field.
     #[serde(default)]
     pub catalogs: Option<Catalogs>,
-
-    /// Durable version-control identity for a workspace whose checkout
-    /// metadata (for example Bit's `.bitmap`) is generated locally.
-    #[serde(default)]
-    pub vcs: Option<WorkspaceVcs>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkspaceVcs {
-    pub provider: String,
-    pub schema_version: u8,
-    pub root_component: String,
-    #[serde(default)]
-    pub components: BTreeMap<String, WorkspaceVcsComponent>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkspaceVcsComponent {
-    pub component_id: String,
-    #[serde(default = "default_manifest_file")]
-    pub manifest_file: String,
-}
-
-fn default_manifest_file() -> String {
-    "package.json".to_string()
 }
 
 /// Raised when `pnpm-workspace.yaml` parses as YAML but fails a shape

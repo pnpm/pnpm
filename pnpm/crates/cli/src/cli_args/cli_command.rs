@@ -75,7 +75,6 @@ use super::{
     unpublish::UnpublishArgs,
     unstar::UnstarArgs,
     update::UpdateArgs,
-    vcs::VcsArgs,
     version::VersionArgs,
     view::ViewArgs,
     why::WhyArgs,
@@ -570,8 +569,6 @@ pub enum CliCommand {
     Version(VersionArgs),
     /// Manage per-package release lanes.
     Lane(LaneArgs),
-    /// Use Bit as the version control system for a pnpm workspace.
-    Vcs(VcsArgs),
     /// Opens the bug tracker URL of a package in the default browser.
     #[clap(visible_alias = "issues")]
     Bugs(BugsArgs),
@@ -850,8 +847,7 @@ impl CliCommand {
                 | CliCommand::Store(_)
                 | CliCommand::Prefix(_)
                 | CliCommand::Root(_)
-                | CliCommand::Bin(_)
-                | CliCommand::Vcs(_),
+                | CliCommand::Bin(_),
         )
     }
 

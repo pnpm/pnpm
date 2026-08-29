@@ -509,7 +509,6 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Change(args) => dispatch_query::change(ctx, args),
         CliCommand::Version(args) => dispatch_query::version(ctx, args),
         CliCommand::Lane(args) => dispatch_query::lane(ctx, args),
-        CliCommand::Vcs(args) => dispatch_query::vcs(ctx, args),
         CliCommand::Bugs(args) => dispatch_query::bugs(ctx, args),
         CliCommand::List(args) => dispatch_query::list(ctx, args),
         CliCommand::Ll(args) => dispatch_query::ll(ctx, args),
