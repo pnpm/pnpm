@@ -1665,6 +1665,64 @@ async fn a_backfill_writes_each_marker_once_however_many_variants_reach_it() {
     );
 }
 
+/// A store error says nothing about whether the marker landed, so a marker
+/// that did stays charged: letting storage outgrow a quota is the worse way to
+/// be wrong, and reclamation gives back what turns out not to be there.
+#[tokio::test]
+async fn a_marker_written_by_a_failing_write_stays_charged() {
+    let stored = publication_tagged("ci/stored", &["pnpm:v1:linux-arm64-node22-glibc2.17"]);
+    let (payload, _) = stored.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&stored.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+    let marker = format!("{owner}/entries/{entry}/scopes/linux-arm64-node22");
+    let backend: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+        inner: InMemory::new(),
+        // The write lands and then reports a failure, which is the case a
+        // conditional create cannot tell from one that stored nothing.
+        commit_before_error: true,
+        fail_deletes: false,
+        fail_next_quota_write: None,
+        claim_slot_first: None,
+        fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
+        fail_reads_of: None,
+        fail_scope_writes: false,
+        fail_only: Some(FailOnly::WriteOf(format!(".pnpr-artifacts/v0/{marker}"))),
+        usage_writes: None,
+    });
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let scratch = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
+    // An entry holding no markers, which is what a backfill is for.
+    let envelope = serde_json::to_vec(&stored.envelope).unwrap();
+    let stored_bytes = envelope.len() as u64;
+    store.create_object(&format!("{owner}/entries/{entry}/{slot}.json"), envelope).await.unwrap();
+    let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
+    let prepared = super::prepare_publication("acme", &ours).unwrap();
+
+    let error = store.backfill_scopes(&prepared).await.unwrap_err();
+
+    assert!(matches!(error, RegistryError::ObjectStore(_)), "{error:?}");
+    let usage: ArtifactUsage = serde_json::from_slice(
+        &backend
+            .get(&ObjectPath::from(".pnpr-artifacts/v0/quota.json"))
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let marker_bytes = stored.envelope.digest().unwrap().len() as u64;
+    assert_eq!(
+        usage.owner_bytes.values().copied().sum::<u64>(),
+        stored_bytes + marker_bytes,
+        "the marker that is there is charged for",
+    );
+}
+
 /// A marker the backfill cannot write leaves nothing charged for it: only a
 /// pass over what is stored can say whether the bytes are there, and an owner
 /// charged for what may not be is refused publications that fit.
@@ -1693,7 +1751,7 @@ async fn a_backfill_that_cannot_write_a_marker_gives_its_charge_back() {
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
-    // Written before markers existed, so the entry needs a backfill.
+    // An entry holding no markers, which is what a backfill is for.
     let envelope = serde_json::to_vec(&stored.envelope).unwrap();
     let stored_bytes = envelope.len() as u64;
     store.create_object(&format!("{owner}/entries/{entry}/{slot}.json"), envelope).await.unwrap();
@@ -1963,9 +2021,7 @@ enum FailOnly {
     /// publication takes again once its artifact is durable, rather than the
     /// reservation that precedes it.
     RegistrationAfter(String),
-    /// Deletes of this path.
     DeleteOf(String),
-    /// Writes of this path.
     WriteOf(String),
 }
 
@@ -2009,6 +2065,9 @@ impl ObjectStore for FailArtifactWrites {
                 FailOnly::DeleteOf(_) => false,
             };
             if injected {
+                if self.commit_before_error {
+                    self.inner.put_opts(location, payload, options).await?;
+                }
                 return Err(object_store::Error::Generic {
                     store: "test",
                     source: std::io::Error::other("injected write failure").into(),

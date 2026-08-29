@@ -962,12 +962,18 @@ impl SharedArtifactStore {
                     Ok(false) => self.release_uncommitted(owner, bytes, 0).await?,
                     Err(error) => {
                         // A store error says nothing about whether the marker
-                        // was written, so the charge is given back and the
-                        // reclamation this failure asks for reconciles the
-                        // counters against what is stored. Keeping it would
-                        // refuse an owner publications that fit for a marker
-                        // that may not be there.
-                        self.release_uncommitted(owner, bytes, 0).await?;
+                        // landed, so what is charged is settled by looking
+                        // rather than assumed. Only a marker this write put
+                        // there stays charged: one that is not there is nobody's
+                        // to pay for, and one holding another digest is charged
+                        // to whoever wrote it. A read that fails too leaves the
+                        // charge standing, since letting storage outgrow a quota
+                        // is the worse way to be wrong.
+                        if self.scope_marker(owner, entry, scope, &digest).await?
+                            != ScopeMarker::Ours
+                        {
+                            self.release_uncommitted(owner, bytes, 0).await?;
+                        }
                         return Err(error);
                     }
                 }
