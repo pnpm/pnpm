@@ -528,7 +528,7 @@ async fn a_legacy_artifact_claims_its_slot_whatever_its_order_or_position() {
                 );
                 store
                     .create_object(
-                        &format!("{owner}/entries/{entry}/{:064x}.json", index),
+                        &format!("{owner}/entries/{entry}/{index:064x}.json"),
                         serde_json::to_vec(&filler.envelope).unwrap(),
                     )
                     .await
