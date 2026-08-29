@@ -967,6 +967,30 @@ fn for_installs_builds_per_registry_clients() {
 }
 
 #[test]
+fn for_installs_does_not_retain_per_registry_tls_material() {
+    use crate::RegistryTls;
+    use std::collections::HashMap;
+    const PRIVATE_KEY_MARKER: &str = "registry-private-key-marker";
+
+    let mut map = HashMap::new();
+    map.insert(
+        "//reg.example.com/".to_string(),
+        RegistryTls { key: Some(PRIVATE_KEY_MARKER.to_string()), ..RegistryTls::default() },
+    );
+    let per_registry = PerRegistryTls::from_map(map);
+    let client = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &per_registry,
+        &NetworkSettings::default(),
+    )
+    .expect("per-registry config builds");
+
+    let debug = format!("{client:?}");
+    assert!(!debug.contains(PRIVATE_KEY_MARKER), "finished client retained TLS key: {debug}");
+}
+
+#[test]
 fn for_installs_per_registry_invalid_ca_errors() {
     // A malformed per-registry CA must surface as `InvalidCa` at
     // build time, same as the top-level path. The `index` in the
@@ -1028,6 +1052,19 @@ async fn acquire_for_url_routes_per_registry_then_falls_back() {
     assert_ne!(
         scoped_ptr, default_ptr,
         "scoped and default URLs must route through different reqwest clients",
+    );
+
+    let scoped_guard = throttled
+        .acquire_for_url_without_redirects_with_priority("https://reg.example.com/pkg", 0)
+        .await;
+    let default_guard = throttled
+        .acquire_for_url_without_redirects_with_priority("https://other.example.org/pkg", 0)
+        .await;
+    let scoped_ptr: *const reqwest::Client = &raw const *scoped_guard;
+    let default_ptr: *const reqwest::Client = &raw const *default_guard;
+    assert_ne!(
+        scoped_ptr, default_ptr,
+        "scoped and default URLs must route through different no-redirect clients",
     );
 }
 
