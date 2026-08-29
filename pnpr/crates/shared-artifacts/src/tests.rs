@@ -1265,7 +1265,13 @@ async fn a_publication_written_off_while_running_takes_its_scopes_back() {
         .unwrap();
 
     store
-        .reclaim_own_scopes(&owner, &entry, &payload, &ours.envelope.digest().unwrap())
+        .reclaim_own_scopes(
+            &owner,
+            &entry,
+            &format!("{owner}/entries/{entry}/{slot}.json"),
+            &payload,
+            &ours.envelope.digest().unwrap(),
+        )
         .await
         .unwrap();
 
@@ -1279,6 +1285,45 @@ async fn a_publication_written_off_while_running_takes_its_scopes_back() {
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
         "and one reaching the same machines is refused again, got {error:?}",
+    );
+}
+
+/// A scope can have gone to an artifact published while this one was written
+/// off, and that artifact holds it. This one is then reaching a machine nothing
+/// says it reaches, so it takes its own artifact back out rather than leaving
+/// two that reach it.
+#[tokio::test]
+async fn a_publication_whose_scope_went_elsewhere_takes_its_artifact_back_out() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
+    let (payload, _) = ours.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&ours.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+    let variant = format!("{owner}/entries/{entry}/{slot}.json");
+    store.create_object(&variant, serde_json::to_vec(&ours.envelope).unwrap()).await.unwrap();
+    // Published while this one was written off, and holding the scope now.
+    store
+        .create_object(
+            &format!("{owner}/entries/{entry}/scopes/linux-x64-node22"),
+            b"an artifact published meanwhile".to_vec(),
+        )
+        .await
+        .unwrap();
+
+    let error = store
+        .reclaim_own_scopes(&owner, &entry, &variant, &payload, &ours.envelope.digest().unwrap())
+        .await
+        .unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "the publication is told it lost, got {error:?}",
+    );
+    assert!(
+        store.read_object_bounded(&variant, 4096).await.unwrap().is_none(),
+        "and its artifact does not stay beside the one that holds the scope",
     );
 }
 

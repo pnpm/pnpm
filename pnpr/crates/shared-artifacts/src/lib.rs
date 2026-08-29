@@ -406,17 +406,25 @@ impl SharedArtifactStore {
             // artifact is stored now, so those scopes are its own again, and
             // taking them back is what keeps it from reaching machines nothing
             // says it reaches.
-            self.reclaim_own_scopes(&owner, &entry, &payload, &envelope_digest).await?;
+            self.reclaim_own_scopes(&owner, &entry, &variant_path, &payload, &envelope_digest)
+                .await?;
         }
         Ok(created)
     }
 
     /// Takes back the scopes of an artifact that has just been stored, for a
     /// publication that ran long enough to be written off while it was running.
+    ///
+    /// A scope may have gone to an artifact published while this one was
+    /// written off, and that artifact holds it. This one then has no claim on a
+    /// machine it reaches, so it takes its own artifact back out rather than
+    /// leaving two that reach it — the variant is named for constraints only an
+    /// identical artifact shares, so removing it removes nothing else's.
     async fn reclaim_own_scopes(
         &self,
         owner: &str,
         entry: &str,
+        variant_path: &str,
         payload: &ArtifactPayload,
         holder: &str,
     ) -> Result<()> {
@@ -428,14 +436,14 @@ impl SharedArtifactStore {
             if self.create_object(&scope_marker_path(owner, entry, scope), holder.into()).await? {
                 continue;
             }
-            if self.scope_marker(owner, entry, scope, holder).await? != ScopeMarker::Ours {
-                return Err(RegistryError::Internal {
-                    reason: format!(
-                        "shared artifact scope {scope} of entry {entry} was claimed while a \
-                         publication of an artifact reaching it was still running",
-                    ),
-                });
+            if self.scope_marker(owner, entry, scope, holder).await? == ScopeMarker::Ours {
+                continue;
             }
+            self.store.delete(&self.object_path(variant_path)).await?;
+            return Err(RegistryError::ArtifactAlreadyPublished {
+                owner: owner.to_string(),
+                entry: entry.to_string(),
+            });
         }
         Ok(())
     }
