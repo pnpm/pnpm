@@ -1213,6 +1213,7 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
       globalShims: { node: true },
       minimumReleaseAg: 100,
       nodeLinker: 'hoisted',
+      vcs: { provider: 'bit' },
       bail: false,
     })
 
@@ -1236,6 +1237,7 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     const unrecognized = warnings.find((warning) => warning.includes('in the global config file') && warning.includes('are not recognized by this version of pnpm'))
     expect(unrecognized).toContain('"globalShims" (a pnpm v12 setting)')
     expect(unrecognized).toContain('"minimumReleaseAg" (did you mean "minimumReleaseAge"?)')
+    expect(unrecognized).toContain('"vcs"')
     const movable = warnings.find((warning) => warning.includes('Move them to a project-level pnpm-workspace.yaml'))
     expect(movable).toContain('"nodeLinker"')
     expect(movable).not.toContain('"globalShims"')

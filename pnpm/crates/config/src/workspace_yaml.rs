@@ -1425,8 +1425,7 @@ impl WorkspaceSettings {
         let mut nowhere = Vec::new();
         let mut kebab_case = Vec::new();
         for key in document.iter().filter(|(_, value)| value.is_some()).map(|(key, _)| key) {
-            if key == SCHEMA_DIRECTIVE_KEY || OPAQUE_WORKSPACE_MANIFEST_KEYS.contains(&key.as_str())
-            {
+            if key == SCHEMA_DIRECTIVE_KEY {
                 continue;
             }
             if matches!(kept.get(key), Some(value) if !value.is_null()) {
@@ -1701,7 +1700,8 @@ impl WorkspaceSettings {
         };
         let mut issues = WorkspaceKeyIssues::default();
         for key in document.iter().filter(|(_, value)| value.is_some()).map(|(key, _)| key) {
-            if key == SCHEMA_DIRECTIVE_KEY {
+            if key == SCHEMA_DIRECTIVE_KEY || OPAQUE_WORKSPACE_MANIFEST_KEYS.contains(&key.as_str())
+            {
                 continue;
             }
             if is_refused_by_a_project_manifest(key) {
