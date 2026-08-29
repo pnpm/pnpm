@@ -41,7 +41,7 @@ const PUBLICATION_FINISH_RETRIES: usize = 8;
 /// gives back the scopes a failed publication claimed. The bound is far longer
 /// than a publication that is merely slow, since expiring a live one lets a
 /// collector run beside it.
-const ACTIVE_PUBLICATION_EXPIRY: Duration = Duration::from_secs(60 * 60);
+const ACTIVE_PUBLICATION_EXPIRY: Duration = Duration::from_hours(1);
 const QUOTA_WRITE_RETRIES: usize = 32;
 const RECLAMATION_WAIT_RETRIES: usize = 600;
 /// A scope marker holds the envelope digest of the artifact that claimed it,
