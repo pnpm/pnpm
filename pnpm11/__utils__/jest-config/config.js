@@ -18,9 +18,7 @@ const config = {
 }
 
 if (process.env.PNPM_SCRIPT_SRC_DIR) {
-  const pathAsArr = process.env.PNPM_SCRIPT_SRC_DIR.split(path.sep)
-  const packageName = pathAsArr[pathAsArr.length - 1]
-  config.cacheDirectory = path.join(import.meta.dirname, ".jest-cache", packageName)
+  config.cacheDirectory = getCacheDirectory(process.env.PNPM_SCRIPT_SRC_DIR)
 }
 
 // We are running test script from pnpm command, this seems to confuse tests
@@ -32,3 +30,8 @@ for (const key of Object.keys(process.env)) {
 }
 
 export default config
+
+export function getCacheDirectory (projectDir) {
+  const workspaceDir = path.join(import.meta.dirname, '../../..')
+  return path.join(import.meta.dirname, '.jest-cache', path.relative(workspaceDir, projectDir))
+}
