@@ -161,6 +161,8 @@ test('deploy with a shared lockfile drops excluded direct dependency groups', as
         dependencies: { '@pnpm.e2e/foo': '100.0.0' },
         devDependencies: { '@pnpm.e2e/bar': '100.0.0' },
         optionalDependencies: { '@pnpm.e2e/qar': '100.0.0' },
+        peerDependencies: { '@pnpm.e2e/bar': '*' },
+        peerDependenciesMeta: { '@pnpm.e2e/bar': { optional: true } },
       },
     },
   ])
@@ -181,6 +183,8 @@ test('deploy with a shared lockfile drops excluded direct dependency groups', as
   expect(deployManifest.dependencies).toStrictEqual({ '@pnpm.e2e/foo': '100.0.0' })
   expect(deployManifest.devDependencies).toStrictEqual({})
   expect(deployManifest.optionalDependencies).toStrictEqual({})
+  expect(deployManifest.peerDependencies).toStrictEqual({})
+  expect(deployManifest.peerDependenciesMeta).toStrictEqual({})
 
   const deployLockfile = readYamlFileSync<LockfileFile>(path.join(deployDir, 'pnpm-lock.yaml'))
   const importer = deployLockfile.importers!['.']

@@ -318,6 +318,8 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
             "dependencies": { "@pnpm.e2e/foo": "100.0.0" },
             "devDependencies": { "@pnpm.e2e/bar": "100.0.0" },
             "optionalDependencies": { "@pnpm.e2e/qar": "100.0.0" },
+            "peerDependencies": { "@pnpm.e2e/bar": "*" },
+            "peerDependenciesMeta": { "@pnpm.e2e/bar": { "optional": true } },
         }),
     );
 
@@ -344,6 +346,8 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
             "the deployed manifest should drop {excluded}: {deploy_manifest:#}",
         );
     }
+    assert_eq!(deploy_manifest["peerDependencies"], serde_json::json!({}));
+    assert_eq!(deploy_manifest["peerDependenciesMeta"], serde_json::json!({}));
 
     let deploy_lockfile = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
     let importer = deploy_lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY).unwrap();

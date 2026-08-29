@@ -871,6 +871,7 @@ fn create_deploy_files(
         "optionalDependencies",
         target_snapshot.optional_dependencies.as_ref(),
     );
+    omit_peers_of_excluded_dependencies(&mut manifest, input_snapshot, &target_snapshot);
 
     let mut workspace_manifest = Map::new();
     let mut workspace_config =
@@ -1015,6 +1016,35 @@ fn set_manifest_dependencies(
     if let Some(object) = manifest.as_object_mut() {
         object.insert(field.to_string(), Value::Object(deps));
     }
+}
+
+fn omit_peers_of_excluded_dependencies(
+    manifest: &mut Value,
+    input_snapshot: &ProjectSnapshot,
+    target_snapshot: &ProjectSnapshot,
+) {
+    let included_dependencies = dependency_names(target_snapshot);
+    let excluded_dependencies = dependency_names(input_snapshot)
+        .difference(&included_dependencies)
+        .cloned()
+        .collect::<HashSet<_>>();
+    let Some(manifest) = manifest.as_object_mut() else { return };
+    for field in ["peerDependencies", "peerDependenciesMeta"] {
+        if let Some(Value::Object(dependencies)) = manifest.get_mut(field) {
+            dependencies.retain(|name, _| !excluded_dependencies.contains(name));
+        }
+    }
+}
+
+fn dependency_names(snapshot: &ProjectSnapshot) -> HashSet<String> {
+    snapshot
+        .dependencies
+        .iter()
+        .flatten()
+        .chain(snapshot.dev_dependencies.iter().flatten())
+        .chain(snapshot.optional_dependencies.iter().flatten())
+        .map(|(name, _)| name.to_string())
+        .collect()
 }
 
 fn convert_package_metadata(

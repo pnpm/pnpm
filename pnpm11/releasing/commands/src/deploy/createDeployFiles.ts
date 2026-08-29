@@ -155,12 +155,12 @@ export function createDeployFiles ({
       },
       packages: deployPackageSnapshots,
     },
-    manifest: {
+    manifest: omitPeersOfExcludedDependencies({
       ...selectedProjectManifest,
       dependencies: targetSnapshot.dependencies,
       devDependencies: targetSnapshot.devDependencies,
       optionalDependencies: targetSnapshot.optionalDependencies,
-    },
+    }, inputSnapshot, targetSnapshot),
   }
 
   if (lockfile.patchedDependencies && patchedDependencies) {
@@ -185,6 +185,33 @@ export function createDeployFiles ({
   }
 
   return result
+}
+
+function omitPeersOfExcludedDependencies (
+  manifest: ProjectManifest,
+  inputSnapshot: ProjectSnapshot,
+  targetSnapshot: ProjectSnapshot
+): ProjectManifest {
+  const includedDependencies = dependencyNames(targetSnapshot)
+  const excludedDependencies = new Set(
+    Array.from(dependencyNames(inputSnapshot)).filter(name => !includedDependencies.has(name))
+  )
+  if (excludedDependencies.size === 0) return manifest
+
+  return {
+    ...manifest,
+    peerDependencies: omitKeys(manifest.peerDependencies, excludedDependencies),
+    peerDependenciesMeta: omitKeys(manifest.peerDependenciesMeta, excludedDependencies),
+  }
+}
+
+function dependencyNames (snapshot: ProjectSnapshot): Set<string> {
+  return new Set(DEPENDENCIES_FIELD.flatMap(field => Object.keys(snapshot[field] ?? {})))
+}
+
+function omitKeys<T> (record: Record<string, T> | undefined, keys: Set<string>): Record<string, T> | undefined {
+  if (record == null) return undefined
+  return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key)))
 }
 
 /** Takes ownership of `packages`: the retained snapshots are edited in place. */

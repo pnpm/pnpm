@@ -143,7 +143,7 @@ test('createDeployFiles drops excluded direct dependency groups from the importe
   const lockfile: LockfileObject = {
     lockfileVersion: '9.0',
     settings: {
-      autoInstallPeers: true,
+      autoInstallPeers: false,
       excludeLinksFromLockfile: false,
     },
     importers: {
@@ -174,6 +174,13 @@ test('createDeployFiles drops excluded direct dependency groups from the importe
       dependencies: { prod: '1.0.0' },
       devDependencies: { dev: '1.0.0' },
       optionalDependencies: { opt: '1.0.0' },
+      peerDependencies: { prod: '*', dev: '*', opt: '*', external: '*' },
+      peerDependenciesMeta: {
+        prod: { optional: true },
+        dev: { optional: true },
+        opt: { optional: true },
+        external: { optional: true },
+      },
     },
     projectId,
     rootProjectManifestDir: lockfileDir,
@@ -187,6 +194,13 @@ test('createDeployFiles drops excluded direct dependency groups from the importe
   expect(all.lockfile.importers[projectId].optionalDependencies).toStrictEqual({ opt: '1.0.0' })
   expect(all.manifest.devDependencies).toStrictEqual({ dev: '1.0.0' })
   expect(all.manifest.optionalDependencies).toStrictEqual({ opt: '1.0.0' })
+  expect(all.manifest.peerDependencies).toStrictEqual({ prod: '*', dev: '*', opt: '*', external: '*' })
+  expect(all.manifest.peerDependenciesMeta).toStrictEqual({
+    prod: { optional: true },
+    dev: { optional: true },
+    opt: { optional: true },
+    external: { optional: true },
+  })
 
   const prodOnly = createDeployFiles({
     ...commonOpts,
@@ -198,6 +212,11 @@ test('createDeployFiles drops excluded direct dependency groups from the importe
   expect(prodOnly.lockfile.importers[projectId].specifiers).toStrictEqual({ prod: '1.0.0' })
   expect(prodOnly.manifest.devDependencies).toStrictEqual({})
   expect(prodOnly.manifest.optionalDependencies).toStrictEqual({})
+  expect(prodOnly.manifest.peerDependencies).toStrictEqual({ prod: '*', external: '*' })
+  expect(prodOnly.manifest.peerDependenciesMeta).toStrictEqual({
+    prod: { optional: true },
+    external: { optional: true },
+  })
   expect(prodOnly.lockfile.packages?.[prodDepPath]).toBeDefined()
   expect(prodOnly.lockfile.packages?.[devDepPath]).toBeUndefined()
   expect(prodOnly.lockfile.packages?.[optionalDepPath]).toBeUndefined()
