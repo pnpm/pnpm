@@ -1067,6 +1067,42 @@ async fn a_retry_into_a_crowded_entry_is_refused_once_its_scopes_are_known() {
     }
 }
 
+/// Publishing into an entry that still needs its markers writes some for
+/// artifacts somebody else stored. Those are reserved and kept where they are
+/// written, so the publication's own accounting neither pays for them nor comes
+/// up short releasing what it did not use.
+#[tokio::test]
+async fn publishing_into_an_entry_that_needs_markers_keeps_its_quota_straight() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let stored = publication_tagged("ci/stored", &["pnpm:v1:linux-arm64-node22-glibc2.17"]);
+    let (payload, _) = stored.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&stored.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+    store
+        .create_object(
+            &format!("{owner}/entries/{entry}/{slot}.json"),
+            serde_json::to_vec(&stored.envelope).unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Reaches machines the stored one does not, so it is published rather than
+    // refused, and its release runs with the backfill's markers already written.
+    let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
+    assert!(store.publish("acme", ours).await.unwrap());
+
+    assert!(
+        store
+            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-arm64-node22"), 128)
+            .await
+            .unwrap()
+            .is_some(),
+        "the artifact already there keeps the machines it reaches",
+    );
+}
+
 /// A retried publication of the identical envelope is not an attempt to replace
 /// anything, so it stays idempotent rather than becoming a conflict.
 #[tokio::test]

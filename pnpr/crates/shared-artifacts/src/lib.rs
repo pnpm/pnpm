@@ -101,20 +101,12 @@ enum ScopeMarker {
     Another,
 }
 
-/// Each outcome carries the bytes of markers written to describe artifacts that
-/// were already stored, which this publication is charged for however it ends.
 enum SlotClaim {
     /// Every scope this artifact reaches is now claimed for it.
-    Free {
-        backfilled: u64,
-    },
+    Free,
     /// This exact envelope, so publishing it again is a retry.
-    Held {
-        backfilled: u64,
-    },
-    HeldByAnother {
-        backfilled: u64,
-    },
+    Held,
+    HeldByAnother,
 }
 
 struct PreparedPublication {
@@ -306,12 +298,12 @@ impl SharedArtifactStore {
 
         let mut retained_bytes = 0_u64;
         match self.claim_scopes(&prepared, created).await {
-            Ok(SlotClaim::Held { backfilled }) => {
-                self.release_uncommitted(&owner, added_bytes, retained_bytes + backfilled).await?;
+            Ok(SlotClaim::Held) => {
+                self.release_uncommitted(&owner, added_bytes, retained_bytes).await?;
                 return Ok(false);
             }
-            Ok(SlotClaim::HeldByAnother { backfilled }) => {
-                self.release_uncommitted(&owner, added_bytes, retained_bytes + backfilled).await?;
+            Ok(SlotClaim::HeldByAnother) => {
+                self.release_uncommitted(&owner, added_bytes, retained_bytes).await?;
                 return Err(RegistryError::ArtifactAlreadyPublished {
                     owner,
                     entry: prepared.entry,
@@ -321,9 +313,8 @@ impl SharedArtifactStore {
             // it found already its own was charged to whoever wrote it. They are
             // kept whatever becomes of the artifact, since only reclamation
             // gives a scope back.
-            Ok(SlotClaim::Free { backfilled }) => {
-                retained_bytes +=
-                    backfilled + (created.len() as u64) * prepared.envelope_digest.len() as u64;
+            Ok(SlotClaim::Free) => {
+                retained_bytes += (created.len() as u64) * prepared.envelope_digest.len() as u64;
             }
             Err(error) => {
                 *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
@@ -507,7 +498,7 @@ impl SharedArtifactStore {
         // The markers an entry needed are objects this publication wrote, and
         // they outlive it, so it carries them even though they name artifacts
         // somebody else stored.
-        let backfilled = self.backfill_scopes(publication).await?;
+        self.backfill_scopes(publication).await?;
         let claimed = match compatibility_scopes(&payload.compatibility) {
             CompatibilityScopes::Every => {
                 self.claim_universal_scope(owner, entry, envelope_digest, created).await
@@ -521,15 +512,15 @@ impl SharedArtifactStore {
             Err(error) => return Err(error),
         };
         if !claimed {
-            return Ok(SlotClaim::HeldByAnother { backfilled });
+            return Ok(SlotClaim::HeldByAnother);
         }
         // The scopes belong to this artifact either way. Whether *this* envelope
         // is the one already stored for them is the variant's own question, and
         // a stored one under a different envelope means two builds share a slot.
         match self.read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await {
-            Ok(Some(stored)) if &stored == envelope_bytes => Ok(SlotClaim::Held { backfilled }),
-            Ok(Some(_)) => Ok(SlotClaim::HeldByAnother { backfilled }),
-            Ok(None) => Ok(SlotClaim::Free { backfilled }),
+            Ok(Some(stored)) if &stored == envelope_bytes => Ok(SlotClaim::Held),
+            Ok(Some(_)) => Ok(SlotClaim::HeldByAnother),
+            Ok(None) => Ok(SlotClaim::Free),
             Err(error) => Err(error),
         }
     }
