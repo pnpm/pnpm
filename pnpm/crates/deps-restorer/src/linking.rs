@@ -460,8 +460,7 @@ fn write_hoist_links(
     // when the install path didn't materialize snapshots.
     if let Some(snaps) = snapshots {
         let private_pattern = create_matcher(config.hoist_pattern.as_deref().unwrap_or(&[]));
-        let public_pattern =
-            create_matcher(config.public_hoist_pattern.as_deref().unwrap_or(&[]));
+        let public_pattern = create_matcher(config.public_hoist_pattern.as_deref().unwrap_or(&[]));
         crate::create_gvs_hoisted_children_symlinks(
             &graph,
             &private_pattern,
