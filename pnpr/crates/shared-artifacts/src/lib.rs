@@ -164,7 +164,7 @@ impl SharedArtifactStore {
         // not be able to do it, or a stolen one could swap the artifact for a
         // dependency nobody has looked at in a year.
         if let Some(existing) =
-            self.read_object_bounded(&variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await?
+            self.claimant(&owner, &entry, &variant_path, &payload.compatibility).await?
         {
             if existing == envelope_bytes {
                 return Ok(false);
@@ -227,7 +227,7 @@ impl SharedArtifactStore {
                 }
             }
         }
-        let created = match self.create_object(&variant_path, envelope_bytes).await {
+        let created = match self.create_object(&variant_path, envelope_bytes.clone()).await {
             Ok(created) => created,
             Err(error) => {
                 *reclamation_needed = true;
@@ -239,9 +239,21 @@ impl SharedArtifactStore {
         if created {
             retained_bytes += envelope_size;
         }
+        // Two publications can both find the slot empty above, so losing the
+        // create is not by itself an idempotent retry: whoever won may have
+        // stored something else, and reporting success would tell a publisher
+        // its artifact is the one being served when it is not.
+        let lost_to_other_bytes = !created
+            && self
+                .read_object_bounded(&variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64)
+                .await?
+                .is_none_or(|winner| winner != envelope_bytes);
         if let Err(error) = self.release_uncommitted(&owner, added_bytes, retained_bytes).await {
             *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
             return Err(error);
+        }
+        if lost_to_other_bytes {
+            return Err(RegistryError::ArtifactAlreadyPublished { owner, entry });
         }
         Ok(created)
     }
@@ -338,6 +350,46 @@ impl SharedArtifactStore {
         }
         Ok((!variants.is_empty())
             .then(|| ResolvedArtifact { key: candidate.key.clone(), variants }))
+    }
+
+    /// The envelope already occupying this slot, if any.
+    ///
+    /// Usually that is the slot's own object. A store written before artifacts
+    /// were named for their slot holds them under their envelope digest
+    /// instead, so those are found by reading the entry — otherwise upgrading a
+    /// populated registry would leave every existing artifact replaceable.
+    async fn claimant(
+        &self,
+        owner: &str,
+        entry: &str,
+        variant_path: &str,
+        compatibility: &CompatibilityConstraints,
+    ) -> Result<Option<Vec<u8>>> {
+        if let Some(claimed) =
+            self.read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await?
+        {
+            return Ok(Some(claimed));
+        }
+        let prefix = self.object_path(&format!("{owner}/entries/{entry}/"));
+        let mut listing = self.store.list(Some(&prefix));
+        let mut scanned = 0;
+        while scanned < MAX_VARIANTS_PER_CANDIDATE {
+            let Some(stored) = listing.next().await else { break };
+            let stored = stored?;
+            if !is_variant_file(object_name(&stored.location)) {
+                continue;
+            }
+            scanned += 1;
+            let Some(bytes) = self.read_object_path(&stored.location).await? else { continue };
+            let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
+                continue;
+            };
+            let Ok((payload, _)) = envelope.decode_payload() else { continue };
+            if &payload.compatibility == compatibility {
+                return Ok(Some(bytes));
+            }
+        }
+        Ok(None)
     }
 
     async fn begin_publication(&self, publication: &str) -> Result<()> {
@@ -783,10 +835,8 @@ fn prepare_publication(
     let entry = entry_digest(&request.key, &payload.subject);
     let envelope_bytes = serde_json::to_vec(&request.envelope)?;
     // Named for what the artifact is *for* rather than what it is, so that one
-    // input key and one set of compatibility constraints admit one artifact.
-    // Naming it by the envelope digest let a second, differently signed build
-    // for the same input sit alongside the first as another variant, which is
-    // the swap a consumer has no way to notice.
+    // input key and one set of compatibility constraints admit one artifact and
+    // a second build for the same input collides instead of joining it.
     let slot = compatibility_slot(&payload.compatibility);
     let variant_path = format!("{owner}/entries/{entry}/{slot}.json");
     Ok(PreparedPublication {
@@ -934,9 +984,9 @@ fn hex(bytes: &[u8]) -> String {
 /// constraints, so a `universal` build and a glibc-2.31 build coexist while two
 /// builds advertising the same constraints do not.
 ///
-/// Hex-encoded like the envelope digests that named these files before, so the
-/// listing in [`SharedArtifactStore::resolve_candidate`] does not have to tell
-/// the two apart.
+/// Hex-encoded so that it has the shape [`is_variant_file`] recognises, which
+/// is also the shape of the envelope digests a store written before slots
+/// existed used for these files.
 fn compatibility_slot(compatibility: &CompatibilityConstraints) -> String {
     let mut hasher = Sha256::new();
     hasher.update(b"pnpm-shared-artifact-slot-v1\0");

@@ -257,6 +257,25 @@ fn signed_artifact_fixture() -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
 fn signed_artifact_fixture_with_builder_id(
     builder_id: &str,
 ) -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
+    signed_artifact_fixture_for(builder_id, "pnpm:v1:linux-x64-node22-glibc2.17")
+}
+
+/// One input key admits one artifact per set of compatibility constraints, so a
+/// test wanting several of them for one dependency varies the platform — which
+/// is the only reason a second artifact for one input is legitimate.
+fn signed_artifact_fixture_for_platform(
+    index: usize,
+) -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
+    signed_artifact_fixture_for(
+        &format!("ci/concurrent/{index}"),
+        &format!("pnpm:v1:linux-x64-node22-glibc2.{index}"),
+    )
+}
+
+fn signed_artifact_fixture_for(
+    builder_id: &str,
+    tag: &str,
+) -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
     let blob = b"native-addon".to_vec();
     let integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(&blob)));
     let payload = ArtifactPayload {
@@ -273,9 +292,7 @@ fn signed_artifact_fixture_with_builder_id(
             architecture_baseline: "x86-64-v2".to_string(),
             environment: BTreeMap::from([("CFLAGS".to_string(), "-O2".to_string())]),
         },
-        compatibility: CompatibilityConstraints::Tagged {
-            tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
-        },
+        compatibility: CompatibilityConstraints::Tagged { tags: vec![tag.to_string()] },
         manifest: ArtifactManifest {
             added: vec![ArtifactFile {
                 path: "build/addon.node".to_string(),
@@ -1069,7 +1086,7 @@ async fn concurrent_artifact_publications_apply_the_variant_limit_at_read_time()
     const PUBLICATIONS: usize = 16;
 
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
-    let (fixture, _, _) = signed_artifact_fixture_with_builder_id("ci/concurrent/0");
+    let (fixture, _, _) = signed_artifact_fixture_for_platform(0);
     let (payload, _) = fixture.envelope.decode_payload().expect("decode fixture payload");
     let candidate =
         ArtifactCandidate { key: fixture.key, subject: payload.subject, owner: payload.owner };
@@ -1079,8 +1096,7 @@ async fn concurrent_artifact_publications_apply_the_variant_limit_at_read_time()
         let barrier = Arc::clone(&barrier);
         let pnpr_url = pnpr_url.clone();
         let pnpr_auth = pnpr_auth.clone();
-        let (publish, _, _) =
-            signed_artifact_fixture_with_builder_id(&format!("ci/concurrent/{index}"));
+        let (publish, _, _) = signed_artifact_fixture_for_platform(index);
         publications.push(tokio::spawn(async move {
             barrier.wait().await;
             PnprClient::new(pnpr_url).publish_artifact(&publish, Some(&pnpr_auth)).await

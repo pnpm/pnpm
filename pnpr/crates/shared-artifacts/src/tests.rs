@@ -275,6 +275,7 @@ async fn failed_object_writes_reconcile_quota_to_physical_storage() {
         commit_before_error: false,
         fail_deletes: false,
         fail_next_quota_write: None,
+        claim_slot_first: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -297,6 +298,7 @@ async fn committed_blob_writes_without_an_envelope_are_reclaimed() {
         commit_before_error: true,
         fail_deletes: false,
         fail_next_quota_write: None,
+        claim_slot_first: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -330,6 +332,7 @@ async fn committed_envelope_writes_that_report_failure_remain_charged() {
         commit_before_error: true,
         fail_deletes: false,
         fail_next_quota_write: None,
+        claim_slot_first: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -356,6 +359,7 @@ async fn publication_finish_retries_a_transient_quota_write_failure() {
         commit_before_error: false,
         fail_deletes: false,
         fail_next_quota_write: Some(Arc::clone(&fail_next_quota_write)),
+        claim_slot_first: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -456,6 +460,7 @@ async fn failed_reclamation_releases_its_gate_for_later_retries() {
         commit_before_error: false,
         fail_deletes: true,
         fail_next_quota_write: None,
+        claim_slot_first: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -496,6 +501,67 @@ async fn a_second_artifact_cannot_claim_a_taken_slot() {
     let response =
         store.resolve("acme", &serde_json::to_vec(&lookup("acme")).unwrap()).await.unwrap();
     assert_eq!(response.artifacts[0].variants.len(), 1, "the first artifact still stands");
+}
+
+/// A store written before artifacts were named for their slot holds them under
+/// their envelope digest. Upgrading must not leave every artifact already in it
+/// replaceable, so those claim their slot too.
+#[tokio::test]
+async fn an_artifact_stored_under_the_older_name_still_claims_its_slot() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let first = publication("ci/first");
+    let envelope_bytes = serde_json::to_vec(&first.envelope).unwrap();
+    let (payload, _) = first.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&first.key, &payload.subject);
+    let envelope_digest = first.envelope.digest().unwrap();
+    store
+        .create_object(&format!("{owner}/entries/{entry}/{envelope_digest}.json"), envelope_bytes)
+        .await
+        .unwrap();
+
+    let error = store.publish("acme", publication("ci/second")).await.unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "expected a conflict, got {error:?}",
+    );
+}
+
+/// Two publications can both find the slot empty, so losing the create is not
+/// by itself an idempotent retry: whoever won may have stored something else.
+#[tokio::test]
+async fn losing_a_race_for_a_slot_is_not_reported_as_idempotent() {
+    let winner = publication("ci/winner");
+    let (payload, _) = winner.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&winner.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+
+    // The loser passes the pre-check, then finds the slot taken at create time.
+    let racing: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+        inner: InMemory::new(),
+        commit_before_error: true,
+        fail_deletes: false,
+        fail_next_quota_write: None,
+        claim_slot_first: Some((
+            format!(".pnpr-artifacts/v0/{owner}/entries/{entry}/{slot}.json"),
+            serde_json::to_vec(&winner.envelope).unwrap(),
+        )),
+    });
+    let racing = SharedArtifactStore::new(
+        &HostedStoreConfig::ObjectStore { store: racing, prefix: String::new() },
+        TempDir::new().unwrap().path(),
+    )
+    .unwrap();
+
+    let error = racing.publish("acme", publication("ci/loser")).await.unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "expected a conflict, got {error:?}",
+    );
 }
 
 /// A retried publication of the identical envelope is not an attempt to replace
@@ -656,6 +722,10 @@ struct FailArtifactWrites {
     commit_before_error: bool,
     fail_deletes: bool,
     fail_next_quota_write: Option<Arc<AtomicBool>>,
+    /// Stands in for the publication that won a race for a slot: the first
+    /// creation of this path stores these bytes instead and reports the
+    /// conflict the loser would see.
+    claim_slot_first: Option<(String, Vec<u8>)>,
 }
 
 impl fmt::Display for FailArtifactWrites {
@@ -672,6 +742,17 @@ impl ObjectStore for FailArtifactWrites {
         payload: PutPayload,
         options: PutOptions,
     ) -> object_store::Result<PutResult> {
+        if let Some((slot, winner)) = self.claim_slot_first.as_ref()
+            && location.as_ref() == slot
+        {
+            self.inner
+                .put_opts(location, PutPayload::from(winner.clone()), PutOptions::default())
+                .await?;
+            return Err(object_store::Error::AlreadyExists {
+                path: location.to_string(),
+                source: std::io::Error::other("slot claimed by another publication").into(),
+            });
+        }
         if location.as_ref().ends_with("/quota.json") {
             if self
                 .fail_next_quota_write
