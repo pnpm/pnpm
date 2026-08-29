@@ -255,13 +255,13 @@ fn engine_included_for_every_cycle_member_that_reaches_builder() {
     let built = HashSet::from([builder]);
     let build_required = build_required_dep_paths(&graph, &built);
 
-    let hashes_for = |engine| {
+    let hashes_for = |engine, dep_paths: [&String; 3]| {
         let mut dep_state_cache = HashMap::new();
-        [cycle_a.clone(), cycle_b.clone(), pure_js.clone()].map(|dep_path| {
+        dep_paths.map(|dep_path| {
             calc_graph_node_hash(
                 &graph,
                 &mut dep_state_cache,
-                &dep_path,
+                dep_path,
                 Some(engine),
                 Some(&build_required),
                 None,
@@ -269,12 +269,26 @@ fn engine_included_for_every_cycle_member_that_reaches_builder() {
         })
     };
 
-    let darwin = hashes_for("darwin-arm64-node20");
-    let linux = hashes_for("linux-x64-node22");
+    let darwin = hashes_for("darwin-arm64-node20", [&cycle_a, &cycle_b, &pure_js]);
+    let linux = hashes_for("linux-x64-node22", [&cycle_a, &cycle_b, &pure_js]);
+    let darwin_reverse = hashes_for("darwin-arm64-node20", [&cycle_b, &cycle_a, &pure_js]);
+    let linux_reverse = hashes_for("linux-x64-node22", [&cycle_b, &cycle_a, &pure_js]);
 
     assert_ne!(darwin[0], linux[0], "first cycle member must partition by engine string");
     assert_ne!(darwin[1], linux[1], "second cycle member must partition by engine string");
     assert_eq!(darwin[2], linux[2], "disconnected pure-JS package stays engine-agnostic");
+    assert_ne!(
+        darwin_reverse[0], linux_reverse[0],
+        "second cycle member must partition by engine string when visited first",
+    );
+    assert_ne!(
+        darwin_reverse[1], linux_reverse[1],
+        "first cycle member must partition by engine string when visited second",
+    );
+    assert_eq!(
+        darwin_reverse[2], linux_reverse[2],
+        "disconnected pure-JS package stays engine-agnostic in reverse order",
+    );
 }
 
 #[test]

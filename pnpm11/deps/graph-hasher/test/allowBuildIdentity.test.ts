@@ -69,17 +69,23 @@ it('includes the engine for every cycle member that reaches a builder', () => {
     { depPath: builder, name: 'builder', version: '1.0.0' },
     { depPath: pureJs, name: 'pure-js', version: '1.0.0' },
   ]
-  const hashesFor = (nodeVersion: string): Map<DepPath, string> => new Map(
-    Array.from(iterateHashedGraphNodes(graph, pkgMeta.values(), {
-      allowBuild: (depPath) => depPath === builder,
-      nodeVersion,
-    })).map(({ hash, pkgMeta }) => [pkgMeta.depPath, hash])
-  )
+  const reversePkgMeta = [pkgMeta[1], pkgMeta[0], pkgMeta[2], pkgMeta[3]]
 
-  const node20 = hashesFor('20.0.0')
-  const node22 = hashesFor('22.0.0')
+  for (const orderedPkgMeta of [pkgMeta, reversePkgMeta]) {
+    const node20 = hashesFor('20.0.0', orderedPkgMeta)
+    const node22 = hashesFor('22.0.0', orderedPkgMeta)
 
-  expect(node20.get(a)).not.toBe(node22.get(a))
-  expect(node20.get(b)).not.toBe(node22.get(b))
-  expect(node20.get(pureJs)).toBe(node22.get(pureJs))
+    expect(node20.get(a)).not.toBe(node22.get(a))
+    expect(node20.get(b)).not.toBe(node22.get(b))
+    expect(node20.get(pureJs)).toBe(node22.get(pureJs))
+  }
+
+  function hashesFor (nodeVersion: string, orderedPkgMeta: typeof pkgMeta): Map<DepPath, string> {
+    return new Map(
+      Array.from(iterateHashedGraphNodes(graph, orderedPkgMeta.values(), {
+        allowBuild: (depPath) => depPath === builder,
+        nodeVersion,
+      })).map(({ hash, pkgMeta }) => [pkgMeta.depPath, hash])
+    )
+  }
 })
