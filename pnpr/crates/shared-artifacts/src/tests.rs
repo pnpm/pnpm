@@ -883,7 +883,7 @@ async fn a_withdrawal_that_cannot_finish_is_reported_as_a_store_failure() {
     let entry = super::entry_digest(&theirs.key, &payload.subject);
     let slot = super::compatibility_slot(&payload.compatibility);
 
-    let racing: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+    let backend = Arc::new(FailArtifactWrites {
         inner: InMemory::new(),
         commit_before_error: false,
         fail_deletes: true,
@@ -897,7 +897,10 @@ async fn a_withdrawal_that_cannot_finish_is_reported_as_a_store_failure() {
         fail_reads_of: None,
     });
     let racing = SharedArtifactStore::new(
-        &HostedStoreConfig::ObjectStore { store: racing, prefix: String::new() },
+        &HostedStoreConfig::ObjectStore {
+            store: Arc::clone(&backend) as Arc<dyn ObjectStore>,
+            prefix: String::new(),
+        },
         TempDir::new().unwrap().path(),
     )
     .unwrap();
@@ -907,6 +910,18 @@ async fn a_withdrawal_that_cannot_finish_is_reported_as_a_store_failure() {
     assert!(
         matches!(error, RegistryError::ObjectStore(_)),
         "a withdrawal that cannot finish is not a clean conflict, got {error:?}",
+    );
+    let prefix = ObjectPath::from(format!(".pnpr-artifacts/v0/{owner}/entries/{entry}"));
+    let stored: Vec<_> = backend
+        .inner
+        .list(Some(&prefix))
+        .map(|entry| entry.unwrap().location.to_string())
+        .collect()
+        .await;
+    assert_eq!(
+        stored.len(),
+        2,
+        "the store keeps both until the withdrawal succeeds, which is why it is reported: {stored:?}",
     );
 }
 
