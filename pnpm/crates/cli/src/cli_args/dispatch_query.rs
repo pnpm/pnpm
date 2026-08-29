@@ -46,6 +46,7 @@ use super::{
     undeprecate::UndeprecateArgs,
     unpublish::UnpublishArgs,
     unstar::UnstarArgs,
+    vcs::VcsArgs,
     version::VersionArgs,
     view::ViewArgs,
     why::WhyArgs,
@@ -256,6 +257,12 @@ pub(super) fn lane<'a>(ctx: &RunCtx<'a>, args: LaneArgs) -> miette::Result<Comma
     let cfg: &Config = (ctx.config)()?;
     let result = args.run(cfg);
     Ok(Box::pin(std::future::ready(result)))
+}
+
+pub(super) fn vcs<'a>(ctx: &RunCtx<'a>, args: VcsArgs) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.config)()?;
+    let cwd = config.workspace_dir.as_deref().unwrap_or(ctx.dir).to_path_buf();
+    Ok(Box::pin(async move { args.run(&cwd, config).await }))
 }
 
 pub(super) fn version<'a>(
