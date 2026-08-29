@@ -750,6 +750,26 @@ fn a_boolean_setting_claims_the_next_token_only_when_it_spells_a_boolean() {
 }
 
 #[test]
+fn side_effects_cache_cli_override_replaces_object_setting() {
+    for (flag, object_setting, expected) in
+        [("--no-side-effects-cache", true, false), ("--side-effects-cache", false, true)]
+    {
+        let (overrides, remaining) = ConfigOverrides::extract(argv(["pacquet", "install", flag]));
+        assert_eq!(remaining, argv(["pacquet", "install"]));
+
+        let mut config = Config {
+            side_effects_cache_read_setting: Some(object_setting),
+            side_effects_cache_write_setting: Some(object_setting),
+            ..Config::default()
+        };
+        overrides.apply(&mut config, Path::new("/workspace"));
+
+        assert_eq!(config.side_effects_cache_read(), expected);
+        assert_eq!(config.side_effects_cache_write(), expected);
+    }
+}
+
+#[test]
 fn a_repeated_list_setting_accumulates_its_values() {
     let (overrides, _) = ConfigOverrides::extract(argv([
         "pacquet",

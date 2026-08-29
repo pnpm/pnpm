@@ -581,6 +581,8 @@ impl ConfigOverrides {
         }
         if let Some(value) = self.side_effects_cache {
             config.side_effects_cache = value;
+            config.side_effects_cache_read_setting = None;
+            config.side_effects_cache_write_setting = None;
             config.explicit_settings.insert("sideEffectsCache".to_string(), value.into());
         }
         if let Some(value) = self.side_effects_cache_readonly {
