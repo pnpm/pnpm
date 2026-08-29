@@ -252,16 +252,27 @@ impl SharedArtifactStore {
         // create is not by itself an idempotent retry: whoever won may have
         // stored something else, and reporting success would tell a publisher
         // its artifact is the one being served when it is not.
-        let lost_to_other_bytes = !created
-            && self
-                .read_object_bounded(&variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64)
-                .await?
-                .is_none_or(|winner| winner != envelope_bytes);
+        // Read before the quota is released and inspected after, so that a
+        // store error here cannot return while this publication is still
+        // charged for an envelope it did not store — a leak that would
+        // accumulate silently and eventually refuse publications that fit.
+        let winner = if created {
+            Ok(None)
+        } else {
+            self.read_object_bounded(&variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await
+        };
         if let Err(error) = self.release_uncommitted(&owner, added_bytes, retained_bytes).await {
             *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
             return Err(error);
         }
-        if lost_to_other_bytes {
+        let winner = match winner {
+            Ok(winner) => winner,
+            Err(error) => {
+                *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
+                return Err(error);
+            }
+        };
+        if !created && winner.is_none_or(|winner| winner != envelope_bytes) {
             return Err(RegistryError::ArtifactAlreadyPublished { owner, entry });
         }
         Ok(created)

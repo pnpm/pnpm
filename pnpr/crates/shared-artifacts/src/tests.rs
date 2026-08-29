@@ -3,7 +3,7 @@ use std::{
     fmt,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 
@@ -276,6 +276,7 @@ async fn failed_object_writes_reconcile_quota_to_physical_storage() {
         fail_deletes: false,
         fail_next_quota_write: None,
         claim_slot_first: None,
+        fail_slot_read_after_first: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -299,6 +300,7 @@ async fn committed_blob_writes_without_an_envelope_are_reclaimed() {
         fail_deletes: false,
         fail_next_quota_write: None,
         claim_slot_first: None,
+        fail_slot_read_after_first: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -333,6 +335,7 @@ async fn committed_envelope_writes_that_report_failure_remain_charged() {
         fail_deletes: false,
         fail_next_quota_write: None,
         claim_slot_first: None,
+        fail_slot_read_after_first: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -360,6 +363,7 @@ async fn publication_finish_retries_a_transient_quota_write_failure() {
         fail_deletes: false,
         fail_next_quota_write: Some(Arc::clone(&fail_next_quota_write)),
         claim_slot_first: None,
+        fail_slot_read_after_first: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -461,6 +465,7 @@ async fn failed_reclamation_releases_its_gate_for_later_retries() {
         fail_deletes: true,
         fail_next_quota_write: None,
         claim_slot_first: None,
+        fail_slot_read_after_first: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -551,6 +556,45 @@ async fn a_legacy_artifact_claims_its_slot_whatever_its_order_or_position() {
             "{label}: expected a conflict, got {error:?}",
         );
     }
+}
+
+/// Losing the race and then failing to read the winner must not leave the loser
+/// charged for an envelope it did not store: that debt never comes back, and
+/// enough of it starts refusing publications that fit.
+#[tokio::test]
+async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
+    let winner = publication("ci/winner");
+    let (payload, _) = winner.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&winner.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+    let backend: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+        inner: InMemory::new(),
+        commit_before_error: true,
+        fail_deletes: false,
+        fail_next_quota_write: None,
+        claim_slot_first: Some((
+            format!(".pnpr-artifacts/v0/{owner}/entries/{entry}/{slot}.json"),
+            serde_json::to_vec(&winner.envelope).unwrap(),
+        )),
+        fail_slot_read_after_first: Some(Arc::new(AtomicUsize::new(0))),
+    });
+    let store = SharedArtifactStore::new(
+        &HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() },
+        TempDir::new().unwrap().path(),
+    )
+    .unwrap();
+
+    store.publish("acme", publication("ci/loser")).await.unwrap_err();
+
+    let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
+    let usage: ArtifactUsage =
+        serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
+            .unwrap();
+    // The winner is written behind the store's back to stage the race, so it is
+    // never charged: everything accounted here belongs to the loser, and the
+    // loser stored nothing.
+    assert_eq!(usage.global_bytes, 0, "the loser is not charged for what it did not store");
 }
 
 /// A store written before this naming could hold several artifacts for one
@@ -651,6 +695,7 @@ async fn losing_a_race_for_a_slot_is_not_reported_as_idempotent() {
             format!(".pnpr-artifacts/v0/{owner}/entries/{entry}/{slot}.json"),
             serde_json::to_vec(&winner.envelope).unwrap(),
         )),
+        fail_slot_read_after_first: None,
     });
     let racing = SharedArtifactStore::new(
         &HostedStoreConfig::ObjectStore { store: racing, prefix: String::new() },
@@ -839,6 +884,10 @@ struct FailArtifactWrites {
     /// creation of this path stores these bytes instead and reports the
     /// conflict the loser would see.
     claim_slot_first: Option<(String, Vec<u8>)>,
+    /// Fails reads of the slot *after* the first, so the pre-check still finds
+    /// it free and the failure lands on the re-read that follows a lost create
+    /// — the only point where the loser is charged for what it did not store.
+    fail_slot_read_after_first: Option<Arc<AtomicUsize>>,
 }
 
 impl fmt::Display for FailArtifactWrites {
@@ -902,6 +951,15 @@ impl ObjectStore for FailArtifactWrites {
         location: &ObjectPath,
         options: GetOptions,
     ) -> object_store::Result<GetResult> {
+        if let Some(reads) = self.fail_slot_read_after_first.as_ref()
+            && self.claim_slot_first.as_ref().is_some_and(|(slot, _)| location.as_ref() == slot)
+            && reads.fetch_add(1, Ordering::SeqCst) > 0
+        {
+            return Err(object_store::Error::Generic {
+                store: "test",
+                source: std::io::Error::other("injected slot read failure").into(),
+            });
+        }
         self.inner.get_opts(location, options).await
     }
 
