@@ -14,9 +14,10 @@ use object_store::{
 };
 use pnpm_shared_artifact_protocol::{
     ArtifactBlobRequest, ArtifactCandidate, ArtifactPayload, ArtifactProtocolError,
-    ArtifactSubject, ArtifactVariant, MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE,
-    MAX_VARIANTS_PER_CANDIDATE, OwnerScope, PublishArtifactRequest, ResolveArtifactsRequest,
-    ResolveArtifactsResponse, ResolvedArtifact, SignedArtifactEnvelope, blob_id, verify_blob,
+    ArtifactSubject, ArtifactVariant, CompatibilityConstraints, MAX_CANDIDATES, MAX_FILE_SIZE,
+    MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE, OwnerScope, PublishArtifactRequest,
+    ResolveArtifactsRequest, ResolveArtifactsResponse, ResolvedArtifact, SignedArtifactEnvelope,
+    blob_id, verify_blob,
 };
 use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
 use pnpr_error::{RegistryError, Result};
@@ -64,7 +65,17 @@ pub struct ArtifactBlob {
     pub stream: BoxStream<'static, object_store::Result<Bytes>>,
 }
 
+/// What the slot a publication is claiming already holds.
+enum SlotClaim {
+    Free,
+    /// This exact envelope, so publishing it again is a retry.
+    Held,
+    HeldByAnother,
+}
+
 struct PreparedPublication {
+    entry: String,
+    slot: String,
     payload: ArtifactPayload,
     uploads: BTreeMap<String, Vec<u8>>,
     owner: String,
@@ -145,12 +156,23 @@ impl SharedArtifactStore {
         prepared: PreparedPublication,
         reclamation_needed: &mut bool,
     ) -> Result<bool> {
-        let PreparedPublication { payload, mut uploads, owner, envelope_bytes, variant_path } =
-            prepared;
+        let PreparedPublication {
+            payload,
+            mut uploads,
+            owner,
+            entry,
+            slot,
+            envelope_bytes,
+            variant_path,
+        } = prepared;
         let envelope_size = envelope_bytes.len() as u64;
 
-        if self.object_exists(&variant_path).await? {
-            return Ok(false);
+        match self.slot_claim(&owner, &entry, &variant_path, &slot, &envelope_bytes).await? {
+            SlotClaim::Held => return Ok(false),
+            SlotClaim::HeldByAnother => {
+                return Err(RegistryError::ArtifactAlreadyPublished { owner, entry });
+            }
+            SlotClaim::Free => {}
         }
 
         let required: BTreeMap<&str, u64> = payload
@@ -208,7 +230,7 @@ impl SharedArtifactStore {
                 }
             }
         }
-        let created = match self.create_object(&variant_path, envelope_bytes).await {
+        let created = match self.create_object(&variant_path, envelope_bytes.clone()).await {
             Ok(created) => created,
             Err(error) => {
                 *reclamation_needed = true;
@@ -220,9 +242,32 @@ impl SharedArtifactStore {
         if created {
             retained_bytes += envelope_size;
         }
+        // Two publications can both find the slot empty above, so losing the
+        // create is not by itself an idempotent retry: whoever won may have
+        // stored something else, and reporting success would tell a publisher
+        // its artifact is the one being served when it is not.
+        // Read before the quota is released and inspected after, so that a
+        // store error here cannot return while this publication is still
+        // charged for an envelope it did not store — a leak that would
+        // accumulate silently and eventually refuse publications that fit.
+        let winner = if created {
+            Ok(None)
+        } else {
+            self.read_object_bounded(&variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await
+        };
         if let Err(error) = self.release_uncommitted(&owner, added_bytes, retained_bytes).await {
             *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
             return Err(error);
+        }
+        let winner = match winner {
+            Ok(winner) => winner,
+            Err(error) => {
+                *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
+                return Err(error);
+            }
+        };
+        if !created && winner.is_none_or(|winner| winner != envelope_bytes) {
+            return Err(RegistryError::ArtifactAlreadyPublished { owner, entry });
         }
         Ok(created)
     }
@@ -319,6 +364,61 @@ impl SharedArtifactStore {
         }
         Ok((!variants.is_empty())
             .then(|| ResolvedArtifact { key: candidate.key.clone(), variants }))
+    }
+
+    /// Whether this slot is free, already holds this exact envelope, or holds
+    /// another one.
+    ///
+    /// Usually the slot's own object answers it. A store may also hold
+    /// artifacts under their envelope digest, and several of them for one
+    /// slot, so the entry is read when that object is absent: otherwise those
+    /// artifacts would be replaceable, and republishing one of them — a retry
+    /// like any other — would be refused as a conflict.
+    async fn slot_claim(
+        &self,
+        owner: &str,
+        entry: &str,
+        variant_path: &str,
+        slot: &str,
+        envelope_bytes: &[u8],
+    ) -> Result<SlotClaim> {
+        if let Some(claimed) =
+            self.read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await?
+        {
+            return Ok(if claimed == envelope_bytes {
+                SlotClaim::Held
+            } else {
+                SlotClaim::HeldByAnother
+            });
+        }
+        // Every file, not the read-time variant limit: that limit bounds what a
+        // lookup will scan, and a claim that stopped there would call a slot
+        // free because the artifact holding it sorted too late in the listing.
+        let prefix = self.object_path(&format!("{owner}/entries/{entry}/"));
+        let mut listing = self.store.list(Some(&prefix));
+        let mut held_by_another = false;
+        while let Some(stored) = listing.next().await {
+            let stored = stored?;
+            if !is_variant_file(object_name(&stored.location)) {
+                continue;
+            }
+            let Some(bytes) = self.read_object_path(&stored.location).await? else { continue };
+            let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
+                continue;
+            };
+            let Ok((payload, _)) = envelope.decode_payload() else { continue };
+            // Compared by slot rather than structurally, so that a stored
+            // artifact whose tags are written in another order is recognised as
+            // holding this one — the reordering the slot itself canonicalizes.
+            if compatibility_slot(&payload.compatibility) != slot {
+                continue;
+            }
+            if bytes == envelope_bytes {
+                return Ok(SlotClaim::Held);
+            }
+            held_by_another = true;
+        }
+        Ok(if held_by_another { SlotClaim::HeldByAnother } else { SlotClaim::Free })
     }
 
     async fn begin_publication(&self, publication: &str) -> Result<()> {
@@ -679,14 +779,6 @@ impl SharedArtifactStore {
         Ok(())
     }
 
-    async fn object_exists(&self, relative: &str) -> Result<bool> {
-        match self.store.head(&self.object_path(relative)).await {
-            Ok(_) => Ok(true),
-            Err(object_store::Error::NotFound { .. }) => Ok(false),
-            Err(error) => Err(error.into()),
-        }
-    }
-
     async fn create_object(&self, relative: &str, bytes: Vec<u8>) -> Result<bool> {
         match self
             .store
@@ -770,13 +862,17 @@ fn prepare_publication(
     let payload = validated.payload;
     let owner = owner_key(username, &payload.owner)?;
     let entry = entry_digest(&request.key, &payload.subject);
-    let envelope = request.envelope.digest().map_err(|err| protocol_error(&err))?;
     let envelope_bytes = serde_json::to_vec(&request.envelope)?;
-    let variant_path = format!("{owner}/entries/{entry}/{envelope}.json");
+    // Named for what the artifact is *for* rather than what it is, so that one
+    // input key and one set of compatibility constraints admit one artifact.
+    let slot = compatibility_slot(&payload.compatibility);
+    let variant_path = format!("{owner}/entries/{entry}/{slot}.json");
     Ok(PreparedPublication {
         payload,
         uploads: validated.blobs,
         owner,
+        entry,
+        slot,
         envelope_bytes,
         variant_path,
     })
@@ -911,6 +1007,34 @@ fn hex(bytes: &[u8]) -> String {
         write!(output, "{byte:02x}").expect("writing to a String cannot fail");
         output
     })
+}
+
+/// The slot an artifact claims within its entry: one per set of compatibility
+/// constraints, so a `universal` build and a glibc-2.31 build coexist while two
+/// builds advertising the same constraints do not.
+///
+/// Hex-encoded so that it has the shape [`is_variant_file`] recognises, which
+/// envelope digests share.
+fn compatibility_slot(compatibility: &CompatibilityConstraints) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"pnpm-shared-artifact-slot-v1\0");
+    match compatibility {
+        CompatibilityConstraints::Universal => hasher.update(b"universal\0"),
+        CompatibilityConstraints::Tagged { tags } => {
+            hasher.update(b"tagged\0");
+            // Sorted because matching a tag set is order-independent: two
+            // orderings are the same constraint, and hashing them apart would
+            // hand the same platform two slots to be published into. The
+            // protocol already rejects duplicates, so sorting canonicalizes.
+            let mut tags: Vec<&str> = tags.iter().map(String::as_str).collect();
+            tags.sort_unstable();
+            for tag in tags {
+                hasher.update(tag.as_bytes());
+                hasher.update([0]);
+            }
+        }
+    }
+    hex(&hasher.finalize())
 }
 
 fn entry_digest(key: &str, subject: &ArtifactSubject) -> String {
