@@ -35,8 +35,8 @@ mod specifier;
 
 pub use dependents::{DependentsOptions, RenderDependentsInput, get_dependents, render_dependents};
 pub use install::{
-    InstallOptions, InstallResult, InstallStatsResult, NodeApiProject, get_peer_dependency_issues,
-    install, rebuild,
+    InstallOptions, InstallResult, InstallStatsResult, NodeApiProject, PeerIssuesOptions,
+    get_peer_dependency_issues, install, rebuild,
 };
 pub use lockfile::{
     FilterLockfileOptions, ReadLockfileOptions, WriteLockfileOptions, filter_lockfile_by_importers,
