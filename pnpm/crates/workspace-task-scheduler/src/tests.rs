@@ -1,9 +1,9 @@
 use super::{
-    BuildTaskGraphOptions, ScheduleGraphAsyncOptions, ScheduleGraphOptions, ScheduleTasksOptions,
-    SequenceTasksOptions, TaskCompletion, TaskCycle, TaskGraph, TaskKey, TaskNode,
-    build_task_graph, is_serial_task_graph, render_task_graph_dry_run, resume_task_graph_from,
-    reverse_task_graph, schedule_graph, schedule_graph_async, schedule_tasks, sequence_tasks,
-    task_graph_to_json,
+    BuildPipelineTaskGraphOptions, BuildTaskGraphOptions, ScheduleGraphAsyncOptions,
+    ScheduleGraphOptions, ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion, TaskCycle,
+    TaskGraph, TaskKey, TaskNode, build_pipeline_task_graph, build_task_graph,
+    is_serial_task_graph, render_task_graph_dry_run, resume_task_graph_from, reverse_task_graph,
+    schedule_graph, schedule_graph_async, schedule_tasks, sequence_tasks, task_graph_to_json,
 };
 use indexmap::IndexMap;
 use pnpm_config::TaskSettings;
@@ -87,6 +87,52 @@ fn build_graph(
         task_name,
         tasks: task_settings,
     })
+}
+
+#[test]
+fn pipeline_graph_requests_every_task_name_only_in_the_requested_projects() {
+    // `app` depends on `lib`; only `app` is requested, so `lib` gets no
+    // requested tasks of its own — but `app#build`'s `^build` edge still
+    // pulls `lib#build` in, keeping the graph (and so a cache key built
+    // over it) identical to what an unnarrowed run resolves.
+    let projects =
+        [("lib", project(&[], &["build", "lint"])), ("app", project(&["lib"], &["build", "lint"]))];
+    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = projects
+        .iter()
+        .map(|(name, project)| {
+            (dir(name), project.dependencies.iter().map(|dependency| dir(dependency)).collect())
+        })
+        .collect();
+    let scripts_by_dir: HashMap<PathBuf, Vec<String>> = projects
+        .iter()
+        .map(|(name, project)| {
+            (dir(name), project.scripts.iter().map(std::string::ToString::to_string).collect())
+        })
+        .collect();
+    let requested = [dir("app")];
+    let graph = build_pipeline_task_graph(&BuildPipelineTaskGraphOptions {
+        project_dependencies: &project_dependencies,
+        select_scripts: |project: &Path, task_name: &str| {
+            scripts_by_dir[project].iter().filter(|script| *script == task_name).cloned().collect()
+        },
+        task_names: &["build", "lint"],
+        requested_projects: Some(&requested),
+        tasks: None,
+    });
+    let mut keys: Vec<TaskKey> = graph.keys().cloned().collect();
+    keys.sort_by(|left, right| {
+        (&left.project, &left.task_name).cmp(&(&right.project, &right.task_name))
+    });
+    assert_eq!(
+        keys,
+        vec![key("app", "build"), key("app", "lint"), key("lib", "build"), key("lib", "lint")],
+    );
+    assert!(graph[&key("app", "build")].requested);
+    assert!(graph[&key("app", "lint")].requested);
+    assert!(!graph[&key("lib", "build")].requested);
+    // Pulled by `app#lint`'s default `^lint`, not requested.
+    assert!(!graph[&key("lib", "lint")].requested);
+    assert_eq!(graph[&key("app", "build")].dependencies, vec![key("lib", "build")]);
 }
 
 #[test]

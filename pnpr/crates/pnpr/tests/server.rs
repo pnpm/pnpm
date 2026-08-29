@@ -2784,7 +2784,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     assert_eq!(handshake.status(), StatusCode::OK);
     assert_eq!(
         body_json(handshake.into_body()).await,
-        json!({ "pnpr": { "versions": [0], "artifacts": [], "fixLockfile": [0] } }),
+        json!({ "pnpr": { "versions": [0], "artifacts": [], "pipeline": [], "fixLockfile": [0] } }),
     );
 
     let verify = app
@@ -2899,7 +2899,7 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
     assert_eq!(handshake.status(), StatusCode::OK);
     assert_eq!(
         body_json(handshake.into_body()).await,
-        json!({ "pnpr": { "versions": [], "artifacts": [0], "fixLockfile": [] } }),
+        json!({ "pnpr": { "versions": [], "artifacts": [0], "pipeline": [], "fixLockfile": [] } }),
     );
 
     let artifact = app
@@ -2918,6 +2918,138 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
         .await
         .unwrap();
     assert_eq!(resolve.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
+    config.registry.enabled = false;
+    config.resolver.enabled = false;
+    config.pipeline.enabled = true;
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    let app = router(config);
+
+    let handshake =
+        app.clone().oneshot(Request::get("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(
+        body_json(handshake.into_body()).await,
+        json!({ "pnpr": { "versions": [], "artifacts": [], "pipeline": [0], "fixLockfile": [] } }),
+    );
+
+    // Reads and writes both authenticate; the viewer page is static HTML
+    // with no data of its own and does not.
+    let anonymous = app
+        .clone()
+        .oneshot(Request::get("/-/pnpr/v0/pipeline/runs").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
+    let viewer = app
+        .clone()
+        .oneshot(Request::get("/-/pnpr/v0/pipeline").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(viewer.status(), StatusCode::OK);
+
+    let registration = json!({
+        "_id": "org.couchdb.user:alice",
+        "name": "alice",
+        "password": "secret",
+        "email": "alice@example.test",
+        "type": "user",
+        "roles": [],
+    });
+    let logged_in = app
+        .clone()
+        .oneshot(
+            Request::put("/-/user/org.couchdb.user:alice")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&registration).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(logged_in.status(), StatusCode::CREATED);
+    let token = body_json(logged_in.into_body()).await["token"].as_str().unwrap().to_string();
+
+    let run = json!({
+        "workspace": "demo-abc123",
+        "runId": "100-default",
+        "summary": { "pipeline": "default", "tasks": {} },
+        "events": [{ "event": "taskStarted", "task": "packages/a#build" }],
+    });
+    let publish = |body: serde_json::Value| {
+        let app = app.clone();
+        let token = token.clone();
+        async move {
+            app.oneshot(
+                Request::put("/-/pnpr/v0/pipeline/runs")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+        }
+    };
+    assert_eq!(publish(run.clone()).await.status(), StatusCode::CREATED);
+
+    // Append-only: the same run identity is refused, not overwritten.
+    let replay = publish(run.clone()).await;
+    assert_eq!(replay.status(), StatusCode::BAD_REQUEST);
+    assert!(String::from_utf8_lossy(&body_bytes(replay.into_body()).await).contains("append-only"));
+
+    // A path-shaped workspace never reaches a path join.
+    let hostile = publish(json!({
+        "workspace": "../escape",
+        "runId": "100-default",
+        "summary": {},
+    }))
+    .await;
+    assert_eq!(hostile.status(), StatusCode::BAD_REQUEST);
+
+    let listed = app
+        .clone()
+        .oneshot(
+            Request::get("/-/pnpr/v0/pipeline/runs?workspace=demo-abc123")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(listed.status(), StatusCode::OK);
+    let listed = body_json(listed.into_body()).await;
+    assert_eq!(listed["runs"][0]["runId"], "100-default");
+    assert_eq!(listed["runs"][0]["summary"]["pipeline"], "default");
+    assert!(listed["runs"][0].get("events").is_none());
+
+    let fetched = app
+        .clone()
+        .oneshot(
+            Request::get("/-/pnpr/v0/pipeline/runs/demo-abc123/100-default")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(fetched.status(), StatusCode::OK);
+    let fetched = body_json(fetched.into_body()).await;
+    assert_eq!(fetched["events"][0]["event"], "taskStarted");
+
+    let missing = app
+        .oneshot(
+            Request::get("/-/pnpr/v0/pipeline/runs/demo-abc123/999-missing")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(missing.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

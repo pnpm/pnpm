@@ -17,6 +17,7 @@ use super::{
     patch::PatchArgs,
     patch_commit::PatchCommitArgs,
     patch_remove::PatchRemoveArgs,
+    pipeline::{PipelineArgs, PipelineInvocation, WatchInvocation, run_pipeline, run_watch},
     pipelines::{
         AddPipeline, DedupePipeline, DeployPipeline, InstallPipeline, PrunePipeline,
         RemovePipeline, UpdatePipeline, apply_install_cli_config,
@@ -328,6 +329,118 @@ pub(super) fn install_test<'a>(
 
         Ok(())
     }))
+}
+
+pub(super) fn pipeline<'a>(
+    ctx: &RunCtx<'a>,
+    args: PipelineArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    if args.watch {
+        let PipelineArgs {
+            name, repo, branch, interval, once, no_cache, report, report_to, ..
+        } = args;
+        let config = ctx.config;
+        return Ok(Box::pin(async move {
+            let cfg = config()?;
+            let invocation = WatchInvocation {
+                pipeline_name: name,
+                repo: repo.expect("clap requires --repo with --watch"),
+                branch,
+                interval: std::time::Duration::from_secs(interval),
+                once,
+                no_cache,
+                report: report || report_to.is_some(),
+                report_to,
+                npmrc_auth_file: cfg.npmrc_auth_file.clone(),
+            };
+            run_watch(&invocation, &cfg.cache_dir)
+        }));
+    }
+    let PipelineArgs {
+        name, mut install_args, json, no_cache, full, base, report, report_to, ..
+    } = args;
+    let invocation = PipelineInvocation {
+        name,
+        // `--dry-run` prints the task graph and runs nothing, the
+        // install included.
+        dry_run: install_args.dry_run,
+        json,
+        no_cache,
+        full,
+        base,
+        report: report || report_to.is_some(),
+        report_to,
+    };
+    install_args.frozen_lockfile = true;
+    install_args.dry_run = false;
+
+    let install_future = if invocation.dry_run {
+        None
+    } else {
+        Some(install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)?)
+    };
+    let dir = ctx.dir;
+    let reporter = ctx.reporter;
+    let config = ctx.config;
+    Ok(Box::pin(async move {
+        if let Some(install) = install_future {
+            install.await?;
+        }
+        let cfg = config()?;
+        let outcome = run_pipeline(&invocation, cfg, dir, reporter)?;
+        // The run is recorded before the failure exit is raised, so a red
+        // run reaches the server too.
+        if invocation.report
+            && let Some(upload) = outcome.upload
+        {
+            report_pipeline_run(cfg, invocation.report_to.as_deref(), upload, reporter).await;
+        }
+        if outcome.failed_tasks > 0 {
+            return Err(super::pipeline::PipelineError::PipelineFail {
+                count: outcome.failed_tasks,
+            }
+            .into());
+        }
+        Ok(())
+    }))
+}
+
+/// Publish the run to the configured pnpr server. A run that could not be
+/// reported still ran — the submission failure is a warning, not the
+/// run's exit code.
+async fn report_pipeline_run(
+    cfg: &Config,
+    report_to: Option<&str>,
+    upload: super::pipeline::RunUpload,
+    reporter: ReporterType,
+) {
+    let emit = reporter_emit(reporter);
+    let warn = |message: String| {
+        emit(&pnpm_reporter::LogEvent::Pnpm(pnpm_reporter::PnpmLog {
+            level: pnpm_reporter::LogLevel::Warn,
+            message,
+            prefix: String::new(),
+        }));
+    };
+    let Some(server) = report_to.or(cfg.pnpr_server.as_deref()) else {
+        warn(
+            "--report is set but neither --report-to nor pnprServer names a server; the run was not published"
+                .to_string(),
+        );
+        return;
+    };
+    let client = pnpm_pnpr_client::PnprClient::new(server);
+    let authorization = cfg.auth_headers.for_url(server);
+    let request = pnpm_pnpr_client::PublishPipelineRunRequest {
+        workspace: upload.workspace,
+        run_id: upload.run_id,
+        summary: upload.summary,
+        events: upload.events,
+    };
+    match client.publish_pipeline_run(&request, authorization.as_deref()).await {
+        Ok(()) => println!("Run recorded on {server} as {}/{}", request.workspace, request.run_id),
+        Err(error) => warn(format!("failed to publish the pipeline run to {server}: {error}")),
+    }
 }
 
 pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFuture<'a>> {

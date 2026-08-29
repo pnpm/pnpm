@@ -102,6 +102,7 @@ exceptions = [
   # below pin it by file hash). Every new `pnpr-*` crate needs an entry here
   # and a matching clarify block, or `Cargo Deny` fails it as unlicensed.
   { name = "pnpr", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-pipeline-runs", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-shared-artifacts", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-search", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-osv", allow = ["PolyForm-Noncommercial-1.0.0"] },
@@ -139,6 +140,11 @@ license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
 
 [[licenses.clarify]]
 name = "pnpr-osv"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-pipeline-runs"
 expression = "PolyForm-Noncommercial-1.0.0"
 license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
 

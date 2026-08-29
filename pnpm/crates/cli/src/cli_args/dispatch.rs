@@ -503,6 +503,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Install(args) => dispatch_install::install(ctx, args),
         CliCommand::InstallTest(args) => dispatch_install::install_test(ctx, args),
         CliCommand::Ci(args) => dispatch_install::ci(ctx, args),
+        CliCommand::Pipeline(args) => dispatch_install::pipeline(ctx, args),
         CliCommand::Update(args) => dispatch_install::update(ctx, args),
         CliCommand::Outdated(args) => dispatch_query::outdated(ctx, args),
         CliCommand::Audit(args) => dispatch_query::audit(ctx, args),

@@ -1,0 +1,24 @@
+[package]
+name                 = "pnpr-pipeline-runs"
+version              = "0.0.1"
+description          = "The pipeline run-record store: append-only CI run summaries and event streams, by workspace"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license-file         = "../../LICENSE.md"
+repository.workspace = true
+
+[dependencies]
+pnpr-error   = { workspace = true }
+pnpr-storage = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+tokio        = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,90 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>pnpr pipeline runs</title>
+<style>
+  :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, sans-serif; }
+  body { margin: 2rem auto; max-width: 72rem; padding: 0 1rem; }
+  h1 { font-size: 1.3rem; }
+  .bar { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  input { padding: .35rem .5rem; }
+  #token { width: 22rem; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid #8884; font-size: .9rem; }
+  .passed { color: #2e7d32; } .failed { color: #c62828; } .skipped { color: #9e9e9e; }
+  .mode { opacity: .7; }
+  #status { opacity: .7; margin: .5rem 0; }
+  pre { overflow-x: auto; background: #8881; padding: .75rem; }
+</style>
+<h1>pnpr pipeline runs</h1>
+<div class="bar">
+  <input id="token" type="password" placeholder="Bearer token (from your .npmrc)">
+  <input id="workspace" placeholder="workspace filter (optional)">
+  <button id="refresh">Refresh</button>
+</div>
+<div id="status">Paste a token and refresh.</div>
+<table hidden id="runs"><thead>
+  <tr><th>Run</th><th>Workspace</th><th>Pipeline</th><th>Base</th><th>Selection</th><th>Tasks</th></tr>
+</thead><tbody></tbody></table>
+<pre hidden id="detail"></pre>
+<script>
+  const token = document.getElementById('token');
+  const status = document.getElementById('status');
+  const table = document.getElementById('runs');
+  const detail = document.getElementById('detail');
+  try { token.value = localStorage.getItem('pnpr-pipeline-token') || ''; } catch {}
+
+  async function api(path) {
+    const response = await fetch(path, { headers: { authorization: 'Bearer ' + token.value } });
+    if (!response.ok) throw new Error(path + ' returned ' + response.status);
+    return response.json();
+  }
+
+  function counts(tasks) {
+    const totals = {};
+    for (const entry of Object.values(tasks || {})) totals[entry.status] = (totals[entry.status] || 0) + 1;
+    return ['passed', 'failure', 'skipped', 'queued']
+      .filter((status) => totals[status])
+      .map((status) => `<span class="${status === 'failure' ? 'failed' : status}">${totals[status]} ${status}</span>`)
+      .join(' · ') || '—';
+  }
+
+  async function refresh() {
+    try { localStorage.setItem('pnpr-pipeline-token', token.value); } catch {}
+    detail.hidden = true;
+    status.textContent = 'Loading…';
+    const workspace = document.getElementById('workspace').value.trim();
+    try {
+      const query = workspace ? '?workspace=' + encodeURIComponent(workspace) : '';
+      const { runs } = await api('/-/pnpr/v0/pipeline/runs' + query);
+      const rows = runs.map((run) => {
+        const selection = run.summary.selection || {};
+        const when = new Date(Number(String(run.runId).split('-')[0])).toLocaleString();
+        return `<tr data-workspace="${run.workspace}" data-run="${run.runId}">
+          <td><a href="#">${when}</a></td><td>${run.workspace}</td>
+          <td>${run.summary.pipeline || '?'}</td><td>${run.summary.base || ''}</td>
+          <td class="mode">${selection.mode || ''} (${selection.requestedProjects ?? '?'} of ${selection.includedProjects ?? '?'})</td>
+          <td>${counts(run.summary.tasks)}</td></tr>`;
+      });
+      table.querySelector('tbody').innerHTML = rows.join('');
+      table.hidden = false;
+      status.textContent = runs.length + ' runs.';
+    } catch (error) {
+      table.hidden = true;
+      status.textContent = String(error);
+    }
+  }
+
+  table.addEventListener('click', async (event) => {
+    const row = event.target.closest('tr[data-run]');
+    if (!row) return;
+    event.preventDefault();
+    try {
+      const run = await api('/-/pnpr/v0/pipeline/runs/' + row.dataset.workspace + '/' + row.dataset.run);
+      detail.textContent = JSON.stringify(run, null, 2);
+      detail.hidden = false;
+    } catch (error) {
+      status.textContent = String(error);
+    }
+  });
+  document.getElementById('refresh').addEventListener('click', refresh);
+</script>
