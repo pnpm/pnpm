@@ -359,6 +359,9 @@ test('workspace protocol from a catalog is replaced', async () => {
     },
     peerDependencies: {
       garply: 'catalog:alias',
+      sentinel: 'catalog:alias',
+      range: 'catalog:alias',
+      union: 'catalog:alias',
       xeroxAlias: 'catalog:path',
     },
   } satisfies ProjectManifest
@@ -387,6 +390,9 @@ test('workspace protocol from a catalog is replaced', async () => {
     catalogs: {
       alias: {
         garply: 'workspace:plugh@2.0.0',
+        sentinel: 'workspace:plugh@^',
+        range: 'workspace:plugh@>=1 <3',
+        union: 'workspace:plugh@^1 || ^2',
       },
       path: {
         xeroxAlias: 'workspace:../xerox',
@@ -408,6 +414,9 @@ test('workspace protocol from a catalog is replaced', async () => {
     },
     peerDependencies: {
       garply: 'npm:plugh@2.0.0',
+      sentinel: 'npm:plugh@*',
+      range: 'npm:plugh@>=1 <3',
+      union: 'npm:plugh@^1 || ^2',
       xeroxAlias: 'npm:xerox@4.5.6',
     },
   })

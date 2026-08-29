@@ -149,6 +149,9 @@ fn peer_workspace_aliases_and_paths_from_catalog_are_rewritten() {
 
     let mut alias_catalog = Catalog::new();
     alias_catalog.insert("garply".to_string(), "workspace:plugh@2.0.0".to_string());
+    alias_catalog.insert("sentinel".to_string(), "workspace:plugh@^".to_string());
+    alias_catalog.insert("range".to_string(), "workspace:plugh@>=1 <3".to_string());
+    alias_catalog.insert("union".to_string(), "workspace:plugh@^1 || ^2".to_string());
     let mut path_catalog = Catalog::new();
     path_catalog.insert("xeroxAlias".to_string(), "workspace:../xerox".to_string());
     let mut catalogs = empty_catalogs();
@@ -162,6 +165,9 @@ fn peer_workspace_aliases_and_paths_from_catalog_are_rewritten() {
             "version": "1.0.0",
             "peerDependencies": {
                 "garply": "catalog:alias",
+                "sentinel": "catalog:alias",
+                "range": "catalog:alias",
+                "union": "catalog:alias",
                 "xeroxAlias": "catalog:path",
             },
         }),
@@ -171,6 +177,9 @@ fn peer_workspace_aliases_and_paths_from_catalog_are_rewritten() {
         out["peerDependencies"],
         json!({
             "garply": "npm:plugh@2.0.0",
+            "sentinel": "npm:plugh@*",
+            "range": "npm:plugh@>=1 <3",
+            "union": "npm:plugh@^1 || ^2",
             "xeroxAlias": "npm:xerox@4.5.6",
         }),
     );

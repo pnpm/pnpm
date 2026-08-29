@@ -9,6 +9,7 @@ import type { Hooks } from '@pnpm/hooks.pnpmfile'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import type { Dependencies, ProjectManifest } from '@pnpm/types'
 import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
+import { WorkspaceSpec } from '@pnpm/workspace.spec-parser'
 import { clone, omit } from 'ramda'
 
 import { overridePublishConfig } from './overridePublishConfig.js'
@@ -208,7 +209,14 @@ async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec:
     return depSpec
   }
 
-  if (workspacePeerUsesAliasOrPath(depSpec)) {
+  const workspaceSpec = WorkspaceSpec.parse(depSpec)
+  if (workspaceSpec?.alias != null) {
+    const version = workspaceSpec.version === '^' || workspaceSpec.version === '~' || workspaceSpec.version === ''
+      ? '*'
+      : workspaceSpec.version
+    return `npm:${workspaceSpec.alias}@${version}`
+  }
+  if (workspaceSpec?.version.startsWith('./') || workspaceSpec?.version.startsWith('../')) {
     return replaceWorkspaceProtocol(depName, depSpec, dir, modulesDir)
   }
 
@@ -231,13 +239,6 @@ async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec:
   }
 
   return depSpec.replace('workspace:', '')
-}
-
-function workspacePeerUsesAliasOrPath (depSpec: string): boolean {
-  if (!depSpec.startsWith('workspace:')) return false
-  const workspaceSpec = depSpec.slice('workspace:'.length)
-  if (workspaceSpec.startsWith('./') || workspaceSpec.startsWith('../')) return true
-  return workspaceSpec.lastIndexOf('@') > 0 && !workspaceSpec.includes(' ') && !workspaceSpec.includes('||')
 }
 
 async function replaceJsrProtocol (depName: string, depSpec: string): Promise<string> {

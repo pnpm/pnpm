@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_workspace_spec::WorkspaceSpec;
 use serde_json::Value;
 
 /// Error returned when the lookup against the dependency's installed
@@ -126,8 +127,16 @@ pub fn replace_workspace_protocol_peer_dependency(
     if !dep_spec.contains("workspace:") {
         return Ok(dep_spec.to_string());
     }
-    if workspace_peer_uses_alias_or_path(dep_spec) {
-        return replace_workspace_protocol(dep_name, dep_spec, dir, modules_dir);
+    if let Some(workspace_spec) = WorkspaceSpec::parse(dep_spec) {
+        if let Some(alias) = workspace_spec.alias.as_deref() {
+            let version = workspace_spec.version.as_str();
+            let version =
+                if version == "^" || version == "~" || version.is_empty() { "*" } else { version };
+            return Ok(format!("npm:{alias}@{version}"));
+        }
+        if workspace_spec.version.starts_with("./") || workspace_spec.version.starts_with("../") {
+            return replace_workspace_protocol(dep_name, dep_spec, dir, modules_dir);
+        }
     }
     // Only the first `workspace:` occurrence is stripped. Rust's
     // `str::replace` is all-occurrence; use `replacen(_, _, 1)` so
@@ -157,18 +166,6 @@ pub fn replace_workspace_protocol_peer_dependency(
     rewritten.push_str(&manifest.version);
     rewritten.push_str(&dep_spec[matched.end..]);
     Ok(rewritten)
-}
-
-fn workspace_peer_uses_alias_or_path(dep_spec: &str) -> bool {
-    let Some(workspace_spec) = dep_spec.strip_prefix("workspace:") else {
-        return false;
-    };
-    if workspace_spec.starts_with("./") || workspace_spec.starts_with("../") {
-        return true;
-    }
-    workspace_spec.rfind('@').is_some_and(|index| index > 0)
-        && !workspace_spec.chars().any(char::is_whitespace)
-        && !workspace_spec.contains("||")
 }
 
 /// Read `<dependency_dir>/package.json` and verify the `name` / `version`

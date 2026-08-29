@@ -38,6 +38,7 @@
     "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "@pnpm/workspace.spec-parser": "workspace:*",
     "ramda": "catalog:"
   },
   "devDependencies": {
