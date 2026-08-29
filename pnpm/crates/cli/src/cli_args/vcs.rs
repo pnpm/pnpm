@@ -3,7 +3,11 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, io, path::Path};
+use std::{
+    collections::{BTreeMap, HashSet},
+    io,
+    path::Path,
+};
 use tempfile::NamedTempFile;
 use tokio::process::Command;
 
@@ -81,6 +85,8 @@ struct PnpmWorkspaceInventory {
     default_scope: String,
     root_component_name: String,
     root_main_file: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    workspace_profile: Option<WorkspaceToolMap>,
     projects: Vec<PnpmProjectInventoryItem>,
 }
 
@@ -90,6 +96,24 @@ struct PnpmProjectInventoryItem {
     root_dir: String,
     component_name: String,
     manifest_file: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    requirements: Option<WorkspaceToolMap>,
+}
+
+type WorkspaceToolMap = BTreeMap<String, WorkspaceTool>;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WorkspaceTool {
+    implementation: String,
+    version: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+struct PnpmVcsManifestConfig {
+    profile: Option<WorkspaceToolMap>,
+    requirements: Option<WorkspaceToolMap>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -97,6 +121,8 @@ struct PnpmProjectInventoryItem {
 struct BitSyncResult {
     schema_version: u8,
     root_component: String,
+    workspace_profile: WorkspaceToolMap,
+    updated_components: Vec<String>,
     components: Vec<BitSyncedComponent>,
 }
 
@@ -249,9 +275,9 @@ async fn prepare_workspace(
         execute_bit(bit_path, &["pnpm-vcs-sync", "--json", "--inventory", &inventory_path], cwd)
             .await?;
     let result: BitSyncResult = parse_bit_json(&stdout, "workspace sync")?;
-    if result.schema_version != 1 {
+    if result.schema_version != 2 {
         return Err(protocol_error(
-            "The installed Bit version does not support pnpm workspace inventory protocol version 1",
+            "The installed Bit version does not support pnpm workspace inventory protocol version 2",
         ));
     }
     Ok(result)
@@ -265,6 +291,7 @@ fn workspace_inventory(
     let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
     let mut used_names = HashSet::new();
     let mut root_name = None;
+    let mut workspace_profile = None;
     let mut inventory_projects = Vec::new();
     for project in projects {
         let relative = project
@@ -279,6 +306,7 @@ fn workspace_inventory(
             .filter(|name| !name.is_empty());
         if relative.as_os_str().is_empty() {
             root_name = manifest_name.map(sanitize_component_name);
+            workspace_profile = read_vcs_manifest_config(project.manifest.value())?.profile;
             continue;
         }
         let root_dir = path_to_protocol(relative);
@@ -291,6 +319,7 @@ fn workspace_inventory(
             root_dir,
             component_name,
             manifest_file: "package.json".to_string(),
+            requirements: read_component_requirements(project.manifest.value())?,
         });
     }
     let root_candidate = format!(
@@ -299,11 +328,42 @@ fn workspace_inventory(
     );
     let root_component_name = unique_component_name(root_candidate, "root", &mut used_names);
     Ok(PnpmWorkspaceInventory {
-        schema_version: 1,
+        schema_version: 2,
         default_scope: default_scope.to_string(),
         root_component_name,
         root_main_file: "pnpm-workspace.yaml".to_string(),
+        workspace_profile,
         projects: inventory_projects,
+    })
+}
+
+fn read_component_requirements(
+    manifest: &serde_json::Value,
+) -> miette::Result<Option<WorkspaceToolMap>> {
+    let mut requirements = read_vcs_manifest_config(manifest)?.requirements.unwrap_or_default();
+    if !requirements.contains_key("node")
+        && let Some(node_range) = manifest
+            .get("engines")
+            .and_then(|engines| engines.get("node"))
+            .and_then(serde_json::Value::as_str)
+    {
+        requirements.insert(
+            "node".to_string(),
+            WorkspaceTool { implementation: "node".to_string(), version: node_range.to_string() },
+        );
+    }
+    Ok((!requirements.is_empty()).then_some(requirements))
+}
+
+fn read_vcs_manifest_config(manifest: &serde_json::Value) -> miette::Result<PnpmVcsManifestConfig> {
+    let Some(config) = manifest.get("pnpm").and_then(|pnpm| pnpm.get("vcs")) else {
+        return Ok(PnpmVcsManifestConfig::default());
+    };
+    serde_json::from_value(config.clone()).map_err(|error| {
+        VcsError::InventoryError {
+            details: format!("invalid package.json pnpm.vcs configuration: {error}"),
+        }
+        .into()
     })
 }
 
@@ -424,8 +484,16 @@ fn render_status(result: &BitStatusResult) -> String {
 }
 
 fn render_init(result: &BitSyncResult) -> String {
+    let refreshed = if result.updated_components.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " Refreshed {} components to the workspace profile.",
+            result.updated_components.len(),
+        )
+    };
     format!(
-        "Initialized Bit VCS with {} components. Root component: {}",
+        "Initialized Bit VCS with {} components. Root component: {}.{refreshed}",
         result.components.len(),
         result.root_component,
     )

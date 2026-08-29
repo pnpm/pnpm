@@ -1,7 +1,7 @@
 use super::{
     AutoSnappedComponent, BitSnapResult, BitStatusResult, assert_snap_protocol,
-    assert_status_protocol, execute_bit, render_commit, render_status, sanitize_component_name,
-    workspace_inventory,
+    assert_status_protocol, execute_bit, read_component_requirements, render_commit, render_status,
+    sanitize_component_name, workspace_inventory,
 };
 
 use std::fs;
@@ -164,12 +164,76 @@ fn builds_inventory_from_a_regular_pnpm_workspace() {
     let inventory = workspace_inventory(fixture.path(), &config, "acme.repository")
         .expect("build workspace inventory");
 
-    assert_eq!(inventory.schema_version, 1);
+    assert_eq!(inventory.schema_version, 2);
     assert_eq!(inventory.default_scope, "acme.repository");
     assert_eq!(inventory.root_component_name, "acme/repository-workspace");
+    assert!(inventory.workspace_profile.is_none());
     assert_eq!(inventory.projects.len(), 1);
     assert_eq!(inventory.projects[0].root_dir, "packages/foo");
     assert_eq!(inventory.projects[0].component_name, "acme/foo");
+    assert!(inventory.projects[0].requirements.is_none());
+}
+
+#[test]
+fn reads_a_locked_workspace_profile_and_component_requirements() {
+    let fixture = tempfile::tempdir().expect("create fixture");
+    fs::create_dir_all(fixture.path().join("packages/foo")).expect("create package directory");
+    fs::write(fixture.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    fs::write(
+        fixture.path().join("package.json"),
+        r#"{
+          "name":"@acme/repository",
+          "private":true,
+          "pnpm":{"vcs":{"profile":{
+            "toolchain":{"implementation":"bit","version":"2.2.23"},
+            "node":{"implementation":"node","version":"22.18.0"}
+          }}}
+        }"#,
+    )
+    .expect("write root manifest");
+    fs::write(
+        fixture.path().join("packages/foo/package.json"),
+        r#"{
+          "name":"@acme/foo",
+          "version":"1.0.0",
+          "engines":{"node":">=20 <23"},
+          "pnpm":{"vcs":{"requirements":{
+            "toolchain":{"implementation":"bit","version":"^2.2"}
+          }}}
+        }"#,
+    )
+    .expect("write package manifest");
+    let config = pnpm_config::Config {
+        workspace_dir: Some(fixture.path().to_path_buf()),
+        ..pnpm_config::Config::default()
+    };
+
+    let inventory = workspace_inventory(fixture.path(), &config, "acme.repository")
+        .expect("build workspace inventory");
+    let profile = inventory.workspace_profile.expect("workspace profile");
+    assert_eq!(profile["toolchain"].implementation, "bit");
+    assert_eq!(profile["toolchain"].version, "2.2.23");
+    let requirements = inventory.projects[0].requirements.as_ref().expect("component requirements");
+    assert_eq!(requirements["toolchain"].version, "^2.2");
+    assert_eq!(requirements["node"].implementation, "node");
+    assert_eq!(requirements["node"].version, ">=20 <23");
+}
+
+#[test]
+fn an_explicit_node_requirement_overrides_engines_node() {
+    let manifest = serde_json::json!({
+        "engines": { "node": ">=18" },
+        "pnpm": { "vcs": { "requirements": {
+            "node": { "implementation": "node", "version": ">=22" }
+        } } }
+    });
+
+    let requirements = read_component_requirements(&manifest)
+        .expect("read requirements")
+        .expect("requirements exist");
+
+    assert_eq!(requirements["node"].version, ">=22");
 }
 
 #[test]
