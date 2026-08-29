@@ -43,6 +43,19 @@ fn an_unrecognized_workspace_setting_fails_when_the_running_pnpm_is_the_pinned_v
 }
 
 #[test]
+fn opaque_workspace_metadata_is_accepted_when_the_running_pnpm_is_pinned() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_yaml(&workspace, "vcs:\n  1: metadata\npackages:\n  - .\n");
+    write_package_manager_pin(&workspace);
+
+    let output = run_with_switch_disabled(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    let stderr = stderr(&output);
+    assert!(!stderr.contains("not recognized"), "unexpected config warning: {stderr}");
+}
+
+#[test]
 fn a_kebab_case_spelling_of_a_known_setting_warns() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_plain_manifest(&workspace);

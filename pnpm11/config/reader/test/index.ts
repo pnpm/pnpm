@@ -975,6 +975,7 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
       $schema: 'https://json.schemastore.org/pnpm-workspace.json',
       globalShims: { node: true },
       minimumReleaseAg: 100,
+      vcs: { 1: 'metadata' },
       zzzNotASettingZzz: true,
       nodeLinker: 'hoisted',
       packages: ['packages/*'],
@@ -994,6 +995,7 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect(unrecognized).not.toContain('"nodeLinker"')
     expect(unrecognized).not.toContain('"packages"')
     expect(unrecognized).not.toContain('"overrides"')
+    expect(unrecognized).not.toContain('"vcs"')
     expect(unrecognized).not.toContain('$schema')
     // Reported, not dropped: `pnpm config list` still prints this file's
     // unknown camelCase keys, which `test/config/list.ts` pins.

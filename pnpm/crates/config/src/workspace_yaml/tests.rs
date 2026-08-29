@@ -197,8 +197,11 @@ fn parses_ignore_compatibility_db_from_yaml_and_applies() {
 }
 
 #[test]
-fn swallows_unknown_top_level_keys() {
-    let yaml = r#"
+fn load_at_tolerates_opaque_workspace_metadata() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        r#"
 catalog:
   react: ^18
 onlyBuiltDependencies:
@@ -207,8 +210,15 @@ packages:
   - "apps/*"
 vcs:
   1: metadata
-"#;
-    let _settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+"#,
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
 }
 
 #[test]
