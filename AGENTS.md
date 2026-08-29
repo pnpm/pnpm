@@ -247,6 +247,8 @@ Write a comment only when:
 
 Before adding a comment, ask: "Could I rename, restructure, or extract instead?" If yes, do that. The bar for prose-in-code is high; the bar for prose-that-restates-code is "don't."
 
+-   **No decorative symbols in comments.** Do not use dashes (`---`), equals signs (`===`), asterisks (`****`), or other ASCII art as visual dividers or section separators. No emoji in comments or code strings unless the feature itself requires Unicode rendering. Comments must be minimal prose only — the fewer characters, the better.
+
 ## Code Style (TypeScript only)
 
 This repository uses [Standard Style](https://github.com/standard/standard) with a few modifications:

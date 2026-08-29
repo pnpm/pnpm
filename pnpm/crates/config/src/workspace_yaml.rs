@@ -2263,6 +2263,9 @@ impl WorkspaceSettings {
         if let Some(v) = self.trust_policy_ignore_after {
             config.trust_policy_ignore_after = Some(v);
         }
+        if let Some(v) = self.save_exact {
+            config.save_exact = v;
+        }
     }
 
     /// Overlay this file's proxy keys onto the merged view and re-resolve.

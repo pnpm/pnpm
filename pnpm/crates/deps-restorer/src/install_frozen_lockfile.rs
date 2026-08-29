@@ -394,7 +394,7 @@ where
         // variants) so the clone is essentially free.
         let dependency_groups: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
 
-        // TODO: check if the lockfile is out-of-date
+        // Lockfile freshness is checked by the caller before reaching here.
 
         // Build the allow-builds policy up front so it can flow into
         // the cold-batch git fetcher in `CreateVirtualStore` as well as
