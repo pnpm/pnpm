@@ -1327,6 +1327,46 @@ async fn a_publication_whose_scope_went_elsewhere_takes_its_artifact_back_out() 
     );
 }
 
+/// The other form of the vocabulary reaches these machines too. A publication
+/// that took the universal key while this tagged one was written off holds it
+/// under a key this one never claims, so recovering only its own keys would
+/// leave both stored.
+#[tokio::test]
+async fn recovery_sees_a_scope_taken_through_the_other_form() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
+    let (payload, _) = ours.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&ours.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+    let variant = format!("{owner}/entries/{entry}/{slot}.json");
+    store.create_object(&variant, serde_json::to_vec(&ours.envelope).unwrap()).await.unwrap();
+    // Reaches every machine, including the ones this artifact reaches, and it
+    // took its key while this publication was written off.
+    store
+        .create_object(
+            &format!("{owner}/entries/{entry}/scopes/universal"),
+            b"an artifact reaching everything".to_vec(),
+        )
+        .await
+        .unwrap();
+
+    let error = store
+        .reclaim_own_scopes(&owner, &entry, &variant, &payload, &ours.envelope.digest().unwrap())
+        .await
+        .unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "the publication is told it lost, got {error:?}",
+    );
+    assert!(
+        store.read_object_bounded(&variant, 4096).await.unwrap().is_none(),
+        "and its artifact does not stay beside the one reaching the same machines",
+    );
+}
+
 /// A retried publication of the identical envelope is not an attempt to replace
 /// anything, so it stays idempotent rather than becoming a conflict.
 #[tokio::test]

@@ -127,6 +127,11 @@ enum SlotClaim {
 }
 
 struct PreparedPublication {
+    /// When this publication began, which is what its registration is measured
+    /// against. Taken before the registration rather than after the reads that
+    /// follow it, so a slow read cannot let the registration expire while this
+    /// still counts itself young.
+    started: std::time::Instant,
     entry: String,
     /// Identifies the artifact itself, where the slot identifies only what it is
     /// built for, so a scope marker names which artifact holds it.
@@ -253,7 +258,7 @@ impl SharedArtifactStore {
         if self.publication_is_complete(&prepared).await? {
             return Ok(false);
         }
-        let started = std::time::Instant::now();
+        let started = prepared.started;
         let mut prepared = prepared;
         let envelope_size = prepared.envelope_bytes.len() as u64;
         let owner = prepared.owner.clone();
@@ -432,20 +437,49 @@ impl SharedArtifactStore {
             CompatibilityScopes::Every => BTreeSet::from([UNIVERSAL_SCOPE.to_string()]),
             CompatibilityScopes::These(scopes) => scopes,
         };
+        let mut held = true;
         for scope in &scopes {
             if self.create_object(&scope_marker_path(owner, entry, scope), holder.into()).await? {
                 continue;
             }
-            if self.scope_marker(owner, entry, scope, holder).await? == ScopeMarker::Ours {
-                continue;
+            if self.scope_marker(owner, entry, scope, holder).await? != ScopeMarker::Ours {
+                held = false;
+                break;
             }
-            self.store.delete(&self.object_path(variant_path)).await?;
-            return Err(RegistryError::ArtifactAlreadyPublished {
-                owner: owner.to_string(),
-                entry: entry.to_string(),
-            });
         }
-        Ok(())
+        // The other form of the vocabulary reaches these machines too, and a
+        // publication that took one while this was written off holds it under a
+        // key this one never claims.
+        if held {
+            held = match compatibility_scopes(&payload.compatibility) {
+                CompatibilityScopes::Every => self.tagged_scopes_are_free(owner, entry).await?,
+                CompatibilityScopes::These(_) => {
+                    self.scope_marker(owner, entry, UNIVERSAL_SCOPE, holder).await?
+                        != ScopeMarker::Another
+                }
+            };
+        }
+        if held {
+            return Ok(());
+        }
+        self.store.delete(&self.object_path(variant_path)).await?;
+        Err(RegistryError::ArtifactAlreadyPublished {
+            owner: owner.to_string(),
+            entry: entry.to_string(),
+        })
+    }
+
+    async fn tagged_scopes_are_free(&self, owner: &str, entry: &str) -> Result<bool> {
+        let prefix = self.object_path(&scopes_prefix(owner, entry));
+        let mut listing = self.store.list(Some(&prefix));
+        while let Some(marker) = listing.next().await {
+            if scope_name(&marker?.location)
+                .is_some_and(|scope| !matches!(scope, UNIVERSAL_SCOPE | BACKFILLED_SCOPE))
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     pub async fn resolve(&self, username: &str, body: &[u8]) -> Result<ResolveArtifactsResponse> {
@@ -1338,9 +1372,11 @@ fn prepare_publication(
     // Named for what the artifact is *for* rather than what it is, so that one
     // input key and one set of compatibility constraints admit one artifact.
     let slot = compatibility_slot(&payload.compatibility);
+    let started = std::time::Instant::now();
     let envelope_digest = request.envelope.digest().map_err(|err| protocol_error(&err))?;
     let variant_path = format!("{owner}/entries/{entry}/{slot}.json");
     Ok(PreparedPublication {
+        started,
         payload,
         uploads: validated.blobs,
         owner,
