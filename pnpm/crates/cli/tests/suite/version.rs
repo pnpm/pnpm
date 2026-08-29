@@ -83,6 +83,43 @@ fn version_flag_switches_to_project_package_manager_version() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn child_pnpm_selects_the_version_for_its_own_directory() {
+    let CommandTempCwd { pacquet, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let project_a = root.path().join("a");
+    let project_b = root.path().join("b");
+    fs::create_dir_all(&project_a).expect("create project a");
+    fs::create_dir_all(&project_b).expect("create project b");
+    fs::write(project_a.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
+        .expect("write project a package.json");
+    fs::write(project_b.join("package.json"), r#"{"packageManager":"pnpm@9.1.3"}"#)
+        .expect("write project b package.json");
+
+    let version_script = r"
+        const { spawnSync } = require('node:child_process')
+        const result = spawnSync('pnpm', ['--version'], {
+          cwd: process.argv[1],
+          encoding: 'utf8',
+        })
+        if (result.status !== 0) throw new Error(result.stderr)
+        process.stdout.write(result.stdout)
+    ";
+    let output = test_command(pacquet, root.path())
+        .current_dir(&project_a)
+        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .args(["exec", "node", "-e", version_script])
+        .arg(&project_b)
+        .output()
+        .expect("run child pnpm in project b");
+    dbg!(&output);
+    assert!(output.status.success(), "child pnpm should succeed");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "9.1.3\n");
+
+    drop((root, mock_instance));
+}
+
 /// `--version` runs the pre-command checks — that is what lets it switch to
 /// the pinned pnpm above. A pin the running pnpm already satisfies has nothing
 /// to switch to, but it is still recorded, so the entry does not depend on
