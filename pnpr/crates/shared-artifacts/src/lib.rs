@@ -22,7 +22,7 @@ use pnpm_shared_artifact_protocol::{
 use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
 use pnpr_error::{RegistryError, Result};
 use sha2::{Digest as _, Sha256};
-use tokio::time::sleep;
+use tokio::time::{interval, sleep};
 
 const ARTIFACT_CACHE_DIR: &str = "shared-artifacts/v0";
 const ARTIFACT_OBJECT_PREFIX: &str = ".pnpr-artifacts/v0";
@@ -42,6 +42,11 @@ const PUBLICATION_FINISH_RETRIES: usize = 8;
 /// than a publication that is merely slow, since expiring a live one lets a
 /// collector run beside it.
 const ACTIVE_PUBLICATION_EXPIRY: Duration = Duration::from_hours(1);
+/// How often a publication says it is still working.
+///
+/// Well inside the expiry, so several renewals have to fail before a
+/// publication that is running is mistaken for one that stopped.
+const PUBLICATION_RENEWAL_INTERVAL: Duration = Duration::from_mins(5);
 const QUOTA_WRITE_RETRIES: usize = 32;
 const RECLAMATION_WAIT_RETRIES: usize = 600;
 /// A scope marker holds the envelope digest of the artifact that claimed it,
@@ -200,7 +205,7 @@ impl SharedArtifactStore {
         let publication = artifact_operation_id()?;
         self.begin_publication(&publication).await?;
         let mut reclamation_needed = false;
-        let result = self.publish_active(prepared, &mut reclamation_needed).await;
+        let result = self.publish_renewing(prepared, &publication, &mut reclamation_needed).await;
         let finish = self.finish_publication(&publication, reclamation_needed).await;
         if finish.is_ok()
             && let Err(error) = self.try_reclaim_unreferenced_blobs().await
@@ -209,6 +214,50 @@ impl SharedArtifactStore {
         }
         finish?;
         result
+    }
+
+    /// Runs a publication, saying at intervals that it is still working.
+    ///
+    /// A registration is written off so that one nobody will remove stops
+    /// holding reclamation shut. Renewing keeps that from reaching a
+    /// publication that is merely slow: only one that has actually stopped goes
+    /// quiet long enough to be written off, so no collector runs beside a live
+    /// publication and the losses it would cause cannot arise.
+    async fn publish_renewing(
+        &self,
+        prepared: PreparedPublication,
+        publication: &str,
+        reclamation_needed: &mut bool,
+    ) -> Result<bool> {
+        let mut renewals = interval(PUBLICATION_RENEWAL_INTERVAL);
+        renewals.tick().await;
+        let publishing = self.publish_active(prepared, reclamation_needed);
+        let mut publishing = std::pin::pin!(publishing);
+        loop {
+            tokio::select! {
+                outcome = &mut publishing => return outcome,
+                _ = renewals.tick() => {
+                    // A renewal that cannot be written is not fatal on its own:
+                    // the expiry is several renewals wide, and the publication
+                    // recovers what it lost if it is written off anyway.
+                    if let Err(error) = self.renew_publication(publication).await {
+                        tracing::warn!(%error, "shared artifact publication could not renew");
+                    }
+                }
+            }
+        }
+    }
+
+    async fn renew_publication(&self, publication: &str) -> Result<()> {
+        self.mutate_usage(|usage| {
+            if !usage.active_publications.contains(publication) {
+                return Ok(false);
+            }
+            usage.active_publication_times.insert(publication.to_string(), registered_now());
+            Ok(true)
+        })
+        .await?;
+        Ok(())
     }
 
     async fn publish_active(
@@ -411,13 +460,14 @@ impl SharedArtifactStore {
             // artifact is stored now, so those scopes are its own again, and
             // taking them back is what keeps it from reaching machines nothing
             // says it reaches.
+            // Asked for whatever the recovery finds: a collector that ran
+            // beside this publication rebuilt the usage document from what it
+            // could see, which was not yet everything this publication had
+            // written, and a recovery that gives up leaves an artifact and
+            // markers to collect.
+            *reclamation_needed = true;
             self.recover_after_expiry(&owner, &entry, &variant_path, &payload, &envelope_digest)
                 .await?;
-            // A collector that ran beside this publication rebuilt the usage
-            // document from what it could see, which was not yet everything this
-            // publication has written. Asking for another pass is what squares
-            // the count again.
-            *reclamation_needed = true;
         }
         Ok(created)
     }
@@ -494,6 +544,13 @@ impl SharedArtifactStore {
         // they would refuse artifacts that reach those machines on behalf of one
         // that is not there.
         for scope in &retaken {
+            // Only while it still names this artifact: a marker retaken here can
+            // be collected and taken by somebody else before this loop reaches
+            // it, and removing it by path alone would take that publication's
+            // claim instead.
+            if self.scope_marker(owner, entry, scope, holder).await? != ScopeMarker::Ours {
+                continue;
+            }
             let path = self.object_path(&scope_marker_path(owner, entry, scope));
             match self.store.delete(&path).await {
                 Ok(()) | Err(object_store::Error::NotFound { .. }) => {}

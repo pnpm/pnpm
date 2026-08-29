@@ -1440,6 +1440,59 @@ async fn recovery_refuses_an_artifact_whose_blobs_were_collected() {
     );
 }
 
+/// A publication says at intervals that it is still working, so one that is
+/// merely slow is never mistaken for one that stopped — which is what keeps a
+/// collector from running beside it and taking what it has not finished with.
+#[tokio::test]
+async fn a_publication_still_working_says_so() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let publication = super::artifact_operation_id().unwrap();
+    let long_ago = super::registered_now() - super::ACTIVE_PUBLICATION_EXPIRY.as_secs() - 1;
+    store
+        .create_object(
+            ".locks/usage.json",
+            serde_json::to_vec(&serde_json::json!({
+                "global_bytes": 0,
+                "owner_bytes": {},
+                "active_publications": [publication.clone()],
+                "active_publication_times": { publication.clone(): long_ago },
+            }))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    store.renew_publication(&publication).await.unwrap();
+
+    let mut usage: ArtifactUsage = serde_json::from_slice(
+        &store.read_object_bounded(".locks/usage.json", 1 << 20).await.unwrap().unwrap(),
+    )
+    .unwrap();
+    assert!(
+        !super::expire_stranded_publications(&mut usage),
+        "a registration that has just spoken is not written off",
+    );
+    assert!(usage.active_publications.contains(&publication));
+}
+
+/// Renewing says nothing about a publication that has already finished, since
+/// its registration is gone and putting a time back would leave one nothing
+/// removes.
+#[tokio::test]
+async fn renewing_a_publication_that_finished_records_nothing() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+
+    store.renew_publication("a-publication-that-finished").await.unwrap();
+
+    let usage: ArtifactUsage = serde_json::from_slice(
+        &store.read_object_bounded(".locks/usage.json", 1 << 20).await.unwrap().unwrap_or_default(),
+    )
+    .unwrap_or_default();
+    assert!(usage.active_publication_times.is_empty());
+}
+
 /// A retried publication of the identical envelope is not an attempt to replace
 /// anything, so it stays idempotent rather than becoming a conflict.
 #[tokio::test]
