@@ -893,17 +893,6 @@ struct CompatibilityTagParts<'a> {
     runtime: &'a str,
 }
 
-impl CompatibilityTagParts<'_> {
-    /// Whether some consumer presents both tags. The version floors in
-    /// `runtime` are deliberately not compared: a consumer meeting the higher
-    /// floor meets the lower one as well.
-    fn shares_consumers_with(&self, other: &Self) -> bool {
-        self.os == other.os
-            && self.architecture == other.architecture
-            && self.node_major == other.node_major
-    }
-}
-
 fn split_compatibility_tag(tag: &str) -> Result<CompatibilityTagParts<'_>, ArtifactProtocolError> {
     validate_scalar("compatibility tag", tag, 512)?;
     let Some(platform) = tag.strip_prefix("pnpm:v1:") else {
