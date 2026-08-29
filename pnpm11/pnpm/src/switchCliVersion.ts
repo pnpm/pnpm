@@ -8,7 +8,6 @@ import { PnpmError } from '@pnpm/error'
 import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalWarn } from '@pnpm/logger'
-import { prependDirsToPath } from '@pnpm/shell.path'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import spawn from 'cross-spawn'
 import semver from 'semver'
@@ -188,12 +187,6 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
     await storeToUse.ctrl.close()
   }
 
-  const pnpmEnv = prependDirsToPath([wantedPnpmBinDir])
-  if (!pnpmEnv.updated) {
-    // We throw this error to prevent an infinite recursive call of the same pnpm version.
-    throw new VersionSwitchFail(pmVersion, wantedPnpmBinDir)
-  }
-
   // Specify the exact pnpm file path that's expected to execute to spawn.sync()
   //
   // It's not safe spawn 'pnpm' (without specifying an absolute path) and expect
@@ -207,11 +200,6 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
 
   const { status, signal, error } = spawn.sync(pnpmBinPath, process.argv.slice(2), {
     stdio: 'inherit',
-    env: {
-      ...process.env,
-      [pnpmEnv.name]: pnpmEnv.value,
-      npm_config_manage_package_manager_versions: 'false',
-    },
   })
 
   if (error) {

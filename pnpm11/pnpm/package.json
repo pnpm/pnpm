@@ -122,7 +122,6 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-access.commands": "workspace:*",
     "@pnpm/releasing.commands": "workspace:*",
-    "@pnpm/shell.path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.commands": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",

@@ -7945,9 +7945,6 @@ importers:
       '@pnpm/releasing.commands':
         specifier: workspace:*
         version: link:../releasing/commands
-      '@pnpm/shell.path':
-        specifier: workspace:*
-        version: link:../shell/path
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../store/cafs

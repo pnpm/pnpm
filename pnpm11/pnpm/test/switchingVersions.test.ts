@@ -22,6 +22,46 @@ test('switch to the pnpm version specified in the packageManager field of packag
   expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
+test('child pnpm processes select the version for their own directory', () => {
+  prepare()
+  const rootDir = process.cwd()
+  const projectADir = path.join(rootDir, 'a')
+  const projectBDir = path.join(rootDir, 'b')
+  const pnpmHome = path.join(rootDir, 'pnpm')
+  const initialPnpmVersion = execPnpmSync(['--version'], { cwd: rootDir }).stdout.toString().trim()
+  fs.mkdirSync(projectADir)
+  fs.mkdirSync(projectBDir)
+  writeJsonFileSync(path.join(projectADir, 'package.json'), {
+    packageManager: 'pnpm@9.3.0',
+  })
+  writeJsonFileSync(path.join(projectBDir, 'package.json'), {
+    packageManager: 'pnpm@9.1.3',
+  })
+
+  const versionScript = `
+    const { spawnSync } = require('node:child_process')
+    const versionAt = (dir) => {
+      const result = spawnSync('pnpm', ['--version'], { cwd: dir, encoding: 'utf8' })
+      if (result.status !== 0) throw new Error(result.stderr)
+      return result.stdout.trim()
+    }
+    process.stdout.write(JSON.stringify({
+      projectB: versionAt(${JSON.stringify(projectBDir)}),
+      unpinned: versionAt(${JSON.stringify(rootDir)}),
+    }))
+  `
+  const result = execPnpmSync(['exec', 'node', '-e', versionScript], {
+    cwd: projectADir,
+    env: { PNPM_HOME: pnpmHome },
+    expectSuccess: true,
+  })
+
+  expect(JSON.parse(result.stdout.toString())).toEqual({
+    projectB: '9.1.3',
+    unpinned: initialPnpmVersion,
+  })
+})
+
 test('packageManager field does not write pnpm resolution info to pnpm-lock.yaml', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')

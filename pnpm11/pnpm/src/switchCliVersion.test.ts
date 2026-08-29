@@ -53,7 +53,7 @@ const envLockfile: EnvLockfile = {
 const installPnpmToStore = jest.fn<(version: string, opts: object) => Promise<{ binDir: string }>>(async () => ({ binDir: '/store/bin' }))
 const readEnvLockfile = jest.fn<(rootDir: string) => Promise<EnvLockfile | null>>(async () => envLockfile)
 const resolvePackageManagerIntegrities = jest.fn<(version: string, opts: object) => Promise<EnvLockfile>>(async () => envLockfile)
-const spawnSync = jest.fn(() => ({ status: 0 }))
+const spawnSync = jest.fn<(command: string, args: string[], options: object) => { status: number }>(() => ({ status: 0 }))
 
 // Mutable so a test can pretend the running pnpm is itself a broken release.
 const mockPackageManager = { name: 'pnpm', version: '11.0.0' }
@@ -76,9 +76,6 @@ jest.unstable_mockModule('@pnpm/installing.env-installer', () => ({
 }))
 jest.unstable_mockModule('@pnpm/lockfile.fs', () => ({
   readEnvLockfile,
-}))
-jest.unstable_mockModule('@pnpm/shell.path', () => ({
-  prependDirsToPath: () => ({ name: 'PATH', updated: true, value: '/store/bin' }),
 }))
 jest.unstable_mockModule('@pnpm/store.connection-manager', () => ({
   createStoreController,
@@ -476,6 +473,9 @@ test('still switches to a release that is not broken', async () => {
   }
 
   expect(installPnpmToStore).toHaveBeenCalledWith('11.13.1', expect.anything())
+  expect(spawnSync).toHaveBeenCalledWith('/store/bin/pnpm', process.argv.slice(2), {
+    stdio: 'inherit',
+  })
 })
 
 /** The fixture above, re-pointed at `version` — same shape, so it still passes the
