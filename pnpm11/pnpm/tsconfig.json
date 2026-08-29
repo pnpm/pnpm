@@ -147,9 +147,6 @@
       "path": "../releasing/commands"
     },
     {
-      "path": "../shell/path"
-    },
-    {
       "path": "../store/cafs"
     },
     {
