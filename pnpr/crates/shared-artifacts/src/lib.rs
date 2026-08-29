@@ -922,6 +922,11 @@ impl SharedArtifactStore {
                 variants.push(variant.location);
             }
         }
+        // Legacy variants can reach a scope another already reached — an overlap
+        // the markers are being written to stop. Writing the marker once rather
+        // than once per variant keeps a crowded entry from turning one backfill
+        // into a reservation and a release for each repeat.
+        let mut attempted = BTreeSet::new();
         for location in variants {
             let Some(relative) = self.relative_path(&location).map(str::to_string) else {
                 continue;
@@ -941,6 +946,9 @@ impl SharedArtifactStore {
                 CompatibilityScopes::These(scopes) => scopes,
             };
             for scope in &scopes {
+                if !attempted.insert(scope.clone()) {
+                    continue;
+                }
                 // Reserved before it is written and kept afterwards, like every
                 // marker: these outlive the publication that writes them, and an
                 // owner over quota must not be able to write one either.

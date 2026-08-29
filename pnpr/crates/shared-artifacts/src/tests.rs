@@ -291,6 +291,7 @@ async fn failed_object_writes_reconcile_quota_to_physical_storage() {
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: None,
+        usage_writes: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -319,6 +320,7 @@ async fn committed_blob_writes_without_an_envelope_are_reclaimed() {
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: None,
+        usage_writes: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -358,6 +360,7 @@ async fn committed_envelope_writes_that_report_failure_remain_charged() {
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: None,
+        usage_writes: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -393,6 +396,7 @@ async fn publication_finish_retries_a_transient_quota_write_failure() {
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: None,
+        usage_writes: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -499,6 +503,7 @@ async fn failed_reclamation_releases_its_gate_for_later_retries() {
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: None,
+        usage_writes: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -613,6 +618,7 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: None,
+        usage_writes: None,
     });
     let store = SharedArtifactStore::new(
         &HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() },
@@ -820,6 +826,7 @@ async fn losing_a_race_for_a_slot_is_not_reported_as_idempotent() {
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: None,
+        usage_writes: None,
     });
     let racing = SharedArtifactStore::new(
         &HostedStoreConfig::ObjectStore { store: racing, prefix: String::new() },
@@ -894,6 +901,7 @@ async fn a_publication_that_fails_gives_back_the_scopes_it_claimed() {
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: None,
+        usage_writes: None,
     });
     let store = SharedArtifactStore::new(
         &HostedStoreConfig::ObjectStore { store: failing, prefix: String::new() },
@@ -1269,6 +1277,7 @@ async fn a_publication_that_cannot_register_again_does_not_leave_its_artifact() 
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: Some(FailOnly::RegistrationAfter(variant.clone())),
+        usage_writes: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -1402,6 +1411,7 @@ async fn a_recovery_that_cannot_remove_its_artifact_keeps_the_scopes_it_retook()
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: Some(FailOnly::DeleteOf(format!(".pnpr-artifacts/v0/{variant}"))),
+        usage_writes: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -1601,6 +1611,60 @@ async fn renewing_a_publication_that_finished_records_nothing() {
     assert!(usage.active_publication_times.is_empty());
 }
 
+/// Legacy variants can reach a scope another already reached, and each repeat
+/// would otherwise cost a reservation and a release against the usage document.
+#[tokio::test]
+async fn a_backfill_writes_each_marker_once_however_many_variants_reach_it() {
+    let usage_writes = Arc::new(AtomicUsize::new(0));
+    let backend: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+        inner: InMemory::new(),
+        commit_before_error: false,
+        fail_deletes: false,
+        fail_next_quota_write: None,
+        claim_slot_first: None,
+        fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
+        fail_reads_of: None,
+        fail_scope_writes: false,
+        fail_only: Some(FailOnly::WriteOf(String::new())),
+        usage_writes: Some(Arc::clone(&usage_writes)),
+    });
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let scratch = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
+    // Two artifacts stored before markers existed, whose tags differ only in a
+    // floor — so they reach the same scope, which is the overlap markers stop.
+    let floors = ["pnpm:v1:linux-x64-node22-glibc2.17", "pnpm:v1:linux-x64-node22-glibc2.31"];
+    let stored = publication_tagged("ci/stored", &floors[..1]);
+    let (payload, _) = stored.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&stored.key, &payload.subject);
+    for floor in floors {
+        let legacy = publication_tagged("ci/stored", &[floor]);
+        let (payload, _) = legacy.envelope.decode_payload().unwrap();
+        let slot = super::compatibility_slot(&payload.compatibility);
+        store
+            .create_object(
+                &format!("{owner}/entries/{entry}/{slot}.json"),
+                serde_json::to_vec(&legacy.envelope).unwrap(),
+            )
+            .await
+            .unwrap();
+    }
+    let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-arm64-node22-glibc2.17"]);
+    let prepared = super::prepare_publication("acme", &ours).unwrap();
+    usage_writes.store(0, Ordering::SeqCst);
+
+    store.backfill_scopes(&prepared).await.unwrap();
+
+    assert_eq!(
+        usage_writes.load(Ordering::SeqCst),
+        1,
+        "the one marker both variants reach is reserved once, not once each",
+    );
+}
+
 /// A marker the backfill cannot write leaves nothing charged for it: only a
 /// pass over what is stored can say whether the bytes are there, and an owner
 /// charged for what may not be is refused publications that fit.
@@ -1623,6 +1687,7 @@ async fn a_backfill_that_cannot_write_a_marker_gives_its_charge_back() {
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: Some(FailOnly::WriteOf(format!(".pnpr-artifacts/v0/{marker}"))),
+        usage_writes: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -1887,6 +1952,9 @@ struct FailArtifactWrites {
     /// Lets every operation through except the one named, so a test can put a
     /// failure exactly where it means it.
     fail_only: Option<FailOnly>,
+    /// Counts writes of the usage document, which is what a reservation and a
+    /// release each cost against a hosted store.
+    usage_writes: Option<Arc<AtomicUsize>>,
 }
 
 #[derive(Debug)]
@@ -1915,6 +1983,11 @@ impl ObjectStore for FailArtifactWrites {
         payload: PutPayload,
         options: PutOptions,
     ) -> object_store::Result<PutResult> {
+        if let Some(writes) = self.usage_writes.as_ref()
+            && location.as_ref().ends_with("/quota.json")
+        {
+            writes.fetch_add(1, Ordering::SeqCst);
+        }
         if let Some((slot, winner)) = self.claim_slot_first.as_ref()
             && location.as_ref() == slot
         {
