@@ -438,6 +438,48 @@ fn install_via_pnpr_links_node_modules() {
 }
 
 #[test]
+fn install_via_pnpr_replaces_a_conflicted_lockfile() {
+    const CONFLICTED_LOCKFILE: &str =
+        "<<<<<<< HEAD\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '9.0'\n>>>>>>> branch\n";
+
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@foo/no-deps": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.join("pnpm-lock.yaml"), CONFLICTED_LOCKFILE)
+        .expect("write conflicted lockfile");
+
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+
+    let lockfile = read_workspace_lockfile(&workspace);
+    assert_eq!(workspace_importer_version(&lockfile, ".", "@foo/no-deps"), "1.0.0");
+    assert!(is_symlink_or_junction(&workspace.join("node_modules/@foo/no-deps")).unwrap());
+
+    fs::write(workspace.join("pnpm-lock.yaml"), CONFLICTED_LOCKFILE)
+        .expect("rewrite conflicted lockfile");
+    pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--fix-lockfile", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+    let repaired = read_workspace_lockfile(&workspace);
+    assert_eq!(workspace_importer_version(&repaired, ".", "@foo/no-deps"), "1.0.0");
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn patched_dependencies_resolve_via_pnpr() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
