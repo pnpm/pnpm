@@ -167,12 +167,6 @@ impl SharedArtifactStore {
         } = prepared;
         let envelope_size = envelope_bytes.len() as u64;
 
-        // Idempotent for the identical envelope — a retried publication is not
-        // an attempt to replace anything — and a conflict for any other, which
-        // is the whole point of the slot. Releasing a claimed slot is an
-        // operator action against the store: the publishing credential must
-        // not be able to do it, or a stolen one could swap the artifact for a
-        // dependency nobody has looked at in a year.
         match self.slot_claim(&owner, &entry, &variant_path, &slot, &envelope_bytes).await? {
             SlotClaim::Held => return Ok(false),
             SlotClaim::HeldByAnother => {
@@ -375,14 +369,11 @@ impl SharedArtifactStore {
     /// Whether this slot is free, already holds this exact envelope, or holds
     /// another one.
     ///
-    /// Usually the slot's own object answers it. A store written before
-    /// artifacts were named for their slot holds them under their envelope
-    /// digest instead, so those are found by reading the entry — otherwise
-    /// upgrading a populated registry would leave every existing artifact
-    /// replaceable. Such a store may also hold *several* artifacts for one
-    /// slot, which is the state this naming exists to stop being reachable;
-    /// republishing any of them is still a retry, so the entry is searched for
-    /// this envelope before another one is reported.
+    /// Usually the slot's own object answers it. A store may also hold
+    /// artifacts under their envelope digest, and several of them for one
+    /// slot, so the entry is read when that object is absent: otherwise those
+    /// artifacts would be replaceable, and republishing one of them — a retry
+    /// like any other — would be refused as a conflict.
     async fn slot_claim(
         &self,
         owner: &str,
@@ -873,8 +864,7 @@ fn prepare_publication(
     let entry = entry_digest(&request.key, &payload.subject);
     let envelope_bytes = serde_json::to_vec(&request.envelope)?;
     // Named for what the artifact is *for* rather than what it is, so that one
-    // input key and one set of compatibility constraints admit one artifact and
-    // a second build for the same input collides instead of joining it.
+    // input key and one set of compatibility constraints admit one artifact.
     let slot = compatibility_slot(&payload.compatibility);
     let variant_path = format!("{owner}/entries/{entry}/{slot}.json");
     Ok(PreparedPublication {
@@ -1024,8 +1014,7 @@ fn hex(bytes: &[u8]) -> String {
 /// builds advertising the same constraints do not.
 ///
 /// Hex-encoded so that it has the shape [`is_variant_file`] recognises, which
-/// is also the shape of the envelope digests a store written before slots
-/// existed used for these files.
+/// envelope digests share.
 fn compatibility_slot(compatibility: &CompatibilityConstraints) -> String {
     let mut hasher = Sha256::new();
     hasher.update(b"pnpm-shared-artifact-slot-v1\0");

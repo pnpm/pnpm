@@ -487,10 +487,8 @@ async fn failed_reclamation_releases_its_gate_for_later_retries() {
     assert!(backend.head(&orphan).await.is_ok());
 }
 
-/// One input key and one set of compatibility constraints admit one artifact,
-/// for the same reason a `name@version` admits one tarball: a consumer that
-/// resolved it once must not be handed different bytes later. A second build
-/// for the same slot is refused rather than joining it as another variant.
+/// A second build for a claimed slot is refused rather than stored beside the
+/// first. See [`RegistryError::ArtifactAlreadyPublished`] for why.
 #[tokio::test]
 async fn a_second_artifact_cannot_claim_a_taken_slot() {
     let storage = TempDir::new().unwrap();
@@ -508,9 +506,9 @@ async fn a_second_artifact_cannot_claim_a_taken_slot() {
     assert_eq!(response.artifacts[0].variants.len(), 1, "the first artifact still stands");
 }
 
-/// The two holes the legacy fallback could still leave: a stored artifact whose
-/// tags are written in another order, and one that sorts past the read-time
-/// variant limit. Both would call an occupied slot free.
+/// An artifact stored under its envelope digest claims its slot whatever order
+/// its tags are written in, and however late it sorts in the listing. Either
+/// would otherwise leave an occupied slot looking free.
 #[tokio::test]
 async fn a_legacy_artifact_claims_its_slot_whatever_its_order_or_position() {
     let tags = ["pnpm:v1:linux-x64-node22-glibc2.17", "pnpm:v1:linux-arm64-node22-glibc2.17"];
@@ -597,10 +595,10 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
     assert_eq!(usage.global_bytes, 0, "the loser is not charged for what it did not store");
 }
 
-/// A store written before this naming could hold several artifacts for one
-/// slot. Republishing any of them is still a retry, so the whole slot is
-/// searched for the incoming envelope before another one is reported — the
-/// second is no less already-published than the first.
+/// A store may hold several artifacts for one slot. Republishing any of them is
+/// a retry, so the whole slot is searched for the incoming envelope before
+/// another one is reported: the second is no less already-published than the
+/// first.
 #[tokio::test]
 async fn republishing_any_artifact_already_in_a_crowded_legacy_slot_is_a_retry() {
     let storage = TempDir::new().unwrap();
@@ -649,9 +647,8 @@ async fn tag_order_does_not_open_a_second_slot() {
     );
 }
 
-/// A store written before artifacts were named for their slot holds them under
-/// their envelope digest. Upgrading must not leave every artifact already in it
-/// replaceable, so those claim their slot too.
+/// An artifact stored under its envelope digest claims its slot too, or a store
+/// already holding one would leave it replaceable.
 #[tokio::test]
 async fn an_artifact_stored_under_the_older_name_still_claims_its_slot() {
     let storage = TempDir::new().unwrap();
