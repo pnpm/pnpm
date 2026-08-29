@@ -141,6 +141,42 @@ fn workspace_protocol_from_catalog_is_rewritten_to_installed_version() {
 }
 
 #[test]
+fn peer_workspace_aliases_and_paths_from_catalog_are_rewritten() {
+    let dir = tempdir().unwrap();
+    let project = dir.path().join("node_modules/project");
+    fs::create_dir_all(&project).unwrap();
+    install_dep(dir.path(), "xerox", "4.5.6");
+
+    let mut alias_catalog = Catalog::new();
+    alias_catalog.insert("garply".to_string(), "workspace:plugh@2.0.0".to_string());
+    let mut path_catalog = Catalog::new();
+    path_catalog.insert("xeroxAlias".to_string(), "workspace:../xerox".to_string());
+    let mut catalogs = empty_catalogs();
+    catalogs.insert("alias".to_string(), alias_catalog);
+    catalogs.insert("path".to_string(), path_catalog);
+
+    let out = build(
+        &project,
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "peerDependencies": {
+                "garply": "catalog:alias",
+                "xeroxAlias": "catalog:path",
+            },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert_eq!(
+        out["peerDependencies"],
+        json!({
+            "garply": "npm:plugh@2.0.0",
+            "xeroxAlias": "npm:xerox@4.5.6",
+        }),
+    );
+}
+
+#[test]
 fn jsr_protocol_dependency_becomes_npm_alias() {
     let dir = tempdir().unwrap();
     let catalogs = empty_catalogs();

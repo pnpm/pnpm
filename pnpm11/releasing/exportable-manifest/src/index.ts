@@ -208,6 +208,10 @@ async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec:
     return depSpec
   }
 
+  if (workspacePeerUsesAliasOrPath(depSpec)) {
+    return replaceWorkspaceProtocol(depName, depSpec, dir, modulesDir)
+  }
+
   // Dependencies with bare "*", "^", "~",">=",">","<=", "<", version
   const workspaceSemverRegex = /workspace:([\^~*]|>=|>|<=|<)?((\d+|[xX*])(\.(\d+|[xX*])){0,2})?/
   const versionAliasSpecParts = workspaceSemverRegex.exec(depSpec)
@@ -227,6 +231,13 @@ async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec:
   }
 
   return depSpec.replace('workspace:', '')
+}
+
+function workspacePeerUsesAliasOrPath (depSpec: string): boolean {
+  if (!depSpec.startsWith('workspace:')) return false
+  const workspaceSpec = depSpec.slice('workspace:'.length)
+  if (workspaceSpec.startsWith('./') || workspaceSpec.startsWith('../')) return true
+  return workspaceSpec.lastIndexOf('@') > 0 && !workspaceSpec.includes(' ') && !workspaceSpec.includes('||')
 }
 
 async function replaceJsrProtocol (depName: string, depSpec: string): Promise<string> {
