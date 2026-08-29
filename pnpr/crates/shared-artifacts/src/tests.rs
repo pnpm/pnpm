@@ -1265,7 +1265,7 @@ async fn a_publication_written_off_while_running_takes_its_scopes_back() {
         .unwrap();
 
     store
-        .reclaim_own_scopes(
+        .recover_after_expiry(
             &owner,
             &entry,
             &format!("{owner}/entries/{entry}/{slot}.json"),
@@ -1313,7 +1313,7 @@ async fn a_publication_whose_scope_went_elsewhere_takes_its_artifact_back_out() 
         .unwrap();
 
     let error = store
-        .reclaim_own_scopes(&owner, &entry, &variant, &payload, &ours.envelope.digest().unwrap())
+        .recover_after_expiry(&owner, &entry, &variant, &payload, &ours.envelope.digest().unwrap())
         .await
         .unwrap_err();
 
@@ -1353,7 +1353,7 @@ async fn recovery_sees_a_scope_taken_through_the_other_form() {
         .unwrap();
 
     let error = store
-        .reclaim_own_scopes(&owner, &entry, &variant, &payload, &ours.envelope.digest().unwrap())
+        .recover_after_expiry(&owner, &entry, &variant, &payload, &ours.envelope.digest().unwrap())
         .await
         .unwrap_err();
 
@@ -1364,6 +1364,79 @@ async fn recovery_sees_a_scope_taken_through_the_other_form() {
     assert!(
         store.read_object_bounded(&variant, 4096).await.unwrap().is_none(),
         "and its artifact does not stay beside the one reaching the same machines",
+    );
+}
+
+/// A publication reaching several machines can retake some scopes and then find
+/// one gone. What it retook names an artifact it is about to remove, so it puts
+/// those back too rather than refusing later artifacts on behalf of one that is
+/// not there.
+#[tokio::test]
+async fn recovery_that_loses_gives_back_what_it_had_retaken() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let tags = ["pnpm:v1:linux-arm64-node22-glibc2.17", "pnpm:v1:linux-x64-node22-glibc2.17"];
+    let ours = publication_tagged("ci/ours", &tags);
+    let (payload, _) = ours.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&ours.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+    let variant = format!("{owner}/entries/{entry}/{slot}.json");
+    store.create_object(&variant, serde_json::to_vec(&ours.envelope).unwrap()).await.unwrap();
+    // The second of the two scopes went to somebody else; the first is free, so
+    // recovery retakes it before finding the second gone.
+    store
+        .create_object(
+            &format!("{owner}/entries/{entry}/scopes/linux-x64-node22"),
+            b"an artifact published meanwhile".to_vec(),
+        )
+        .await
+        .unwrap();
+
+    store
+        .recover_after_expiry(&owner, &entry, &variant, &payload, &ours.envelope.digest().unwrap())
+        .await
+        .unwrap_err();
+
+    assert!(
+        store
+            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-arm64-node22"), 128)
+            .await
+            .unwrap()
+            .is_none(),
+        "the scope it retook does not stay held for an artifact it removed",
+    );
+}
+
+/// Being written off lets reclamation run beside a publication, and before its
+/// envelope is stored the blobs it uploaded are referenced by nothing. An
+/// envelope naming files that are gone is worse than no artifact, so it is
+/// taken out rather than served.
+#[tokio::test]
+async fn recovery_refuses_an_artifact_whose_blobs_were_collected() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let ours = publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/ours");
+    let (payload, _) = ours.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&ours.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+    let variant = format!("{owner}/entries/{entry}/{slot}.json");
+    // Stored, with the blob it names collected while the publication ran.
+    store.create_object(&variant, serde_json::to_vec(&ours.envelope).unwrap()).await.unwrap();
+
+    let error = store
+        .recover_after_expiry(&owner, &entry, &variant, &payload, &ours.envelope.digest().unwrap())
+        .await
+        .unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::Internal { .. }),
+        "the publication is told its artifact cannot stand, got {error:?}",
+    );
+    assert!(
+        store.read_object_bounded(&variant, 4096).await.unwrap().is_none(),
+        "and nothing is left naming files that are not there",
     );
 }
 

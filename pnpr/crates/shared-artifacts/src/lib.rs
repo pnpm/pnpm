@@ -411,21 +411,32 @@ impl SharedArtifactStore {
             // artifact is stored now, so those scopes are its own again, and
             // taking them back is what keeps it from reaching machines nothing
             // says it reaches.
-            self.reclaim_own_scopes(&owner, &entry, &variant_path, &payload, &envelope_digest)
+            self.recover_after_expiry(&owner, &entry, &variant_path, &payload, &envelope_digest)
                 .await?;
+            // A collector that ran beside this publication rebuilt the usage
+            // document from what it could see, which was not yet everything this
+            // publication has written. Asking for another pass is what squares
+            // the count again.
+            *reclamation_needed = true;
         }
         Ok(created)
     }
 
-    /// Takes back the scopes of an artifact that has just been stored, for a
-    /// publication that ran long enough to be written off while it was running.
+    /// Makes good what a publication that ran long enough to be written off may
+    /// have lost while it was running.
+    ///
+    /// Being written off lets reclamation run beside it, and reclamation
+    /// collects what nothing references — which, before this publication stored
+    /// its envelope, includes the blobs it had uploaded. An envelope naming
+    /// files that are not there is worse than no artifact, so they are read back
+    /// before the scopes are, and the artifact is taken out if any is gone.
     ///
     /// A scope may have gone to an artifact published while this one was
     /// written off, and that artifact holds it. This one then has no claim on a
     /// machine it reaches, so it takes its own artifact back out rather than
     /// leaving two that reach it — the variant is named for constraints only an
     /// identical artifact shares, so removing it removes nothing else's.
-    async fn reclaim_own_scopes(
+    async fn recover_after_expiry(
         &self,
         owner: &str,
         entry: &str,
@@ -433,13 +444,29 @@ impl SharedArtifactStore {
         payload: &ArtifactPayload,
         holder: &str,
     ) -> Result<()> {
+        for file in &payload.manifest.added {
+            let id = blob_id(&file.integrity).map_err(|err| protocol_error(&err))?;
+            let path = format!("{owner}/blobs/{id}");
+            let Some(bytes) = self.read_object_bounded(&path, file.size).await? else {
+                self.store.delete(&self.object_path(variant_path)).await?;
+                return Err(RegistryError::Internal {
+                    reason: format!(
+                        "blob {id} of a shared artifact was collected while the publication \
+                         storing it was still running",
+                    ),
+                });
+            };
+            verify_stored_blob(&id, &file.integrity, file.size, &bytes)?;
+        }
         let scopes = match compatibility_scopes(&payload.compatibility) {
             CompatibilityScopes::Every => BTreeSet::from([UNIVERSAL_SCOPE.to_string()]),
             CompatibilityScopes::These(scopes) => scopes,
         };
         let mut held = true;
+        let mut retaken = Vec::new();
         for scope in &scopes {
             if self.create_object(&scope_marker_path(owner, entry, scope), holder.into()).await? {
+                retaken.push(scope.clone());
                 continue;
             }
             if self.scope_marker(owner, entry, scope, holder).await? != ScopeMarker::Ours {
@@ -461,6 +488,17 @@ impl SharedArtifactStore {
         }
         if held {
             return Ok(());
+        }
+        // The scopes retaken before the one that was gone name an artifact about
+        // to be removed. Reclamation would drop them eventually; until it did,
+        // they would refuse artifacts that reach those machines on behalf of one
+        // that is not there.
+        for scope in &retaken {
+            let path = self.object_path(&scope_marker_path(owner, entry, scope));
+            match self.store.delete(&path).await {
+                Ok(()) | Err(object_store::Error::NotFound { .. }) => {}
+                Err(error) => return Err(error.into()),
+            }
         }
         self.store.delete(&self.object_path(variant_path)).await?;
         Err(RegistryError::ArtifactAlreadyPublished {
