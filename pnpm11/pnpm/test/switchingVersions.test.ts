@@ -38,7 +38,8 @@ test('child pnpm processes select the version for their own directory', () => {
     packageManager: 'pnpm@9.1.3',
   })
 
-  const versionScript = `
+  const versionScript = path.join(rootDir, 'child-versions.cjs')
+  fs.writeFileSync(versionScript, `
     const { spawnSync } = require('node:child_process')
     const versionAt = (dir) => {
       const result = spawnSync('pnpm', ['--version'], { cwd: dir, encoding: 'utf8' })
@@ -46,11 +47,11 @@ test('child pnpm processes select the version for their own directory', () => {
       return result.stdout.trim()
     }
     process.stdout.write(JSON.stringify({
-      projectB: versionAt(${JSON.stringify(projectBDir)}),
-      unpinned: versionAt(${JSON.stringify(rootDir)}),
+      projectB: versionAt(process.argv[2]),
+      unpinned: versionAt(process.argv[3]),
     }))
-  `
-  const result = execPnpmSync(['exec', 'node', '-e', versionScript], {
+  `)
+  const result = execPnpmSync(['exec', 'node', versionScript, projectBDir, rootDir], {
     cwd: projectADir,
     env: { PNPM_HOME: pnpmHome },
     expectSuccess: true,
