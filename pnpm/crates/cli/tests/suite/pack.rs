@@ -581,7 +581,7 @@ process.exitCode = stage === process.env.FAILING_STAGE ? 1 : 0;
         let message = result["error"]["message"].as_str().expect("error message");
         assert!(
             message.contains(&format!("{stage}: `node lifecycle.cjs {stage}` exited with")),
-            "{message}"
+            "{message}",
         );
     } else {
         assert_eq!(result["name"], "pack-json-streams");
