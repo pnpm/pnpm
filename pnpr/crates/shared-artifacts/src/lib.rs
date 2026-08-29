@@ -968,11 +968,11 @@ impl SharedArtifactStore {
                                 .to_string(),
                         });
                     }
-                    if !usage.active_publications.insert(publication.to_string()) {
-                        return Err(RegistryError::Internal {
-                            reason: "shared artifact publication is already active".to_string(),
-                        });
-                    }
+                    // Already registered is not a fault: a publication written
+                    // off while it was still working registers again before it
+                    // looks at what it may have lost, and may find its own
+                    // registration still there.
+                    usage.active_publications.insert(publication.to_string());
                     usage
                         .active_publication_times
                         .insert(publication.to_string(), registered_now());
