@@ -1103,6 +1103,96 @@ async fn publishing_into_an_entry_that_needs_markers_keeps_its_quota_straight() 
     );
 }
 
+/// Reclamation is what gives back the scopes a failed publication claimed, and
+/// it runs only when no publication is in flight. A publication that could not
+/// unregister itself would hold that shut forever, so a registration older than
+/// any publication can plausibly take is dropped.
+#[tokio::test]
+async fn a_publication_that_never_finished_stops_holding_reclamation_shut() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    let stranded = super::artifact_operation_id().unwrap();
+    let long_ago = super::registered_now() - super::ACTIVE_PUBLICATION_EXPIRY.as_secs() - 1;
+    let entry = {
+        let ours = publication_tagged("ci/ours", &tags);
+        let (payload, _) = ours.envelope.decode_payload().unwrap();
+        super::entry_digest(&ours.key, &payload.subject)
+    };
+    let owner = super::owner_key("acme", &OwnerScope::organization("acme")).unwrap();
+    let marker = format!("{owner}/entries/{entry}/scopes/linux-x64-node22");
+    store.create_object(&marker, b"an artifact nobody stored".to_vec()).await.unwrap();
+    store
+        .create_object(
+            ".locks/usage.json",
+            serde_json::to_vec(&serde_json::json!({
+                "global_bytes": 0,
+                "owner_bytes": {},
+                "active_publications": { stranded: long_ago },
+                "reclamation_needed": true,
+            }))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    store.try_reclaim_unreferenced_blobs().await.unwrap();
+
+    assert!(
+        store.read_object_bounded(&marker, 128).await.unwrap().is_none(),
+        "the scope goes back once the publication holding the gate is written off",
+    );
+}
+
+/// Registrations nobody will remove would otherwise fill the concurrency limit
+/// and refuse publications that could run.
+#[tokio::test]
+async fn publications_that_never_finished_stop_filling_the_limit() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let long_ago = super::registered_now() - super::ACTIVE_PUBLICATION_EXPIRY.as_secs() - 1;
+    let stranded: serde_json::Map<String, serde_json::Value> = (0..super::MAX_ACTIVE_PUBLICATIONS)
+        .map(|index| (format!("stranded-{index}"), serde_json::json!(long_ago)))
+        .collect();
+    store
+        .create_object(
+            ".locks/usage.json",
+            serde_json::to_vec(&serde_json::json!({
+                "global_bytes": 0,
+                "owner_bytes": {},
+                "active_publications": stranded,
+            }))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        store
+            .publish("acme", publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]))
+            .await
+            .unwrap(),
+        "a full set of registrations nobody will remove does not refuse a publication",
+    );
+}
+
+/// A store written before registrations carried a time has publications in
+/// flight across the upgrade, and reading those as having started at the epoch
+/// would expire them at once, letting a collector run beside one.
+#[tokio::test]
+async fn a_publication_registered_before_times_were_kept_is_not_written_off() {
+    let usage: ArtifactUsage = serde_json::from_value(serde_json::json!({
+        "global_bytes": 0,
+        "owner_bytes": {},
+        "active_publications": ["a-publication-in-flight"],
+    }))
+    .unwrap();
+
+    let mut usage = usage;
+    assert!(!super::expire_stranded_publications(&mut usage));
+    assert!(usage.active_publications.contains_key("a-publication-in-flight"));
+}
+
 /// A retried publication of the identical envelope is not an attempt to replace
 /// anything, so it stays idempotent rather than becoming a conflict.
 #[tokio::test]
