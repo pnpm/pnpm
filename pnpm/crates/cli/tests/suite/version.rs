@@ -97,19 +97,25 @@ fn child_pnpm_selects_the_version_for_its_own_directory() {
     fs::write(project_b.join("package.json"), r#"{"packageManager":"pnpm@9.1.3"}"#)
         .expect("write project b package.json");
 
-    let version_script = r"
+    let version_script = root.path().join("child-version.cjs");
+    fs::write(
+        &version_script,
+        r"
         const { spawnSync } = require('node:child_process')
         const result = spawnSync('pnpm', ['--version'], {
-          cwd: process.argv[1],
+          cwd: process.argv[2],
           encoding: 'utf8',
         })
         if (result.status !== 0) throw new Error(result.stderr)
         process.stdout.write(result.stdout)
-    ";
+    ",
+    )
+    .expect("write child version script");
     let output = test_command(pacquet, root.path())
         .current_dir(&project_a)
         .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-        .args(["exec", "node", "-e", version_script])
+        .args(["exec", "node"])
+        .arg(&version_script)
         .arg(&project_b)
         .output()
         .expect("run child pnpm in project b");
