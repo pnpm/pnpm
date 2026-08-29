@@ -205,12 +205,9 @@ onlyBuiltDependencies:
   - esbuild
 packages:
   - "apps/*"
+vcs:
+  1: metadata
 "#;
-    // `pnpm-workspace.yaml` commonly contains top-level keys we do not
-    // model in `WorkspaceSettings` (packages list, catalogs, build
-    // allow-lists, ...). This guards against regressions that would make
-    // serde reject those unknown keys during deserialization — i.e.
-    // someone adding `deny_unknown_fields` to the struct.
     let _settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
 }
 
@@ -310,10 +307,6 @@ catalog:
 catalogs:
   react17:
     react: ^17.0.0
-vcs:
-  provider: bit
-  schemaVersion: 1
-  rootComponent: acme.workspace/root
 onlyBuiltDependencies: [esbuild]
 neverBuiltDependencies: [fsevents]
 ignoredBuiltDependencies: [core-js]
@@ -336,14 +329,6 @@ ignoredBuiltDependencies: [core-js]
     assert_eq!(settings.only_built_dependencies.as_deref(), Some(&["esbuild".to_owned()][..]));
     assert_eq!(settings.never_built_dependencies.as_deref(), Some(&["fsevents".to_owned()][..]));
     assert_eq!(settings.ignored_built_dependencies.as_deref(), Some(&["core-js".to_owned()][..]));
-    assert_eq!(
-        settings
-            .vcs
-            .as_ref()
-            .and_then(|vcs| vcs.get("rootComponent"))
-            .and_then(serde_json::Value::as_str),
-        Some("acme.workspace/root"),
-    );
 
     settings.clear_workspace_only_fields();
     assert_eq!(settings, WorkspaceSettings::default());

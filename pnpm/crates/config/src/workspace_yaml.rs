@@ -563,11 +563,6 @@ pub struct WorkspaceSettings {
     pub catalog: Option<IndexMap<String, String>>,
     /// See [`Self::packages`].
     pub catalogs: Option<IndexMap<String, IndexMap<String, String>>>,
-    /// Durable VCS workspace identity. The VCS command and workspace-manifest
-    /// reader validate its schema; config carries the raw structural value so
-    /// it is recognized by every command and shown by `pnpm config get/list`.
-    /// Like packages and catalogs, it is never inherited from global config.
-    pub vcs: Option<serde_json::Value>,
     /// See [`Self::packages`].
     pub only_built_dependencies: Option<Vec<String>>,
     /// See [`Self::packages`].
@@ -1543,7 +1538,6 @@ impl WorkspaceSettings {
         // repository's hooks on one machine and resolve a different graph.
         self.ignore_pnpmfile = None;
         self.catalogs = None;
-        self.vcs = None;
         self.only_built_dependencies = None;
         self.never_built_dependencies = None;
         self.ignored_built_dependencies = None;
