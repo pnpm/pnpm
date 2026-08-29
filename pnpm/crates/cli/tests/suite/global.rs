@@ -188,6 +188,7 @@ fn global_shims_all_prefers_local_bins() {
     std::os::unix::fs::symlink("../@foo/touch-file-one-bin/cli.sh", &local_bin).unwrap();
 
     let output = Command::new(&shim_path)
+        .without_ambient_pnpm_config()
         .with_current_dir(&project)
         .with_env("PNPM_HOME", &pnpm_home)
         .with_env("XDG_STATE_HOME", root.path().join("state"))
