@@ -180,18 +180,19 @@ impl SharedArtifactStore {
         prepared: PreparedPublication,
         reclamation_needed: &mut bool,
     ) -> Result<bool> {
-        let owner = prepared.owner.clone();
-        let entry = prepared.entry.clone();
-        let variant_path = prepared.variant_path.clone();
-        let holder = prepared.envelope_digest.clone();
         let (stored, created) = self.publish_claimed(prepared, reclamation_needed).await;
-        let Err(error) = stored else { return stored };
-        // A publication that did not store its artifact cannot go on holding the
-        // scopes it reserved, or nothing could be published for them again. Its
-        // own failure is the one worth reporting, unless the release fails too
-        // and leaves the entry needing an operator.
-        self.release_scopes(&owner, &entry, &holder, &variant_path, &created).await?;
-        Err(error)
+        if stored.is_err() && !created.is_empty() {
+            // The scopes stay claimed. Giving them back here cannot be ordered
+            // against a publication of the same envelope, which recognises these
+            // markers rather than creating its own and can store the artifact at
+            // any point around the giving back — every arrangement of reading
+            // and deleting leaves one interleaving that takes the scopes out
+            // from under an artifact that is stored. Reclamation runs only when
+            // no publication is in flight, so it can tell a scope no artifact
+            // holds from one being claimed right now, and drops it there.
+            *reclamation_needed = true;
+        }
+        stored
     }
 
     /// Publishes one artifact, reporting the scopes it reserved along with the
@@ -645,77 +646,6 @@ impl SharedArtifactStore {
         Ok(())
     }
 
-    /// Gives back scopes this publication reserved and did not keep.
-    ///
-    /// Only when the artifact is not stored. A second publication of the same
-    /// envelope reuses this one's markers rather than creating its own, so it
-    /// can store the artifact while this one is failing; deleting the markers
-    /// then would leave that artifact holding nothing and let an overlapping
-    /// one be published beside it.
-    ///
-    /// A marker that cannot be removed refuses every later artifact for its
-    /// scope, which is the safe direction — no overlap can slip in — but it
-    /// needs an operator, so it is reported rather than logged in passing.
-    async fn release_scopes(
-        &self,
-        owner: &str,
-        entry: &str,
-        holder: &str,
-        variant_path: &str,
-        scopes: &[String],
-    ) -> Result<()> {
-        if scopes.is_empty() {
-            return Ok(());
-        }
-        if !self.artifact_is_stored(variant_path).await? {
-            for scope in scopes {
-                let path = self.object_path(&scope_marker_path(owner, entry, scope));
-                match self.store.delete(&path).await {
-                    Ok(()) | Err(object_store::Error::NotFound { .. }) => {}
-                    Err(error) => return Err(error.into()),
-                }
-            }
-        }
-        // Reading before deleting cannot order this release against the retry
-        // that reuses its markers: the artifact can be stored either before the
-        // read or while the deleting is going on. Only a publication of this
-        // same envelope reuses these markers — a marker is recognised by the
-        // digest it names — so putting them back names the artifact that is now
-        // stored, which is what they should have said all along.
-        if self.artifact_is_stored(variant_path).await? {
-            for scope in scopes {
-                if self
-                    .create_object(&scope_marker_path(owner, entry, scope), holder.into())
-                    .await?
-                {
-                    continue;
-                }
-                // Somebody claimed the scope while it was briefly free. If that
-                // is this artifact, a second retry restored it first and there
-                // is nothing to do. Otherwise two artifacts now reach one
-                // machine, which this cannot undo — neither is the registry's
-                // to withdraw — so it says so rather than leaving it to be
-                // found by whoever the ranking sends the wrong build to.
-                if self.scope_marker(owner, entry, scope, holder).await? != ScopeMarker::Ours {
-                    return Err(RegistryError::Internal {
-                        reason: format!(
-                            "shared artifact scope {scope} of entry {entry} was claimed while a \
-                             publication of the artifact holding it was being rolled back",
-                        ),
-                    });
-                }
-            }
-        }
-        Ok(())
-    }
-
-    async fn artifact_is_stored(&self, variant_path: &str) -> Result<bool> {
-        Ok(self
-            .read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64)
-            .await?
-            .is_some())
-    }
-
     async fn begin_publication(&self, publication: &str) -> Result<()> {
         for _ in 0..RECLAMATION_WAIT_RETRIES {
             let begun = match self
@@ -842,15 +772,67 @@ impl SharedArtifactStore {
 
     async fn reclaim_unreferenced_blobs(&self) -> Result<ArtifactUsage> {
         let referenced_blobs = self.referenced_blobs().await?;
+        let stored_artifacts = self.stored_artifact_digests().await?;
         let mut listing = self.list_objects(None);
         while let Some(entry) = listing.next().await {
             let entry = entry?;
             let Some(relative) = self.relative_path(&entry.location) else { continue };
             if is_blob_path(relative) && !referenced_blobs.contains(relative) {
                 self.store.delete(&entry.location).await?;
+                continue;
+            }
+            if self.scope_is_abandoned(&entry.location, &stored_artifacts).await? {
+                self.store.delete(&entry.location).await?;
             }
         }
         self.scan_usage().await
+    }
+
+    /// Whether a scope marker names an artifact that was never stored, which is
+    /// what a publication that claimed the scope and then failed leaves behind.
+    ///
+    /// Only reclamation asks: it runs when no publication is in flight, so a
+    /// marker with no artifact is abandoned rather than one being claimed at
+    /// this moment. A publication cannot tell those apart, which is why it
+    /// leaves its own scopes claimed and asks for reclamation instead.
+    async fn scope_is_abandoned(
+        &self,
+        location: &ObjectPath,
+        stored_artifacts: &HashSet<String>,
+    ) -> Result<bool> {
+        let Some(scope) = scope_name(location) else { return Ok(false) };
+        if scope == BACKFILLED_SCOPE {
+            return Ok(false);
+        }
+        let Some(relative) = self.relative_path(location).map(str::to_string) else {
+            return Ok(false);
+        };
+        let Some(holder) = self.read_object_bounded(&relative, MAX_SCOPE_MARKER_BYTES).await?
+        else {
+            return Ok(false);
+        };
+        Ok(String::from_utf8(holder).is_ok_and(|holder| !stored_artifacts.contains(&holder)))
+    }
+
+    async fn stored_artifact_digests(&self) -> Result<HashSet<String>> {
+        let mut stored = HashSet::new();
+        let mut listing = self.list_objects(None);
+        while let Some(entry) = listing.next().await {
+            let entry = entry?;
+            if !is_variant_file(object_name(&entry.location))
+                || entry.size > MAX_RESOLVE_RESPONSE_SIZE as u64
+            {
+                continue;
+            }
+            let Some(bytes) = self.read_object_path(&entry.location).await? else { continue };
+            let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
+                continue;
+            };
+            if let Ok(digest) = envelope.digest() {
+                stored.insert(digest);
+            }
+        }
+        Ok(stored)
     }
 
     async fn referenced_blobs(&self) -> Result<HashSet<String>> {
