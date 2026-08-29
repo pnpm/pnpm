@@ -956,7 +956,7 @@ async fn a_failure_keeps_the_scopes_of_an_artifact_that_did_get_stored() {
             &entry,
             &format!(
                 "{owner}/entries/{entry}/{}.json",
-                super::compatibility_slot(&payload.compatibility)
+                super::compatibility_slot(&payload.compatibility),
             ),
             &["linux-x64-node22".to_string()],
         )
@@ -1004,6 +1004,60 @@ async fn a_scope_that_cannot_be_released_is_reported() {
     assert!(
         matches!(error, RegistryError::ObjectStore(_)),
         "a scope left behind is reported, got {error:?}",
+    );
+}
+
+/// Markers are written one at a time and the scan stops at the first store
+/// error, so a marker only says some artifact was reached. Taking that for
+/// proof would let the next publication claim a scope a variant nobody reached
+/// still holds.
+#[tokio::test]
+async fn a_backfill_that_did_not_finish_runs_again() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let stored = publication_tagged("ci/stored", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
+    let (payload, _) = stored.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&stored.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+    store
+        .create_object(
+            &format!("{owner}/entries/{entry}/{slot}.json"),
+            serde_json::to_vec(&stored.envelope).unwrap(),
+        )
+        .await
+        .unwrap();
+    // What a backfill that stopped before its sentinel leaves behind.
+    store
+        .create_object(&format!("{owner}/entries/{entry}/scopes/darwin-x64-node22"), b"x".to_vec())
+        .await
+        .unwrap();
+
+    let raised = ["pnpm:v1:linux-x64-node22-glibc2.31"];
+    let error = store.publish("acme", publication_tagged("ci/raised", &raised)).await.unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "the unreached variant still holds the machines it reaches, got {error:?}",
+    );
+}
+
+/// A marker that loses the create and is gone by the time it is read belongs to
+/// nobody. Reading that as this artifact's own would store it reserving
+/// nothing, and an overlapping artifact could follow it in.
+#[tokio::test]
+async fn a_scope_that_vanishes_after_the_create_is_not_taken_as_ours() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
+    let (payload, _) = ours.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&ours.key, &payload.subject);
+
+    assert_eq!(
+        store.scope_marker(&owner, &entry, "linux-x64-node22", "any-digest").await.unwrap(),
+        super::ScopeMarker::Gone,
+        "an absent marker is nobody's, not this artifact's",
     );
 }
 

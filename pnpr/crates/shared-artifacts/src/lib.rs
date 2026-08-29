@@ -73,6 +73,20 @@ pub struct ArtifactBlob {
 /// yields it: every tag key carries an architecture, which this does not.
 const UNIVERSAL_SCOPE: &str = "universal";
 
+/// Marks an entry whose artifacts have all been given the scopes they reach. No
+/// tag yields it, for the same reason no tag yields [`UNIVERSAL_SCOPE`].
+const BACKFILLED_SCOPE: &str = "backfilled";
+
+#[derive(Debug, PartialEq, Eq)]
+enum ScopeMarker {
+    /// Nobody holds the scope.
+    Gone,
+    /// The artifact being published holds it.
+    Ours,
+    /// Another artifact holds it.
+    Another,
+}
+
 enum SlotClaim {
     /// Every scope this artifact reaches is now claimed for it.
     Free,
@@ -483,7 +497,9 @@ impl SharedArtifactStore {
         let prefix = self.object_path(&scopes_prefix(owner, entry));
         let mut listing = self.store.list(Some(&prefix));
         while let Some(marker) = listing.next().await {
-            if scope_name(&marker?.location).is_some_and(|scope| scope != UNIVERSAL_SCOPE) {
+            if scope_name(&marker?.location)
+                .is_some_and(|scope| !matches!(scope, UNIVERSAL_SCOPE | BACKFILLED_SCOPE))
+            {
                 return Ok(false);
             }
         }
@@ -505,8 +521,9 @@ impl SharedArtifactStore {
         }
         // A universal artifact publishing at the same time claims its own key
         // rather than any of these, so reading it afterwards is what settles
-        // which of the two arrived first.
-        Ok(!self.scope_holder_differs(owner, entry, UNIVERSAL_SCOPE, holder).await?)
+        // which of the two arrived first. Nobody holding it is the ordinary
+        // case, not a conflict.
+        Ok(self.scope_marker(owner, entry, UNIVERSAL_SCOPE, holder).await? != ScopeMarker::Another)
     }
 
     /// Whether this artifact holds `scope`, having either created the marker or
@@ -525,16 +542,20 @@ impl SharedArtifactStore {
                 created.push(scope.to_string());
                 Ok(true)
             }
-            Ok(false) => Ok(!self.scope_holder_differs(owner, entry, scope, holder).await?),
+            // A marker that lost the create and then went is nobody's, this
+            // artifact's least of all, so it is refused rather than assumed.
+            Ok(false) => {
+                Ok(self.scope_marker(owner, entry, scope, holder).await? == ScopeMarker::Ours)
+            }
             Err(error) => {
                 // The write can reach the store and still report failure, and a
                 // marker nobody is tracking would refuse every later artifact
                 // for this scope. Claiming it only when it turns out to hold
                 // this artifact keeps the release from touching another's.
                 if self
-                    .scope_holder_differs(owner, entry, scope, holder)
+                    .scope_marker(owner, entry, scope, holder)
                     .await
-                    .is_ok_and(|differs| !differs)
+                    .is_ok_and(|marker| marker == ScopeMarker::Ours)
                 {
                     created.push(scope.to_string());
                 }
@@ -543,17 +564,30 @@ impl SharedArtifactStore {
         }
     }
 
-    async fn scope_holder_differs(
+    /// Who holds a scope, which absence does not answer on its own: another
+    /// publication can release a marker between the create that lost and this
+    /// read, and treating what is gone as this artifact's own would store it
+    /// reserving nothing.
+    async fn scope_marker(
         &self,
         owner: &str,
         entry: &str,
         scope: &str,
         holder: &str,
-    ) -> Result<bool> {
-        Ok(self
-            .read_object_bounded(&scope_marker_path(owner, entry, scope), MAX_SCOPE_MARKER_BYTES)
-            .await?
-            .is_some_and(|stored| stored != holder.as_bytes()))
+    ) -> Result<ScopeMarker> {
+        Ok(
+            match self
+                .read_object_bounded(
+                    &scope_marker_path(owner, entry, scope),
+                    MAX_SCOPE_MARKER_BYTES,
+                )
+                .await?
+            {
+                None => ScopeMarker::Gone,
+                Some(stored) if stored == holder.as_bytes() => ScopeMarker::Ours,
+                Some(_) => ScopeMarker::Another,
+            },
+        )
     }
 
     /// Gives an entry written before scopes were claimed the markers its
@@ -567,8 +601,11 @@ impl SharedArtifactStore {
     /// described by them — and each read is bounded by the envelope limit.
     async fn backfill_scopes(&self, publication: &PreparedPublication) -> Result<()> {
         let PreparedPublication { owner, entry, .. } = publication;
-        let markers = self.object_path(&scopes_prefix(owner, entry));
-        if self.store.list(Some(&markers)).next().await.transpose()?.is_some() {
+        // The sentinel, not the markers: they are written one at a time and the
+        // scan stops at the first store error, so a marker only says some
+        // artifact was reached, while the sentinel says every one was.
+        let done = scope_marker_path(owner, entry, BACKFILLED_SCOPE);
+        if self.read_object_bounded(&done, MAX_SCOPE_MARKER_BYTES).await?.is_some() {
             return Ok(());
         }
         let prefix = self.object_path(&format!("{owner}/entries/{entry}/"));
@@ -603,6 +640,7 @@ impl SharedArtifactStore {
                     .await?;
             }
         }
+        self.create_object(&done, Vec::new()).await?;
         Ok(())
     }
 
