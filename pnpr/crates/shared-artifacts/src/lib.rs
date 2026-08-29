@@ -52,10 +52,16 @@ const MAX_SCOPE_MARKER_BYTES: u64 = 128;
 struct ArtifactUsage {
     global_bytes: u64,
     owner_bytes: BTreeMap<String, u64>,
+    #[serde(default)]
+    active_publications: BTreeSet<String>,
     /// When each publication in flight registered, so one that never
     /// unregistered can be told from one still working.
-    #[serde(default, deserialize_with = "deserialize_active_publications")]
-    active_publications: BTreeMap<String, u64>,
+    ///
+    /// Beside the set rather than replacing it: a replica running an older
+    /// build shares this document, reads the set it knows, and ignores this.
+    /// One that writes drops these, and the next expiry pass stamps them again.
+    #[serde(default)]
+    active_publication_times: BTreeMap<String, u64>,
     #[serde(default)]
     reclamation_needed: bool,
     #[serde(default)]
@@ -247,6 +253,7 @@ impl SharedArtifactStore {
         if self.publication_is_complete(&prepared).await? {
             return Ok(false);
         }
+        let started = std::time::Instant::now();
         let mut prepared = prepared;
         let envelope_size = prepared.envelope_bytes.len() as u64;
         let owner = prepared.owner.clone();
@@ -333,7 +340,14 @@ impl SharedArtifactStore {
                 return Err(error);
             }
         }
-        let PreparedPublication { entry, envelope_bytes, variant_path, .. } = prepared;
+        let PreparedPublication {
+            entry,
+            envelope_bytes,
+            variant_path,
+            payload,
+            envelope_digest,
+            ..
+        } = prepared;
         for (path, bytes) in new_blobs {
             let size = bytes.len() as u64;
             match self.create_object(&path, bytes).await {
@@ -386,7 +400,44 @@ impl SharedArtifactStore {
         if !created && winner.is_none_or(|winner| winner != envelope_bytes) {
             return Err(RegistryError::ArtifactAlreadyPublished { owner, entry });
         }
+        if created && started.elapsed() >= ACTIVE_PUBLICATION_EXPIRY {
+            // Long enough to have been written off, which lets reclamation run
+            // and give back scopes this publication was still holding. Its
+            // artifact is stored now, so those scopes are its own again, and
+            // taking them back is what keeps it from reaching machines nothing
+            // says it reaches.
+            self.reclaim_own_scopes(&owner, &entry, &payload, &envelope_digest).await?;
+        }
         Ok(created)
+    }
+
+    /// Takes back the scopes of an artifact that has just been stored, for a
+    /// publication that ran long enough to be written off while it was running.
+    async fn reclaim_own_scopes(
+        &self,
+        owner: &str,
+        entry: &str,
+        payload: &ArtifactPayload,
+        holder: &str,
+    ) -> Result<()> {
+        let scopes = match compatibility_scopes(&payload.compatibility) {
+            CompatibilityScopes::Every => BTreeSet::from([UNIVERSAL_SCOPE.to_string()]),
+            CompatibilityScopes::These(scopes) => scopes,
+        };
+        for scope in &scopes {
+            if self.create_object(&scope_marker_path(owner, entry, scope), holder.into()).await? {
+                continue;
+            }
+            if self.scope_marker(owner, entry, scope, holder).await? != ScopeMarker::Ours {
+                return Err(RegistryError::Internal {
+                    reason: format!(
+                        "shared artifact scope {scope} of entry {entry} was claimed while a \
+                         publication of an artifact reaching it was still running",
+                    ),
+                });
+            }
+        }
+        Ok(())
     }
 
     pub async fn resolve(&self, username: &str, body: &[u8]) -> Result<ResolveArtifactsResponse> {
@@ -756,38 +807,45 @@ impl SharedArtifactStore {
         Ok(written)
     }
 
+    /// Settles which publications are still in flight, and writes that down.
+    ///
+    /// Deciding it inside the pass that goes on to refuse something would leave
+    /// the decision unwritten whenever the refusal happens, so a registration
+    /// nobody keeps would be re-stamped on every read and outlive every pass.
+    async fn expire_publications(&self) -> Result<()> {
+        self.mutate_usage(|usage| Ok(expire_stranded_publications(usage))).await?;
+        Ok(())
+    }
+
     async fn begin_publication(&self, publication: &str) -> Result<()> {
+        self.expire_publications().await?;
         for _ in 0..RECLAMATION_WAIT_RETRIES {
             let begun = match self
                 .mutate_usage(|usage| {
                     if usage.reclamation.is_some() {
                         return Ok(false);
                     }
-                    // Registrations nobody will ever remove would otherwise
-                    // fill the limit and refuse publications that could run.
-                    expire_stranded_publications(usage);
                     if usage.active_publications.len() >= MAX_ACTIVE_PUBLICATIONS {
                         return Err(RegistryError::Internal {
                             reason: "shared artifact publication concurrency limit reached"
                                 .to_string(),
                         });
                     }
-                    if usage
-                        .active_publications
-                        .insert(publication.to_string(), registered_now())
-                        .is_some()
-                    {
+                    if !usage.active_publications.insert(publication.to_string()) {
                         return Err(RegistryError::Internal {
                             reason: "shared artifact publication is already active".to_string(),
                         });
                     }
+                    usage
+                        .active_publication_times
+                        .insert(publication.to_string(), registered_now());
                     Ok(true)
                 })
                 .await
             {
                 Ok(begun) => begun,
                 Err(error) => {
-                    if self.load_usage().await?.0.active_publications.contains_key(publication) {
+                    if self.load_usage().await?.0.active_publications.contains(publication) {
                         return Ok(());
                     }
                     return Err(error);
@@ -808,12 +866,12 @@ impl SharedArtifactStore {
         for attempt in 0..PUBLICATION_FINISH_RETRIES {
             let finished = self
                 .mutate_usage(|usage| {
-                    if usage.active_publications.remove(publication).is_none() {
-                        return Err(RegistryError::Internal {
-                            reason: "shared artifact publication is not registered as active"
-                                .to_string(),
-                        });
-                    }
+                    // A registration missing here is not a fault: an expiry pass
+                    // can write one off. What must not be lost is the request to
+                    // reclaim, since the scopes a failed publication claimed come
+                    // back only that way.
+                    usage.active_publications.remove(publication);
+                    usage.active_publication_times.remove(publication);
                     usage.reclamation_needed |= reclamation_needed;
                     Ok(true)
                 })
@@ -828,7 +886,13 @@ impl SharedArtifactStore {
                 }
                 Err(error) => {
                     let retry_error = match self.load_usage().await {
-                        Ok((usage, _)) if !usage.active_publications.contains_key(publication) => {
+                        // Gone, and the reclamation this publication asked for
+                        // already recorded: whether this attempt wrote that or
+                        // an earlier one did, there is nothing left to do.
+                        Ok((usage, _))
+                            if !usage.active_publications.contains(publication)
+                                && (!reclamation_needed || usage.reclamation_needed) =>
+                        {
                             return Ok(());
                         }
                         Ok(_) => error,
@@ -845,13 +909,13 @@ impl SharedArtifactStore {
     }
 
     async fn try_reclaim_unreferenced_blobs(&self) -> Result<()> {
+        self.expire_publications().await?;
         let reclamation = artifact_operation_id()?;
         let acquired = match self
             .mutate_usage(|usage| {
                 // Dropped here rather than merely disregarded, so that the
                 // check on completion sees a publication that started during
                 // this run rather than one this run decided to ignore.
-                expire_stranded_publications(usage);
                 if !usage.reclamation_needed
                     || !usage.active_publications.is_empty()
                     || usage.reclamation.is_some()
@@ -1405,43 +1469,44 @@ fn quota_write_retry_delay(attempt: usize) -> Duration {
     Duration::from_millis(base + jitter)
 }
 
-/// Reads publications registered before they carried a registration time as
-/// having registered now, rather than at the epoch. A publication in flight
-/// across an upgrade is not a stranded one, and treating it as expired would
-/// let a collector run beside it; one that is stranded expires an interval
-/// after the first write that stamps it.
-fn deserialize_active_publications<'de, Source>(
-    deserializer: Source,
-) -> std::result::Result<BTreeMap<String, u64>, Source::Error>
-where
-    Source: serde::Deserializer<'de>,
-{
-    #[derive(serde::Deserialize)]
-    #[serde(untagged)]
-    enum Registered {
-        Timed(BTreeMap<String, u64>),
-        Untimed(BTreeSet<String>),
-    }
-    Ok(match <Registered as serde::Deserialize>::deserialize(deserializer)? {
-        Registered::Timed(publications) => publications,
-        Registered::Untimed(publications) => {
-            let now = registered_now();
-            publications.into_iter().map(|publication| (publication, now)).collect()
-        }
-    })
-}
-
 fn registered_now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
 }
 
 /// Drops publications that registered longer ago than a publication can
-/// plausibly take, reporting whether any were.
+/// plausibly take, reporting whether it changed anything.
+///
+/// A publication with no registration time was registered by a replica that
+/// does not keep them, so it is stamped now rather than written off: it may be
+/// in flight, and expiring a live publication lets a collector run beside it.
+/// The stamp is what a later pass measures against, which is why the caller
+/// persists this whether or not anything was dropped.
 fn expire_stranded_publications(usage: &mut ArtifactUsage) -> bool {
-    let expiry = registered_now().saturating_sub(ACTIVE_PUBLICATION_EXPIRY.as_secs());
+    let now = registered_now();
+    let expiry = now.saturating_sub(ACTIVE_PUBLICATION_EXPIRY.as_secs());
     let before = usage.active_publications.len();
-    usage.active_publications.retain(|_, registered| *registered > expiry);
-    usage.active_publications.len() != before
+    let times = std::mem::take(&mut usage.active_publication_times);
+    let mut stamped = false;
+    usage.active_publication_times = usage
+        .active_publications
+        .iter()
+        .map(|publication| {
+            let registered = times.get(publication).copied().unwrap_or_else(|| {
+                stamped = true;
+                now
+            });
+            (publication.clone(), registered)
+        })
+        .collect();
+    usage
+        .active_publications
+        .retain(|publication| usage.active_publication_times[publication] > expiry);
+    usage
+        .active_publication_times
+        .retain(|publication, _| usage.active_publications.contains(publication));
+    stamped
+        || usage.active_publications.len() != before
+        || times.len() != usage.active_publication_times.len()
 }
 
 fn artifact_operation_id() -> Result<String> {

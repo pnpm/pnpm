@@ -1128,7 +1128,8 @@ async fn a_publication_that_never_finished_stops_holding_reclamation_shut() {
             serde_json::to_vec(&serde_json::json!({
                 "global_bytes": 0,
                 "owner_bytes": {},
-                "active_publications": { stranded: long_ago },
+                "active_publications": [stranded],
+                "active_publication_times": { stranded: long_ago },
                 "reclamation_needed": true,
             }))
             .unwrap(),
@@ -1151,16 +1152,18 @@ async fn publications_that_never_finished_stop_filling_the_limit() {
     let storage = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
     let long_ago = super::registered_now() - super::ACTIVE_PUBLICATION_EXPIRY.as_secs() - 1;
-    let stranded: serde_json::Map<String, serde_json::Value> = (0..super::MAX_ACTIVE_PUBLICATIONS)
-        .map(|index| (format!("stranded-{index}"), serde_json::json!(long_ago)))
-        .collect();
+    let names: Vec<String> =
+        (0..super::MAX_ACTIVE_PUBLICATIONS).map(|index| format!("stranded-{index}")).collect();
+    let times: serde_json::Map<String, serde_json::Value> =
+        names.iter().map(|name| (name.clone(), serde_json::json!(long_ago))).collect();
     store
         .create_object(
             ".locks/usage.json",
             serde_json::to_vec(&serde_json::json!({
                 "global_bytes": 0,
                 "owner_bytes": {},
-                "active_publications": stranded,
+                "active_publications": names,
+                "active_publication_times": times,
             }))
             .unwrap(),
         )
@@ -1176,21 +1179,107 @@ async fn publications_that_never_finished_stop_filling_the_limit() {
     );
 }
 
-/// A store written before registrations carried a time has publications in
-/// flight across the upgrade, and reading those as having started at the epoch
-/// would expire them at once, letting a collector run beside one.
+/// A replica that does not keep registration times shares this document, so a
+/// publication can be registered without one. Writing it off at once would let
+/// a collector run beside one still in flight, so it is stamped instead — and
+/// the pass reports that it changed something, because a stamp nobody persists
+/// is re-made on every read and outlives every expiry.
 #[tokio::test]
-async fn a_publication_registered_before_times_were_kept_is_not_written_off() {
-    let usage: ArtifactUsage = serde_json::from_value(serde_json::json!({
+async fn a_publication_registered_without_a_time_is_stamped_rather_than_written_off() {
+    let mut usage: ArtifactUsage = serde_json::from_value(serde_json::json!({
         "global_bytes": 0,
         "owner_bytes": {},
         "active_publications": ["a-publication-in-flight"],
     }))
     .unwrap();
 
-    let mut usage = usage;
-    assert!(!super::expire_stranded_publications(&mut usage));
-    assert!(usage.active_publications.contains_key("a-publication-in-flight"));
+    assert!(super::expire_stranded_publications(&mut usage), "the stamp has to be written down");
+
+    assert!(usage.active_publications.contains("a-publication-in-flight"));
+    assert!(usage.active_publication_times.contains_key("a-publication-in-flight"));
+}
+
+/// A registration with no time is stamped, and the stamp has to reach the
+/// store even when the pass that made it goes on to refuse something: a stamp
+/// held only in memory is re-made on the next read, and the registration then
+/// outlives every expiry that would have written it off.
+#[tokio::test]
+async fn a_stamp_survives_the_pass_that_refused_on_its_account() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let names: Vec<String> =
+        (0..super::MAX_ACTIVE_PUBLICATIONS).map(|index| format!("untimed-{index}")).collect();
+    store
+        .create_object(
+            ".locks/usage.json",
+            serde_json::to_vec(&serde_json::json!({
+                "global_bytes": 0,
+                "owner_bytes": {},
+                "active_publications": names,
+            }))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Refused: the limit is full of registrations that have only just been
+    // stamped, so none of them is old enough to write off yet.
+    store
+        .publish("acme", publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]))
+        .await
+        .unwrap_err();
+
+    let usage: ArtifactUsage = serde_json::from_slice(
+        &store.read_object_bounded(".locks/usage.json", 1 << 20).await.unwrap().unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        usage.active_publication_times.len(),
+        super::MAX_ACTIVE_PUBLICATIONS,
+        "the stamps are on disk, so the hour they are measured against has started",
+    );
+}
+
+/// Writing off a publication that is merely slow lets reclamation give back
+/// scopes it is still holding. Its artifact is stored all the same, so it takes
+/// them back rather than being left reaching machines nothing says it reaches.
+#[tokio::test]
+async fn a_publication_written_off_while_running_takes_its_scopes_back() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    let ours = publication_tagged("ci/ours", &tags);
+    let (payload, _) = ours.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&ours.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+    let marker = format!("{owner}/entries/{entry}/scopes/linux-x64-node22");
+    // The artifact is stored and its scope has been given back, which is where a
+    // publication written off mid-flight finds things when it comes to finish.
+    store
+        .create_object(
+            &format!("{owner}/entries/{entry}/{slot}.json"),
+            serde_json::to_vec(&ours.envelope).unwrap(),
+        )
+        .await
+        .unwrap();
+
+    store
+        .reclaim_own_scopes(&owner, &entry, &payload, &ours.envelope.digest().unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(
+        store.read_object_bounded(&marker, 128).await.unwrap().as_deref(),
+        Some(ours.envelope.digest().unwrap().as_bytes()),
+        "the stored artifact reaches its machines again",
+    );
+    let raised = ["pnpm:v1:linux-x64-node22-glibc2.31"];
+    let error = store.publish("acme", publication_tagged("ci/raised", &raised)).await.unwrap_err();
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "and one reaching the same machines is refused again, got {error:?}",
+    );
 }
 
 /// A retried publication of the identical envelope is not an attempt to replace
