@@ -268,27 +268,6 @@ Benchmarks on an app with lots of dependencies:
 
 ![](https://pnpm.io/img/benchmarks/alotta-files.svg)
 
-## Nix
-
-The project provides an optional Nix flake for users who already use Nix. It wraps the prebuilt binary from the GitHub release.
-
-```bash
-# Run without installing
-nix run github:pnpm/pnpm
-
-# Install into your profile
-nix profile add github:pnpm/pnpm
-```
-
-The flake tracks the default branch. Publishing a release runs a
-[workflow](.github/workflows/nix-release.yml) that opens a pull request bumping the
-flake to it, so `github:pnpm/pnpm` follows the latest release once that pull request is
-merged. A release tag is cut before its bump lands, so `github:pnpm/pnpm/vX.Y.Z`
-resolves to a tree whose flake still points at the *previous* release — pin a commit
-SHA if you need an exact version.
-
-pnpm is also packaged in nixpkgs as `nixpkgs#pnpm`, which this flake does not replace.
-
 ## License
 
 [MIT](https://github.com/pnpm/pnpm/blob/main/LICENSE), except the [`pnpr/`](https://github.com/pnpm/pnpm/tree/main/pnpr) directory, which is source-available under the [PolyForm Shield License 1.0.0](https://github.com/pnpm/pnpm/blob/main/pnpr/LICENSE.md).
