@@ -477,7 +477,15 @@ impl SharedArtifactStore {
             // publication; registering again waits for one that is running and
             // keeps another from starting, so what the recovery reads is still
             // there when it returns. A check on its own could not do that.
-            self.begin_publication(publication).await?;
+            if let Err(error) = self.begin_publication(publication).await {
+                // Without the registration nothing can be read and believed, so
+                // the artifact is taken out unlooked-at rather than left to
+                // stand for blobs a collector may already have taken. The
+                // scopes it holds name an artifact that is no longer there,
+                // which is what reclamation collects.
+                self.store.delete(&self.object_path(&variant_path)).await?;
+                return Err(error);
+            }
             self.recover_after_expiry(&owner, &entry, &variant_path, &payload, &envelope_digest)
                 .await?;
         }
@@ -551,10 +559,13 @@ impl SharedArtifactStore {
         if held {
             return Ok(());
         }
-        // The scopes retaken before the one that was gone name an artifact about
-        // to be removed. Reclamation would drop them eventually; until it did,
-        // they would refuse artifacts that reach those machines on behalf of one
-        // that is not there.
+        // The artifact goes first, and the scopes it retook after it. A store
+        // error between the two leaves markers held for an artifact that is not
+        // there, which refuses artifacts reaching those machines until
+        // reclamation drops them; the other order would leave the artifact
+        // resolvable while holding nothing, and one reaching the same machines
+        // could be published beside it.
+        self.store.delete(&self.object_path(variant_path)).await?;
         for scope in &retaken {
             // Only while it still names this artifact: a marker retaken here can
             // be collected and taken by somebody else before this loop reaches
@@ -569,7 +580,6 @@ impl SharedArtifactStore {
                 Err(error) => return Err(error.into()),
             }
         }
-        self.store.delete(&self.object_path(variant_path)).await?;
         Err(RegistryError::ArtifactAlreadyPublished {
             owner: owner.to_string(),
             entry: entry.to_string(),

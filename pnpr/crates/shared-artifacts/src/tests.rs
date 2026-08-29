@@ -5,6 +5,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
+    time::Instant,
 };
 
 use async_trait::async_trait;
@@ -289,6 +290,7 @@ async fn failed_object_writes_reconcile_quota_to_physical_storage() {
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
+        fail_only: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -316,6 +318,7 @@ async fn committed_blob_writes_without_an_envelope_are_reclaimed() {
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
+        fail_only: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -354,6 +357,7 @@ async fn committed_envelope_writes_that_report_failure_remain_charged() {
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
+        fail_only: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -388,6 +392,7 @@ async fn publication_finish_retries_a_transient_quota_write_failure() {
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
+        fail_only: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -493,6 +498,7 @@ async fn failed_reclamation_releases_its_gate_for_later_retries() {
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
+        fail_only: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -606,6 +612,7 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
+        fail_only: None,
     });
     let store = SharedArtifactStore::new(
         &HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() },
@@ -812,6 +819,7 @@ async fn losing_a_race_for_a_slot_is_not_reported_as_idempotent() {
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
+        fail_only: None,
     });
     let racing = SharedArtifactStore::new(
         &HostedStoreConfig::ObjectStore { store: racing, prefix: String::new() },
@@ -885,6 +893,7 @@ async fn a_publication_that_fails_gives_back_the_scopes_it_claimed() {
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
+        fail_only: None,
     });
     let store = SharedArtifactStore::new(
         &HostedStoreConfig::ObjectStore { store: failing, prefix: String::new() },
@@ -1240,6 +1249,49 @@ async fn a_stamp_survives_the_pass_that_refused_on_its_account() {
     );
 }
 
+/// Registering again is what makes the recovery's reads mean anything. A
+/// publication that cannot register cannot look, so it does not leave an
+/// envelope standing for blobs a collector may already have taken.
+#[tokio::test]
+async fn a_publication_that_cannot_register_again_does_not_leave_its_artifact() {
+    let request = publication("ci/unregistrable");
+    let prepared = super::prepare_publication("acme", &request).unwrap();
+    let variant = format!(".pnpr-artifacts/v0/{}", prepared.variant_path);
+    let backend: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+        inner: InMemory::new(),
+        commit_before_error: false,
+        fail_deletes: false,
+        fail_next_quota_write: None,
+        claim_slot_first: None,
+        fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
+        fail_reads_of: None,
+        fail_scope_writes: false,
+        fail_only: Some(FailOnly::RegistrationAfter(variant.clone())),
+    });
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let scratch = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
+    let prepared = super::PreparedPublication {
+        started: Instant::now().checked_sub(super::ACTIVE_PUBLICATION_EXPIRY).unwrap(),
+        ..prepared
+    };
+    let mut reclamation_needed = false;
+    let mut created = Vec::new();
+
+    let error = store
+        .publish_reserving(prepared, "a-publication", &mut reclamation_needed, &mut created)
+        .await
+        .unwrap_err();
+
+    assert!(matches!(error, RegistryError::ObjectStore(_)), "{error:?}");
+    assert!(
+        backend.head(&ObjectPath::from(variant.as_str())).await.is_err(),
+        "the artifact it could not vouch for is taken back out",
+    );
+}
+
 /// Writing off a publication that is merely slow lets reclamation give back
 /// scopes it is still holding. Its artifact is stored all the same, so it takes
 /// them back rather than being left reaching machines nothing says it reaches.
@@ -1324,6 +1376,61 @@ async fn a_publication_whose_scope_went_elsewhere_takes_its_artifact_back_out() 
     assert!(
         store.read_object_bounded(&variant, 4096).await.unwrap().is_none(),
         "and its artifact does not stay beside the one that holds the scope",
+    );
+}
+
+/// The artifact goes out before the scopes it retook, so that a store error
+/// between the two never leaves it resolvable while holding nothing.
+#[tokio::test]
+async fn a_recovery_that_cannot_remove_its_artifact_keeps_the_scopes_it_retook() {
+    let tags = ["pnpm:v1:linux-arm64-node22-glibc2.17", "pnpm:v1:linux-x64-node22-glibc2.17"];
+    let ours = publication_tagged("ci/ours", &tags);
+    let (payload, _) = ours.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&ours.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+    let variant = format!("{owner}/entries/{entry}/{slot}.json");
+    let backend: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+        inner: InMemory::new(),
+        commit_before_error: false,
+        fail_deletes: false,
+        fail_next_quota_write: None,
+        claim_slot_first: None,
+        fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
+        fail_reads_of: None,
+        fail_scope_writes: false,
+        fail_only: Some(FailOnly::DeleteOf(format!(".pnpr-artifacts/v0/{variant}"))),
+    });
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let scratch = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
+    store.create_object(&variant, serde_json::to_vec(&ours.envelope).unwrap()).await.unwrap();
+    // Taken while this publication was written off, so the recovery loses — but
+    // only after retaking the scope that sorts before it.
+    store
+        .create_object(
+            &format!("{owner}/entries/{entry}/scopes/linux-x64-node22"),
+            b"an artifact published meanwhile".to_vec(),
+        )
+        .await
+        .unwrap();
+
+    let error = store
+        .recover_after_expiry(&owner, &entry, &variant, &payload, &ours.envelope.digest().unwrap())
+        .await
+        .unwrap_err();
+
+    assert!(matches!(error, RegistryError::ObjectStore(_)), "{error:?}");
+    assert_eq!(
+        store
+            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-arm64-node22"), 128)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(ours.envelope.digest().unwrap().as_bytes()),
+        "the artifact that is still there still holds the scope it retook",
     );
 }
 
@@ -1722,6 +1829,19 @@ struct FailArtifactWrites {
     /// through by default, so a test injecting a failure reaches the envelope
     /// or blob it is aimed at rather than stopping at the claim.
     fail_scope_writes: bool,
+    /// Lets every operation through except the one named, so a test can put a
+    /// failure exactly where it means it.
+    fail_only: Option<FailOnly>,
+}
+
+#[derive(Debug)]
+enum FailOnly {
+    /// The quota write that follows this path being stored — the registration a
+    /// publication takes again once its artifact is durable, rather than the
+    /// reservation that precedes it.
+    RegistrationAfter(String),
+    /// Deletes of this path.
+    DeleteOf(String),
 }
 
 impl fmt::Display for FailArtifactWrites {
@@ -1748,6 +1868,18 @@ impl ObjectStore for FailArtifactWrites {
                 path: location.to_string(),
                 source: std::io::Error::other("slot claimed by another publication").into(),
             });
+        }
+        if let Some(fail) = self.fail_only.as_ref() {
+            if let FailOnly::RegistrationAfter(stored) = fail
+                && location.as_ref().ends_with("/quota.json")
+                && self.inner.head(&ObjectPath::from(stored.as_str())).await.is_ok()
+            {
+                return Err(object_store::Error::Generic {
+                    store: "test",
+                    source: std::io::Error::other("injected registration failure").into(),
+                });
+            }
+            return self.inner.put_opts(location, payload, options).await;
         }
         if !self.fail_scope_writes && location.as_ref().contains("/scopes/") {
             return self.inner.put_opts(location, payload, options).await;
@@ -1822,6 +1954,26 @@ impl ObjectStore for FailArtifactWrites {
         &self,
         locations: BoxStream<'static, object_store::Result<ObjectPath>>,
     ) -> BoxStream<'static, object_store::Result<ObjectPath>> {
+        if let Some(FailOnly::DeleteOf(failing)) = self.fail_only.as_ref() {
+            let failing = failing.clone();
+            let inner = self.inner.clone();
+            return locations
+                .then(move |location| {
+                    let (failing, inner) = (failing.clone(), inner.clone());
+                    async move {
+                        let location = location?;
+                        if location.as_ref() == failing {
+                            return Err(object_store::Error::Generic {
+                                store: "test",
+                                source: std::io::Error::other("injected deletion failure").into(),
+                            });
+                        }
+                        inner.delete(&location).await?;
+                        Ok(location)
+                    }
+                })
+                .boxed();
+        }
         if self.fail_deletes {
             locations
                 .map(|location| {
