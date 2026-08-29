@@ -1,6 +1,8 @@
 ---
+"@pnpm/catalogs.resolver": minor
+"@pnpm/releasing.exportable-manifest": minor
+"pnpm": minor
 "pacquet": minor
 ---
 
-Allow catalogs to resolve dependencies through the `workspace:` protocol, and
-automatically reconcile Bit component imports in pnpm VCS workspaces.
+Catalogs can now resolve workspace dependencies through the `workspace:` protocol.

@@ -350,6 +350,48 @@ test('catalog deps are replaced', async () => {
   })
 })
 
+test('workspace protocol from a catalog is replaced', async () => {
+  const manifest = {
+    name: 'catalog-workspace-protocol-package',
+    version: '1.0.0',
+    dependencies: {
+      bar: 'catalog:',
+    },
+  } satisfies ProjectManifest
+
+  preparePackages([
+    manifest,
+    {
+      name: 'bar',
+      version: '2.3.4',
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    catalog: {
+      bar: 'workspace:^',
+    },
+  })
+
+  crossSpawn.sync(pnpmBin, ['install', '--store-dir=store'], { env: SPAWN_ENV })
+  process.chdir(manifest.name)
+
+  expect(await createExportableManifest(process.cwd(), manifest, {
+    catalogs: {
+      default: {
+        bar: 'workspace:^',
+      },
+    },
+  })).toStrictEqual({
+    name: 'catalog-workspace-protocol-package',
+    version: '1.0.0',
+    dependencies: {
+      bar: '^2.3.4',
+    },
+  })
+})
+
 test('jsr deps are replaced', async () => {
   const manifest = {
     name: 'jsr-protocol-manifest',
