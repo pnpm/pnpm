@@ -205,7 +205,13 @@ impl SharedArtifactStore {
         let publication = artifact_operation_id()?;
         self.begin_publication(&publication).await?;
         let mut reclamation_needed = false;
-        let result = self.publish_renewing(prepared, &publication, &mut reclamation_needed).await;
+        let result = self
+            .while_renewing(
+                &publication,
+                PUBLICATION_RENEWAL_INTERVAL,
+                self.publish_active(prepared, &publication, &mut reclamation_needed),
+            )
+            .await;
         let finish = self.finish_publication(&publication, reclamation_needed).await;
         if finish.is_ok()
             && let Err(error) = self.try_reclaim_unreferenced_blobs().await
@@ -216,7 +222,7 @@ impl SharedArtifactStore {
         result
     }
 
-    /// Runs a publication, saying at intervals that it is still working.
+    /// Runs `work`, saying at intervals that the publication is still working.
     ///
     /// A registration is written off so that one nobody will remove stops
     /// holding reclamation shut. Renewing keeps that from reaching a
@@ -224,28 +230,34 @@ impl SharedArtifactStore {
     /// expiry failing for a live one to go quiet long enough. That is why the
     /// recovery afterwards is not redundant — renewals can fail — but it is
     /// what makes needing it rare rather than ordinary.
-    async fn publish_renewing(
+    ///
+    /// The renewals are a branch of the select rather than a handler around it,
+    /// so `work` keeps being polled while a renewal waits. What a renewal waits
+    /// for is the lock a local usage mutation holds, and the publication holding
+    /// that lock is the one being renewed: handling renewals between polls would
+    /// leave each waiting on the other for good.
+    async fn while_renewing<Outcome>(
         &self,
-        prepared: PreparedPublication,
         publication: &str,
-        reclamation_needed: &mut bool,
-    ) -> Result<bool> {
-        let mut renewals = interval(PUBLICATION_RENEWAL_INTERVAL);
+        between_renewals: Duration,
+        work: impl Future<Output = Outcome>,
+    ) -> Outcome {
+        let mut renewals = interval(between_renewals);
         renewals.tick().await;
-        let publishing = self.publish_active(prepared, publication, reclamation_needed);
-        let mut publishing = std::pin::pin!(publishing);
-        loop {
-            tokio::select! {
-                outcome = &mut publishing => return outcome,
-                _ = renewals.tick() => {
-                    // A renewal that cannot be written is not fatal on its own:
-                    // the expiry is several renewals wide, and the publication
-                    // recovers what it lost if it is written off anyway.
-                    if let Err(error) = self.renew_publication(publication).await {
-                        tracing::warn!(%error, "shared artifact publication could not renew");
-                    }
+        let renewing = async {
+            loop {
+                renewals.tick().await;
+                // A renewal that cannot be written is not fatal on its own: the
+                // expiry is several renewals wide, and the publication recovers
+                // what it lost if it is written off anyway.
+                if let Err(error) = self.renew_publication(publication).await {
+                    tracing::warn!(%error, "shared artifact publication could not renew");
                 }
             }
+        };
+        tokio::select! {
+            outcome = work => outcome,
+            () = renewing => unreachable!("renewals stop only when the publication does"),
         }
     }
 

@@ -5,7 +5,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use async_trait::async_trait;
@@ -1216,6 +1216,34 @@ async fn a_publication_registered_without_a_time_is_stamped_rather_than_written_
     assert!(usage.active_publication_times.contains_key("a-publication-in-flight"));
 }
 
+/// A renewal waits for the lock a local usage mutation holds, and that
+/// mutation belongs to the publication being renewed. Waiting for it between
+/// polls of the publication would leave each waiting on the other for good.
+#[tokio::test]
+async fn a_renewal_waiting_for_the_lock_does_not_stop_the_publication() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    store.begin_publication("a-publication").await.unwrap();
+    let lock_path =
+        storage.path().join(super::ARTIFACT_CACHE_DIR).join(".locks").join("usage.lock");
+    let holding_the_lock = async {
+        let _lock = super::acquire_artifact_lock(lock_path).await.unwrap();
+        // Long enough that renewals tick while the lock is held, which is what
+        // a publication does across every usage mutation it makes.
+        tokio::time::sleep(super::ARTIFACT_LOCK_POLL_INTERVAL * 4).await;
+        "the work ran to the end"
+    };
+
+    let outcome = tokio::time::timeout(
+        Duration::from_secs(5),
+        store.while_renewing("a-publication", Duration::from_millis(1), holding_the_lock),
+    )
+    .await
+    .expect("the publication is polled while a renewal waits for the lock it holds");
+
+    assert_eq!(outcome, "the work ran to the end");
+}
+
 /// A registration with no time is stamped, and the stamp has to reach the
 /// store even when the pass that made it goes on to refuse something: a stamp
 /// held only in memory is re-made on the next read, and the registration then
@@ -1241,11 +1269,12 @@ async fn a_stamp_survives_the_pass_that_refused_on_its_account() {
 
     // Refused: the limit is full of registrations that have only just been
     // stamped, so none of them is old enough to write off yet.
-    let err = store
+    let error = store
         .publish("acme", publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]))
         .await
         .unwrap_err();
-    eprintln!("ERR {err:?}");
+
+    assert!(error.to_string().contains("concurrency limit reached"), "{error}");
 
     let usage: ArtifactUsage = serde_json::from_slice(
         &store.read_object_bounded(".locks/usage.json", 1 << 20).await.unwrap().unwrap(),
