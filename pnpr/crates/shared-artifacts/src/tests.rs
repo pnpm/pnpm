@@ -620,14 +620,11 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
         serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
             .unwrap();
     // The winner is written behind the store's back to stage the race, so it is
-    // never charged. What the loser stored is the marker claiming the scope it
-    // reaches — its envelope never landed — and it holds that until reclamation
-    // finds no artifact of its own behind it.
-    assert_eq!(
-        usage.global_bytes,
-        publication("ci/loser").envelope.digest().unwrap().len() as u64,
-        "the loser is charged for the scope it claimed and nothing else",
-    );
+    // never charged, and the loser's envelope never landed. What the loser did
+    // write is the marker claiming the scope it reaches, which the reservation
+    // does not carry through a failure this early — the usage scan reclamation
+    // ends with picks it up, along with dropping the marker itself.
+    assert_eq!(usage.global_bytes, 0, "the loser is not charged for what it did not store");
 }
 
 /// A store may hold several artifacts for one slot. Republishing any of them is
@@ -1007,6 +1004,26 @@ async fn reclamation_keeps_the_scopes_a_stored_artifact_reaches() {
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
         "the stored artifact still reaches its machines, got {error:?}",
+    );
+}
+
+/// A retry of a publication that finished writes nothing, so charging it for
+/// what it will not store would refuse one an owner at their limit is entitled
+/// to make.
+#[tokio::test]
+async fn a_retry_of_a_stored_artifact_needs_no_quota() {
+    let storage = TempDir::new().unwrap();
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    assert!(store.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap());
+
+    // Room for nothing further.
+    let full =
+        SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap().with_limits(1, 1);
+
+    assert!(
+        !full.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap(),
+        "the artifact is already published, and republishing it stores nothing",
     );
 }
 

@@ -215,6 +215,13 @@ impl SharedArtifactStore {
         reclamation_needed: &mut bool,
         created: &mut Vec<String>,
     ) -> Result<bool> {
+        // Before reserving anything: a publication of an artifact already stored
+        // and already holding its scopes writes nothing, so charging it for what
+        // it will not store would refuse a retry an owner at their limit is
+        // entitled to. Reads only, so nothing is written ahead of the quota.
+        if self.publication_is_complete(&prepared).await? {
+            return Ok(false);
+        }
         let mut prepared = prepared;
         let envelope_size = prepared.envelope_bytes.len() as u64;
         let owner = prepared.owner.clone();
@@ -499,6 +506,34 @@ impl SharedArtifactStore {
             Ok(None) => Ok(SlotClaim::Free),
             Err(error) => Err(error),
         }
+    }
+
+    /// Whether this artifact is stored and already holds every scope it reaches,
+    /// which is what a retry of a publication that finished looks like.
+    ///
+    /// The variant is read first, so a publication of something not yet stored
+    /// pays one read to find that out and stops.
+    async fn publication_is_complete(&self, publication: &PreparedPublication) -> Result<bool> {
+        let PreparedPublication {
+            owner, entry, envelope_digest, variant_path, envelope_bytes, ..
+        } = publication;
+        if self
+            .read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64)
+            .await?
+            .is_none_or(|stored| &stored != envelope_bytes)
+        {
+            return Ok(false);
+        }
+        let scopes = match compatibility_scopes(&publication.payload.compatibility) {
+            CompatibilityScopes::Every => BTreeSet::from([UNIVERSAL_SCOPE.to_string()]),
+            CompatibilityScopes::These(scopes) => scopes,
+        };
+        for scope in &scopes {
+            if self.scope_marker(owner, entry, scope, envelope_digest).await? != ScopeMarker::Ours {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     /// A universal artifact reaches every scope, and cannot enumerate them to
@@ -789,8 +824,7 @@ impl SharedArtifactStore {
     }
 
     async fn reclaim_unreferenced_blobs(&self) -> Result<ArtifactUsage> {
-        let referenced_blobs = self.referenced_blobs().await?;
-        let stored_artifacts = self.stored_artifact_digests().await?;
+        let (referenced_blobs, stored_artifacts) = self.referenced_blobs().await?;
         let mut listing = self.list_objects(None);
         while let Some(entry) = listing.next().await {
             let entry = entry?;
@@ -832,29 +866,11 @@ impl SharedArtifactStore {
         Ok(String::from_utf8(holder).is_ok_and(|holder| !stored_artifacts.contains(&holder)))
     }
 
-    async fn stored_artifact_digests(&self) -> Result<HashSet<String>> {
-        let mut stored = HashSet::new();
-        let mut listing = self.list_objects(None);
-        while let Some(entry) = listing.next().await {
-            let entry = entry?;
-            if !is_variant_file(object_name(&entry.location))
-                || entry.size > MAX_RESOLVE_RESPONSE_SIZE as u64
-            {
-                continue;
-            }
-            let Some(bytes) = self.read_object_path(&entry.location).await? else { continue };
-            let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
-                continue;
-            };
-            if let Ok(digest) = envelope.digest() {
-                stored.insert(digest);
-            }
-        }
-        Ok(stored)
-    }
-
-    async fn referenced_blobs(&self) -> Result<HashSet<String>> {
+    /// The blobs stored artifacts reference, and the artifacts themselves, from
+    /// one pass: reclamation asks both of every envelope it reads.
+    async fn referenced_blobs(&self) -> Result<(HashSet<String>, HashSet<String>)> {
         let mut referenced = HashSet::new();
+        let mut stored = HashSet::new();
         let mut listing = self.list_objects(None);
         while let Some(entry) = listing.next().await {
             let entry = entry?;
@@ -875,12 +891,17 @@ impl SharedArtifactStore {
             if digest_segment(payload.owner.namespace().as_bytes()) != owner {
                 continue;
             }
+            if is_variant_file(object_name(&entry.location))
+                && let Ok(digest) = envelope.digest()
+            {
+                stored.insert(digest);
+            }
             for file in payload.manifest.added {
                 let Ok(id) = blob_id(&file.integrity) else { continue };
                 referenced.insert(format!("{owner}/blobs/{id}"));
             }
         }
-        Ok(referenced)
+        Ok((referenced, stored))
     }
 
     async fn complete_reclamation(
