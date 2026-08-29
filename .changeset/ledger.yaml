@@ -56,6 +56,10 @@
   intents:
     - drop-modules-yaml-registries
     - registries-by-scope-by-prefix
+"@pnpm/building.after-install@1103.0.2":
+  dir: pnpm11/building/after-install
+  intents:
+    - retire-execution-barriers
 "@pnpm/building.commands@1100.1.17":
   dir: pnpm11/building/commands
   intents:
@@ -70,6 +74,11 @@
   dir: pnpm11/building/commands
   intents:
     - bright-pandas-approve
+"@pnpm/building.commands@1101.2.0":
+  dir: pnpm11/building/commands
+  intents:
+    - retire-execution-barriers
+    - unite-side-effects-cache
 "@pnpm/building.during-install@1102.0.11":
   dir: pnpm11/building/during-install
   intents:
@@ -82,6 +91,11 @@
   dir: pnpm11/building/during-install
   intents:
     - gvs-build-failure-cleanup
+"@pnpm/building.during-install@1102.1.0":
+  dir: pnpm11/building/during-install
+  intents:
+    - calm-pandas-share
+    - retire-execution-barriers
 "@pnpm/building.pkg-requires-build@1100.0.11":
   dir: pnpm11/building/pkg-requires-build
   intents:
@@ -154,6 +168,11 @@
   dir: pnpm11/cli/default-reporter
   intents:
     - reporter-own-config-type
+"@pnpm/cli.default-reporter@1100.3.18":
+  dir: pnpm11/cli/default-reporter
+  intents:
+    - progress-output-stays-inside-the-terminal
+    - tidy-pianos-tap
 "@pnpm/cli.default-reporter@1100.3.8":
   dir: pnpm11/cli/default-reporter
   intents:
@@ -162,6 +181,10 @@
   dir: pnpm11/cli/meta
   intents:
     - republish-all-lib-packages
+"@pnpm/cli.meta@1100.1.0":
+  dir: pnpm11/cli/meta
+  intents:
+    - tidy-pianos-tap
 "@pnpm/cli.parse-cli-args@1100.1.6":
   dir: pnpm11/cli/parse-cli-args
   intents:
@@ -286,6 +309,17 @@
   intents:
     - confirm-modules-purge-setting
     - rust-cli-honors-inert-settings
+"@pnpm/config.reader@1102.1.0":
+  dir: pnpm11/config/reader
+  intents:
+    - auth-file-does-not-mandate-the-registry
+    - calm-pandas-share
+    - fruity-taxes-shake
+    - login-scope-from-trusted-sources-only
+    - side-effects-cache-remote-env
+    - task-concurrency-limits
+    - unite-side-effects-cache
+    - workspace-task-orchestration
 "@pnpm/config.registry-auth-key@1100.0.0":
   dir: pnpm11/config/registry-auth-key
   intents:
@@ -383,6 +417,10 @@
     - audit-fix-age-excludes-unpublished-versions
     - registries-by-scope-by-prefix
     - sbom-missing-importers
+"@pnpm/deps.compliance.commands@1102.1.0":
+  dir: pnpm11/deps/compliance/commands
+  intents:
+    - fruity-taxes-shake
 "@pnpm/deps.compliance.license-resolver@1100.0.1":
   dir: pnpm11/deps/compliance/license-resolver
   intents:
@@ -463,10 +501,19 @@
   dir: pnpm11/deps/graph-hasher
   intents:
     - gvs-link-deps-in-slots
+"@pnpm/deps.graph-hasher@1100.3.0":
+  dir: pnpm11/deps/graph-hasher
+  intents:
+    - calm-pandas-share
 "@pnpm/deps.graph-sequencer@1100.0.1":
   dir: pnpm11/deps/graph-sequencer
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.graph-sequencer@1101.0.0":
+  dir: pnpm11/deps/graph-sequencer
+  intents:
+    - retire-execution-barriers
+    - violet-teachers-sort
 "@pnpm/deps.inspection.commands@1100.6.0":
   dir: pnpm11/deps/inspection/commands
   intents:
@@ -624,6 +671,11 @@
     - registries-by-scope-by-prefix
     - self-update-bumps-simple-ranges
     - self-update-tag-no-downgrade
+"@pnpm/engine.pm.commands@1102.1.0":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - init-pins-latest-pnpm
+    - tidy-pianos-tap
 "@pnpm/engine.runtime.bun-resolver@1102.0.11":
   dir: pnpm11/engine/runtime/bun-resolver
   intents:
@@ -636,6 +688,10 @@
   dir: pnpm11/engine/runtime/commands
   intents:
     - registries-by-scope-by-prefix
+"@pnpm/engine.runtime.commands@1101.1.0":
+  dir: pnpm11/engine/runtime/commands
+  intents:
+    - unite-side-effects-cache
 "@pnpm/engine.runtime.deno-resolver@1102.0.11":
   dir: pnpm11/engine/runtime/deno-resolver
   intents:
@@ -700,10 +756,25 @@
     - exec-prefixed-output-line-splitting
     - gvs-esm-node-path-loader
     - registries-by-scope-by-prefix
+"@pnpm/exec.commands@1101.1.0":
+  dir: pnpm11/exec/commands
+  intents:
+    - empty-regexp-scripts
+    - filter-hidden-regexp-scripts
+    - persist-task-run-state
+    - production-flag-alias
+    - shared-workspace-task-scheduler
+    - task-concurrency-limits
+    - workspace-task-orchestration
 "@pnpm/exec.esm-node-path-loader@1100.0.0":
   dir: pnpm11/exec/esm-node-path-loader
   intents:
     - gvs-esm-node-path-loader
+"@pnpm/exec.lifecycle@1100.1.15":
+  dir: pnpm11/exec/lifecycle
+  intents:
+    - retire-execution-barriers
+    - tidy-lifecycle-children
 "@pnpm/exec.lifecycle@1100.1.3":
   dir: pnpm11/exec/lifecycle
   intents:
@@ -720,6 +791,10 @@
   dir: pnpm11/exec/prepare-package
   intents:
     - republish-all-lib-packages
+"@pnpm/exec.prepare-package@1100.0.34":
+  dir: pnpm11/exec/prepare-package
+  intents:
+    - tough-flies-approve
 "@pnpm/fetching.binary-fetcher@1102.0.4":
   dir: pnpm11/fetching/binary-fetcher
   intents:
@@ -736,10 +811,18 @@
   dir: pnpm11/fetching/fetcher-base
   intents:
     - republish-all-lib-packages
+"@pnpm/fetching.fetcher-base@1100.2.9":
+  dir: pnpm11/fetching/fetcher-base
+  intents:
+    - tough-flies-approve
 "@pnpm/fetching.git-fetcher@1102.0.14":
   dir: pnpm11/fetching/git-fetcher
   intents:
     - git-fetch-failure-hint
+"@pnpm/fetching.git-fetcher@1102.0.16":
+  dir: pnpm11/fetching/git-fetcher
+  intents:
+    - tough-flies-approve
 "@pnpm/fetching.git-fetcher@1102.0.9":
   dir: pnpm11/fetching/git-fetcher
   intents:
@@ -760,6 +843,11 @@
   dir: pnpm11/fetching/tarball-fetcher
   intents:
     - republish-all-lib-packages
+"@pnpm/fetching.tarball-fetcher@1102.1.0":
+  dir: pnpm11/fetching/tarball-fetcher
+  intents:
+    - tidy-ravens-revise
+    - tough-flies-approve
 "@pnpm/fetching.types@1100.0.3":
   dir: pnpm11/fetching/types
   intents:
@@ -768,10 +856,18 @@
   dir: pnpm11/fs/graceful-fs
   intents:
     - republish-all-lib-packages
+"@pnpm/fs.graceful-fs@1100.2.0":
+  dir: pnpm11/fs/graceful-fs
+  intents:
+    - hoisted-hard-link-keeps-node-modules
 "@pnpm/fs.hard-link-dir@1100.0.3":
   dir: pnpm11/fs/hard-link-dir
   intents:
     - republish-all-lib-packages
+"@pnpm/fs.hard-link-dir@1100.0.4":
+  dir: pnpm11/fs/hard-link-dir
+  intents:
+    - hoisted-hard-link-keeps-node-modules
 "@pnpm/fs.indexed-pkg-importer@1100.0.21":
   dir: pnpm11/fs/indexed-pkg-importer
   intents:
@@ -780,6 +876,10 @@
   dir: pnpm11/fs/indexed-pkg-importer
   intents:
     - repair-shared-slot-in-place
+"@pnpm/fs.indexed-pkg-importer@1100.0.27":
+  dir: pnpm11/fs/indexed-pkg-importer
+  intents:
+    - hoisted-hard-link-keeps-node-modules
 "@pnpm/fs.is-empty-dir-or-nothing@1100.0.1":
   dir: pnpm11/fs/is-empty-dir-or-nothing
   intents:
@@ -830,6 +930,10 @@
   intents:
     - global-update-latest-local-specs
     - registries-by-scope-by-prefix
+"@pnpm/global.commands@1101.1.0":
+  dir: pnpm11/global/commands
+  intents:
+    - global-update-leaves-pnpm-to-self-update
 "@pnpm/global.packages@1100.0.13":
   dir: pnpm11/global/packages
   intents:
@@ -842,6 +946,10 @@
   dir: pnpm11/global/packages
   intents:
     - registries-by-scope-by-prefix
+"@pnpm/global.packages@1101.1.0":
+  dir: pnpm11/global/packages
+  intents:
+    - global-update-leaves-pnpm-to-self-update
 "@pnpm/hooks.pnpmfile@1100.0.22":
   dir: pnpm11/hooks/pnpmfile
   intents:
@@ -874,6 +982,10 @@
   dir: pnpm11/hooks/read-package-hook
   intents:
     - fix-overrides-metadata-cache
+"@pnpm/hooks.read-package-hook@1100.3.0":
+  dir: pnpm11/hooks/read-package-hook
+  intents:
+    - keep-declared-range-an-override-repeats
 "@pnpm/hooks.types@1100.2.3":
   dir: pnpm11/hooks/types
   intents:
@@ -945,6 +1057,16 @@
     - registries-by-scope-by-prefix
     - tidy-pugs-smile
     - update-versioned-selector-stays-targeted
+"@pnpm/installing.commands@1101.1.0":
+  dir: pnpm11/installing/commands
+  intents:
+    - calm-pandas-share
+    - fetch-command-options-declare-allow-builds
+    - global-update-leaves-pnpm-to-self-update
+    - refresh-registry-revisions
+    - retire-execution-barriers
+    - stage-approve-interactive
+    - unite-side-effects-cache
 "@pnpm/installing.context@1100.0.28":
   dir: pnpm11/installing/context
   intents:
@@ -962,6 +1084,10 @@
   dir: pnpm11/installing/context
   intents:
     - merged-branch-lockfiles-drop-removed-deps
+"@pnpm/installing.context@1101.0.2":
+  dir: pnpm11/installing/context
+  intents:
+    - calm-wombats-link
 "@pnpm/installing.dedupe.check@1100.1.5":
   dir: pnpm11/installing/dedupe/check
   intents:
@@ -1061,6 +1187,17 @@
     - registry-server-type
     - report-store-integrity-checks
     - spicy-hoops-brake
+"@pnpm/installing.deps-installer@1104.1.0":
+  dir: pnpm11/installing/deps-installer
+  intents:
+    - calm-pandas-share
+    - keep-declared-range-an-override-repeats
+    - kind-otters-lock
+    - persist-remote-build-artifacts
+    - pnpr-refreshes-revisions
+    - refresh-registry-revisions
+    - retire-execution-barriers
+    - safe-pnpr-project-transforms
 "@pnpm/installing.deps-resolver@1100.2.11":
   dir: pnpm11/installing/deps-resolver
   intents:
@@ -1106,6 +1243,13 @@
   intents:
     - registries-by-scope-by-prefix
     - registry-server-type
+"@pnpm/installing.deps-resolver@1102.1.0":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - fuzzy-carpets-smile
+    - keep-catalog-reference-of-overridden-dependency
+    - keep-declared-range-an-override-repeats
+    - refresh-registry-revisions
 "@pnpm/installing.deps-restorer@1102.1.10":
   dir: pnpm11/installing/deps-restorer
   intents:
@@ -1135,6 +1279,12 @@
   dir: pnpm11/installing/deps-restorer
   intents:
     - hoisted-file-dep-peer-variants-stay-apart
+"@pnpm/installing.deps-restorer@1103.1.0":
+  dir: pnpm11/installing/deps-restorer
+  intents:
+    - calm-pandas-share
+    - persist-remote-build-artifacts
+    - retire-execution-barriers
 "@pnpm/installing.env-installer@1102.0.12":
   dir: pnpm11/installing/env-installer
   intents:
@@ -1153,6 +1303,10 @@
     - config-dep-tarball-from-packument
     - frozen-lockfile-package-manager-deps
     - registries-by-scope-by-prefix
+"@pnpm/installing.env-installer@1103.0.2":
+  dir: pnpm11/installing/env-installer
+  intents:
+    - sync-satisfied-range-pin
 "@pnpm/installing.linking.direct-dep-linker@1100.0.14":
   dir: pnpm11/installing/linking/direct-dep-linker
   intents:
@@ -1191,6 +1345,10 @@
     - drop-modules-yaml-registries
     - long-modules-yaml-keys
     - registries-by-scope-by-prefix
+"@pnpm/installing.package-requester@1102.1.12":
+  dir: pnpm11/installing/package-requester
+  intents:
+    - tough-flies-approve
 "@pnpm/installing.package-requester@1102.1.6":
   dir: pnpm11/installing/package-requester
   intents:
@@ -1274,6 +1432,10 @@
   dir: pnpm11/lockfile/types
   intents:
     - republish-all-lib-packages
+"@pnpm/lockfile.types@1100.1.0":
+  dir: pnpm11/lockfile/types
+  intents:
+    - tidy-ravens-revise
 "@pnpm/lockfile.utils@1100.1.5":
   dir: pnpm11/lockfile/utils
   intents:
@@ -1293,6 +1455,10 @@
   intents:
     - registries-by-scope-by-prefix
     - registry-server-type
+"@pnpm/lockfile.utils@1102.1.0":
+  dir: pnpm11/lockfile/utils
+  intents:
+    - tidy-ravens-revise
 "@pnpm/lockfile.verification@1100.0.26":
   dir: pnpm11/lockfile/verification
   intents:
@@ -1371,6 +1537,10 @@
   dir: pnpm11/network/auth-header
   intents:
     - republish-all-lib-packages
+"@pnpm/network.fetch@1100.1.14":
+  dir: pnpm11/network/fetch
+  intents:
+    - tidy-ravens-revise
 "@pnpm/network.fetch@1100.1.8":
   dir: pnpm11/network/fetch
   intents:
@@ -1389,6 +1559,10 @@
   dir: pnpm11/network/web-auth
   intents:
     - login-non-interactive-web-auth
+"@pnpm/network.web-auth@1101.5.0":
+  dir: pnpm11/network/web-auth
+  intents:
+    - stage-approve-interactive
 "@pnpm/object.key-sorting@1100.0.2":
   dir: pnpm11/object/key-sorting
   intents:
@@ -1480,6 +1654,16 @@
     - pnpr-resolution-mode
     - pnpr-resolve-settings
     - registries-by-scope-by-prefix
+"@pnpm/pnpr.client@3.0.0":
+  dir: pnpr/client
+  intents:
+    - calm-pandas-share
+    - curvy-dingos-build
+    - general-artifact-subjects
+    - persist-remote-build-artifacts
+    - pnpr-refreshes-revisions
+    - remote-side-effects-reuse-store-content
+    - safe-pnpr-project-transforms
 "@pnpm/pnpr@0.1.0-alpha.1":
   dir: pnpr/npm/pnpr
   intents:
@@ -1521,6 +1705,16 @@
     - refresh-registry-revisions
     - safe-pnpr-project-transforms
     - tidy-ravens-revise
+"@pnpm/pnpr@0.1.0-alpha.9":
+  dir: pnpr/npm/pnpr
+  intents:
+    - artifact-slots-are-write-once
+    - artifact-slots-refuse-overlap
+    - calm-caches-scale
+    - clean-artifact-orphans
+    - general-artifact-subjects
+    - repair-pacquet-lockfiles
+    - safe-artifact-quota
 "@pnpm/prepare-temp-dir@1100.0.1":
   dir: pnpm11/__utils__/prepare-temp-dir
   intents:
@@ -1597,6 +1791,12 @@
   dir: pnpm11/releasing/commands
   intents:
     - quick-wolves-publish
+"@pnpm/releasing.commands@1101.1.0":
+  dir: pnpm11/releasing/commands
+  intents:
+    - fuzzy-ducks-deploy
+    - retire-execution-barriers
+    - stage-approve-interactive
 "@pnpm/releasing.exportable-manifest@1100.1.10":
   dir: pnpm11/releasing/exportable-manifest
   intents:
@@ -1731,6 +1931,11 @@
     - skip-registry-for-preferred-workspace-packages
     - slow-fetch-warnings
     - trust-check-honors-ignore-missing-time
+"@pnpm/resolving.npm-resolver@1104.1.0":
+  dir: pnpm11/resolving/npm-resolver
+  intents:
+    - refresh-registry-revisions
+    - tidy-ravens-revise
 "@pnpm/resolving.parse-wanted-dependency@1100.0.2":
   dir: pnpm11/resolving/parse-wanted-dependency
   intents:
@@ -1755,6 +1960,11 @@
   dir: pnpm11/resolving/registry/types
   intents:
     - republish-all-lib-packages
+"@pnpm/resolving.registry.types@1100.2.0":
+  dir: pnpm11/resolving/registry/types
+  intents:
+    - refresh-registry-revisions
+    - tidy-ravens-revise
 "@pnpm/resolving.resolver-base@1100.5.4":
   dir: pnpm11/resolving/resolver-base
   intents:
@@ -1771,6 +1981,11 @@
   dir: pnpm11/resolving/resolver-base
   intents:
     - runtime-matches-the-host-architecture
+"@pnpm/resolving.resolver-base@1101.2.0":
+  dir: pnpm11/resolving/resolver-base
+  intents:
+    - refresh-registry-revisions
+    - tidy-ravens-revise
 "@pnpm/resolving.tarball-resolver@1100.1.9":
   dir: pnpm11/resolving/tarball-resolver
   intents:
@@ -1784,6 +1999,10 @@
   intents:
     - fix-dist-tarball-encoded-slashes
     - registry-server-type
+"@pnpm/resolving.tarball-url@1101.1.0":
+  dir: pnpm11/resolving/tarball-url
+  intents:
+    - tidy-ravens-revise
 "@pnpm/shell.path@1100.0.2":
   dir: pnpm11/shell/path
   intents:
@@ -1792,6 +2011,11 @@
   dir: pnpm11/store/cafs-types
   intents:
     - republish-all-lib-packages
+"@pnpm/store.cafs-types@1100.1.0":
+  dir: pnpm11/store/cafs-types
+  intents:
+    - persist-remote-build-artifacts
+    - tough-flies-approve
 "@pnpm/store.cafs@1100.1.15":
   dir: pnpm11/store/cafs
   intents:
@@ -1800,6 +2024,12 @@
   dir: pnpm11/store/cafs
   intents:
     - report-store-integrity-checks
+"@pnpm/store.cafs@1100.3.0":
+  dir: pnpm11/store/cafs
+  intents:
+    - persist-remote-build-artifacts
+    - remote-side-effects-reuse-store-content
+    - tough-flies-approve
 "@pnpm/store.commands@1100.0.38":
   dir: pnpm11/store/commands
   intents:
@@ -1825,6 +2055,10 @@
   intents:
     - per-registry-time-field
     - registries-by-scope-by-prefix
+"@pnpm/store.connection-manager@1101.1.0":
+  dir: pnpm11/store/connection-manager
+  intents:
+    - init-pins-latest-pnpm
 "@pnpm/store.controller-types@1100.1.10":
   dir: pnpm11/store/controller-types
   intents:
@@ -1841,10 +2075,23 @@
   dir: pnpm11/store/controller-types
   intents:
     - repair-shared-slot-in-place
+"@pnpm/store.controller-types@1101.2.0":
+  dir: pnpm11/store/controller-types
+  intents:
+    - calm-pandas-share
+    - persist-remote-build-artifacts
+    - refresh-registry-revisions
+    - remote-side-effects-reuse-store-content
 "@pnpm/store.controller@1102.0.8":
   dir: pnpm11/store/controller
   intents:
     - republish-all-lib-packages
+"@pnpm/store.controller@1102.1.0":
+  dir: pnpm11/store/controller
+  intents:
+    - calm-pandas-share
+    - persist-remote-build-artifacts
+    - remote-side-effects-reuse-store-content
 "@pnpm/store.create-cafs-store@1100.0.21":
   dir: pnpm11/store/create-cafs-store
   intents:
@@ -1853,6 +2100,10 @@
   dir: pnpm11/store/index
   intents:
     - republish-all-lib-packages
+"@pnpm/store.index@1100.3.0":
+  dir: pnpm11/store/index
+  intents:
+    - persist-remote-build-artifacts
 "@pnpm/store.path@1100.0.3":
   dir: pnpm11/store/path
   intents:
@@ -1890,6 +2141,10 @@
   dir: pnpm11/text/ordinal-comparator
   intents:
     - inline-string-and-npmrc-key-utils
+"@pnpm/text.sanitize@1100.0.0":
+  dir: pnpm11/text/sanitize
+  intents:
+    - stage-approve-interactive
 "@pnpm/text.tree-renderer@1100.0.1":
   dir: pnpm11/text/tree-renderer
   intents:
@@ -1930,6 +2185,14 @@
     - registries-by-scope-by-prefix
     - registry-server-type
     - virtual-store-type
+"@pnpm/types@1102.1.0":
+  dir: pnpm11/core/types
+  intents:
+    - calm-pandas-share
+    - fruity-taxes-shake
+    - task-concurrency-limits
+    - unite-side-effects-cache
+    - workspace-task-orchestration
 "@pnpm/worker@1100.2.7":
   dir: pnpm11/worker
   intents:
@@ -1939,6 +2202,12 @@
   intents:
     - keep-worker-pool-for-stragglers
     - report-store-integrity-checks
+"@pnpm/worker@1100.4.0":
+  dir: pnpm11/worker
+  intents:
+    - calm-pandas-share
+    - persist-remote-build-artifacts
+    - tough-flies-approve
 "@pnpm/workspace.commands@1100.1.31":
   dir: pnpm11/workspace/commands
   intents:
@@ -1951,6 +2220,10 @@
   dir: pnpm11/workspace/commands
   intents:
     - rust-cli-honors-inert-settings
+"@pnpm/workspace.commands@1100.2.0":
+  dir: pnpm11/workspace/commands
+  intents:
+    - init-pins-latest-pnpm
 "@pnpm/workspace.injected-deps-syncer@1100.0.28":
   dir: pnpm11/workspace/injected-deps-syncer
   intents:
@@ -1998,6 +2271,11 @@
   dir: pnpm11/workspace/projects-sorter
   intents:
     - republish-all-lib-packages
+"@pnpm/workspace.projects-sorter@1101.0.0":
+  dir: pnpm11/workspace/projects-sorter
+  intents:
+    - retire-execution-barriers
+    - workspace-task-orchestration
 "@pnpm/workspace.range-resolver@1100.0.3":
   dir: pnpm11/workspace/range-resolver
   intents:
@@ -2018,6 +2296,13 @@
   dir: pnpm11/workspace/state
   intents:
     - republish-all-lib-packages
+"@pnpm/workspace.task-scheduler@1100.0.0":
+  dir: pnpm11/workspace/task-scheduler
+  intents:
+    - persist-task-run-state
+    - retire-execution-barriers
+    - shared-workspace-task-scheduler
+    - task-concurrency-limits
 "@pnpm/workspace.workspace-manifest-reader@1100.1.0":
   dir: pnpm11/workspace/workspace-manifest-reader
   intents:
@@ -3138,6 +3423,60 @@ pacquet@12.0.0-rc.9:
     - update-versioned-selector-stays-targeted
     - version-dry-run-writes-nothing
     - windows-store-path-prefix
+pacquet@12.1.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - auth-file-does-not-mandate-the-registry
+    - calm-dolphins-deploy
+    - calm-pandas-report
+    - clean-resolves-modules-dir-per-project
+    - curvy-dingos-build
+    - dlx-resolves-catalog-package-specs
+    - doctor-reports-the-released-version
+    - dot-prefixed-tarball-entries
+    - early-host-probe
+    - empty-regexp-scripts
+    - filter-hidden-regexp-scripts
+    - fix-windows-mjs-pnpmfile
+    - fresh-pandas-switch
+    - fuzzy-ducks-deploy
+    - fuzzy-ravens-pack
+    - general-artifact-subjects
+    - global-update-leaves-pnpm-to-self-update
+    - highest-version-bin-conflicts
+    - keep-catalog-reference-of-overridden-dependency
+    - keep-declared-range-an-override-repeats
+    - kind-trees-handshake
+    - login-records-into-config-yaml
+    - login-scope-from-trusted-sources-only
+    - overlap-engine-probe
+    - pacquet-otp-prompt-colon
+    - pacquet-view-json-errors
+    - parallel-importer-links
+    - patch-git-dependencies
+    - persist-remote-build-artifacts
+    - persist-task-run-state
+    - pm-prefix-forces-builtin-command
+    - pnpm-14281-setting-flags
+    - pnpm-strict-builds-manifest-write
+    - progress-output-stays-inside-the-terminal
+    - remote-side-effects-reuse-store-content
+    - repair-pacquet-lockfiles
+    - retire-execution-barriers
+    - retry-windows-dir-lock-release
+    - shamefully-hoist-cli-option
+    - side-effects-cache-remote-env
+    - skip-idle-postbuild-relink
+    - sync-satisfied-range-pin
+    - targeted-workspace-bins
+    - task-concurrency-limits
+    - tidy-lions-clone
+    - tidy-ravens-bail
+    - unite-side-effects-cache
+    - warm-slot-syscall-diet
+    - wild-buttons-repeat
+    - windows-console-ansi-colors
+    - workspace-task-orchestration
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
@@ -3425,3 +3764,46 @@ pnpm@11.24.0:
     - quick-wolves-publish
     - rust-cli-honors-inert-settings
     - tolerate-a-foreign-package-manager-entry
+pnpm@11.25.0:
+  dir: pnpm11/pnpm
+  intents:
+    - auth-file-does-not-mandate-the-registry
+    - calm-pandas-share
+    - calm-wombats-link
+    - curvy-dingos-build
+    - empty-regexp-scripts
+    - fetch-command-options-declare-allow-builds
+    - filter-hidden-regexp-scripts
+    - fresh-pandas-switch
+    - fruity-taxes-shake
+    - fuzzy-carpets-smile
+    - fuzzy-ducks-deploy
+    - general-artifact-subjects
+    - global-update-leaves-pnpm-to-self-update
+    - hoisted-hard-link-keeps-node-modules
+    - init-pins-latest-pnpm
+    - keep-catalog-reference-of-overridden-dependency
+    - keep-declared-range-an-override-repeats
+    - kind-otters-lock
+    - login-scope-from-trusted-sources-only
+    - persist-remote-build-artifacts
+    - persist-task-run-state
+    - pnpr-refreshes-revisions
+    - production-flag-alias
+    - progress-output-stays-inside-the-terminal
+    - refresh-registry-revisions
+    - remote-side-effects-reuse-store-content
+    - retire-execution-barriers
+    - safe-pnpr-project-transforms
+    - shared-workspace-task-scheduler
+    - side-effects-cache-remote-env
+    - stage-approve-interactive
+    - sync-satisfied-range-pin
+    - task-concurrency-limits
+    - tidy-lifecycle-children
+    - tidy-pianos-tap
+    - tidy-ravens-revise
+    - tough-flies-approve
+    - unite-side-effects-cache
+    - violet-teachers-sort
+    - workspace-task-orchestration

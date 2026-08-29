@@ -3,5 +3,4 @@
 ### Patch Changes
 
 - Updated dependencies:
-  - @pnpm/error@1100.1.3
-  - @pnpm/releasing.versioning@1100.2.6
+  - @pnpm/releasing.versioning@1100.2.7
