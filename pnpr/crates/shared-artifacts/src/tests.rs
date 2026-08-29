@@ -1493,6 +1493,43 @@ async fn renewing_a_publication_that_finished_records_nothing() {
     assert!(usage.active_publication_times.is_empty());
 }
 
+/// The markers an entry is given for artifacts already stored are objects like
+/// any other, so an owner with no room left cannot write them either.
+#[tokio::test]
+async fn an_owner_with_no_room_cannot_have_markers_written_for_them() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let stored = publication_tagged("ci/stored", &["pnpm:v1:linux-arm64-node22-glibc2.17"]);
+    let (payload, _) = stored.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&stored.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+    store
+        .create_object(
+            &format!("{owner}/entries/{entry}/{slot}.json"),
+            serde_json::to_vec(&stored.envelope).unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let full =
+        SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap().with_limits(1, 1);
+    let error = full
+        .publish("acme", publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]))
+        .await
+        .unwrap_err();
+
+    assert!(error.to_string().contains("quota exceeded"), "{error}");
+    assert!(
+        store
+            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-arm64-node22"), 128)
+            .await
+            .unwrap()
+            .is_none(),
+        "nothing is written for an owner who has no room for it",
+    );
+}
+
 /// A retried publication of the identical envelope is not an attempt to replace
 /// anything, so it stays idempotent rather than becoming a conflict.
 #[tokio::test]

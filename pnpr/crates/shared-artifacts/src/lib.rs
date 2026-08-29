@@ -894,15 +894,14 @@ impl SharedArtifactStore {
     /// would leave the scope that variant reaches unclaimed, which is the hole
     /// markers close. It runs once — an entry holding any marker is already
     /// described by them — and each read is bounded by the envelope limit.
-    async fn backfill_scopes(&self, publication: &PreparedPublication) -> Result<u64> {
+    async fn backfill_scopes(&self, publication: &PreparedPublication) -> Result<()> {
         let PreparedPublication { owner, entry, .. } = publication;
         // The sentinel, not the markers: they are written one at a time and the
         // scan stops at the first store error, so a marker only says some
         // artifact was reached, while the sentinel says every one was.
-        let mut written = 0_u64;
         let done = scope_marker_path(owner, entry, BACKFILLED_SCOPE);
         if self.read_object_bounded(&done, MAX_SCOPE_MARKER_BYTES).await?.is_some() {
-            return Ok(written);
+            return Ok(());
         }
         let prefix = self.object_path(&format!("{owner}/entries/{entry}/"));
         let mut listing = self.store.list(Some(&prefix));
@@ -932,16 +931,21 @@ impl SharedArtifactStore {
                 CompatibilityScopes::These(scopes) => scopes,
             };
             for scope in &scopes {
-                if self
+                // Reserved before it is written and kept afterwards, like every
+                // marker: these outlive the publication that writes them, and an
+                // owner over quota must not be able to write one either.
+                let bytes = digest.len() as u64;
+                self.reserve_quota(owner, bytes).await?;
+                if !self
                     .create_object(&scope_marker_path(owner, entry, scope), digest.as_str().into())
                     .await?
                 {
-                    written += digest.len() as u64;
+                    self.release_uncommitted(owner, bytes, 0).await?;
                 }
             }
         }
         self.create_object(&done, Vec::new()).await?;
-        Ok(written)
+        Ok(())
     }
 
     /// Settles which publications are still in flight, and writes that down.
