@@ -35,6 +35,10 @@ const MAX_ACTIVE_PUBLICATIONS: usize = 1024;
 const PUBLICATION_FINISH_RETRIES: usize = 8;
 const QUOTA_WRITE_RETRIES: usize = 32;
 const RECLAMATION_WAIT_RETRIES: usize = 600;
+/// Attempts to remove a variant this publication wrote and then withdrew. A
+/// withdrawal races nothing, so a failure here is a store fault rather than
+/// contention, and retrying more than briefly would only delay reporting it.
+const WITHDRAWAL_RETRIES: usize = 3;
 
 #[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
 struct ArtifactUsage {
@@ -278,13 +282,15 @@ impl SharedArtifactStore {
                 Ok(false) => {}
                 Ok(true) => {
                     *reclamation_needed = true;
-                    if let Err(error) = self.store.delete(&self.object_path(&variant_path)).await {
-                        tracing::warn!(%error, "withdrawn shared artifact could not be removed");
-                    }
+                    self.withdraw_variant(&variant_path).await?;
                     return Err(RegistryError::ArtifactAlreadyPublished { owner, entry });
                 }
                 Err(error) => {
+                    // The variant is stored but was never accepted, and a scan
+                    // that did not finish cannot say it is alone, so it goes
+                    // before the failure is reported.
                     *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
+                    self.withdraw_variant(&variant_path).await?;
                     return Err(error);
                 }
             }
@@ -478,6 +484,25 @@ impl SharedArtifactStore {
             }
         }
         Ok(false)
+    }
+
+    /// Removes a variant this publication wrote before withdrawing it.
+    ///
+    /// Reclamation collects unreferenced blobs, not envelopes, so nothing else
+    /// would remove this one. Reporting the conflict while it is still stored
+    /// would leave two artifacts that apply to one consumer — the state the
+    /// overlap rule exists to prevent — so a withdrawal that cannot complete is
+    /// reported as the store failure it is rather than as a clean conflict.
+    async fn withdraw_variant(&self, variant_path: &str) -> Result<()> {
+        let path = self.object_path(variant_path);
+        let mut failure = None;
+        for _ in 0..WITHDRAWAL_RETRIES {
+            match self.store.delete(&path).await {
+                Ok(()) | Err(object_store::Error::NotFound { .. }) => return Ok(()),
+                Err(error) => failure = Some(error),
+            }
+        }
+        Err(failure.expect("the loop reports the failure of its last attempt").into())
     }
 
     async fn begin_publication(&self, publication: &str) -> Result<()> {
