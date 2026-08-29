@@ -35,7 +35,7 @@ const MAX_ACTIVE_PUBLICATIONS: usize = 1024;
 const PUBLICATION_FINISH_RETRIES: usize = 8;
 const QUOTA_WRITE_RETRIES: usize = 32;
 const RECLAMATION_WAIT_RETRIES: usize = 600;
-/// A scope marker holds the compatibility slot of the artifact that claimed it,
+/// A scope marker holds the envelope digest of the artifact that claimed it,
 /// which is a hex digest.
 const MAX_SCOPE_MARKER_BYTES: u64 = 128;
 
@@ -168,14 +168,15 @@ impl SharedArtifactStore {
     ) -> Result<bool> {
         let owner = prepared.owner.clone();
         let entry = prepared.entry.clone();
+        let variant_path = prepared.variant_path.clone();
         let (stored, created) = self.publish_claimed(prepared, reclamation_needed).await;
-        if stored.is_err() {
-            // A publication that did not store its artifact cannot go on
-            // holding the scopes it reserved, or nothing could be published for
-            // them again.
-            self.release_scopes(&owner, &entry, &created).await;
-        }
-        stored
+        let Err(error) = stored else { return stored };
+        // A publication that did not store its artifact cannot go on holding the
+        // scopes it reserved, or nothing could be published for them again. Its
+        // own failure is the one worth reporting, unless the release fails too
+        // and leaves the entry needing an operator.
+        self.release_scopes(&owner, &entry, &variant_path, &created).await?;
+        Err(error)
     }
 
     /// Publishes one artifact, reporting the scopes it reserved along with the
@@ -422,7 +423,8 @@ impl SharedArtifactStore {
     /// publications whose constraints merely overlap: they contend on the scope
     /// they share, rather than on a path that only identical constraints agree
     /// on. The work is proportional to this artifact's own tags — 64 at the
-    /// most, one in practice — not to what the entry already holds.
+    /// most, one in practice — not to what the entry already holds, save for the
+    /// single backfill an entry written before markers existed needs.
     async fn claim_scopes(
         &self,
         publication: &PreparedPublication,
@@ -556,8 +558,13 @@ impl SharedArtifactStore {
 
     /// Gives an entry written before scopes were claimed the markers its
     /// artifacts would have taken, so that reading the markers speaks for
-    /// everything stored. It runs once per entry: an entry holding any marker
-    /// is already described by them.
+    /// everything stored.
+    ///
+    /// This is the one place that reads what an entry already holds, and a
+    /// count cannot bound it the way one bounds a lookup: a variant it skipped
+    /// would leave the scope that variant reaches unclaimed, which is the hole
+    /// markers close. It runs once — an entry holding any marker is already
+    /// described by them — and each read is bounded by the envelope limit.
     async fn backfill_scopes(&self, publication: &PreparedPublication) -> Result<()> {
         let PreparedPublication { owner, entry, .. } = publication;
         let markers = self.object_path(&scopes_prefix(owner, entry));
@@ -574,7 +581,14 @@ impl SharedArtifactStore {
             }
         }
         for location in variants {
-            let Some(bytes) = self.read_object_path(&location).await? else { continue };
+            let Some(relative) = self.relative_path(&location).map(str::to_string) else {
+                continue;
+            };
+            let Some(bytes) =
+                self.read_object_bounded(&relative, MAX_RESOLVE_RESPONSE_SIZE as u64).await?
+            else {
+                continue;
+            };
             let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
                 continue;
             };
@@ -592,20 +606,39 @@ impl SharedArtifactStore {
         Ok(())
     }
 
-    /// Gives back scopes this publication reserved and did not keep. A marker
-    /// left behind would refuse every later artifact for that scope, so one that
-    /// cannot be removed is worth reporting even though this publication's own
-    /// outcome is already settled.
-    async fn release_scopes(&self, owner: &str, entry: &str, scopes: &[String]) {
+    /// Gives back scopes this publication reserved and did not keep.
+    ///
+    /// Only when the artifact is not stored. A second publication of the same
+    /// envelope reuses this one's markers rather than creating its own, so it
+    /// can store the artifact while this one is failing; deleting the markers
+    /// then would leave that artifact holding nothing and let an overlapping
+    /// one be published beside it.
+    ///
+    /// A marker that cannot be removed refuses every later artifact for its
+    /// scope, which is the safe direction — no overlap can slip in — but it
+    /// needs an operator, so it is reported rather than logged in passing.
+    async fn release_scopes(
+        &self,
+        owner: &str,
+        entry: &str,
+        variant_path: &str,
+        scopes: &[String],
+    ) -> Result<()> {
+        if scopes.is_empty() {
+            return Ok(());
+        }
+        if self.read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await?.is_some()
+        {
+            return Ok(());
+        }
         for scope in scopes {
             let path = self.object_path(&scope_marker_path(owner, entry, scope));
             match self.store.delete(&path).await {
                 Ok(()) | Err(object_store::Error::NotFound { .. }) => {}
-                Err(error) => {
-                    tracing::warn!(%error, %scope, "shared artifact scope could not be released");
-                }
+                Err(error) => return Err(error.into()),
             }
         }
+        Ok(())
     }
 
     async fn begin_publication(&self, publication: &str) -> Result<()> {

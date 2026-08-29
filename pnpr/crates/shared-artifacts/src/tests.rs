@@ -351,7 +351,10 @@ async fn committed_envelope_writes_that_report_failure_remain_charged() {
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     let request = publication("ci/ambiguous-envelope");
-    let expected_usage = serde_json::to_vec(&request.envelope).unwrap().len() as u64;
+    // The envelope reached the store while reporting failure, and the scope it
+    // reaches stays claimed for it, so both are charged.
+    let scope_marker = request.envelope.digest().unwrap().len() as u64;
+    let expected_usage = serde_json::to_vec(&request.envelope).unwrap().len() as u64 + scope_marker;
 
     store.publish("acme", request).await.unwrap_err();
 
@@ -835,6 +838,24 @@ async fn a_scope_another_artifact_holds_refuses_publication() {
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
         "expected a conflict, got {error:?}",
     );
+    let slot = super::compatibility_slot(&payload.compatibility);
+    assert!(
+        store
+            .read_object_bounded(&format!("{owner}/entries/{entry}/{slot}.json"), 4096)
+            .await
+            .unwrap()
+            .is_none(),
+        "nothing is written before the claim succeeds",
+    );
+    assert_eq!(
+        store
+            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-x64-node22"), 128)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(b"another artifact".as_slice()),
+        "and the marker it refused on is left to its owner",
+    );
 }
 
 /// A scope this publication reserved and did not keep has to go back, or the
@@ -909,6 +930,80 @@ async fn a_scope_marker_that_commits_before_failing_is_released() {
             .unwrap()
             .is_none(),
         "a marker that committed while failing is released with the rest",
+    );
+}
+
+/// A second publication of the same envelope reuses the first's markers rather
+/// than creating its own, so it can store the artifact while the first is
+/// failing. Releasing then would leave that artifact holding no scope, and an
+/// overlapping one could be published beside it.
+#[tokio::test]
+async fn a_failure_keeps_the_scopes_of_an_artifact_that_did_get_stored() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    let ours = publication_tagged("ci/ours", &tags);
+    let (payload, _) = ours.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&ours.key, &payload.subject);
+    let marker = format!("{owner}/entries/{entry}/scopes/linux-x64-node22");
+    assert!(store.publish("acme", publication_tagged("ci/ours", &tags)).await.unwrap());
+
+    // What a concurrent attempt at the same envelope would have reserved.
+    store
+        .release_scopes(
+            &owner,
+            &entry,
+            &format!(
+                "{owner}/entries/{entry}/{}.json",
+                super::compatibility_slot(&payload.compatibility)
+            ),
+            &["linux-x64-node22".to_string()],
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        store.read_object_bounded(&marker, 128).await.unwrap().is_some(),
+        "the stored artifact keeps the scope it reaches",
+    );
+    let raised = ["pnpm:v1:linux-x64-node22-glibc2.31"];
+    let error = store.publish("acme", publication_tagged("ci/raised", &raised)).await.unwrap_err();
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "and still refuses one that reaches the same machines, got {error:?}",
+    );
+}
+
+/// A marker that cannot be removed refuses every later artifact for its scope,
+/// which needs an operator rather than a line in a log.
+#[tokio::test]
+async fn a_scope_that_cannot_be_released_is_reported() {
+    let failing: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+        inner: InMemory::new(),
+        commit_before_error: false,
+        fail_deletes: true,
+        fail_next_quota_write: None,
+        claim_slot_first: None,
+        fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
+        fail_reads_of: None,
+        fail_scope_writes: false,
+    });
+    let store = SharedArtifactStore::new(
+        &HostedStoreConfig::ObjectStore { store: failing, prefix: String::new() },
+        TempDir::new().unwrap().path(),
+    )
+    .unwrap();
+
+    let error = store
+        .publish("acme", publication_tagged("ci/first", &["pnpm:v1:linux-x64-node22-glibc2.17"]))
+        .await
+        .unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ObjectStore(_)),
+        "a scope left behind is reported, got {error:?}",
     );
 }
 
