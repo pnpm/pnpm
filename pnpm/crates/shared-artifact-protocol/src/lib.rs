@@ -885,6 +885,7 @@ enum ParsedCompatibilityTag<'a> {
 /// A compatibility tag split into the dimensions that decide *which machines it
 /// can apply to* and the `runtime` component carrying the version floor that
 /// decides *how well* it fits one of them.
+#[derive(Clone, Copy)]
 struct CompatibilityTagParts<'a> {
     os: &'a str,
     architecture: &'a str,
@@ -931,9 +932,9 @@ pub fn compatibility_overlaps(
             CompatibilityConstraints::Tagged { tags: left },
             CompatibilityConstraints::Tagged { tags: right },
         ) => left.iter().any(|left| {
-            let Ok(left) = split_compatibility_tag(left) else { return false };
+            let Some(left) = applicable_dimensions(left) else { return false };
             right.iter().any(|right| {
-                split_compatibility_tag(right).is_ok_and(|right| {
+                applicable_dimensions(right).is_some_and(|right| {
                     left.os == right.os
                         && left.architecture == right.architecture
                         && left.node_major == right.node_major
@@ -943,9 +944,26 @@ pub fn compatibility_overlaps(
     }
 }
 
+/// The dimensions of a tag that describes some machine, or `None` for one that
+/// describes none.
+///
+/// The floor has to parse as well as the dimensions: `linux-x64-node22-macos13.0`
+/// splits into Linux dimensions while naming a macOS floor, so no consumer can
+/// ever present it and it overlaps nothing.
+fn applicable_dimensions(tag: &str) -> Option<CompatibilityTagParts<'_>> {
+    let parts = split_compatibility_tag(tag).ok()?;
+    parse_tag_floor(parts).ok()?;
+    Some(parts)
+}
+
 fn parse_compatibility_tag(tag: &str) -> Result<ParsedCompatibilityTag<'_>, ArtifactProtocolError> {
-    let CompatibilityTagParts { os, architecture, node_major, runtime } =
-        split_compatibility_tag(tag)?;
+    parse_tag_floor(split_compatibility_tag(tag)?)
+}
+
+fn parse_tag_floor(
+    parts: CompatibilityTagParts<'_>,
+) -> Result<ParsedCompatibilityTag<'_>, ArtifactProtocolError> {
+    let CompatibilityTagParts { os, architecture, node_major, runtime } = parts;
     match os {
         "linux" => {
             let libc =

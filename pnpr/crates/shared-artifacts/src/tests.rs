@@ -277,6 +277,7 @@ async fn failed_object_writes_reconcile_quota_to_physical_storage() {
         fail_next_quota_write: None,
         claim_slot_first: None,
         fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -301,6 +302,7 @@ async fn committed_blob_writes_without_an_envelope_are_reclaimed() {
         fail_next_quota_write: None,
         claim_slot_first: None,
         fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -336,6 +338,7 @@ async fn committed_envelope_writes_that_report_failure_remain_charged() {
         fail_next_quota_write: None,
         claim_slot_first: None,
         fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -364,6 +367,7 @@ async fn publication_finish_retries_a_transient_quota_write_failure() {
         fail_next_quota_write: Some(Arc::clone(&fail_next_quota_write)),
         claim_slot_first: None,
         fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -466,6 +470,7 @@ async fn failed_reclamation_releases_its_gate_for_later_retries() {
         fail_next_quota_write: None,
         claim_slot_first: None,
         fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -576,6 +581,7 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
             serde_json::to_vec(&winner.envelope).unwrap(),
         )),
         fail_slot_read_after_first: Some(Arc::new(AtomicUsize::new(0))),
+        publish_overlapping_after_create: None,
     });
     let store = SharedArtifactStore::new(
         &HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() },
@@ -796,6 +802,7 @@ async fn losing_a_race_for_a_slot_is_not_reported_as_idempotent() {
             serde_json::to_vec(&winner.envelope).unwrap(),
         )),
         fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
     });
     let racing = SharedArtifactStore::new(
         &HostedStoreConfig::ObjectStore { store: racing, prefix: String::new() },
@@ -809,6 +816,51 @@ async fn losing_a_race_for_a_slot_is_not_reported_as_idempotent() {
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
         "expected a conflict, got {error:?}",
     );
+}
+
+/// Two publications whose constraints only overlap write different paths, so
+/// the conditional create that orders same-path publications cannot order
+/// these: both can find the entry clear. Reading again after the write is what
+/// keeps the pair from both surviving.
+#[tokio::test]
+async fn an_overlapping_publication_landing_mid_publish_is_withdrawn() {
+    let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
+    let theirs = publication_tagged("ci/theirs", &["pnpm:v1:linux-x64-node22-glibc2.31"]);
+    let (payload, _) = theirs.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&theirs.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+
+    let racing: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+        inner: InMemory::new(),
+        commit_before_error: false,
+        fail_deletes: false,
+        fail_next_quota_write: None,
+        claim_slot_first: None,
+        fail_slot_read_after_first: None,
+        publish_overlapping_after_create: Some((
+            format!(".pnpr-artifacts/v0/{owner}/entries/{entry}/{slot}.json"),
+            serde_json::to_vec(&theirs.envelope).unwrap(),
+        )),
+    });
+    let racing = SharedArtifactStore::new(
+        &HostedStoreConfig::ObjectStore { store: racing, prefix: String::new() },
+        TempDir::new().unwrap().path(),
+    )
+    .unwrap();
+
+    let error = racing.publish("acme", ours).await.unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "expected a conflict, got {error:?}",
+    );
+    let stored = racing
+        .resolve("acme", &serde_json::to_vec(&lookup("acme")).unwrap())
+        .await
+        .expect("the surviving artifact is still served");
+    let variants: usize = stored.artifacts.iter().map(|artifact| artifact.variants.len()).sum();
+    assert_eq!(variants, 1, "only the publication that was not withdrawn remains");
 }
 
 /// A retried publication of the identical envelope is not an attempt to replace
@@ -992,6 +1044,11 @@ struct FailArtifactWrites {
     /// it free and the failure lands on the re-read that follows a lost create
     /// — the only point where the loser is charged for what it did not store.
     fail_slot_read_after_first: Option<Arc<AtomicUsize>>,
+    /// Stands in for a publication whose constraints merely overlap this one's.
+    /// It lands once this one's variant is written, which is after the overlap
+    /// scan found the entry clear — the window a conditional create on a
+    /// different path cannot close. Writes pass through rather than failing.
+    publish_overlapping_after_create: Option<(String, Vec<u8>)>,
 }
 
 impl fmt::Display for FailArtifactWrites {
@@ -1031,6 +1088,18 @@ impl ObjectStore for FailArtifactWrites {
                 });
             }
             self.inner.put_opts(location, payload, options).await
+        } else if let Some((path, envelope)) = self.publish_overlapping_after_create.as_ref() {
+            let stored = self.inner.put_opts(location, payload, options).await?;
+            if location.as_ref() != path {
+                self.inner
+                    .put_opts(
+                        &ObjectPath::from(path.as_str()),
+                        PutPayload::from(envelope.clone()),
+                        PutOptions::default(),
+                    )
+                    .await?;
+            }
+            Ok(stored)
         } else {
             if self.commit_before_error {
                 self.inner.put_opts(location, payload, options).await?;

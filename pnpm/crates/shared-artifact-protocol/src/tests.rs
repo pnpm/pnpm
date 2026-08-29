@@ -492,6 +492,16 @@ fn constraints_overlap_when_one_consumer_can_match_both() {
 
     // An unparsable tag cannot be shown to share a consumer with anything.
     assert!(!compatibility_overlaps(&tagged(&["not-a-tag"]), &linux_x64_22));
+    // Nor can one whose dimensions parse but whose floor belongs to another
+    // operating system, since no consumer ever presents it.
+    assert!(!compatibility_overlaps(
+        &tagged(&["pnpm:v1:linux-x64-node22-macos13.0"]),
+        &linux_x64_22
+    ));
+    assert!(!compatibility_overlaps(
+        &tagged(&["pnpm:v1:darwin-x64-node22-glibc2.17"]),
+        &linux_x64_22
+    ));
 }
 
 #[test]

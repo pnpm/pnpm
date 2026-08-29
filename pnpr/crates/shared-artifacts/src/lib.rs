@@ -270,6 +270,25 @@ impl SharedArtifactStore {
         if !created && winner.is_none_or(|winner| winner != envelope_bytes) {
             return Err(RegistryError::ArtifactAlreadyPublished { owner, entry });
         }
+        if created {
+            match self
+                .overlaps_stored_artifact(&owner, &entry, &variant_path, &payload.compatibility)
+                .await
+            {
+                Ok(false) => {}
+                Ok(true) => {
+                    *reclamation_needed = true;
+                    if let Err(error) = self.store.delete(&self.object_path(&variant_path)).await {
+                        tracing::warn!(%error, "withdrawn shared artifact could not be removed");
+                    }
+                    return Err(RegistryError::ArtifactAlreadyPublished { owner, entry });
+                }
+                Err(error) => {
+                    *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
+                    return Err(error);
+                }
+            }
+        }
         Ok(created)
     }
 
@@ -417,6 +436,48 @@ impl SharedArtifactStore {
             held_by_another = true;
         }
         Ok(if held_by_another { SlotClaim::HeldByAnother } else { SlotClaim::Free })
+    }
+
+    /// Whether an artifact that can serve one of this publication's consumers is
+    /// stored beside it.
+    ///
+    /// [`Self::slot_claim`] reads before writing, and two publications whose
+    /// constraints merely overlap write different paths, so the conditional
+    /// create that orders same-path publications cannot order these: both can
+    /// find the entry clear and both can succeed. Reading again afterwards
+    /// closes that window.
+    ///
+    /// Whoever sees the other withdraws, rather than the two agreeing on a
+    /// winner. A winner rule is wrong here: the publication that finished its
+    /// read before the other's write landed sees nothing and keeps its
+    /// artifact, so a loser that ranked itself first would keep its own too and
+    /// both would survive. Withdrawing on sight costs a doomed pair both
+    /// artifacts and a retry, and never leaves two.
+    async fn overlaps_stored_artifact(
+        &self,
+        owner: &str,
+        entry: &str,
+        variant_path: &str,
+        compatibility: &CompatibilityConstraints,
+    ) -> Result<bool> {
+        let prefix = self.object_path(&format!("{owner}/entries/{entry}/"));
+        let ours = self.object_path(variant_path);
+        let mut listing = self.store.list(Some(&prefix));
+        while let Some(stored) = listing.next().await {
+            let stored = stored?;
+            if stored.location == ours || !is_variant_file(object_name(&stored.location)) {
+                continue;
+            }
+            let Some(bytes) = self.read_object_path(&stored.location).await? else { continue };
+            let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
+                continue;
+            };
+            let Ok((stored_payload, _)) = envelope.decode_payload() else { continue };
+            if compatibility_overlaps(&stored_payload.compatibility, compatibility) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     async fn begin_publication(&self, publication: &str) -> Result<()> {
