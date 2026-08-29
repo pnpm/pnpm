@@ -270,26 +270,22 @@ Benchmarks on an app with lots of dependencies:
 
 ## Nix
 
-The project provides optional Nix flake outputs for users who already use Nix. The flake exposes the prebuilt release binary as `#prebuilt` (also `#default`), a from-source build of the Rust CLI as `#source`, and the nixpkgs-packaged version as `#nixpkgs`.
+The project provides an optional Nix flake for users who already use Nix. It wraps the prebuilt binary from the GitHub release.
 
 ```bash
-# Run without installing (prebuilt binary, default)
+# Run without installing
 nix run github:pnpm/pnpm
 
 # Install into your profile
 nix profile add github:pnpm/pnpm
-
-# Explicitly choose prebuilt, source, or nixpkgs
-nix run github:pnpm/pnpm#prebuilt
-nix run github:pnpm/pnpm#source
-nix run github:pnpm/pnpm#nixpkgs
 ```
 
-The flake tracks the default branch and is auto-bumped to the latest release by a
-daily [workflow](.github/workflows/nix-release.yml), so `github:pnpm/pnpm`
-is updated daily when the version-bump PR is merged. (Release tags are cut before
-the bump lands, so `github:pnpm/pnpm/vX.Y.Z` is not a valid
-pin — use the nixpkgs package or a specific commit SHA if you need reproducibility.)
+The flake tracks the default branch. Publishing a release runs a
+[workflow](.github/workflows/nix-release.yml) that opens a pull request bumping the
+flake to it, so `github:pnpm/pnpm` follows the latest release once that pull request is
+merged. (Release tags are cut before the bump lands, so `github:pnpm/pnpm/vX.Y.Z` is
+not a valid pin — use a specific commit SHA, or the nixpkgs package, if you need
+reproducibility.)
 
 ## License
 

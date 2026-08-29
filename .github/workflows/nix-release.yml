@@ -1,31 +1,43 @@
 name: Update Nix flake
 
-# Checks whether flake.nix lags behind the latest GitHub release. If it does,
-# prefetches the new release's per-platform SRI hashes, rewrites flake.nix,
-# and opens a PR.
+# Pins flake.nix to a newly published pnpm release: prefetches that release's
+# per-platform SRI hashes, rewrites flake.nix, and opens a PR.
 #
-# Runs on a schedule instead of release: published because releases are created
-# with GITHUB_TOKEN, which does not start new workflow runs. A daily lag-check
-# is fully decoupled from how releases are created and needs no PAT.
+# The release job creates draft releases that a maintainer publishes by hand, so
+# `release: published` is a real user event and does start workflow runs — the
+# same trigger docker.yml uses to build the release's image.
 
 on:
-  schedule:
-    - cron: "17 6 * * *"
+  release:
+    types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to pin the flake to (e.g. v12.0.1)"
+        required: true
 
 permissions:
   contents: write
   pull-requests: write
 
 concurrency:
-  group: nix-flake-release
+  # Per tag: two releases published minutes apart must not cancel each other,
+  # while re-publishing one tag supersedes its own in-flight run.
+  group: nix-flake-release-${{ github.event.release.tag_name || inputs.tag }}
   cancel-in-progress: true
 
 jobs:
   update-flake:
-    name: Bump flake version + hashes if lagging
+    name: Bump flake to ${{ github.event.release.tag_name || inputs.tag }}
     runs-on: ubuntu-latest
-    if: github.repository == 'pnpm/pnpm'
+    timeout-minutes: 30
+    # pnpr@<version> and prerelease tags never pin the flake, so they do not
+    # need a runner at all. The script re-checks the tag it is handed.
+    if: >-
+      github.repository == 'pnpm/pnpm' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (!github.event.release.prerelease &&
+        startsWith(github.event.release.tag_name, 'v')))
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,9 +47,10 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
 
-      - name: Check for lag and rewrite flake.nix
+      - name: Rewrite flake.nix
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
           # system|asset-substring — one per line. The substring must uniquely
           # match the release asset filename for that system. Using the full
           # filename avoids matching the musl variants and the pnpr assets.
@@ -50,37 +63,57 @@ jobs:
           set -euo pipefail
           python3 <<'PYEOF'
           import json, os, re, subprocess, urllib.request
+
+          # Every network call gets a deadline so a hung endpoint cannot pin the
+          # runner for the whole job budget.
+          API_TIMEOUT = 60
+          PREFETCH_TIMEOUT = 600
+
+          def api(path):
+              req = urllib.request.Request(
+                  f"https://api.github.com/repos/{repo}/{path}",
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  })
+              with urllib.request.urlopen(req, timeout=API_TIMEOUT) as r:
+                  return json.load(r)
+
+          def done(reason):
+              print(reason)
+              with open(os.environ["GITHUB_ENV"], "a") as f:
+                  f.write("BUMPED=no\n")
+              raise SystemExit(0)
+
           repo = os.environ["GITHUB_REPOSITORY"]
-          token = os.environ["GH_TOKEN"]
-          req = urllib.request.Request(
-              f"https://api.github.com/repos/{repo}/releases/latest",
-              headers={
-                  "Accept": "application/vnd.github+json",
-                  "Authorization": f"Bearer {token}",
-                  "X-GitHub-Api-Version": "2022-11-28",
-              })
-          with urllib.request.urlopen(req) as r:
-              release = json.load(r)
-          tag = release["tag_name"]
-          version = tag.lstrip("v")
+          tag = os.environ["RELEASE_TAG"]
+          # Only a stable pnpm CLI tag pins the flake. The repository also
+          # publishes prereleases and pnpr@<version> releases, and it keeps
+          # older majors releasing after a new one is out — so a newer release
+          # is not necessarily a newer pnpm. Matching here is also what makes
+          # the tag safe to put in the API path below.
+          m = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)", tag)
+          if not m:
+              done(f"{tag} is not a stable pnpm release tag; nothing to do.")
+          new_key = tuple(int(g) for g in m.groups())
+          version = tag[1:]
           src = open("flake.nix").read()
           m = re.search(r'version = "([^"]*)";', src)
           if not m:
               raise SystemExit('could not find version = "..." in flake.nix')
           current = m.group(1)
-          print(f"flake.nix version: {current}  |  latest release: {version} (tag {tag})")
-          if current == version:
-              print("flake.nix is up to date; nothing to do.")
-              with open(os.environ["GITHUB_ENV"], "a") as f:
-                  f.write("LAGGING=no\n")
-              raise SystemExit(0)
-          with open(os.environ["GITHUB_ENV"], "a") as f:
-              f.write("LAGGING=yes\n")
-              f.write(f"VERSION={version}\n")
+          print(f"flake.nix version: {current}  |  published release: {version}")
+          m = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", current)
+          if not m:
+              raise SystemExit(f'flake.nix version "{current}" is not a stable X.Y.Z version')
+          if new_key <= tuple(int(g) for g in m.groups()):
+              done(f"flake.nix is at {current}; {version} would not move it forward.")
+          release = api(f"releases/tags/{tag}")
           # Drop sibling checksum files (.sha256) so a tarball substring does
           # not also match its "<tarball>.sha256" companion.
-          names = {a["name"] for a in release["assets"]
-                   if not a["name"].endswith(".sha256")}
+          asset_names = {a["name"] for a in release["assets"]}
+          names = {n for n in asset_names if not n.endswith(".sha256")}
           asset_map = {}
           for line in os.environ["ASSET_MAP"].splitlines():
               line = line.strip()
@@ -112,7 +145,6 @@ jobs:
           src, n = re.subn(r'version = "[^"]*";', f'version = "{version}";', src, count=1)
           if n != 1:
               raise SystemExit('could not find version = "..." in flake.nix')
-          asset_names = {a["name"] for a in release["assets"]}
           for sys_, sub in asset_map.items():
               match = next((n for n in names if sub in n), None)
               if not match:
@@ -120,29 +152,37 @@ jobs:
               url = f"https://github.com/{repo}/releases/download/{tag}/{match}"
               expected = None
               if f"{match}.sha256" in asset_names:
-                  with urllib.request.urlopen(f"{url}.sha256") as r:
-                      hexd = r.read().decode().split()[0]
-                  expected = "sha256:" + hexd
+                  with urllib.request.urlopen(f"{url}.sha256", timeout=API_TIMEOUT) as r:
+                      expected = "sha256:" + r.read().decode().split()[0]
               out = json.loads(subprocess.check_output(
                   ["nix", "store", "prefetch-file", "--json", "--hash-type", "sha256"]
                   + (["--expected-hash", expected] if expected else [])
-                  + [url]))
+                  + [url],
+                  timeout=PREFETCH_TIMEOUT))
               sri = out["hash"]
               pat = re.compile(r'("' + re.escape(sys_) + r'" = \{[^}]*\})', re.S)
+              # Asset names and SRI hashes are substituted through a replacement
+              # function: as a replacement *string* a backslash escape in either
+              # would be expanded rather than written out.
               def repl(m):
                   b = m.group(1)
-                  b = re.sub(r'file = "[^"]*";', f'file = "{match}";', b, count=1)
-                  b = re.sub(r'sha256 = "[^"]*";', f'sha256 = "{sri}";', b, count=1)
+                  b = re.sub(r'file = "[^"]*";', lambda _: f'file = "{match}";', b, count=1)
+                  b = re.sub(r'sha256 = "[^"]*";', lambda _: f'sha256 = "{sri}";', b, count=1)
                   return b
               src, n = pat.subn(repl, src, count=1)
               if n != 1:
                   raise SystemExit(f"could not find assets block for {sys_} in flake.nix")
           open("flake.nix", "w").write(src)
+          # Written last: the Open PR step must not be armed by a run that then
+          # failed to produce the rewrite it would commit.
+          with open(os.environ["GITHUB_ENV"], "a") as f:
+              f.write("BUMPED=yes\n")
+              f.write(f"VERSION={version}\n")
           print(f"bumped flake.nix to {version}: {list(asset_map)}")
           PYEOF
 
       - name: Open PR
-        if: env.LAGGING == 'yes'
+        if: env.BUMPED == 'yes'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           commit-message: "chore(nix): bump flake to v${{ env.VERSION }}"
@@ -150,9 +190,8 @@ jobs:
           branch: chore/nix-flake-v${{ env.VERSION }}
           base: main
           body: |
-            Auto-generated by the `Update Nix flake` workflow (daily lag-check).
-            The latest GitHub release is v${{ env.VERSION }} but `flake.nix` was
-            pinned to an older version. This PR bumps `version` and refreshes the per-platform SRI
+            Auto-generated by the `Update Nix flake` workflow when v${{ env.VERSION }}
+            was published. This PR bumps `version` and refreshes the per-platform SRI
             hashes by prefetching the new release assets.
 
             Note: PRs opened by `GITHUB_TOKEN` do not trigger downstream workflow runs (e.g. CI),

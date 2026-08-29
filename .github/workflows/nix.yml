@@ -9,8 +9,9 @@ name: Nix flake
 #   2. nix build .#default            — fetchurl + autoPatchelf + install
 #      layout actually realises for the runner's system.
 #   3. nix run .#default -- --version — the patched binary actually execs.
-#      This is the only step that catches the `let ... in rec` shadowing
-#      class of bug (passes flake check, fails nix run). Do NOT drop it.
+#      This is the only step that catches an output that evaluates and builds
+#      but points at the wrong program. It cannot run on pull_request (see the
+#      step's own comment), so it only guards manual dispatches.
 
 on:
   workflow_dispatch: {}
@@ -37,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-latest, macos-13, macos-14]
+        runner: [blacksmith-8vcpu-ubuntu-2404, blacksmith-12vcpu-macos-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -67,9 +68,3 @@ jobs:
         # (realises inside the sandbox, no network).
         if: github.event_name != 'pull_request'
         run: nix run .#default -- --version
-
-      - name: nix build .#source
-        # Exercises the from-source Rust build path. This is slower than
-        # the prebuilt build but validates that the Cargo workspace
-        # compiles correctly with the pinned nixpkgs toolchain.
-        run: nix build .#source --print-build-logs
