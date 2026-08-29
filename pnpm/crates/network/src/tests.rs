@@ -1070,10 +1070,9 @@ async fn acquire_for_url_routes_per_registry_then_falls_back() {
 
 #[tokio::test]
 async fn per_registry_route_selects_the_client_for_the_requested_redirect_mode() {
-    // Pointer identity proves a matched route has clients of its own,
-    // but not that the pair's two members are the right way round.
-    // Drive a real redirect through both accessors of one routed
-    // registry to pin that down.
+    // Pointer identity cannot see a routed pair whose two members
+    // were built the wrong way round, so drive a real redirect
+    // through both accessors instead.
     use crate::RegistryTls;
     use std::collections::HashMap;
 
@@ -1108,10 +1107,16 @@ async fn per_registry_route_selects_the_client_for_the_requested_redirect_mode()
     .expect("valid");
 
     let url = format!("{}/start", registry.url());
-    assert!(
-        per_registry.pick_for_url(&url).is_some(),
-        "the fixture URL must match the per-registry route, or this test proves nothing",
-    );
+    // The statuses below hold for the default pair too, so pin the
+    // routing first: a route map that lost the key would fall back
+    // and still look green.
+    {
+        let routed_guard = throttled.acquire_for_url(&url).await;
+        let unmatched_guard = throttled.acquire_for_url("https://other.example.org/pkg").await;
+        let routed: *const reqwest::Client = &raw const *routed_guard;
+        let unmatched: *const reqwest::Client = &raw const *unmatched_guard;
+        assert_ne!(routed, unmatched, "the fixture URL must reach its own routed client");
+    }
 
     let blocked = throttled
         .acquire_for_url_without_redirects_with_priority(&url, 0)
