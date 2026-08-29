@@ -1112,6 +1112,43 @@ async fn a_release_that_raced_the_artifact_being_stored_puts_its_scopes_back() {
     );
 }
 
+/// Restoration can find the scope taken: a publication that overlaps can claim
+/// it while it is briefly free. Neither artifact is the registry's to withdraw,
+/// so the state is reported rather than left for whoever the ranking sends the
+/// wrong build to.
+#[tokio::test]
+async fn a_restoration_that_finds_the_scope_taken_is_reported() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    let ours = publication_tagged("ci/ours", &tags);
+    let (payload, _) = ours.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&ours.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+    let marker = format!("{owner}/entries/{entry}/scopes/linux-x64-node22");
+    assert!(store.publish("acme", publication_tagged("ci/ours", &tags)).await.unwrap());
+    // The scope goes to somebody else while this publication is rolling back.
+    store.store.delete(&store.object_path(&marker)).await.unwrap();
+    store.create_object(&marker, b"another artifact".to_vec()).await.unwrap();
+
+    let error = store
+        .release_scopes(
+            &owner,
+            &entry,
+            &ours.envelope.digest().unwrap(),
+            &format!("{owner}/entries/{entry}/{slot}.json"),
+            &["linux-x64-node22".to_string()],
+        )
+        .await
+        .unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::Internal { .. }),
+        "two artifacts reaching one machine is reported, got {error:?}",
+    );
+}
+
 /// A retried publication of the identical envelope is not an attempt to replace
 /// anything, so it stays idempotent rather than becoming a conflict.
 #[tokio::test]

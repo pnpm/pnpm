@@ -684,7 +684,26 @@ impl SharedArtifactStore {
         // stored, which is what they should have said all along.
         if self.artifact_is_stored(variant_path).await? {
             for scope in scopes {
-                self.create_object(&scope_marker_path(owner, entry, scope), holder.into()).await?;
+                if self
+                    .create_object(&scope_marker_path(owner, entry, scope), holder.into())
+                    .await?
+                {
+                    continue;
+                }
+                // Somebody claimed the scope while it was briefly free. If that
+                // is this artifact, a second retry restored it first and there
+                // is nothing to do. Otherwise two artifacts now reach one
+                // machine, which this cannot undo — neither is the registry's
+                // to withdraw — so it says so rather than leaving it to be
+                // found by whoever the ranking sends the wrong build to.
+                if self.scope_marker(owner, entry, scope, holder).await? != ScopeMarker::Ours {
+                    return Err(RegistryError::Internal {
+                        reason: format!(
+                            "shared artifact scope {scope} of entry {entry} was claimed while a \
+                             publication of the artifact holding it was being rolled back",
+                        ),
+                    });
+                }
             }
         }
         Ok(())
