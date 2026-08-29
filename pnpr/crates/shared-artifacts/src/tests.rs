@@ -221,8 +221,14 @@ async fn concurrent_replicas_update_quota_without_lost_writes() {
     let usage: ArtifactUsage =
         serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
             .unwrap();
+    // Each publication stores its envelope and the marker for the one scope it
+    // reaches, which the store keeps until reclamation.
     let expected = (0..PUBLICATIONS)
-        .map(|index| serde_json::to_vec(&publication_for_platform(index).envelope).unwrap().len())
+        .map(|index| {
+            let publication = publication_for_platform(index);
+            serde_json::to_vec(&publication.envelope).unwrap().len()
+                + publication.envelope.digest().unwrap().len()
+        })
         .sum::<usize>() as u64;
     assert_eq!(usage.global_bytes, expected);
 }
@@ -236,8 +242,11 @@ async fn concurrent_duplicate_publications_are_charged_once() {
     let first = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     let second = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     let request = publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/duplicate");
-    let expected =
-        b"shared addon".len() as u64 + serde_json::to_vec(&request.envelope).unwrap().len() as u64;
+    // One marker between them: whichever claims the scope first, the other
+    // recognises it rather than writing a second.
+    let expected = b"shared addon".len() as u64
+        + serde_json::to_vec(&request.envelope).unwrap().len() as u64
+        + request.envelope.digest().unwrap().len() as u64;
 
     let first_publish = first.publish("acme", request.clone());
     let second_publish = second.publish("acme", request);
@@ -277,6 +286,9 @@ async fn failed_object_writes_reconcile_quota_to_physical_storage() {
         fail_next_quota_write: None,
         claim_slot_first: None,
         fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
+        fail_reads_of: None,
+        fail_scope_writes: false,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -301,6 +313,9 @@ async fn committed_blob_writes_without_an_envelope_are_reclaimed() {
         fail_next_quota_write: None,
         claim_slot_first: None,
         fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
+        fail_reads_of: None,
+        fail_scope_writes: false,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -336,13 +351,19 @@ async fn committed_envelope_writes_that_report_failure_remain_charged() {
         fail_next_quota_write: None,
         claim_slot_first: None,
         fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
+        fail_reads_of: None,
+        fail_scope_writes: false,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     let request = publication("ci/ambiguous-envelope");
-    let expected_usage = serde_json::to_vec(&request.envelope).unwrap().len() as u64;
+    // The envelope reached the store while reporting failure, and the scope it
+    // reaches stays claimed for it, so both are charged.
+    let scope_marker = request.envelope.digest().unwrap().len() as u64;
+    let expected_usage = serde_json::to_vec(&request.envelope).unwrap().len() as u64 + scope_marker;
 
     store.publish("acme", request).await.unwrap_err();
 
@@ -364,6 +385,9 @@ async fn publication_finish_retries_a_transient_quota_write_failure() {
         fail_next_quota_write: Some(Arc::clone(&fail_next_quota_write)),
         claim_slot_first: None,
         fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
+        fail_reads_of: None,
+        fail_scope_writes: false,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -466,6 +490,9 @@ async fn failed_reclamation_releases_its_gate_for_later_retries() {
         fail_next_quota_write: None,
         claim_slot_first: None,
         fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
+        fail_reads_of: None,
+        fail_scope_writes: false,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -576,6 +603,9 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
             serde_json::to_vec(&winner.envelope).unwrap(),
         )),
         fail_slot_read_after_first: Some(Arc::new(AtomicUsize::new(0))),
+        publish_overlapping_after_create: None,
+        fail_reads_of: None,
+        fail_scope_writes: false,
     });
     let store = SharedArtifactStore::new(
         &HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() },
@@ -590,8 +620,10 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
         serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
             .unwrap();
     // The winner is written behind the store's back to stage the race, so it is
-    // never charged: everything accounted here belongs to the loser, and the
-    // loser stored nothing.
+    // never charged, and the loser's envelope never landed. What the loser did
+    // write is the marker claiming the scope it reaches, which the reservation
+    // does not carry through a failure this early — the usage scan reclamation
+    // ends with picks it up, along with dropping the marker itself.
     assert_eq!(usage.global_bytes, 0, "the loser is not charged for what it did not store");
 }
 
@@ -599,16 +631,22 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
 /// a retry, so the whole slot is searched for the incoming envelope before
 /// another one is reported: the second is no less already-published than the
 /// first.
+/// An entry can hold artifacts that apply to one consumer: a store written
+/// before this rule, or one whose withdrawal could not finish. Neither of them
+/// is *the* artifact for those consumers, so republishing either is refused
+/// rather than reported as already published — which would hide the state and
+/// leave nobody to repair it.
 #[tokio::test]
-async fn republishing_any_artifact_already_in_a_crowded_legacy_slot_is_a_retry() {
+async fn an_entry_crowded_with_overlapping_artifacts_refuses_publication() {
     let storage = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
-    let first = publication("ci/first");
-    let second = publication("ci/second");
-    let (payload, _) = first.envelope.decode_payload().unwrap();
+    let universal = publication("ci/universal");
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    let tagged = publication_tagged("ci/tagged", &tags);
+    let (payload, _) = universal.envelope.decode_payload().unwrap();
     let owner = super::owner_key("acme", &payload.owner).unwrap();
-    let entry = super::entry_digest(&first.key, &payload.subject);
-    for (name, request) in [("a".repeat(64), &first), ("b".repeat(64), &second)] {
+    let entry = super::entry_digest(&universal.key, &payload.subject);
+    for (name, request) in [("a".repeat(64), &universal), ("b".repeat(64), &tagged)] {
         store
             .create_object(
                 &format!("{owner}/entries/{entry}/{name}.json"),
@@ -618,8 +656,15 @@ async fn republishing_any_artifact_already_in_a_crowded_legacy_slot_is_a_retry()
             .unwrap();
     }
 
-    assert!(!store.publish("acme", publication("ci/second")).await.unwrap());
-    assert!(!store.publish("acme", publication("ci/first")).await.unwrap());
+    // Each holds the scope it reaches, so only looking at its own would report
+    // both as already published.
+    for republished in [publication("ci/universal"), publication_tagged("ci/tagged", &tags)] {
+        let error = store.publish("acme", republished).await.unwrap_err();
+        assert!(
+            matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+            "republishing into a crowded entry is refused, got {error:?}",
+        );
+    }
     let error = store.publish("acme", publication("ci/third")).await.unwrap_err();
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
@@ -645,6 +690,77 @@ async fn tag_order_does_not_open_a_second_slot() {
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
         "expected a conflict, got {error:?}",
     );
+}
+
+/// A tagged artifact outranks a universal one for every consumer its tag fits,
+/// so publishing one over a universal artifact would decide what those
+/// consumers run without ever refilling a slot.
+#[tokio::test]
+async fn a_tagged_artifact_cannot_supersede_a_universal_one() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    assert!(store.publish("acme", publication("ci/first")).await.unwrap());
+
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    let error = store.publish("acme", publication_tagged("ci/second", &tags)).await.unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "expected a conflict, got {error:?}",
+    );
+}
+
+#[tokio::test]
+async fn a_universal_artifact_cannot_supersede_a_tagged_one() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    assert!(store.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap());
+
+    let error = store.publish("acme", publication("ci/second")).await.unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "expected a conflict, got {error:?}",
+    );
+}
+
+/// A consumer meeting the higher floor meets the lower one as well, so both
+/// artifacts would apply to it and ranking would pick between them.
+#[tokio::test]
+async fn a_second_floor_for_one_platform_cannot_open_a_second_slot() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let floor = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    assert!(store.publish("acme", publication_tagged("ci/first", &floor)).await.unwrap());
+
+    let raised = ["pnpm:v1:linux-x64-node22-glibc2.31"];
+    let error = store.publish("acme", publication_tagged("ci/second", &raised)).await.unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "expected a conflict, got {error:?}",
+    );
+}
+
+/// The rule refuses artifacts that could serve one machine, not artifacts for
+/// one input key: a publisher still fills out its matrix.
+#[tokio::test]
+async fn artifacts_no_consumer_can_share_are_published_side_by_side() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    for tag in [
+        "pnpm:v1:linux-x64-node22-glibc2.17",
+        "pnpm:v1:linux-arm64-node22-glibc2.17",
+        "pnpm:v1:linux-x64-node24-glibc2.17",
+        "pnpm:v1:darwin-arm64-node22-macos13.0",
+        "pnpm:v1:win32-x64-node22-windows10.0.17763",
+    ] {
+        assert!(
+            store.publish("acme", publication_tagged("ci/matrix", &[tag])).await.unwrap(),
+            "{tag} should not conflict with any other platform",
+        );
+    }
 }
 
 /// An artifact stored under its envelope digest claims its slot too, or a store
@@ -693,6 +809,9 @@ async fn losing_a_race_for_a_slot_is_not_reported_as_idempotent() {
             serde_json::to_vec(&winner.envelope).unwrap(),
         )),
         fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
+        fail_reads_of: None,
+        fail_scope_writes: false,
     });
     let racing = SharedArtifactStore::new(
         &HostedStoreConfig::ObjectStore { store: racing, prefix: String::new() },
@@ -705,6 +824,282 @@ async fn losing_a_race_for_a_slot_is_not_reported_as_idempotent() {
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
         "expected a conflict, got {error:?}",
+    );
+}
+
+/// The marker, not the variant path, is what two publications contend on, and
+/// nothing of the refused one is written: it is turned away before it stores
+/// anything, and what it lost to is left as it was.
+#[tokio::test]
+async fn a_scope_another_artifact_holds_refuses_publication() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let held = publication_tagged("ci/held", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
+    let holder = held.envelope.digest().unwrap();
+    let (payload, _) = held.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&held.key, &payload.subject);
+    assert!(store.publish("acme", held).await.unwrap());
+
+    let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.31"]);
+    let slot = {
+        let (payload, _) = ours.envelope.decode_payload().unwrap();
+        super::compatibility_slot(&payload.compatibility)
+    };
+    let error = store.publish("acme", ours).await.unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "expected a conflict, got {error:?}",
+    );
+    assert!(
+        store
+            .read_object_bounded(&format!("{owner}/entries/{entry}/{slot}.json"), 4096)
+            .await
+            .unwrap()
+            .is_none(),
+        "nothing is written before the claim succeeds",
+    );
+    assert_eq!(
+        store
+            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-x64-node22"), 128)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(holder.as_bytes()),
+        "and the marker it lost on still names the artifact holding it",
+    );
+}
+
+/// A scope this publication reserved and did not keep has to go back, or the
+/// artifact that should hold it could never be published.
+#[tokio::test]
+async fn a_publication_that_fails_gives_back_the_scopes_it_claimed() {
+    let failing: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+        inner: InMemory::new(),
+        commit_before_error: false,
+        fail_deletes: false,
+        fail_next_quota_write: None,
+        claim_slot_first: None,
+        fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
+        fail_reads_of: None,
+        fail_scope_writes: false,
+    });
+    let store = SharedArtifactStore::new(
+        &HostedStoreConfig::ObjectStore { store: failing, prefix: String::new() },
+        TempDir::new().unwrap().path(),
+    )
+    .unwrap();
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+
+    store.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap_err();
+
+    let (payload, _) = publication_tagged("ci/first", &tags).envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&publication_tagged("ci/first", &tags).key, &payload.subject);
+    assert!(
+        store
+            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-x64-node22"), 128)
+            .await
+            .unwrap()
+            .is_none(),
+        "the scope is free for the artifact that does get stored",
+    );
+}
+
+/// Markers are written one at a time and the scan stops at the first store
+/// error, so a marker only says some artifact was reached. Taking that for
+/// proof would let the next publication claim a scope a variant nobody reached
+/// still holds.
+#[tokio::test]
+async fn a_backfill_that_did_not_finish_runs_again() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let stored = publication_tagged("ci/stored", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
+    let (payload, _) = stored.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&stored.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+    store
+        .create_object(
+            &format!("{owner}/entries/{entry}/{slot}.json"),
+            serde_json::to_vec(&stored.envelope).unwrap(),
+        )
+        .await
+        .unwrap();
+    // What a backfill that stopped before its sentinel leaves behind.
+    store
+        .create_object(&format!("{owner}/entries/{entry}/scopes/darwin-x64-node22"), b"x".to_vec())
+        .await
+        .unwrap();
+
+    let raised = ["pnpm:v1:linux-x64-node22-glibc2.31"];
+    let error = store.publish("acme", publication_tagged("ci/raised", &raised)).await.unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "the unreached variant still holds the machines it reaches, got {error:?}",
+    );
+}
+
+/// A marker that loses the create and is gone by the time it is read belongs to
+/// nobody. Reading that as this artifact's own would store it reserving
+/// nothing, and an overlapping artifact could follow it in.
+#[tokio::test]
+async fn a_scope_that_vanishes_after_the_create_is_not_taken_as_ours() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
+    let (payload, _) = ours.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&ours.key, &payload.subject);
+
+    assert_eq!(
+        store.scope_marker(&owner, &entry, "linux-x64-node22", "any-digest").await.unwrap(),
+        super::ScopeMarker::Gone,
+        "an absent marker is nobody's, not this artifact's",
+    );
+}
+
+/// A publication that claims scopes and then fails leaves them claimed: it
+/// cannot tell its own abandoned marker from one a publication of the same
+/// envelope is using right now. Reclamation runs when none is in flight, so it
+/// can, and the scope goes back there.
+#[tokio::test]
+async fn a_scope_a_failed_publication_left_behind_is_reclaimed() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    let ours = publication_tagged("ci/ours", &tags);
+    let (payload, _) = ours.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&ours.key, &payload.subject);
+    let marker = format!("{owner}/entries/{entry}/scopes/linux-x64-node22");
+    // What a publication that claimed the scope and then failed leaves.
+    store.create_object(&marker, b"an artifact nobody stored".to_vec()).await.unwrap();
+
+    store.reclaim_unreferenced_blobs().await.unwrap();
+
+    assert!(
+        store.read_object_bounded(&marker, 128).await.unwrap().is_none(),
+        "a scope no stored artifact holds goes back",
+    );
+    assert!(
+        store.publish("acme", publication_tagged("ci/later", &tags)).await.unwrap(),
+        "and the artifact that should hold it can be published",
+    );
+}
+
+/// Reclamation drops what no artifact holds, not what a stored one does.
+#[tokio::test]
+async fn reclamation_keeps_the_scopes_a_stored_artifact_reaches() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    assert!(store.publish("acme", publication_tagged("ci/stored", &tags)).await.unwrap());
+
+    store.reclaim_unreferenced_blobs().await.unwrap();
+
+    let raised = ["pnpm:v1:linux-x64-node22-glibc2.31"];
+    let error = store.publish("acme", publication_tagged("ci/raised", &raised)).await.unwrap_err();
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "the stored artifact still reaches its machines, got {error:?}",
+    );
+}
+
+/// A retry of a publication that finished writes nothing, so charging it for
+/// what it will not store would refuse one an owner at their limit is entitled
+/// to make.
+#[tokio::test]
+async fn a_retry_of_a_stored_artifact_needs_no_quota() {
+    let storage = TempDir::new().unwrap();
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    assert!(store.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap());
+
+    let full =
+        SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap().with_limits(1, 1);
+
+    assert!(
+        !full.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap(),
+        "the artifact is already published, and republishing it stores nothing",
+    );
+}
+
+/// Once a crowded entry has been given its markers, each artifact holds the
+/// scope it reaches, and looking only at its own would report both as already
+/// published. Reaching the same machines from the other side of the vocabulary
+/// is what a retry into such an entry has to be refused for.
+#[tokio::test]
+async fn a_retry_into_a_crowded_entry_is_refused_once_its_scopes_are_known() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let universal = publication("ci/universal");
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    let tagged = publication_tagged("ci/tagged", &tags);
+    let (payload, _) = universal.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&universal.key, &payload.subject);
+    // Each under the name its own constraints give it, which is where a store
+    // written when only identical constraints conflicted put them.
+    for request in [&universal, &tagged] {
+        let (payload, _) = request.envelope.decode_payload().unwrap();
+        let slot = super::compatibility_slot(&payload.compatibility);
+        store
+            .create_object(
+                &format!("{owner}/entries/{entry}/{slot}.json"),
+                serde_json::to_vec(&request.envelope).unwrap(),
+            )
+            .await
+            .unwrap();
+    }
+    // Gives the entry the markers its artifacts reach, and is itself refused.
+    store.publish("acme", publication("ci/third")).await.unwrap_err();
+
+    for republished in [publication("ci/universal"), publication_tagged("ci/tagged", &tags)] {
+        let error = store.publish("acme", republished).await.unwrap_err();
+        assert!(
+            matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+            "a retry into a crowded entry is refused, got {error:?}",
+        );
+    }
+}
+
+/// Publishing into an entry that still needs its markers writes some for
+/// artifacts somebody else stored. Those are reserved and kept where they are
+/// written, so the publication's own accounting neither pays for them nor comes
+/// up short releasing what it did not use.
+#[tokio::test]
+async fn publishing_into_an_entry_that_needs_markers_keeps_its_quota_straight() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let stored = publication_tagged("ci/stored", &["pnpm:v1:linux-arm64-node22-glibc2.17"]);
+    let (payload, _) = stored.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&stored.key, &payload.subject);
+    let slot = super::compatibility_slot(&payload.compatibility);
+    store
+        .create_object(
+            &format!("{owner}/entries/{entry}/{slot}.json"),
+            serde_json::to_vec(&stored.envelope).unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Reaches machines the stored one does not, so it is published rather than
+    // refused, and its release runs with the backfill's markers already written.
+    let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
+    assert!(store.publish("acme", ours).await.unwrap());
+
+    assert!(
+        store
+            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-arm64-node22"), 128)
+            .await
+            .unwrap()
+            .is_some(),
+        "the artifact already there keeps the machines it reaches",
     );
 }
 
@@ -768,8 +1163,12 @@ fn publication(builder_id: &str) -> PublishArtifactRequest {
 fn for_platform(mut request: PublishArtifactRequest, index: usize) -> PublishArtifactRequest {
     let mut payload: ArtifactPayload =
         serde_json::from_slice(&BASE64.decode(&request.envelope.payload).unwrap()).unwrap();
+    // Node major, not the glibc floor: two floors for one architecture and Node
+    // major both apply to a consumer meeting the higher one, so they overlap and
+    // the second could not be published. Distinct Node majors never share a
+    // consumer, which is what a test needing several artifacts at once wants.
     payload.compatibility = CompatibilityConstraints::Tagged {
-        tags: vec![format!("pnpm:v1:linux-x64-node22-glibc2.{index}")],
+        tags: vec![format!("pnpm:v1:linux-x64-node{}-glibc2.17", index + 1)],
     };
     request.envelope.payload = BASE64.encode(serde_json::to_vec(&payload).unwrap());
     request
@@ -885,6 +1284,17 @@ struct FailArtifactWrites {
     /// it free and the failure lands on the re-read that follows a lost create
     /// — the only point where the loser is charged for what it did not store.
     fail_slot_read_after_first: Option<Arc<AtomicUsize>>,
+    /// Stands in for a publication whose constraints merely overlap this one's.
+    /// It lands once this one's variant is written, which is after the overlap
+    /// scan found the entry clear — the window a conditional create on a
+    /// different path cannot close. Writes pass through rather than failing.
+    publish_overlapping_after_create: Option<(String, Vec<u8>)>,
+    /// Fails reads of this path, so a scan that reaches it cannot finish.
+    fail_reads_of: Option<String>,
+    /// Applies the injected write failure to scope markers too. They pass
+    /// through by default, so a test injecting a failure reaches the envelope
+    /// or blob it is aimed at rather than stopping at the claim.
+    fail_scope_writes: bool,
 }
 
 impl fmt::Display for FailArtifactWrites {
@@ -912,6 +1322,9 @@ impl ObjectStore for FailArtifactWrites {
                 source: std::io::Error::other("slot claimed by another publication").into(),
             });
         }
+        if !self.fail_scope_writes && location.as_ref().contains("/scopes/") {
+            return self.inner.put_opts(location, payload, options).await;
+        }
         if location.as_ref().ends_with("/quota.json") {
             if self
                 .fail_next_quota_write
@@ -924,6 +1337,18 @@ impl ObjectStore for FailArtifactWrites {
                 });
             }
             self.inner.put_opts(location, payload, options).await
+        } else if let Some((path, envelope)) = self.publish_overlapping_after_create.as_ref() {
+            let stored = self.inner.put_opts(location, payload, options).await?;
+            if location.as_ref() != path {
+                self.inner
+                    .put_opts(
+                        &ObjectPath::from(path.as_str()),
+                        PutPayload::from(envelope.clone()),
+                        PutOptions::default(),
+                    )
+                    .await?;
+            }
+            Ok(stored)
         } else {
             if self.commit_before_error {
                 self.inner.put_opts(location, payload, options).await?;
@@ -948,6 +1373,12 @@ impl ObjectStore for FailArtifactWrites {
         location: &ObjectPath,
         options: GetOptions,
     ) -> object_store::Result<GetResult> {
+        if self.fail_reads_of.as_ref().is_some_and(|path| location.as_ref() == path) {
+            return Err(object_store::Error::Generic {
+                store: "test",
+                source: std::io::Error::other("injected variant read failure").into(),
+            });
+        }
         if let Some(reads) = self.fail_slot_read_after_first.as_ref()
             && self.claim_slot_first.as_ref().is_some_and(|(slot, _)| location.as_ref() == slot)
             && reads.fetch_add(1, Ordering::SeqCst) > 0

@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use p256::{
@@ -10,10 +10,11 @@ use sha2::{Digest as _, Sha512};
 
 use crate::{
     ARTIFACT_KIND, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
-    ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints, LinuxGlibcPlatform,
-    MacOsPlatform, OwnerScope, PackageIdentity, PublishArtifactRequest, SIGNATURE_ALGORITHM,
-    SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND, WindowsPlatform, blob_id,
-    compatibility_rank, linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags,
+    ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints,
+    CompatibilityScopes, LinuxGlibcPlatform, MacOsPlatform, OwnerScope, PackageIdentity,
+    PublishArtifactRequest, SIGNATURE_ALGORITHM, SignedArtifactEnvelope,
+    WORKSPACE_TASK_ARTIFACT_KIND, WindowsPlatform, blob_id, compatibility_rank,
+    compatibility_scopes, linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags,
     macos_tag, platform_fingerprint, validate_manifest_path, verify_blob, windows_supported_tags,
     windows_tag,
 };
@@ -434,6 +435,68 @@ fn windows_compatibility_uses_kernel_version_floors() {
         compatibility_rank(&CompatibilityConstraints::Universal, &supported),
         Some(u64::MAX),
     );
+}
+
+#[test]
+fn scopes_name_the_machines_constraints_reach() {
+    let tagged = |tags: &[&str]| CompatibilityConstraints::Tagged {
+        tags: tags.iter().map(|tag| (*tag).to_string()).collect(),
+    };
+    let scopes = |tags: &[&str]| match compatibility_scopes(&tagged(tags)) {
+        CompatibilityScopes::These(scopes) => scopes,
+        CompatibilityScopes::Every => unreachable!("tagged constraints name their machines"),
+    };
+    let overlap = |left: &[&str], right: &[&str]| !scopes(left).is_disjoint(&scopes(right));
+
+    assert_eq!(
+        compatibility_scopes(&CompatibilityConstraints::Universal),
+        CompatibilityScopes::Every,
+    );
+    assert_eq!(
+        scopes(&["pnpm:v1:linux-x64-node22-glibc2.17"]),
+        BTreeSet::from(["linux-x64-node22".to_string()]),
+    );
+
+    // A floor never separates two tags: a consumer meeting the higher one meets
+    // the lower as well, on every vocabulary that has floors.
+    assert!(overlap(
+        &["pnpm:v1:linux-x64-node22-glibc2.17"],
+        &["pnpm:v1:linux-x64-node22-glibc2.31"],
+    ));
+    assert!(overlap(
+        &["pnpm:v1:darwin-arm64-node22-macos13.0"],
+        &["pnpm:v1:darwin-arm64-node22-macos14.2"],
+    ));
+    assert!(overlap(
+        &["pnpm:v1:win32-x64-node22-windows10.0.17763"],
+        &["pnpm:v1:win32-x64-node22-windows10.0.22000"],
+    ));
+
+    // Operating system, architecture, and Node major each keep them apart.
+    assert!(!overlap(
+        &["pnpm:v1:linux-x64-node22-glibc2.17"],
+        &["pnpm:v1:linux-arm64-node22-glibc2.17"],
+    ));
+    assert!(!overlap(
+        &["pnpm:v1:linux-x64-node22-glibc2.17"],
+        &["pnpm:v1:linux-x64-node24-glibc2.17"],
+    ));
+    assert!(!overlap(
+        &["pnpm:v1:linux-x64-node22-glibc2.17"],
+        &["pnpm:v1:darwin-x64-node22-macos13.0"],
+    ));
+
+    // A set reaches every machine any of its tags reaches.
+    assert!(overlap(
+        &["pnpm:v1:linux-arm64-node22-glibc2.17", "pnpm:v1:linux-x64-node22-glibc2.31"],
+        &["pnpm:v1:linux-x64-node22-glibc2.17"],
+    ));
+
+    // A tag that describes no machine reaches none: unparsable, or naming a
+    // floor that belongs to another operating system.
+    assert!(scopes(&["not-a-tag"]).is_empty());
+    assert!(scopes(&["pnpm:v1:linux-x64-node22-macos13.0"]).is_empty());
+    assert!(scopes(&["pnpm:v1:darwin-x64-node22-glibc2.17"]).is_empty());
 }
 
 #[test]

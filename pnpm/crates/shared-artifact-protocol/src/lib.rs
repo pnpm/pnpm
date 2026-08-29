@@ -4,7 +4,7 @@
 //! cover those exact bytes, so implementations do not need to agree on a JSON
 //! canonicalization algorithm before they can interoperate.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use derive_more::{Display, Error};
@@ -882,7 +882,18 @@ enum ParsedCompatibilityTag<'a> {
     Windows(WindowsPlatform<'a>),
 }
 
-fn parse_compatibility_tag(tag: &str) -> Result<ParsedCompatibilityTag<'_>, ArtifactProtocolError> {
+/// A compatibility tag split into the dimensions that decide *which machines it
+/// can apply to* and the `runtime` component carrying the version floor that
+/// decides *how well* it fits one of them.
+#[derive(Clone, Copy)]
+struct CompatibilityTagParts<'a> {
+    os: &'a str,
+    architecture: &'a str,
+    node_major: u32,
+    runtime: &'a str,
+}
+
+fn split_compatibility_tag(tag: &str) -> Result<CompatibilityTagParts<'_>, ArtifactProtocolError> {
     validate_scalar("compatibility tag", tag, 512)?;
     let Some(platform) = tag.strip_prefix("pnpm:v1:") else {
         return Err(invalid_tag("unknown compatibility tag schema"));
@@ -901,6 +912,63 @@ fn parse_compatibility_tag(tag: &str) -> Result<ParsedCompatibilityTag<'_>, Arti
         "Node major version",
         false,
     )?;
+    Ok(CompatibilityTagParts { os, architecture, node_major, runtime })
+}
+
+/// How an artifact's constraints divide the machines it reaches, as keys that
+/// can be claimed one at a time.
+///
+/// Two artifacts reach a machine in common exactly when their key sets
+/// intersect, so claiming a key per scope is what lets a registry refuse an
+/// overlapping publication without reading every artifact stored beside it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompatibilityScopes {
+    /// Reaches every machine there is, so its keys cannot be enumerated.
+    Every,
+    /// Reaches the machines these keys name, and no others.
+    These(BTreeSet<String>),
+}
+
+/// The scopes an artifact's constraints reach.
+///
+/// A tag that describes no machine contributes nothing. Published artifacts
+/// cannot carry one — [`ArtifactPayload::validate`] parses every tag — so for
+/// anything stored this yields between 1 and 64 keys.
+#[must_use]
+pub fn compatibility_scopes(constraints: &CompatibilityConstraints) -> CompatibilityScopes {
+    match constraints {
+        CompatibilityConstraints::Universal => CompatibilityScopes::Every,
+        CompatibilityConstraints::Tagged { tags } => CompatibilityScopes::These(
+            tags.iter()
+                .filter_map(|tag| {
+                    let parts = applicable_dimensions(tag)?;
+                    Some(format!("{}-{}-node{}", parts.os, parts.architecture, parts.node_major))
+                })
+                .collect(),
+        ),
+    }
+}
+
+/// The dimensions of a tag that describes some machine, or `None` for one that
+/// describes none.
+///
+/// The floor has to parse as well as the dimensions: `linux-x64-node22-macos13.0`
+/// splits into Linux dimensions while naming a macOS floor, so no consumer can
+/// ever present it and it overlaps nothing.
+fn applicable_dimensions(tag: &str) -> Option<CompatibilityTagParts<'_>> {
+    let parts = split_compatibility_tag(tag).ok()?;
+    parse_tag_floor(parts).ok()?;
+    Some(parts)
+}
+
+fn parse_compatibility_tag(tag: &str) -> Result<ParsedCompatibilityTag<'_>, ArtifactProtocolError> {
+    parse_tag_floor(split_compatibility_tag(tag)?)
+}
+
+fn parse_tag_floor(
+    parts: CompatibilityTagParts<'_>,
+) -> Result<ParsedCompatibilityTag<'_>, ArtifactProtocolError> {
+    let CompatibilityTagParts { os, architecture, node_major, runtime } = parts;
     match os {
         "linux" => {
             let libc =
