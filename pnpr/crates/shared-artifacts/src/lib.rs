@@ -220,9 +220,10 @@ impl SharedArtifactStore {
     ///
     /// A registration is written off so that one nobody will remove stops
     /// holding reclamation shut. Renewing keeps that from reaching a
-    /// publication that is merely slow: only one that has actually stopped goes
-    /// quiet long enough to be written off, so no collector runs beside a live
-    /// publication and the losses it would cause cannot arise.
+    /// publication that is merely slow: it takes every renewal across the
+    /// expiry failing for a live one to go quiet long enough. That is why the
+    /// recovery afterwards is not redundant — renewals can fail — but it is
+    /// what makes needing it rare rather than ordinary.
     async fn publish_renewing(
         &self,
         prepared: PreparedPublication,
@@ -564,6 +565,9 @@ impl SharedArtifactStore {
         })
     }
 
+    /// Whether nothing holds a scope named by a tag, which is what an artifact
+    /// reaching every machine has to know: its own key says nothing about the
+    /// keys tagged artifacts take. Stops at the first, and reads no artifact.
     async fn tagged_scopes_are_free(&self, owner: &str, entry: &str) -> Result<bool> {
         let prefix = self.object_path(&scopes_prefix(owner, entry));
         let mut listing = self.store.list(Some(&prefix));
@@ -755,14 +759,8 @@ impl SharedArtifactStore {
         // than reported as already published.
         match compatibility_scopes(&publication.payload.compatibility) {
             CompatibilityScopes::Every => {
-                let prefix = self.object_path(&scopes_prefix(owner, entry));
-                let mut listing = self.store.list(Some(&prefix));
-                while let Some(marker) = listing.next().await {
-                    if scope_name(&marker?.location)
-                        .is_some_and(|scope| !matches!(scope, UNIVERSAL_SCOPE | BACKFILLED_SCOPE))
-                    {
-                        return Ok(false);
-                    }
+                if !self.tagged_scopes_are_free(owner, entry).await? {
+                    return Ok(false);
                 }
             }
             CompatibilityScopes::These(_) => {
@@ -790,16 +788,7 @@ impl SharedArtifactStore {
         if !self.claim_scope(owner, entry, UNIVERSAL_SCOPE, holder, created).await? {
             return Ok(false);
         }
-        let prefix = self.object_path(&scopes_prefix(owner, entry));
-        let mut listing = self.store.list(Some(&prefix));
-        while let Some(marker) = listing.next().await {
-            if scope_name(&marker?.location)
-                .is_some_and(|scope| !matches!(scope, UNIVERSAL_SCOPE | BACKFILLED_SCOPE))
-            {
-                return Ok(false);
-            }
-        }
-        Ok(true)
+        self.tagged_scopes_are_free(owner, entry).await
     }
 
     async fn claim_tagged_scopes(
