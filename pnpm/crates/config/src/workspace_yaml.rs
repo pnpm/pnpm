@@ -357,6 +357,14 @@ pub struct WorkspaceSettings {
     /// against the workspace dir like the other path-valued fields.
     /// When set, overrides the derived `<store_dir>/links` path.
     pub global_virtual_store_dir: Option<String>,
+    /// `globalDir` from the global `config.yaml`. Resolved like the other
+    /// path-valued fields; a project manifest does not contribute it (see
+    /// [`crate::refused_keys`]). See [`Config::global_dir`].
+    pub global_dir: Option<String>,
+    /// `globalBinDir` from the global `config.yaml`. Resolved like the other
+    /// path-valued fields; a project manifest does not contribute it (see
+    /// [`crate::refused_keys`]). See [`Config::global_bin_dir`].
+    pub global_bin_dir: Option<String>,
     pub package_import_method: Option<PackageImportMethod>,
     pub modules_cache_max_age: Option<u64>,
     pub virtual_store_dir_max_length: Option<u64>,
@@ -1835,6 +1843,8 @@ impl WorkspaceSettings {
         substitute_optional_string::<Sys>(&mut self.modules_dir);
         substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
         substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
+        substitute_optional_string::<Sys>(&mut self.global_dir);
+        substitute_optional_string::<Sys>(&mut self.global_bin_dir);
         substitute_optional_string::<Sys>(&mut self.user_agent);
         substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
         substitute_optional_string::<Sys>(&mut self.lockfile_dir);
@@ -2035,6 +2045,12 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.store_dir {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));
+        }
+        if let Some(v) = self.global_dir {
+            config.global_dir = Some(resolve(base_dir, &v));
+        }
+        if let Some(v) = self.global_bin_dir {
+            config.global_bin_dir = Some(resolve(base_dir, &v));
         }
         let mut declared_prefixes = false;
         if let Some(entries) = self.registries {

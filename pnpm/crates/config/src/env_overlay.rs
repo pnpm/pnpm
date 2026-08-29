@@ -175,6 +175,8 @@ impl WorkspaceSettings {
         json_field!(enable_modules_dir, "ENABLE_MODULES_DIR");
         json_field!(global_shims, "GLOBAL_SHIMS");
         string_field!(global_virtual_store_dir, "GLOBAL_VIRTUAL_STORE_DIR");
+        string_field!(global_dir, "GLOBAL_DIR");
+        string_field!(global_bin_dir, "GLOBAL_BIN_DIR");
         enum_field!(package_import_method, "PACKAGE_IMPORT_METHOD", PackageImportMethod);
         json_field!(modules_cache_max_age, "MODULES_CACHE_MAX_AGE");
         json_field!(virtual_store_dir_max_length, "VIRTUAL_STORE_DIR_MAX_LENGTH");

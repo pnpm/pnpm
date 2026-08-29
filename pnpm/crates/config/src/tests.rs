@@ -3,7 +3,7 @@ use super::{
     NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, WorkspaceSettings,
     default_ci, fs,
 };
-use crate::defaults::{default_state_dir, default_store_dir};
+use crate::defaults::{GLOBAL_LAYOUT_VERSION, default_state_dir, default_store_dir};
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::env_guard::EnvGuard;
 use pretty_assertions::assert_eq;
@@ -369,6 +369,47 @@ pub fn state_dir_uses_only_trusted_config_sources() {
     ]);
     let config = load_with_fake_env(project.path());
     assert!(config.state_dir.as_os_str().is_empty());
+}
+
+#[test]
+pub fn global_dirs_use_only_trusted_config_sources() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "globalDir: from-global\nglobalBinDir: from-global-bin\n",
+    )
+    .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "globalDir: from-project\nglobalBinDir: from-project-bin\n",
+    )
+    .expect("write workspace yaml");
+
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+    assert_eq!(
+        config.global_pkg_dir,
+        Some(project.path().join("from-global").join(GLOBAL_LAYOUT_VERSION)),
+    );
+    assert_eq!(config.global_bin, Some(project.path().join("from-global-bin")));
+    assert_eq!(config.workspace_key_issues.refused, ["globalDir", "globalBinDir"]);
+
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("PNPM_CONFIG_GLOBAL_DIR", "from-env"),
+        ("PNPM_CONFIG_GLOBAL_BIN_DIR", "from-env-bin"),
+    ]);
+    let config = load_with_fake_env(project.path());
+    assert_eq!(
+        config.global_pkg_dir,
+        Some(project.path().join("from-env").join(GLOBAL_LAYOUT_VERSION)),
+    );
+    assert_eq!(config.global_bin, Some(project.path().join("from-env-bin")));
 }
 
 #[test]

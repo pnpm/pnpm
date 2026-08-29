@@ -3609,6 +3609,11 @@ impl Config {
                 settings.ci = None;
                 settings.state_dir = None;
                 settings.scope = None;
+                // Where the machine keeps its globally installed packages and
+                // their shims is not a repository's to choose; pnpm's
+                // project-manifest key filter drops both keys.
+                settings.global_dir = None;
+                settings.global_bin_dir = None;
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
                 // counts as "explicitly set" when the workspace yaml
@@ -3739,13 +3744,6 @@ impl Config {
         // Resolve the global install directories:
         // `globalPkgDir = (globalDir ?? <pnpm-home>/global)/v11` and
         // `bin = globalBinDir ?? <pnpm-home>/bin`.
-        if self.global_dir.is_none() {
-            self.global_dir = read_pnpm_env::<Sys>("global_dir", "GLOBAL_DIR").map(PathBuf::from);
-        }
-        if self.global_bin_dir.is_none() {
-            self.global_bin_dir =
-                read_pnpm_env::<Sys>("global_bin_dir", "GLOBAL_BIN_DIR").map(PathBuf::from);
-        }
         let pnpm_home_dir = default_pnpm_home_dir::<Sys>();
         let global_dir_root = self
             .global_dir
