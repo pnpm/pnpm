@@ -21,9 +21,8 @@
 //!    anything outside that set (except the always-included files
 //!    handled in pass 3).
 //! 3. **Always-include** the standard files: `package.json`,
-//!    `README*` / `LICEN[SC]E*` / `CHANGES*` / `CHANGELOG*` /
-//!    `HISTORY*` / `NOTICE*` at the root, plus the paths declared in
-//!    `main` / `bin`. These survive `.npmignore` rejection and the
+//!    `README*` / `LICEN[SC]E*` at the root, plus the paths declared
+//!    in `main` / `bin`. These survive `.npmignore` rejection and the
 //!    `files`-field filter.
 //! 4. **`bundleDependencies` closure**: starting from the names in
 //!    `manifest.bundleDependencies` (or the legacy
@@ -85,8 +84,7 @@ const MAX_BUNDLE_DEPTH: u32 = 32;
 /// Case-insensitive prefix matches for files always-included at the
 /// package root regardless of `.npmignore` / `files`. Mirrors
 /// `npm-packlist`'s `alwaysIncluded` set.
-const ALWAYS_INCLUDED_PREFIXES: &[&str] =
-    &["readme", "license", "licence", "changes", "changelog", "history", "notice"];
+const ALWAYS_INCLUDED_PREFIXES: &[&str] = &["readme", "license", "licence"];
 
 /// Version-control directory names that exclude every file under
 /// them at any depth. Drops VCS state from a published package
