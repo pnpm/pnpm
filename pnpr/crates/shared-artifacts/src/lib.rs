@@ -254,9 +254,22 @@ impl SharedArtifactStore {
             }
         }
 
-        let added_bytes = new_blobs.iter().try_fold(envelope_size, |total, entry| {
-            total.checked_add(entry.1.len() as u64).ok_or_else(storage_quota_error)
-        })?;
+        // The markers this publication is about to claim are objects like any
+        // other, so an owner at their limit cannot write them either.
+        let scopes = match compatibility_scopes(&prepared.payload.compatibility) {
+            CompatibilityScopes::Every => 1,
+            CompatibilityScopes::These(scopes) => scopes.len(),
+        };
+        let scope_bytes = (scopes as u64)
+            .checked_mul(prepared.envelope_digest.len() as u64)
+            .ok_or_else(storage_quota_error)?;
+        let added_bytes = new_blobs
+            .iter()
+            .try_fold(envelope_size, |total, entry| {
+                total.checked_add(entry.1.len() as u64).ok_or_else(storage_quota_error)
+            })?
+            .checked_add(scope_bytes)
+            .ok_or_else(storage_quota_error)?;
         if let Err(error) = self.reserve_quota(&owner, added_bytes).await {
             *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
             return Err(error);
@@ -275,7 +288,13 @@ impl SharedArtifactStore {
                     entry: prepared.entry,
                 });
             }
-            Ok(SlotClaim::Free) => {}
+            // The markers this publication wrote, not the scopes it reaches: one
+            // it found already its own was charged to whoever wrote it. They are
+            // kept whatever becomes of the artifact, since only reclamation
+            // gives a scope back.
+            Ok(SlotClaim::Free) => {
+                retained_bytes += (created.len() as u64) * prepared.envelope_digest.len() as u64;
+            }
             Err(error) => {
                 *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
                 self.release_uncommitted(&owner, added_bytes, retained_bytes).await?;
@@ -592,9 +611,8 @@ impl SharedArtifactStore {
         )
     }
 
-    /// Gives an entry written before scopes were claimed the markers its
-    /// artifacts would have taken, so that reading the markers speaks for
-    /// everything stored.
+    /// Gives an entry whose artifacts hold no scopes the markers they reach, so
+    /// that reading the markers speaks for everything stored.
     ///
     /// This is the one place that reads what an entry already holds, and a
     /// count cannot bound it the way one bounds a lookup: a variant it skipped

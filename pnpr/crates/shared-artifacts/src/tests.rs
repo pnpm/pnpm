@@ -221,8 +221,14 @@ async fn concurrent_replicas_update_quota_without_lost_writes() {
     let usage: ArtifactUsage =
         serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
             .unwrap();
+    // Each publication stores its envelope and the marker for the one scope it
+    // reaches, which the store keeps until reclamation.
     let expected = (0..PUBLICATIONS)
-        .map(|index| serde_json::to_vec(&publication_for_platform(index).envelope).unwrap().len())
+        .map(|index| {
+            let publication = publication_for_platform(index);
+            serde_json::to_vec(&publication.envelope).unwrap().len()
+                + publication.envelope.digest().unwrap().len()
+        })
         .sum::<usize>() as u64;
     assert_eq!(usage.global_bytes, expected);
 }
@@ -236,8 +242,11 @@ async fn concurrent_duplicate_publications_are_charged_once() {
     let first = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     let second = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     let request = publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/duplicate");
-    let expected =
-        b"shared addon".len() as u64 + serde_json::to_vec(&request.envelope).unwrap().len() as u64;
+    // One marker between them: whichever claims the scope first, the other
+    // recognises it rather than writing a second.
+    let expected = b"shared addon".len() as u64
+        + serde_json::to_vec(&request.envelope).unwrap().len() as u64
+        + request.envelope.digest().unwrap().len() as u64;
 
     let first_publish = first.publish("acme", request.clone());
     let second_publish = second.publish("acme", request);
@@ -611,9 +620,14 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
         serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
             .unwrap();
     // The winner is written behind the store's back to stage the race, so it is
-    // never charged: everything accounted here belongs to the loser, and the
-    // loser stored nothing.
-    assert_eq!(usage.global_bytes, 0, "the loser is not charged for what it did not store");
+    // never charged. What the loser stored is the marker claiming the scope it
+    // reaches — its envelope never landed — and it holds that until reclamation
+    // finds no artifact of its own behind it.
+    assert_eq!(
+        usage.global_bytes,
+        publication("ci/loser").envelope.digest().unwrap().len() as u64,
+        "the loser is charged for the scope it claimed and nothing else",
+    );
 }
 
 /// A store may hold several artifacts for one slot. Republishing any of them is
