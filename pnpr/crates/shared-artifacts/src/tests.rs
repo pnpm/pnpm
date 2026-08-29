@@ -553,6 +553,38 @@ async fn a_legacy_artifact_claims_its_slot_whatever_its_order_or_position() {
     }
 }
 
+/// A store written before this naming could hold several artifacts for one
+/// slot. Republishing any of them is still a retry, so the whole slot is
+/// searched for the incoming envelope before another one is reported — the
+/// second is no less already-published than the first.
+#[tokio::test]
+async fn republishing_any_artifact_already_in_a_crowded_legacy_slot_is_a_retry() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let first = publication("ci/first");
+    let second = publication("ci/second");
+    let (payload, _) = first.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&first.key, &payload.subject);
+    for (name, request) in [("a".repeat(64), &first), ("b".repeat(64), &second)] {
+        store
+            .create_object(
+                &format!("{owner}/entries/{entry}/{name}.json"),
+                serde_json::to_vec(&request.envelope).unwrap(),
+            )
+            .await
+            .unwrap();
+    }
+
+    assert!(!store.publish("acme", publication("ci/second")).await.unwrap());
+    assert!(!store.publish("acme", publication("ci/first")).await.unwrap());
+    let error = store.publish("acme", publication("ci/third")).await.unwrap_err();
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "a genuinely new artifact still conflicts, got {error:?}",
+    );
+}
+
 /// Matching a tag set is order-independent, so two orderings are the same
 /// constraint and must not be two slots — otherwise a publisher reopens the
 /// swap simply by listing the same tags the other way round.

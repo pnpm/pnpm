@@ -65,6 +65,14 @@ pub struct ArtifactBlob {
     pub stream: BoxStream<'static, object_store::Result<Bytes>>,
 }
 
+/// What the slot a publication is claiming already holds.
+enum SlotClaim {
+    Free,
+    /// This exact envelope, so publishing it again is a retry.
+    Held,
+    HeldByAnother,
+}
+
 struct PreparedPublication {
     entry: String,
     slot: String,
@@ -165,11 +173,12 @@ impl SharedArtifactStore {
         // operator action against the store: the publishing credential must
         // not be able to do it, or a stolen one could swap the artifact for a
         // dependency nobody has looked at in a year.
-        if let Some(existing) = self.claimant(&owner, &entry, &variant_path, &slot).await? {
-            if existing == envelope_bytes {
-                return Ok(false);
+        match self.slot_claim(&owner, &entry, &variant_path, &slot, &envelope_bytes).await? {
+            SlotClaim::Held => return Ok(false),
+            SlotClaim::HeldByAnother => {
+                return Err(RegistryError::ArtifactAlreadyPublished { owner, entry });
             }
-            return Err(RegistryError::ArtifactAlreadyPublished { owner, entry });
+            SlotClaim::Free => {}
         }
 
         let required: BTreeMap<&str, u64> = payload
@@ -352,29 +361,40 @@ impl SharedArtifactStore {
             .then(|| ResolvedArtifact { key: candidate.key.clone(), variants }))
     }
 
-    /// The envelope already occupying this slot, if any.
+    /// Whether this slot is free, already holds this exact envelope, or holds
+    /// another one.
     ///
-    /// Usually that is the slot's own object. A store written before artifacts
-    /// were named for their slot holds them under their envelope digest
-    /// instead, so those are found by reading the entry — otherwise upgrading a
-    /// populated registry would leave every existing artifact replaceable.
-    async fn claimant(
+    /// Usually the slot's own object answers it. A store written before
+    /// artifacts were named for their slot holds them under their envelope
+    /// digest instead, so those are found by reading the entry — otherwise
+    /// upgrading a populated registry would leave every existing artifact
+    /// replaceable. Such a store may also hold *several* artifacts for one
+    /// slot, which is the state this naming exists to stop being reachable;
+    /// republishing any of them is still a retry, so the entry is searched for
+    /// this envelope before another one is reported.
+    async fn slot_claim(
         &self,
         owner: &str,
         entry: &str,
         variant_path: &str,
         slot: &str,
-    ) -> Result<Option<Vec<u8>>> {
+        envelope_bytes: &[u8],
+    ) -> Result<SlotClaim> {
         if let Some(claimed) =
             self.read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await?
         {
-            return Ok(Some(claimed));
+            return Ok(if claimed == envelope_bytes {
+                SlotClaim::Held
+            } else {
+                SlotClaim::HeldByAnother
+            });
         }
         // Every file, not the read-time variant limit: that limit bounds what a
         // lookup will scan, and a claim that stopped there would call a slot
         // free because the artifact holding it sorted too late in the listing.
         let prefix = self.object_path(&format!("{owner}/entries/{entry}/"));
         let mut listing = self.store.list(Some(&prefix));
+        let mut held_by_another = false;
         while let Some(stored) = listing.next().await {
             let stored = stored?;
             if !is_variant_file(object_name(&stored.location)) {
@@ -388,11 +408,15 @@ impl SharedArtifactStore {
             // Compared by slot rather than structurally, so that a stored
             // artifact whose tags are written in another order is recognised as
             // holding this one — the reordering the slot itself canonicalizes.
-            if compatibility_slot(&payload.compatibility) == slot {
-                return Ok(Some(bytes));
+            if compatibility_slot(&payload.compatibility) != slot {
+                continue;
             }
+            if bytes == envelope_bytes {
+                return Ok(SlotClaim::Held);
+            }
+            held_by_another = true;
         }
-        Ok(None)
+        Ok(if held_by_another { SlotClaim::HeldByAnother } else { SlotClaim::Free })
     }
 
     async fn begin_publication(&self, publication: &str) -> Result<()> {
