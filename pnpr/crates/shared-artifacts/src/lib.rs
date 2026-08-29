@@ -990,7 +990,22 @@ fn hex(bytes: &[u8]) -> String {
 fn compatibility_slot(compatibility: &CompatibilityConstraints) -> String {
     let mut hasher = Sha256::new();
     hasher.update(b"pnpm-shared-artifact-slot-v1\0");
-    hasher.update(serde_json::to_vec(compatibility).expect("compatibility constraints serialize"));
+    match compatibility {
+        CompatibilityConstraints::Universal => hasher.update(b"universal\0"),
+        CompatibilityConstraints::Tagged { tags } => {
+            hasher.update(b"tagged\0");
+            // Sorted because matching a tag set is order-independent: two
+            // orderings are the same constraint, and hashing them apart would
+            // hand the same platform two slots to be published into. The
+            // protocol already rejects duplicates, so sorting canonicalizes.
+            let mut tags: Vec<&str> = tags.iter().map(String::as_str).collect();
+            tags.sort_unstable();
+            for tag in tags {
+                hasher.update(tag.as_bytes());
+                hasher.update([0]);
+            }
+        }
+    }
     hex(&hasher.finalize())
 }
 

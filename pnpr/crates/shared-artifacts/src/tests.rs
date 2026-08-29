@@ -503,6 +503,26 @@ async fn a_second_artifact_cannot_claim_a_taken_slot() {
     assert_eq!(response.artifacts[0].variants.len(), 1, "the first artifact still stands");
 }
 
+/// Matching a tag set is order-independent, so two orderings are the same
+/// constraint and must not be two slots — otherwise a publisher reopens the
+/// swap simply by listing the same tags the other way round.
+#[tokio::test]
+async fn tag_order_does_not_open_a_second_slot() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17", "pnpm:v1:linux-arm64-node22-glibc2.17"];
+    assert!(store.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap());
+
+    let reversed = [tags[1], tags[0]];
+    let error =
+        store.publish("acme", publication_tagged("ci/second", &reversed)).await.unwrap_err();
+
+    assert!(
+        matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+        "expected a conflict, got {error:?}",
+    );
+}
+
 /// A store written before artifacts were named for their slot holds them under
 /// their envelope digest. Upgrading must not leave every artifact already in it
 /// replaceable, so those claim their slot too.
@@ -633,6 +653,17 @@ fn for_platform(mut request: PublishArtifactRequest, index: usize) -> PublishArt
 
 fn publication_for_platform(index: usize) -> PublishArtifactRequest {
     for_platform(publication(&format!("ci/{index}")), index)
+}
+
+fn publication_tagged(builder_id: &str, tags: &[&str]) -> PublishArtifactRequest {
+    let mut request = publication(builder_id);
+    let mut payload: ArtifactPayload =
+        serde_json::from_slice(&BASE64.decode(&request.envelope.payload).unwrap()).unwrap();
+    payload.compatibility = CompatibilityConstraints::Tagged {
+        tags: tags.iter().map(|tag| (*tag).to_string()).collect(),
+    };
+    request.envelope.payload = BASE64.encode(serde_json::to_vec(&payload).unwrap());
+    request
 }
 
 fn publication_with_blob(input_key: &str, builder_id: &str) -> PublishArtifactRequest {
