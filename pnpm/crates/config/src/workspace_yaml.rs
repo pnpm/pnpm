@@ -3,7 +3,7 @@ use crate::{
     NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
     VirtualStoreType,
-    api::EnvVar,
+    api::{EnvVar, GetHomeDir},
     config_types::is_config_file_key,
     known_settings::{SCHEMA_DIRECTIVE_KEY, annotate_unknown_setting, is_known_setting_key},
     naming_cases::{is_camel_case, to_camel_case, to_kebab_case},
@@ -357,13 +357,17 @@ pub struct WorkspaceSettings {
     /// against the workspace dir like the other path-valued fields.
     /// When set, overrides the derived `<store_dir>/links` path.
     pub global_virtual_store_dir: Option<String>,
-    /// `globalDir` from the global `config.yaml`. Resolved like the other
-    /// path-valued fields; a project manifest does not contribute it (see
-    /// [`crate::refused_keys`]). See [`Config::global_dir`].
+    /// `globalDir` from the global `config.yaml`. Resolved against the
+    /// workspace dir like the other path-valued fields. See
+    /// [`Config::global_dir`].
+    ///
+    /// No repo-committed file may set it — see [`crate::refused_keys`].
     pub global_dir: Option<String>,
-    /// `globalBinDir` from the global `config.yaml`. Resolved like the other
-    /// path-valued fields; a project manifest does not contribute it (see
-    /// [`crate::refused_keys`]). See [`Config::global_bin_dir`].
+    /// `globalBinDir` from the global `config.yaml`. Resolved against the
+    /// workspace dir like the other path-valued fields. See
+    /// [`Config::global_bin_dir`].
+    ///
+    /// No repo-committed file may set it — see [`crate::refused_keys`].
     pub global_bin_dir: Option<String>,
     pub package_import_method: Option<PackageImportMethod>,
     pub modules_cache_max_age: Option<u64>,
@@ -1836,6 +1840,29 @@ impl WorkspaceSettings {
         }
     }
 
+    /// Rewrite a leading `~/` in `globalDir` / `globalBinDir` into the home
+    /// directory, as pnpm's `transformPathKeys` does. A shell expands the
+    /// tilde before `pnpm config set` sees it, but a hand-written
+    /// `config.yaml` carries it verbatim.
+    ///
+    /// Call this before [`Self::apply_to`], which would otherwise take the
+    /// tilde for an ordinary relative path segment.
+    pub fn expand_home_prefixes<Sys: GetHomeDir>(&mut self) {
+        for dir in [&mut self.global_dir, &mut self.global_bin_dir] {
+            let Some(relative) = dir
+                .as_deref()
+                .and_then(|dir| dir.strip_prefix("~/").or_else(|| dir.strip_prefix(r"~\")))
+            else {
+                continue;
+            };
+            if let Some(expanded) = Sys::home_dir()
+                .and_then(|home_dir| home_dir.join(relative).into_os_string().into_string().ok())
+            {
+                *dir = Some(expanded);
+            }
+        }
+    }
+
     fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
         substitute_optional_string::<Sys>(&mut self.scope);
         substitute_optional_string::<Sys>(&mut self.store_dir);
@@ -2037,6 +2064,12 @@ impl WorkspaceSettings {
         if let Some(v) = self.global_virtual_store_dir {
             config.global_virtual_store_dir = resolve(base_dir, &v);
         }
+        if let Some(v) = self.global_dir {
+            config.global_dir = Some(resolve(base_dir, &v));
+        }
+        if let Some(v) = self.global_bin_dir {
+            config.global_bin_dir = Some(resolve(base_dir, &v));
+        }
         // Last of the path-valued settings: pinning the lockfile dir
         // re-resolves `modulesDir` / `virtualStoreDir` against it, so it
         // must see whatever this layer just set.
@@ -2045,12 +2078,6 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.store_dir {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));
-        }
-        if let Some(v) = self.global_dir {
-            config.global_dir = Some(resolve(base_dir, &v));
-        }
-        if let Some(v) = self.global_bin_dir {
-            config.global_bin_dir = Some(resolve(base_dir, &v));
         }
         let mut declared_prefixes = false;
         if let Some(entries) = self.registries {
