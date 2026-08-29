@@ -4061,11 +4061,8 @@ pub fn global_config_yaml_keys_settable_nowhere_are_reported_with_their_route() 
 pub fn global_config_yaml_unrecognized_keys_are_reported_with_a_suggestion() {
     let config_dir = tempdir().expect("config tempdir");
     let config_file = config_dir.path().join("config.yaml");
-    fs::write(
-        &config_file,
-        "minimumReleaseAg: 100\nvcs:\n  provider: bit\nzzzNotASettingZzz: true\n",
-    )
-    .expect("write global config.yaml");
+    fs::write(&config_file, "minimumReleaseAg: 100\nzzzNotASettingZzz: true\n")
+        .expect("write global config.yaml");
 
     let warnings = capture_warnings(|| {
         WorkspaceSettings::load_global(config_dir.path())
@@ -4076,7 +4073,7 @@ pub fn global_config_yaml_unrecognized_keys_are_reported_with_a_suggestion() {
     assert_eq!(
         warnings,
         [format!(
-            r#"The following settings in the global config file ("{}") are not recognized by this version of pnpm and were ignored: "minimumReleaseAg" (did you mean "minimumReleaseAge"?), "vcs", "zzzNotASettingZzz"."#,
+            r#"The following settings in the global config file ("{}") are not recognized by this version of pnpm and were ignored: "minimumReleaseAg" (did you mean "minimumReleaseAge"?), "zzzNotASettingZzz"."#,
             config_file.display(),
         )],
     );

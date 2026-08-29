@@ -88,7 +88,6 @@ export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
  * config files pnpm reads, so it must not trip the unknown-setting warnings.
  */
 const SCHEMA_DIRECTIVE_KEY = '$schema'
-const OPAQUE_WORKSPACE_MANIFEST_KEYS: ReadonlySet<string> = new Set(['vcs'])
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
   ? `${T extends Lowercase<T> ? '' : '-'}${Lowercase<T>}${CamelToKebabCase<U>}`
@@ -525,7 +524,7 @@ export async function getConfig (opts: {
           // unknown camelCase keys reach the config record, which
           // `pnpm config list` prints, and taking that away is the breaking
           // change v12 makes rather than v11.
-          if (key === SCHEMA_DIRECTIVE_KEY || OPAQUE_WORKSPACE_MANIFEST_KEYS.has(key) || value == null) continue
+          if (key === SCHEMA_DIRECTIVE_KEY || value == null) continue
           if (isRefusedByAProjectManifest(key)) {
             refusedKeys.push(key)
           } else if (!isKnownSettingKey(key)) {

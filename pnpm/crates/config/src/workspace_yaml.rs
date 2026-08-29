@@ -29,8 +29,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const OPAQUE_WORKSPACE_MANIFEST_KEYS: &[&str] = &["vcs"];
-
 /// `serde` helper for fields that need to distinguish "missing key"
 /// from "explicit null" in YAML / JSON.
 ///
@@ -1700,8 +1698,7 @@ impl WorkspaceSettings {
         };
         let mut issues = WorkspaceKeyIssues::default();
         for key in document.iter().filter(|(_, value)| value.is_some()).map(|(key, _)| key) {
-            if key == SCHEMA_DIRECTIVE_KEY || OPAQUE_WORKSPACE_MANIFEST_KEYS.contains(&key.as_str())
-            {
+            if key == SCHEMA_DIRECTIVE_KEY {
                 continue;
             }
             if is_refused_by_a_project_manifest(key) {
@@ -1752,7 +1749,6 @@ impl WorkspaceSettings {
                 let Some((key, _)) = line.trim_start().split_once(':') else { return true };
                 let key = key.trim_end();
                 key != SCHEMA_DIRECTIVE_KEY
-                    && !OPAQUE_WORKSPACE_MANIFEST_KEYS.contains(&key)
                     && (!is_camel_case(key)
                         || !is_known_setting_key(key)
                         || is_refused_by_a_project_manifest(key))
