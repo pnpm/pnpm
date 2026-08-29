@@ -304,6 +304,7 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
         fresh_wanted_lockfile,
     } = inputs;
     let now = SystemTime::now();
+    let phase_start = std::time::Instant::now();
     let effective_virtual_store_dir = config.effective_virtual_store_dir();
     // Decide "this is the global store" from the resolved paths, not
     // the `enableGlobalVirtualStore` flag alone: the global store is
@@ -361,6 +362,7 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
         false
     };
 
+    tracing::info!(target: "pacquet::install::phase", phase = "apply.prune", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
     // Stamp `prunedAt` only when the sweep ran (or there was no prior
     // `.modules.yaml`); otherwise preserve the recorded timestamp so
     // the throttle keeps counting from the last real prune.
@@ -436,6 +438,7 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
     {
         merge_filtered_modules_metadata(&mut next_modules, previous, current, selected);
     }
+    let phase_start = std::time::Instant::now();
     write_modules_manifest::<Host>(&config.modules_dir, next_modules)
         .map_err(InstallError::WriteModules)?;
 
@@ -453,6 +456,8 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
     // install records the full shared graph it materialized. This
     // keeps the file aligned with physical state without discarding
     // unselected slots that remain on disk.
+    tracing::info!(target: "pacquet::install::phase", phase = "apply.modules_yaml", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
+    let phase_start = std::time::Instant::now();
     if let Some(lockfile) = materialized_current_lockfile.as_ref() {
         // Filter the wanted lockfile down to the snapshots that
         // were actually materialized: dep maps the user excluded
@@ -469,6 +474,7 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
     // Persist wanted-lockfile changes discovered during frozen
     // materialization. These can be verified artifact pins, or a wanted
     // lockfile reconstructed or fast-updated before materialization.
+    tracing::info!(target: "pacquet::install::phase", phase = "apply.current_lockfile", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
     let frozen_wanted_lockfile_to_save = fresh_wanted_lockfile.or_else(|| {
         (lockfile_synthesized_from_current
             || lockfile_was_fast_updated
@@ -834,6 +840,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         project_manifests: &project_manifests,
     });
 
+    let phase_start = std::time::Instant::now();
     link_materialized_projects::<Reporter>(LinkMaterializedProjectsInputs {
         filtered_install,
         node_linker,
@@ -845,7 +852,9 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         materialized_project_manifests: &materialized_project_manifests,
     })
     .await?;
+    tracing::info!(target: "pacquet::install::phase", phase = "apply.link_projects", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
+    let phase_start = std::time::Instant::now();
     commit_modules_state(CommitModulesStateInputs {
         prior_modules: modules_manifest,
         config,
@@ -892,6 +901,8 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
     // Writing it after both the `.modules.yaml` and the current
     // lockfile succeed keeps the file pointing at a fully committed
     // install.
+    tracing::info!(target: "pacquet::install::phase", phase = "apply.commit_modules_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
+    let phase_start = std::time::Instant::now();
     update_workspace_state(
         &workspace_root,
         &build_workspace_state::<Host>(
@@ -906,6 +917,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         ),
     )
     .map_err(InstallError::WriteWorkspaceState)?;
+    tracing::info!(target: "pacquet::install::phase", phase = "apply.workspace_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
     report_install_completion::<Reporter>(ReportInstallCompletionInputs {
         config,
