@@ -656,6 +656,8 @@ async fn an_entry_crowded_with_overlapping_artifacts_refuses_publication() {
             .unwrap();
     }
 
+    // Each holds the scope it reaches, so only looking at its own would report
+    // both as already published.
     for republished in [publication("ci/universal"), publication_tagged("ci/tagged", &tags)] {
         let error = store.publish("acme", republished).await.unwrap_err();
         assert!(
@@ -1025,6 +1027,45 @@ async fn a_retry_of_a_stored_artifact_needs_no_quota() {
         !full.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap(),
         "the artifact is already published, and republishing it stores nothing",
     );
+}
+
+/// Once a crowded entry has been given its markers, each artifact holds the
+/// scope it reaches, and looking only at its own would report both as already
+/// published. Reaching the same machines from the other side of the vocabulary
+/// is what a retry into such an entry has to be refused for.
+#[tokio::test]
+async fn a_retry_into_a_crowded_entry_is_refused_once_its_scopes_are_known() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+    let universal = publication("ci/universal");
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    let tagged = publication_tagged("ci/tagged", &tags);
+    let (payload, _) = universal.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&universal.key, &payload.subject);
+    // Each under the name its own constraints give it, which is where a store
+    // written when only identical constraints conflicted put them.
+    for request in [&universal, &tagged] {
+        let (payload, _) = request.envelope.decode_payload().unwrap();
+        let slot = super::compatibility_slot(&payload.compatibility);
+        store
+            .create_object(
+                &format!("{owner}/entries/{entry}/{slot}.json"),
+                serde_json::to_vec(&request.envelope).unwrap(),
+            )
+            .await
+            .unwrap();
+    }
+    // Gives the entry the markers its artifacts reach, and is itself refused.
+    store.publish("acme", publication("ci/third")).await.unwrap_err();
+
+    for republished in [publication("ci/universal"), publication_tagged("ci/tagged", &tags)] {
+        let error = store.publish("acme", republished).await.unwrap_err();
+        assert!(
+            matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+            "a retry into a crowded entry is refused, got {error:?}",
+        );
+    }
 }
 
 /// A retried publication of the identical envelope is not an attempt to replace

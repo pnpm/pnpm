@@ -77,6 +77,20 @@ const UNIVERSAL_SCOPE: &str = "universal";
 /// tag yields it, for the same reason no tag yields [`UNIVERSAL_SCOPE`].
 const BACKFILLED_SCOPE: &str = "backfilled";
 
+/// What one pass over a store found: the blobs its artifacts reference, the
+/// artifacts themselves, and whether every variant could be read.
+struct StoredArtifacts {
+    referenced_blobs: HashSet<String>,
+    digests: HashSet<String>,
+    every_variant_read: bool,
+}
+
+impl Default for StoredArtifacts {
+    fn default() -> Self {
+        Self { referenced_blobs: HashSet::new(), digests: HashSet::new(), every_variant_read: true }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 enum ScopeMarker {
     /// Nobody holds the scope.
@@ -87,12 +101,20 @@ enum ScopeMarker {
     Another,
 }
 
+/// Each outcome carries the bytes of markers written to describe artifacts that
+/// were already stored, which this publication is charged for however it ends.
 enum SlotClaim {
     /// Every scope this artifact reaches is now claimed for it.
-    Free,
+    Free {
+        backfilled: u64,
+    },
     /// This exact envelope, so publishing it again is a retry.
-    Held,
-    HeldByAnother,
+    Held {
+        backfilled: u64,
+    },
+    HeldByAnother {
+        backfilled: u64,
+    },
 }
 
 struct PreparedPublication {
@@ -284,12 +306,12 @@ impl SharedArtifactStore {
 
         let mut retained_bytes = 0_u64;
         match self.claim_scopes(&prepared, created).await {
-            Ok(SlotClaim::Held) => {
-                self.release_uncommitted(&owner, added_bytes, retained_bytes).await?;
+            Ok(SlotClaim::Held { backfilled }) => {
+                self.release_uncommitted(&owner, added_bytes, retained_bytes + backfilled).await?;
                 return Ok(false);
             }
-            Ok(SlotClaim::HeldByAnother) => {
-                self.release_uncommitted(&owner, added_bytes, retained_bytes).await?;
+            Ok(SlotClaim::HeldByAnother { backfilled }) => {
+                self.release_uncommitted(&owner, added_bytes, retained_bytes + backfilled).await?;
                 return Err(RegistryError::ArtifactAlreadyPublished {
                     owner,
                     entry: prepared.entry,
@@ -299,8 +321,9 @@ impl SharedArtifactStore {
             // it found already its own was charged to whoever wrote it. They are
             // kept whatever becomes of the artifact, since only reclamation
             // gives a scope back.
-            Ok(SlotClaim::Free) => {
-                retained_bytes += (created.len() as u64) * prepared.envelope_digest.len() as u64;
+            Ok(SlotClaim::Free { backfilled }) => {
+                retained_bytes +=
+                    backfilled + (created.len() as u64) * prepared.envelope_digest.len() as u64;
             }
             Err(error) => {
                 *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
@@ -481,7 +504,10 @@ impl SharedArtifactStore {
             payload,
             ..
         } = publication;
-        self.backfill_scopes(publication).await?;
+        // The markers an entry needed are objects this publication wrote, and
+        // they outlive it, so it carries them even though they name artifacts
+        // somebody else stored.
+        let backfilled = self.backfill_scopes(publication).await?;
         let claimed = match compatibility_scopes(&payload.compatibility) {
             CompatibilityScopes::Every => {
                 self.claim_universal_scope(owner, entry, envelope_digest, created).await
@@ -495,15 +521,15 @@ impl SharedArtifactStore {
             Err(error) => return Err(error),
         };
         if !claimed {
-            return Ok(SlotClaim::HeldByAnother);
+            return Ok(SlotClaim::HeldByAnother { backfilled });
         }
         // The scopes belong to this artifact either way. Whether *this* envelope
         // is the one already stored for them is the variant's own question, and
         // a stored one under a different envelope means two builds share a slot.
         match self.read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await {
-            Ok(Some(stored)) if &stored == envelope_bytes => Ok(SlotClaim::Held),
-            Ok(Some(_)) => Ok(SlotClaim::HeldByAnother),
-            Ok(None) => Ok(SlotClaim::Free),
+            Ok(Some(stored)) if &stored == envelope_bytes => Ok(SlotClaim::Held { backfilled }),
+            Ok(Some(_)) => Ok(SlotClaim::HeldByAnother { backfilled }),
+            Ok(None) => Ok(SlotClaim::Free { backfilled }),
             Err(error) => Err(error),
         }
     }
@@ -531,6 +557,30 @@ impl SharedArtifactStore {
         for scope in &scopes {
             if self.scope_marker(owner, entry, scope, envelope_digest).await? != ScopeMarker::Ours {
                 return Ok(false);
+            }
+        }
+        // Holding its own scopes is not enough: an entry can hold an artifact
+        // reaching the same machines from the other side of the vocabulary, and
+        // a retry into one of those is refused like any other publication rather
+        // than reported as already published.
+        match compatibility_scopes(&publication.payload.compatibility) {
+            CompatibilityScopes::Every => {
+                let prefix = self.object_path(&scopes_prefix(owner, entry));
+                let mut listing = self.store.list(Some(&prefix));
+                while let Some(marker) = listing.next().await {
+                    if scope_name(&marker?.location)
+                        .is_some_and(|scope| !matches!(scope, UNIVERSAL_SCOPE | BACKFILLED_SCOPE))
+                    {
+                        return Ok(false);
+                    }
+                }
+            }
+            CompatibilityScopes::These(_) => {
+                if self.scope_marker(owner, entry, UNIVERSAL_SCOPE, envelope_digest).await?
+                    == ScopeMarker::Another
+                {
+                    return Ok(false);
+                }
             }
         }
         Ok(true)
@@ -654,14 +704,15 @@ impl SharedArtifactStore {
     /// would leave the scope that variant reaches unclaimed, which is the hole
     /// markers close. It runs once — an entry holding any marker is already
     /// described by them — and each read is bounded by the envelope limit.
-    async fn backfill_scopes(&self, publication: &PreparedPublication) -> Result<()> {
+    async fn backfill_scopes(&self, publication: &PreparedPublication) -> Result<u64> {
         let PreparedPublication { owner, entry, .. } = publication;
         // The sentinel, not the markers: they are written one at a time and the
         // scan stops at the first store error, so a marker only says some
         // artifact was reached, while the sentinel says every one was.
+        let mut written = 0_u64;
         let done = scope_marker_path(owner, entry, BACKFILLED_SCOPE);
         if self.read_object_bounded(&done, MAX_SCOPE_MARKER_BYTES).await?.is_some() {
-            return Ok(());
+            return Ok(written);
         }
         let prefix = self.object_path(&format!("{owner}/entries/{entry}/"));
         let mut listing = self.store.list(Some(&prefix));
@@ -691,12 +742,16 @@ impl SharedArtifactStore {
                 CompatibilityScopes::These(scopes) => scopes,
             };
             for scope in &scopes {
-                self.create_object(&scope_marker_path(owner, entry, scope), digest.as_str().into())
-                    .await?;
+                if self
+                    .create_object(&scope_marker_path(owner, entry, scope), digest.as_str().into())
+                    .await?
+                {
+                    written += digest.len() as u64;
+                }
             }
         }
         self.create_object(&done, Vec::new()).await?;
-        Ok(())
+        Ok(written)
     }
 
     async fn begin_publication(&self, publication: &str) -> Result<()> {
@@ -824,16 +879,21 @@ impl SharedArtifactStore {
     }
 
     async fn reclaim_unreferenced_blobs(&self) -> Result<ArtifactUsage> {
-        let (referenced_blobs, stored_artifacts) = self.referenced_blobs().await?;
+        let artifacts = self.referenced_blobs().await?;
         let mut listing = self.list_objects(None);
         while let Some(entry) = listing.next().await {
             let entry = entry?;
             let Some(relative) = self.relative_path(&entry.location) else { continue };
-            if is_blob_path(relative) && !referenced_blobs.contains(relative) {
+            if is_blob_path(relative) && !artifacts.referenced_blobs.contains(relative) {
                 self.store.delete(&entry.location).await?;
                 continue;
             }
-            if self.scope_is_abandoned(&entry.location, &stored_artifacts).await? {
+            // Only when every variant was read: one that was not is stored all
+            // the same, and dropping the scopes it holds would let an artifact
+            // reaching the same machines be published beside it.
+            if artifacts.every_variant_read
+                && self.scope_is_abandoned(&entry.location, &artifacts.digests).await?
+            {
                 self.store.delete(&entry.location).await?;
             }
         }
@@ -866,42 +926,53 @@ impl SharedArtifactStore {
         Ok(String::from_utf8(holder).is_ok_and(|holder| !stored_artifacts.contains(&holder)))
     }
 
-    /// The blobs stored artifacts reference, and the artifacts themselves, from
-    /// one pass: reclamation asks both of every envelope it reads.
-    async fn referenced_blobs(&self) -> Result<(HashSet<String>, HashSet<String>)> {
-        let mut referenced = HashSet::new();
-        let mut stored = HashSet::new();
+    /// The blobs stored artifacts reference, the artifacts themselves, and
+    /// whether every variant was read — all from one pass, since reclamation
+    /// asks all three of every envelope it reads.
+    ///
+    /// A variant it could not read is stored all the same, and its scopes are
+    /// its own. Saying so is what keeps a marker it holds from looking
+    /// abandoned.
+    async fn referenced_blobs(&self) -> Result<StoredArtifacts> {
+        let mut artifacts = StoredArtifacts::default();
         let mut listing = self.list_objects(None);
         while let Some(entry) = listing.next().await {
             let entry = entry?;
             let Some(relative) = self.relative_path(&entry.location) else { continue };
             let Some(owner) = entry_owner(relative) else { continue };
+            let variant = is_variant_file(object_name(&entry.location));
             if entry.size > MAX_RESOLVE_RESPONSE_SIZE as u64 {
+                artifacts.every_variant_read &= !variant;
                 continue;
             }
             let Some(bytes) = self.read_object_path(&entry.location).await? else {
                 continue;
             };
             let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
+                artifacts.every_variant_read &= !variant;
                 continue;
             };
             let Ok((payload, _)) = envelope.decode_payload() else {
+                artifacts.every_variant_read &= !variant;
                 continue;
             };
             if digest_segment(payload.owner.namespace().as_bytes()) != owner {
                 continue;
             }
-            if is_variant_file(object_name(&entry.location))
-                && let Ok(digest) = envelope.digest()
-            {
-                stored.insert(digest);
+            if variant {
+                match envelope.digest() {
+                    Ok(digest) => {
+                        artifacts.digests.insert(digest);
+                    }
+                    Err(_) => artifacts.every_variant_read = false,
+                }
             }
             for file in payload.manifest.added {
                 let Ok(id) = blob_id(&file.integrity) else { continue };
-                referenced.insert(format!("{owner}/blobs/{id}"));
+                artifacts.referenced_blobs.insert(format!("{owner}/blobs/{id}"));
             }
         }
-        Ok((referenced, stored))
+        Ok(artifacts)
     }
 
     async fn complete_reclamation(
