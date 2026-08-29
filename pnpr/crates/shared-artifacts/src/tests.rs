@@ -503,6 +503,56 @@ async fn a_second_artifact_cannot_claim_a_taken_slot() {
     assert_eq!(response.artifacts[0].variants.len(), 1, "the first artifact still stands");
 }
 
+/// The two holes the legacy fallback could still leave: a stored artifact whose
+/// tags are written in another order, and one that sorts past the read-time
+/// variant limit. Both would call an occupied slot free.
+#[tokio::test]
+async fn a_legacy_artifact_claims_its_slot_whatever_its_order_or_position() {
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17", "pnpm:v1:linux-arm64-node22-glibc2.17"];
+    let reversed = [tags[1], tags[0]];
+
+    for (label, buried) in [("reordered", false), ("buried", true)] {
+        let storage = TempDir::new().unwrap();
+        let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
+        let legacy = publication_tagged("ci/legacy", &tags);
+        let (payload, _) = legacy.envelope.decode_payload().unwrap();
+        let owner = super::owner_key("acme", &payload.owner).unwrap();
+        let entry = super::entry_digest(&legacy.key, &payload.subject);
+        if buried {
+            // Named to sort before the matching one, and more of them than a
+            // lookup would scan.
+            for index in 0..MAX_VARIANTS_PER_CANDIDATE + 2 {
+                let filler = publication_tagged(
+                    &format!("ci/filler/{index}"),
+                    &[&format!("pnpm:v1:linux-x64-node22-glibc2.{index}")],
+                );
+                store
+                    .create_object(
+                        &format!("{owner}/entries/{entry}/{:064x}.json", index),
+                        serde_json::to_vec(&filler.envelope).unwrap(),
+                    )
+                    .await
+                    .unwrap();
+            }
+        }
+        store
+            .create_object(
+                &format!("{owner}/entries/{entry}/{}.json", "f".repeat(64)),
+                serde_json::to_vec(&legacy.envelope).unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let error =
+            store.publish("acme", publication_tagged("ci/second", &reversed)).await.unwrap_err();
+
+        assert!(
+            matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
+            "{label}: expected a conflict, got {error:?}",
+        );
+    }
+}
+
 /// Matching a tag set is order-independent, so two orderings are the same
 /// constraint and must not be two slots — otherwise a publisher reopens the
 /// swap simply by listing the same tags the other way round.

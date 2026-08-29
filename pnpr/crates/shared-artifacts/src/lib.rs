@@ -67,6 +67,7 @@ pub struct ArtifactBlob {
 
 struct PreparedPublication {
     entry: String,
+    slot: String,
     payload: ArtifactPayload,
     uploads: BTreeMap<String, Vec<u8>>,
     owner: String,
@@ -152,6 +153,7 @@ impl SharedArtifactStore {
             mut uploads,
             owner,
             entry,
+            slot,
             envelope_bytes,
             variant_path,
         } = prepared;
@@ -163,9 +165,7 @@ impl SharedArtifactStore {
         // operator action against the store: the publishing credential must
         // not be able to do it, or a stolen one could swap the artifact for a
         // dependency nobody has looked at in a year.
-        if let Some(existing) =
-            self.claimant(&owner, &entry, &variant_path, &payload.compatibility).await?
-        {
+        if let Some(existing) = self.claimant(&owner, &entry, &variant_path, &slot).await? {
             if existing == envelope_bytes {
                 return Ok(false);
             }
@@ -363,29 +363,32 @@ impl SharedArtifactStore {
         owner: &str,
         entry: &str,
         variant_path: &str,
-        compatibility: &CompatibilityConstraints,
+        slot: &str,
     ) -> Result<Option<Vec<u8>>> {
         if let Some(claimed) =
             self.read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await?
         {
             return Ok(Some(claimed));
         }
+        // Every file, not the read-time variant limit: that limit bounds what a
+        // lookup will scan, and a claim that stopped there would call a slot
+        // free because the artifact holding it sorted too late in the listing.
         let prefix = self.object_path(&format!("{owner}/entries/{entry}/"));
         let mut listing = self.store.list(Some(&prefix));
-        let mut scanned = 0;
-        while scanned < MAX_VARIANTS_PER_CANDIDATE {
-            let Some(stored) = listing.next().await else { break };
+        while let Some(stored) = listing.next().await {
             let stored = stored?;
             if !is_variant_file(object_name(&stored.location)) {
                 continue;
             }
-            scanned += 1;
             let Some(bytes) = self.read_object_path(&stored.location).await? else { continue };
             let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
                 continue;
             };
             let Ok((payload, _)) = envelope.decode_payload() else { continue };
-            if &payload.compatibility == compatibility {
+            // Compared by slot rather than structurally, so that a stored
+            // artifact whose tags are written in another order is recognised as
+            // holding this one — the reordering the slot itself canonicalizes.
+            if compatibility_slot(&payload.compatibility) == slot {
                 return Ok(Some(bytes));
             }
         }
@@ -844,6 +847,7 @@ fn prepare_publication(
         uploads: validated.blobs,
         owner,
         entry,
+        slot,
         envelope_bytes,
         variant_path,
     })
