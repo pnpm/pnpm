@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { beforeEach, expect, jest, test } from '@jest/globals'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
@@ -473,7 +475,7 @@ test('still switches to a release that is not broken', async () => {
   }
 
   expect(installPnpmToStore).toHaveBeenCalledWith('11.13.1', expect.anything())
-  expect(spawnSync).toHaveBeenCalledWith('/store/bin/pnpm', process.argv.slice(2), {
+  expect(spawnSync).toHaveBeenCalledWith(path.join('/store/bin', 'pnpm'), process.argv.slice(2), {
     stdio: 'inherit',
   })
 })
