@@ -16,6 +16,41 @@ fn preloaded_returns_the_stored_lockfile_without_io() {
 }
 
 #[test]
+fn preloaded_repair_preserves_the_merge_view() {
+    let lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "packages:"
+        "  pkg@1.0.0:"
+        "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
+        "    deprecated: stale"
+    })
+    .expect("parse preloaded lockfile");
+    let lazy = LazyLockfile::preloaded(Some(lockfile));
+    let package_key = "pkg@1.0.0".parse().expect("package key");
+
+    let seed = lazy.get_for_fix().expect("repair load succeeds").expect("repair lockfile");
+    assert!(
+        seed.packages
+            .as_ref()
+            .and_then(|packages| packages.get(&package_key))
+            .is_some_and(|metadata| metadata.deprecated.is_none()),
+    );
+
+    let merge = MaybeLazyLockfile::Repair(&lazy)
+        .get_for_merge()
+        .expect("merge load succeeds")
+        .expect("merge lockfile");
+    assert_eq!(
+        merge
+            .packages
+            .as_ref()
+            .and_then(|packages| packages.get(&package_key))
+            .and_then(|metadata| metadata.deprecated.as_deref()),
+        Some("stale"),
+    );
+}
+
+#[test]
 fn preloaded_none_reports_absent() {
     let lazy = LazyLockfile::preloaded(None);
     assert!(lazy.get().expect("preloaded lockfile loads infallibly").is_none());
@@ -43,6 +78,8 @@ fn deferred_loads_from_the_given_dir_not_the_process_cwd() {
     let lazy =
         LazyLockfile::deferred(empty.path().to_path_buf(), WantedLockfileSelection::default());
     assert!(!lazy.is_loaded_or_on_disk());
+    assert!(lazy.get_for_fix().expect("absent repair load succeeds").is_none());
+    assert!(!lazy.is_loaded_or_on_disk(), "the empty repair cache must report no lockfile");
     assert!(lazy.get().expect("absent lockfile loads as None").is_none());
 }
 
