@@ -110,41 +110,12 @@ impl Lockfile {
         dir: &Path,
         selection: &WantedLockfileSelection,
     ) -> Result<LoadedWantedLockfile, LoadLockfileError> {
-        Self::load_wanted_detailed_with(dir, selection, WantedLockfileLoadMode::Strict)
-    }
-
-    pub(crate) fn load_wanted_detailed_for_fix(
-        dir: &Path,
-        selection: &WantedLockfileSelection,
-    ) -> Result<LoadedWantedLockfile, LoadLockfileError> {
-        Self::load_wanted_detailed_with(dir, selection, WantedLockfileLoadMode::RepairSeed)
-    }
-
-    pub(crate) fn load_wanted_detailed_for_fix_merge(
-        dir: &Path,
-        selection: &WantedLockfileSelection,
-    ) -> Result<LoadedWantedLockfile, LoadLockfileError> {
-        Self::load_wanted_detailed_with(dir, selection, WantedLockfileLoadMode::RepairMerge)
-    }
-
-    fn load_wanted_detailed_with(
-        dir: &Path,
-        selection: &WantedLockfileSelection,
-        mode: WantedLockfileLoadMode,
-    ) -> Result<LoadedWantedLockfile, LoadLockfileError> {
         for file_name in selection.read_order() {
             let path = dir.join(file_name);
-            let loaded = match mode {
-                WantedLockfileLoadMode::Strict => Self::load_from_path(&path),
-                WantedLockfileLoadMode::RepairSeed => Self::load_from_path_for_fix(&path, true),
-                WantedLockfileLoadMode::RepairMerge => Self::load_from_path_for_fix(&path, false),
-            }?;
-            let Some(lockfile) = loaded else {
-                continue;
-            };
+            let Some(lockfile) = Self::load_from_path(&path)? else { continue };
             return if selection.merge_git_branch_lockfiles {
                 let pre_merge_importers = lockfile.importers.clone();
-                let merged = merge_git_branch_lockfiles(lockfile, dir, mode)?;
+                let merged = merge_git_branch_lockfiles(lockfile, dir)?;
                 Ok(LoadedWantedLockfile {
                     lockfile: Some(merged),
                     pre_merge_importers: Some(pre_merge_importers),
@@ -154,6 +125,27 @@ impl Lockfile {
             };
         }
         Ok(LoadedWantedLockfile::default())
+    }
+
+    pub(crate) fn load_wanted_detailed_for_fix(
+        dir: &Path,
+        selection: &WantedLockfileSelection,
+    ) -> Result<LoadedRepairLockfile, LoadLockfileError> {
+        for file_name in selection.read_order() {
+            let path = dir.join(file_name);
+            let Some(views) = Self::load_repair_views_from_path(&path)? else { continue };
+            return if selection.merge_git_branch_lockfiles {
+                let pre_merge_importers = views.seed.importers.clone();
+                let views = merge_git_branch_lockfile_repairs(views, dir)?;
+                Ok(LoadedRepairLockfile {
+                    views: Some(views),
+                    pre_merge_importers: Some(pre_merge_importers),
+                })
+            } else {
+                Ok(LoadedRepairLockfile { views: Some(views), pre_merge_importers: None })
+            };
+        }
+        Ok(LoadedRepairLockfile::default())
     }
 
     /// Whether `<dir>/pnpm-lock.yaml` would load as `Some`: the file
@@ -223,11 +215,10 @@ impl Lockfile {
         .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
     }
 
-    fn parse_for_fix(
+    fn parse_repair_views(
         content: &str,
         file_path: &Path,
-        prepare: bool,
-    ) -> Result<Option<Self>, LoadLockfileError> {
+    ) -> Result<Option<RepairLockfileViews>, LoadLockfileError> {
         let main = extract_main_document(content);
         if main.trim().is_empty() {
             return Ok(None);
@@ -247,12 +238,11 @@ impl Lockfile {
         .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?;
         prepare_value_for_fix(&mut value);
         serde_json::from_value::<Self>(value)
-            .map(|mut lockfile| {
-                lockfile.reconstruct_missing_directory_resolutions();
-                if prepare {
-                    lockfile.prepare_for_fix();
-                }
-                Some(lockfile)
+            .map(|mut merge| {
+                merge.reconstruct_missing_directory_resolutions();
+                let mut seed = merge.clone();
+                seed.prepare_for_fix();
+                Some(RepairLockfileViews { seed, merge })
             })
             .map_err(|source| LoadLockfileError::ParseYaml {
                 path: file_path.to_path_buf(),
@@ -272,16 +262,15 @@ impl Lockfile {
         Self::parse(&content, file_path)
     }
 
-    fn load_from_path_for_fix(
+    fn load_repair_views_from_path(
         file_path: &Path,
-        prepare: bool,
-    ) -> Result<Option<Self>, LoadLockfileError> {
+    ) -> Result<Option<RepairLockfileViews>, LoadLockfileError> {
         let content = match fs::read_to_string(file_path) {
             Ok(content) => content,
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
             Err(error) => return error.pipe(LoadLockfileError::ReadFile).pipe(Err),
         };
-        Self::parse_for_fix(&content, file_path, prepare)
+        Self::parse_repair_views(&content, file_path)
     }
 }
 
@@ -299,6 +288,41 @@ mod tests;
 pub struct LoadedWantedLockfile {
     pub lockfile: Option<Lockfile>,
     pub pre_merge_importers: Option<HashMap<String, ProjectSnapshot>>,
+}
+
+#[derive(Debug, Default, Clone)]
+pub(crate) struct LoadedRepairLockfile {
+    views: Option<RepairLockfileViews>,
+    pre_merge_importers: Option<HashMap<String, ProjectSnapshot>>,
+}
+
+impl LoadedRepairLockfile {
+    pub(crate) fn from_loaded(loaded: LoadedWantedLockfile) -> Self {
+        let views = loaded.lockfile.map(|merge| {
+            let mut seed = merge.clone();
+            seed.prepare_for_fix();
+            RepairLockfileViews { seed, merge }
+        });
+        LoadedRepairLockfile { views, pre_merge_importers: loaded.pre_merge_importers }
+    }
+
+    pub(crate) fn seed(&self) -> Option<&Lockfile> {
+        self.views.as_ref().map(|views| &views.seed)
+    }
+
+    pub(crate) fn merge(&self) -> Option<&Lockfile> {
+        self.views.as_ref().map(|views| &views.merge)
+    }
+
+    pub(crate) fn pre_merge_importers(&self) -> Option<&HashMap<String, ProjectSnapshot>> {
+        self.pre_merge_importers.as_ref()
+    }
+}
+
+#[derive(Debug, Clone)]
+struct RepairLockfileViews {
+    seed: Lockfile,
+    merge: Lockfile,
 }
 
 /// Which wanted-lockfile file an install reads and writes, and whether the
@@ -332,32 +356,31 @@ impl WantedLockfileSelection {
     }
 }
 
-fn merge_git_branch_lockfiles(
-    base: Lockfile,
-    dir: &Path,
-    mode: WantedLockfileLoadMode,
-) -> Result<Lockfile, LoadLockfileError> {
+fn merge_git_branch_lockfiles(base: Lockfile, dir: &Path) -> Result<Lockfile, LoadLockfileError> {
     let branch_lockfiles =
         Lockfile::git_branch_lockfiles(dir).map_err(LoadLockfileError::ReadFile)?;
     let mut merged = base;
     for path in branch_lockfiles {
-        let branch_lockfile = match mode {
-            WantedLockfileLoadMode::Strict => Lockfile::load_from_path(&path),
-            WantedLockfileLoadMode::RepairSeed => Lockfile::load_from_path_for_fix(&path, true),
-            WantedLockfileLoadMode::RepairMerge => Lockfile::load_from_path_for_fix(&path, false),
-        }?;
-        if let Some(branch_lockfile) = branch_lockfile {
+        if let Some(branch_lockfile) = Lockfile::load_from_path(&path)? {
             merged = merge_lockfile_changes(&merged, &branch_lockfile);
         }
     }
     Ok(merged)
 }
 
-#[derive(Clone, Copy)]
-enum WantedLockfileLoadMode {
-    Strict,
-    RepairSeed,
-    RepairMerge,
+fn merge_git_branch_lockfile_repairs(
+    mut base: RepairLockfileViews,
+    dir: &Path,
+) -> Result<RepairLockfileViews, LoadLockfileError> {
+    let branch_lockfiles =
+        Lockfile::git_branch_lockfiles(dir).map_err(LoadLockfileError::ReadFile)?;
+    for path in branch_lockfiles {
+        if let Some(branch) = Lockfile::load_repair_views_from_path(&path)? {
+            base.seed = merge_lockfile_changes(&base.seed, &branch.seed);
+            base.merge = merge_lockfile_changes(&base.merge, &branch.merge);
+        }
+    }
+    Ok(base)
 }
 
 fn prepare_value_for_fix(value: &mut serde_json::Value) {

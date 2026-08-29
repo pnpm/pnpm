@@ -163,6 +163,109 @@ fn repair_merge_preserves_valid_metadata_when_strict_parsing_fails() {
 }
 
 #[test]
+fn repair_views_stay_on_the_same_file_generation() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    fs::write(
+        &path,
+        text_block! {
+            "lockfileVersion: '9.0'"
+            "importers:"
+            "  .: {}"
+            "packages:"
+            "  pkg@1.0.0:"
+            "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
+            "    deprecated: first generation"
+        },
+    )
+    .expect("write first lockfile generation");
+
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
+    lazy.get_for_fix().expect("repair load succeeds").expect("repair lockfile");
+
+    fs::write(
+        path,
+        text_block! {
+            "lockfileVersion: '9.0'"
+            "importers:"
+            "  .: {}"
+            "packages:"
+            "  pkg@1.0.0:"
+            "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
+            "    deprecated: second generation"
+        },
+    )
+    .expect("write second lockfile generation");
+
+    let merge = MaybeLazyLockfile::Repair(&lazy)
+        .get_for_merge()
+        .expect("merge load succeeds")
+        .expect("merge lockfile");
+    let package_key = "pkg@1.0.0".parse().expect("package key");
+    assert_eq!(
+        merge
+            .packages
+            .as_ref()
+            .and_then(|packages| packages.get(&package_key))
+            .and_then(|metadata| metadata.deprecated.as_deref()),
+        Some("first generation"),
+    );
+}
+
+#[test]
+fn repair_views_fold_branch_lockfiles_together() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    fs::write(
+        dir.path().join(Lockfile::FILE_NAME),
+        text_block! {
+            "lockfileVersion: '9.0'"
+            "importers:"
+            "  .: {}"
+            "snapshots:"
+            "  base@1.0.0:"
+            "    optional: true"
+        },
+    )
+    .expect("write base lockfile");
+    fs::write(
+        dir.path().join(Lockfile::git_branch_file_name("feature")),
+        text_block! {
+            "lockfileVersion: '9.0'"
+            "importers:"
+            "  packages/branch: {}"
+            "snapshots:"
+            "  branch@1.0.0:"
+            "    optional: true"
+        },
+    )
+    .expect("write branch lockfile");
+
+    let selection = WantedLockfileSelection {
+        merge_git_branch_lockfiles: true,
+        ..WantedLockfileSelection::default()
+    };
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), selection);
+    let seed = lazy.get_for_fix().expect("repair load succeeds").expect("repair lockfile");
+    let merge = MaybeLazyLockfile::Repair(&lazy)
+        .get_for_merge()
+        .expect("merge load succeeds")
+        .expect("merge lockfile");
+    let pre_merge_importers = MaybeLazyLockfile::Repair(&lazy)
+        .pre_merge_importers()
+        .expect("pre-merge importers load")
+        .expect("branch merge records base importers");
+    let branch_key = "branch@1.0.0".parse().expect("branch package key");
+    let seed_branch = &seed.snapshots.as_ref().expect("seed snapshots")[&branch_key];
+    let merge_branch = &merge.snapshots.as_ref().expect("merge snapshots")[&branch_key];
+
+    dbg!(seed_branch, merge_branch, pre_merge_importers);
+    assert!(!seed_branch.optional);
+    assert!(merge_branch.optional);
+    assert!(pre_merge_importers.contains_key("."));
+    assert!(!pre_merge_importers.contains_key("packages/branch"));
+}
+
+#[test]
 fn empty_and_env_only_files_count_as_absent() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join(Lockfile::FILE_NAME);
