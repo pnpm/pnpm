@@ -232,7 +232,7 @@ impl SharedArtifactStore {
     ) -> Result<bool> {
         let mut renewals = interval(PUBLICATION_RENEWAL_INTERVAL);
         renewals.tick().await;
-        let publishing = self.publish_active(prepared, reclamation_needed);
+        let publishing = self.publish_active(prepared, publication, reclamation_needed);
         let mut publishing = std::pin::pin!(publishing);
         loop {
             tokio::select! {
@@ -264,9 +264,11 @@ impl SharedArtifactStore {
     async fn publish_active(
         &self,
         prepared: PreparedPublication,
+        publication: &str,
         reclamation_needed: &mut bool,
     ) -> Result<bool> {
-        let (stored, created) = self.publish_claimed(prepared, reclamation_needed).await;
+        let (stored, created) =
+            self.publish_claimed(prepared, publication, reclamation_needed).await;
         if stored.is_err() && !created.is_empty() {
             // The scopes stay claimed. Giving them back here cannot be ordered
             // against a publication of the same envelope, which recognises these
@@ -288,16 +290,19 @@ impl SharedArtifactStore {
     async fn publish_claimed(
         &self,
         prepared: PreparedPublication,
+        publication: &str,
         reclamation_needed: &mut bool,
     ) -> (Result<bool>, Vec<String>) {
         let mut created = Vec::new();
-        let stored = self.publish_reserving(prepared, reclamation_needed, &mut created).await;
+        let stored =
+            self.publish_reserving(prepared, publication, reclamation_needed, &mut created).await;
         (stored, created)
     }
 
     async fn publish_reserving(
         &self,
         prepared: PreparedPublication,
+        publication: &str,
         reclamation_needed: &mut bool,
         created: &mut Vec<String>,
     ) -> Result<bool> {
@@ -467,6 +472,12 @@ impl SharedArtifactStore {
             // written, and a recovery that gives up leaves an artifact and
             // markers to collect.
             *reclamation_needed = true;
+            // Registered again first, and only then does the recovery look.
+            // Being written off is what let a collector run beside this
+            // publication; registering again waits for one that is running and
+            // keeps another from starting, so what the recovery reads is still
+            // there when it returns. A check on its own could not do that.
+            self.begin_publication(publication).await?;
             self.recover_after_expiry(&owner, &entry, &variant_path, &payload, &envelope_digest)
                 .await?;
         }
