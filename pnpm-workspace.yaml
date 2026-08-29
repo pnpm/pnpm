@@ -77,6 +77,7 @@ versioning:
     '@pnpm/pnpr': alpha
 
 allowBuilds:
+  '@parcel/watcher': false
   core-js: false
   esbuild: true
   fuse-native: true
@@ -524,6 +525,7 @@ trustPolicy: no-downgrade
 trustPolicyExclude:
   - '@pnpm/*'
   - '@yarnpkg/libzip@3.2.2'
+  - fastq@1.20.2
   - pnpm
   - rxjs@7.8.2
   - tinyexec@1.2.2
