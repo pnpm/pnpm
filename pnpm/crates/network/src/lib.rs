@@ -167,20 +167,13 @@ impl Default for NetworkSettings {
 #[derive(Debug)]
 pub struct ThrottledClient {
     semaphore: PrioritySemaphore,
-    client: Client,
-    client_without_redirects: Client,
+    default_clients: ClientPair,
     /// Per-registry clients keyed by nerf-darted URI. Empty when no
     /// `//host/:cert=…` / `:key=…` / `:ca=…` / `:cafile=…` /
     /// `:certfile=…` / `:keyfile=…` `.npmrc` entries are present —
     /// in which case `acquire_for_url` short-circuits to the default
     /// client without paying the routing cost.
-    per_registry: HashMap<String, Client>,
-    per_registry_without_redirects: HashMap<String, Client>,
-    /// Pre-built routing table cloned from [`PerRegistryTls`] so the
-    /// hot path can call `pick_for_url` without holding a reference
-    /// to `PerRegistryTls` (which lives on `Config`). Empty when
-    /// `per_registry` is empty.
-    routing: PerRegistryTls,
+    per_registry: tls::PerRegistryMap<ClientPair>,
     /// Per-origin socket cap (the `maxSockets` setting). `None` (the
     /// default) leaves the per-origin socket count bounded only by
     /// `semaphore`; see [`HostSocketLimit`].
@@ -188,6 +181,18 @@ pub struct ThrottledClient {
     fetch_warn_timeout: Duration,
     fetch_min_speed_ki_bps: u64,
     warning_handler: std::sync::RwLock<fn(&str)>,
+}
+
+#[derive(Debug)]
+struct ClientPair {
+    follow_redirects: Client,
+    no_redirects: Client,
+}
+
+impl ClientPair {
+    fn select(&self, follow_redirects: bool) -> &Client {
+        if follow_redirects { &self.follow_redirects } else { &self.no_redirects }
+    }
 }
 
 /// Per-origin concurrent-connection cap, mirroring undici's `connections`
@@ -298,7 +303,11 @@ impl ThrottledClient {
     /// `send + body-consume` lifetime, not just `.send()`.
     pub async fn acquire(&self) -> ThrottledClientGuard<'_> {
         let permit = self.semaphore.acquire(UNPRIORITIZED).await;
-        ThrottledClientGuard { _permit: permit, _host_permit: None, client: &self.client }
+        ThrottledClientGuard {
+            _permit: permit,
+            _host_permit: None,
+            client: &self.default_clients.follow_redirects,
+        }
     }
 
     /// Install a per-origin socket cap (the `maxSockets` setting) on this
@@ -519,30 +528,27 @@ impl ThrottledClient {
             }
         };
 
-        let default_client = build_client(tls, false)?;
-        let default_client_without_redirects = build_client(tls, true)?;
+        let default_clients = ClientPair {
+            follow_redirects: build_client(tls, false)?,
+            no_redirects: build_client(tls, true)?,
+        };
         // Build one client per per-registry override. Each gets a
         // merged `TlsConfig` where the per-registry fields shadow
         // their top-level counterparts field-by-field. `strict_ssl` and
         // `local_address` are top-level-only, so the per-registry client
         // still honors the top-level values.
-        let mut per_registry_clients = HashMap::with_capacity(per_registry.iter().count());
-        let mut per_registry_clients_without_redirects =
-            HashMap::with_capacity(per_registry.iter().count());
-        for (uri, override_) in per_registry.iter() {
+        let per_registry = per_registry.try_map(|override_| -> Result<_, ForInstallsError> {
             let merged = merge_tls(tls, override_);
-            per_registry_clients.insert(uri.to_string(), build_client(&merged, false)?);
-            per_registry_clients_without_redirects
-                .insert(uri.to_string(), build_client(&merged, true)?);
-        }
+            Ok(ClientPair {
+                follow_redirects: build_client(&merged, false)?,
+                no_redirects: build_client(&merged, true)?,
+            })
+        })?;
 
         Ok(ThrottledClient {
             semaphore: PrioritySemaphore::new(settings.network_concurrency),
-            client: default_client,
-            client_without_redirects: default_client_without_redirects,
-            per_registry: per_registry_clients,
-            per_registry_without_redirects: per_registry_clients_without_redirects,
-            routing: per_registry.clone(),
+            default_clients,
+            per_registry,
             host_socket_limit: None,
             fetch_warn_timeout: settings.fetch_warn_timeout,
             fetch_min_speed_ki_bps: settings.fetch_min_speed_ki_bps,
@@ -559,11 +565,11 @@ impl ThrottledClient {
         let semaphore = PrioritySemaphore::new(default_network_concurrency());
         ThrottledClient {
             semaphore,
-            client_without_redirects,
-            client,
-            per_registry: HashMap::new(),
-            per_registry_without_redirects: HashMap::new(),
-            routing: PerRegistryTls::default(),
+            default_clients: ClientPair {
+                follow_redirects: client,
+                no_redirects: client_without_redirects,
+            },
+            per_registry: tls::PerRegistryMap::default(),
             host_socket_limit: None,
             fetch_warn_timeout: Duration::from_millis(DEFAULT_FETCH_WARN_TIMEOUT_MS),
             fetch_min_speed_ki_bps: DEFAULT_FETCH_MIN_SPEED_KI_BPS,
@@ -634,13 +640,8 @@ impl ThrottledClient {
             None => None,
         };
         let permit = self.semaphore.acquire(priority).await;
-        let (client, per_registry) = if follow_redirects {
-            (&self.client, &self.per_registry)
-        } else {
-            (&self.client_without_redirects, &self.per_registry_without_redirects)
-        };
-        let client =
-            self.routing.pick_for_url(url).and_then(|key| per_registry.get(key)).unwrap_or(client);
+        let clients = self.per_registry.pick_value_for_url(url).unwrap_or(&self.default_clients);
+        let client = clients.select(follow_redirects);
         ThrottledClientGuard { _permit: permit, _host_permit: host_permit, client }
     }
 }
