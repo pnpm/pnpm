@@ -4,7 +4,7 @@
 //! cover those exact bytes, so implementations do not need to agree on a JSON
 //! canonicalization algorithm before they can interoperate.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use derive_more::{Display, Error};
@@ -926,28 +926,37 @@ fn split_compatibility_tag(tag: &str) -> Result<CompatibilityTagParts<'_>, Artif
     Ok(CompatibilityTagParts { os, architecture, node_major, runtime })
 }
 
-/// Whether two sets of constraints can both apply to one consumer.
+/// How an artifact's constraints divide the machines it reaches, as keys that
+/// can be claimed one at a time.
 ///
-/// Version floors do not separate two tags: a consumer meeting the higher floor
-/// meets the lower one as well, so any two tags agreeing on operating system,
-/// architecture, and Node major match some consumer in common. Only those three
-/// dimensions can rule an overlap out.
+/// Two artifacts reach a machine in common exactly when their key sets
+/// intersect, so claiming a key per scope is what lets a registry refuse an
+/// overlapping publication without reading every artifact stored beside it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompatibilityScopes {
+    /// Reaches every machine there is, so its keys cannot be enumerated.
+    Every,
+    /// Reaches the machines these keys name, and no others.
+    These(BTreeSet<String>),
+}
+
+/// The scopes an artifact's constraints reach.
+///
+/// A tag that describes no machine contributes nothing. Published artifacts
+/// cannot carry one — [`ArtifactPayload::validate`] parses every tag — so for
+/// anything stored this yields between 1 and 64 keys.
 #[must_use]
-pub fn compatibility_overlaps(
-    left: &CompatibilityConstraints,
-    right: &CompatibilityConstraints,
-) -> bool {
-    match (left, right) {
-        (CompatibilityConstraints::Universal, _) | (_, CompatibilityConstraints::Universal) => true,
-        (
-            CompatibilityConstraints::Tagged { tags: left },
-            CompatibilityConstraints::Tagged { tags: right },
-        ) => {
-            let right: Vec<_> = right.iter().filter_map(|tag| applicable_dimensions(tag)).collect();
-            left.iter()
-                .filter_map(|tag| applicable_dimensions(tag))
-                .any(|left| right.iter().any(|right| left.shares_consumers_with(right)))
-        }
+pub fn compatibility_scopes(constraints: &CompatibilityConstraints) -> CompatibilityScopes {
+    match constraints {
+        CompatibilityConstraints::Universal => CompatibilityScopes::Every,
+        CompatibilityConstraints::Tagged { tags } => CompatibilityScopes::These(
+            tags.iter()
+                .filter_map(|tag| {
+                    let parts = applicable_dimensions(tag)?;
+                    Some(format!("{}-{}-node{}", parts.os, parts.architecture, parts.node_major))
+                })
+                .collect(),
+        ),
     }
 }
 

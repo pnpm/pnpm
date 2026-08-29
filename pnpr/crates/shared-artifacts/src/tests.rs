@@ -279,6 +279,7 @@ async fn failed_object_writes_reconcile_quota_to_physical_storage() {
         fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
+        fail_scope_writes: false,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -305,6 +306,7 @@ async fn committed_blob_writes_without_an_envelope_are_reclaimed() {
         fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
+        fail_scope_writes: false,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -342,6 +344,7 @@ async fn committed_envelope_writes_that_report_failure_remain_charged() {
         fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
+        fail_scope_writes: false,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -372,6 +375,7 @@ async fn publication_finish_retries_a_transient_quota_write_failure() {
         fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
+        fail_scope_writes: false,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -476,6 +480,7 @@ async fn failed_reclamation_releases_its_gate_for_later_retries() {
         fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
+        fail_scope_writes: false,
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -588,6 +593,7 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
         fail_slot_read_after_first: Some(Arc::new(AtomicUsize::new(0))),
         publish_overlapping_after_create: None,
         fail_reads_of: None,
+        fail_scope_writes: false,
     });
     let store = SharedArtifactStore::new(
         &HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() },
@@ -789,6 +795,7 @@ async fn losing_a_race_for_a_slot_is_not_reported_as_idempotent() {
         fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
+        fail_scope_writes: false,
     });
     let racing = SharedArtifactStore::new(
         &HostedStoreConfig::ObjectStore { store: racing, prefix: String::new() },
@@ -804,157 +811,104 @@ async fn losing_a_race_for_a_slot_is_not_reported_as_idempotent() {
     );
 }
 
-/// Two publications whose constraints only overlap write different paths, so
-/// the conditional create that orders same-path publications cannot order
-/// these: both can find the entry clear. Reading again after the write is what
-/// keeps the pair from both surviving.
+/// The marker, not the variant path, is what two publications contend on: a
+/// scope another artifact holds refuses this one before anything is stored.
 #[tokio::test]
-async fn an_overlapping_publication_landing_mid_publish_is_withdrawn() {
+async fn a_scope_another_artifact_holds_refuses_publication() {
+    let storage = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
     let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
-    let theirs = publication_tagged("ci/theirs", &["pnpm:v1:linux-x64-node22-glibc2.31"]);
-    let (payload, _) = theirs.envelope.decode_payload().unwrap();
+    let (payload, _) = ours.envelope.decode_payload().unwrap();
     let owner = super::owner_key("acme", &payload.owner).unwrap();
-    let entry = super::entry_digest(&theirs.key, &payload.subject);
-    let slot = super::compatibility_slot(&payload.compatibility);
+    let entry = super::entry_digest(&ours.key, &payload.subject);
+    store
+        .create_object(
+            &format!("{owner}/entries/{entry}/scopes/linux-x64-node22"),
+            b"another artifact".to_vec(),
+        )
+        .await
+        .unwrap();
 
-    let racing: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
-        inner: InMemory::new(),
-        commit_before_error: false,
-        fail_deletes: false,
-        fail_next_quota_write: None,
-        claim_slot_first: None,
-        fail_slot_read_after_first: None,
-        publish_overlapping_after_create: Some((
-            format!(".pnpr-artifacts/v0/{owner}/entries/{entry}/{slot}.json"),
-            serde_json::to_vec(&theirs.envelope).unwrap(),
-        )),
-        fail_reads_of: None,
-    });
-    let racing = SharedArtifactStore::new(
-        &HostedStoreConfig::ObjectStore { store: racing, prefix: String::new() },
-        TempDir::new().unwrap().path(),
-    )
-    .unwrap();
-
-    let error = racing.publish("acme", ours).await.unwrap_err();
+    let error = store.publish("acme", ours).await.unwrap_err();
 
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
         "expected a conflict, got {error:?}",
     );
-    let stored = racing
-        .resolve("acme", &serde_json::to_vec(&lookup("acme")).unwrap())
-        .await
-        .expect("the surviving artifact is still served");
-    let variants: usize = stored.artifacts.iter().map(|artifact| artifact.variants.len()).sum();
-    assert_eq!(variants, 1, "only the publication that was not withdrawn remains");
 }
 
-/// Nothing else removes a variant envelope, so a withdrawal that cannot finish
-/// would leave the pair the rule forbids. That is a store fault, and reporting
-/// it as a plain conflict would tell the publisher the store is consistent.
+/// A scope this publication reserved and did not keep has to go back, or the
+/// artifact that should hold it could never be published.
 #[tokio::test]
-async fn a_withdrawal_that_cannot_finish_is_reported_as_a_store_failure() {
-    let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
-    let theirs = publication_tagged("ci/theirs", &["pnpm:v1:linux-x64-node22-glibc2.31"]);
-    let (payload, _) = theirs.envelope.decode_payload().unwrap();
-    let owner = super::owner_key("acme", &payload.owner).unwrap();
-    let entry = super::entry_digest(&theirs.key, &payload.subject);
-    let slot = super::compatibility_slot(&payload.compatibility);
-
-    let backend = Arc::new(FailArtifactWrites {
-        inner: InMemory::new(),
-        commit_before_error: false,
-        fail_deletes: true,
-        fail_next_quota_write: None,
-        claim_slot_first: None,
-        fail_slot_read_after_first: None,
-        publish_overlapping_after_create: Some((
-            format!(".pnpr-artifacts/v0/{owner}/entries/{entry}/{slot}.json"),
-            serde_json::to_vec(&theirs.envelope).unwrap(),
-        )),
-        fail_reads_of: None,
-    });
-    let racing = SharedArtifactStore::new(
-        &HostedStoreConfig::ObjectStore {
-            store: Arc::clone(&backend) as Arc<dyn ObjectStore>,
-            prefix: String::new(),
-        },
-        TempDir::new().unwrap().path(),
-    )
-    .unwrap();
-
-    let error = racing.publish("acme", ours).await.unwrap_err();
-
-    assert!(
-        matches!(error, RegistryError::ObjectStore(_)),
-        "a withdrawal that cannot finish is not a clean conflict, got {error:?}",
-    );
-    let prefix = ObjectPath::from(format!(".pnpr-artifacts/v0/{owner}/entries/{entry}"));
-    let stored: Vec<_> = backend
-        .inner
-        .list(Some(&prefix))
-        .map(|entry| entry.unwrap().location.to_string())
-        .collect()
-        .await;
-    assert_eq!(
-        stored.len(),
-        2,
-        "the store keeps both until the withdrawal succeeds, which is why it is reported: {stored:?}",
-    );
-}
-
-/// A scan that did not finish cannot report the artifact is alone, so the
-/// variant it wrote is removed rather than left resolvable.
-#[tokio::test]
-async fn a_publication_whose_overlap_scan_fails_does_not_stay_resolvable() {
-    let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
-    let theirs = publication_tagged("ci/theirs", &["pnpm:v1:linux-x64-node22-glibc2.31"]);
-    let (payload, _) = theirs.envelope.decode_payload().unwrap();
-    let owner = super::owner_key("acme", &payload.owner).unwrap();
-    let entry = super::entry_digest(&theirs.key, &payload.subject);
-    let slot = super::compatibility_slot(&payload.compatibility);
-    let competitor = format!(".pnpr-artifacts/v0/{owner}/entries/{entry}/{slot}.json");
-
-    let backend = Arc::new(FailArtifactWrites {
+async fn a_publication_that_fails_gives_back_the_scopes_it_claimed() {
+    let failing: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
         inner: InMemory::new(),
         commit_before_error: false,
         fail_deletes: false,
         fail_next_quota_write: None,
         claim_slot_first: None,
         fail_slot_read_after_first: None,
-        publish_overlapping_after_create: Some((
-            competitor.clone(),
-            serde_json::to_vec(&theirs.envelope).unwrap(),
-        )),
-        fail_reads_of: Some(competitor.clone()),
+        publish_overlapping_after_create: None,
+        fail_reads_of: None,
+        fail_scope_writes: false,
     });
-    let racing = SharedArtifactStore::new(
-        &HostedStoreConfig::ObjectStore {
-            store: Arc::clone(&backend) as Arc<dyn ObjectStore>,
-            prefix: String::new(),
-        },
+    let store = SharedArtifactStore::new(
+        &HostedStoreConfig::ObjectStore { store: failing, prefix: String::new() },
         TempDir::new().unwrap().path(),
     )
     .unwrap();
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
 
-    let error = racing.publish("acme", ours).await.unwrap_err();
+    store.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap_err();
 
+    let (payload, _) = publication_tagged("ci/first", &tags).envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&publication_tagged("ci/first", &tags).key, &payload.subject);
     assert!(
-        matches!(error, RegistryError::ObjectStore(_)),
-        "an unfinished scan is reported as the store failure it is, got {error:?}",
+        store
+            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-x64-node22"), 128)
+            .await
+            .unwrap()
+            .is_none(),
+        "the scope is free for the artifact that does get stored",
     );
-    let prefix = ObjectPath::from(format!(".pnpr-artifacts/v0/{owner}/entries/{entry}"));
-    let stored: Vec<_> = backend
-        .inner
-        .list(Some(&prefix))
-        .map(|entry| entry.unwrap().location.to_string())
-        .collect()
-        .await;
-    assert_eq!(
-        stored,
-        vec![competitor],
-        "only the artifact this publication did not write is left",
+}
+
+/// A marker write can reach the store and still report failure. Nothing tracks
+/// it then, and a marker nobody holds would refuse every later artifact for
+/// that scope.
+#[tokio::test]
+async fn a_scope_marker_that_commits_before_failing_is_released() {
+    let failing: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+        inner: InMemory::new(),
+        commit_before_error: true,
+        fail_deletes: false,
+        fail_next_quota_write: None,
+        claim_slot_first: None,
+        fail_slot_read_after_first: None,
+        publish_overlapping_after_create: None,
+        fail_reads_of: None,
+        fail_scope_writes: true,
+    });
+    let store = SharedArtifactStore::new(
+        &HostedStoreConfig::ObjectStore { store: failing, prefix: String::new() },
+        TempDir::new().unwrap().path(),
+    )
+    .unwrap();
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+
+    store.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap_err();
+
+    let (payload, _) = publication_tagged("ci/first", &tags).envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&publication_tagged("ci/first", &tags).key, &payload.subject);
+    assert!(
+        store
+            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-x64-node22"), 128)
+            .await
+            .unwrap()
+            .is_none(),
+        "a marker that committed while failing is released with the rest",
     );
 }
 
@@ -1146,6 +1100,10 @@ struct FailArtifactWrites {
     publish_overlapping_after_create: Option<(String, Vec<u8>)>,
     /// Fails reads of this path, so a scan that reaches it cannot finish.
     fail_reads_of: Option<String>,
+    /// Applies the injected write failure to scope markers too. They pass
+    /// through by default, so a test injecting a failure reaches the envelope
+    /// or blob it is aimed at rather than stopping at the claim.
+    fail_scope_writes: bool,
 }
 
 impl fmt::Display for FailArtifactWrites {
@@ -1172,6 +1130,9 @@ impl ObjectStore for FailArtifactWrites {
                 path: location.to_string(),
                 source: std::io::Error::other("slot claimed by another publication").into(),
             });
+        }
+        if !self.fail_scope_writes && location.as_ref().contains("/scopes/") {
+            return self.inner.put_opts(location, payload, options).await;
         }
         if location.as_ref().ends_with("/quota.json") {
             if self
