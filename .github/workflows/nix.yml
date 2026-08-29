@@ -1,20 +1,30 @@
 name: Nix flake
 
-# Validates the flake (flake.nix). Runs on PRs that touch flake files
-# and on manual dispatch.
+# Validates the flake (flake.nix). Runs on PRs that touch flake files, on
+# pushes to main that touch them, and on manual dispatch.
 #
 # Steps, in order of what they catch:
 #   1. nix flake check --all-systems  — every system's outputs evaluate
 #      (including darwin on an ubuntu runner).
 #   2. nix build .#default            — fetchurl + autoPatchelf + install
-#      layout actually realises for the runner's system.
+#      layout actually realises for the runner's system. One runner per
+#      system flake.nix declares, so every published platform is built.
 #   3. nix run .#default -- --version — the patched binary actually execs.
 #      This is the only step that catches an output that evaluates and builds
 #      but points at the wrong program. It cannot run on pull_request (see the
-#      step's own comment), so it only guards manual dispatches.
+#      step's own comment), so a merge to main is where it runs for real.
 
 on:
   workflow_dispatch: {}
+  # GitHub Actions does not support YAML anchors, so the two path lists are
+  # spelled out; keep them identical.
+  push:
+    branches: [main]
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "**/*.nix"
+      - ".github/workflows/nix.yml"
   pull_request:
     branches: [main]
     paths:
@@ -38,7 +48,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [blacksmith-8vcpu-ubuntu-2404, blacksmith-12vcpu-macos-latest]
+        # One per system in flake.nix. Blacksmith covers x86_64-linux and
+        # aarch64-darwin; the other two have no Blacksmith equivalent, so
+        # they use GitHub's native runners.
+        runner:
+          - blacksmith-8vcpu-ubuntu-2404  # x86_64-linux
+          - ubuntu-24.04-arm              # aarch64-linux
+          - blacksmith-12vcpu-macos-latest # aarch64-darwin
+          - macos-15-intel                # x86_64-darwin
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

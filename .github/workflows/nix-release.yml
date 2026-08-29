@@ -51,9 +51,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
-          # system|asset-substring — one per line. The substring must uniquely
-          # match the release asset filename for that system. Using the full
-          # filename avoids matching the musl variants and the pnpr assets.
+          # system|asset-filename — one per line. The exact name of the
+          # release asset for that system.
           ASSET_MAP: |
             x86_64-linux|pnpm-linux-x64.tar.gz
             aarch64-linux|pnpm-linux-arm64.tar.gz
@@ -110,27 +109,24 @@ jobs:
           if new_key <= tuple(int(g) for g in m.groups()):
               done(f"flake.nix is at {current}; {version} would not move it forward.")
           release = api(f"releases/tags/{tag}")
-          # Drop sibling checksum files (.sha256) so a tarball substring does
-          # not also match its "<tarball>.sha256" companion.
           asset_names = {a["name"] for a in release["assets"]}
-          names = {n for n in asset_names if not n.endswith(".sha256")}
           asset_map = {}
           for line in os.environ["ASSET_MAP"].splitlines():
               line = line.strip()
               if not line or line.startswith("#"):
                   continue
-              sys_, sub = line.split("|", 1)
-              asset_map[sys_.strip()] = sub.strip()
+              sys_, asset = line.split("|", 1)
+              asset_map[sys_.strip()] = asset.strip()
           # Completeness guard: detect release archives that are NOT covered by
           # ASSET_MAP. If a project ships for 4 platforms but ASSET_MAP only
           # lists 3, the omitted platform's hash goes stale while its URL still
           # gets the version bump — users on that platform get a hash mismatch.
           IGNORED = ("musl", "pnpr-", "-source", "source-code", "win32", "win-x64", "win-arm64")
-          matched_subs = set(asset_map.values())
+          packaged = set(asset_map.values())
           unmatched = [
-              name for name in sorted(names)
+              name for name in sorted(asset_names)
               if name.endswith((".tar.gz", ".zip"))
-              and not any(sub in name for sub in matched_subs)
+              and name not in packaged
               and not any(ign in name.lower() for ign in IGNORED)
           ]
           if unmatched:
@@ -145,13 +141,12 @@ jobs:
           src, n = re.subn(r'version = "[^"]*";', f'version = "{version}";', src, count=1)
           if n != 1:
               raise SystemExit('could not find version = "..." in flake.nix')
-          for sys_, sub in asset_map.items():
-              match = next((n for n in names if sub in n), None)
-              if not match:
-                  raise SystemExit(f"no asset for {sys_} ({sub}) in {tag}; have: {sorted(names)}")
-              url = f"https://github.com/{repo}/releases/download/{tag}/{match}"
+          for sys_, asset in asset_map.items():
+              if asset not in asset_names:
+                  raise SystemExit(f"no asset {asset} for {sys_} in {tag}; have: {sorted(asset_names)}")
+              url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
               expected = None
-              if f"{match}.sha256" in asset_names:
+              if f"{asset}.sha256" in asset_names:
                   with urllib.request.urlopen(f"{url}.sha256", timeout=API_TIMEOUT) as r:
                       expected = "sha256:" + r.read().decode().split()[0]
               out = json.loads(subprocess.check_output(
@@ -166,7 +161,7 @@ jobs:
               # would be expanded rather than written out.
               def repl(m):
                   b = m.group(1)
-                  b = re.sub(r'file = "[^"]*";', lambda _: f'file = "{match}";', b, count=1)
+                  b = re.sub(r'file = "[^"]*";', lambda _: f'file = "{asset}";', b, count=1)
                   b = re.sub(r'sha256 = "[^"]*";', lambda _: f'sha256 = "{sri}";', b, count=1)
                   return b
               src, n = pat.subn(repl, src, count=1)

@@ -283,9 +283,11 @@ nix profile add github:pnpm/pnpm
 The flake tracks the default branch. Publishing a release runs a
 [workflow](.github/workflows/nix-release.yml) that opens a pull request bumping the
 flake to it, so `github:pnpm/pnpm` follows the latest release once that pull request is
-merged. (Release tags are cut before the bump lands, so `github:pnpm/pnpm/vX.Y.Z` is
-not a valid pin — use a specific commit SHA, or the nixpkgs package, if you need
-reproducibility.)
+merged. A release tag is cut before its bump lands, so `github:pnpm/pnpm/vX.Y.Z`
+resolves to a tree whose flake still points at the *previous* release — pin a commit
+SHA if you need an exact version.
+
+pnpm is also packaged in nixpkgs as `nixpkgs#pnpm`, which this flake does not replace.
 
 ## License
 

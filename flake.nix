@@ -3,9 +3,9 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    # Pin x86_64-darwin to a stable darwin branch. nixpkgs-unstable
-    # (26.11) dropped x86_64-darwin support; the -darwin branch
-    # receives security updates without the breaking churn.
+    # nixpkgs-unstable's stdenv does not support x86_64-darwin, so that
+    # one platform builds against the stable darwin branch instead, which
+    # does and still receives security updates.
     nixpkgs-darwin-legacy.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
   };
 
