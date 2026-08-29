@@ -161,8 +161,14 @@ test('deploy with a shared lockfile drops excluded direct dependency groups', as
         dependencies: { '@pnpm.e2e/foo': '100.0.0' },
         devDependencies: { '@pnpm.e2e/bar': '100.0.0' },
         optionalDependencies: { '@pnpm.e2e/qar': '100.0.0' },
-        peerDependencies: { '@pnpm.e2e/bar': '*' },
-        peerDependenciesMeta: { '@pnpm.e2e/bar': { optional: true } },
+        peerDependencies: {
+          '@pnpm.e2e/bar': '*',
+          '@pnpm.e2e/peer-c': '1.0.0',
+        },
+        peerDependenciesMeta: {
+          '@pnpm.e2e/bar': { optional: true },
+          '@pnpm.e2e/peer-c': { optional: true },
+        },
       },
     },
   ])
@@ -180,11 +186,14 @@ test('deploy with a shared lockfile drops excluded direct dependency groups', as
   await execPnpm(['--filter=app', 'deploy', '--prod', '--no-optional', deployDir])
 
   const deployManifest = loadJsonFileSync<Record<string, unknown>>(path.join(deployDir, 'package.json'))
-  expect(deployManifest.dependencies).toStrictEqual({ '@pnpm.e2e/foo': '100.0.0' })
+  expect(deployManifest.dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '100.0.0',
+    '@pnpm.e2e/peer-c': '1.0.0',
+  })
   expect(deployManifest.devDependencies).toStrictEqual({})
   expect(deployManifest.optionalDependencies).toStrictEqual({})
-  expect(deployManifest.peerDependencies).toStrictEqual({})
-  expect(deployManifest.peerDependenciesMeta).toStrictEqual({})
+  expect(deployManifest.peerDependencies).toStrictEqual({ '@pnpm.e2e/peer-c': '1.0.0' })
+  expect(deployManifest.peerDependenciesMeta).toStrictEqual({ '@pnpm.e2e/peer-c': { optional: true } })
 
   const deployLockfile = readYamlFileSync<LockfileFile>(path.join(deployDir, 'pnpm-lock.yaml'))
   const importer = deployLockfile.importers!['.']
@@ -204,6 +213,20 @@ test('deploy with a shared lockfile drops excluded direct dependency groups', as
   const dangling = fs.readdirSync(nodeModulesDir, { recursive: true, encoding: 'utf8' })
     .filter(entry => !fs.existsSync(path.join(nodeModulesDir, entry)))
   expect(dangling).toStrictEqual([])
+
+  const devDeployDir = path.join(tempDir(false), 'dev-deploy')
+  await execPnpm(['--filter=app', 'deploy', '--dev', '--no-optional', devDeployDir])
+  const devDeployManifest = loadJsonFileSync<Record<string, unknown>>(path.join(devDeployDir, 'package.json'))
+  expect(devDeployManifest.dependencies).toStrictEqual({ '@pnpm.e2e/peer-c': '1.0.0' })
+  expect(devDeployManifest.devDependencies).toStrictEqual({ '@pnpm.e2e/bar': '100.0.0' })
+  expect(devDeployManifest.peerDependencies).toStrictEqual({
+    '@pnpm.e2e/bar': '*',
+    '@pnpm.e2e/peer-c': '1.0.0',
+  })
+  expect(devDeployManifest.peerDependenciesMeta).toStrictEqual({
+    '@pnpm.e2e/bar': { optional: true },
+    '@pnpm.e2e/peer-c': { optional: true },
+  })
 })
 
 // `pacquet` is fetched from the real npm registry — registry-mock doesn't

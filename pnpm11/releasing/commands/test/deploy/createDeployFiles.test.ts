@@ -221,3 +221,52 @@ test('createDeployFiles drops excluded direct dependency groups from the importe
   expect(prodOnly.lockfile.packages?.[devDepPath]).toBeUndefined()
   expect(prodOnly.lockfile.packages?.[optionalDepPath]).toBeUndefined()
 })
+
+test('createDeployFiles preserves peer-only dependencies auto-installed into an excluded group', () => {
+  const lockfileDir = path.resolve('workspace')
+  const projectId = '.' as ProjectId
+  const externalDepPath = 'external@1.0.0' as DepPath
+  const devDepPath = 'dev@1.0.0' as DepPath
+  const result = createDeployFiles({
+    allProjects: [{
+      rootDirRealPath: lockfileDir as ProjectRootDirRealPath,
+      manifest: { name: 'app', version: '1.0.0' },
+    }],
+    deployDir: path.join(lockfileDir, 'out'),
+    include: { dependencies: false, devDependencies: true, optionalDependencies: false },
+    lockfile: {
+      lockfileVersion: '9.0',
+      settings: {
+        autoInstallPeers: true,
+        excludeLinksFromLockfile: false,
+      },
+      importers: {
+        [projectId]: {
+          specifiers: { external: '1.0.0', dev: '1.0.0' },
+          dependencies: { external: '1.0.0' },
+          devDependencies: { dev: '1.0.0' },
+        },
+      },
+      packages: {
+        [externalDepPath]: { resolution: { integrity: 'sha512-external' }, version: '1.0.0' },
+        [devDepPath]: { resolution: { integrity: 'sha512-dev' }, version: '1.0.0' },
+      },
+    },
+    lockfileDir,
+    selectedProjectManifest: {
+      name: 'app',
+      version: '1.0.0',
+      devDependencies: { dev: '1.0.0' },
+      peerDependencies: { external: '*' },
+      peerDependenciesMeta: { external: { optional: true } },
+    },
+    projectId,
+    rootProjectManifestDir: lockfileDir,
+  })
+
+  expect(result.manifest.dependencies).toStrictEqual({ external: '1.0.0' })
+  expect(result.manifest.devDependencies).toStrictEqual({ dev: '1.0.0' })
+  expect(result.manifest.peerDependencies).toStrictEqual({ external: '*' })
+  expect(result.manifest.peerDependenciesMeta).toStrictEqual({ external: { optional: true } })
+  expect(result.lockfile.packages?.[externalDepPath]).toBeDefined()
+})

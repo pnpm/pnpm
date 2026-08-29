@@ -69,6 +69,10 @@ export function createDeployFiles ({
     devDependencies: {},
     optionalDependencies: {},
   }
+  const directDependencyNames = dependencyNames(selectedProjectManifest)
+  const peerOnlyDependencies = new Set(
+    Object.keys(selectedProjectManifest.peerDependencies ?? {}).filter(name => !directDependencyNames.has(name))
+  )
 
   const targetPackageSnapshots: PackageSnapshots = {}
   for (const name in lockfile.packages) {
@@ -109,11 +113,11 @@ export function createDeployFiles ({
     // An excluded group's direct dependencies are left out of both the
     // deployed manifest and the deployed importer, because the graph filter
     // below drops the packages they would point at.
-    if (!include[field]) continue
     const targetDependencies = targetSnapshot[field] ?? {}
     const targetSpecifiers = targetSnapshot.specifiers
     const inputDependencies = inputSnapshot[field] ?? {}
     for (const name in inputDependencies) {
+      if (!include[field] && !peerOnlyDependencies.has(name)) continue
       const version = inputDependencies[name]
       const resolveResult = resolveLinkOrFile(version, {
         lockfileDir,
@@ -160,7 +164,7 @@ export function createDeployFiles ({
       dependencies: targetSnapshot.dependencies,
       devDependencies: targetSnapshot.devDependencies,
       optionalDependencies: targetSnapshot.optionalDependencies,
-    }, inputSnapshot, targetSnapshot),
+    }, selectedProjectManifest, targetSnapshot),
   }
 
   if (lockfile.patchedDependencies && patchedDependencies) {
@@ -189,12 +193,12 @@ export function createDeployFiles ({
 
 function omitPeersOfExcludedDependencies (
   manifest: ProjectManifest,
-  inputSnapshot: ProjectSnapshot,
+  inputManifest: ProjectManifest,
   targetSnapshot: ProjectSnapshot
 ): ProjectManifest {
   const includedDependencies = dependencyNames(targetSnapshot)
   const excludedDependencies = new Set(
-    Array.from(dependencyNames(inputSnapshot)).filter(name => !includedDependencies.has(name))
+    Array.from(dependencyNames(inputManifest)).filter(name => !includedDependencies.has(name))
   )
   if (excludedDependencies.size === 0) return manifest
 
@@ -205,8 +209,8 @@ function omitPeersOfExcludedDependencies (
   }
 }
 
-function dependencyNames (snapshot: ProjectSnapshot): Set<string> {
-  return new Set(DEPENDENCIES_FIELD.flatMap(field => Object.keys(snapshot[field] ?? {})))
+function dependencyNames (source: ProjectManifest | ProjectSnapshot): Set<string> {
+  return new Set(DEPENDENCIES_FIELD.flatMap(field => Object.keys(source[field] ?? {})))
 }
 
 function omitKeys<T> (record: Record<string, T> | undefined, keys: Set<string>): Record<string, T> | undefined {
