@@ -281,10 +281,13 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
   opts: GraphNodeHashOptions = {}
 ): IterableIterator<HashedDepPath<T>> {
   let builtDepPaths: Set<DepPath> | undefined
+  let buildRequiredCache: Record<string, boolean> | undefined
   let entries: Iterable<T>
   if (opts.allowBuild != null) {
     const pkgMetaList = Array.from(pkgMetaIterator)
     builtDepPaths = computeBuiltDepPaths(pkgMetaList, opts.allowBuild)
+    buildRequiredCache = {}
+    prepareBuildRequiredCache(graph, builtDepPaths, buildRequiredCache)
     entries = pkgMetaList
   } else {
     entries = pkgMetaIterator
@@ -293,7 +296,7 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
     graph,
     cache: {},
     builtDepPaths,
-    buildRequiredCache: builtDepPaths !== undefined ? {} : undefined,
+    buildRequiredCache,
     supportedArchitectures: opts.supportedArchitectures,
     nodeVersion: opts.nodeVersion,
     lockfileDir: opts.lockfileDir,
@@ -326,8 +329,12 @@ export function calcGraphNodeHash<T extends PkgMeta> (
   // or transitively depend on a package that is allowed to build.
   // This makes GVS hashes engine-agnostic for pure-JS packages,
   // so they survive Node.js upgrades and architecture changes.
-  const includeEngine = builtDepPaths === undefined ||
-    transitivelyRequiresBuild(graph, builtDepPaths, buildRequiredCache ??= {}, depPath, new Set())
+  let includeEngine = true
+  if (builtDepPaths !== undefined) {
+    buildRequiredCache ??= {}
+    prepareBuildRequiredCache(graph, builtDepPaths, buildRequiredCache)
+    includeEngine = buildRequiredCache[depPath] === true
+  }
   // A snapshot that declares `engines.runtime` carries the desugared
   // `node@runtime:<version>` pin as a child; that's the Node the bin
   // linker spawns for its lifecycle scripts, so it has to drive the
@@ -500,35 +507,48 @@ function computeBuiltDepPaths (
   return builtDepPaths
 }
 
-function transitivelyRequiresBuild<T extends string> (
-  graph: DepsGraph<T>,
-  builtDepPaths: Set<T>,
-  cache: Record<string, boolean>,
-  depPath: T,
-  parents: Set<T>
-): boolean {
-  if (depPath in cache) return cache[depPath]
-  if (builtDepPaths.has(depPath)) {
-    cache[depPath] = true
-    return true
+const BUILD_REQUIRED_CACHE_READY = Symbol('buildRequiredCacheReady')
+
+type PreparedBuildRequiredCache = Record<string, boolean> & {
+  [BUILD_REQUIRED_CACHE_READY]?: true
+}
+
+function prepareBuildRequiredCache (
+  graph: DepsGraph<DepPath>,
+  builtDepPaths: Set<DepPath>,
+  cache: Record<string, boolean>
+): void {
+  const preparedCache = cache as PreparedBuildRequiredCache
+  if (preparedCache[BUILD_REQUIRED_CACHE_READY] === true) return
+  if (builtDepPaths.size === 0) {
+    preparedCache[BUILD_REQUIRED_CACHE_READY] = true
+    return
   }
-  const node = graph[depPath]
-  if (!node) {
-    cache[depPath] = false
-    return false
-  }
-  if (parents.has(depPath)) {
-    return false
-  }
-  const nextParents = new Set([...parents, depPath])
-  for (const childDepPath of Object.values(node.children) as T[]) {
-    if (transitivelyRequiresBuild(graph, builtDepPaths, cache, childDepPath, nextParents)) {
-      cache[depPath] = true
-      return true
+
+  const parentsByChild = new Map<DepPath, DepPath[]>()
+  for (const parent of Object.keys(graph) as DepPath[]) {
+    for (const child of Object.values(graph[parent].children)) {
+      const parents = parentsByChild.get(child) ?? []
+      parents.push(parent)
+      parentsByChild.set(child, parents)
     }
   }
-  cache[depPath] = false
-  return false
+
+  const buildRequiredDepPaths = new Set(builtDepPaths)
+  const pending = Array.from(builtDepPaths)
+  while (pending.length > 0) {
+    const child = pending.pop()!
+    for (const parent of parentsByChild.get(child) ?? []) {
+      if (!buildRequiredDepPaths.has(parent)) {
+        buildRequiredDepPaths.add(parent)
+        pending.push(parent)
+      }
+    }
+  }
+  for (const depPath of buildRequiredDepPaths) {
+    cache[depPath] = true
+  }
+  preparedCache[BUILD_REQUIRED_CACHE_READY] = true
 }
 
 function lockfileDepsToGraphChildren (

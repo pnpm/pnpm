@@ -213,74 +213,45 @@ pub fn warm_deps_state_cache<'a, Key>(
     }
 }
 
-/// Recursive helper used by [`crate::calc_graph_node_hash`] to decide
-/// whether a snapshot's engine string should contribute to its global-
-/// virtual-store hash.
+/// Return every graph node that is, or transitively depends on, a node
+/// in `built_dep_paths`.
 ///
-/// Returns `true` if `dep_path` is either in `built_dep_paths`
-/// directly, or transitively depends on a snapshot that is. The
-/// returned boolean drives whether the engine is included in
-/// [`crate::calc_graph_node_hash`] — pure-JS leaves (and their pure-JS
-/// ancestors) get `engine = null`, so their GVS hashes survive Node.js
-/// upgrades and architecture moves. Snapshots that *might* run a
-/// postinstall script keep `engine = ENGINE_NAME` so the hash
-/// partitions them by host environment.
-///
-/// The cycle guard uses `dep_path` itself, not `node.full_pkg_id`
-/// (unlike [`calc_dep_graph_hash`]), because the same pkg id reachable
-/// through two different peer contexts is two distinct nodes — once
-/// one is mid-walk we still want to recurse into the other.
-///
-/// On cycle hit (`parents.contains(dep_path)`) the function returns
-/// `false` *without* caching. The "false in this particular cycle
-/// rotation" answer isn't the canonical one — a sibling visit might
-/// still find a builder upstream, and caching `false` here would
-/// poison the next visit at the same key. A `false` *derived* from
-/// such a hit is still cached though, so — as in
-/// [`calc_dep_graph_hash`] — the answer a cycle member settles on
-/// depends on visit order, and the caller has to supply a
-/// deterministic one.
-///
-/// `cache` is install-scoped and threaded across every snapshot
-/// visited inside one [`crate::calc_graph_node_hash`] walk. `parents`
-/// is the per-walk cycle-tracking set — callers always pass a fresh
-/// empty `HashSet`, the function inserts/removes `dep_path` around
-/// the recursion.
-pub(crate) fn transitively_requires_build<Key>(
+/// The result controls whether [`crate::calc_graph_node_hash`] includes
+/// the engine in a global-virtual-store hash. It is computed as one
+/// graph-wide fixed point so dependency cycles cannot produce different
+/// answers for different entry points.
+#[must_use]
+pub fn build_required_dep_paths<Key>(
     graph: &HashMap<Key, DepsGraphNode<Key>>,
     built_dep_paths: &HashSet<Key>,
-    cache: &mut HashMap<Key, bool>,
-    dep_path: &Key,
-    parents: &mut HashSet<Key>,
-) -> bool
+) -> HashSet<Key>
 where
     Key: Clone + Eq + std::hash::Hash,
 {
-    if let Some(&cached) = cache.get(dep_path) {
-        return cached;
+    if built_dep_paths.is_empty() {
+        return HashSet::new();
     }
-    if built_dep_paths.contains(dep_path) {
-        cache.insert(dep_path.clone(), true);
-        return true;
-    }
-    let Some(node) = graph.get(dep_path) else {
-        cache.insert(dep_path.clone(), false);
-        return false;
-    };
-    if parents.contains(dep_path) {
-        return false;
-    }
-    parents.insert(dep_path.clone());
-    let mut result = false;
-    for child in node.children.values() {
-        if transitively_requires_build(graph, built_dep_paths, cache, child, parents) {
-            result = true;
-            break;
+
+    let mut parents_by_child: HashMap<Key, Vec<Key>> = HashMap::new();
+    for (parent, node) in graph {
+        for child in node.children.values() {
+            parents_by_child.entry(child.clone()).or_default().push(parent.clone());
         }
     }
-    parents.remove(dep_path);
-    cache.insert(dep_path.clone(), result);
-    result
+
+    let mut build_required = built_dep_paths.clone();
+    let mut pending: Vec<Key> = built_dep_paths.iter().cloned().collect();
+    while let Some(child) = pending.pop() {
+        let Some(parents) = parents_by_child.get(&child) else {
+            continue;
+        };
+        for parent in parents {
+            if build_required.insert(parent.clone()) {
+                pending.push(parent.clone());
+            }
+        }
+    }
+    build_required
 }
 
 #[cfg(test)]
