@@ -318,6 +318,14 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
             "dependencies": { "@pnpm.e2e/foo": "100.0.0" },
             "devDependencies": { "@pnpm.e2e/bar": "100.0.0" },
             "optionalDependencies": { "@pnpm.e2e/qar": "100.0.0" },
+            "peerDependencies": {
+                "@pnpm.e2e/bar": "*",
+                "@pnpm.e2e/peer-c": "1.0.0",
+            },
+            "peerDependenciesMeta": {
+                "@pnpm.e2e/bar": { "optional": true },
+                "@pnpm.e2e/peer-c": { "optional": true },
+            },
         }),
     );
 
@@ -337,6 +345,10 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
         deploy_manifest["dependencies"]["@pnpm.e2e/foo"].is_string(),
         "the production dependency should survive: {deploy_manifest:#}",
     );
+    assert!(
+        deploy_manifest["dependencies"]["@pnpm.e2e/peer-c"].is_string(),
+        "the auto-installed peer should survive: {deploy_manifest:#}",
+    );
     for excluded in ["devDependencies", "optionalDependencies"] {
         assert_eq!(
             deploy_manifest[excluded],
@@ -344,6 +356,14 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
             "the deployed manifest should drop {excluded}: {deploy_manifest:#}",
         );
     }
+    assert_eq!(
+        deploy_manifest["peerDependencies"],
+        serde_json::json!({ "@pnpm.e2e/peer-c": "1.0.0" }),
+    );
+    assert_eq!(
+        deploy_manifest["peerDependenciesMeta"],
+        serde_json::json!({ "@pnpm.e2e/peer-c": { "optional": true } }),
+    );
 
     let deploy_lockfile = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
     let importer = deploy_lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY).unwrap();
@@ -364,6 +384,38 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
     assert!(
         dangling.is_empty(),
         "installing the deployed lockfile must not create dangling symlinks: {dangling:#?}",
+    );
+
+    let dev_deploy_dir = root.path().join("dev-deploy");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--dev", "--no-optional"])
+        .with_arg(&dev_deploy_dir)
+        .assert()
+        .success();
+    let dev_deploy_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(dev_deploy_dir.join("package.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        dev_deploy_manifest["dependencies"],
+        serde_json::json!({ "@pnpm.e2e/peer-c": "1.0.0" }),
+    );
+    assert_eq!(
+        dev_deploy_manifest["devDependencies"],
+        serde_json::json!({ "@pnpm.e2e/bar": "100.0.0" }),
+    );
+    assert_eq!(
+        dev_deploy_manifest["peerDependencies"],
+        serde_json::json!({
+            "@pnpm.e2e/bar": "*",
+            "@pnpm.e2e/peer-c": "1.0.0",
+        }),
+    );
+    assert_eq!(
+        dev_deploy_manifest["peerDependenciesMeta"],
+        serde_json::json!({
+            "@pnpm.e2e/bar": { "optional": true },
+            "@pnpm.e2e/peer-c": { "optional": true },
+        }),
     );
 
     drop((root, mock_instance));

@@ -752,36 +752,56 @@ fn create_deploy_files(
     target_snapshot.dependencies = Some(HashMap::new());
     target_snapshot.dev_dependencies = Some(HashMap::new());
     target_snapshot.optional_dependencies = Some(HashMap::new());
+    let declared_dependencies = selected
+        .project
+        .manifest
+        .available_dependency_names(None)
+        .into_iter()
+        .collect::<HashSet<_>>();
+    let peer_only_dependencies = selected
+        .project
+        .manifest
+        .dependencies([DependencyGroup::Peer])
+        .map(|(name, _)| name.to_string())
+        .filter(|name| !declared_dependencies.contains(name))
+        .collect::<HashSet<_>>();
 
     let selected_root = lexical_normalize(&selected.project.root_dir);
     let selected_bases = ResolveBases { file_base: lockfile_dir, link_base: &selected_root };
     // An excluded group's direct dependencies are left out of both the
     // deployed manifest and the deployed importer, because the graph prune
     // below drops the packages they would point at.
-    if dependency_groups.contains(&DependencyGroup::Prod) {
-        fill_target_dependency_map(
-            &mut target_snapshot.dependencies,
-            input_snapshot.dependencies.as_ref(),
-            &ctx,
-            &selected_bases,
-        )?;
-    }
-    if dependency_groups.contains(&DependencyGroup::Dev) {
-        fill_target_dependency_map(
-            &mut target_snapshot.dev_dependencies,
-            input_snapshot.dev_dependencies.as_ref(),
-            &ctx,
-            &selected_bases,
-        )?;
-    }
-    if dependency_groups.contains(&DependencyGroup::Optional) {
-        fill_target_dependency_map(
-            &mut target_snapshot.optional_dependencies,
-            input_snapshot.optional_dependencies.as_ref(),
-            &ctx,
-            &selected_bases,
-        )?;
-    }
+    let include_prod = dependency_groups.contains(&DependencyGroup::Prod);
+    fill_target_dependency_map(
+        &mut target_snapshot.dependencies,
+        input_snapshot
+            .dependencies
+            .iter()
+            .flatten()
+            .filter(|(name, _)| include_prod || peer_only_dependencies.contains(&name.to_string())),
+        &ctx,
+        &selected_bases,
+    )?;
+    let include_dev = dependency_groups.contains(&DependencyGroup::Dev);
+    fill_target_dependency_map(
+        &mut target_snapshot.dev_dependencies,
+        input_snapshot
+            .dev_dependencies
+            .iter()
+            .flatten()
+            .filter(|(name, _)| include_dev || peer_only_dependencies.contains(&name.to_string())),
+        &ctx,
+        &selected_bases,
+    )?;
+    let include_optional = dependency_groups.contains(&DependencyGroup::Optional);
+    fill_target_dependency_map(
+        &mut target_snapshot.optional_dependencies,
+        input_snapshot.optional_dependencies.iter().flatten().filter(|(name, _)| {
+            include_optional || peer_only_dependencies.contains(&name.to_string())
+        }),
+        &ctx,
+        &selected_bases,
+    )?;
     drop_empty_dependency_map(&mut target_snapshot.dependencies);
     drop_empty_dependency_map(&mut target_snapshot.dev_dependencies);
     drop_empty_dependency_map(&mut target_snapshot.optional_dependencies);
@@ -871,6 +891,7 @@ fn create_deploy_files(
         "optionalDependencies",
         target_snapshot.optional_dependencies.as_ref(),
     );
+    omit_peers_of_excluded_dependencies(&mut manifest, &declared_dependencies, &target_snapshot);
 
     let mut workspace_manifest = Map::new();
     let mut workspace_config =
@@ -987,17 +1008,15 @@ fn drop_empty_dependency_map(dependencies: &mut Option<ResolvedDependencyMap>) {
     }
 }
 
-fn fill_target_dependency_map(
+fn fill_target_dependency_map<'a>(
     output: &mut Option<ResolvedDependencyMap>,
-    input: Option<&ResolvedDependencyMap>,
+    input: impl Iterator<Item = (&'a PkgName, &'a ResolvedDependencySpec)>,
     ctx: &ConvertCtx,
     bases: &ResolveBases,
 ) -> miette::Result<()> {
     let output = output.get_or_insert_with(HashMap::new);
-    if let Some(input) = input {
-        for (name, spec) in input {
-            output.insert(name.clone(), convert_resolved_dependency_spec(name, spec, ctx, bases)?);
-        }
+    for (name, spec) in input {
+        output.insert(name.clone(), convert_resolved_dependency_spec(name, spec, ctx, bases)?);
     }
     Ok(())
 }
@@ -1015,6 +1034,33 @@ fn set_manifest_dependencies(
     if let Some(object) = manifest.as_object_mut() {
         object.insert(field.to_string(), Value::Object(deps));
     }
+}
+
+fn omit_peers_of_excluded_dependencies(
+    manifest: &mut Value,
+    declared_dependencies: &HashSet<String>,
+    target_snapshot: &ProjectSnapshot,
+) {
+    let included_dependencies = dependency_names(target_snapshot);
+    let excluded_dependencies =
+        declared_dependencies.difference(&included_dependencies).cloned().collect::<HashSet<_>>();
+    let Some(manifest) = manifest.as_object_mut() else { return };
+    for field in ["peerDependencies", "peerDependenciesMeta"] {
+        if let Some(Value::Object(dependencies)) = manifest.get_mut(field) {
+            dependencies.retain(|name, _| !excluded_dependencies.contains(name));
+        }
+    }
+}
+
+fn dependency_names(snapshot: &ProjectSnapshot) -> HashSet<String> {
+    snapshot
+        .dependencies
+        .iter()
+        .flatten()
+        .chain(snapshot.dev_dependencies.iter().flatten())
+        .chain(snapshot.optional_dependencies.iter().flatten())
+        .map(|(name, _)| name.to_string())
+        .collect()
 }
 
 fn convert_package_metadata(
