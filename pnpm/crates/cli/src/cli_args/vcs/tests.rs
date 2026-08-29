@@ -1,11 +1,13 @@
 use super::{
-    AutoSnappedComponent, BitSnapResult, BitStatusResult, PnpmVcsCatalogBinding, PnpmVcsImportPlan,
-    PnpmVcsImportedComponent, apply_import_plan, assert_snap_protocol, assert_status_protocol,
-    execute_bit, migrate_workspace_dependencies_to_catalogs, read_component_requirements,
-    render_commit, render_status, sanitize_component_name, workspace_inventory,
+    AutoSnappedComponent, BitSnapResult, BitStatusResult, BitSyncResult, BitSyncedComponent,
+    PnpmVcsCatalogBinding, PnpmVcsImportPlan, PnpmVcsImportedComponent, apply_import_plan,
+    assert_snap_protocol, assert_status_protocol, execute_bit,
+    migrate_workspace_dependencies_to_catalogs, persist_workspace_identity,
+    read_component_requirements, render_commit, render_status, sanitize_component_name,
+    validate_clone_root_dir, validate_durable_component_id, workspace_inventory,
 };
 
-use std::fs;
+use std::{collections::BTreeMap, fs};
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt as _;
@@ -140,7 +142,10 @@ async fn invokes_bit_directly_with_the_workspace_as_cwd() {
 
     assert_eq!(
         stdout,
-        format!("{}\nsnap --json --message workspace commit", fixture.path().display()),
+        format!(
+            "{}\nsnap --json --message workspace commit",
+            dunce::canonicalize(fixture.path()).expect("canonical fixture path").display(),
+        ),
     );
 }
 
@@ -173,6 +178,85 @@ fn builds_inventory_from_a_regular_pnpm_workspace() {
     assert_eq!(inventory.projects[0].root_dir, "packages/foo");
     assert_eq!(inventory.projects[0].component_name, "acme/foo");
     assert!(inventory.projects[0].requirements.is_none());
+}
+
+#[test]
+fn durable_manifest_supplies_component_ids_when_bitmap_is_absent() {
+    let fixture = tempfile::tempdir().expect("create fixture");
+    fs::create_dir_all(fixture.path().join("packages/foo")).expect("create package directory");
+    fs::write(
+        fixture.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nvcs:\n  provider: bit\n  schemaVersion: 1\n  rootComponent: acme.repository/workspace\n  components:\n    packages/foo:\n      componentId: acme.repository/foo\n      manifestFile: package.json\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(fixture.path().join("package.json"), r#"{"name":"root","private":true}"#)
+        .expect("write root manifest");
+    fs::write(
+        fixture.path().join("packages/foo/package.json"),
+        r#"{"name":"@acme/foo","version":"1.0.0"}"#,
+    )
+    .expect("write package manifest");
+    let config = pnpm_config::Config {
+        workspace_dir: Some(fixture.path().to_path_buf()),
+        ..pnpm_config::Config::default()
+    };
+
+    let inventory = workspace_inventory(fixture.path(), &config, "").expect("build inventory");
+    assert_eq!(inventory.root_component_id.as_deref(), Some("acme.repository/workspace"));
+    assert_eq!(inventory.projects[0].component_id.as_deref(), Some("acme.repository/foo"));
+}
+
+#[test]
+fn sync_result_is_persisted_as_the_durable_workspace_identity() {
+    let fixture = tempfile::tempdir().expect("create fixture");
+    fs::write(fixture.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    let result = BitSyncResult {
+        schema_version: 2,
+        root_component: "acme.repository/workspace".to_string(),
+        workspace_profile: BTreeMap::default(),
+        updated_components: Vec::new(),
+        components: vec![
+            BitSyncedComponent {
+                id: "acme.repository/foo".to_string(),
+                root_dir: "packages/foo".to_string(),
+                manifest_file: Some("package.json".to_string()),
+                files: 2,
+            },
+            BitSyncedComponent {
+                id: "acme.repository/workspace".to_string(),
+                root_dir: ".".to_string(),
+                manifest_file: None,
+                files: 3,
+            },
+        ],
+    };
+
+    persist_workspace_identity(fixture.path(), &result).expect("persist identity");
+    let manifest = pnpm_workspace::read_workspace_manifest(fixture.path())
+        .expect("read workspace manifest")
+        .expect("workspace manifest");
+    let vcs = manifest.vcs.expect("durable vcs manifest");
+    assert_eq!(vcs.root_component, "acme.repository/workspace");
+    assert_eq!(vcs.components["packages/foo"].component_id, "acme.repository/foo");
+}
+
+#[test]
+fn clone_rejects_paths_that_escape_the_workspace() {
+    assert!(validate_clone_root_dir("packages/app").is_ok());
+    assert!(validate_clone_root_dir("../outside").is_err());
+    assert!(validate_clone_root_dir("/absolute").is_err());
+    assert!(validate_clone_root_dir(".").is_err());
+}
+
+#[test]
+fn clone_requires_version_free_scoped_component_ids() {
+    assert_eq!(
+        validate_durable_component_id("acme.workspace/app", "component").unwrap(),
+        "acme.workspace",
+    );
+    assert!(validate_durable_component_id("app", "component").is_err());
+    assert!(validate_durable_component_id("acme.workspace/app@abc123", "component").is_err());
 }
 
 #[test]

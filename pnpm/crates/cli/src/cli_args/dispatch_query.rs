@@ -261,7 +261,11 @@ pub(super) fn lane<'a>(ctx: &RunCtx<'a>, args: LaneArgs) -> miette::Result<Comma
 
 pub(super) fn vcs<'a>(ctx: &RunCtx<'a>, args: VcsArgs) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.config)()?;
-    let cwd = config.workspace_dir.as_deref().unwrap_or(ctx.dir).to_path_buf();
+    let cwd = if matches!(&args.command, super::vcs::VcsCommand::Clone { .. }) {
+        ctx.dir.to_path_buf()
+    } else {
+        config.workspace_dir.as_deref().unwrap_or(ctx.dir).to_path_buf()
+    };
     Ok(Box::pin(async move { args.run(&cwd, config).await }))
 }
 

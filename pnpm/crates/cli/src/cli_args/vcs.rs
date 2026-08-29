@@ -10,10 +10,10 @@ use pnpm_workspace_manifest_writer::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashSet},
-    io,
-    path::Path,
+    fs, io,
+    path::{Path, PathBuf},
 };
-use tempfile::NamedTempFile;
+use tempfile::{Builder as TempDirBuilder, NamedTempFile};
 use tokio::process::Command;
 
 use super::recursive::discover_workspace_projects;
@@ -38,6 +38,13 @@ pub struct VcsArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum VcsCommand {
+    /// Reconstruct a pnpm workspace from its Bit root component.
+    Clone {
+        /// Version-free Bit ID of the workspace root component.
+        root_component: String,
+        /// New directory to create for the workspace.
+        directory: PathBuf,
+    },
     /// Initialize Bit and register every pnpm workspace project.
     Init,
     /// Show component changes reported by Bit.
@@ -91,6 +98,10 @@ enum VcsError {
     #[display("Unable to update the pnpm workspace: {details}")]
     #[diagnostic(code(ERR_PNPM_VCS_WORKSPACE_UPDATE_ERROR))]
     WorkspaceUpdate { details: String },
+
+    #[display("Unable to clone the pnpm VCS workspace: {details}")]
+    #[diagnostic(code(ERR_PNPM_VCS_CLONE_ERROR))]
+    Clone { details: String },
 }
 
 #[derive(Debug, Serialize)]
@@ -99,6 +110,8 @@ struct PnpmWorkspaceInventory {
     schema_version: u8,
     default_scope: String,
     root_component_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    root_component_id: Option<String>,
     root_main_file: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     workspace_profile: Option<WorkspaceToolMap>,
@@ -110,6 +123,8 @@ struct PnpmWorkspaceInventory {
 struct PnpmProjectInventoryItem {
     root_dir: String,
     component_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    component_id: Option<String>,
     manifest_file: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     requirements: Option<WorkspaceToolMap>,
@@ -146,7 +161,24 @@ struct BitSyncResult {
 struct BitSyncedComponent {
     id: String,
     root_dir: String,
+    manifest_file: Option<String>,
     files: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DurableVcsManifest<'a> {
+    provider: &'static str,
+    schema_version: u8,
+    root_component: &'a str,
+    components: BTreeMap<&'a str, DurableVcsComponent<'a>>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DurableVcsComponent<'a> {
+    component_id: &'a str,
+    manifest_file: &'a str,
 }
 
 #[derive(Debug, Deserialize)]
@@ -222,6 +254,23 @@ struct PnpmVcsCatalogBinding {
 impl VcsArgs {
     pub async fn run(self, cwd: &Path, config: &Config) -> miette::Result<()> {
         match self.command {
+            VcsCommand::Clone { root_component, directory } => {
+                let destination =
+                    if directory.is_absolute() { directory } else { cwd.join(directory) };
+                let cloned = clone_workspace(&self.bit_path, &root_component, &destination).await?;
+                if self.json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&cloned).expect("clone result serializes"),
+                    );
+                } else {
+                    println!(
+                        "Cloned {} Bit components into {}.",
+                        cloned.components.len() + 1,
+                        cloned.directory.display(),
+                    );
+                }
+            }
             VcsCommand::Init => {
                 if migrate_workspace_dependencies_to_catalogs(cwd, config)? {
                     execute_pnpm_install(cwd).await?;
@@ -326,6 +375,162 @@ impl VcsArgs {
         }
         Ok(())
     }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CloneResult {
+    root_component: String,
+    components: Vec<String>,
+    directory: PathBuf,
+}
+
+async fn clone_workspace(
+    bit_path: &str,
+    root_component: &str,
+    destination: &Path,
+) -> miette::Result<CloneResult> {
+    if destination.exists() {
+        return Err(clone_error(format!("destination already exists: {}", destination.display())));
+    }
+    let scope = validate_durable_component_id(root_component, "root component")?;
+    let parent = destination.parent().ok_or_else(|| {
+        clone_error(format!("destination has no parent directory: {}", destination.display()))
+    })?;
+    fs::create_dir_all(parent).map_err(|error| {
+        clone_error(format!("unable to create destination parent {}: {error}", parent.display()))
+    })?;
+    let staging =
+        TempDirBuilder::new().prefix(".pnpm-vcs-clone-").tempdir_in(parent).map_err(|error| {
+            clone_error(format!("unable to create clone staging directory: {error}"))
+        })?;
+    let clone_dir = staging.path();
+
+    execute_bit(
+        bit_path,
+        &[
+            "init",
+            "--standalone",
+            "--external-package-manager",
+            "--skip-interactive",
+            "--no-package-json",
+            "--default-scope",
+            scope,
+        ],
+        clone_dir,
+    )
+    .await?;
+    execute_bit(
+        bit_path,
+        &[
+            "import",
+            root_component,
+            "--path",
+            ".",
+            "--pnpm-vcs-root",
+            "--skip-dependency-installation",
+            "--skip-write-config-files",
+        ],
+        clone_dir,
+    )
+    .await?;
+
+    let workspace_manifest = pnpm_workspace::read_workspace_manifest(clone_dir)
+        .map_err(|error| clone_error(error.to_string()))?
+        .ok_or_else(|| clone_error("root component did not contain pnpm-workspace.yaml"))?;
+    let vcs = workspace_manifest
+        .vcs
+        .ok_or_else(|| clone_error("root component did not contain a durable vcs manifest"))?;
+    if vcs.provider != "bit" || vcs.schema_version != 1 || vcs.root_component != root_component {
+        return Err(clone_error(format!(
+            "root component contains an incompatible vcs manifest for {}",
+            vcs.root_component,
+        )));
+    }
+
+    let mut imported = Vec::with_capacity(vcs.components.len());
+    let mut imported_ids = HashSet::with_capacity(vcs.components.len());
+    for (root_dir, component) in vcs.components {
+        validate_clone_root_dir(&root_dir)?;
+        validate_durable_component_id(&component.component_id, "component")?;
+        if component.component_id == root_component {
+            return Err(clone_error(format!(
+                "durable vcs manifest maps the root component into {root_dir}",
+            )));
+        }
+        if !imported_ids.insert(component.component_id.clone()) {
+            return Err(clone_error(format!(
+                "durable vcs manifest maps component {} more than once",
+                component.component_id,
+            )));
+        }
+        execute_bit(
+            bit_path,
+            &[
+                "import",
+                &component.component_id,
+                "--path",
+                &root_dir,
+                "--skip-dependency-installation",
+                "--skip-write-config-files",
+            ],
+            clone_dir,
+        )
+        .await?;
+        imported.push(component.component_id);
+    }
+    execute_pnpm_install(clone_dir).await?;
+
+    let staging_path = staging.path().to_path_buf();
+    fs::rename(&staging_path, destination).map_err(|error| {
+        clone_error(format!(
+            "unable to move completed clone from {} to {}: {error}",
+            staging_path.display(),
+            destination.display(),
+        ))
+    })?;
+    Ok(CloneResult {
+        root_component: root_component.to_string(),
+        components: imported,
+        directory: destination.to_path_buf(),
+    })
+}
+
+fn validate_durable_component_id<'a>(
+    component_id: &'a str,
+    label: &str,
+) -> miette::Result<&'a str> {
+    let Some((scope, name)) = component_id.split_once('/') else {
+        return Err(clone_error(format!(
+            "{label} must be a scoped Bit component ID: {component_id}",
+        )));
+    };
+    if scope.is_empty() || name.is_empty() || component_id.contains('@') {
+        return Err(clone_error(format!(
+            "{label} must be version-free and scoped: {component_id}",
+        )));
+    }
+    Ok(scope)
+}
+
+fn validate_clone_root_dir(root_dir: &str) -> miette::Result<()> {
+    let path = Path::new(root_dir);
+    if root_dir.is_empty()
+        || root_dir == "."
+        || path.is_absolute()
+        || path.components().any(|component| {
+            matches!(component, std::path::Component::ParentDir | std::path::Component::RootDir)
+        })
+    {
+        return Err(clone_error(format!(
+            "durable vcs manifest contains an unsafe component root: {root_dir}",
+        )));
+    }
+    Ok(())
+}
+
+fn clone_error(details: impl Into<String>) -> miette::Report {
+    VcsError::Clone { details: details.into() }.into()
 }
 
 fn migrate_workspace_dependencies_to_catalogs(cwd: &Path, config: &Config) -> miette::Result<bool> {
@@ -524,9 +729,13 @@ async fn prepare_workspace(
     // Validate and fully discover the pnpm workspace before `bit init` creates any files.
     // An existing Bit workspace remains authoritative for its default scope.
     let mut inventory = workspace_inventory(cwd, config, "")?;
-    let is_bit_workspace = cwd.join(".bitmap").is_file() && cwd.join(".bit").is_dir();
+    let is_bit_workspace = cwd.join(".bit").is_dir() && cwd.join("workspace.jsonc").is_file();
     if !is_bit_workspace {
-        let scope = scope.ok_or(VcsError::ScopeRequired)?;
+        let durable_scope = inventory
+            .root_component_id
+            .as_deref()
+            .and_then(|component_id| component_id.split_once('/').map(|(scope, _)| scope));
+        let scope = scope.or(durable_scope).ok_or(VcsError::ScopeRequired)?;
         inventory.default_scope = scope.to_string();
         execute_bit(
             bit_path,
@@ -558,7 +767,35 @@ async fn prepare_workspace(
             "The installed Bit version does not support pnpm workspace inventory protocol version 2",
         ));
     }
+    persist_workspace_identity(cwd, &result)?;
     Ok(result)
+}
+
+fn persist_workspace_identity(cwd: &Path, result: &BitSyncResult) -> miette::Result<()> {
+    let components = result
+        .components
+        .iter()
+        .filter(|component| component.root_dir != ".")
+        .map(|component| {
+            let manifest_file = component.manifest_file.as_deref().unwrap_or("package.json");
+            (
+                component.root_dir.as_str(),
+                DurableVcsComponent { component_id: &component.id, manifest_file },
+            )
+        })
+        .collect();
+    let manifest = DurableVcsManifest {
+        provider: "bit",
+        schema_version: 1,
+        root_component: &result.root_component,
+        components,
+    };
+    update_manifest_field(
+        &cwd.join("pnpm-workspace.yaml"),
+        "vcs",
+        &serde_json::to_value(manifest).expect("durable VCS manifest serializes"),
+    )
+    .map_err(|error| workspace_update_error(error.to_string()))
 }
 
 fn workspace_inventory(
@@ -566,6 +803,20 @@ fn workspace_inventory(
     config: &Config,
     default_scope: &str,
 ) -> miette::Result<PnpmWorkspaceInventory> {
+    let durable_vcs = pnpm_workspace::read_workspace_manifest(workspace_dir)
+        .map_err(|error| VcsError::InventoryError { details: error.to_string() })?
+        .and_then(|manifest| manifest.vcs);
+    if let Some(vcs) = durable_vcs.as_ref()
+        && (vcs.provider != "bit" || vcs.schema_version != 1)
+    {
+        return Err(VcsError::InventoryError {
+            details: format!(
+                "unsupported pnpm workspace VCS manifest: provider {}, schema version {}",
+                vcs.provider, vcs.schema_version,
+            ),
+        }
+        .into());
+    }
     let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
     let mut used_names = HashSet::new();
     let mut root_name = None;
@@ -588,6 +839,7 @@ fn workspace_inventory(
             continue;
         }
         let root_dir = path_to_protocol(relative);
+        let durable_component = durable_vcs.as_ref().and_then(|vcs| vcs.components.get(&root_dir));
         let candidate = manifest_name
             .map(sanitize_component_name)
             .filter(|name| !name.is_empty())
@@ -596,7 +848,11 @@ fn workspace_inventory(
         inventory_projects.push(PnpmProjectInventoryItem {
             root_dir,
             component_name,
-            manifest_file: "package.json".to_string(),
+            component_id: durable_component.map(|component| component.component_id.clone()),
+            manifest_file: durable_component.map_or_else(
+                || "package.json".to_string(),
+                |component| component.manifest_file.clone(),
+            ),
             requirements: read_component_requirements(project.manifest.value())?,
         });
     }
@@ -609,6 +865,7 @@ fn workspace_inventory(
         schema_version: 2,
         default_scope: default_scope.to_string(),
         root_component_name,
+        root_component_id: durable_vcs.map(|vcs| vcs.root_component),
         root_main_file: "pnpm-workspace.yaml".to_string(),
         workspace_profile,
         projects: inventory_projects,
