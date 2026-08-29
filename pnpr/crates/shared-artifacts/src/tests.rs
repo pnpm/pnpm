@@ -997,14 +997,27 @@ async fn a_scope_that_cannot_be_released_is_reported() {
     )
     .unwrap();
 
-    let error = store
-        .publish("acme", publication_tagged("ci/first", &["pnpm:v1:linux-x64-node22-glibc2.17"]))
-        .await
-        .unwrap_err();
+    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
+    let first = publication_tagged("ci/first", &tags);
+    let (payload, _) = first.envelope.decode_payload().unwrap();
+    let owner = super::owner_key("acme", &payload.owner).unwrap();
+    let entry = super::entry_digest(&first.key, &payload.subject);
+
+    let error = store.publish("acme", first).await.unwrap_err();
 
     assert!(
         matches!(error, RegistryError::ObjectStore(_)),
         "a scope left behind is reported, got {error:?}",
+    );
+    // The envelope write fails with the same kind of error, so the error alone
+    // does not say the release was reached: the marker still being there does.
+    assert!(
+        store
+            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-x64-node22"), 128)
+            .await
+            .unwrap()
+            .is_some(),
+        "the scope this publication could not give back is still held",
     );
 }
 
