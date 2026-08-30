@@ -282,7 +282,10 @@ fn concurrent_installs_sharing_a_gvs_do_not_fail_while_linking_bins() {
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     set_gvs_workspace_yaml(&workspace, "");
-    write_manifest(&workspace, &serde_json::json!({ PARENT: "1.0.0" }));
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
+    );
     pacquet(&workspace).with_arg("install").assert().success();
 
     let fixture_files = ["package.json", "pnpm-workspace.yaml", ".npmrc", "pnpm-lock.yaml"]
@@ -295,7 +298,7 @@ fn concurrent_installs_sharing_a_gvs_do_not_fail_while_linking_bins() {
             let dir = root.path().join(format!("concurrent-gvs-{worker}"));
             fs::create_dir(&dir).expect("create concurrent-install workspace");
             for (name, bytes) in &fixture_files {
-                fs::write(dir.join(name), bytes).expect("write concurrent-install fixture");
+                fs::write(dir.join(*name), bytes).expect("write concurrent-install fixture");
             }
             dir
         })
