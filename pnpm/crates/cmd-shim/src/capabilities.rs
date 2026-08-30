@@ -115,11 +115,11 @@ pub trait FsCreateDirAll {
 pub trait FsWrite {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()>;
 
-    /// Atomically replace `path` with `bytes` on Unix by writing a secure
-    /// sibling temporary file and renaming it over the destination. The
-    /// non-Unix implementation is a direct write because the only current
-    /// atomic-replacement caller is the POSIX command-shim path.
-    fn atomic_replace(path: &Path, bytes: &[u8]) -> io::Result<()>;
+    /// Atomically replace `path` on Unix with a fully-written executable file.
+    /// The production host prepares a secure sibling tempfile, sets its final
+    /// mode, then renames it over the destination. The non-Unix implementation
+    /// is a direct write because this operation is only used by POSIX shims.
+    fn atomic_replace_executable(path: &Path, bytes: &[u8]) -> io::Result<()>;
 }
 
 /// Replace the permission bits at `path` with `0o755`. Used to chmod
@@ -208,11 +208,12 @@ impl FsWrite for Host {
         std::fs::write(path, bytes)
     }
 
-    fn atomic_replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    fn atomic_replace_executable(path: &Path, bytes: &[u8]) -> io::Result<()> {
         #[cfg(unix)]
         {
             use std::{
                 io::Write as _,
+                os::unix::fs::PermissionsExt as _,
                 sync::atomic::{AtomicU64, Ordering},
             };
 
@@ -231,8 +232,12 @@ impl FsWrite for Host {
                         Err(error) => return Err(error),
                     };
 
-                if let Err(error) =
-                    temp.write_all(bytes).and_then(|()| std::fs::rename(&temp_path, path))
+                if let Err(error) = temp
+                    .write_all(bytes)
+                    .and_then(|()| {
+                        temp.set_permissions(std::fs::Permissions::from_mode(0o755))
+                    })
+                    .and_then(|()| std::fs::rename(&temp_path, path))
                 {
                     let _ = std::fs::remove_file(&temp_path);
                     return Err(error);
