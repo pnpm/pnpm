@@ -374,6 +374,10 @@ fn link_bins_propagates_create_bin_dir_error_via_di() {
         fn write(_: &Path, _: &[u8]) -> io::Result<()> {
             unreachable!()
         }
+
+        fn atomic_replace(_: &Path, _: &[u8]) -> io::Result<()> {
+            unreachable!()
+        }
     }
     impl FsSetExecutable for FailingCreateDir {
         fn set_executable(_: &Path) -> io::Result<()> {
@@ -447,6 +451,10 @@ fn link_bins_propagates_write_shim_error_via_di() {
         fn write(_: &Path, _: &[u8]) -> io::Result<()> {
             Err(io::Error::from(io::ErrorKind::PermissionDenied))
         }
+
+        fn atomic_replace(_: &Path, _: &[u8]) -> io::Result<()> {
+            Err(io::Error::from(io::ErrorKind::PermissionDenied))
+        }
     }
     impl FsSetExecutable for FailingWrite {
         fn set_executable(_: &Path) -> io::Result<()> {
@@ -517,6 +525,10 @@ fn link_bins_propagates_chmod_error_via_di() {
         fn write(_: &Path, _: &[u8]) -> io::Result<()> {
             Ok(())
         }
+
+        fn atomic_replace(_: &Path, _: &[u8]) -> io::Result<()> {
+            Ok(())
+        }
     }
     impl FsSetExecutable for FailingChmod {
         fn set_executable(_: &Path) -> io::Result<()> {
@@ -553,48 +565,22 @@ fn link_bins_propagates_chmod_error_via_di() {
     assert!(matches!(err, LinkBinsError::Chmod { .. }));
 }
 
+#[cfg(unix)]
 #[test]
-fn shim_chmod_retries_transient_not_found_via_di() {
-    use std::{
-        io,
-        sync::atomic::{AtomicUsize, Ordering},
-    };
+fn atomic_shim_replace_does_not_follow_existing_symlink() {
+    use std::os::unix::fs::symlink;
 
-    static CALLS: AtomicUsize = AtomicUsize::new(0);
-    struct TransientMissingShim;
-    impl FsSetExecutable for TransientMissingShim {
-        fn set_executable(path: &Path) -> io::Result<()> {
-            if CALLS.fetch_add(1, Ordering::Relaxed) == 0 {
-                return Err(io::Error::from(io::ErrorKind::NotFound));
-            }
-            <Host as FsSetExecutable>::set_executable(path)
-        }
-    }
-
-    CALLS.store(0, Ordering::Relaxed);
     let tmp = tempdir().unwrap();
+    let target = tmp.path().join("target");
     let shim = tmp.path().join("shim");
-    write_file(&shim, "#!/usr/bin/env node\n").unwrap();
+    write_file(&target, "do not touch").unwrap();
+    symlink(&target, &shim).unwrap();
 
-    super::set_shim_executable::<TransientMissingShim>(&shim)
-        .expect("a transient missing shim must be retried");
-    assert_eq!(CALLS.load(Ordering::Relaxed), 2);
-}
+    <Host as FsWrite>::atomic_replace(&shim, b"replacement").unwrap();
 
-#[test]
-fn shim_chmod_propagates_persistent_not_found_via_di() {
-    use std::io;
-
-    struct PersistentlyMissingShim;
-    impl FsSetExecutable for PersistentlyMissingShim {
-        fn set_executable(_: &Path) -> io::Result<()> {
-            Err(io::Error::from(io::ErrorKind::NotFound))
-        }
-    }
-
-    let err = super::set_shim_executable::<PersistentlyMissingShim>(Path::new("missing-shim"))
-        .expect_err("a persistently missing shim must not report success");
-    assert!(matches!(err, LinkBinsError::Chmod { .. }));
+    assert_eq!(std::fs::read_to_string(&target).unwrap(), "do not touch");
+    assert_eq!(std::fs::read_to_string(&shim).unwrap(), "replacement");
+    assert!(!std::fs::symlink_metadata(&shim).unwrap().file_type().is_symlink());
 }
 
 #[test]
@@ -629,6 +615,10 @@ fn link_bins_propagates_target_chmod_error_via_di() {
     }
     impl FsWrite for FailingTargetChmod {
         fn write(_: &Path, _: &[u8]) -> io::Result<()> {
+            Ok(())
+        }
+
+        fn atomic_replace(_: &Path, _: &[u8]) -> io::Result<()> {
             Ok(())
         }
     }
@@ -701,6 +691,10 @@ fn link_bins_swallows_target_chmod_not_found_via_di() {
         fn write(_: &Path, _: &[u8]) -> io::Result<()> {
             Ok(())
         }
+
+        fn atomic_replace(_: &Path, _: &[u8]) -> io::Result<()> {
+            Ok(())
+        }
     }
     impl FsSetExecutable for NotFoundTargetChmod {
         fn set_executable(_: &Path) -> io::Result<()> {
@@ -770,6 +764,10 @@ fn link_bins_propagates_probe_shim_source_error_via_di() {
         fn write(_: &Path, _: &[u8]) -> io::Result<()> {
             unreachable!()
         }
+
+        fn atomic_replace(_: &Path, _: &[u8]) -> io::Result<()> {
+            unreachable!()
+        }
     }
     impl FsSetExecutable for FailingProbe {
         fn set_executable(_: &Path) -> io::Result<()> {
@@ -837,6 +835,10 @@ fn link_bins_propagates_read_manifest_error_via_di() {
     }
     impl FsWrite for DenyManifestRead {
         fn write(_: &Path, _: &[u8]) -> io::Result<()> {
+            unreachable!()
+        }
+
+        fn atomic_replace(_: &Path, _: &[u8]) -> io::Result<()> {
             unreachable!()
         }
     }
@@ -948,6 +950,10 @@ fn link_bins_propagates_modules_dir_read_error_via_di() {
     }
     impl FsWrite for FailingModulesRead {
         fn write(_: &Path, _: &[u8]) -> io::Result<()> {
+            unreachable!()
+        }
+
+        fn atomic_replace(_: &Path, _: &[u8]) -> io::Result<()> {
             unreachable!()
         }
     }
