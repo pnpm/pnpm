@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
+import { encodeRegistry } from '@pnpm/config.normalize-registries'
 import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
@@ -8,7 +9,6 @@ import gfs from '@pnpm/fs.graceful-fs'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type { TrustPolicy } from '@pnpm/types'
-import getRegistryName from 'encode-registry'
 import pLimit, { type LimitFunction } from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwrite } from 'rename-overwrite'
@@ -802,7 +802,7 @@ function canonicalizeRegistry (registry: string): string {
  * metadata. `metaDir` selects between abbreviated and full caches.
  */
 export function getPkgMirrorPath (cacheDir: string, metaDir: string, registry: string, pkgName: string): string {
-  return path.join(cacheDir, metaDir, getRegistryName(registry), `${encodePkgName(pkgName)}.jsonl`)
+  return path.join(cacheDir, metaDir, encodeRegistry(registry), `${encodePkgName(pkgName)}.jsonl`)
 }
 
 /**

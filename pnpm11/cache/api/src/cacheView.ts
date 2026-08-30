@@ -1,10 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { encodeRegistry } from '@pnpm/config.normalize-registries'
 import type { PackageMeta } from '@pnpm/resolving.npm-resolver'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
-import getRegistryName from 'encode-registry'
-import { glob } from 'tinyglobby'
+import { escapePath, glob } from 'tinyglobby'
 
 interface CachedVersions {
   cachedVersions: string[]
@@ -14,7 +14,7 @@ interface CachedVersions {
 }
 
 export async function cacheView (opts: { cacheDir: string, storeDir: string, registry?: string }, packageName: string): Promise<string> {
-  const prefix = opts.registry ? `${getRegistryName(opts.registry)}` : '*'
+  const prefix = opts.registry ? escapePath(encodeRegistry(opts.registry)) : '*'
   const metaFilePaths = (await glob(`${prefix}/${packageName}.jsonl`, {
     cwd: opts.cacheDir,
     expandDirectories: false,
