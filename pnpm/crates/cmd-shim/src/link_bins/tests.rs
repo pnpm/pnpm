@@ -598,7 +598,7 @@ fn link_bins_swallows_missing_shim_chmod_via_di() {
         super::ShimStyle::Direct,
         false,
     )
-        .expect("NotFound on the shared shim chmod must be tolerated");
+    .expect("NotFound on the shared shim chmod must be tolerated");
 }
 
 #[test]
