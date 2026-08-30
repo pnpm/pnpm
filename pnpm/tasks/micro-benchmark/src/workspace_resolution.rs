@@ -284,6 +284,7 @@ fn workspace_options() -> WorkspaceResolveOptions {
         exclude_links_from_lockfile: false,
         lockfile_dir: PathBuf::from("/workspace"),
         peers_suffix_max_length: 1000,
+        share_workspace_resolutions: true,
         manifest_hook: None,
         overrides_hook: None,
         pick_lowest_direct: false,

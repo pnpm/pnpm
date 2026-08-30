@@ -44,10 +44,11 @@ use super::{
         project_relative_cache_scope,
     },
     workspace_ctx::{
-        ChildSpec, ChildrenOwnerClaim, RecordedChildrenContext, WantedKey, claim_children_owner,
-        claim_children_warmup, insert_tree_node, is_current_children_owner, lazy_children,
-        make_non_owner_nodes_lazy, record_children, recorded_children_match,
-        register_peer_dep_names, remember_node_parent_ids,
+        ChildSpec, ChildrenOwnerClaim, RecordedChildrenContext, SharedWorkspaceWantedKey,
+        WantedKey, WorkspaceFinalWantedKey, claim_children_owner, claim_children_warmup,
+        insert_tree_node, is_current_children_owner, lazy_children, make_non_owner_nodes_lazy,
+        record_children, recorded_children_match, register_peer_dep_names,
+        remember_node_parent_ids,
     },
 };
 
@@ -1117,11 +1118,110 @@ fn overlay_lookup_names<'edge>(
     [alias.map(Cow::Borrowed), real_name]
 }
 
-/// Look the wanted edge up in the per-wanted dedup cache or run the
-/// resolver chain and the manifest-hook pipeline, caching the
-/// `Arc<ResolveResult>` under `cache_key`. Concurrent first-callers
-/// can both miss and resolve in parallel — the resolver's own
-/// per-cache-key fetch locker coalesces the network work, and the
+/// Convert a workspace directory resolution into the representation shared by
+/// every importer. A `link:` target is stored relative to the lockfile root;
+/// an injected `file:` target already has that representation.
+fn canonical_workspace_resolution(
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+    project_dir: &Path,
+    lockfile_dir: &Path,
+) -> Option<pnpm_resolving_resolver_base::ResolveResult> {
+    if result.resolved_via != "workspace" {
+        return None;
+    }
+    let pnpm_lockfile::LockfileResolution::Directory(directory_resolution) = &result.resolution
+    else {
+        return None;
+    };
+    if result.id.as_str().strip_prefix("file:") == Some(&directory_resolution.directory) {
+        return Some(result.clone());
+    }
+    if result.id.as_str().strip_prefix("link:") != Some(&directory_resolution.directory) {
+        return None;
+    }
+
+    let target = Path::new(&directory_resolution.directory);
+    let absolute_target = if target.is_absolute() {
+        pnpm_fs::lexical_normalize(target)
+    } else {
+        pnpm_fs::lexical_normalize(&project_dir.join(target))
+    };
+    let canonical_target = pathdiff::diff_paths(&absolute_target, lockfile_dir)
+        .unwrap_or(absolute_target)
+        .display()
+        .to_string()
+        .replace('\\', "/");
+    let mut canonical = result.clone();
+    canonical.id =
+        pnpm_resolving_resolver_base::PkgResolutionId::from(format!("link:{canonical_target}"));
+    let pnpm_lockfile::LockfileResolution::Directory(canonical_directory) =
+        &mut canonical.resolution
+    else {
+        unreachable!("the cloned workspace resolution remains a directory")
+    };
+    canonical_directory.directory = canonical_target;
+    Some(canonical)
+}
+
+/// Render a canonical workspace resolution for one consuming importer before
+/// its manifest hooks run.
+fn render_workspace_resolution(
+    canonical: &pnpm_resolving_resolver_base::ResolveResult,
+    project_dir: &Path,
+    lockfile_dir: &Path,
+) -> pnpm_resolving_resolver_base::ResolveResult {
+    let mut rendered = canonical.clone();
+    let pnpm_lockfile::LockfileResolution::Directory(directory_resolution) =
+        &mut rendered.resolution
+    else {
+        unreachable!("the shared workspace cache contains only directory resolutions")
+    };
+    if canonical.id.as_str().starts_with("file:") {
+        return rendered;
+    }
+
+    let target = Path::new(&directory_resolution.directory);
+    let absolute_target = if target.is_absolute() {
+        pnpm_fs::lexical_normalize(target)
+    } else {
+        pnpm_fs::lexical_normalize(&lockfile_dir.join(target))
+    };
+    let project_dir = pnpm_fs::lexical_normalize(project_dir);
+    let consumer_target = pathdiff::diff_paths(&absolute_target, project_dir)
+        .unwrap_or(absolute_target)
+        .display()
+        .to_string()
+        .replace('\\', "/");
+    rendered.id =
+        pnpm_resolving_resolver_base::PkgResolutionId::from(format!("link:{consumer_target}"));
+    directory_resolution.directory = consumer_target;
+    rendered
+}
+
+/// Remove the consumer directory from a named `workspace:` request while
+/// retaining every other input the explicit workspace resolver reads.
+fn shared_workspace_key(
+    cache_key: &WantedKey,
+    wanted: &WantedDependency,
+    opts: &ResolveOptions,
+) -> Option<SharedWorkspaceWantedKey> {
+    let bare_specifier = wanted.bare_specifier.as_deref()?;
+    if !bare_specifier.starts_with("workspace:") || bare_specifier.starts_with("workspace:.") {
+        return None;
+    }
+    cache_key.6.as_ref()?;
+    let mut wanted_key = cache_key.clone();
+    wanted_key.6 = None;
+    Some(SharedWorkspaceWantedKey::new(wanted_key, wanted.prev_specifier.clone(), opts))
+}
+
+/// Look the wanted edge up in the final dedup cache or run the resolver chain
+/// and manifest-hook pipeline. Conservatively eligible named workspace
+/// selectors use two additional layers: a consumer-independent canonical
+/// resolver result and a hook-processed result keyed by its rendered link
+/// variant. Everything else remains under the project-scoped `cache_key`.
+/// Concurrent first-callers can both miss and resolve in parallel — the
+/// resolver's own per-cache-key fetch locker coalesces network work, and the
 /// second `or_insert` loses the race harmlessly.
 async fn resolve_wanted_cached<Chain>(
     ctx: &TreeCtx,
@@ -1162,15 +1262,52 @@ where
     } else {
         opts
     };
-    let mut result = resolver.resolve(wanted, opts).await.map_err(map_resolve_error)?;
-    let Some(result_inner) = result.as_mut() else {
-        return Err(ResolveDependencyTreeError::SpecNotSupported {
-            specifier: render_specifier(wanted),
-        });
+    let shared_workspace_key = ctx
+        .workspace
+        .share_workspace_resolutions
+        .then(|| shared_workspace_key(&cache_key, wanted, opts))
+        .flatten();
+    let cached_workspace = shared_workspace_key.as_ref().and_then(|key| {
+        lock_recoverable(&ctx.workspace.resolved_workspace_by_wanted).get(key).map(Arc::clone)
+    });
+    let mut canonical_workspace = cached_workspace.clone();
+    let mut result = if let Some(canonical) = cached_workspace {
+        render_workspace_resolution(&canonical, &opts.project_dir, &opts.lockfile_dir)
+    } else {
+        let result = resolver.resolve(wanted, opts).await.map_err(map_resolve_error)?;
+        let Some(result) = result else {
+            return Err(ResolveDependencyTreeError::SpecNotSupported {
+                specifier: render_specifier(wanted),
+            });
+        };
+        if let Some(shared_workspace_key) = shared_workspace_key.as_ref()
+            && let Some(canonical) =
+                canonical_workspace_resolution(&result, &opts.project_dir, &opts.lockfile_dir)
+        {
+            let canonical = Arc::new(canonical);
+            canonical_workspace = Some(Arc::clone(
+                lock_recoverable(&ctx.workspace.resolved_workspace_by_wanted)
+                    .entry(shared_workspace_key.clone())
+                    .or_insert(canonical),
+            ));
+        }
+        result
     };
-    if result_inner.manifest.is_none() {
-        result_inner.manifest =
-            Some(Arc::new(fallback_manifest(wanted, opts.current_pkg.as_ref())));
+    let workspace_final_key = match (shared_workspace_key, canonical_workspace.as_deref()) {
+        (Some(shared_wanted), Some(canonical)) => {
+            Some(WorkspaceFinalWantedKey::new(shared_wanted, &canonical.id, &result.id))
+        }
+        _ => None,
+    };
+    if let Some(key) = workspace_final_key.as_ref()
+        && let Some(cached) = lock_recoverable(&ctx.workspace.resolved_workspace_final_by_wanted)
+            .get(key)
+            .map(Arc::clone)
+    {
+        return Ok(cached);
+    }
+    if result.manifest.is_none() {
+        result.manifest = Some(Arc::new(fallback_manifest(wanted, opts.current_pkg.as_ref())));
     }
     // Apply the configured `readPackageHook` (today:
     // `packageExtensions`) to the manifest fragment before
@@ -1178,19 +1315,19 @@ where
     // only when it modifies it, so unrelated manifests keep sharing the
     // resolver's cached `Arc`.
     if let Some(hook) = ctx.workspace.manifest_hook.as_ref()
-        && let Some(manifest) = result_inner.manifest.take()
+        && let Some(manifest) = result.manifest.take()
     {
-        result_inner.manifest = Some(hook(manifest));
+        result.manifest = Some(hook(manifest));
     }
 
     if let Some(pnpmfile_hook) = ctx.workspace.pnpmfile_hook.as_ref()
-        && let Some(manifest) = result_inner.manifest.take()
+        && let Some(manifest) = result.manifest.take()
     {
         let log = ctx.workspace.read_package_log.clone().unwrap_or_else(|| Arc::new(|_| {}));
-        // Directory resolutions carry their lockfile-root-relative dir so the
-        // hook can tell a workspace project's dependency instance apart from a
-        // registry manifest — see `HookContext::dir`.
-        let dir = match &result_inner.resolution {
+        // Directory resolutions carry the path rendered for this consumer so
+        // the hook can tell a workspace project's dependency instance apart
+        // from a registry manifest — see `HookContext::dir`.
+        let dir = match &result.resolution {
             pnpm_lockfile::LockfileResolution::Directory(directory_resolution) => {
                 Some(directory_resolution.directory.clone())
             }
@@ -1202,26 +1339,31 @@ where
             .read_package((*manifest).clone(), hook_ctx)
             .await
             .map_err(ResolveDependencyTreeError::PnpmfileHook)?;
-        result_inner.manifest = Some(updated);
+        result.manifest = Some(updated);
     }
 
     // Overrides run last so a pnpmfile hook that replaced the manifest
     // cannot erase them — see `WorkspaceTreeCtx::overrides_hook`.
     if let Some(hook) = ctx.workspace.overrides_hook.as_ref()
-        && let Some(manifest) = result_inner.manifest.take()
+        && let Some(manifest) = result.manifest.take()
     {
-        result_inner.manifest = Some(hook(manifest));
+        result.manifest = Some(hook(manifest));
     }
 
-    let result = result.expect("Some-guarded above");
     // Wrap in `Arc` once so the cache, the per-id
     // `ResolvedPackage` envelope, and the later peer-resolved
     // graph node share one heap-allocated `ResolveResult`
     // instead of cloning every `String` field per occurrence.
     let result = Arc::new(result);
-    lock_recoverable(&ctx.workspace.resolved_by_wanted)
-        .entry(cache_key)
-        .or_insert_with(|| Arc::clone(&result));
+    if let Some(key) = workspace_final_key {
+        lock_recoverable(&ctx.workspace.resolved_workspace_final_by_wanted)
+            .entry(key)
+            .or_insert_with(|| Arc::clone(&result));
+    } else {
+        lock_recoverable(&ctx.workspace.resolved_by_wanted)
+            .entry(cache_key)
+            .or_insert_with(|| Arc::clone(&result));
+    }
     Ok(result)
 }
 
