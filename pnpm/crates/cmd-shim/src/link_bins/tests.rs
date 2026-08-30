@@ -485,6 +485,7 @@ fn link_bins_propagates_write_shim_error_via_di() {
     assert!(matches!(err, LinkBinsError::WriteShim { .. }));
 }
 
+#[cfg(not(unix))]
 #[test]
 fn link_bins_propagates_chmod_error_via_di() {
     use std::io;
