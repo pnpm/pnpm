@@ -288,8 +288,8 @@ fn concurrent_installs_sharing_a_gvs_do_not_fail_while_linking_bins() {
     );
     pacquet(&workspace).with_arg("install").assert().success();
 
-    let fixture_files = ["package.json", "pnpm-workspace.yaml", ".npmrc", "pnpm-lock.yaml"]
-        .map(|name| {
+    let fixture_files =
+        ["package.json", "pnpm-workspace.yaml", ".npmrc", "pnpm-lock.yaml"].map(|name| {
             let bytes = fs::read(workspace.join(name)).expect("read concurrent-install fixture");
             (name, bytes)
         });
