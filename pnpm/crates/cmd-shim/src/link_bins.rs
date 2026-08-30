@@ -735,6 +735,11 @@ where
         }
     }
 
+    // Unix shims are already mode 0o755 before their atomic publish. Avoid a
+    // path-based chmod after publication: in a writable shared bin directory,
+    // another process could replace the final dirent with a symlink and turn
+    // that chmod into a permission-changing TOCTOU on an unrelated target.
+    #[cfg(not(unix))]
     Sys::set_executable(shim_path)
         .map_err(|error| LinkBinsError::Chmod { path: shim_path.to_path_buf(), error })?;
     ensure_target_executable::<Sys>(target_path)?;
