@@ -283,7 +283,7 @@ fn concurrent_installs_can_share_global_virtual_store_bins() {
     set_gvs_workspace_yaml(&workspace, "");
     write_manifest(
         &workspace,
-        &serde_json::json!({ ".e2e/hello-world-js-bin-parent": "1.0.0" }),
+        &serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
     );
 
     // Prime the content-addressed store and lockfile once. Each repetition
@@ -331,11 +331,11 @@ fn concurrent_installs_can_share_global_virtual_store_bins() {
 
         let parent_slot = sole_hash_dir(&pkg_version_dir(
             &store_dir,
-            ".e2e/hello-world-js-bin-parent",
+            "@pnpm.e2e/hello-world-js-bin-parent",
             "1.0.0",
         ));
         assert!(
-            pkg_in_slot(&parent_slot, ".e2e/hello-world-js-bin-parent")
+            pkg_in_slot(&parent_slot, "@pnpm.e2e/hello-world-js-bin-parent")
                 .join("node_modules/.bin/hello-world-js-bin")
                 .exists(),
             "the shared GVS dependency shim must exist after repetition {repetition}",
