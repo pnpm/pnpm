@@ -709,14 +709,20 @@ where
     let already_correct = sh_marker_ok && windows_ok;
 
     if !already_correct {
-        // Unlink any pre-existing entry before writing. `Sys::write` opens
-        // through a symlink, so without this a symlink planted at the bin
-        // path (e.g. in a shared/writable global bin dir) would redirect the
-        // write and clobber an arbitrary target. Removing first guarantees we
-        // create a fresh regular file.
-        remove_stale_bin(shim_path)?;
-        Sys::write(shim_path, sh_body.as_bytes())
+        // POSIX rename atomically replaces the destination dirent. Building the
+        // shim in a secure sibling tempfile therefore avoids both the symlink-
+        // clobber hazard of truncate-in-place and the shared-GVS unlink/write
+        // window that allowed another installer to make this path disappear.
+        #[cfg(unix)]
+        Sys::atomic_replace(shim_path, sh_body.as_bytes())
             .map_err(|error| LinkBinsError::WriteShim { path: shim_path.to_path_buf(), error })?;
+        #[cfg(not(unix))]
+        {
+            remove_stale_bin(shim_path)?;
+            Sys::write(shim_path, sh_body.as_bytes()).map_err(|error| {
+                LinkBinsError::WriteShim { path: shim_path.to_path_buf(), error }
+            })?;
+        }
         if let Some((cmd_path, cmd_body, powershell_shim)) = &windows_shims {
             remove_stale_bin(cmd_path)?;
             Sys::write(cmd_path, cmd_body.as_bytes())
@@ -729,35 +735,11 @@ where
         }
     }
 
-    set_shim_executable::<Sys>(shim_path)?;
+    Sys::set_executable(shim_path)
+        .map_err(|error| LinkBinsError::Chmod { path: shim_path.to_path_buf(), error })?;
     ensure_target_executable::<Sys>(target_path)?;
 
     Ok(())
-}
-
-/// Set the shim executable bit, tolerating only a transient disappearance.
-///
-/// Independent installs sharing a GVS can race when one writer unlinks the
-/// shim between another writer's write and chmod. Give that competing writer
-/// a short bounded window to finish, but never report success while the shim
-/// remains absent. Non-`NotFound` chmod failures stay fatal.
-fn set_shim_executable<Sys>(shim_path: &Path) -> Result<(), LinkBinsError>
-where
-    Sys: FsSetExecutable,
-{
-    for delay_ms in [1, 2, 4, 8, 16] {
-        match Sys::set_executable(shim_path) {
-            Ok(()) => return Ok(()),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                std::thread::sleep(std::time::Duration::from_millis(delay_ms));
-            }
-            Err(error) => {
-                return Err(LinkBinsError::Chmod { path: shim_path.to_path_buf(), error });
-            }
-        }
-    }
-    Sys::set_executable(shim_path)
-        .map_err(|error| LinkBinsError::Chmod { path: shim_path.to_path_buf(), error })
 }
 
 /// Make the underlying script executable: apply a minimum mode of
