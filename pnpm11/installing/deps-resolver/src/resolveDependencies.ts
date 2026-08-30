@@ -29,6 +29,7 @@ import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
 import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
 import {
+  type BlockedVersions,
   DIRECT_DEP_SELECTOR_WEIGHT,
   type DirectoryResolution,
   type PkgResolutionId,
@@ -200,6 +201,13 @@ export interface ResolutionContext extends RegistryContext {
   hoistPeers?: boolean
   maximumPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
+  /**
+   * Versions this resolution pass must not pick. Grows between passes as
+   * the install backs out of dependency trees that no `minimumReleaseAge`
+   * cutoff can satisfy; empty on the first pass and on every install with
+   * no maturity policy.
+   */
+  blockedVersions?: BlockedVersions
   /**
    * Shared accumulator the resolver pushes into when an inline policy
    * check (today: minimumReleaseAge in `npm-resolver`) flags a pick.
@@ -1958,6 +1966,7 @@ async function resolveDependency (
         ignoreScripts: ctx.ignoreScripts,
         publishedBy: options.publishedBy,
         publishedByExclude: ctx.publishedByExclude,
+        blockedVersions: ctx.blockedVersions,
         pickLowestVersion: options.pickLowestVersion,
         downloadPriority: -options.currentDepth,
         lockfileDir: ctx.lockfileDir,
@@ -2031,7 +2040,16 @@ async function resolveDependency (
     // can hand the full set to the install command between
     // resolveDependencyTree and resolvePeers.
     if (pkgResponse.body.policyViolation) {
-      ctx.resolutionPolicyViolations.push(pkgResponse.body.policyViolation)
+      // The dependents that reached this pick. `options.parentIds` starts at
+      // the importer — a project id, not a package one, and nothing a version
+      // pick applies to — so it is dropped here and the stored chain is
+      // package ids only. Anything reading it back must not slice again.
+      // The install command names the dependent with it, and the retry uses
+      // its last entry to decide whose choice to revisit.
+      ctx.resolutionPolicyViolations.push({
+        ...pkgResponse.body.policyViolation,
+        parentIds: options.parentIds.slice(1),
+      })
     }
 
     // Check if exotic dependencies are disallowed in subdependencies

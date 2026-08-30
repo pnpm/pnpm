@@ -59,7 +59,7 @@ pub use named_registry::{
     named_registry_tarball_prefixes, pick_registry_for_version,
 };
 pub use named_registry_resolver::NamedRegistryResolver;
-pub use npm_resolver::NpmResolver;
+pub use npm_resolver::{NpmResolver, blocked_packument_key};
 pub use parse_bare_specifier::{
     JsrRegistryPackageSpec, NamedRegistryPackageSpec, ParseNamedRegistrySpecifierError,
     parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec,

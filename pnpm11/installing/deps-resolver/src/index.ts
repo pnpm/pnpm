@@ -43,14 +43,14 @@ import { getCatalogSnapshots } from './getCatalogSnapshots.js'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
 import type { NodeId } from './nextNodeId.js'
 import { createNodeIdForLinkedLocalPkg, type DependenciesTree, type UpdateMatchingFunction } from './resolveDependencies.js'
-import {
-  type Importer,
-  type LinkedDependency,
-  type ResolvedDirectDependency,
-  type ResolveDependenciesOptions,
-  resolveDependencyTree,
-  type ResolvedPackage,
+import type {
+  Importer,
+  LinkedDependency,
+  ResolvedDirectDependency,
+  ResolveDependenciesOptions,
+  ResolvedPackage,
 } from './resolveDependencyTree.js'
+import { resolveMatureDependencyTree } from './resolveMatureDependencyTree.js'
 import {
   type DependenciesByProjectId,
   type GenericDependenciesGraphNodeWithResolvedChildren,
@@ -175,7 +175,10 @@ export async function resolveDependencies (
     workspacePackages: opts.workspacePackages,
     noDependencySelectors: importers.every(({ wantedDependencies }) => wantedDependencies.length === 0),
   })
-  const projectsToResolve = await Promise.all(importers.map(async (project) => _toResolveImporter(project)))
+  const { importers: projectsToResolve, tree } = await resolveMatureDependencyTree(
+    async () => Promise.all(importers.map(async (project) => _toResolveImporter(project))),
+    opts
+  )
   const {
     dependenciesTree,
     outdatedDependencies,
@@ -185,7 +188,7 @@ export async function resolveDependencies (
     time,
     allPeerDepNames,
     resolutionPolicyViolations,
-  } = await resolveDependencyTree(projectsToResolve, opts)
+  } = tree
 
   // Resolver-policy gate between main resolution and peer-dep
   // resolution: every resolver records its own policy violations

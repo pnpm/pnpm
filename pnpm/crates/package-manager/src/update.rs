@@ -10,6 +10,7 @@ use crate::{
     manifest_spec_bumps::ManifestSpecBumps,
     package_manifest_prefix,
     resolution_policy::{PickPolicy, create_configured_npm_resolver},
+    resolve_latest::MaturePinsGuard,
     selected_project_indices,
 };
 use chrono::{DateTime, Utc};
@@ -45,8 +46,8 @@ use pnpm_resolving_npm_resolver::{
     infer_range_spec_style,
 };
 use pnpm_resolving_resolver_base::{
-    PreferredVersions, ResolveOptions, Resolver, UpdateBehavior, VersionSelectorType,
-    WantedDependency, WorkspacePackages, WorkspacePackagesByVersion,
+    PackageVersionGuard, PreferredVersions, ResolveOptions, Resolver, UpdateBehavior,
+    VersionSelectorType, WantedDependency, WorkspacePackages, WorkspacePackagesByVersion,
 };
 use pnpm_tarball::MemCache;
 use pnpm_workspace_range_resolver::resolve_workspace_range;
@@ -1773,9 +1774,9 @@ fn read_catalog_ctx_with_catalogs(
 
 /// The `--latest` inputs that are the same for every direct dependency of a
 /// project, gathered so [`latest_specifier`] takes them as one argument.
-struct LatestRewriteCtx<'a, 'borrow> {
+struct LatestRewriteCtx<'borrow> {
     manifest: &'borrow PackageManifest,
-    config: &'a Config,
+    config: &'borrow Config,
     http_client_arc: &'borrow Arc<ThrottledClient>,
     resolution_observer: Option<&'borrow Arc<dyn crate::ResolutionObserver>>,
     range_spec_style: RangeSpecStyle,
@@ -1793,7 +1794,7 @@ struct LatestRewriteCtx<'a, 'borrow> {
 /// already declares, and the local resolvers echo their spec unchanged.
 /// Nothing here needs to know which protocols those are.
 async fn latest_specifier(
-    ctx: &LatestRewriteCtx<'_, '_>,
+    ctx: &LatestRewriteCtx<'_>,
     chain: &mut Option<LatestResolverChain>,
     catalog_ctx: &mut Option<CatalogCtx>,
     name: &str,
@@ -1831,6 +1832,7 @@ async fn latest_specifier(
         range_spec_style: Some(ctx.range_spec_style),
         published_by: chain.published_by,
         published_by_exclude: chain.published_by_exclude.clone(),
+        package_version_guard: chain.mature_pins_guard.clone(),
         dry_run: ctx.lockfile_only,
         ..ResolveOptions::default()
     };
@@ -1854,7 +1856,7 @@ async fn latest_specifier(
 /// of the declared range and the `latest` tag is higher — the tag is the
 /// whole specifier resolved here.
 async fn tag_version(
-    ctx: &LatestRewriteCtx<'_, '_>,
+    ctx: &LatestRewriteCtx<'_>,
     chain: &mut Option<LatestResolverChain>,
     name: &str,
     tag: &str,
@@ -1873,6 +1875,7 @@ async fn tag_version(
         default_tag: Some(tag.to_string()),
         published_by: chain.published_by,
         published_by_exclude: chain.published_by_exclude.clone(),
+        package_version_guard: chain.mature_pins_guard.clone(),
         dry_run: ctx.lockfile_only,
         ..ResolveOptions::default()
     };
@@ -1892,11 +1895,16 @@ struct LatestResolverChain {
     resolver: DefaultResolver,
     published_by: Option<DateTime<Utc>>,
     published_by_exclude: Option<PackageVersionPolicy>,
+    /// Rejects a candidate whose exact pins are too young to install, so the
+    /// picker offers the next version down instead of writing a range the
+    /// follow-up install cannot satisfy. `None` when no cutoff is configured
+    /// and nothing can be too young.
+    mature_pins_guard: Option<Arc<dyn PackageVersionGuard>>,
 }
 
 fn ensure_latest_resolver_chain<'chain>(
     chain: &'chain mut Option<LatestResolverChain>,
-    ctx: &LatestRewriteCtx<'_, '_>,
+    ctx: &LatestRewriteCtx<'_>,
 ) -> Result<&'chain LatestResolverChain, UpdateError> {
     if chain.is_none() {
         let extra_excludes = ctx
@@ -1920,10 +1928,20 @@ fn ensure_latest_resolver_chain<'chain>(
             Box::new(BunResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))),
             Box::new(YarnResolver::new(Arc::clone(ctx.http_client_arc))),
         ]);
+        let mature_pins_guard: Option<Arc<dyn PackageVersionGuard>> =
+            policy.published_by.is_some().then(|| {
+                Arc::new(MaturePinsGuard::new(
+                    ctx.config,
+                    Arc::clone(ctx.http_client_arc),
+                    policy.clone(),
+                    ctx.lockfile_only,
+                )) as Arc<dyn PackageVersionGuard>
+            });
         *chain = Some(LatestResolverChain {
             resolver,
             published_by: policy.published_by,
             published_by_exclude: policy.published_by_exclude,
+            mature_pins_guard,
         });
     }
     Ok(chain.as_ref().expect("chain initialized above"))

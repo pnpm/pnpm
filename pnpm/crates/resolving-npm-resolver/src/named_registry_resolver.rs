@@ -163,6 +163,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             registry_name: Some(registry_name.as_str()),
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
+            blocked_versions: opts.blocked_versions.as_deref(),
             picked_manifest_cache: &self.picked_manifest_cache,
             // The entry stays a named-registry dependency, so it
             // round-trips under the `<alias>:` protocol prefix.
@@ -267,6 +268,10 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
                 update_checksums: opts.update_checksums || opts.update == UpdateBehavior::Patches,
                 trust_policy: opts.trust_policy,
                 package_version_guard: opts.package_version_guard.as_ref(),
+                policy_blocked_versions: opts
+                    .blocked_versions
+                    .as_deref()
+                    .and_then(|blocked| blocked.get(spec.name.as_str())),
             },
         )
         .await?;

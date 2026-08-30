@@ -5,6 +5,7 @@ import type {
   GitFetcher,
 } from '@pnpm/fetching.fetcher-base'
 import type {
+  BlockedVersions,
   DirectoryResolution,
   PkgResolutionId,
   PreferredVersions,
@@ -160,6 +161,7 @@ export interface RequestPackageOptions {
   pickLowestVersion?: boolean
   publishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
+  blockedVersions?: BlockedVersions
   downloadPriority: number
   ignoreScripts?: boolean
   projectDir: string

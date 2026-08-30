@@ -446,3 +446,129 @@ describe('lockfile minimumReleaseAge verification', () => {
     )
   })
 })
+
+// rolldown@1.2.5 and the fifteen platform bindings it pins to that exact
+// version were not published atomically: the parent landed at 13:33:54Z on
+// 2026-08-19, thirteen bindings within the next two minutes, and the last two
+// (`@rolldown/binding-linux-arm64-gnu`, `@rolldown/binding-darwin-x64`) about
+// 87 minutes after that. A cutoff inside the gap leaves rolldown@1.2.5 itself
+// mature while two versions it pins exactly are not, so `~1.2.1` has no
+// installable tree at 1.2.5. rolldown@1.2.4 and every binding it pins were
+// published a week earlier, so that subtree is mature all the way down: an
+// installable answer exists, and pnpm has to back off to it.
+const ROLLDOWN_STAGGERED_RELEASE_CUTOFF = new Date('2026-08-19T14:15:03Z')
+
+// `minimumReleaseAge` is a duration, so a fixed registry instant has to be
+// expressed as "minutes ago" at run time. Flooring shifts the effective cutoff
+// a little later, which stays well inside the 84-minute gap.
+function minutesSince (instant: Date): number {
+  return Math.floor((Date.now() - instant.getTime()) / 60_000)
+}
+
+interface LockfilePackages {
+  packages: Record<string, unknown>
+}
+
+describe('minimumReleaseAge resolution fallback', () => {
+  test('backs off to a direct version whose exact-pinned transitive deps are mature', () => {
+    prepare({
+      dependencies: { rolldown: '~1.2.1' },
+    })
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: minutesSince(ROLLDOWN_STAGGERED_RELEASE_CUTOFF),
+      minimumReleaseAgeStrict: true,
+    })
+
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--lockfile-only'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
+    const depPaths = Object.keys(readYamlFileSync<LockfilePackages>('pnpm-lock.yaml').packages)
+    expect(depPaths).toContain('rolldown@1.2.4')
+    expect(depPaths).not.toContain('rolldown@1.2.5')
+    expect(depPaths).not.toContain('@rolldown/binding-linux-arm64-gnu@1.2.5')
+    expect(depPaths).not.toContain('@rolldown/binding-darwin-x64@1.2.5')
+  })
+
+  test('backs off to a transitive version whose exact-pinned deps are mature', () => {
+    // The same conflict one level deeper, as reported on
+    // https://github.com/pnpm/pnpm/issues/11068: vite@8.2.1 is the newest
+    // mature vite at this cutoff and depends on `rolldown: ~1.2.1`, so the
+    // version that has to move is two edges below the importer.
+    prepare({
+      dependencies: { vite: '^8.2.0' },
+    })
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: minutesSince(ROLLDOWN_STAGGERED_RELEASE_CUTOFF),
+      minimumReleaseAgeStrict: true,
+    })
+
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--lockfile-only'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
+    const depPaths = Object.keys(readYamlFileSync<LockfilePackages>('pnpm-lock.yaml').packages)
+    expect(depPaths).toContain('vite@8.2.1')
+    expect(depPaths).toContain('rolldown@1.2.4')
+    expect(depPaths).not.toContain('rolldown@1.2.5')
+  })
+
+  test('update --latest walks past every version of an excluded package whose dependencies are too young', () => {
+    // The issue's own reproduction shape: the package being updated is on
+    // minimumReleaseAgeExclude, so the cutoff never holds its own version
+    // back — but nothing exempts what it depends on. rolldown 1.2.6 and 1.2.5
+    // each pin bindings younger than the cutoff, so the update has to walk
+    // down two releases to land on one that installs.
+    prepare({
+      dependencies: { rolldown: '1.2.3' },
+    })
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: minutesSince(ROLLDOWN_STAGGERED_RELEASE_CUTOFF),
+      minimumReleaseAgeStrict: true,
+      minimumReleaseAgeExclude: ['rolldown'],
+    })
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--lockfile-only'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'update', 'rolldown', '--latest', '--lockfile-only'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
+    const depPaths = Object.keys(readYamlFileSync<LockfilePackages>('pnpm-lock.yaml').packages)
+    expect(depPaths).toContain('rolldown@1.2.4')
+    expect(depPaths).not.toContain('rolldown@1.2.5')
+    expect(depPaths).not.toContain('rolldown@1.2.6')
+    // The update landed in the manifest too, rather than silently doing nothing.
+    const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8')) as { dependencies: Record<string, string> }
+    expect(manifest.dependencies.rolldown).toBe('1.2.4')
+  })
+
+  test('reports the dependent when no earlier version of it can be reached', () => {
+    // The manifest pins the offending parent itself, so there is no other
+    // version of it to back off to. The install has to fail on the versions
+    // the manifest actually resolves to, naming what required them.
+    prepare({
+      dependencies: { rolldown: '1.2.5' },
+    })
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: minutesSince(ROLLDOWN_STAGGERED_RELEASE_CUTOFF),
+      minimumReleaseAgeStrict: true,
+    })
+
+    const result = execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--lockfile-only'],
+      omitMinReleaseAgeEnv
+    )
+
+    expect(result.status).toBe(1)
+    const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
+    expect(output).toContain('ERR_PNPM_NO_MATURE_MATCHING_VERSION')
+    expect(output).toContain('@rolldown/binding-darwin-x64@1.2.5')
+    expect(output).toContain('(required by rolldown@1.2.5)')
+  })
+})

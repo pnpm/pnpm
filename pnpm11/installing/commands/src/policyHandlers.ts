@@ -24,6 +24,13 @@ export interface PolicyViolation {
   version: string
   code: string
   reason: string
+  /**
+   * The chain of dependents that reached this pick, the importer's own
+   * direct dependency first and the immediate parent last. Empty when the
+   * importer asked for the package itself. Absent for a violation raised
+   * outside a dependency walk.
+   */
+  parentIds?: string[]
 }
 
 /**
@@ -228,9 +235,19 @@ function pickImmatureEntries (
   return entries
 }
 
+/**
+ * The chain of dependents that pulled a pick into the tree. Empty when the
+ * importer asked for the package itself, which the message already makes
+ * clear by naming no dependent.
+ */
+function formatDependentChain (violation: PolicyViolation): string {
+  const dependents = violation.parentIds ?? []
+  return dependents.length === 0 ? '' : ` (required by ${dependents.join(' > ')})`
+}
+
 function failOnImmature (immature: readonly PolicyViolation[]): PnpmError {
   const sorted = [...immature].sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`))
-  const list = sorted.map((v) => `  ${v.name}@${v.version} ${v.reason}`).join('\n')
+  const list = sorted.map((v) => `  ${v.name}@${v.version} ${v.reason}${formatDependentChain(v)}`).join('\n')
   return new PnpmError(
     'NO_MATURE_MATCHING_VERSION',
     `${sorted.length} ${sorted.length === 1 ? 'version does' : 'versions do'} not meet the minimumReleaseAge constraint:\n${list}`,

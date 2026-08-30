@@ -9,7 +9,7 @@
 use async_recursion::async_recursion;
 use futures_util::future;
 use pipe_trait::Pipe;
-use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, TarballRevision};
+use pnpm_lockfile::{LockfileResolution, PkgNameVer, PkgNameVerPeer, TarballRevision};
 use pnpm_resolving_resolver_base::{
     CurrentPkg, GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay,
     RegistryResponseError, ResolveError, ResolveOptions, Resolver, UpdateBehavior,
@@ -405,7 +405,11 @@ where
             Err(err) => return Err(err),
         };
 
-    if let Some(violation) = result.policy_violation.clone() {
+    if let Some(mut violation) = result.policy_violation.clone() {
+        // The chain that reached this pick. The install names the dependent
+        // with it, and the resolution retry uses its last entry to decide
+        // whose choice to revisit.
+        violation.parents = parent_chain_from_ids(ctx, ancestor_ids);
         lock_recoverable(&ctx.workspace.policy_violations).push(violation);
     }
 
@@ -1412,6 +1416,30 @@ pub(super) fn level_versions(ctx: &TreeCtx, seeds: &[NodeSeed]) -> BTreeMap<Stri
 /// skipped-optional-dependency notification, resolving each
 /// `pkgIdWithPatchHash` through the shared packages map (the
 /// counterpart of pnpm's `getPkgsInfoFromIds`).
+/// Resolve an ancestor chain to `name@version` pairs.
+///
+/// An ancestor that resolved but carries no `name@version` — a link, or a
+/// dependency resolved through a protocol that mints no version — abandons
+/// the whole chain. Dropping just that entry would leave the ancestor above
+/// it looking like the immediate parent, and the retry would then block a
+/// version that is not the one standing between this pick and an installable
+/// tree. An empty chain reads as "nothing above this pick can be moved",
+/// which is the answer that holds when the package that could move has no
+/// version to block.
+///
+/// Ids absent from `packages` are skipped rather than fatal: they are not
+/// resolved packages at all.
+fn parent_chain_from_ids(ctx: &TreeCtx, ancestor_ids: &[String]) -> Vec<PkgNameVer> {
+    let packages = lock_recoverable(&ctx.workspace.packages);
+    let mut parents = Vec::new();
+    for id in ancestor_ids {
+        let Some(package) = packages.get(id.as_str()) else { continue };
+        let Some(name_ver) = package.result.name_ver.as_ref() else { return Vec::new() };
+        parents.push(name_ver.clone());
+    }
+    parents
+}
+
 fn pkgs_info_from_ids(
     ctx: &TreeCtx,
     ancestor_ids: &[String],

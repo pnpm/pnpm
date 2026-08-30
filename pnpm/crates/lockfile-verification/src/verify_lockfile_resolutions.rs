@@ -502,6 +502,7 @@ fn collect_candidates(lockfile: &Lockfile) -> (Vec<Candidate>, Vec<ResolutionPol
                 code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
                 reason: "a registry-style dependency path is backed by a non-registry resolution"
                     .to_string(),
+                parents: Vec::new(),
             });
         }
         // Every `LockfileResolution` variant derives `Serialize`, and
@@ -612,6 +613,7 @@ async fn evaluate_candidate(
                     resolution: candidate.resolution,
                     code,
                     reason,
+                    parents: Vec::new(),
                 }));
             }
             ResolutionVerification::FetchFailed { message } => return Err(message),
