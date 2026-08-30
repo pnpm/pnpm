@@ -211,26 +211,16 @@ impl FsWrite for Host {
     fn atomic_replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
         #[cfg(unix)]
         {
-            use std::{
-                ffi::OsString,
-                io::Write as _,
-                sync::atomic::{AtomicU64, Ordering},
-            };
+            use std::{io::Write as _, sync::atomic::{AtomicU64, Ordering}};
 
             static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
             let parent = path.parent().ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidInput, "atomic replacement needs a parent")
             })?;
-            let file_name = path.file_name().ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidInput, "atomic replacement needs a file name")
-            })?;
-
             for _ in 0..64 {
                 let sequence = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
-                let mut temp_name = OsString::from(".");
-                temp_name.push(file_name);
-                temp_name.push(format!(".pnpm-tmp-{}-{sequence}", std::process::id()));
-                let temp_path = parent.join(temp_name);
+                let temp_path =
+                    parent.join(format!(".pnpm-tmp-{}-{sequence}", std::process::id()));
                 let mut temp = match std::fs::OpenOptions::new()
                     .write(true)
                     .create_new(true)
