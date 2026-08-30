@@ -68,6 +68,57 @@ fn applies_modify_against_existing_file() {
 }
 
 #[test]
+fn applies_insertions_with_and_without_context() {
+    for (name, original, hunk, expected) in [
+        (
+            "context on both sides",
+            "one\ntwo\n",
+            "@@ -1,2 +1,3 @@\n one\n+added\n two\n",
+            "one\nadded\ntwo\n",
+        ),
+        ("bof", "one\ntwo\n", "@@ -0,0 +1 @@\n+added\n", "added\none\ntwo\n"),
+        ("empty file", "", "@@ -0,0 +1 @@\n+added\n", "added\n"),
+        ("after line one", "one\ntwo\n", "@@ -1,0 +2 @@\n+added\n", "one\nadded\ntwo\n"),
+        (
+            "middle",
+            "one\ntwo\nthree\nfour\n",
+            "@@ -2,0 +3,2 @@\n+first\n+second\n",
+            "one\ntwo\nfirst\nsecond\nthree\nfour\n",
+        ),
+        ("eof", "one\ntwo\n", "@@ -2,0 +3 @@\n+added\n", "one\ntwo\nadded\n"),
+        ("crlf", "one\r\ntwo\r\n", "@@ -1,0 +2 @@\n+added\n", "one\r\nadded\ntwo\r\n"),
+        ("no final newline", "one\ntwo", "@@ -1,0 +2 @@\n+added\n", "one\nadded\ntwo"),
+        (
+            "inserted eof without newline",
+            "one\ntwo\n",
+            "@@ -2,0 +3 @@\n+added\n\\ No newline at end of file\n",
+            "one\ntwo\nadded",
+        ),
+        (
+            "empty file without newline",
+            "",
+            "@@ -0,0 +1 @@\n+added\n\\ No newline at end of file\n",
+            "added",
+        ),
+    ] {
+        let patched = tempdir().unwrap();
+        let target = patched.path().join("file.txt");
+        fs::write(&target, original).unwrap();
+        let patch_dir = tempdir().unwrap();
+        let patch = write_patch(
+            patch_dir.path(),
+            &format!("diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n{hunk}"),
+        );
+
+        apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+        let after = fs::read(&target).unwrap();
+        eprintln!("{name}: {:?}", String::from_utf8_lossy(&after));
+        assert_eq!(after, expected.as_bytes(), "{name}");
+    }
+}
+
+#[test]
 fn missing_patch_file_errors_patch_not_found() {
     let patched = tempdir().unwrap();
     let missing = patched.path().join("does-not-exist.patch");

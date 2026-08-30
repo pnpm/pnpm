@@ -153,3 +153,52 @@ fn applies_several_hunks_against_the_same_baseline() {
 ";
     assert_eq!(applied(original, patch), "a\nA\nb\nc\nd\ne\nf\ng\nh\ni\nj\nK\nl\n");
 }
+
+#[test]
+fn applies_several_zero_context_insertions_against_the_same_baseline() {
+    let original = "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\n";
+    let patch = "\
+--- a/file.txt
++++ b/file.txt
+@@ -0,0 +1 @@
++START
+@@ -1,0 +3 @@
++A
+@@ -6,0 +9 @@
++F
+@@ -12,0 +16 @@
++END
+";
+    let after = applied(original, patch);
+    eprintln!("{after}");
+    assert_eq!(after, "START\na\nA\nb\nc\nd\ne\nf\nF\ng\nh\ni\nj\nk\nl\nEND\n");
+}
+
+#[test]
+fn applies_zero_context_insertions_after_deletion_and_replacement_shifts() {
+    let original = "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\n";
+    let patch = "\
+--- a/file.txt
++++ b/file.txt
+@@ -1,2 +0,0 @@
+-a
+-b
+@@ -3,0 +2 @@
++C
+@@ -5 +4,2 @@
+-e
++E1
++E2
+@@ -7,0 +8,2 @@
++G1
++G2
+@@ -10 +12 @@
+-j
++J
+@@ -12,0 +15 @@
++END
+";
+    let after = applied(original, patch);
+    eprintln!("{after}");
+    assert_eq!(after, "c\nC\nd\nE1\nE2\nf\ng\nG1\nG2\nh\ni\nJ\nk\nl\nEND\n");
+}
