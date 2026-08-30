@@ -211,7 +211,10 @@ impl FsWrite for Host {
     fn atomic_replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
         #[cfg(unix)]
         {
-            use std::{io::Write as _, sync::atomic::{AtomicU64, Ordering}};
+            use std::{
+                io::Write as _,
+                sync::atomic::{AtomicU64, Ordering},
+            };
 
             static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
             let parent = path.parent().ok_or_else(|| {
@@ -219,21 +222,17 @@ impl FsWrite for Host {
             })?;
             for _ in 0..64 {
                 let sequence = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
-                let temp_path =
-                    parent.join(format!(".pnpm-tmp-{}-{sequence}", std::process::id()));
-                let mut temp = match std::fs::OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(&temp_path)
-                {
-                    Ok(temp) => temp,
-                    Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
-                    Err(error) => return Err(error),
-                };
+                let temp_path = parent.join(format!(".pnpm-tmp-{}-{sequence}", std::process::id()));
+                let mut temp =
+                    match std::fs::OpenOptions::new().write(true).create_new(true).open(&temp_path)
+                    {
+                        Ok(temp) => temp,
+                        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                        Err(error) => return Err(error),
+                    };
 
-                if let Err(error) = temp
-                    .write_all(bytes)
-                    .and_then(|()| std::fs::rename(&temp_path, path))
+                if let Err(error) =
+                    temp.write_all(bytes).and_then(|()| std::fs::rename(&temp_path, path))
                 {
                     let _ = std::fs::remove_file(&temp_path);
                     return Err(error);
