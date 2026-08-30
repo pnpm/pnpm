@@ -119,6 +119,12 @@ pub trait FsCreateDirAll {
 /// lets every callsite see exactly what guarantees it gets.
 pub trait FsWrite {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()>;
+
+    /// Atomically replace `path` with `bytes` on Unix by writing a secure
+    /// sibling temporary file and renaming it over the destination. The
+    /// non-Unix implementation is a direct write because the only current
+    /// atomic-replacement caller is the POSIX command-shim path.
+    fn atomic_replace(path: &Path, bytes: &[u8]) -> io::Result<()>;
 }
 
 /// Replace the permission bits at `path` with `0o755`. Used to chmod
@@ -205,6 +211,60 @@ impl FsCreateDirAll for Host {
 impl FsWrite for Host {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
         std::fs::write(path, bytes)
+    }
+
+    fn atomic_replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
+        #[cfg(unix)]
+        {
+            use std::{
+                ffi::OsString,
+                io::Write as _,
+                sync::atomic::{AtomicU64, Ordering},
+            };
+
+            static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+            let parent = path.parent().ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "atomic replacement needs a parent")
+            })?;
+            let file_name = path.file_name().ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "atomic replacement needs a file name")
+            })?;
+
+            for _ in 0..64 {
+                let sequence = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
+                let mut temp_name = OsString::from(".");
+                temp_name.push(file_name);
+                temp_name.push(format!(".pnpm-tmp-{}-{sequence}", std::process::id()));
+                let temp_path = parent.join(temp_name);
+                let mut temp = match std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&temp_path)
+                {
+                    Ok(temp) => temp,
+                    Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                    Err(error) => return Err(error),
+                };
+
+                if let Err(error) = temp
+                    .write_all(bytes)
+                    .and_then(|()| std::fs::rename(&temp_path, path))
+                {
+                    let _ = std::fs::remove_file(&temp_path);
+                    return Err(error);
+                }
+                return Ok(());
+            }
+
+            Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "could not allocate a sibling temporary shim file",
+            ))
+        }
+        #[cfg(not(unix))]
+        {
+            std::fs::write(path, bytes)
+        }
     }
 }
 
