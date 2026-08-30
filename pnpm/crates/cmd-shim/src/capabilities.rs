@@ -234,9 +234,7 @@ impl FsWrite for Host {
 
                 if let Err(error) = temp
                     .write_all(bytes)
-                    .and_then(|()| {
-                        temp.set_permissions(std::fs::Permissions::from_mode(0o755))
-                    })
+                    .and_then(|()| temp.set_permissions(std::fs::Permissions::from_mode(0o755)))
                     .and_then(|()| std::fs::rename(&temp_path, path))
                 {
                     let _ = std::fs::remove_file(&temp_path);
