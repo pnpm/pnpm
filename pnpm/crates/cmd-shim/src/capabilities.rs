@@ -119,7 +119,9 @@ pub trait FsWrite {
     /// The production host prepares a secure sibling tempfile, sets its final
     /// mode, then renames it over the destination. The non-Unix implementation
     /// is a direct write because this operation is only used by POSIX shims.
-    fn atomic_replace_executable(path: &Path, bytes: &[u8]) -> io::Result<()>;
+    fn atomic_replace_executable(path: &Path, bytes: &[u8]) -> io::Result<()> {
+        Self::write(path, bytes)
+    }
 }
 
 /// Replace the permission bits at `path` with `0o755`. Used to chmod
