@@ -729,8 +729,17 @@ where
         }
     }
 
-    Sys::set_executable(shim_path)
-        .map_err(|error| LinkBinsError::Chmod { path: shim_path.to_path_buf(), error })?;
+    match Sys::set_executable(shim_path) {
+        Ok(()) => {}
+        // Independent installs can materialize the same GVS shim concurrently.
+        // If another writer unlinks this path between our write and chmod, it
+        // owns completing the shared shim; match the TypeScript linker and
+        // treat that ENOENT as benign. Other chmod failures remain fatal.
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(LinkBinsError::Chmod { path: shim_path.to_path_buf(), error });
+        }
+    }
     ensure_target_executable::<Sys>(target_path)?;
 
     Ok(())
