@@ -554,51 +554,47 @@ fn link_bins_propagates_chmod_error_via_di() {
 }
 
 #[test]
-fn link_bins_swallows_missing_shim_chmod_via_di() {
+fn shim_chmod_retries_transient_not_found_via_di() {
+    use std::{
+        io,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+
+    static CALLS: AtomicUsize = AtomicUsize::new(0);
+    struct TransientMissingShim;
+    impl FsSetExecutable for TransientMissingShim {
+        fn set_executable(path: &Path) -> io::Result<()> {
+            if CALLS.fetch_add(1, Ordering::Relaxed) == 0 {
+                return Err(io::Error::from(io::ErrorKind::NotFound));
+            }
+            <Host as FsSetExecutable>::set_executable(path)
+        }
+    }
+
+    CALLS.store(0, Ordering::Relaxed);
+    let tmp = tempdir().unwrap();
+    let shim = tmp.path().join("shim");
+    write_file(&shim, "#!/usr/bin/env node\n").unwrap();
+
+    super::set_shim_executable::<TransientMissingShim>(&shim)
+        .expect("a transient missing shim must be retried");
+    assert_eq!(CALLS.load(Ordering::Relaxed), 2);
+}
+
+#[test]
+fn shim_chmod_propagates_persistent_not_found_via_di() {
     use std::io;
 
-    struct MissingShimChmod;
-    impl FsReadToString for MissingShimChmod {
-        fn read_to_string(path: &Path) -> io::Result<String> {
-            <Host as FsReadToString>::read_to_string(path)
-        }
-    }
-    impl FsReadHead for MissingShimChmod {
-        fn read_head(path: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize> {
-            <Host as FsReadHead>::read_head(path, offset, buf)
-        }
-    }
-    impl FsWrite for MissingShimChmod {
-        fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
-            <Host as FsWrite>::write(path, bytes)
-        }
-    }
-    impl FsSetExecutable for MissingShimChmod {
+    struct PersistentlyMissingShim;
+    impl FsSetExecutable for PersistentlyMissingShim {
         fn set_executable(_: &Path) -> io::Result<()> {
             Err(io::Error::from(io::ErrorKind::NotFound))
         }
     }
-    impl FsEnsureExecutableBits for MissingShimChmod {
-        fn ensure_executable_bits(path: &Path) -> io::Result<()> {
-            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path)
-        }
-    }
 
-    let tmp = tempdir().unwrap();
-    let target = tmp.path().join("cli.js");
-    write_file(&target, "#!/usr/bin/env node\n").unwrap();
-    let shim = tmp.path().join(".bin/foo");
-    create_dir_all(shim.parent().unwrap()).unwrap();
-
-    super::write_shim::<MissingShimChmod>(
-        &target,
-        &shim,
-        &[],
-        false,
-        super::ShimStyle::Direct,
-        false,
-    )
-    .expect("NotFound on the shared shim chmod must be tolerated");
+    let err = super::set_shim_executable::<PersistentlyMissingShim>(Path::new("missing-shim"))
+        .expect_err("a persistently missing shim must not report success");
+    assert!(matches!(err, LinkBinsError::Chmod { .. }));
 }
 
 #[test]
