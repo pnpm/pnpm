@@ -729,20 +729,35 @@ where
         }
     }
 
-    match Sys::set_executable(shim_path) {
-        Ok(()) => {}
-        // Independent installs can materialize the same GVS shim concurrently.
-        // If another writer unlinks this path between our write and chmod, it
-        // owns completing the shared shim; match the TypeScript linker and
-        // treat that ENOENT as benign. Other chmod failures remain fatal.
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => {
-            return Err(LinkBinsError::Chmod { path: shim_path.to_path_buf(), error });
-        }
-    }
+    set_shim_executable::<Sys>(shim_path)?;
     ensure_target_executable::<Sys>(target_path)?;
 
     Ok(())
+}
+
+/// Set the shim executable bit, tolerating only a transient disappearance.
+///
+/// Independent installs sharing a GVS can race when one writer unlinks the
+/// shim between another writer's write and chmod. Give that competing writer
+/// a short bounded window to finish, but never report success while the shim
+/// remains absent. Non-`NotFound` chmod failures stay fatal.
+fn set_shim_executable<Sys>(shim_path: &Path) -> Result<(), LinkBinsError>
+where
+    Sys: FsSetExecutable,
+{
+    for delay_ms in [1, 2, 4, 8, 16] {
+        match Sys::set_executable(shim_path) {
+            Ok(()) => return Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+            }
+            Err(error) => {
+                return Err(LinkBinsError::Chmod { path: shim_path.to_path_buf(), error });
+            }
+        }
+    }
+    Sys::set_executable(shim_path)
+        .map_err(|error| LinkBinsError::Chmod { path: shim_path.to_path_buf(), error })
 }
 
 /// Make the underlying script executable: apply a minimum mode of
