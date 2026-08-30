@@ -714,7 +714,7 @@ where
         // clobber hazard of truncate-in-place and the shared-GVS unlink/write
         // window that allowed another installer to make this path disappear.
         #[cfg(unix)]
-        Sys::atomic_replace(shim_path, sh_body.as_bytes())
+        Sys::atomic_replace_executable(shim_path, sh_body.as_bytes())
             .map_err(|error| LinkBinsError::WriteShim { path: shim_path.to_path_buf(), error })?;
         #[cfg(not(unix))]
         {
