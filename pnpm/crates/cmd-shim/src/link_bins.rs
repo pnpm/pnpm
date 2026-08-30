@@ -729,8 +729,16 @@ where
         }
     }
 
-    Sys::set_executable(shim_path)
-        .map_err(|error| LinkBinsError::Chmod { path: shim_path.to_path_buf(), error })?;
+    // In a shared GVS another installer can replace the same shim between
+    // our write and chmod. The process that removed it will publish the
+    // equivalent shim, so `NotFound` is a benign concurrent-writer race.
+    match Sys::set_executable(shim_path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(LinkBinsError::Chmod { path: shim_path.to_path_buf(), error });
+        }
+    }
     ensure_target_executable::<Sys>(target_path)?;
 
     Ok(())
